@@ -3847,6 +3847,15 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
   font-size:11px; color:#C9C2B0; /* v0.71.89: -2px; v0.71.90: -3px more */
   cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;
 }
+/* v0.72.73 — icona dell'archetipo accanto al testo della checkbox. Altezza
+   fissa e larghezza automatica: le icone hanno proporzioni diverse fra loro
+   (66x68, 90x64, 76x82...) e imporre un quadrato le deformerebbe. Un'icona
+   non ancora caricata viene nascosta dal suo stesso onerror, cosi' al posto
+   dell'immagine rotta resta il solo nome, allineato con gli altri. */
+.card-db-filter-icon{
+  height:18px; width:auto; flex-shrink:0;
+  object-fit:contain; display:block;
+}
 .card-db-filter-opt input[type="checkbox"]{
   width:16px; height:16px; flex-shrink:0;
   accent-color:#8a9a3a;
@@ -4313,7 +4322,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.72.72</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.72.73</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -4619,29 +4628,16 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
         <label class="card-db-filter-opt"><input type="checkbox" data-rarity-filter="timeless" onchange="cardDbApplyFilters()">Timeless</label>
       </div>
     </div>
-    <!-- v0.71.91 NEW ("rendi funzionanti i filtri 'archetipi'"): the old
-         15-option placeholder list (Ingannatore/Nobile/... — an early,
-         never-implemented archetype naming scheme) replaced with the 7 REAL
-         archetype keys that actually exist as icon assets and are assigned
-         to cards today (see CARD_ARCHETYPE_ICON_* / FINAL_CARDS' own
-         archetypes arrays) — Animal, Royal, Small, Enchanter, Princess,
-         Trickster, Wise. Same live/functional pattern as the Abilità filter
-         just below: each checkbox carries an explicit data-archetype-filter
-         value (the internal key used in card.archetypes), read by
-         cardDbApplyFilters() to actually hide/show grid slots. -->
+    <!-- v0.72.73: l'elenco degli archetipi NON e' piu' scritto qui. Era una
+         lista fissa di nove voci, e il foglio nel frattempo ne usa altre —
+         Artisan, Guardian, Sovereign, Chaotic, Construct, Cruel, Magical,
+         Noble, Wild — mentre Animal e Royal sono spariti. Una lista scritta a
+         mano in un file di ventimila righe e' una cosa che si dimentica di
+         aggiornare. Ora la riempie cardDbBuildArchetypeFilter() con quello che
+         trova davvero nelle carte caricate, icona compresa. -->
     <div class="card-db-filter-box">
       <div class="card-db-filter-title">Archetypes</div>
-      <div class="card-db-filter-options" id="card-db-archetype-filter-options">
-        <label class="card-db-filter-opt"><input type="checkbox" data-archetype-filter="animal" onchange="cardDbApplyFilters()">Animal</label>
-        <label class="card-db-filter-opt"><input type="checkbox" data-archetype-filter="royal" onchange="cardDbApplyFilters()">Royal</label>
-        <label class="card-db-filter-opt"><input type="checkbox" data-archetype-filter="small" onchange="cardDbApplyFilters()">Small</label>
-        <label class="card-db-filter-opt"><input type="checkbox" data-archetype-filter="enchanter" onchange="cardDbApplyFilters()">Enchanter</label>
-        <label class="card-db-filter-opt"><input type="checkbox" data-archetype-filter="princess" onchange="cardDbApplyFilters()">Princess</label>
-        <label class="card-db-filter-opt"><input type="checkbox" data-archetype-filter="trickster" onchange="cardDbApplyFilters()">Trickster</label>
-        <label class="card-db-filter-opt"><input type="checkbox" data-archetype-filter="wise" onchange="cardDbApplyFilters()">Wise</label>
-        <label class="card-db-filter-opt"><input type="checkbox" data-archetype-filter="child" onchange="cardDbApplyFilters()">Child</label>
-        <label class="card-db-filter-opt"><input type="checkbox" data-archetype-filter="explorer" onchange="cardDbApplyFilters()">Explorer</label>
-      </div>
+      <div class="card-db-filter-options" id="card-db-archetype-filter-options"></div>
     </div>
     <!-- v0.71.76 NEW ("aggiungi una categoria filtri 'Abilità'... puoi già
          rendere funzionante questo filtro"): unlike Rarità/Archetipi above
@@ -5265,6 +5261,7 @@ if(document.readyState==='loading'){
       ? caricaCarteDalFoglio() : Promise.resolve(false);
     carteProntePer
       .then(()=> (typeof verificaArtCarte === 'function') ? verificaArtCarte() : null)
+      .then(()=> (typeof verificaIconeArchetipi === 'function') ? verificaIconeArchetipi() : null)
       .then(_proseguiCaricamento, _proseguiCaricamento);
   }
   function _proseguiCaricamento(){
@@ -6555,6 +6552,17 @@ const CARDS_SHEET_ID = '17atpUlgmzHMZibOMDKEMyr9LxN8o0aK18Gg-Q1Ziko4'; // solo p
 const CARDS_SHEET_CSV_URL =
   'https://docs.google.com/spreadsheets/d/e/2PACX-1vQQuS2iOVZq9CLsdBxpwzj163l99wQebHtD0Lgf2XGPDyTLsLkC9EEHjolI4i4wQq37lElO8a1dz3Uw/pub?output=csv';
 const CARDS_SHEET_TIMEOUT_MS = 5000;
+// v0.72.73 — IL FOGLIO SI CHIEDE PER NOME.
+// Il documento contiene piu' schede: quella viva ("Cards DB") e la precedente
+// ("Foglio1"), rimasta li' con una struttura diversa. Fino alla v0.72.72 il
+// gioco non diceva quale voleva, e chiedere "la scheda" senza specificarla NON
+// e' una richiesta deterministica: due letture fatte a pochi secondi di
+// distanza hanno restituito schede diverse. Significa che quali carte
+// finivano in partita era, letteralmente, questione di fortuna.
+// Ora la scheda si nomina. Se un domani verra' rinominata, il caricamento
+// fallira' in modo evidente e con un messaggio chiaro, che e' molto meglio di
+// leggere in silenzio la scheda sbagliata.
+const CARDS_SHEET_NAME = 'Cards DB';
 
 // Parser CSV minimale ma corretto sulle virgolette: i flavour text contengono
 // virgole dentro le citazioni, quindi split(',') romperebbe le righe.
@@ -6574,6 +6582,41 @@ function _csvParse(testo){
   return righe;
 }
 
+// ── STANDARD DI RARITA' (v0.72.73) ─────────────────────────────────────────
+// Due tabelle che il foglio puo' sempre scavalcare: se la colonna
+// corrispondente e' compilata, vince quella. Servono perche' oggi quelle
+// colonne sono vuote su TUTTE le righe, e senza uno standard nessuna carta
+// avrebbe gemme ne' probabilita' di uscita.
+//
+// SLOT GEMME: quanti incastonatori mostra la carta, per rarita' e livello.
+// Un indice per livello, da 1 a 4.
+const GEMME_STANDARD = {
+  common:   [0, 0, 1, 1],
+  rare:     [0, 1, 1, 2],
+  mythic:   [1, 1, 1, 2],
+  timeless: [1, 1, 2, 3],
+};
+// PROBABILITA' DI USCITA, in percentuale, per rarita'.
+const DROP_RATE_STANDARD = { common:65, rare:22, mythic:10, timeless:3 };
+
+// GLI SLOT GEMMA NON HANNO NIENTE A CHE VEDERE CON I GRUPPI DI VALORI.
+// Sono due cose separate: i gruppi nascono dai numeri sui lati, gli slot
+// gemma sono incastonatori che la carta possiede per rarita' e livello. Una
+// carta con due gruppi di valori puo' benissimo avere tre gemme.
+// (Il codice piu' vecchio le teneva legate — le chiavi di groupGems erano il
+// primo lato di ogni gruppo — e da li' viene il nome del campo. La carta
+// disegna un incastonatore per CHIAVE, in fila da destra, senza mai guardare
+// a quale gruppo corrisponda: conta solo quante ce ne sono.)
+// Il valore null significa "slot vero, ma vuoto": e' cosi' che si ottiene
+// l'incastonatore senza la gemma dentro, che e' lo stato di tutte le carte
+// finche' non esistera' un modo di incastonarle.
+function slotGemmeDaConteggio(quanti){
+  const n = Math.max(0, quanti|0);
+  const out = {};
+  for(let i=0;i<n;i++) out['slot'+i] = null;
+  return out;
+}
+
 // Legge la prima colonna disponibile fra piu' nomi possibili. Serve perche' i
 // titoli del foglio condiviso cambiano nel tempo (es. "Level (Temp)", che un
 // giorno diventera' "Level"): accettarne piu' d'uno evita che una rinomina
@@ -6589,20 +6632,41 @@ function getAlt(get, nomi){
 function _cardaDaRiga(col, get){
   const nome=(get('Name')||'').trim();
   if(!nome) return null;
-  // v0.72.70 — E' LA RARITY A DIRE SE UNA RIGA E' UNA CARTA.
-  // Il foglio contiene 124 nomi, ma molti sono ancora solo idee: nessuna
-  // rarita', nessun valore, niente. Il criterio di esistenza scelto da
-  // Lorenzo e' la colonna Rarity — compilarla e' l'atto con cui una riga
-  // diventa una carta vera. Prima il filtro erano i valori dei lati, che
-  // teneva fuori anche carte gia' decise ma non ancora bilanciate.
-  const rarita=(get('Rarity')||'').trim().toLowerCase();
+  // v0.72.73 — E' LA COLONNA "VISIBLE" A DIRE SE UNA RIGA E' UNA CARTA.
+  // Il foglio contiene oltre cento nomi, ma la maggior parte sono ancora idee.
+  // Chi lo cura marca con Yes le righe pronte a entrare in gioco: e' una
+  // decisione esplicita, presa da una persona, e vale piu' di qualunque
+  // criterio indiretto. Prima si guardava la Rarity, e prima ancora i valori
+  // dei lati — entrambi indovinavano l'intenzione invece di leggerla.
+  // Se la colonna non c'e' proprio (schede piu' vecchie), si ripiega sul
+  // criterio precedente invece di dichiarare che non esiste nessuna carta.
+  const AFFERMATIVI=['yes','y','si','sì','true','vero','x','1'];
+  const haColonnaVisible = col.indexOf('Visible') >= 0;
+  if(haColonnaVisible && !AFFERMATIVI.includes((get('Visible')||'').trim().toLowerCase())) return null;
+  // La rarita' resta necessaria a gemme, drop rate e colore della gemma di
+  // livello: se manca si assume la piu' comune, che e' il default meno
+  // sorprendente.
   const RARITA_VALIDE=['common','rare','mythic','timeless'];
-  if(!RARITA_VALIDE.includes(rarita)) return null;
+  let rarita=(get('Rarity')||'').trim().toLowerCase();
+  if(!RARITA_VALIDE.includes(rarita)){
+    if(!haColonnaVisible) return null; // vecchio criterio: senza rarita' non e' una carta
+    rarita='common';
+  }
   // I valori si prendono dal foglio quando ci sono TUTTI E SEI. Se ne manca
   // anche uno solo la carta non e' mezza compilata: e' da compilare, e mettere
   // in gioco tre lati veri e tre inventati sarebbe peggio che inventarli
   // tutti, perche' il risultato sembrerebbe intenzionale. Vedi la regola dei
   // valori sopra per come vengono generati quelli provvisori.
+  // Livello e slot gemme: indipendenti dai valori dei lati, si calcolano qui
+  // perche' servono entrambi piu' sotto.
+  const liv=parseInt(getAlt(get,['Level','Level (Temp)']),10);
+  const livello=isFinite(liv)?Math.max(1,Math.min(4,liv)):livelloCasualeStabile(nome);
+  const gemmeDaFoglio=parseInt(get('Gem slots'),10);
+  const slotGemmeDalFoglio=isFinite(gemmeDaFoglio) && gemmeDaFoglio>=0;
+  const slotGemme = slotGemmeDalFoglio
+    ? gemmeDaFoglio
+    : ((GEMME_STANDARD[rarita] || GEMME_STANDARD.common)[livello-1] || 0);
+
   const lati=['NW','NE','E','SE','SW','W'];
   let values={};
   let completa=true;
@@ -6658,7 +6722,6 @@ function _cardaDaRiga(col, get){
   const archetipi=[get('Archetype (Role)'),get('Archetype (Trait)')]
     .map(x=>(x||'').trim().toLowerCase())
     .filter(x=>x && !ARCHETIPI_VUOTI.includes(x));
-  const liv=parseInt(getAlt(get,['Level','Level (Temp)']),10);
   // ABILITA': si risolve il NOME MOSTRATO del foglio contro il registro vero.
   // Derivare la chiave dal nome con una semplice normalizzazione NON funziona,
   // ed e' un errore che avevo gia' commesso: su 17 abilita' solo 12 combaciano.
@@ -6680,11 +6743,30 @@ function _cardaDaRiga(col, get){
     }
     if(!abilita) abilita=abGrezza.toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'');
   }
+  // Il drop rate accetta sia "3" sia "3%" sia "3,5", perche' in un foglio
+  // compilato a mano compaiono tutte e tre.
+  const dropDaFoglio=parseFloat(String(get('Drop rate (%)')||'').replace('%','').replace(',','.'));
+  const dropRateDalFoglio=isFinite(dropDaFoglio) && dropDaFoglio>=0;
+  const dropRate = dropRateDalFoglio ? dropDaFoglio : (DROP_RATE_STANDARD[rarita] ?? 0);
+
   return {
     id:'final-'+slug,
     name:nome,
     quote:(get('Flavour text')||'').trim(),
-    values, groupGems:{}, activatedGroups:{},
+    values,
+    // v0.72.73 — SLOT GEMME. Standard per rarita' e livello (vedi
+    // GEMME_STANDARD), scavalcato dalla colonna "Gem slots" quando c'e' scritto
+    // un numero. Le carte del foglio avevano groupGems sempre vuoto, ed e' per
+    // questo che gli incastonatori non si vedevano mai.
+    groupGems: slotGemmeDaConteggio(slotGemme),
+    activatedGroups:{},
+    // Probabilita' che la carta esca da una bustina. Non c'e' ancora niente da
+    // aprire, quindi per ora e' solo un dato che la carta si porta dietro:
+    // standard per rarita', scavalcato dalla colonna "Drop rate (%)".
+    dropRate: dropRate,
+    dropRateProvvisorio: !dropRateDalFoglio,
+    gemSlots: slotGemme,
+    gemSlotsProvvisori: !slotGemmeDalFoglio,
     // v0.72.67 — niente piu' arte piatta: l'illustrazione e' SEMPRE la pila
     // di 4 livelli in cards/art/<slug>/, riempita dopo la verifica di
     // esistenza (vedi verificaArtCarte). artDark/artLight restano nulli
@@ -6719,7 +6801,7 @@ function _cardaDaRiga(col, get){
     // stesso a ogni avvio: il livello governa gemme e tier degli effetti foil
     // in Collezione, e vederli cambiare da soli fra una partita e l'altra
     // sembrerebbe un bug. Stessa carta, stesso livello, sempre.
-    level:isFinite(liv)?liv:livelloCasualeStabile(nome),
+    level:livello,
   };
 }
 
@@ -6807,6 +6889,7 @@ function _foglioViaScript(){
     // vecchia tenuta in cache: il foglio cambia spesso e va riletto ogni volta.
     script.src = 'https://docs.google.com/spreadsheets/d/' + CARDS_SHEET_ID +
                  '/gviz/tq?tqx=out:json;responseHandler:' + nomeCallback +
+                 '&sheet=' + encodeURIComponent(CARDS_SHEET_NAME) +
                  '&t=' + Date.now();
     document.head.appendChild(script);
   }).then(_gvizAllaTabella);
@@ -6855,6 +6938,19 @@ function _applicaRigheFoglio(righe){
     return false;
   }
   const col = righe[0].map(x => x.trim());
+  // v0.72.73 — la copia pubblicata (la seconda strada, vedi _foglioViaCsv) non
+  // permette di scegliere la scheda per nome: serve quella che qualcuno ha
+  // pubblicato, e nessuno garantisce sia quella giusta. Un paio di colonne
+  // obbligatorie fanno da firma: se non ci sono, quello che e' arrivato non e'
+  // il database delle carte e si preferisce la tabella interna a un roster
+  // costruito su colonne che non esistono.
+  const COLONNE_ATTESE = ['Name','Rarity'];
+  const mancanti = COLONNE_ATTESE.filter(c => col.indexOf(c) < 0);
+  if(mancanti.length){
+    console.warn('[carte] la tabella ricevuta non sembra il database delle carte'
+      + ' (mancano le colonne: ' + mancanti.join(', ') + '). Colonne trovate: ' + col.join(' | '));
+    return false;
+  }
   const nuove = [];
   for(let i=1;i<righe.length;i++){
     const r = righe[i];
@@ -7452,6 +7548,10 @@ function cardDbRenderRoster(){
     _cardDbGridBusy = false;
   }
   grid.innerHTML='';
+  // v0.72.73 — l'elenco degli archetipi si rifa' qui: e' il punto in cui il
+  // roster e' appena stato letto ED e' anche quello attraversato dal cambio
+  // dark/light, che deve girare pure le icone del filtro.
+  cardDbBuildArchetypeFilter();
   for(const entry of FINAL_CARDS){
     const card=_makeCardDbCard(entry, _cardDbVariant);
     const slot=document.createElement('div');
@@ -7972,6 +8072,57 @@ function cardDbAnimateFilterChange(matchResults, animate){
 // is now a real live filter too (see cardDbApplyFilters' own v0.72.2 comment)
 // — this generic "uncheck every checkbox under #card-db-right" already
 // covers it with no changes needed here.
+// v0.72.73 — COSTRUISCE L'ELENCO DEGLI ARCHETIPI DAL ROSTER.
+// Legge gli archetipi che compaiono davvero nelle carte caricate (colonne
+// Archetype (Role) e Archetype (Trait), gia' fuse in card.archetypes dal
+// lettore del foglio) e crea una checkbox per ciascuno, con l'icona a
+// sinistra del nome.
+// Lo stato delle caselle spuntate viene conservato attraverso la
+// ricostruzione: questa funzione gira anche quando si gira la Collezione fra
+// dark e light — perche' le icone hanno due varianti — e perdere i filtri
+// attivi a ogni giro sarebbe fastidioso e inspiegabile.
+// Il valore data-archetype-filter e' la stessa chiave interna che le carte
+// hanno in card.archetypes: cardDbApplyFilters continua a leggerlo identico,
+// senza sapere che l'elenco ora e' dinamico.
+function cardDbBuildArchetypeFilter(){
+  const box = document.getElementById('card-db-archetype-filter-options');
+  if(!box) return;
+  const spuntati = new Set(
+    [...box.querySelectorAll('input[type="checkbox"]:checked')].map(cb=>cb.dataset.archetypeFilter)
+  );
+  const chiavi = archetipiDelRoster();
+  box.innerHTML = '';
+  if(!chiavi.length){
+    box.innerHTML = '<div class="card-db-filter-opt" style="opacity:0.55">Nessun archetipo nel foglio</div>';
+    return;
+  }
+  const isDark = _cardDbVariant===1;
+  for(const chiave of chiavi){
+    const label = document.createElement('label');
+    label.className = 'card-db-filter-opt';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.dataset.archetypeFilter = chiave;
+    cb.checked = spuntati.has(chiave);
+    cb.addEventListener('change', ()=>cardDbApplyFilters());
+    const icona = document.createElement('img');
+    icona.className = 'card-db-filter-icon';
+    icona.alt = '';
+    icona.draggable = false;
+    // Un archetipo la cui icona non e' ancora stata disegnata non deve
+    // lasciare il segnaposto di immagine rotta: sparisce e resta il nome.
+    icona.onerror = ()=>{ icona.style.display='none'; };
+    icona.src = archetypeIconUrl(chiave, isDark);
+    const testo = document.createElement('span');
+    // Il foglio scrive "Artisan", il codice normalizza a "artisan": qui si
+    // rimette la maiuscola per la lettura, senza toccare la chiave.
+    testo.textContent = chiave.charAt(0).toUpperCase() + chiave.slice(1);
+    label.appendChild(cb);
+    label.appendChild(icona);
+    label.appendChild(testo);
+    box.appendChild(label);
+  }
+}
 function cardDbResetFilters(){
   document.querySelectorAll('#card-db-right input[type="checkbox"]').forEach(cb=>{ cb.checked=false; });
   cardDbApplyFilters();
@@ -10062,9 +10213,10 @@ function valoriRispettanoLaRegola(values){
 
 function valoriProvvisori(nome){
   const rnd = _semeDaNome(nome);
+  const minimo = VALORI_GRUPPI_MIN_GENERATI;
   for(let tentativo=0; tentativo<600; tentativo++){
-    const scelte = VALORI_GRUPPI_MAX - VALORI_GRUPPI_MIN_GENERATI + 1;
-    const nGruppi = VALORI_GRUPPI_MIN_GENERATI + Math.floor(rnd()*scelte);
+    const scelte = VALORI_GRUPPI_MAX - minimo + 1;
+    const nGruppi = minimo + Math.floor(rnd()*scelte);
     // Sei lati divisi in nGruppi fette contigue, ciascuna di almeno un lato.
     const misure = [];
     let restanti = 6;
@@ -10084,7 +10236,7 @@ function valoriProvvisori(nome){
     // gruppi confinanti a cui e' toccato lo stesso valore si fondono, e con
     // il giro completo puo' succedere anche fra il primo e l'ultimo. Si
     // controlla percio' il risultato, non l'intenzione.
-    if(valoriRispettanoLaRegola(values) && getGroups(values).length >= VALORI_GRUPPI_MIN_GENERATI) return values;
+    if(valoriRispettanoLaRegola(values) && getGroups(values).length >= minimo) return values;
   }
   // Ripiego che non puo' fallire: due gruppi, somma 18, tre gruppi mai.
   // Serve solo a garantire che questa funzione restituisca SEMPRE una carta
@@ -14241,54 +14393,88 @@ const CARD_BASE_LIGHT = CARD_PARTS_BASE+'card-base-light.png';
 // quindi continuava a scaricarli e a incassare quattro 404 a ogni avvio.
 const CARD_VALUE_VISUAL_HINT_DARK  = CARD_PARTS_BASE+'value-visual-hint-dark.png';
 const CARD_VALUE_VISUAL_HINT_LIGHT = CARD_PARTS_BASE+'value-visual-hint-light.png';
-// v0.72.3 FIX ("ho anche creato le versioni light e dark per le icone
-// archetipi. aggiorna i link con la nomenclatura corretta"): every archetype
-// icon used to be a single bare-filename asset shared by both factions — now
-// faction-coded like every other card asset, via CARD_ARCHETYPE_ICON_BY_KEY
-// below (keyed by archetype name, each entry {dark,light,w,h}). The old bare
-// CARD_ARCHETYPE_ICON_* constants are kept pointing at the DARK variant, same
-// "kept as alias, not deleted" convention as CARD_GEM_SOCKET_IMG/
-// CARD_LEVEL_SOCKET_IMG above — nothing else references these bare names any
-// more (ARCHETYPE_ICONS/ARCH_ICON_SRC below both now read from
-// CARD_ARCHETYPE_ICON_BY_KEY instead), kept purely so a stray reference
-// elsewhere doesn't silently break.
-const CARD_ARCHETYPE_ICON_ANIMAL_DARK = CARD_PARTS_BASE+'archetype-icon-animal-dark.png';
-const CARD_ARCHETYPE_ICON_ANIMAL_LIGHT = CARD_PARTS_BASE+'archetype-icon-animal-light.png';
-const CARD_ARCHETYPE_ICON_ROYAL_DARK  = CARD_PARTS_BASE+'archetype-icon-royal-dark.png';
-const CARD_ARCHETYPE_ICON_ROYAL_LIGHT  = CARD_PARTS_BASE+'archetype-icon-royal-light.png';
-// v0.71.78 NEW ("small" archetype icon, uploaded per Snow White's "Hooray!
-// She stays!" synergy — see activateSnowWhiteSynergy for the mechanic).
-const CARD_ARCHETYPE_ICON_SMALL_DARK = CARD_PARTS_BASE+'archetype-icon-small-dark.png';
-const CARD_ARCHETYPE_ICON_SMALL_LIGHT = CARD_PARTS_BASE+'archetype-icon-small-light.png';
-// v0.71.90 NEW ("metti i corretti archetipi alle carte ora che ti ho caricato
-// le giuste icone"): the 4 remaining archetype icons of Lorenzo's full
-// 10-archetype set (animal/royal/small already existed) — assigned per
-// Lorenzo's own explicit mapping: Robin Hood = Trickster+Royal, Snow White =
-// Princess+Royal, Merlin = Wise+Enchanter (see FINAL_CARDS below).
-const CARD_ARCHETYPE_ICON_ENCHANTER_DARK = CARD_PARTS_BASE+'archetype-icon-enchanter-dark.png';
-const CARD_ARCHETYPE_ICON_ENCHANTER_LIGHT = CARD_PARTS_BASE+'archetype-icon-enchanter-light.png';
-const CARD_ARCHETYPE_ICON_PRINCESS_DARK  = CARD_PARTS_BASE+'archetype-icon-princess-dark.png';
-const CARD_ARCHETYPE_ICON_PRINCESS_LIGHT  = CARD_PARTS_BASE+'archetype-icon-princess-light.png';
-const CARD_ARCHETYPE_ICON_TRICKSTER_DARK = CARD_PARTS_BASE+'archetype-icon-trickster-dark.png';
-const CARD_ARCHETYPE_ICON_TRICKSTER_LIGHT = CARD_PARTS_BASE+'archetype-icon-trickster-light.png';
-const CARD_ARCHETYPE_ICON_WISE_DARK      = CARD_PARTS_BASE+'archetype-icon-wise-dark.png';
-const CARD_ARCHETYPE_ICON_WISE_LIGHT      = CARD_PARTS_BASE+'archetype-icon-wise-light.png';
-// v0.71.98 NEW ("Nuova carta: Alice... archetipi Child + Explorer"): two more
-// icons from the same GitHub asset set, previously unused.
-const CARD_ARCHETYPE_ICON_CHILD_DARK     = CARD_PARTS_BASE+'archetype-icon-child-dark.png';
-const CARD_ARCHETYPE_ICON_CHILD_LIGHT     = CARD_PARTS_BASE+'archetype-icon-child-light.png';
-const CARD_ARCHETYPE_ICON_EXPLORER_DARK  = CARD_PARTS_BASE+'archetype-icon-explorer-dark.png';
-const CARD_ARCHETYPE_ICON_EXPLORER_LIGHT  = CARD_PARTS_BASE+'archetype-icon-explorer-light.png';
-// Kept as dark-variant aliases — see this block's own v0.72.3 comment above.
-const CARD_ARCHETYPE_ICON_ANIMAL = CARD_ARCHETYPE_ICON_ANIMAL_DARK;
-const CARD_ARCHETYPE_ICON_ROYAL  = CARD_ARCHETYPE_ICON_ROYAL_DARK;
-const CARD_ARCHETYPE_ICON_SMALL = CARD_ARCHETYPE_ICON_SMALL_DARK;
-const CARD_ARCHETYPE_ICON_ENCHANTER = CARD_ARCHETYPE_ICON_ENCHANTER_DARK;
-const CARD_ARCHETYPE_ICON_PRINCESS  = CARD_ARCHETYPE_ICON_PRINCESS_DARK;
-const CARD_ARCHETYPE_ICON_TRICKSTER = CARD_ARCHETYPE_ICON_TRICKSTER_DARK;
-const CARD_ARCHETYPE_ICON_WISE      = CARD_ARCHETYPE_ICON_WISE_DARK;
-const CARD_ARCHETYPE_ICON_CHILD     = CARD_ARCHETYPE_ICON_CHILD_DARK;
-const CARD_ARCHETYPE_ICON_EXPLORER  = CARD_ARCHETYPE_ICON_EXPLORER_DARK;
+// ── ICONE DEGLI ARCHETIPI (v0.72.73) ───────────────────────────────────────
+// Prima erano decine di costanti scritte a mano: due varianti e due misure per
+// ciascuno dei nove archetipi allora previsti. Non regge piu', per due motivi.
+// Il primo: gli archetipi ora li decide il foglio, e ne sono gia' comparsi di
+// nuovi (Artisan, Guardian, Sovereign, Chaotic, Construct, Cruel, Magical,
+// Noble, Wild). Una lista nel codice andrebbe rincorsa a ogni aggiunta.
+// Il secondo: le misure scritte a mano erano gia' sbagliate. Il codice
+// dichiarava princess 68x70 e child 80x76; i file veri sono 66x68 e 78x74.
+// Nessuno se n'era accorto perche' lo scarto e' di pochi pixel, ma le icone
+// venivano disegnate leggermente deformate.
+//
+// Adesso l'URL si costruisce dalla chiave e le dimensioni si MISURANO
+// caricando il file (vedi verificaIconeArchetipi, che gira al caricamento
+// insieme al resto). Un archetipo nuovo funziona da solo appena il PNG compare
+// in cards/card-parts/Archetypes/, senza toccare una riga di codice.
+// Attenzione alla A maiuscola di "Archetypes": GitHub Pages distingue
+// maiuscole e minuscole, e un percorso sbagliato qui darebbe icone invisibili
+// senza il minimo errore in console.
+const ARCHETYPE_ICONS_BASE = CARD_PARTS_BASE + 'Archetypes/';
+const ARCHETYPE_ICONS_REL = 'cards/card-parts/Archetypes/';
+// Proporzione di ripiego finche' un'icona non e' stata misurata (o se il file
+// non esiste ancora): la media di quelle esistenti. Sbaglia di poco e non fa
+// mai saltare il disegno.
+const ARCHETYPE_ICON_W_DEFAULT = 78, ARCHETYPE_ICON_H_DEFAULT = 74;
+const _archetipiMisure = {}; // chiave -> {w,h}, riempita da verificaIconeArchetipi
+
+function archetypeIconUrl(chiave, isDark){
+  return ARCHETYPE_ICONS_BASE + 'archetype-icon-' + chiave + '-' + (isDark ? 'dark' : 'light') + '.png';
+}
+// Stessa forma del vecchio dizionario CARD_ARCHETYPE_ICON_BY_KEY
+// ({dark, light, w, h}), cosi' i punti che disegnano le icone non hanno dovuto
+// cambiare struttura — solo passare da una lettura di dizionario a una
+// chiamata di funzione.
+function archetypeIconInfo(chiave){
+  if(!chiave) return null;
+  const m = _archetipiMisure[chiave];
+  return {
+    dark:  archetypeIconUrl(chiave, true),
+    light: archetypeIconUrl(chiave, false),
+    w: m ? m.w : ARCHETYPE_ICON_W_DEFAULT,
+    h: m ? m.h : ARCHETYPE_ICON_H_DEFAULT,
+  };
+}
+// Tutti gli archetipi nominati dal foglio, in ordine alfabetico.
+function archetipiDelRoster(){
+  const visti = new Set();
+  for(const e of (typeof FINAL_CARDS!=='undefined' ? FINAL_CARDS : [])){
+    for(const a of (e.archetypes||[])) if(a) visti.add(a);
+  }
+  return [...visti].sort();
+}
+// Misura le icone degli archetipi presenti nel roster. Stessa tecnica del
+// resto degli asset: si carica il file e si legge quanto e' grande davvero,
+// invece di fidarsi di un numero scritto altrove che col tempo diverge.
+function verificaIconeArchetipi(){
+  const chiavi = archetipiDelRoster();
+  if(!chiavi.length) return Promise.resolve();
+  const lavori = chiavi.map(chiave => new Promise(risolvi => {
+    const candidati = _candidati(ARCHETYPE_ICONS_REL + 'archetype-icon-' + chiave + '-dark.png',
+                                 archetypeIconUrl(chiave, true));
+    const passo = i => {
+      if(i >= candidati.length) return risolvi(null);
+      const img = new Image();
+      img.onload = () => {
+        if(img.naturalWidth && img.naturalHeight){
+          _archetipiMisure[chiave] = {w: img.naturalWidth, h: img.naturalHeight};
+        }
+        risolvi(true);
+      };
+      img.onerror = () => passo(i+1);
+      img.src = candidati[i];
+    };
+    passo(0);
+  }));
+  const scaduto = new Promise(res => setTimeout(()=>res('__SCADUTO__'), 6000));
+  return Promise.race([Promise.all(lavori), scaduto]).then(()=>{
+    const misurate = chiavi.filter(k => _archetipiMisure[k]);
+    const senza = chiavi.filter(k => !_archetipiMisure[k]);
+    console.info('[archetipi] ' + misurate.length + '/' + chiavi.length + ' icone trovate'
+      + (senza.length ? ' — ancora da caricare: ' + senza.join(', ') : ''));
+  });
+}
 // v0.71.16 FIX ("ho notato che card-gem-socket e card-level-socket non
 // erano faction coded... ti ho caricato la versione light e dark di
 // entrambi"): both sockets are now per-variant, same -dark/-light naming
@@ -14413,35 +14599,8 @@ const CARD_VALUE_VISUAL_HINT_NATIVE_W = 138, CARD_VALUE_VISUAL_HINT_NATIVE_H = 1
 // diverge from the old bare-filename assets' own native size: enchanter
 // 96x76->90x84, princess 66x74->68x70, trickster 80x64->90x64, wise
 // 62x80->72x70 (animal/royal/small/child/explorer unchanged).
-const CARD_ARCHETYPE_ICON_ANIMAL_NATIVE_W = 80, CARD_ARCHETYPE_ICON_ANIMAL_NATIVE_H = 75;
-const CARD_ARCHETYPE_ICON_ROYAL_NATIVE_W  = 80, CARD_ARCHETYPE_ICON_ROYAL_NATIVE_H  = 72;
-const CARD_ARCHETYPE_ICON_SMALL_NATIVE_W  = 70, CARD_ARCHETYPE_ICON_SMALL_NATIVE_H  = 76;
-const CARD_ARCHETYPE_ICON_ENCHANTER_NATIVE_W = 90, CARD_ARCHETYPE_ICON_ENCHANTER_NATIVE_H = 84;
-const CARD_ARCHETYPE_ICON_PRINCESS_NATIVE_W  = 68, CARD_ARCHETYPE_ICON_PRINCESS_NATIVE_H  = 70;
-const CARD_ARCHETYPE_ICON_TRICKSTER_NATIVE_W = 90, CARD_ARCHETYPE_ICON_TRICKSTER_NATIVE_H = 64;
-const CARD_ARCHETYPE_ICON_WISE_NATIVE_W      = 72, CARD_ARCHETYPE_ICON_WISE_NATIVE_H      = 70;
-const CARD_ARCHETYPE_ICON_CHILD_NATIVE_W     = 80, CARD_ARCHETYPE_ICON_CHILD_NATIVE_H     = 76;
-const CARD_ARCHETYPE_ICON_EXPLORER_NATIVE_W  = 76, CARD_ARCHETYPE_ICON_EXPLORER_NATIVE_H  = 82;
-// v0.72.3 NEW: single faction-coded dict, keyed by archetype name, each entry
-// {dark,light,w,h} — models CARD_LEVEL_GEM_IMG_BY_RARITY's "dict keyed by
-// variant name" pattern combined with the plain -DARK/-LIGHT pair convention
-// used everywhere else in this file. Both ARCHETYPE_ICONS (buildFullHandCardSVG)
-// and ARCH_ICON_SRC (tooltip) now read from this single source of truth
-// instead of each keeping their own bare-filename dict.
-const CARD_ARCHETYPE_ICON_BY_KEY = {
-  animal:    {dark:CARD_ARCHETYPE_ICON_ANIMAL_DARK,    light:CARD_ARCHETYPE_ICON_ANIMAL_LIGHT,    w:CARD_ARCHETYPE_ICON_ANIMAL_NATIVE_W,    h:CARD_ARCHETYPE_ICON_ANIMAL_NATIVE_H},
-  royal:     {dark:CARD_ARCHETYPE_ICON_ROYAL_DARK,     light:CARD_ARCHETYPE_ICON_ROYAL_LIGHT,     w:CARD_ARCHETYPE_ICON_ROYAL_NATIVE_W,     h:CARD_ARCHETYPE_ICON_ROYAL_NATIVE_H},
-  small:     {dark:CARD_ARCHETYPE_ICON_SMALL_DARK,     light:CARD_ARCHETYPE_ICON_SMALL_LIGHT,     w:CARD_ARCHETYPE_ICON_SMALL_NATIVE_W,     h:CARD_ARCHETYPE_ICON_SMALL_NATIVE_H},
-  enchanter: {dark:CARD_ARCHETYPE_ICON_ENCHANTER_DARK, light:CARD_ARCHETYPE_ICON_ENCHANTER_LIGHT, w:CARD_ARCHETYPE_ICON_ENCHANTER_NATIVE_W, h:CARD_ARCHETYPE_ICON_ENCHANTER_NATIVE_H},
-  princess:  {dark:CARD_ARCHETYPE_ICON_PRINCESS_DARK,  light:CARD_ARCHETYPE_ICON_PRINCESS_LIGHT,  w:CARD_ARCHETYPE_ICON_PRINCESS_NATIVE_W,  h:CARD_ARCHETYPE_ICON_PRINCESS_NATIVE_H},
-  trickster: {dark:CARD_ARCHETYPE_ICON_TRICKSTER_DARK, light:CARD_ARCHETYPE_ICON_TRICKSTER_LIGHT, w:CARD_ARCHETYPE_ICON_TRICKSTER_NATIVE_W, h:CARD_ARCHETYPE_ICON_TRICKSTER_NATIVE_H},
-  wise:      {dark:CARD_ARCHETYPE_ICON_WISE_DARK,      light:CARD_ARCHETYPE_ICON_WISE_LIGHT,      w:CARD_ARCHETYPE_ICON_WISE_NATIVE_W,      h:CARD_ARCHETYPE_ICON_WISE_NATIVE_H},
-  child:     {dark:CARD_ARCHETYPE_ICON_CHILD_DARK,     light:CARD_ARCHETYPE_ICON_CHILD_LIGHT,     w:CARD_ARCHETYPE_ICON_CHILD_NATIVE_W,     h:CARD_ARCHETYPE_ICON_CHILD_NATIVE_H},
-  explorer:  {dark:CARD_ARCHETYPE_ICON_EXPLORER_DARK,  light:CARD_ARCHETYPE_ICON_EXPLORER_LIGHT,  w:CARD_ARCHETYPE_ICON_EXPLORER_NATIVE_W,  h:CARD_ARCHETYPE_ICON_EXPLORER_NATIVE_H},
-};
-// Kept as an alias (some older reads may still exist) — no longer used to
-// SIZE anything (see fix above), each icon now derives its own width.
-const CARD_ARCHETYPE_ICON_NATIVE_W = 80;
+// v0.72.73 — le misure delle icone archetipo non stanno piu' qui: si
+// leggono dal file (vedi verificaIconeArchetipi).
 const CARD_GEM_SOCKET_NATIVE = 80, CARD_GEM_NATIVE = 60;
 const CARD_FILL_BOTTOM_NATIVE_W = 976, CARD_FILL_BOTTOM_DARK_NATIVE_H = 474, CARD_FILL_BOTTOM_LIGHT_NATIVE_H = 486;
 const CARD_DECO_BOTTOM_NATIVE_W = 840, CARD_DECO_BOTTOM_NATIVE_H = 347;
@@ -16603,7 +16762,7 @@ function buildFullHandCardSVG(card, boxW, boxH){
   const socketCenterY = socketY+socketSize/2;
   let archX = hexLeftX;
   for(const key of archetypes){
-    const info = CARD_ARCHETYPE_ICON_BY_KEY[key];
+    const info = archetypeIconInfo(key);
     if(!info) continue;
     // Fixed HEIGHT (matches the socket row, same as before) with width
     // derived from this icon's own aspect ratio — was a flat shared width
@@ -19575,21 +19734,18 @@ function toast(msg){
 function buildCardTooltipHTML(card, onBoard, bonusInfo){
   let html = `<div class="ct-name">${escapeHtml(card.name)}</div>`;
 
-  const groups = getGroups(card.values);
+  // v0.72.73 — si scorrono gli SLOT, non i gruppi di valori: sono due cose
+  // diverse (vedi slotGemmeDaConteggio). Prima questo ciclo girava sui gruppi
+  // e mostrava solo gli slot la cui chiave corrispondeva a un gruppo, quindi
+  // una carta con tre gemme e due gruppi ne avrebbe elencate due — mentre la
+  // carta vera, che conta le chiavi, ne disegnava tre.
+  // hasOwnProperty e non la verita' del valore: uno slot vuoto vale null, che
+  // e' indistinguibile da "slot assente" se si guarda solo se e' vero.
   const gemEntries = [];
-  for(const g of groups){
-    // hasOwnProperty (not just truthiness) is required here: a group with an
-    // EMPTY slot stores groupGems[key] = null (still a real slot, just
-    // unfilled — see makeCard's "80% infondible / 70% pre-filled" comment),
-    // which is indistinguishable from "no slot at all" if we only check
-    // truthiness. Empty slots now render as a dot too (black fill, grey
-    // ring) per explicit request, so they must be captured here.
-    const hasSlot = card.groupGems && Object.prototype.hasOwnProperty.call(card.groupGems, g.sides[0]);
-    if(hasSlot){
-      const gemColor = card.groupGems[g.sides[0]];
-      const isActivated = onBoard && card.activatedGroups && card.activatedGroups[g.sides[0]];
-      gemEntries.push({gemColor, isActivated});
-    }
+  for(const slotKey of Object.keys(card.groupGems||{})){
+    const gemColor = card.groupGems[slotKey];
+    const isActivated = onBoard && card.activatedGroups && card.activatedGroups[slotKey];
+    gemEntries.push({gemColor, isActivated});
   }
   if(gemEntries.length>0){
     // Simplified per explicit request: no "Gemme" title, no per-gem name
@@ -19740,7 +19896,7 @@ function buildBoardCardTooltipHTML(card){
   // picked per isDark, same convention as nameWrapperSrc/gemSocketSrc above.
   let archHtml='';
   for(const key of archetypes){
-    const info = CARD_ARCHETYPE_ICON_BY_KEY[key];
+    const info = archetypeIconInfo(key);
     if(info) archHtml += `<img class="ctb-arch-icon" src="${isDark?info.dark:info.light}" alt=""/>`;
   }
 
@@ -19752,12 +19908,10 @@ function buildBoardCardTooltipHTML(card){
   // v0.71.16 FIX ("card-gem-socket non era faction coded... anche sul
   // tooltip"): background-image is now the faction-matched gemSocketSrc
   // computed above, set inline per socket instead of a hardcoded CSS value.
-  const groups = getGroups(card.values);
+  // v0.72.73 — come sopra: un incastonatore per SLOT, non per gruppo.
   let gemsHtml='';
-  for(const g of groups){
-    const hasSlot = card.groupGems && Object.prototype.hasOwnProperty.call(card.groupGems, g.sides[0]);
-    if(!hasSlot) continue;
-    const gemColor = card.groupGems[g.sides[0]];
+  for(const slotKey of Object.keys(card.groupGems||{})){
+    const gemColor = card.groupGems[slotKey];
     if(gemColor){
       const label = GEM_LABELS[gemColor] || gemColor;
       const tintColor = GEM_COLORS[gemColor]||gemColor;
