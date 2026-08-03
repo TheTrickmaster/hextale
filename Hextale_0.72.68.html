@@ -4574,7 +4574,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.72.67</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.72.68</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -5784,27 +5784,14 @@ const AUDIO_DATA_URLS = {
   'chain': 'https://thetrickmaster.github.io/hextale/audio/sfx/chain.wav', // Reazione a Catena's chained flips
   'click': 'https://thetrickmaster.github.io/hextale/audio/sfx/click.wav', // start-screen button press feedback
   'drain': 'https://thetrickmaster.github.io/hextale/audio/sfx/drain.wav', // Prosciuga's drain-bubble arrival sound (replaces the generic hit sfx)
-  // v0.71.92 NEW ("ogni volta che si gioca una carta [finale]... si riproduce
-  // un audio con la voce del personaggio"): one voice line per FINAL_CARDS
-  // roster entry — see CARD_VOICE_LINES below for the id->key mapping and
-  // playCardVoiceLine() for where these actually get triggered (on-board
-  // placement AND Card DB card click).
-  'robinhood-1': 'https://thetrickmaster.github.io/hextale/audio/voices/robinhood-1.mp3',
-  'snowwhite-1': 'https://thetrickmaster.github.io/hextale/audio/voices/snowwhite-1.mp3',
-  'merlin-1': 'https://thetrickmaster.github.io/hextale/audio/voices/merlin-1.mp3',
-  'alice-1': 'https://thetrickmaster.github.io/hextale/audio/voices/alice-1.mp3',
+  // v0.72.68 — le battute dei personaggi NON stanno piu' qui. Erano quattro
+  // righe scritte a mano (robinhood-1, snowwhite-1, ...) da aggiornare a ogni
+  // file nuovo, e bastava un nome fuori convenzione perche' una carta restasse
+  // muta in silenzio. Adesso vengono cercate all'avvio in audio/voices/ e
+  // registrate qui dentro da registraVociSfx, che le pre-decodifica come
+  // initSfxEngine fa con tutto il resto.
 };
 
-// Maps a FINAL_CARDS roster id to its voice-line sfx key (see
-// AUDIO_DATA_URLS above) — separate from the id itself so a future card can
-// have multiple voice-line variants (same "-1"/"-2" convention HIT_SFX_FILES
-// already uses) without changing this lookup's shape.
-const CARD_VOICE_LINES = {
-  'final-robinhood': 'robinhood-1',
-  'final-snowwhite': 'snowwhite-1',
-  'final-merlin': 'merlin-1',
-  'final-alice': 'alice-1',
-};
 // Plays the given FINAL_CARDS card's voice line, if it has one — a plain
 // card.id (e.g. "final-robinhood-1", stamped with a per-copy suffix by
 // _makeCardDbCard/deck-building) needs its trailing "-N" copy-index stripped
@@ -5827,12 +5814,26 @@ const CARD_VOICE_LINES = {
 // new one, and a click on the SAME card that's already playing is still
 // ignored (matches the original "non far ripartire l'audio finché quello
 // prima non è terminato" request for repeat-clicks specifically).
+// v0.72.68 — la battuta non e' piu' una sola per carta: verificaArtCarte
+// raccoglie tutte le <slug>-N.mp3 che trova, e qui se ne pesca una a caso a
+// ogni riproduzione (stesso spirito di playHitSfx e della rotazione musicale).
+// Con una sola battuta il comportamento e' identico a prima.
+// La guardia "una voce alla volta" continua a ragionare per CARTA e non per
+// file: due battute diverse dello stesso personaggio non devono poter partire
+// insieme, quindi la chiave del controllo resta l'id della carta.
+function _vociDellaCarta(card){
+  if(card && Array.isArray(card.voci) && card.voci.length) return card.voci;
+  const baseId = card && (card.baseId || String(card.id||'').replace(/-\d+$/,''));
+  const entry = baseId && Array.isArray(FINAL_CARDS) && FINAL_CARDS.find(e=>e.id===baseId);
+  return (entry && Array.isArray(entry.voci) && entry.voci.length) ? entry.voci : null;
+}
 let _cardVoicePlaying = null; // {voiceKey, src, timer} | null
 function playCardVoiceLine(card){
   if(!card || !card.id) return;
-  const baseId = card.baseId || card.id.replace(/-\d+$/,'');
-  const voiceKey = CARD_VOICE_LINES[baseId];
-  if(!voiceKey) return;
+  const voci = _vociDellaCarta(card);
+  if(!voci) return;
+  const voiceKey = card.baseId || String(card.id).replace(/-\d+$/,''); // chiave della guardia: la CARTA
+  const fileKey = voci[Math.floor(Math.random()*voci.length)].split('/').pop().replace(/\.mp3$/i,'');
   if(_cardVoicePlaying){
     if(_cardVoicePlaying.voiceKey===voiceKey) return; // same card still playing — ignore this click
     // A DIFFERENT card's line is playing — cut it off immediately so the
@@ -5843,9 +5844,9 @@ function playCardVoiceLine(card){
     }
     _cardVoicePlaying = null;
   }
-  const buf = _sfxBuffers[voiceKey];
+  const buf = _sfxBuffers[fileKey];
   const durationMs = (buf && buf.duration ? buf.duration : 3) * 1000;
-  const src = playSfxFile(voiceKey+'.mp3'); // AudioBufferSourceNode (Web Audio path) or undefined (new-Audio()/HTMLAudioElement fallback path — no stoppable handle, but still tracked for the same-card-ignore/duration-timeout logic)
+  const src = playSfxFile(fileKey+'.mp3'); // AudioBufferSourceNode (Web Audio path) or undefined (new-Audio()/HTMLAudioElement fallback path — no stoppable handle, but still tracked for the same-card-ignore/duration-timeout logic)
   const timer = setTimeout(()=>{ if(_cardVoicePlaying && _cardVoicePlaying.voiceKey===voiceKey) _cardVoicePlaying = null; }, durationMs);
   _cardVoicePlaying = { voiceKey, src, timer };
 }
@@ -6726,13 +6727,13 @@ function closeDebugModal(){
 // pair every card used before these icons were uploaded.
 const FINAL_CARDS = [
   {
-    id:'final-robinhood',
+    id:'final-robin-hood',
     name:'Robin Hood',
     quote:'',
     values:{NW:4, NE:4, E:9, SE:2, SW:2, W:4},
     groupGems:{},
     activatedGroups:{},
-    slug:'robinhood',
+    slug:'robin-hood',
     cardAbility:'eat_the_rich',
     archetypes:['trickster','royal'],
     // v0.72.2 NEW ("Robin hood rare, merlin epic, snow white common... Alice
@@ -6742,14 +6743,14 @@ const FINAL_CARDS = [
     level:1, // Robin Hood — governa gemme livello + tier effetti in Collezione (v0.72.15)
   },
   {
-    id:'final-snowwhite',
+    id:'final-snow-white',
     name:'Snow White',
     quote:'',
     // "Valori (partendo da NW in senso orario) 6 6 3 4 4 4" -> NW,NE,E,SE,SW,W
     values:{NW:6, NE:6, E:3, SE:4, SW:4, W:4},
     groupGems:{},
     activatedGroups:{},
-    slug:'snowwhite',
+    slug:'snow-white',
     cardAbility:'smol_friends',
     // Snow White herself is Princess/Royal, not Small — she doesn't need the
     // 'small' archetype on HERSELF for her own synergy to work:
@@ -6899,7 +6900,14 @@ function _cardaDaRiga(col, get){
   //     "Ability name", che nel foglio c'e' gia' ed e' compilata, fa da chiave
   //     senza doverne aggiungere una tecnica accanto.
   const norm=s=>(s||'').trim().toLowerCase().replace(/[^a-z0-9]+/g,'');
-  const slug=norm(nome);
+  // v0.72.68 — DUE normalizzazioni diverse, e non e' una svista. `norm` toglie
+  // ogni separatore e serve a riconoscere le abilita' ("A Kind of Magic" ->
+  // akindofmagic); lo slug dei file tiene invece i trattini, perche' e' cosi'
+  // che si chiamano cartelle e file sul disco ("Robin Hood" -> robin-hood).
+  // Usare `norm` anche per i file — come faceva la v0.72.67 — fa cercare
+  // "robinhood/" dove c'e' "robin-hood/": nessun errore in console, solo la
+  // rana al posto dell'illustrazione.
+  const slug=slugPersonaggio(nome);
   const arte=(get('Art slug')||slug).trim();
   const rarita=(get('Rarity')||'').trim().toLowerCase();
   const archetipi=[get('Archetype (Role)'),get('Archetype (Trait)')]
@@ -7140,30 +7148,43 @@ function _applicaRigheFoglio(righe){
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// v0.72.67 — L'ARTE DELLE CARTE E' SEMPRE A QUATTRO LIVELLI
+// v0.72.68 — ARTE E VOCI DEI PERSONAGGI, TROVATE DA SOLE
 // ═══════════════════════════════════════════════════════════════════════════
-// Da questa versione Lorenzo non carica piu' illustrazioni piatte: ogni
-// personaggio ha una cartella cards/art/<slug>/ con otto file, quattro per
-// variante:
-//     <slug>-dark-bg.png   <slug>-dark-layer2.png
-//     <slug>-dark-layer3.png   <slug>-dark-layer4.png       (idem -light-)
-// L'ordine di impilamento va dal fondo verso l'osservatore — bg, 2, 3, 4 —
-// con il 3 che e' il livello del personaggio.
+// NOMI DELLE CARTELLE E DEI FILE. Ogni personaggio ha una cartella
+// cards/art/<slug>/ e dentro i pezzi della sua illustrazione:
+//     <slug>-<fazione>-layer1.png ... -layer4.png
+// dove layer1 sta in fondo e layer4 davanti a tutto (il 3 e' il personaggio),
+// e <fazione> e' dark o light. Le voci seguono la stessa radice, in
+// audio/voices/: <slug>-1.mp3, <slug>-2.mp3, e cosi' via.
 //
-// I livelli si disegnano SEMPRE, anche sul tabellone: impilati e fermi sono
-// indistinguibili dalla vecchia illustrazione unica. Il parallax non e' cio'
-// che fa esistere i livelli, e' solo cio' che li fa MUOVERE — una carta che
-// non l'ha sbloccato mostra la stessa pila, immobile. Fino alla v0.72.66 le
-// due cose erano legate (i livelli comparivano solo al livello 4, e solo in
-// Collezione) perche' l'arte piatta faceva da rete di sicurezza: ora che non
-// c'e' piu', legarle lascerebbe senza illustrazione ogni carta sotto il
-// livello 4.
+// Lo <slug> e' il nome del personaggio in minuscolo con i trattini al posto
+// degli spazi: "Robin Hood" -> robin-hood, "Snow White" -> snow-white. E'
+// una regola diversa da quella che serve alle abilita' (norm(), poco piu'
+// sotto, che toglie ogni separatore) e per questo vive in una funzione tutta
+// sua: le due normalizzazioni SEMBRANO la stessa cosa ma non lo sono, e
+// riusarne una per l'altro scopo fa cercare "robinhood/" dove sul disco c'e'
+// "robin-hood/" — l'arte sparisce senza un solo errore in console.
+//
+// QUANTI LIVELLI. Quattro e' la forma completa, non un obbligo: una carta
+// puo' averne uno solo. Un pezzo senza numero di livello nel nome
+// (<slug>-<fazione>.png) vale come livello 3, ed e' anche la posizione in cui
+// finisce chi ne ha uno soltanto — il personaggio sta li'.
+//
+// PERCHE' TUTTO QUESTO SI SCOPRE A RUNTIME. Una pagina web non puo' chiedere
+// l'elenco dei file di una cartella remota: non esiste un modo, ne' da
+// file:// ne' da GitHub Pages. L'unico test possibile e' provare a caricare
+// un file e guardare se riesce. In cambio non c'e' nessuna lista da tenere
+// aggiornata a mano: Lorenzo carica una cartella o una traccia audio e il
+// gioco la trova da solo al riavvio successivo.
 //
 // Le cartelle "variant-N" dentro cards/art/<slug>/ sono varianti d'arte
-// sbloccabili: previste, non ancora implementate: qui non vengono guardate.
+// sbloccabili: previste, non ancora implementate, qui non vengono guardate.
 
 const ART_BASE = 'https://thetrickmaster.github.io/hextale/cards/art/';
-const ART_PEZZI = ['bg','layer2','layer3','layer4'];
+const VOCI_BASE = 'https://thetrickmaster.github.io/hextale/audio/voices/';
+const ART_LIVELLI = [1,2,3,4];
+const ART_LIVELLO_PERSONAGGIO = 3; // dove finisce un pezzo senza numero, e dove sta chi ne ha uno solo
+const VOCI_MAX = 12;               // limite di cortesia alla ricerca di <slug>-N.mp3
 
 // Livello 1-3 ricavato dal nome, per le carte a cui il foglio non ne assegna
 // uno. Math.random() qui sarebbe sbagliato: verrebbe rilanciato a ogni
@@ -7177,19 +7198,29 @@ function livelloCasualeStabile(nome){
   return (Math.abs(h) % 3) + 1;
 }
 
-// Gli otto URL che una cartella d'arte completa deve contenere.
-function artLivelliDaSlug(slug){
-  const s = String(slug||'').trim();
-  if(!s) return {dark:[], light:[]};
-  const fai = v => ART_PEZZI.map(pezzo => ART_BASE + s + '/' + s + '-' + v + '-' + pezzo + '.png');
-  return {dark: fai('dark'), light: fai('light')};
+// Nome del personaggio -> nome della cartella/dei file.
+function slugPersonaggio(nome){
+  return String(nome||'')
+    .trim().toLowerCase()
+    // Le lettere accentate vanno ridotte alla base, non buttate: "Ariél"
+    // deve dare "ariel" e non "ari-l".
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-z0-9]+/g,'-')
+    .replace(/^-+|-+$/g,'');
 }
 
-// Un'immagine esiste? La pagina non puo' chiedere l'elenco dei file di una
-// cartella remota — non esiste un modo, ne' da file:// ne' da GitHub Pages —
-// quindi l'unico test possibile e' provare a caricarla e vedere se riesce.
-// Come effetto collaterale utile, cio' che risponde resta nella cache del
-// browser: la verifica fa quindi anche da precaricamento.
+// Gli URL possibili di una variante. L'ultimo e' la forma senza numero, che
+// vale come livello 3 e viene provata solo se il 3 vero non c'e'.
+function artUrlVariante(slug, fazione){
+  const b = ART_BASE + slug + '/' + slug + '-' + fazione;
+  const per = {};
+  for(const n of ART_LIVELLI) per[n] = b + '-layer' + n + '.png';
+  return {per, senzaNumero: b + '.png'};
+}
+
+// Un file esiste? Provare a caricarlo e' l'unico modo. Cio' che risponde
+// resta nella cache del browser, quindi la verifica fa anche da
+// precaricamento.
 function _provaImmagine(url){
   return new Promise(risolvi=>{
     const img = new Image();
@@ -7198,58 +7229,118 @@ function _provaImmagine(url){
     img.src = url;
   });
 }
+// Stessa cosa per l'audio. `loadedmetadata` basta e avanza: dice che il file
+// esiste ed e' leggibile senza aspettare che si scarichi tutto.
+function _provaAudio(url){
+  return new Promise(risolvi=>{
+    const a = new Audio();
+    a.preload = 'metadata';
+    a.onloadedmetadata = ()=>risolvi(true);
+    a.onerror = ()=>risolvi(false);
+    a.src = url;
+  });
+}
 
-// Per ogni carta del roster decide se ha davvero la cartella d'arte, e con
-// quali livelli. Si prova PRIMA il solo bg di ciascuna variante: se manca
-// quello, la cartella non c'e' e non ha senso bussare per altri tre file
-// (con 82 carte in gran parte ancora senza arte, sarebbero centinaia di
-// richieste a vuoto). Solo se il bg risponde si verificano gli altri tre.
-// Le due varianti si verificano separatamente: se una carta ha la dark ma
-// non ancora la light, la dark si vede lo stesso.
-// Chi non ha la cartella resta con artLayers nullo, e drawHexCard prende il
-// ramo di sempre disegnando il segnaposto della rana.
+// I livelli d'arte di UNA variante, in ordine dal fondo alla superficie.
+// Si comincia dal livello 3: e' il personaggio, quindi c'e' sempre quando
+// c'e' l'arte, ed e' il posto dove finiscono sia il pezzo unico sia quello
+// senza numero nel nome. Se manca anche nella forma senza numero, la
+// cartella non esiste e ci si ferma: con 82 carte in gran parte ancora senza
+// illustrazione, bussare per gli altri tre file sarebbe centinaia di
+// richieste a vuoto a ogni avvio.
+function _livelliDiVariante(slug, fazione){
+  const url = artUrlVariante(slug, fazione);
+  return _provaImmagine(url.per[ART_LIVELLO_PERSONAGGIO]).then(ci=>{
+    if(ci) return {ancora: url.per[ART_LIVELLO_PERSONAGGIO], cercaAltri:true};
+    return _provaImmagine(url.senzaNumero).then(ciSenza=>
+      ciSenza ? {ancora: url.senzaNumero, cercaAltri:true} : null);
+  }).then(esito=>{
+    if(!esito) return null;
+    const altri = ART_LIVELLI.filter(n=>n!==ART_LIVELLO_PERSONAGGIO);
+    return Promise.all(altri.map(n=>_provaImmagine(url.per[n]))).then(ok=>{
+      const trovati = {};
+      trovati[ART_LIVELLO_PERSONAGGIO] = esito.ancora;
+      altri.forEach((n,i)=>{ if(ok[i]) trovati[n] = url.per[n]; });
+      // In ordine di profondita': 1 dietro, 4 davanti. I buchi si chiudono
+      // da soli — una carta con solo il livello 3 e' una pila di uno.
+      return ART_LIVELLI.filter(n=>trovati[n]).map(n=>trovati[n]);
+    });
+  });
+}
+
+// Le battute di un personaggio: <slug>-1.mp3, poi -2, -3... finche' se ne
+// trovano. Si procede in fila e ci si ferma al primo buco, perche' la
+// numerazione e' incrementale per definizione: se manca la 3 non ha senso
+// chiedere la 4.
+function _vociDiPersonaggio(slug){
+  const trovate = [];
+  const passo = n => {
+    if(n > VOCI_MAX) return Promise.resolve(trovate);
+    const url = VOCI_BASE + slug + '-' + n + '.mp3';
+    return _provaAudio(url).then(ci=>{
+      if(!ci) return trovate;
+      trovate.push(url);
+      return passo(n+1);
+    });
+  };
+  return passo(1);
+}
+
+// Passata unica su tutto il roster: per ogni carta, arte e voci.
 function verificaArtCarte(){
   if(!Array.isArray(FINAL_CARDS) || !FINAL_CARDS.length) return Promise.resolve();
   const lavori = [];
   const senzArte = [];
   for(const entry of FINAL_CARDS){
-    const slug = entry.slug || String(entry.id||'').replace(/^final-/,'');
-    if(!slug){ entry.artLayersDark = entry.artLayersLight = null; continue; }
-    const urls = artLivelliDaSlug(slug);
-    for(const variante of ['dark','light']){
-      const campo = variante==='dark' ? 'artLayersDark' : 'artLayersLight';
-      const elenco = urls[variante];
-      lavori.push(
-        _provaImmagine(elenco[0]).then(ci=>{
-          if(!ci){ entry[campo] = null; if(variante==='dark') senzArte.push(entry.name||slug); return; }
-          // Il bg c'e': si controllano gli altri tre. Uno mancante non
-          // invalida la carta — si disegna cio' che esiste e si segnala, cosi'
-          // un file dimenticato in fase di caricamento salta all'occhio in
-          // console invece di sparire in silenzio.
-          return Promise.all(elenco.slice(1).map(_provaImmagine)).then(esiti=>{
-            const tenuti = [elenco[0]];
-            esiti.forEach((ok,i)=>{
-              if(ok) tenuti.push(elenco[i+1]);
-              else console.warn('[arte] manca '+elenco[i+1].split('/').pop()+' ('+(entry.name||slug)+')');
-            });
-            entry[campo] = tenuti;
-          });
-        })
-      );
-    }
+    const slug = entry.slug || slugPersonaggio(entry.name) || String(entry.id||'').replace(/^final-/,'');
+    entry.slug = slug;
+    if(!slug){ entry.artLayersDark = entry.artLayersLight = null; entry.voci = []; continue; }
+    lavori.push(_livelliDiVariante(slug,'dark').then(l=>{
+      entry.artLayersDark = l;
+      if(!l) senzArte.push(entry.name || slug);
+    }));
+    lavori.push(_livelliDiVariante(slug,'light').then(l=>{ entry.artLayersLight = l; }));
+    lavori.push(_vociDiPersonaggio(slug).then(v=>{
+      entry.voci = v;
+      if(v.length) registraVociSfx(v);
+    }));
   }
-  // Un limite di tempo complessivo: se la rete e' lenta o assente il gioco
-  // deve partire lo stesso, con le rane al posto delle illustrazioni, invece
-  // di restare bloccato sulla barra di caricamento.
-  const scaduto = new Promise(res=>setTimeout(()=>res('__SCADUTO__'), 8000));
+  // Un limite complessivo: se la rete e' lenta o assente il gioco deve
+  // partire lo stesso — rane al posto delle illustrazioni e carte mute —
+  // invece di restare bloccato sulla barra di caricamento.
+  const scaduto = new Promise(res=>setTimeout(()=>res('__SCADUTO__'), 10000));
   return Promise.race([Promise.all(lavori), scaduto]).then(esito=>{
-    if(esito==='__SCADUTO__'){ console.warn('[arte] verifica non conclusa entro 8s: le carte non ancora risolte useranno il segnaposto'); return; }
+    if(esito==='__SCADUTO__'){
+      console.warn('[arte] verifica non conclusa entro 10s: le carte non ancora risolte useranno il segnaposto e resteranno mute');
+      return;
+    }
     const conArte = FINAL_CARDS.filter(e=>e.artLayersDark || e.artLayersLight).length;
-    console.info('[arte] '+conArte+'/'+FINAL_CARDS.length+' carte con arte a livelli'
+    const conVoce = FINAL_CARDS.filter(e=>e.voci && e.voci.length).length;
+    const battute = FINAL_CARDS.reduce((n,e)=>n+((e.voci&&e.voci.length)||0),0);
+    console.info('[arte] '+conArte+'/'+FINAL_CARDS.length+' carte con illustrazione'
       + (senzArte.length ? ' — senza cartella: '+senzArte.join(', ') : ''));
+    console.info('[voci] '+battute+' battute su '+conVoce+'/'+FINAL_CARDS.length+' carte');
   });
 }
 
+// Rende suonabili le battute appena trovate: le registra fra gli sfx (da cui
+// playSfxFile pesca l'URL nel percorso di ripiego) e ne pre-decodifica il
+// buffer, esattamente come initSfxEngine fa all'avvio per i suoni noti in
+// partenza. Serve perche' queste tracce, a differenza di tutte le altre, non
+// esistono ancora quando quella funzione gira.
+function registraVociSfx(urls){
+  for(const url of urls){
+    const chiave = url.split('/').pop().replace(/\.mp3$/i,'');
+    if(AUDIO_DATA_URLS[chiave]) continue;
+    AUDIO_DATA_URLS[chiave] = url;
+    if(!_sfxCtx) continue;
+    fetch(url, {cache:'force-cache'})
+      .then(r=>r.arrayBuffer())
+      .then(ab=>_sfxCtx.decodeAudioData(ab))
+      .then(buf=>{ _sfxBuffers[chiave]=buf; })
+      .catch(()=>{ /* da file:// il fetch e' vietato: resta il ramo new Audio() di playSfxFile */ });
+  }
+}
 // Builds a renderable card object (same shape doPlace/buildFullHandCardSVG
 // expect) from a FINAL_CARDS roster entry + the owner variant currently
 // being previewed (1=dark, 2=light) — picks the matching dark/light art and
@@ -7288,6 +7379,11 @@ function _makeCardDbCard(entry, owner){
     artLayersDark: entry.artLayersDark || null,
     artLayersLight: entry.artLayersLight || null,
     artLayers: (playerFactionIsDark(owner) ? entry.artLayersDark : entry.artLayersLight) || null,
+    // v0.72.68 — le battute trovate da verificaArtCarte. Sulla carta e non
+    // solo nel roster, cosi' playCardVoiceLine le ha sottomano anche per le
+    // carte costruite fuori dalla Collezione (mazzi di partita, "prova
+    // carta"), senza dover risalire all'entry ogni volta.
+    voci: (entry.voci && entry.voci.length) ? entry.voci.slice() : null,
     cardAbility:entry.cardAbility||null,
     // v0.72.62 — testi dell'abilita' presi dal foglio + marcatore NO_SCRIPT.
     // Questa factory copia i campi UNO A UNO, quindi ogni campo nuovo va
@@ -11047,10 +11143,12 @@ function initGame(vsAI){
       // `card.baseId || card.id.replace(/-\d+$/,'')`, cioe' dall'id meno il
       // suffisso numerico. Un id normale ("final-alice-1") si riduce a
       // "final-alice" e trova la voce; questo id di debug si riduce invece a
-      // "debugcard-final-alice", che in CARD_VOICE_LINES non esiste — quindi
-      // la funzione usciva subito e la carta restava muta. Impostare baseId
-      // esplicitamente e' il ramo che quella funzione preferisce comunque, e
-      // rende la risoluzione indipendente dalla forma dell'id.
+      // "debugcard-final-alice", che non corrisponde a nessuna carta del
+      // roster — quindi la funzione usciva subito e la carta restava muta.
+      // Impostare baseId esplicitamente e' il ramo che quella funzione
+      // preferisce comunque, e rende la risoluzione indipendente dalla forma
+      // dell'id. (v0.72.68: le battute ora si risolvono da card.voci o dal
+      // roster via baseId, ma il ragionamento e la correzione sono gli stessi.)
       forcedCard.baseId = forcedEntry.id;
       d1[i] = forcedCard;
     }
