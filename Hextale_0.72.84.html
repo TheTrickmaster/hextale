@@ -3505,11 +3505,21 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
 /* TEMPO 2 — lo strappo. La busta, ormai bianca, viene buttata giu' di 200px e
    svanisce. Curva quasi lineare in partenza e frenata secca: deve sembrare
    strappata via, non accompagnata. */
+/* v0.72.85 — lo strappo non fa piu' sparire la bustina: la butta giu' di
+   200px e la lascia li', visibile, mentre il fascio sale. A farla svanire e'
+   .dissolving, applicata quando il fascio si e' spento. Prima svaniva a meta'
+   del fascio e sembrava che la luce uscisse dal nulla; restando, si legge che
+   e' LEI la sorgente. */
 #pack-closed.tearing{ animation:packTear .45s cubic-bezier(.85,.05,.95,.6) forwards; }
 @keyframes packTear{
   0%   { transform:scale(1.28) translateY(0);     opacity:1; }
-  70%  { transform:scale(1.20) translateY(190px); opacity:0.85; }
-  100% { transform:scale(1.14) translateY(200px); opacity:0; }
+  70%  { transform:scale(1.20) translateY(190px); opacity:1; }
+  100% { transform:scale(1.14) translateY(200px); opacity:1; }
+}
+#pack-closed.dissolving{ animation:packDissolve .45s ease-out forwards; }
+@keyframes packDissolve{
+  0%   { transform:scale(1.14) translateY(200px); opacity:1; }
+  100% { transform:scale(1.06) translateY(215px); opacity:0; }
 }
 
 /* ── TEMPO 3 — il raggio di luce ──────────────────────────────────────────
@@ -3530,8 +3540,11 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
   margin:0 0 -223px -260px; /* il fondo coincide con la base della busta */
   transform-origin:center bottom;
   clip-path:polygon(0% 0%, 100% 0%, 75% 100%, 25% 100%); /* 520 in alto, 260 in basso */
-  background:linear-gradient(to top, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0.95) 18%, #fff 45%, rgba(255,255,255,0.85) 75%, rgba(255,255,255,0.25) 100%);
-  filter:blur(11px);
+  /* Bianco pieno alla base, dove nasce, che si dissolve salendo: e' il verso
+     naturale di un fascio che si disperde. `to top` parte dal basso, quindi
+     il primo colore della lista e' quello del fondo. */
+  background:linear-gradient(to top, #fff 0%, rgba(255,255,255,0) 100%);
+  filter:blur(30px);
   mix-blend-mode:plus-lighter;
   opacity:0;
   pointer-events:none;
@@ -3587,7 +3600,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
 .pack-card.floating{ animation:packFloat 3.4s ease-in-out infinite; animation-delay:var(--ritardo,0s); }
 /* Mentre esce di scena l'oscillazione va spenta: sono due animazioni sulla
    stessa transform e vincerebbe l'ultima dichiarata, non quella voluta. */
-.pack-card.leaving{ animation:packLeave .9s cubic-bezier(.4,0,.75,.35) forwards !important; }
+.pack-card.leaving{ animation:packLeave .62s linear forwards !important; animation-delay:var(--ritardo,0s); }
 @keyframes packFloat{
   0%,100% { transform:translate(calc(var(--dir) * 128px), 0px)   rotate(0deg); }
   50%     { transform:translate(calc(var(--dir) * 128px), -14px) rotate(calc(var(--dir) * 1.2deg)); }
@@ -3643,14 +3656,34 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
 }
 /* TEMPO 6 — "Metti via": uscita ad arco. La parte ALTA della carta resta
    allineata alla traiettoria, quindi la rotazione non e' decorativa: e' la
-   tangente dell'arco, calcolata dal JS e passata qui come --rot-* per ogni
-   tappa (vedi impostaTraiettoriaUscita). */
-.pack-card.leaving{ animation:packLeave .9s cubic-bezier(.4,0,.75,.35) forwards; animation-delay:var(--ritardo,0s); }
+   tangente dell'arco, calcolata dal JS e passata qui (vedi
+   impostaTraiettoriaUscita).
+   v0.72.85 — da 4 a 15 fotogrammi. Con quattro soli il browser tirava una
+   RETTA fra un punto e l'altro della curva, e interpolava allo stesso modo
+   una rotazione che nel frattempo cambiava di settanta gradi: si vedevano gli
+   spigoli, e il movimento sembrava a scatti. Quindici campioni ravvicinati
+   approssimano l'arco abbastanza fitto da leggersi come curva continua.
+   L'andatura e' `linear` di proposito: l'accelerazione non viene da una curva
+   di temporizzazione ma da COME sono campionati i punti — fitti all'inizio e
+   radi alla fine (vedi impostaTraiettoriaUscita). Mettere anche un ease-in
+   sopra significherebbe accelerare due volte, con uno strappo a meta'. */
+.pack-card.leaving{ animation:packLeave .62s linear forwards; animation-delay:var(--ritardo,0s); }
 @keyframes packLeave{
-  0%   { opacity:1; transform:translate(var(--x0), var(--y0)) rotate(var(--r0)) scale(1); }
-  35%  { opacity:1; transform:translate(var(--x1), var(--y1)) rotate(var(--r1)) scale(0.96); }
-  70%  { opacity:1; transform:translate(var(--x2), var(--y2)) rotate(var(--r2)) scale(0.9); }
-  100% { opacity:0; transform:translate(var(--x3), var(--y3)) rotate(var(--r3)) scale(0.82); }
+  0%     { transform:translate(var(--x0),var(--y0)) rotate(var(--r0)) scale(var(--s0)); opacity:1; }
+  7.143% { transform:translate(var(--x1),var(--y1)) rotate(var(--r1)) scale(var(--s1)); }
+  14.29% { transform:translate(var(--x2),var(--y2)) rotate(var(--r2)) scale(var(--s2)); }
+  21.43% { transform:translate(var(--x3),var(--y3)) rotate(var(--r3)) scale(var(--s3)); }
+  28.57% { transform:translate(var(--x4),var(--y4)) rotate(var(--r4)) scale(var(--s4)); }
+  35.71% { transform:translate(var(--x5),var(--y5)) rotate(var(--r5)) scale(var(--s5)); }
+  42.86% { transform:translate(var(--x6),var(--y6)) rotate(var(--r6)) scale(var(--s6)); }
+  50%    { transform:translate(var(--x7),var(--y7)) rotate(var(--r7)) scale(var(--s7)); }
+  57.14% { transform:translate(var(--x8),var(--y8)) rotate(var(--r8)) scale(var(--s8)); }
+  64.29% { transform:translate(var(--x9),var(--y9)) rotate(var(--r9)) scale(var(--s9)); }
+  71.43% { transform:translate(var(--x10),var(--y10)) rotate(var(--r10)) scale(var(--s10)); opacity:1; }
+  78.57% { transform:translate(var(--x11),var(--y11)) rotate(var(--r11)) scale(var(--s11)); }
+  85.71% { transform:translate(var(--x12),var(--y12)) rotate(var(--r12)) scale(var(--s12)); }
+  92.86% { transform:translate(var(--x13),var(--y13)) rotate(var(--r13)) scale(var(--s13)); }
+  100%   { transform:translate(var(--x14),var(--y14)) rotate(var(--r14)) scale(var(--s14)); opacity:0; }
 }
 /* Etichetta della rarita' sotto la carta, solo dopo che e' stata girata. */
 .pack-card-rarity{
@@ -6304,7 +6337,11 @@ function setGameAudioMuted(muted){
     }
   }
 }
-function playSfxFile(filename, fixedVolume){
+// v0.72.85 — terzo parametro facoltativo `offsetSec`: da che punto del file
+// partire. Serve ai suoni che hanno del silenzio all'inizio, dove il ritardo
+// percepito non e' del codice ma della registrazione (vedi
+// UNPACK_WHOOSH_OFFSET_S). Omesso, il comportamento e' identico a prima.
+function playSfxFile(filename, fixedVolume, offsetSec){
   // Cancello di isolamento — vedi setGameAudioMuted qui sopra.
   if(_gameAudioMuted && fixedVolume===undefined) return null;
   // Strip whichever audio extension the caller passed — most sfx are .mp3,
@@ -6328,7 +6365,7 @@ function playSfxFile(filename, fixedVolume){
     const gain=_sfxCtx.createGain();
     gain.gain.value = fixedVolume!==undefined ? fixedVolume : getGlobalVolume()*0.8*sfxGainMultiplier(name);
     src.connect(gain); gain.connect(_sfxCtx.destination);
-    src.start(0);
+    src.start(0, Math.max(0, offsetSec||0));
     // Returning the source lets callers that need to stop playback early
     // (e.g. stopTictoc()) call .stop() on it directly.
     return src;
@@ -6343,6 +6380,14 @@ function playSfxFile(filename, fixedVolume){
   const audioUrl = dataUrl || `assets/audio/sfx/${filename}`;
   const audio = new Audio(audioUrl);
   audio.volume = fixedVolume!==undefined ? Math.min(1,Math.max(0,fixedVolume)) : Math.min(1, getGlobalVolume() * 0.8 * sfxGainMultiplier(name));
+  // Stesso salto anche sul percorso di ripiego. currentTime si puo' impostare
+  // solo quando il file e' abbastanza caricato da conoscerne la durata: se non
+  // lo e' ancora, si aspetta quel momento invece di ignorare il salto.
+  const salto = Math.max(0, offsetSec||0);
+  if(salto > 0){
+    const vai = ()=>{ try { audio.currentTime = salto; } catch(_){} };
+    if(audio.readyState >= 1) vai(); else audio.addEventListener('loadedmetadata', vai, {once:true});
+  }
   audio.play().catch(()=>{});
   return audio;
 }
@@ -7965,13 +8010,7 @@ function _aggiornaStatoBustina(){
   const chiusa = document.getElementById('pack-closed');
   if(!stato || !chiusa) return;
   const img = document.getElementById('pack-closed-img');
-  if(img && !img.getAttribute('src')){
-    img.src = CARD_BACK_DARK;
-    // Il velo bianco e' ritagliato sulla stessa immagine della busta: senza
-    // maschera sbiancherebbe un rettangolo invece della sagoma.
-    const velo = document.getElementById('pack-white');
-    if(velo) velo.style.setProperty('--maschera', 'url("' + CARD_BACK_DARK + '")');
-  }
+  if(img && !img.getAttribute('src')) impostaImmagineBustina('closed');
   if(_bustinaInCorso || _bustinaDaGirare > 0 || document.querySelector('.pack-card')) return;
   if(!(FINAL_CARDS||[]).length){
     stato.textContent = 'No cards loaded from the sheet: there is nothing to put in a pack.';
@@ -8004,17 +8043,94 @@ const BUSTINA_VOLO_MS = 750;
 // Quanto passa fra il tocco e l'inizio del giro: il tempo di vedere
 // l'ingrandimento e il lampo, senza che l'attesa diventi un'esitazione.
 const BUSTINA_GIRO_RITARDO_MS = 500;
+// Quanto dura il fascio di luce: deve combaciare con l'animazione packBeam nel
+// CSS, perche' e' a fascio spento che la bustina comincia a svanire.
+const BUSTINA_FASCIO_MS = 1150;
 // Di quanto il colpo entra PRIMA che il suono di carica finisca. Un filo di
 // sovrapposizione e' l'unico modo di non sentire il buco fra i due: farli
 // combaciare al millisecondo esatto lascia sempre uno scalino udibile, perche'
 // l'attacco di un suono non e' mai istantaneo.
 const BUSTINA_SOVRAPPOSIZIONE_MS = 60;
 const BUSTINA_CARICA_DEFAULT_MS = 1992; // durata di unpack-load.mp3, se non misurabile
+// v0.72.85 — QUANTO SILENZIO C'E' PRIMA CHE UN SUONO COMINCI DAVVERO.
+// unpack-whoosh.wav aveva quasi mezzo secondo di silenzio inciso all'inizio
+// (primo campione udibile a 469ms, colpo vero a ~600ms): riprodotto dall'inizio
+// sembrava partire in ritardo, ma il ritardo stava nel file.
+// La prima soluzione era un numero fisso da correggere a mano il giorno in cui
+// il file fosse stato ritagliato — cioe' una cosa destinata a diventare
+// sbagliata in silenzio, tagliando l'attacco vero del suono nuovo.
+// Si misura invece il silenzio sul buffer gia' decodificato: funziona con il
+// file com'e' adesso e con qualunque versione futura, ritagliata o no, senza
+// che nessuno debba ricordarsi di aggiornare un valore.
+// Il risultato viene tenuto da parte: e' una scansione sola per suono.
+const _silenzioIniziale = {};
+function saltoSilenzioIniziale(nome){
+  if(nome in _silenzioIniziale) return _silenzioIniziale[nome];
+  let salto = 0;
+  try {
+    const buf = _sfxBuffers[nome];
+    if(!buf || !buf.getChannelData) return 0; // non ancora decodificato: si riprova alla prossima
+    const dati = buf.getChannelData(0);
+    let picco = 0;
+    for(let i=0;i<dati.length;i++){ const v = dati[i] < 0 ? -dati[i] : dati[i]; if(v > picco) picco = v; }
+    if(picco > 0){
+      const soglia = picco*0.02;
+      let i = 0;
+      while(i < dati.length && (dati[i] < 0 ? -dati[i] : dati[i]) <= soglia) i++;
+      // Dieci millisecondi di margine: si rientra un attimo prima del primo
+      // campione udibile, per non tagliare la salita dell'attacco.
+      salto = Math.max(0, i/buf.sampleRate - 0.01);
+    }
+    _silenzioIniziale[nome] = salto;
+  } catch(_){ return 0; }
+  return salto;
+}
 
 // La durata vera del suono di carica, letta dal buffer decodificato. Se il
 // file venisse sostituito con uno piu' lungo o piu' corto, animazione e colpo
 // si adeguerebbero da soli — il numero qui sopra e' solo il ripiego per i
 // primi istanti, prima che la decodifica sia finita.
+// v0.72.85 — la bustina ha un'immagine sua, non piu' il dorso di una carta.
+// Due stati: chiusa prima del click, aperta subito dopo. Non sono
+// faction-coded — la bustina e' una sola, non appartiene a una fazione — e
+// quindi il pulsante dark/light non le tocca.
+// Composte in una funzione e non in una costante: CARD_PARTS_BASE e le altre
+// basi vivono molto piu' in basso nel file, e comporre un URL al caricamento
+// leggendo una costante dichiarata dopo interrompe l'intero script (era
+// successo davvero, vedi gemmaRaritaSrc).
+function packImgSrc(stato){
+  return 'https://thetrickmaster.github.io/hextale/cards/packs/pack-placeholder-' + stato + '.png';
+}
+function packImgRel(stato){
+  return 'cards/packs/pack-placeholder-' + stato + '.png';
+}
+// Stessa ricerca locale-prima del resto degli asset: aprendo il file dal disco
+// si vede subito quello che c'e' nella cartella, senza dover pubblicare.
+function packImgCandidati(stato){
+  return _candidati(packImgRel(stato), packImgSrc(stato));
+}
+function impostaImmagineBustina(stato){
+  const img = document.getElementById('pack-closed-img');
+  const velo = document.getElementById('pack-white');
+  if(!img) return;
+  const candidati = packImgCandidati(stato);
+  let i = 0;
+  const prova = ()=>{
+    if(i >= candidati.length) return;
+    const url = candidati[i++];
+    const test = new Image();
+    test.onload = ()=>{
+      img.src = url;
+      // Il velo bianco e' ritagliato sulla stessa immagine: senza maschera
+      // sbiancherebbe un rettangolo invece della sagoma della bustina.
+      if(velo) velo.style.setProperty('--maschera', 'url("' + url + '")');
+    };
+    test.onerror = prova;
+    test.src = url;
+  };
+  prova();
+}
+
 function _bustinaDurataCarica(){
   try {
     const buf = _sfxBuffers['unpack-load'];
@@ -8050,6 +8166,8 @@ function apriBustina(){
   // finisce di sbiancare nell'istante in cui quel suono finisce.
   const caricaMs = _bustinaDurataCarica();
   chiusa.style.setProperty('--carica-ms', caricaMs + 'ms');
+  // La bustina passa allo stato aperto nell'istante del click.
+  impostaImmagineBustina('opened');
   chiusa.classList.add('charging');
   // v0.72.83 — il suono della carica accompagna i due secondi in cui la busta
   // sbianca e trema. Si tiene il riferimento perche' vada fermato se si esce
@@ -8067,7 +8185,14 @@ function apriBustina(){
     // buttare via la busta, non che arrivi dopo averla vista sparire.
     _bustinaDopo(50, ()=>{ raggio.classList.add('firing'); });
 
-    _bustinaDopo(BUSTINA_STRAPPO_MS, ()=>{ chiusa.style.display='none'; chiusa.classList.remove('tearing'); });
+    // La bustina resta in scena per tutta la durata del fascio: e' la sorgente
+    // della luce, e vederla sparire prima toglierebbe il nesso. Svanisce
+    // quando il fascio si e' spento.
+    _bustinaDopo(BUSTINA_FASCIO_MS, ()=>{ chiusa.classList.add('dissolving'); });
+    _bustinaDopo(BUSTINA_FASCIO_MS + 460, ()=>{
+      chiusa.style.display='none';
+      chiusa.classList.remove('tearing','dissolving');
+    });
 
     _bustinaDopo(BUSTINA_RITARDO_CARTE + 50, ()=>{
       uscite.forEach((entry, i)=>{
@@ -8157,7 +8282,7 @@ function giraCartaBustina(carta){
   if(!carta || carta.classList.contains('revealed') || carta.classList.contains('popping')) return;
   if(_bustinaInCorso) return; // ancora in volo: non si tocca
   carta.classList.add('popping');
-  try { playSfxFile('unpack-whoosh.wav'); } catch(_){}
+  try { playSfxFile('unpack-whoosh.wav', undefined, saltoSilenzioIniziale('unpack-whoosh')); } catch(_){}
   _bustinaDopo(BUSTINA_GIRO_RITARDO_MS, ()=>{
     carta.classList.add('revealed');
     carta.classList.remove('popping');
@@ -8204,7 +8329,15 @@ function impostaTraiettoriaUscita(carta, dir){
   // perche' la sua parte alta deve gia' puntare dove sta andando.
   const controllo = {x: dir*260,  y: -560};
   const arrivo    = {x: dir*1250, y: 300};
-  const tappe = [0, 0.35, 0.7, 1];
+  // Quindici campioni lungo l'arco. Non sono equidistanti nel TEMPO ma nella
+  // posizione: t cresce con una potenza (p^1.9), quindi all'inizio i punti
+  // sono fitti e verso la fine radi. Poiche' i fotogrammi sono distribuiti a
+  // intervalli di tempo uguali, percorrere piu' strada negli ultimi vuol dire
+  // andare piu' veloce — l'accelerazione nasce da qui, non da una curva di
+  // temporizzazione, ed e' per questo che l'animazione e' `linear`.
+  const PASSI = 14;
+  const tappe = [];
+  for(let k=0;k<=PASSI;k++) tappe.push(Math.pow(k/PASSI, 1.9));
   let precedente = null;
   tappe.forEach((t, i)=>{
     const p = _puntoBezier(partenza, controllo, arrivo, t);
@@ -8223,6 +8356,9 @@ function impostaTraiettoriaUscita(carta, dir){
     carta.style.setProperty('--x'+i, p.x.toFixed(1)+'px');
     carta.style.setProperty('--y'+i, p.y.toFixed(1)+'px');
     carta.style.setProperty('--r'+i, gradi.toFixed(1)+'deg');
+    // Rimpicciolisce mentre si allontana: la prospettiva di qualcosa che vola
+    // via. Legata a t e non al fotogramma, cosi' segue l'accelerazione.
+    carta.style.setProperty('--s'+i, (1 - 0.22*t).toFixed(3));
   });
 }
 
@@ -8256,7 +8392,8 @@ function tornaAllaBustina(){
   if(bottone) bottone.style.display='none';
   if(chiusa){
     chiusa.style.display='';
-    chiusa.classList.remove('charging','tearing');
+    chiusa.classList.remove('charging','tearing','dissolving');
+    impostaImmagineBustina('closed');
     const velo=document.getElementById('pack-white');
     if(velo) velo.style.opacity='';
   }
@@ -8279,10 +8416,7 @@ function packUpdateToggleLabel(){
 function packToggleVariant(){
   _cardDbVariant = _cardDbVariant===1 ? 2 : 1;
   packUpdateToggleLabel();
-  const chiusa=document.getElementById('pack-closed-img');
-  if(chiusa) chiusa.src = (_cardDbVariant===1) ? CARD_BACK_DARK : CARD_BACK_LIGHT;
-  const velo=document.getElementById('pack-white');
-  if(velo) velo.style.setProperty('--maschera', 'url("' + ((_cardDbVariant===1)?CARD_BACK_DARK:CARD_BACK_LIGHT) + '")');
+  // La bustina non e' faction-coded: il pulsante riguarda solo le carte.
   // Le carte gia' in scena si ridisegnano nella nuova variante conservando lo
   // stato in cui sono: una carta gia' girata resta girata, una ancora coperta
   // resta coperta. Ricostruirle da zero le riporterebbe tutte al dorso, e chi
