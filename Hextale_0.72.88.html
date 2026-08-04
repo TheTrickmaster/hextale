@@ -3429,6 +3429,25 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
   opacity:0;
   pointer-events:none;
 }
+/* v0.72.89 — alone dietro la bustina, come quello dietro le carte. Condivide
+   con il velo bianco LE STESSE due animazioni (packWhiten in carica,
+   packWhiteFade in uscita): sincronizzarli e' cosi' garantito per
+   costruzione, invece di affidarsi a due durate scritte uguali in due posti
+   che col tempo divergono.
+   Dietro l'immagine (z-index 0 contro 1 dello strato che trema), quindi la
+   luce sembra filtrare da dietro la busta. */
+#pack-glow{
+  position:absolute; inset:-30px;
+  background:#fff;
+  filter:blur(34px);
+  mix-blend-mode:plus-lighter;
+  opacity:0;
+  pointer-events:none;
+  z-index:0;
+  border-radius:46% 54% 50% 50% / 52% 48% 52% 48%;
+  animation:packGlowMorph 7s ease-in-out infinite;
+}
+#pack-shake{ position:relative; z-index:1; }
 #pack-closed.ready{ animation:packBreathe 2.8s ease-in-out infinite; }
 #pack-closed.ready:hover{ transform:scale(1.045); transition:transform .18s cubic-bezier(.22,1,.36,1); }
 /* v0.72.87 — bustina non ancora disponibile: trasparente al 20% invece che
@@ -3451,7 +3470,8 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
    adegua da sola senza toccare il CSS. */
 #pack-closed.charging{ animation:packGrow var(--carica-ms,2s) cubic-bezier(.4,0,.7,1) forwards; }
 #pack-closed.charging #pack-shake{ animation:packShake var(--carica-ms,2s) linear forwards; }
-#pack-closed.charging #pack-white{ animation:packWhiten var(--carica-ms,2s) cubic-bezier(.6,0,.9,1) forwards; }
+#pack-closed.charging #pack-white,
+#pack-closed.charging #pack-glow{ animation:packWhiten var(--carica-ms,2s) cubic-bezier(.6,0,.9,1) forwards; }
 @keyframes packGrow{
   0%   { transform:scale(1); }
   100% { transform:scale(1.28); }
@@ -3522,6 +3542,19 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
    del fascio e sembrava che la luce uscisse dal nulla; restando, si legge che
    e' LEI la sorgente. */
 #pack-closed.tearing{ animation:packTear .45s cubic-bezier(.85,.05,.95,.6) forwards; }
+/* v0.72.89 — il bianco sulla bustina non sparisce di colpo quando parte il
+   fascio: sfuma per tutta la sua durata. Prima l'animazione della carica
+   finiva e, tolta la classe .charging, l'opacita' ricadeva a zero nello stesso
+   fotogramma — un taglio netto proprio nel momento piu' visibile.
+   La durata combacia con quella del fascio, cosi' la bustina smette di
+   brillare mentre la luce si spegne, non prima. */
+#pack-closed.tearing #pack-white,
+#pack-closed.tearing #pack-glow{ animation:packWhiteFade 1.15s ease-out forwards; }
+@keyframes packWhiteFade{
+  0%   { opacity:1; }
+  55%  { opacity:0.55; }
+  100% { opacity:0; }
+}
 @keyframes packTear{
   0%   { transform:scale(1.28) translateY(0);     opacity:1; }
   70%  { transform:scale(1.20) translateY(190px); opacity:1; }
@@ -3544,18 +3577,24 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
    Base fissata all'altezza della busta: cresce verso l'alto scalando dal
    fondo (transform-origin), cosi' sembra sprigionarsi da dentro la busta.
    z-index 1 contro il 2 della busta: nel primo istante spunta da SOTTO. */
+/* v0.72.89 — misure ridotte del 15% rispetto alla busta: 221px alla base
+   (contro i 260 della busta) e 442 in cima. Alla base deve stare DENTRO il
+   profilo della bustina, altrimenti si vede la luce nascere fuori da essa
+   invece che al suo interno.
+   Tinta piatta e non piu' un gradiente: un fascio che sfuma verso l'alto
+   sembra una luce che si spegne, mentre questo deve sembrare che continui
+   oltre il bordo dello schermo. Il 90% di opacita' vive nel colore e non
+   nella proprieta' opacity, che e' gia' impegnata dall'animazione di entrata
+   e uscita. */
 #pack-beam{
   position:absolute; left:50%; bottom:50%;
-  width:520px;            /* il doppio della busta: e' la larghezza in cima */
+  width:442px;            /* 15% in meno del doppio della busta */
   height:130vh;           /* piu' alta della finestra: esce dallo schermo */
-  margin:0 0 -223px -260px; /* il fondo coincide con la base della busta */
+  margin:0 0 -223px -221px; /* il fondo coincide con la base della busta */
   transform-origin:center bottom;
-  clip-path:polygon(0% 0%, 100% 0%, 75% 100%, 25% 100%); /* 520 in alto, 260 in basso */
-  /* Bianco pieno alla base, dove nasce, che si dissolve salendo: e' il verso
-     naturale di un fascio che si disperde. `to top` parte dal basso, quindi
-     il primo colore della lista e' quello del fondo. */
-  background:linear-gradient(to top, #fff 0%, rgba(255,255,255,0) 100%);
-  filter:blur(30px);
+  clip-path:polygon(0% 0%, 100% 0%, 75% 100%, 25% 100%); /* 442 in alto, 221 in basso */
+  background:rgba(255,255,255,0.9);
+  filter:blur(20px);
   mix-blend-mode:plus-lighter;
   opacity:0;
   pointer-events:none;
