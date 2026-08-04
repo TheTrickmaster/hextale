@@ -3676,6 +3676,42 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
   0%   { transform:scale(1); }
   100% { transform:scale(1.12); }
 }
+/* v0.72.90 — IL TILT, come in Collezione. Vive su un livello suo, fra
+   l'ingrandimento e il giro: sono tutte rotazioni, e messe sullo stesso
+   elemento si sovrascriverebbero. Cosi' invece si compongono — la carta puo'
+   essere girata E inclinata insieme, che e' esattamente cio' che serve visto
+   che il tilt deve funzionare sia di dorso sia di fronte.
+   Stessa formula e stesse variabili della Collezione (--foil-rx/--foil-ry),
+   cosi' le due pagine si muovono allo stesso modo e non c'e' una seconda
+   convenzione da ricordare.
+   preserve-3d perche' il piano che gira sta dentro di lui e deve restare
+   nello stesso spazio tridimensionale. */
+.pack-card-tilt{
+  position:absolute; inset:0;
+  transform-style:preserve-3d;
+  transform:rotateX(calc(var(--foil-ry,0) * -10deg)) rotateY(calc(var(--foil-rx,0) * 10deg));
+  transition:transform 0.28s ease-out;
+}
+/* Durante l'inseguimento del puntatore la transizione va spenta, altrimenti
+   la carta insegue il cursore con un ritardo elastico invece di seguirlo. */
+.pack-card[data-tilt="1"] .pack-card-tilt{ transition:none; }
+/* Il riflesso sta FUORI dal piano che gira, quindi resta sempre rivolto verso
+   chi guarda: cosi' vale identico sul dorso e sul fronte, senza doverne
+   mettere uno per faccia e senza che quello sul fronte risulti specchiato. */
+.pack-card-glare{
+  position:absolute; inset:0;
+  border-radius:14px;
+  pointer-events:none;
+  opacity:0;
+  z-index:4;
+  transition:opacity 0.28s ease-out;
+  mix-blend-mode:overlay;
+  background:radial-gradient(circle at calc(var(--foil-mx,50) * 1%) calc(var(--foil-my,50) * 1%),
+    rgba(255,255,255,0.55) 0%,
+    rgba(255,255,255,0.22) 24%,
+    rgba(255,255,255,0) 56%);
+}
+.pack-card[data-tilt="1"] .pack-card-glare{ opacity:1; transition:none; }
 /* Il piano che gira. Dorso e fronte sono due facce dello stesso piano: la
    faccia nascosta non si disegna (backface-visibility), cosi' il giro mostra
    l'una o l'altra senza doverle accendere e spegnere a mano. */
@@ -4871,7 +4907,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.72.89</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.72.90</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -8464,6 +8500,11 @@ function _costruisciCartaBustina(entry, dir, indice){
   const pop = document.createElement('div');
   pop.className = 'pack-card-pop';
 
+  // Livello del tilt: ci sta dentro il piano che gira, e gli fa da fratello
+  // il riflesso (vedi .pack-card-tilt nel CSS per il perche' di questo ordine).
+  const tilt = document.createElement('div');
+  tilt.className = 'pack-card-tilt';
+
   const piano = document.createElement('div');
   piano.className = 'pack-card-flip';
 
@@ -8482,7 +8523,13 @@ function _costruisciCartaBustina(entry, dir, indice){
 
   piano.appendChild(dorso);
   piano.appendChild(fronte);
-  pop.appendChild(piano);
+  tilt.appendChild(piano);
+
+  const riflesso = document.createElement('div');
+  riflesso.className = 'pack-card-glare';
+  tilt.appendChild(riflesso);
+
+  pop.appendChild(tilt);
 
   const lampo = document.createElement('div');
   lampo.className = 'pack-card-flash';
@@ -8659,12 +8706,53 @@ function packToggleVariant(){
   });
 }
 
+// v0.72.90 — IL TILT SEGUE IL PUNTATORE.
+// Un solo ascoltatore sul palcoscenico invece di due per carta: le carte
+// nascono e muoiono a ogni bustina, e agganciare gli eventi a loro
+// significherebbe rimetterli ogni volta e rischiare di dimenticarne uno
+// appeso a un elemento gia' rimosso. Il palcoscenico c'e' sempre.
+// L'inclinazione e' normalizzata -1..1 rispetto al centro della carta, come
+// in Collezione: cosi' la stessa formula CSS vale per entrambe le pagine.
+let _packTiltInit = false;
+function initPackTilt(){
+  if(_packTiltInit) return;
+  _packTiltInit = true;
+  const palco = document.getElementById('pack-stage');
+  if(!palco) return;
+  const spegni = (carta)=>{
+    if(!carta) return;
+    carta.removeAttribute('data-tilt');
+    const t = carta.querySelector('.pack-card-tilt');
+    if(t){ t.style.setProperty('--foil-rx','0'); t.style.setProperty('--foil-ry','0'); }
+  };
+  let attiva = null;
+  palco.addEventListener('pointermove', (e)=>{
+    const carta = e.target && e.target.closest ? e.target.closest('.pack-card') : null;
+    if(!carta){ spegni(attiva); attiva = null; return; }
+    if(carta !== attiva){ spegni(attiva); attiva = carta; carta.setAttribute('data-tilt','1'); }
+    const r = carta.getBoundingClientRect();
+    if(!r.width || !r.height) return;
+    // px/py: dove sta il puntatore sulla carta, da 0 a 1 — muovono il riflesso.
+    const px = (e.clientX - r.left)/r.width;
+    const py = (e.clientY - r.top)/r.height;
+    // rx/ry: la stessa cosa riportata fra -1 e 1, con lo zero al centro.
+    const t = carta.querySelector('.pack-card-tilt');
+    if(!t) return;
+    t.style.setProperty('--foil-rx', (px*2-1).toFixed(3));
+    t.style.setProperty('--foil-ry', (py*2-1).toFixed(3));
+    t.style.setProperty('--foil-mx', (px*100).toFixed(1));
+    t.style.setProperty('--foil-my', (py*100).toFixed(1));
+  });
+  palco.addEventListener('pointerleave', ()=>{ spegni(attiva); attiva = null; });
+}
+
 function openPackOverlay(){
   // Stessa regola della Collezione: e' una PAGINA, quindi entrarci smonta la
   // partita invece di lasciarla viva sotto.
   abandonCurrentGame();
   showPage('packs');
   document.getElementById('pack-overlay').classList.add('show');
+  initPackTilt();
   packUpdateToggleLabel();
   tornaAllaBustina();
   // Il conto alla rovescia si aggiorna ogni secondo mentre la pagina e'

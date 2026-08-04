@@ -3396,9 +3396,19 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
    PNG scuro schiarito resta grigio — quindi il bianco e' un livello a parte
    la cui opacita' cresce, ritagliato sulla stessa immagine via mask. */
 #pack-closed{
+  /* Velo bianco e alone della bustina devono fondersi con l'IMMAGINE della
+     bustina, che sta qui dentro: chiudere il gruppo a questo livello non
+     cambia il risultato voluto e limita la zona da ricomporre a questo
+     riquadro invece che a tutta la pagina. */
+  isolation:isolate;
   position:absolute; left:50%; top:50%;
   width:260px; height:446px;
   margin:-223px 0 0 -130px;
+  /* v0.72.93 — la bustina ricompare in dissolvenza a fine sequenza (vedi
+     tornaAllaBustina). Una transizione e non un'animazione: cosi' vale anche
+     per il passaggio fra disponibile e non disponibile, che cambia l'opacita'
+     con la classe .locked, e i due casi non hanno bisogno di regole separate. */
+  transition:opacity .45s ease-out;
   cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;
   z-index:2;
 }
@@ -3592,13 +3602,24 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
   height:130vh;           /* piu' alta della finestra: esce dallo schermo */
   margin:0 0 -223px -221px; /* il fondo coincide con la base della busta */
   transform-origin:center bottom;
-  clip-path:polygon(0% 0%, 100% 0%, 75% 100%, 25% 100%); /* 442 in alto, 221 in basso */
-  background:rgba(255,255,255,0.9);
+  /* v0.72.92 FIX ("vedo ancora il fascio di luce non blurrato"): la sfocatura
+     c'era, ma il clip-path la tagliava via. In CSS il ritaglio si applica DOPO
+     il filtro: la sfumatura si allargava oltre i bordi del cono e proprio
+     quella parte veniva ritagliata, lasciando due lati netti. Un filtro il cui
+     alone viene tagliato non si vede.
+     Adesso i due compiti stanno su due elementi: qui la sfocatura, sul figlio
+     il ritaglio. Il cono viene prima ritagliato e poi sfocato, quindi la
+     sfumatura puo' espandersi liberamente oltre il suo profilo. */
   filter:blur(20px);
   mix-blend-mode:plus-lighter;
   opacity:0;
   pointer-events:none;
   z-index:1;
+}
+#pack-beam-shape{
+  position:absolute; inset:0;
+  clip-path:polygon(0% 0%, 100% 0%, 75% 100%, 25% 100%); /* 442 in alto, 221 in basso */
+  background:rgba(255,255,255,0.9);
 }
 /* v0.72.87 — il fascio si NASCONDE quando ha finito, non resta a opacita' 0.
    Un elemento alto 130vh con blur(30px) e mix-blend-mode continua a essere
@@ -3629,10 +3650,33 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
    tagliato a meta'. Non era uno z-index sbagliato, erano due superfici che si
    intersecavano davvero nello spazio. Confinando il 3D a .pack-card-pop,
    alone e bordo restano piatti e dietro, e non c'e' piu' niente da tagliare. */
+/* v0.72.94 — PERCHE' LE CARTE LASCIAVANO SCIE, E COSA LO IMPEDISCE.
+   `mix-blend-mode` obbliga il browser a LEGGERE cio' che sta sotto l'elemento
+   per fonderlo. Senza un contenitore che delimiti il gruppo, quel "sotto" e'
+   l'intera pagina: a ogni fotogramma va rileggata e ricomposta un'area
+   enorme. In piu' l'alone e il bordo hanno una sfocatura, che li fa debordare
+   oltre i propri confini geometrici. Il browser calcola la zona da ripulire
+   sui confini SENZA sfocatura, quindi la parte sbordata del fotogramma
+   precedente non viene cancellata: resta li'. Sono quelle le scie — non copie
+   della carta, ma residui di sfocatura mai ripuliti.
+   Due rimedi, che vanno insieme:
+   `isolation:isolate` chiude il gruppo di fusione dentro la carta, cosi' il
+   "sotto" da rileggere e' la carta stessa e non piu' tutta la pagina;
+   `will-change:transform` la promuove a livello di composizione proprio, dove
+   i ridisegni sono contenuti e la zona da ripulire coincide col livello.
+   Effetto collaterale da sapere: l'alone non somma piu' luce allo SFONDO
+   della pagina, solo a cio' che sta dentro la carta. Su fondo scuro la
+   differenza e' minima; se dovesse sembrare spento, e' questa riga da
+   togliere per prima. */
 .pack-card{
+  isolation:isolate;
+  will-change:transform;
   position:absolute; left:50%; top:50%;
-  width:210px; height:360px;
-  margin:-180px 0 0 -105px;
+  /* v0.72.92 — 15% piu' grandi (erano 210x360). I margini negativi valgono
+     meta' delle nuove misure: sono loro a tenere la carta centrata sul punto
+     al 50%/50% del palcoscenico. */
+  width:242px; height:414px;
+  margin:-207px 0 0 -121px;
   z-index:3;
   opacity:1;
   cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;
@@ -3644,24 +3688,40 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
    --dir vale -1 per la carta di sinistra e +1 per quella di destra: una sola
    animazione serve entrambe. */
 .pack-card.emerging{ animation:packCardOut .55s cubic-bezier(.12,.7,.3,1) both; animation-delay:var(--ritardo,0s); }
+/* v0.72.92 — traiettoria molto piu' verticale. Prima le carte uscivano quasi
+   di lato (78vw contro 66vh) e sembravano sparate a ventaglio invece che
+   sprigionate dal fascio, che e' verticale. Ora la componente orizzontale e'
+   un terzo di quella verticale: si aprono appena, e vanno su. */
 @keyframes packCardOut{
   0%   { opacity:0; transform:translate(0,40px) scale(0.35) rotate(0deg); }
-  18%  { opacity:1; transform:translate(calc(var(--dir) * 22vw), -34vh) scale(0.85) rotate(calc(var(--dir) * 16deg)); }
-  100% { opacity:1; transform:translate(calc(var(--dir) * 78vw), -66vh) scale(1.05) rotate(calc(var(--dir) * 26deg)); }
+  18%  { opacity:1; transform:translate(calc(var(--dir) * 8vw),  -40vh) scale(0.85) rotate(calc(var(--dir) * 7deg)); }
+  100% { opacity:1; transform:translate(calc(var(--dir) * 26vw), -105vh) scale(1.05) rotate(calc(var(--dir) * 12deg)); }
 }
 /* TEMPO 4 — il rientro. Tornano da fuori campo, si raddrizzano e si affiancano
    al centro. La curva parte veloce e frena: e' il gesto di qualcosa che viene
    richiamato, non che cade. */
 .pack-card.settling{ animation:packCardSettle .82s cubic-bezier(.16,.84,.28,1) forwards; }
 @keyframes packCardSettle{
-  0%   { transform:translate(calc(var(--dir) * 78vw), -66vh) scale(1.05) rotate(calc(var(--dir) * 26deg)); }
-  62%  { transform:translate(calc(var(--dir) * 132px), 26px) scale(1)    rotate(calc(var(--dir) * -3deg)); }
-  100% { transform:translate(calc(var(--dir) * 128px), 0)    scale(1)    rotate(0deg); }
+  0%   { transform:translate(calc(var(--dir) * 26vw), -105vh) scale(1.05) rotate(calc(var(--dir) * 12deg)); }
+  62%  { transform:translate(calc(var(--dir) * 182px), 26px) scale(1)    rotate(calc(var(--dir) * -3deg)); }
+  100% { transform:translate(calc(var(--dir) * 178px), 0)    scale(1)    rotate(0deg); }
 }
-.pack-card.floating{ animation:packFloat 3.4s ease-in-out infinite; animation-delay:var(--ritardo,0s); }
+/* v0.72.92 FIX ("vedo ancora lo scatto della carta di destra"). Qui c'era un
+   animation-delay. Un'animazione in ritardo NON tiene lo stato del suo primo
+   fotogramma durante l'attesa: l'elemento torna al proprio stato di base, che
+   per una carta significa transform:none, cioe' il centro esatto dello
+   schermo. La carta di destra ci saltava per 120 millisecondi e poi ripartiva.
+   Lo sfalsamento fra le due carte c'e' gia' — ognuna comincia a galleggiare
+   quando ha finito di rientrare, che avviene in momenti diversi — quindi il
+   ritardo non serviva a niente e faceva solo danni. */
+.pack-card.floating{ animation:packFloat 3.4s ease-in-out infinite; }
+/* v0.72.93 — 178px dal centro invece di 128: cento pixel in piu' fra le due
+   carte. Il valore compare anche in packCardSettle (dove si posano) e in
+   PACK_RIPOSO_X nello script (da dove parte l'uscita): sono lo stesso punto
+   visto da tre posti, e vanno cambiati insieme. */
 @keyframes packFloat{
-  0%,100% { transform:translate(calc(var(--dir) * 128px), 0px)   rotate(0deg); }
-  50%     { transform:translate(calc(var(--dir) * 128px), -14px) rotate(calc(var(--dir) * 1.2deg)); }
+  0%,100% { transform:translate(calc(var(--dir) * 178px), 0px)   rotate(0deg); }
+  50%     { transform:translate(calc(var(--dir) * 178px), -14px) rotate(calc(var(--dir) * 1.2deg)); }
 }
 /* Il livello dell'ingrandimento. Apre il proprio spazio 3D (perspective) che
    serve solo al piano che gira dentro di lui: e' il confine che tiene il 3D
@@ -3676,6 +3736,55 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
   0%   { transform:scale(1); }
   100% { transform:scale(1.12); }
 }
+/* v0.72.90 — IL TILT, come in Collezione. Vive su un livello suo, fra
+   l'ingrandimento e il giro: sono tutte rotazioni, e messe sullo stesso
+   elemento si sovrascriverebbero. Cosi' invece si compongono — la carta puo'
+   essere girata E inclinata insieme, che e' esattamente cio' che serve visto
+   che il tilt deve funzionare sia di dorso sia di fronte.
+   Stessa formula e stesse variabili della Collezione (--foil-rx/--foil-ry),
+   cosi' le due pagine si muovono allo stesso modo e non c'e' una seconda
+   convenzione da ricordare.
+   preserve-3d perche' il piano che gira sta dentro di lui e deve restare
+   nello stesso spazio tridimensionale. */
+/* v0.72.92 — livello dedicato al cambio dark/light. Gira su Y come fa la
+   Collezione: mezzo giro fino al taglio, li' si sostituisce il contenuto, e
+   l'altro mezzo giro lo rivela nella variante nuova. Sta a parte dal tilt e
+   dal giro di rivelazione perche' sono tutte rotazioni sullo stesso asse:
+   sullo stesso elemento si sovrascriverebbero. */
+.pack-card-swap{
+  position:absolute; inset:0;
+  transform-style:preserve-3d;
+}
+.pack-card-swap.swap-out{ animation:packSwapOut .22s ease-in forwards; }
+.pack-card-swap.swap-in{  animation:packSwapIn  .22s ease-out forwards; }
+@keyframes packSwapOut{ from{ transform:rotateY(0deg); }   to{ transform:rotateY(90deg); } }
+@keyframes packSwapIn{  from{ transform:rotateY(-90deg); } to{ transform:rotateY(0deg); } }
+.pack-card-tilt{
+  position:absolute; inset:0;
+  transform-style:preserve-3d;
+  transform:rotateX(calc(var(--foil-ry,0) * -10deg)) rotateY(calc(var(--foil-rx,0) * 10deg));
+  transition:transform 0.28s ease-out;
+}
+/* Durante l'inseguimento del puntatore la transizione va spenta, altrimenti
+   la carta insegue il cursore con un ritardo elastico invece di seguirlo. */
+.pack-card[data-tilt="1"] .pack-card-tilt{ transition:none; }
+/* Il riflesso sta FUORI dal piano che gira, quindi resta sempre rivolto verso
+   chi guarda: cosi' vale identico sul dorso e sul fronte, senza doverne
+   mettere uno per faccia e senza che quello sul fronte risulti specchiato. */
+.pack-card-glare{
+  position:absolute; inset:0;
+  border-radius:14px;
+  pointer-events:none;
+  opacity:0;
+  z-index:4;
+  transition:opacity 0.28s ease-out;
+  mix-blend-mode:overlay;
+  background:radial-gradient(circle at calc(var(--foil-mx,50) * 1%) calc(var(--foil-my,50) * 1%),
+    rgba(255,255,255,0.55) 0%,
+    rgba(255,255,255,0.22) 24%,
+    rgba(255,255,255,0) 56%);
+}
+.pack-card[data-tilt="1"] .pack-card-glare{ opacity:1; transition:none; }
 /* Il piano che gira. Dorso e fronte sono due facce dello stesso piano: la
    faccia nascosta non si disegna (backface-visibility), cosi' il giro mostra
    l'una o l'altra senza doverle accendere e spegnere a mano. */
@@ -3702,10 +3811,16 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
   z-index:5;
   display:none;
 }
-.pack-card.popping .pack-card-flash{ display:block; animation:packFlash .55s ease-out forwards; }
+/* v0.72.92 — il lampo tocca il massimo POCO PRIMA che cominci il giro (che
+   parte a 500ms dal tocco): sale per 460ms fino a opacita' piena e da li'
+   sfuma mentre la carta ruota. Prima faceva il contrario — un guizzo nei
+   primi 60ms e poi piu' niente — quindi al momento del giro era gia' spento e
+   il collegamento fra le due cose non si leggeva. */
+.pack-card.popping .pack-card-flash{ display:block; animation:packFlash 1.25s ease-out forwards; }
 @keyframes packFlash{
   0%   { opacity:0; }
-  12%  { opacity:0.95; }
+  37%  { opacity:1; }   /* 460ms: la carta sta per girare */
+  48%  { opacity:1; }   /* 600ms: il giro e' cominciato, il lampo e' al culmine */
   100% { opacity:0; }
 }
 /* ── ALONE DELLA RARITA' ───────────────────────────────────────────────────
@@ -3728,7 +3843,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
    in dissolvenza, il blob dentro cambia forma e respira. Nessuna proprieta'
    contesa da due animazioni. */
 .pack-card-glow{
-  position:absolute; inset:-42px;
+  position:absolute; inset:0px;
   opacity:0;
   pointer-events:none;
   z-index:0;
@@ -3737,9 +3852,18 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
 .pack-card-glow-blob{
   position:absolute; inset:0;
   background:var(--rarita, #fff);
-  filter:blur(38px);
+  /* v0.72.91 — sfocatura dimezzata (38 -> 19px). Con 38px il movimento del
+     blob era di 8-14px: meno della sfocatura stessa, quindi si perdeva dentro
+     di essa e l'alone sembrava fermo. Una sfocatura piu' grande dello
+     spostamento cancella lo spostamento. */
+  filter:blur(19px);
   mix-blend-mode:plus-lighter;
-  border-radius:46% 54% 50% 50% / 52% 48% 52% 48%;
+  will-change:transform, opacity;
+  /* v0.72.92 — forma RETTANGOLARE come la carta, non piu' una macchia
+     organica: l'alone deve leggersi come la luce che la carta emette, e una
+     luce prende la forma di cio' che la emette. Gli angoli sono arrotondati
+     come quelli della carta. */
+  border-radius:22px;
 }
 .pack-card.revealed .pack-card-glow{
   display:block;
@@ -3750,15 +3874,26 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
             packGlowPulse 11s ease-in-out infinite;
 }
 @keyframes packGlowIn{ from{opacity:0;} to{opacity:1;} }
+/* v0.72.91 — ampiezza aumentata insieme alla riduzione della sfocatura.
+   Dimezzare il blur da solo non bastava: la regola pratica e' che lo
+   spostamento deve superare il raggio di sfocatura, altrimenti resta dentro
+   la sfumatura e non si legge come movimento. Con rotazioni fino a 9 gradi e
+   scale fra 0.90 e 1.12 il blob si sposta di 40-45px contro 19 di sfocatura.
+   Si muove anche di posizione (translate) e non solo di forma: una macchia
+   che ruota sul proprio centro si nota molto meno di una che vaga. */
+/* v0.72.92 — movimento ridotto. Con la forma rettangolare le rotazioni ampie
+   si notavano troppo (un rettangolo storto si legge come un errore, una
+   macchia storta no), quindi restano un respiro di scala e uno spostamento
+   appena percettibile. Niente piu' cambi di forma. */
 @keyframes packGlowMorph{
-  0%,100% { border-radius:46% 54% 50% 50% / 52% 48% 52% 48%; transform:rotate(0deg)   scale(1); }
-  25%     { border-radius:58% 42% 44% 56% / 44% 58% 42% 56%; transform:rotate(3deg)   scale(1.05); }
-  50%     { border-radius:40% 60% 58% 42% / 60% 40% 60% 40%; transform:rotate(-2deg)  scale(0.97); }
-  75%     { border-radius:55% 45% 40% 60% / 42% 56% 44% 58%; transform:rotate(2deg)   scale(1.04); }
+  0%,100% { transform:translate(0,0)      scale(1);    }
+  25%     { transform:translate(5px,-4px) scale(1.05); }
+  50%     { transform:translate(-4px,3px) scale(0.96); }
+  75%     { transform:translate(3px,4px)  scale(1.04); }
 }
 @keyframes packGlowPulse{
-  0%,100% { opacity:0.62; }
-  50%     { opacity:0.42; }
+  0%,100% { opacity:0.7; }
+  50%     { opacity:0.38; }
 }
 /* ── BORDO LUMINOSO (solo rare, mitiche e timeless) ────────────────────────
    Un anello di 8px del colore della rarita' che sembra scorrere. Il colore
@@ -3773,24 +3908,33 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
    la carta invece del solo profilo.
    Le comuni non ce l'hanno: il bianco su bianco non direbbe niente, e la
    rarita' piu' bassa non deve avere un segno di pregio. */
+/* v0.72.92 — anche il bordo compare in dissolvenza, e per farlo e' stato
+   diviso in due come l'alone: sul contenitore la comparsa, sull'anello il
+   respiro. Erano due animazioni su `opacity` nello stesso elemento, e vinceva
+   la seconda — lo stesso identico difetto dell'alone. */
 .pack-card-rim{
   position:absolute; inset:-5px;
-  border-radius:19px;
-  padding:8px;
-  overflow:hidden;
   opacity:0;
   pointer-events:none;
   z-index:1;
   display:none;
+}
+.pack-card-rim-ring{
+  position:absolute; inset:0;
+  border-radius:19px;
+  padding:8px;
+  overflow:hidden;
   filter:blur(2.5px);
   mix-blend-mode:plus-lighter;
+  will-change:opacity, filter;
   -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
           mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite:xor;
           mask-composite:exclude;
 }
-.pack-card-rim::before{
+.pack-card-rim-ring::before{
   content:'';
+  will-change:transform;
   position:absolute; left:-60%; top:-60%; width:220%; height:220%;
   background:conic-gradient(var(--rarita) 0deg, transparent 55deg, var(--rarita) 130deg,
                             transparent 200deg, var(--rarita) 270deg, transparent 330deg, var(--rarita) 360deg);
@@ -3798,16 +3942,18 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
 }
 .pack-card.revealed .pack-card-rim{
   display:block;
-  animation:packRimIn .7s ease-out .5s forwards,
-            packRimBreathe 4.3s ease-in-out .5s infinite;
+  animation:packRimIn .9s ease-out .5s forwards;
+}
+.pack-card.revealed .pack-card-rim-ring{
+  animation:packRimBreathe 4.3s ease-in-out infinite;
 }
 /* Le comuni restano senza bordo: la regola che lo accende non le riguarda. */
 .pack-card.rarita-common .pack-card-rim{ display:none !important; animation:none !important; }
 @keyframes packRimSpin{ from{ transform:rotate(0deg); } to{ transform:rotate(360deg); } }
-@keyframes packRimIn{ from{opacity:0;} to{opacity:0.95;} }
+@keyframes packRimIn{ from{opacity:0;} to{opacity:1;} }
 @keyframes packRimBreathe{
   0%,100% { opacity:0.95; filter:blur(2.5px); }
-  50%     { opacity:0.7;  filter:blur(4px); }
+  50%     { opacity:0.68; filter:blur(4.5px); }
 }
 /* TEMPO 6 — "Metti via": uscita ad arco. La parte ALTA della carta resta
    allineata alla traiettoria, quindi la rotazione non e' decorativa: e' la
@@ -4871,7 +5017,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.72.89</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.72.94</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -5094,7 +5240,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
     </div>
     <div id="pack-status"></div>
     <div id="pack-stage">
-      <div id="pack-beam"></div>
+      <div id="pack-beam"><div id="pack-beam-shape"></div></div>
       <div id="pack-closed" onclick="apriBustina()">
         <div id="pack-glow"></div>
         <div id="pack-shake" style="width:100%;height:100%;">
@@ -8195,6 +8341,9 @@ const BUSTINA_RITARDO_CARTE = 250;   // fra il raggio e l'uscita delle carte
 const BUSTINA_SPINTA_MS = 550;
 const BUSTINA_RIENTRO_MS = 820;
 const BUSTINA_SFALSAMENTO_MS = 120;  // scarto fra la prima e la seconda carta
+// Meta' del giro del cambio variante: deve combaciare con packSwapOut/In nel
+// CSS, perche' e' li' che il contenuto viene sostituito.
+const PACK_SWAP_META_MS = 220;
 // Quanto passa fra il tocco e l'inizio del giro: il tempo di vedere
 // l'ingrandimento e il lampo, senza che l'attesa diventi un'esitazione.
 const BUSTINA_GIRO_RITARDO_MS = 500;
@@ -8457,12 +8606,24 @@ function _costruisciCartaBustina(entry, dir, indice){
   // tutte le carte, e lo stile decide chi lo mostra.
   const bordo = document.createElement('div');
   bordo.className = 'pack-card-rim';
+  const anello = document.createElement('div');
+  anello.className = 'pack-card-rim-ring';
+  bordo.appendChild(anello);
   carta.appendChild(bordo);
 
   // Il livello dell'ingrandimento: dentro ci stanno il piano che gira e il
   // velo del lampo, cosi' crescono insieme e restano sovrapposti (v0.72.84).
   const pop = document.createElement('div');
   pop.className = 'pack-card-pop';
+
+  // Livello del tilt: ci sta dentro il piano che gira, e gli fa da fratello
+  // il riflesso (vedi .pack-card-tilt nel CSS per il perche' di questo ordine).
+  // Livello del cambio variante: avvolge tutto cio' che gira.
+  const swap = document.createElement('div');
+  swap.className = 'pack-card-swap';
+
+  const tilt = document.createElement('div');
+  tilt.className = 'pack-card-tilt';
 
   const piano = document.createElement('div');
   piano.className = 'pack-card-flip';
@@ -8478,11 +8639,18 @@ function _costruisciCartaBustina(entry, dir, indice){
   fronte.className = 'pack-card-face front';
   const cardObj = _makeCardDbCard(entry, _cardDbVariant);
   const visiva = (typeof cardFoilVisualCard==='function') ? cardFoilVisualCard(cardObj) : cardObj;
-  fronte.appendChild(buildFullHandCardSVG(visiva, 210, 360));
+  fronte.appendChild(buildFullHandCardSVG(visiva, 242, 414));
 
   piano.appendChild(dorso);
   piano.appendChild(fronte);
-  pop.appendChild(piano);
+  tilt.appendChild(piano);
+
+  const riflesso = document.createElement('div');
+  riflesso.className = 'pack-card-glare';
+  tilt.appendChild(riflesso);
+
+  swap.appendChild(tilt);
+  pop.appendChild(swap);
 
   const lampo = document.createElement('div');
   lampo.className = 'pack-card-flash';
@@ -8542,8 +8710,34 @@ function _tangenteBezier(p0,p1,p2,t){
   return {x: 2*u*(p1.x-p0.x) + 2*t*(p2.x-p1.x),
           y: 2*u*(p1.y-p0.y) + 2*t*(p2.y-p1.y)};
 }
-function impostaTraiettoriaUscita(carta, dir){
-  const partenza = {x: dir*128, y: 0};
+// v0.72.92 — DA DOVE PARTE L'USCITA.
+// Prima l'arco cominciava sempre dal punto di riposo teorico (dir*128, 0) con
+// gia' addosso la rotazione della tangente. Ma al momento del click la carta
+// non e' quasi mai li': sta galleggiando, quindi e' spostata fino a 14px in
+// alto e ruotata di un grado. E soprattutto la sua rotazione e' ~0, mentre il
+// primo fotogramma dell'uscita ne chiedeva 13. Risultato: uno scatto secco di
+// posizione e rotazione nell'istante del click.
+// Ora la partenza si LEGGE dalla carta invece di darla per scontata: si
+// interroga il browser sulla trasformazione realmente applicata in quel
+// momento e si comincia esattamente da li'. Niente da indovinare, niente da
+// tenere sincronizzato con il galleggiamento.
+function _trasformazioneAttuale(el){
+  try {
+    const m = getComputedStyle(el).transform;
+    if(!m || m === 'none') return {x:0, y:0, gradi:0};
+    // matrix(a, b, c, d, tx, ty): le prime due colonne portano rotazione e
+    // scala, le ultime due la traslazione. L'angolo si ricava da atan2(b, a).
+    const n = m.match(/matrix\(([^)]+)\)/);
+    if(!n) return {x:0, y:0, gradi:0};
+    const v = n[1].split(',').map(parseFloat);
+    return {x: v[4]||0, y: v[5]||0, gradi: Math.atan2(v[1]||0, v[0]||1)*180/Math.PI};
+  } catch(_){ return {x:0, y:0, gradi:0}; }
+}
+// Dove si posa una carta, misurato dal centro: lo stesso numero che sta in
+// packFloat e packCardSettle nel CSS.
+const PACK_RIPOSO_X = 178;
+function impostaTraiettoriaUscita(carta, dir, da){
+  const partenza = da || {x: dir*PACK_RIPOSO_X, y: 0};
   // Il punto di controllo sta quasi SOPRA la partenza, non di lato: la
   // tangente iniziale risulta cosi' quasi verticale, e la carta parte con una
   // rotazione di una decina di gradi invece che di quaranta. Con il controllo
@@ -8560,7 +8754,13 @@ function impostaTraiettoriaUscita(carta, dir){
   const PASSI = 14;
   const tappe = [];
   for(let k=0;k<=PASSI;k++) tappe.push(Math.pow(k/PASSI, 1.9));
-  let precedente = null;
+  // La rotazione del primo campione e' quella che la carta ha ADESSO, non la
+  // tangente: da li' si allinea alla traiettoria nei campioni successivi. Nei
+  // primi tratti la carta si sposta di pochi pixel (vedi il campionamento a
+  // potenza), quindi l'allineamento avviene mentre e' quasi ferma e si legge
+  // come "si orienta prima di partire" invece che come uno scatto.
+  let precedente = (da && typeof da.gradi === 'number') ? da.gradi : null;
+  const gradiIniziali = precedente;
   tappe.forEach((t, i)=>{
     const p = _puntoBezier(partenza, controllo, arrivo, t);
     const d = _tangenteBezier(partenza, controllo, arrivo, t);
@@ -8574,6 +8774,7 @@ function impostaTraiettoriaUscita(carta, dir){
       while(gradi - precedente >  180) gradi -= 360;
       while(gradi - precedente < -180) gradi += 360;
     }
+    if(i === 0 && gradiIniziali !== null) gradi = gradiIniziali;
     precedente = gradi;
     carta.style.setProperty('--x'+i, p.x.toFixed(1)+'px');
     carta.style.setProperty('--y'+i, p.y.toFixed(1)+'px');
@@ -8590,10 +8791,20 @@ function mettiViaCarte(){
   const carte = [...document.querySelectorAll('.pack-card')];
   carte.forEach((c, i)=>{
     const dir = parseFloat(c.style.getPropertyValue('--dir')) || (i===0?-1:1);
-    impostaTraiettoriaUscita(c, dir);
+    // Si legge la posizione vera PRIMA di togliere il galleggiamento:
+    // togliendolo, la carta tornerebbe al suo stato di base e si leggerebbe
+    // un valore che non e' quello che si vede.
+    const da = _trasformazioneAttuale(c);
+    impostaTraiettoriaUscita(c, dir, da);
     c.classList.remove('floating');
-    c.style.setProperty('--ritardo', (i*0.09)+'s');
-    c.classList.add('leaving');
+    // Lo sfalsamento fra le due carte viveva in --ritardo, che l'animazione
+    // usava come animation-delay: durante quel ritardo la carta tornava al suo
+    // stato di base — lo stesso difetto del galleggiamento. Ora lo
+    // sfalsamento e' un rinvio del MOMENTO in cui parte, non un ritardo
+    // dell'animazione.
+    c.style.setProperty('--ritardo', '0s');
+    if(i === 0) c.classList.add('leaving');
+    else _bustinaDopo(i*90, ()=>{ c.classList.add('leaving'); });
   });
   try { playSfxFile('card-drop.mp3'); } catch(_){}
   _bustinaDopo(1100, ()=>{ tornaAllaBustina(); });
@@ -8613,9 +8824,16 @@ function tornaAllaBustina(){
   if(raggio) raggio.classList.remove('firing');
   if(bottone) bottone.style.display='none';
   if(chiusa){
-    chiusa.style.display='';
     chiusa.classList.remove('charging','tearing','dissolving');
     impostaImmagineBustina('closed');
+    chiusa.style.display='';
+    // Parte trasparente e sale: senza questo passaggio la bustina ricomparirebbe
+    // di colpo, subito dopo che le carte sono uscite di scena in dissolvenza —
+    // uno stacco secco proprio dove tutto il resto sfuma.
+    // Il valore va tolto e non messo a 1: cosi' l'opacita' finale la decide la
+    // classe (piena se la bustina e' pronta, 0.2 se e' ancora in attesa).
+    chiusa.style.opacity = '0';
+    requestAnimationFrame(()=>{ requestAnimationFrame(()=>{ chiusa.style.opacity = ''; }); });
     const velo=document.getElementById('pack-white');
     if(velo) velo.style.opacity='';
   }
@@ -8639,24 +8857,83 @@ function packToggleVariant(){
   _cardDbVariant = _cardDbVariant===1 ? 2 : 1;
   packUpdateToggleLabel();
   // La bustina non e' faction-coded: il pulsante riguarda solo le carte.
-  // Le carte gia' in scena si ridisegnano nella nuova variante conservando lo
-  // stato in cui sono: una carta gia' girata resta girata, una ancora coperta
-  // resta coperta. Ricostruirle da zero le riporterebbe tutte al dorso, e chi
-  // ha appena scoperto una mitica se la vedrebbe richiudere in faccia.
-  const rivelate=document.getElementById('pack-reveal');
+  const rivelate = document.getElementById('pack-reveal');
   if(!rivelate) return;
-  [...rivelate.querySelectorAll('.pack-card')].forEach(vecchia=>{
-    const entry = vecchia.__entry;
-    if(!entry) return;
-    const dir = parseFloat(vecchia.style.getPropertyValue('--dir')) || 1;
-    const indice = parseFloat(vecchia.style.getPropertyValue('--ritardo')) ? 1 : 0;
-    const scoperta = vecchia.classList.contains('revealed');
-    const nuova = _costruisciCartaBustina(entry, dir, indice);
-    nuova.className = vecchia.className;   // stesse classi = stessa fase
-    nuova.style.cssText = vecchia.style.cssText;
-    if(scoperta) nuova.classList.add('revealed');
-    vecchia.replaceWith(nuova);
+  const carte = [...rivelate.querySelectorAll('.pack-card')];
+  if(!carte.length) return;
+  // v0.72.92 — stesso comportamento del pulsante della Collezione: le carte
+  // GIRANO, e il contenuto viene sostituito a meta' giro, quando sono di
+  // taglio e non si vede nulla. Prima sparivano e ricomparivano di colpo,
+  // perche' il nodo veniva rimpiazzato all'istante.
+  // La sostituzione a meta' e' l'unico momento in cui si puo' cambiare
+  // l'immagine senza che si veda il cambio: e' il trucco su cui si regge
+  // qualunque animazione di "giro con contenuto diverso dietro".
+  carte.forEach(c=>{
+    const swap = c.querySelector('.pack-card-swap');
+    if(swap){ swap.classList.remove('swap-in'); swap.classList.add('swap-out'); }
   });
+  _bustinaDopo(PACK_SWAP_META_MS, ()=>{
+    carte.forEach(vecchia=>{
+      const entry = vecchia.__entry;
+      if(!entry) return;
+      const dir = parseFloat(vecchia.style.getPropertyValue('--dir')) || 1;
+      const indice = parseFloat(vecchia.style.getPropertyValue('--ritardo')) ? 1 : 0;
+      const nuova = _costruisciCartaBustina(entry, dir, indice);
+      // Le classi e gli stili in corso vengono ricopiati: la carta nuova
+      // riprende esattamente la fase in cui era la vecchia (girata, che
+      // galleggia, in uscita) invece di ricominciare da capo.
+      nuova.className = vecchia.className;
+      nuova.style.cssText = vecchia.style.cssText;
+      vecchia.replaceWith(nuova);
+      const swap = nuova.querySelector('.pack-card-swap');
+      if(swap){
+        // Parte dal mezzo giro opposto e completa il movimento: da fuori si
+        // legge come un unico giro continuo.
+        swap.classList.add('swap-in');
+        setTimeout(()=>swap.classList.remove('swap-in'), PACK_SWAP_META_MS+40);
+      }
+    });
+  });
+}
+
+// v0.72.90 — IL TILT SEGUE IL PUNTATORE.
+// Un solo ascoltatore sul palcoscenico invece di due per carta: le carte
+// nascono e muoiono a ogni bustina, e agganciare gli eventi a loro
+// significherebbe rimetterli ogni volta e rischiare di dimenticarne uno
+// appeso a un elemento gia' rimosso. Il palcoscenico c'e' sempre.
+// L'inclinazione e' normalizzata -1..1 rispetto al centro della carta, come
+// in Collezione: cosi' la stessa formula CSS vale per entrambe le pagine.
+let _packTiltInit = false;
+function initPackTilt(){
+  if(_packTiltInit) return;
+  _packTiltInit = true;
+  const palco = document.getElementById('pack-stage');
+  if(!palco) return;
+  const spegni = (carta)=>{
+    if(!carta) return;
+    carta.removeAttribute('data-tilt');
+    const t = carta.querySelector('.pack-card-tilt');
+    if(t){ t.style.setProperty('--foil-rx','0'); t.style.setProperty('--foil-ry','0'); }
+  };
+  let attiva = null;
+  palco.addEventListener('pointermove', (e)=>{
+    const carta = e.target && e.target.closest ? e.target.closest('.pack-card') : null;
+    if(!carta){ spegni(attiva); attiva = null; return; }
+    if(carta !== attiva){ spegni(attiva); attiva = carta; carta.setAttribute('data-tilt','1'); }
+    const r = carta.getBoundingClientRect();
+    if(!r.width || !r.height) return;
+    // px/py: dove sta il puntatore sulla carta, da 0 a 1 — muovono il riflesso.
+    const px = (e.clientX - r.left)/r.width;
+    const py = (e.clientY - r.top)/r.height;
+    // rx/ry: la stessa cosa riportata fra -1 e 1, con lo zero al centro.
+    const t = carta.querySelector('.pack-card-tilt');
+    if(!t) return;
+    t.style.setProperty('--foil-rx', (px*2-1).toFixed(3));
+    t.style.setProperty('--foil-ry', (py*2-1).toFixed(3));
+    t.style.setProperty('--foil-mx', (px*100).toFixed(1));
+    t.style.setProperty('--foil-my', (py*100).toFixed(1));
+  });
+  palco.addEventListener('pointerleave', ()=>{ spegni(attiva); attiva = null; });
 }
 
 function openPackOverlay(){
@@ -8665,6 +8942,7 @@ function openPackOverlay(){
   abandonCurrentGame();
   showPage('packs');
   document.getElementById('pack-overlay').classList.add('show');
+  initPackTilt();
   packUpdateToggleLabel();
   tornaAllaBustina();
   // Il conto alla rovescia si aggiorna ogni secondo mentre la pagina e'
