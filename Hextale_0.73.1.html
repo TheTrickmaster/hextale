@@ -5037,7 +5037,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.73.0</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.73.1</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -7545,6 +7545,10 @@ function _cardaDaRiga(col, get){
     // ricalcolato a mano quando una carta sale: il numero scritto li' significa
     // sempre la stessa cosa, indipendentemente dal livello.
     values: valoriAlLivello(values, livello),
+    // v0.73.1 — la divisione in gruppi, decisa qui una volta sola. Il bonus di
+    // livello somma lo stesso numero a tutti i lati, quindi non cambia quali
+    // lati stanno insieme: si puo' ricavare indifferentemente dai valori base.
+    groupSides: gruppiIniziali(values),
     // I valori come stanno nel foglio, prima del bonus. Servono a sapere da
     // dove si e' partiti senza doverlo ricavare per sottrazione.
     valuesBase: values,
@@ -8068,6 +8072,8 @@ function _makeCardDbCard(entry, owner){
     artLayersDark: entry.artLayersDark || null,
     artLayersLight: entry.artLayersLight || null,
     artLayers: (playerFactionIsDark(owner) ? entry.artLayersDark : entry.artLayersLight) || null,
+    // v0.73.1 — i gruppi seguono la carta: e' la sua identita', non un calcolo.
+    groupSides: Array.isArray(entry.groupSides) ? entry.groupSides.map(g=>g.slice()) : null,
     // v0.72.68 — le battute trovate da verificaArtCarte. Sulla carta e non
     // solo nel roster, cosi' playCardVoiceLine le ha sottomano anche per le
     // carte costruite fuori dalla Collezione (mazzi di partita, "prova
@@ -12074,6 +12080,43 @@ function makeBalancedDecks(){
 // assumes `sides` is a literal index-contiguous SIDES-array slice, so a
 // wrapped group's reordered (but still clockwise-correct) sides array works
 // identically for their math.
+// ═══════════════════════════════════════════════════════════════════════════
+// v0.73.1 — I GRUPPI APPARTENGONO ALLA CARTA, NON AI SUOI NUMERI
+// ═══════════════════════════════════════════════════════════════════════════
+// getGroups() qui sotto RICAVA i gruppi dai valori: lati adiacenti con lo
+// stesso numero sono lo stesso gruppo. Va benissimo per decidere come una
+// carta NASCE — ed e' li' che continua a servire — ma non per descriverla
+// durante la partita, perche' i valori cambiano.
+// Il problema: una carta con tre gruppi da 4, 5 e 6, se per un effetto il 4
+// diventa 5, si ritrovava con DUE gruppi (uno da 5 e uno da 6). I due gruppi
+// da 5 si fondevano solo perche' avevano finito per avere lo stesso numero,
+// e la carta perdeva un gruppo — cioe' cambiava identita' per un caso.
+// Da ora la divisione in gruppi viene decisa UNA VOLTA, quando la carta viene
+// creata, e resta quella per tutta la sua vita: `groupSides` e' l'elenco dei
+// lati di ogni gruppo. I numeri sopra ci scorrono liberamente; due gruppi
+// possono benissimo mostrare lo stesso valore restando due gruppi distinti.
+//
+// Chi disegna o ragiona su una carta deve quindi chiamare gruppiDiCarta(card),
+// non getGroups(card.values). Il ripiego su getGroups resta per le carte
+// costruite prima di questa modifica e per gli oggetti che non sono carte
+// complete (anteprime, sonde), cosi' niente si rompe.
+// `valoriOverride` serve a chi disegna un'ANTEPRIMA: i gruppi restano quelli
+// della carta, i numeri sopra sono quelli ipotetici. Senza questa separazione
+// l'anteprima mostrerebbe i valori nuovi ma la divisione in gruppi vecchia —
+// o peggio, ricalcolerebbe i gruppi sui valori ipotetici e la carta cambierebbe
+// forma sotto il puntatore.
+function gruppiDiCarta(card, valoriOverride){
+  if(!card) return [];
+  const valori = valoriOverride || card.values || card;
+  const elenco = card.groupSides;
+  if(!Array.isArray(elenco) || !elenco.length) return getGroups(valori);
+  return elenco.map(lati => ({ sides: lati.slice(), val: valori[lati[0]] }));
+}
+// La divisione in gruppi di una carta appena nata, da conservare come identita'.
+function gruppiIniziali(values){
+  return getGroups(values).map(g => g.sides.slice());
+}
+
 function getGroups(cv){
   const groups=[]; let i=0;
   while(i<6){
@@ -13056,7 +13099,7 @@ function activateEatTheRich(card, q, r){
       if(!card.tileAbilityBaseValues) card.tileAbilityBaseValues={...card.values};
 
       // Enemy side: -1 to every side in the group containing dir.theirSide.
-      const enemyGroups=getGroups(nb.card.values);
+      const enemyGroups=gruppiDiCarta(nb.card);
       const enemyGroup=enemyGroups.find(g=>g.sides.includes(dir.theirSide));
       const enemySides=enemyGroup ? enemyGroup.sides : [dir.theirSide];
       for(const s of enemySides) nb.card.values[s]=(nb.card.values[s]||0)-1;
@@ -13064,7 +13107,7 @@ function activateEatTheRich(card, q, r){
       // Robin's side: +1 to every side in the group containing dir.mySide.
       // Recomputed fresh per adjacent enemy so a previous enemy's +1 to this
       // same group is already reflected when checking group membership.
-      const myGroups=getGroups(card.values);
+      const myGroups=gruppiDiCarta(card);
       const myGroup=myGroups.find(g=>g.sides.includes(dir.mySide));
       const mySides=myGroup ? myGroup.sides : [dir.mySide];
       for(const s of mySides) card.values[s]=(card.values[s]||0)+1;
@@ -17471,7 +17514,7 @@ function drawHexCard(svg,cx,cy,R,card,fillColor,strokeColor,textColor,nameText,i
 
   const corners=hexCorners(cx,cy,R);
   const scp=getSideCornerPairs(corners);
-  const groups=getGroups(cardValues);
+  const groups=gruppiDiCarta(card, cardValues);
 
   // Reference board-scale radius at 1920x1080 (see bestBoardR()) — corner
   // ornaments and value-circles are speced as fixed pixel sizes AT THIS
@@ -18715,7 +18758,7 @@ function buildFullHandCardSVG(card, boxW, boxH){
   // buildFullHandCardSVG (unlike drawHexCard) never receives a
   // displayValues override — this hint always reflects the card's own
   // printed/current values, same fallback drawHexCard's own cardValues uses.
-  const vvGroups = getGroups(card.values || card);
+  const vvGroups = gruppiDiCarta(card);
   // Border color per explicit spec: 2px, #433618, drawn from the hex's
   // center out to each group BOUNDARY corner — identical convention to
   // drawHexCard's own group-separator lines just below (same
