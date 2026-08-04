@@ -4322,7 +4322,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.72.75</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.72.76</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -9080,6 +9080,134 @@ const DEBUG_ASSET_OPTIONS = [
 // debugToggle*Dropdown() right before it decides whether IT is opening, so
 // at most one of these inline pickers is ever visible at once instead of
 // them silently stacking up underneath each other as more get opened.
+// ═══════════════════════════════════════════════════════════════════════════
+// v0.72.76 — "SCARICA ULTIMA VERSIONE"
+// ═══════════════════════════════════════════════════════════════════════════
+// COSA SI PUO' FARE E COSA NO, perche' la differenza conta.
+// Una pagina web non puo' sovrascrivere il file da cui e' stata aperta: non
+// esiste un permesso per farlo, ed e' una limitazione voluta del browser — se
+// esistesse, qualunque pagina potrebbe riscrivere file sul disco di chi la
+// visita. Quindi "aggiornarsi da sola" nel senso stretto non e' possibile.
+// Quello che si puo' fare e' due cose distinte:
+//   1. SCARICARE il file nuovo (finisce nei Download; poi si sostituisce a
+//      mano quello vecchio). E' l'unico modo per aggiornare davvero il file.
+//   2. ESEGUIRLO SUBITO in questa stessa finestra, senza riaprire niente. La
+//      pagina viene rimpiazzata dalla nuova versione e la si puo' provare
+//      immediatamente — ma il file sul disco resta quello di prima, quindi al
+//      riavvio si torna a questa versione. E' una prova, non un aggiornamento.
+// L'interfaccia le tiene separate apposta, con scritto sopra cosa fanno: se
+// avessi messo un solo pulsante, la seconda sarebbe sembrata la prima e la
+// versione "aggiornata" sarebbe sparita al riavvio successivo, senza capire
+// perche'.
+//
+// PERCHE' FUNZIONA ANCHE APRENDO IL FILE COL DOPPIO CLICK. Da file:// il
+// browser assegna alla pagina l'origine `null` e blocca quasi ogni richiesta
+// verso l'esterno (vedi il caricatore del foglio per la stessa storia). Qui si
+// passa pero' da api.github.com e raw.githubusercontent.com, che rispondono
+// entrambi con `Access-Control-Allow-Origin: *` — cioe' "chiunque puo'
+// leggermi", origine nulla compresa. Sono fra i pochi host su cui una pagina
+// aperta dal disco puo' davvero fare una fetch.
+const GITHUB_REPO_API = 'https://api.github.com/repos/TheTrickmaster/hextale/contents/';
+// Dal nome file al numero di versione confrontabile: "Hextale_0.72.9.html" e
+// "Hextale_0.72.10.html" vanno ordinati per numero e non per stringa, altrimenti
+// la 9 risulterebbe piu' recente della 10.
+function _versioneDaNomeFile(nome){
+  const m = /^Hextale[_-]v?(\d+(?:\.\d+)*)\.html$/i.exec(nome);
+  if(!m) return null;
+  return m[1].split('.').map(n=>parseInt(n,10)||0);
+}
+function _confrontaVersioni(a, b){
+  const n = Math.max(a.length, b.length);
+  for(let i=0;i<n;i++){
+    const x = a[i]||0, y = b[i]||0;
+    if(x!==y) return x-y;
+  }
+  return 0;
+}
+function _versioneCorrente(){
+  const badge = document.getElementById('build-version-badge');
+  const m = badge ? /v?(\d+(?:\.\d+)*)/.exec(badge.textContent||'') : null;
+  return m ? m[1].split('.').map(n=>parseInt(n,10)||0) : [0];
+}
+let _ultimaVersioneTrovata = null; // {nome, url, versione}
+
+function debugCercaUltimaVersione(){
+  const box = document.getElementById('debug-update-box');
+  const msg = document.getElementById('debug-update-msg');
+  const azioni = document.getElementById('debug-update-actions');
+  if(!box) return;
+  box.style.display = 'block';
+  azioni.style.display = 'none';
+  msg.textContent = 'Cerco su GitHub…';
+  // `cache:'no-store'` perche' una risposta vecchia qui vorrebbe dire non
+  // vedere proprio la versione appena pubblicata, che e' l'unica cosa che
+  // interessa a questo pulsante.
+  fetch(GITHUB_REPO_API, {cache:'no-store'})
+    .then(r => r.ok ? r.json() : Promise.reject(new Error('GitHub ha risposto ' + r.status)))
+    .then(elenco => {
+      if(!Array.isArray(elenco)) throw new Error('risposta inattesa');
+      let migliore = null;
+      for(const f of elenco){
+        const v = _versioneDaNomeFile(f.name||'');
+        if(!v) continue;
+        if(!migliore || _confrontaVersioni(v, migliore.versione) > 0){
+          migliore = {nome:f.name, url:f.download_url, versione:v};
+        }
+      }
+      if(!migliore) throw new Error('nessun file Hextale_*.html nel repository');
+      _ultimaVersioneTrovata = migliore;
+      const corrente = _versioneCorrente();
+      const scarto = _confrontaVersioni(migliore.versione, corrente);
+      const vTesto = migliore.versione.join('.');
+      if(scarto > 0){
+        msg.innerHTML = 'Disponibile la <b>v' + vTesto + '</b> (stai usando la v' + corrente.join('.') + ').';
+      } else if(scarto === 0){
+        msg.textContent = 'Sei gia\' alla versione piu\' recente (v' + vTesto + ').';
+      } else {
+        msg.textContent = 'Su GitHub c\'e\' la v' + vTesto + ', piu\' vecchia di questa (v' + corrente.join('.') + ').';
+      }
+      const link = document.getElementById('debug-update-download');
+      link.href = migliore.url;
+      link.setAttribute('download', migliore.nome);
+      link.textContent = 'Scarica ' + migliore.nome;
+      azioni.style.display = 'block';
+    })
+    .catch(e => {
+      // Si dice cosa NON ha funzionato, non un generico "errore": senza rete,
+      // repository rinominato e limite di richieste raggiunto si risolvono in
+      // tre modi diversi.
+      msg.textContent = 'Non riesco a leggere il repository: ' + (e && e.message ? e.message : e)
+        + '. Se hai fatto molte richieste di fila, GitHub le limita per un\'ora.';
+    });
+}
+
+// Esegue la versione trovata AL POSTO di questa pagina. Il file sul disco non
+// viene toccato — vedi il commento in testa a questo blocco.
+function debugEseguiUltimaVersione(){
+  const msg = document.getElementById('debug-update-msg');
+  if(!_ultimaVersioneTrovata){ if(msg) msg.textContent = 'Cerca prima la versione.'; return; }
+  if(msg) msg.textContent = 'Scarico ' + _ultimaVersioneTrovata.nome + '…';
+  fetch(_ultimaVersioneTrovata.url, {cache:'no-store'})
+    .then(r => r.ok ? r.text() : Promise.reject(new Error('risposta ' + r.status)))
+    .then(html => {
+      // La musica e i timer di QUESTA pagina vanno fermati prima: document.write
+      // sostituisce il documento, ma un <audio> gia' in riproduzione e le
+      // catene di setTimeout gia' partite sopravvivono al ricambio e
+      // continuerebbero a suonare sotto la pagina nuova.
+      try { stopMusicLoopChain(); } catch(_){}
+      document.querySelectorAll('audio').forEach(a=>{ try{ a.pause(); }catch(_){} });
+      try { if(typeof gameGeneration!=='undefined') gameGeneration++; } catch(_){}
+      // document.open() svuota il documento e document.write ci scrive dentro
+      // il nuovo HTML, script compresi, che vengono eseguiti. Gli asset con
+      // percorso relativo continuano a risolversi rispetto alla cartella di
+      // QUESTO file — cioe' game-assets/ — quindi la ricerca locale delle
+      // illustrazioni continua a funzionare esattamente come prima.
+      document.open();
+      document.write(html);
+      document.close();
+    })
+    .catch(e => { if(msg) msg.textContent = 'Non riesco a scaricarla: ' + (e && e.message ? e.message : e); });
+}
 function debugCloseOtherPickers(exceptId){
   ['debug-asset-picker','debug-card-picker','debug-music-loop-picker'].forEach(id=>{
     if(id===exceptId) return;
