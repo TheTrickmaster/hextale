@@ -13595,14 +13595,19 @@ const RECOIL_PX = 9;
 let _recoilToggle = 0;
 function playDefenderRecoil(defEl, ux, uy){
   if(!defEl) return;
-  defEl.style.setProperty('--kx',(ux*RECOIL_PX).toFixed(2));
-  defEl.style.setProperty('--ky',(uy*RECOIL_PX).toFixed(2));
+  // v0.72.99 — il contraccolpo va sul gruppo INTERNO, non sulla carta stessa:
+  // su quella c'e' gia' il giro, e due animazioni sulla stessa proprieta' si
+  // escludono a vicenda (vedi renderBoard). Il ripiego sull'elemento esterno
+  // serve alle carte disegnate prima di questa modifica, se ne restassero.
+  const bersaglio = defEl.querySelector('[data-role="recoil-host"]') || defEl;
+  bersaglio.style.setProperty('--kx',(ux*RECOIL_PX).toFixed(2));
+  bersaglio.style.setProperty('--ky',(uy*RECOIL_PX).toFixed(2));
   // Stessa alternanza A/B del lunge, e per lo stesso motivo: ri-aggiungere la
   // stessa classe mentre l'animazione e' ancora in corso viene coalizzato dal
   // browser e l'animazione non riparte.
-  defEl.classList.remove('card-recoil-a','card-recoil-b');
-  void defEl.offsetWidth;
-  defEl.classList.add((_recoilToggle++ % 2===0) ? 'card-recoil-a' : 'card-recoil-b');
+  bersaglio.classList.remove('card-recoil-a','card-recoil-b');
+  void bersaglio.getBoundingClientRect();
+  bersaglio.classList.add((_recoilToggle++ % 2===0) ? 'card-recoil-a' : 'card-recoil-b');
 }
 // Scuotimento della plancia. L'ampiezza DECRESCE lungo una sequenza di
 // conquiste: il primo colpo e' l'evento, i successivi sono la conseguenza —
@@ -21503,15 +21508,26 @@ function renderBoard(){
       // opponent of whoever is dragging), and only ever previews — it never
       // mutates the real card values, exactly like every other hover preview
       // in this file.
-      if(dragState && dragState.hoverCellKey){
-        const [hq,hr]=dragState.hoverCellKey.split(',').map(Number);
-      }
       const cardGroup=document.createElementNS('http://www.w3.org/2000/svg','g');
       cardGroup.setAttribute('data-conquered',k);
       svg.appendChild(cardGroup);
+      // v0.72.99 FIX ("gli hextile conquistati non flippano piu'"): il giro
+      // (.card-flip) e il contraccolpo del colpo incassato (.card-recoil-*)
+      // finivano ENTRAMBI su questo stesso elemento, e animano entrambi
+      // `transform`. Due animazioni sulla stessa proprieta' non si sommano:
+      // vince quella dichiarata piu' in basso nel foglio di stile, che e' il
+      // contraccolpo. Il giro non partiva proprio — e siccome lo scambio di
+      // fazione e' JavaScript e non animazione, la carta cambiava colore
+      // restando immobile. E' esattamente il sintomo descritto.
+      // Le due animazioni vivono ora su elementi annidati: il giro qui, il
+      // contraccolpo sul gruppo interno. Annidate, le trasformazioni si
+      // compongono invece di escludersi.
+      const recoilGroup=document.createElementNS('http://www.w3.org/2000/svg','g');
+      recoilGroup.setAttribute('data-role','recoil-host');
+      cardGroup.appendChild(recoilGroup);
       // Merge placed.owner into card so border-top reflects current owner after conquest
       const cardWithOwner = {...placed.card, owner: placed.owner};
-      drawHexCard(cardGroup,x,y,R,cardWithOwner,fc,sc,tc,placed.card.name,false,null,null,true,displayValuesForCell,factionDeltas);
+      drawHexCard(recoilGroup,x,y,R,cardWithOwner,fc,sc,tc,placed.card.name,false,null,null,true,displayValuesForCell,factionDeltas);
       // v0.71.6 FIX ("bisogna rimuovere il cerchietto abilità al centro
       // della carta. è obsoleto"): the activated-ability badge (a circle +
       // icon permanently sitting over the middle of every placed card with
