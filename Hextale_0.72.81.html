@@ -3220,6 +3220,36 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
    buttons/dividers than the shared #settings-modal/#debug-modal rule's 20px
    default (that default still applies to #settings-modal, untouched). */
 #debug-modal{ gap:8px; }
+/* v0.72.80 — IL MENU DI DEBUG SU TRE COLONNE.
+   Il menu e' cresciuto una voce alla volta fino a diventare piu' alto della
+   finestra. Il contenitore centra il suo contenuto (align-items:center), e un
+   elemento piu' alto del contenitore centrato deborda da ENTRAMBI i lati: la
+   parte alta finiva sopra il bordo dello schermo, irraggiungibile e non
+   scorribile. Da fuori sembrava che il menu non rispondesse ai click, mentre
+   in realta' i pulsanti erano semplicemente fuori dalla finestra.
+   Tre colonne accorciano la colonna piu' lunga di due terzi. In piu' c'e' una
+   rete di sicurezza che prima non c'era: altezza massima e scorrimento, cosi'
+   il giorno in cui le voci saranno di nuovo troppe il menu diventera' scorribile
+   invece di tornare a sparire fuori campo. */
+#debug-modal{ width:1040px; max-width:calc(100vw - 40px); max-height:calc(100vh - 40px); overflow-y:auto; }
+#debug-grid{
+  display:grid;
+  grid-template-columns:repeat(3, 1fr);
+  gap:10px 14px;
+  align-items:start;
+}
+/* Ogni voce e' pulsante + eventuale pannello che si apre sotto di lui: devono
+   restare insieme nella stessa cella, altrimenti il pannello si aprirebbe
+   sotto la voce sbagliata. */
+.debug-item{ display:flex; flex-direction:column; min-width:0; }
+/* I pannelli a tendina erano dimensionati sui 460px di prima; dentro una
+   colonna da un terzo devono stare nella cella e non sbordare. */
+.debug-item > div[id]{ min-width:0; }
+.debug-item select, .debug-item input[type="text"]{ max-width:100%; box-sizing:border-box; }
+/* Su finestre strette tre colonne diventano illeggibili: si scende a due e
+   poi a una, invece di comprimere i pulsanti fino a nascondere le etichette. */
+@media (max-width: 1100px){ #debug-grid{ grid-template-columns:repeat(2, 1fr); } #debug-modal{ width:720px; } }
+@media (max-width: 760px){  #debug-grid{ grid-template-columns:1fr; }           #debug-modal{ width:440px; } }
 /* v0.70.21: painted-noise.png tiled on top of the gradient at 40% opacity,
    blend-mode overlay — the ONLY noise layer now (per explicit rollback of
    the extra noise.png layer added in v0.70.20). */
@@ -4428,7 +4458,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.72.79</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.72.81</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -4503,14 +4533,9 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      "always starts a vs-AI game" onclick (see build-version-badge's own
      updated onclick below). -->
 <div id="debug-modal-overlay" onclick="if(event.target===this) closeDebugModal();">
-  <div id="debug-modal">
-    <button id="debug-modal-close" aria-label="Chiudi" onclick="closeDebugModal()"><img src="https://thetrickmaster.github.io/hextale/player-ui/close-icon.png" alt="" draggable="false"></button>
-    <h2>Debug menu</h2>
-    <button class="start-art-btn sab-primary" onclick="closeDebugModal();requestNewGame(true)">
+  <div id="debug-modal"><button id="debug-modal-close" aria-label="Chiudi" onclick="closeDebugModal()"><img src="https://thetrickmaster.github.io/hextale/player-ui/close-icon.png" alt="" draggable="false"></button><h2>Debug menu</h2><div id="debug-grid"><div class="debug-item"><button class="start-art-btn sab-primary" onclick="closeDebugModal();requestNewGame(true)">
       <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Start match vs AI</span>
-    </button>
-    <div class="settings-divider"></div>
-    <!-- v0.71.58 REWORK ("raggruppiamo tutto sotto un unico pulsante: Mostra
+    </button></div><div class="debug-item"><!-- v0.71.58 REWORK ("raggruppiamo tutto sotto un unico pulsante: Mostra
          asset... apre un menu a tendina con listati tutti gli asset collegati
          ai pulsanti esistenti"): the 5 separate "show this specific
          asset/banner on demand" debug shortcuts (3 game-over variants + AI
@@ -4529,30 +4554,23 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
          match rather than just displaying something, so it keeps its own
          dedicated button. (v0.71.97: the "Start match with cards with
          ability..." tool that used to be mentioned here alongside it was
-         removed per explicit request.) -->
-    <button class="start-art-btn sab-secondary" onclick="debugToggleAssetDropdown()">
+         removed per explicit request.) --><button class="start-art-btn sab-secondary" onclick="debugToggleAssetDropdown()">
       <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Mostra asset...</span>
-    </button>
-    <div id="debug-asset-picker" style="display:none;margin-top:10px;">
+    </button><div id="debug-asset-picker" style="display:none;margin-top:10px;">
       <select id="debug-asset-select" style="width:100%;padding:8px;font-size:15px;border-radius:6px;background:#222;color:#fff;border:1px solid #555;">
       </select>
       <button class="start-art-btn sab-secondary" style="margin-top:8px;" onclick="debugShowSelectedAsset()">
         <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Mostra</span>
       </button>
-    </div>
-    <div class="settings-divider"></div>
-    <!-- v0.72.43 NEW ("mi crei un pulsante nel debug menu per calibrare da
+    </div></div><div class="debug-item"><!-- v0.72.43 NEW ("mi crei un pulsante nel debug menu per calibrare da
          solo questi quattro numeri in tempo reale?"): apre la Collezione e ci
          appoggia sopra un pannello flottante coi cursori del foil. Deve stare
          SOPRA la Collezione e non dentro questo menu, perche' i valori vanno
          giudicati guardando una carta vera mentre la si inclina — un
          pannello che si chiude per mostrare la carta non servirebbe a
-         niente. -->
-    <button class="start-art-btn sab-secondary" onclick="debugOpenFoilLab()">
+         niente. --><button class="start-art-btn sab-secondary" onclick="debugOpenFoilLab()">
       <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Calibra foil...</span>
-    </button>
-    <div class="settings-divider"></div>
-    <!-- v0.72.40 NEW ("ho bisogno di un modo per testare questo crossfade"):
+    </button></div><div class="debug-item"><!-- v0.72.40 NEW ("ho bisogno di un modo per testare questo crossfade"):
          il punto di giunzione della musica del menu cade a 3m18s dall'inizio
          della traccia, quindi ascoltarlo in condizioni normali vuol dire
          aspettare tre minuti e diciotto secondi ogni volta. Questo strumento
@@ -4562,17 +4580,14 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
          e' una simulazione, e' la cosa vera con un salto in avanti.
          Il secondo campo permette di provare anche gli altri brani man mano
          che verranno aggiunti a MUSIC_INTRO_LOOPS: la tendina si popola da
-         sola da quella tabella. -->
-    <button class="start-art-btn sab-secondary" onclick="debugToggleMusicLoopPicker()">
+         sola da quella tabella. --><button class="start-art-btn sab-secondary" onclick="debugToggleMusicLoopPicker()">
       <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Prova giunzione musica...</span>
-    </button>
-    <div id="debug-music-loop-picker" style="display:none;margin-top:10px;">
+    </button><div id="debug-music-loop-picker" style="display:none;margin-top:10px;">
       <select id="debug-music-loop-select" style="width:100%;padding:8px;font-size:15px;border-radius:6px;background:#222;color:#fff;border:1px solid #555;">
       </select>
       <div style="display:flex;align-items:center;gap:10px;margin-top:8px;">
         <label style="font-size:15px;white-space:nowrap;">Parti da</label>
-        <input id="debug-music-loop-lead" type="number" min="1" max="60" step="1" value="8"
-               style="width:70px;padding:6px;font-size:15px;border-radius:6px;background:#222;color:#fff;border:1px solid #555;">
+        <input id="debug-music-loop-lead" type="number" min="1" max="60" step="1" value="8" style="width:70px;padding:6px;font-size:15px;border-radius:6px;background:#222;color:#fff;border:1px solid #555;">
         <span style="font-size:15px;">s prima della giunzione</span>
       </div>
       <div id="debug-music-loop-status" style="margin-top:8px;font-size:15px;color:#95A7A9;min-height:22px;"></div>
@@ -4582,19 +4597,14 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
       <button class="start-art-btn sab-secondary" style="margin-top:8px;" onclick="debugStopMusicLoopJoin()">
         <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Ferma</span>
       </button>
-    </div>
-    <div class="settings-divider"></div>
-    <!-- v0.71.70 NEW ("iniziamo ad implementare le carte finali... abbiamo
+    </div></div><div class="debug-item"><!-- v0.71.70 NEW ("iniziamo ad implementare le carte finali... abbiamo
          bisogno di una pagina (anche placeholder)... che ci mostri un db di
          tutte le carte finali"): opens #card-db-overlay, a dedicated
          full-screen page for browsing the final (hand-authored, not
          randomly-generated) card roster — see that overlay's own HTML/CSS/JS
-         comments for the full layout breakdown. -->
-    <button class="start-art-btn sab-secondary" onclick="closeDebugModal();openCardDbOverlay()">
+         comments for the full layout breakdown. --><button class="start-art-btn sab-secondary" onclick="closeDebugModal();openCardDbOverlay()">
       <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Mostra DB carte</span>
-    </button>
-    <div class="settings-divider"></div>
-    <!-- v0.71.96 NEW ("Prova carta..."): a searchable picker over every
+    </button></div><div class="debug-item"><!-- v0.71.96 NEW ("Prova carta..."): a searchable picker over every
          FINAL_CARDS roster entry (the only cards with fixed, individually
          testable values/abilities — procedurally generated cards get random
          stats every game, so they don't make sense as a repeatable "test
@@ -4606,53 +4616,39 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
          starts a real vs-AI match whose OWN deck (see debugStartMatchWithCard
          in the script) is entirely replaced with 10 copies of the chosen
          card, so it keeps reappearing in hand every single draw instead of
-         needing to be dealt into a normal mixed deck by chance. -->
-    <button class="start-art-btn sab-secondary" onclick="debugToggleCardSearchDropdown()">
+         needing to be dealt into a normal mixed deck by chance. --><button class="start-art-btn sab-secondary" onclick="debugToggleCardSearchDropdown()">
       <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Prova carta...</span>
-    </button>
-    <div id="debug-card-picker" style="display:none;margin-top:10px;">
+    </button><div id="debug-card-picker" style="display:none;margin-top:10px;">
       <div style="position:relative;">
-        <input type="text" id="debug-card-search-input" placeholder="Cerca una carta..." autocomplete="off"
-          style="width:100%;box-sizing:border-box;padding:8px;font-size:15px;border-radius:6px;background:#222;color:#fff;border:1px solid #555;"
-          oninput="debugFilterCardSearchList()" onfocus="debugFilterCardSearchList()">
+        <input type="text" id="debug-card-search-input" placeholder="Cerca una carta..." autocomplete="off" style="width:100%;box-sizing:border-box;padding:8px;font-size:15px;border-radius:6px;background:#222;color:#fff;border:1px solid #555;" oninput="debugFilterCardSearchList()" onfocus="debugFilterCardSearchList()">
         <div id="debug-card-search-list" style="display:none;position:absolute;left:0;right:0;top:100%;margin-top:2px;max-height:220px;overflow-y:auto;background:#222;border:1px solid #555;border-radius:6px;z-index:10;"></div>
       </div>
       <button class="start-art-btn sab-primary" style="margin-top:8px;" onclick="debugStartMatchWithCard()">
         <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Conferma</span>
       </button>
-    </div>
-    <div class="settings-divider"></div>
-    <!-- v0.72.79 NEW: pagina delle bustine. Vive nel menu di debug perche' il
-         possesso delle carte non esiste ancora — vedi openPackOverlay. -->
-    <button class="start-art-btn sab-secondary" onclick="openPackOverlay()">
+    </div></div><div class="debug-item"><!-- v0.72.79 NEW: pagina delle bustine. Vive nel menu di debug perche' il
+         possesso delle carte non esiste ancora — vedi openPackOverlay. --><button class="start-art-btn sab-secondary" onclick="closeDebugModal();openPackOverlay()">
       <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Apri bustine</span>
-    </button>
-    <button class="start-art-btn sab-secondary" style="margin-top:8px;" onclick="debugAzzeraTimerBustine()">
+    </button></div><div class="debug-item"><button class="start-art-btn sab-secondary" style="margin-top:8px;" onclick="debugAzzeraTimerBustine()">
       <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Azzera timer bustine</span>
-    </button>
-    <div class="settings-divider"></div>
-    <!-- v0.72.76 NEW: cerca su GitHub il file Hextale_*.html con il numero di
+    </button></div><div class="debug-item"><!-- v0.72.76 NEW: cerca su GitHub il file Hextale_*.html con il numero di
          versione piu' alto e offre due cose: scaricarlo, oppure eseguirlo
          subito al posto di questa pagina. Vedi debugCercaUltimaVersione nello
-         script per il perche' le due cose NON sono la stessa. -->
-    <button class="start-art-btn sab-secondary" onclick="debugCercaUltimaVersione()">
+         script per il perche' le due cose NON sono la stessa. --><button class="start-art-btn sab-secondary" onclick="debugCercaUltimaVersione()">
       <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Scarica ultima versione</span>
-    </button>
-    <div id="debug-update-box" style="display:none;margin-top:10px;font-family:var(--font-body);font-size:14px;color:#C9C2B0;">
+    </button><div id="debug-update-box" style="display:none;margin-top:10px;font-family:var(--font-body);font-size:14px;color:#C9C2B0;">
       <div id="debug-update-msg" style="margin-bottom:8px;"></div>
       <div id="debug-update-actions" style="display:none;">
         <button id="debug-update-download" class="start-art-btn sab-primary" onclick="debugScaricaUltimaVersione()">
           <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Scarica il file</span>
         </button>
-        <a id="debug-update-fallback" href="#" target="_blank" rel="noopener"
-           style="display:none;margin-top:8px;text-align:center;padding:9px;border-radius:6px;background:#2b2b2b;border:1px solid #666;color:#fff;text-decoration:none;">Aprilo su GitHub e salvalo a mano</a>
+        <a id="debug-update-fallback" href="#" target="_blank" rel="noopener" style="display:none;margin-top:8px;text-align:center;padding:9px;border-radius:6px;background:#2b2b2b;border:1px solid #666;color:#fff;text-decoration:none;">Aprilo su GitHub e salvalo a mano</a>
         <button id="debug-update-run" class="start-art-btn sab-secondary" style="margin-top:8px;" onclick="debugEseguiUltimaVersione()">
           <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Esegui subito</span>
         </button>
         <div id="debug-update-run-note" style="margin-top:8px;opacity:0.7;line-height:1.45;"></div>
       </div>
-    </div>
-  </div>
+    </div></div></div></div>
 </div>
 <!-- v0.71.63 NEW: full-screen overlay used ONLY by the "Testa animazione
      abilità..." debug tool — a real vs-AI match is started underneath (so
@@ -7761,7 +7757,7 @@ function apriBustina(){
       const gem = document.createElement('img');
       gem.alt=''; gem.draggable=false;
       gem.onerror = ()=>{ gem.style.display='none'; };
-      gem.src = (typeof CARD_DB_GEMMA_RARITA!=='undefined' && CARD_DB_GEMMA_RARITA[entry.rarity]) || '';
+      gem.src = gemmaRaritaSrc(entry.rarity || 'common');
       et.appendChild(gem);
       const nome = document.createElement('span');
       nome.textContent = entry.rarity || 'common';
@@ -8500,12 +8496,21 @@ function cardDbAnimateFilterChange(matchResults, animate){
 // non riusano quella della carta proprio per non tornare a dipendere da una
 // scelta che riguarda un'altra cosa — se un domani la gemma di livello cambiera'
 // di nuovo, il filtro non se ne accorgera'.
-const CARD_DB_GEMMA_RARITA = {
-  common:   CARD_PARTS_BASE+'level-gem-common.png',
-  rare:     CARD_PARTS_BASE+'level-gem-rare.png',
-  mythic:   CARD_PARTS_BASE+'level-gem-mythic.png',
-  timeless: CARD_PARTS_BASE+'level-gem-timeless.png',
-};
+// v0.72.81 FIX ("non funziona nessun pulsante, nemmeno fuori dal menu debug").
+// Questa era una MAPPA COSTANTE che componeva gli URL con CARD_PARTS_BASE. Ma
+// CARD_PARTS_BASE e' dichiarata migliaia di righe piu' sotto, e un `const` non
+// si puo' leggere prima della riga che lo definisce: al caricamento partiva un
+// ReferenceError che interrompeva l'esecuzione dell'INTERO script. Da li' in
+// poi nessuna funzione veniva piu' definita, quindi ogni onclick della pagina
+// — menu di debug, avvio partita, tutto — non trovava piu' niente da chiamare.
+// Un errore in un angolo del file spegne tutto il resto.
+// La soluzione e' non comporre l'URL al caricamento ma quando serve: dentro una
+// funzione, CARD_PARTS_BASE viene letta al momento della chiamata, cioe' molto
+// dopo che l'intero script e' stato valutato. Stessa forma di lettura di prima
+// per chi la usa, nessun vincolo sull'ordine delle righe.
+function gemmaRaritaSrc(chiave){
+  return CARD_PARTS_BASE + 'level-gem-' + chiave + '.png';
+}
 const CARD_DB_RARITA = [
   {chiave:'common',   testo:'Common'},
   {chiave:'rare',     testo:'Rare'},
@@ -8531,7 +8536,7 @@ function cardDbBuildRarityFilter(){
     icona.className = 'card-db-filter-icon';
     icona.alt = ''; icona.draggable = false;
     icona.onerror = ()=>{ icona.style.display='none'; };
-    icona.src = CARD_DB_GEMMA_RARITA[chiave];
+    icona.src = gemmaRaritaSrc(chiave);
     const span = document.createElement('span');
     span.textContent = testo;
     label.appendChild(cb); label.appendChild(icona); label.appendChild(span);
