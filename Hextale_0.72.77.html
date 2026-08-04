@@ -4322,7 +4322,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.72.76</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.72.77</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -4528,13 +4528,10 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
       <div id="debug-update-actions" style="display:none;">
         <a id="debug-update-download" href="#" download
            style="display:block;text-align:center;padding:9px;border-radius:6px;background:#2b2b2b;border:1px solid #666;color:#fff;text-decoration:none;">Scarica il file</a>
-        <button class="start-art-btn sab-secondary" style="margin-top:8px;" onclick="debugEseguiUltimaVersione()">
+        <button id="debug-update-run" class="start-art-btn sab-secondary" style="margin-top:8px;" onclick="debugEseguiUltimaVersione()">
           <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Esegui subito</span>
         </button>
-        <div style="margin-top:8px;opacity:0.7;line-height:1.45;">
-          "Esegui subito" carica la nuova versione in questa finestra, ma NON
-          tocca il file sul disco: riaprendolo torneresti a questa.
-        </div>
+        <div id="debug-update-run-note" style="margin-top:8px;opacity:0.7;line-height:1.45;"></div>
       </div>
     </div>
   </div>
@@ -9081,24 +9078,38 @@ const DEBUG_ASSET_OPTIONS = [
 // at most one of these inline pickers is ever visible at once instead of
 // them silently stacking up underneath each other as more get opened.
 // ═══════════════════════════════════════════════════════════════════════════
-// v0.72.76 — "SCARICA ULTIMA VERSIONE"
+// v0.72.77 — "SCARICA ULTIMA VERSIONE"
 // ═══════════════════════════════════════════════════════════════════════════
+// COME SI DECIDE QUAL E' "L'ULTIMA". Non dal numero nel nome del file.
+// La v0.72.76 leggeva la versione da "Hextale_0.72.76.html" e teneva la piu'
+// alta: funzionava, ma legava l'aggiornamento a una convenzione di nomi. Il
+// giorno in cui un file si chiamasse "Hextale_finale.html", "Hextale-beta.html"
+// o prendesse una data al posto del numero, il pulsante avrebbe smesso di
+// trovarlo — e nel modo peggiore, cioe' dicendo tranquillamente "sei gia'
+// aggiornato".
+// La regola ora e' quella vera: si guarda COSA C'E' nel repository. Se c'e' un
+// solo .html — che e' la situazione di oggi, perche' ogni versione sostituisce
+// la precedente — quello E' l'ultima versione, comunque si chiami. Se un domani
+// ce ne fossero piu' d'uno, si chiede a GitHub quale e' stato committato piu' di
+// recente: la data del commit e' un fatto, il numero nel nome e' una promessa
+// che qualcuno deve ricordarsi di mantenere.
+// Il numero di versione non viene letto in nessun punto di questo blocco.
+//
 // COSA SI PUO' FARE E COSA NO, perche' la differenza conta.
 // Una pagina web non puo' sovrascrivere il file da cui e' stata aperta: non
 // esiste un permesso per farlo, ed e' una limitazione voluta del browser — se
 // esistesse, qualunque pagina potrebbe riscrivere file sul disco di chi la
 // visita. Quindi "aggiornarsi da sola" nel senso stretto non e' possibile.
-// Quello che si puo' fare e' due cose distinte:
+// Restano due cose distinte:
 //   1. SCARICARE il file nuovo (finisce nei Download; poi si sostituisce a
 //      mano quello vecchio). E' l'unico modo per aggiornare davvero il file.
 //   2. ESEGUIRLO SUBITO in questa stessa finestra, senza riaprire niente. La
-//      pagina viene rimpiazzata dalla nuova versione e la si puo' provare
-//      immediatamente — ma il file sul disco resta quello di prima, quindi al
-//      riavvio si torna a questa versione. E' una prova, non un aggiornamento.
-// L'interfaccia le tiene separate apposta, con scritto sopra cosa fanno: se
-// avessi messo un solo pulsante, la seconda sarebbe sembrata la prima e la
-// versione "aggiornata" sarebbe sparita al riavvio successivo, senza capire
-// perche'.
+//      pagina viene rimpiazzata dalla nuova versione e la si prova all'istante
+//      — ma il file sul disco resta quello di prima, quindi al riavvio si torna
+//      a questa. E' una prova, non un aggiornamento.
+// L'interfaccia le tiene separate apposta, con scritto sopra cosa fanno: con un
+// solo pulsante la seconda sarebbe sembrata la prima, e la versione
+// "aggiornata" sarebbe sparita al riavvio successivo senza capire perche'.
 //
 // PERCHE' FUNZIONA ANCHE APRENDO IL FILE COL DOPPIO CLICK. Da file:// il
 // browser assegna alla pagina l'origine `null` e blocca quasi ogni richiesta
@@ -9107,29 +9118,75 @@ const DEBUG_ASSET_OPTIONS = [
 // entrambi con `Access-Control-Allow-Origin: *` — cioe' "chiunque puo'
 // leggermi", origine nulla compresa. Sono fra i pochi host su cui una pagina
 // aperta dal disco puo' davvero fare una fetch.
-const GITHUB_REPO_API = 'https://api.github.com/repos/TheTrickmaster/hextale/contents/';
-// Dal nome file al numero di versione confrontabile: "Hextale_0.72.9.html" e
-// "Hextale_0.72.10.html" vanno ordinati per numero e non per stringa, altrimenti
-// la 9 risulterebbe piu' recente della 10.
-function _versioneDaNomeFile(nome){
-  const m = /^Hextale[_-]v?(\d+(?:\.\d+)*)\.html$/i.exec(nome);
-  if(!m) return null;
-  return m[1].split('.').map(n=>parseInt(n,10)||0);
+const GITHUB_REPO = 'TheTrickmaster/hextale';
+const GITHUB_REPO_API = 'https://api.github.com/repos/' + GITHUB_REPO + '/contents/';
+const GITHUB_COMMITS_API = 'https://api.github.com/repos/' + GITHUB_REPO + '/commits';
+
+// v0.72.77 FIX ("Failed to fetch") — E LA LEZIONE E' LA STESSA DI PRIMA.
+// La prima versione di questo blocco usava fetch() verso api.github.com,
+// convinta che bastasse l'header `Access-Control-Allow-Origin: *`. Non basta:
+// da una pagina aperta col doppio click l'origine e' `null` e il browser
+// rifiuta la richiesta PRIMA di partire, senza nemmeno guardare gli header
+// della risposta. E' esattamente lo stesso muro contro cui si era gia' andati
+// a sbattere col foglio delle carte (vedi _foglioViaScript), e la soluzione e'
+// la stessa: un tag <script>, che puo' caricare da qualunque sito perche' non
+// e' soggetto al controllo di origine.
+// L'API di GitHub accetta `?callback=nome` e risponde con uno script che
+// chiama quella funzione, incartando il risultato in {meta, data} — quindi il
+// contenuto vero sta in `.data`.
+function _githubJsonp(url, timeoutMs){
+  return new Promise(risolvi => {
+    const cb = '_hextaleGh' + Date.now() + Math.floor(Math.random()*1000);
+    const script = document.createElement('script');
+    let scadenza = null, concluso = false;
+    const chiudi = (valore) => {
+      if(concluso) return;
+      concluso = true;
+      if(scadenza) clearTimeout(scadenza);
+      try { delete window[cb]; } catch(_) { window[cb] = undefined; }
+      if(script.parentNode) script.parentNode.removeChild(script);
+      risolvi(valore);
+    };
+    window[cb] = risposta => {
+      // GitHub incarta tutto in {meta:{status}, data:...}. Uno stato diverso da
+      // 200 arriva comunque come risposta valida, quindi va guardato: senza
+      // questo controllo un 403 da limite di richieste sembrerebbe un elenco
+      // di file vuoto, cioe' "nel repository non c'e' nessun html".
+      if(risposta && risposta.meta && risposta.meta.status && risposta.meta.status !== 200){
+        return chiudi({errore: 'GitHub ha risposto ' + risposta.meta.status});
+      }
+      chiudi({dati: (risposta && risposta.data !== undefined) ? risposta.data : risposta});
+    };
+    script.onerror = () => chiudi({errore: 'non riesco a raggiungere GitHub'});
+    scadenza = setTimeout(() => chiudi({errore: 'GitHub non ha risposto in tempo'}), timeoutMs || 8000);
+    script.src = url + (url.indexOf('?')<0 ? '?' : '&') + 'callback=' + cb + '&t=' + Date.now();
+    document.head.appendChild(script);
+  });
 }
-function _confrontaVersioni(a, b){
-  const n = Math.max(a.length, b.length);
-  for(let i=0;i<n;i++){
-    const x = a[i]||0, y = b[i]||0;
-    if(x!==y) return x-y;
-  }
-  return 0;
+
+// Il nome del file da cui QUESTA pagina e' stata aperta. Serve solo a dire
+// "sei gia' su questo file" invece di far scaricare due volte la stessa cosa;
+// non entra mai nella scelta di quale sia l'ultima versione.
+function _nomeFileCorrente(){
+  try {
+    const pezzi = decodeURIComponent(location.pathname).split(/[\\/]/);
+    return pezzi[pezzi.length-1] || '';
+  } catch(_) { return ''; }
 }
-function _versioneCorrente(){
-  const badge = document.getElementById('build-version-badge');
-  const m = badge ? /v?(\d+(?:\.\d+)*)/.exec(badge.textContent||'') : null;
-  return m ? m[1].split('.').map(n=>parseInt(n,10)||0) : [0];
+
+let _ultimaVersioneTrovata = null; // {nome, url}
+
+// Data dell'ultimo commit che ha toccato un file. Usata solo per scegliere fra
+// PIU' file .html; con un file solo non si chiede nemmeno.
+function _dataUltimoCommit(percorso){
+  const url = GITHUB_COMMITS_API + '?per_page=1&path=' + encodeURIComponent(percorso);
+  return _githubJsonp(url).then(esito => {
+    const c = esito && esito.dati;
+    const d = Array.isArray(c) && c[0] && c[0].commit && c[0].commit.committer
+      ? c[0].commit.committer.date : null;
+    return d ? Date.parse(d) : 0;
+  }).catch(() => 0);
 }
-let _ultimaVersioneTrovata = null; // {nome, url, versione}
 
 function debugCercaUltimaVersione(){
   const box = document.getElementById('debug-update-box');
@@ -9142,35 +9199,68 @@ function debugCercaUltimaVersione(){
   // `cache:'no-store'` perche' una risposta vecchia qui vorrebbe dire non
   // vedere proprio la versione appena pubblicata, che e' l'unica cosa che
   // interessa a questo pulsante.
-  fetch(GITHUB_REPO_API, {cache:'no-store'})
-    .then(r => r.ok ? r.json() : Promise.reject(new Error('GitHub ha risposto ' + r.status)))
-    .then(elenco => {
-      if(!Array.isArray(elenco)) throw new Error('risposta inattesa');
-      let migliore = null;
-      for(const f of elenco){
-        const v = _versioneDaNomeFile(f.name||'');
-        if(!v) continue;
-        if(!migliore || _confrontaVersioni(v, migliore.versione) > 0){
-          migliore = {nome:f.name, url:f.download_url, versione:v};
-        }
-      }
-      if(!migliore) throw new Error('nessun file Hextale_*.html nel repository');
-      _ultimaVersioneTrovata = migliore;
-      const corrente = _versioneCorrente();
-      const scarto = _confrontaVersioni(migliore.versione, corrente);
-      const vTesto = migliore.versione.join('.');
-      if(scarto > 0){
-        msg.innerHTML = 'Disponibile la <b>v' + vTesto + '</b> (stai usando la v' + corrente.join('.') + ').';
-      } else if(scarto === 0){
-        msg.textContent = 'Sei gia\' alla versione piu\' recente (v' + vTesto + ').';
-      } else {
-        msg.textContent = 'Su GitHub c\'e\' la v' + vTesto + ', piu\' vecchia di questa (v' + corrente.join('.') + ').';
-      }
+  _githubJsonp(GITHUB_REPO_API)
+    .then(esito => {
+      if(esito.errore) throw new Error(esito.errore);
+      const elenco = esito.dati;
+      if(!Array.isArray(elenco)) throw new Error('risposta inattesa dal repository');
+      // Qualsiasi .html nella radice del repository. Nessun filtro sul nome:
+      // e' esattamente il vincolo che si vuole evitare.
+      const candidati = elenco.filter(f =>
+        f && f.type === 'file' && /\.html?$/i.test(f.name || '') && f.download_url);
+      if(!candidati.length) throw new Error('nel repository non c\'e\' nessun file .html');
+      if(candidati.length === 1) return candidati[0];
+      // Piu' d'uno: vince quello committato piu' di recente. Se GitHub non
+      // risponde (limite di richieste), _dataUltimoCommit restituisce 0 per
+      // tutti e resta l'ordine dell'elenco, che e' comunque meglio di un errore.
+      msg.textContent = 'Trovati ' + candidati.length + ' file, guardo quale e\' il piu\' recente…';
+      return Promise.all(candidati.map(f => _dataUltimoCommit(f.path || f.name)))
+        .then(date => {
+          let migliore = candidati[0], quando = date[0];
+          for(let i=1;i<candidati.length;i++){
+            if(date[i] > quando){ migliore = candidati[i]; quando = date[i]; }
+          }
+          return migliore;
+        });
+    })
+    .then(file => {
+      _ultimaVersioneTrovata = {nome:file.name, url:file.download_url};
       const link = document.getElementById('debug-update-download');
-      link.href = migliore.url;
-      link.setAttribute('download', migliore.nome);
-      link.textContent = 'Scarica ' + migliore.nome;
+      link.href = file.download_url;
+      link.setAttribute('download', file.name);
+      link.textContent = 'Scarica ' + file.name;
+      // Gia' aggiornato? Il confronto e' sul NOME DEL FILE, non su un numero:
+      // il file nel repository e quello aperto adesso sono lo stesso file se si
+      // chiamano allo stesso modo. Il messaggio compare nello stesso posto del
+      // "Cerco su GitHub…", cosi' si legge dove si stava gia' guardando.
+      const corrente = _nomeFileCorrente();
+      const aggiornato = !!corrente && corrente === file.name;
+      msg.innerHTML = aggiornato
+        ? 'Il client è già aggiornato all\'ultima versione.'
+        : 'Ultima versione sul repository: <b>' + file.name + '</b>'
+          + (corrente ? ' (stai usando ' + corrente + ').' : '.');
+      // Con il client gia' aggiornato i due pulsanti restano comunque
+      // disponibili — riscaricare lo stesso file e' talvolta proprio quello che
+      // si vuole (copia persa, file modificato per prova) — ma smettono di
+      // essere la cosa principale da guardare.
       azioni.style.display = 'block';
+      azioni.style.opacity = aggiornato ? '0.6' : '1';
+      // "Esegui subito" ha bisogno del TESTO del file, e per quello serve una
+      // fetch vera: il trucco del tag <script> vale solo per il codice, non per
+      // dell'HTML. Da file:// quella fetch e' vietata, quindi il pulsante non
+      // puo' funzionare e viene spento dicendo perche' — molto meglio di un
+      // "Failed to fetch" dopo il click.
+      const btnEsegui = document.getElementById('debug-update-run');
+      const notaEsegui = document.getElementById('debug-update-run-note');
+      const daDisco = (typeof location!=='undefined' && location.protocol === 'file:');
+      if(btnEsegui){
+        btnEsegui.style.display = daDisco ? 'none' : '';
+      }
+      if(notaEsegui){
+        notaEsegui.textContent = daDisco
+          ? 'Aprendo il file dal disco si puo\' solo scaricare: eseguire la nuova versione qui dentro richiederebbe di leggerne il contenuto, e il browser non lo permette a una pagina aperta con un doppio click. Scarica il file e sostituisci questo.'
+          : '"Esegui subito" carica la nuova versione in questa finestra, ma NON tocca il file sul disco: riaprendolo torneresti a questa.';
+      }
     })
     .catch(e => {
       // Si dice cosa NON ha funzionato, non un generico "errore": senza rete,
