@@ -3298,6 +3298,112 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
    this blanket rule makes it explicit and unambiguous. */
 #settings-modal, #settings-modal *, #debug-modal, #debug-modal *{ font-weight:400 !important; }
 
+/* ── Bustine (v0.72.79 NEW) ───────────────────────────────────────────────
+   Pagina dedicata all'apertura delle bustine. Stessa impostazione visiva
+   della Collezione — sfondo generic-bg, titolo in font display, pulsanti
+   start-art-btn — perche' e' una PAGINA dello stesso gioco e non deve
+   sembrare arrivata da un altro progetto: stesso z-index, stessa struttura a
+   overlay fisso fuori dal canvas 1920x1080, stessa via d'uscita in basso.
+   Il contenuto e' centrato invece che a due colonne: qui non c'e' niente da
+   sfogliare, c'e' una cosa sola da guardare al centro. */
+#pack-overlay{
+  display:none;
+  position:fixed; inset:0;
+  z-index:4000;
+  font-family:var(--font-body);
+}
+#pack-overlay.show{ display:flex; }
+#pack-bg{
+  position:absolute; inset:0;
+  background-image:url('https://thetrickmaster.github.io/hextale/generic-bg.png');
+  background-size:cover; background-position:center; background-repeat:no-repeat;
+  z-index:0;
+}
+#pack-main{
+  position:relative; z-index:1;
+  flex:1 1 auto;
+  display:flex; flex-direction:column; align-items:center;
+  padding:24px 20px 20px;
+  gap:18px;
+  min-width:0;
+}
+#pack-main h1{
+  margin:0;
+  font-family:var(--font-display);
+  font-size:44px; font-weight:400;
+  color:#F4E9D7; letter-spacing:.02em;
+  text-shadow:0 2px 10px rgba(0,0,0,0.55);
+}
+#pack-status{
+  font-size:15px; color:#C9C2B0; min-height:22px; text-align:center;
+}
+/* Zona centrale: ci vivono, uno alla volta, la bustina chiusa e le carte
+   rivelate. Altezza fissa perche' il passaggio dall'una alle altre non deve
+   far saltare in su e in giu' il resto della pagina. */
+#pack-stage{
+  position:relative;
+  flex:1 1 auto;
+  width:100%;
+  display:flex; align-items:center; justify-content:center;
+  gap:38px;
+  min-height:0;
+}
+/* La bustina chiusa: il dorso della carta, ingrandito, con un alone che
+   respira per dire "si puo' toccare". Quando il tempo non e' ancora scaduto
+   l'alone si spegne e l'immagine si desatura: lo stato si legge senza dover
+   leggere il testo. */
+#pack-closed{
+  position:relative;
+  width:260px; height:446px;
+  cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;
+  transition:transform .18s cubic-bezier(.22,1,.36,1), filter .3s ease;
+  transform-origin:center center;
+}
+#pack-closed img{
+  width:100%; height:100%; object-fit:contain; display:block;
+  filter:drop-shadow(0 26px 30px rgba(0,0,0,0.6));
+}
+#pack-closed.ready{ animation:packBreathe 2.8s ease-in-out infinite; }
+#pack-closed.ready:hover{ transform:scale(1.045); }
+#pack-closed.locked{ filter:grayscale(0.85) brightness(0.6); cursor:default; animation:none; }
+#pack-closed.opening{ animation:packBurst .5s cubic-bezier(.5,-0.4,.75,.2) forwards; }
+@keyframes packBreathe{
+  0%,100% { transform:translateY(0)    scale(1);    }
+  50%     { transform:translateY(-9px) scale(1.015); }
+}
+@keyframes packBurst{
+  0%   { transform:scale(1)    rotate(0deg);   opacity:1; }
+  55%  { transform:scale(1.12) rotate(-2deg);  opacity:1; }
+  100% { transform:scale(0.55) rotate(3deg);   opacity:0; }
+}
+/* Ogni carta rivelata. Parte di taglio (rotateY 90°) e si apre: e' lo stesso
+   gesto del flip delle carte in partita, cosi' il movimento e' familiare.
+   Il ritardo per la seconda carta lo mette il JS via --ritardo. */
+.pack-card{
+  opacity:0;
+  animation:packCardReveal .62s cubic-bezier(.22,1,.36,1) forwards;
+  animation-delay:var(--ritardo, 0s);
+  transform-origin:center center;
+}
+@keyframes packCardReveal{
+  0%   { opacity:0; transform:rotateY(90deg) translateY(26px) scale(0.9); }
+  60%  { opacity:1; transform:rotateY(-8deg) translateY(0)    scale(1.03); }
+  100% { opacity:1; transform:rotateY(0deg)  translateY(0)    scale(1); }
+}
+/* Etichetta della rarita' sotto ogni carta, con la sua gemma. */
+.pack-card-wrap{ display:flex; flex-direction:column; align-items:center; gap:10px; }
+.pack-card-rarity{
+  display:flex; align-items:center; gap:7px;
+  font-size:13px; letter-spacing:.06em; text-transform:uppercase;
+  color:#C9C2B0;
+  opacity:0; animation:packLabelIn .4s ease-out forwards;
+  animation-delay:calc(var(--ritardo, 0s) + .45s);
+}
+.pack-card-rarity img{ height:16px; width:auto; display:block; }
+@keyframes packLabelIn{ from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:none;} }
+#pack-actions{ display:flex; gap:14px; align-items:center; }
+#pack-actions .start-art-btn{ min-width:220px; }
+
 /* ── Card DB browser (v0.71.70 NEW) ───────────────────────────────────────
    Full-screen page for reviewing the final, hand-authored card roster —
    see #card-db-overlay's own HTML comment for the full rationale. Two
@@ -4322,7 +4428,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.72.78</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.72.79</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -4516,6 +4622,15 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
       </button>
     </div>
     <div class="settings-divider"></div>
+    <!-- v0.72.79 NEW: pagina delle bustine. Vive nel menu di debug perche' il
+         possesso delle carte non esiste ancora — vedi openPackOverlay. -->
+    <button class="start-art-btn sab-secondary" onclick="openPackOverlay()">
+      <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Apri bustine</span>
+    </button>
+    <button class="start-art-btn sab-secondary" style="margin-top:8px;" onclick="debugAzzeraTimerBustine()">
+      <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Azzera timer bustine</span>
+    </button>
+    <div class="settings-divider"></div>
     <!-- v0.72.76 NEW: cerca su GitHub il file Hextale_*.html con il numero di
          versione piu' alto e offre due cose: scaricarlo, oppure eseguirlo
          subito al posto di questa pagina. Vedi debugCercaUltimaVersione nello
@@ -4554,6 +4669,32 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      mostra l'intero giro di angoli, che e' esattamente cio' che un foil deve
      raccontare. E' una PAGINA a tutti gli effetti (vedi PAGE_ELEMENT_IDS),
      quindi entrandoci la partita viene smontata come per la Collezione. -->
+<!-- v0.72.79 NEW: pagina delle bustine. Raggiungibile per ora solo dal menu di
+     debug (openPackOverlay), perche' il possesso delle carte non esiste ancora:
+     quello che si apre qui e' una dimostrazione di come si sente aprire una
+     bustina, non un premio che resta. Vedi il commento sopra openPackOverlay
+     nello script per il ragionamento completo. -->
+<div id="pack-overlay">
+  <div id="pack-bg"></div>
+  <div id="pack-main">
+    <h1>Packs</h1>
+    <div id="pack-status"></div>
+    <div id="pack-stage">
+      <div id="pack-closed" onclick="apriBustina()">
+        <img id="pack-closed-img" src="" alt="" draggable="false">
+      </div>
+      <div id="pack-reveal" style="display:none;"></div>
+    </div>
+    <div id="pack-actions">
+      <button class="start-art-btn sab-secondary" id="pack-again" style="display:none;" onclick="tornaAllaBustina()">
+        <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Ancora</span>
+      </button>
+      <button class="start-art-btn sab-primary" onclick="closePackOverlay()">
+        <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Back</span>
+      </button>
+    </div>
+  </div>
+</div>
 <div id="foil-lab">
   <div id="foil-lab-card"></div>
 </div>
@@ -5769,6 +5910,7 @@ const PAGE_ELEMENT_IDS = {
     'timer-bar-wrap','gameover','settings-btn',
   ],
   collection: ['card-db-overlay'],
+  packs: ['pack-overlay'],
   foillab: ['foil-lab'],
 };
 const _pageAnchors = new Map();   // id -> {parent, next}: dove reinserirlo
@@ -7470,6 +7612,225 @@ function playMusicWithIntroLoop(introUrl){
 // L'IA non ha bisogno di una guardia dedicata: le sue catene passano tutte
 // da startTimerRespectingBanner/timer e comunque il suo effetto udibile —
 // che e' cio' che si sentiva di sottofondo — e' gia' zittito qui.
+// ═══════════════════════════════════════════════════════════════════════════
+// v0.72.79 — BUSTINE
+// ═══════════════════════════════════════════════════════════════════════════
+// COSA E' E COSA NON E'. Questa pagina apre una bustina e mostra due carte.
+// NON le assegna a nessuno: il possesso delle carte non esiste ancora (in
+// Collezione "possedute" e "totali" coincidono per costruzione, vedi
+// cardDbRenderRoster), quindi una carta "ottenuta" non avrebbe dove andare.
+// E' quindi una dimostrazione: serve a vedere e sentire com'e' aprire una
+// bustina, non a costruire una raccolta. Il giorno in cui il possesso
+// esistera', l'unico punto da toccare e' dove le due carte vengono pescate.
+//
+// COSA C'E' DENTRO. Due carte, estratte fra quelle del foglio con probabilita'
+// proporzionale al loro DROP RATE — che e' esattamente il mestiere di quella
+// colonna (65% comune, 22% rara, 10% mitica, 3% timeless di serie, o quello
+// che il foglio dichiara per la singola carta, vedi DROP_RATE_STANDARD).
+// Non si estrae "prima la rarita' e poi una carta a caso di quella rarita'":
+// darebbe a una rarita' con poche carte una probabilita' per-carta enorme, e
+// il drop rate scritto sulla carta smetterebbe di significare quello che dice.
+// Ogni carta pesa il proprio numero, punto.
+//
+// OGNI OTTO ORE. Il momento in cui la prossima bustina sara' pronta si salva
+// nel browser. Se quel dato non c'e' — primo avvio, altro computer, cronologia
+// pulita — la bustina e' DISPONIBILE: un dato mancante e' un problema tecnico,
+// e far pagare all'utente otto ore di attesa per un problema tecnico sarebbe
+// una punizione per qualcosa che non ha fatto.
+// Nota: localStorage e' legato all'indirizzo del file. Aprendo una copia con
+// un altro nome il conto riparte, ed e' inevitabile — non e' un difetto di
+// questo codice ma di come i browser isolano i dati delle pagine locali.
+const BUSTINA_ATTESA_MS = 8*60*60*1000; // otto ore
+const BUSTINA_CARTE = 2;
+const BUSTINA_CHIAVE = 'hextale.bustina.prossima';
+
+function _bustinaProssimaApertura(){
+  try {
+    const v = localStorage.getItem(BUSTINA_CHIAVE);
+    const t = v ? parseInt(v,10) : 0;
+    return isFinite(t) ? t : 0;
+  } catch(_) { return 0; } // localStorage negato (modalita' privata): bustina sempre pronta
+}
+function _bustinaSalvaProssima(quando){
+  try { localStorage.setItem(BUSTINA_CHIAVE, String(quando)); } catch(_) {}
+}
+function bustinaDisponibile(){ return Date.now() >= _bustinaProssimaApertura(); }
+
+// "3h 42m" / "12m" / "48s": si scende di unita' mano a mano che il tempo si
+// accorcia, cosi' l'ultimo minuto non resta fermo su "0h 0m".
+function _bustinaTempoRimasto(){
+  const ms = Math.max(0, _bustinaProssimaApertura() - Date.now());
+  const s = Math.ceil(ms/1000);
+  if(s >= 3600){
+    const h = Math.floor(s/3600), m = Math.round((s%3600)/60);
+    return m > 0 ? (h + 'h ' + m + 'm') : (h + 'h');
+  }
+  if(s >= 60) return Math.floor(s/60) + 'm ' + (s%60) + 's';
+  return s + 's';
+}
+
+// Estrazione pesata sul drop rate. Le carte gia' uscite in QUESTA bustina
+// vengono escluse: due copie identiche nella stessa apertura sono la prima
+// cosa che fa sembrare rotta una meccanica di bustine, anche quando e'
+// statisticamente legittima. Se il roster e' cosi' piccolo da non permetterlo,
+// si accetta il doppione invece di restituire meno carte del previsto.
+function _pescaCartaBustina(escluse){
+  const pool = (FINAL_CARDS||[]).filter(e => e && !escluse.includes(e));
+  const scelti = pool.length ? pool : (FINAL_CARDS||[]);
+  if(!scelti.length) return null;
+  let totale = 0;
+  for(const e of scelti) totale += (typeof e.dropRate === 'number' && e.dropRate > 0) ? e.dropRate : 0;
+  // Nessun peso utile (tutti a zero, o colonna assente): si torna al caso
+  // uniforme, che e' il comportamento meno sorprendente.
+  if(totale <= 0) return scelti[Math.floor(Math.random()*scelti.length)];
+  let r = Math.random()*totale;
+  for(const e of scelti){
+    r -= (typeof e.dropRate === 'number' && e.dropRate > 0) ? e.dropRate : 0;
+    if(r <= 0) return e;
+  }
+  return scelti[scelti.length-1]; // rete per gli arrotondamenti in virgola mobile
+}
+
+let _bustinaTimerUI = null;
+let _bustinaInCorso = false;
+
+function _aggiornaStatoBustina(){
+  const stato = document.getElementById('pack-status');
+  const chiusa = document.getElementById('pack-closed');
+  if(!stato || !chiusa) return;
+  const img = document.getElementById('pack-closed-img');
+  if(img && !img.getAttribute('src')) img.src = CARD_BACK_DARK;
+  if(!(FINAL_CARDS||[]).length){
+    stato.textContent = 'Nessuna carta caricata dal foglio: non c\'e\' niente da mettere in una bustina.';
+    chiusa.classList.remove('ready'); chiusa.classList.add('locked');
+    return;
+  }
+  if(bustinaDisponibile()){
+    stato.textContent = 'Hai una bustina pronta. Toccala per aprirla.';
+    chiusa.classList.add('ready'); chiusa.classList.remove('locked');
+  } else {
+    stato.textContent = 'Prossima bustina fra ' + _bustinaTempoRimasto() + '.';
+    chiusa.classList.remove('ready'); chiusa.classList.add('locked');
+  }
+}
+
+function apriBustina(){
+  if(_bustinaInCorso) return;
+  if(!bustinaDisponibile() || !(FINAL_CARDS||[]).length) return;
+  _bustinaInCorso = true;
+  const chiusa = document.getElementById('pack-closed');
+  const rivelate = document.getElementById('pack-reveal');
+  const stato = document.getElementById('pack-status');
+  const ancora = document.getElementById('pack-again');
+  // Il tempo riparte ADESSO, non a fine animazione: un doppio click veloce
+  // durante il mezzo secondo dell'apertura aprirebbe altrimenti due bustine.
+  _bustinaSalvaProssima(Date.now() + BUSTINA_ATTESA_MS);
+
+  const uscite = [];
+  for(let i=0;i<BUSTINA_CARTE;i++){
+    const e = _pescaCartaBustina(uscite);
+    if(e) uscite.push(e);
+  }
+  try { playSfxFile('card-flip.mp3'); } catch(_){}
+  chiusa.classList.remove('ready');
+  chiusa.classList.add('opening');
+  stato.textContent = '';
+
+  setTimeout(()=>{
+    chiusa.style.display = 'none';
+    chiusa.classList.remove('opening');
+    rivelate.innerHTML = '';
+    rivelate.style.display = 'flex';
+    rivelate.style.gap = '38px';
+    uscite.forEach((entry, i)=>{
+      const wrap = document.createElement('div');
+      wrap.className = 'pack-card-wrap';
+      const carta = document.createElement('div');
+      carta.className = 'pack-card';
+      carta.style.setProperty('--ritardo', (i*0.22)+'s');
+      // Stessa costruzione della Collezione: la carta e' quella vera, con la
+      // variante di fazione attualmente scelta li', cosi' le due pagine non
+      // mostrano mai la stessa carta in due modi diversi.
+      const cardObj = _makeCardDbCard(entry, _cardDbVariant);
+      const visiva = (typeof cardFoilVisualCard==='function') ? cardFoilVisualCard(cardObj) : cardObj;
+      carta.appendChild(buildFullHandCardSVG(visiva, 210, 360));
+      wrap.appendChild(carta);
+      const et = document.createElement('div');
+      et.className = 'pack-card-rarity';
+      et.style.setProperty('--ritardo', (i*0.22)+'s');
+      const gem = document.createElement('img');
+      gem.alt=''; gem.draggable=false;
+      gem.onerror = ()=>{ gem.style.display='none'; };
+      gem.src = (typeof CARD_DB_GEMMA_RARITA!=='undefined' && CARD_DB_GEMMA_RARITA[entry.rarity]) || '';
+      et.appendChild(gem);
+      const nome = document.createElement('span');
+      nome.textContent = entry.rarity || 'common';
+      et.appendChild(nome);
+      wrap.appendChild(et);
+      rivelate.appendChild(wrap);
+      // Un suono per carta, sfalsato come l'animazione: due colpi separati si
+      // sentono come due carte, uno solo si sentirebbe come un evento unico.
+      setTimeout(()=>{ try{ playSfxFile('card-draw.mp3'); }catch(_){} }, i*220);
+    });
+    if(ancora) ancora.style.display = '';
+    _bustinaInCorso = false;
+    _aggiornaStatoBustina();
+  }, 470);
+}
+
+// Torna alla bustina chiusa (che a questo punto mostrera' il conto alla
+// rovescia). Non riapre niente: e' solo il modo di uscire dalla schermata
+// delle carte rivelate senza lasciare la pagina.
+function tornaAllaBustina(){
+  const chiusa = document.getElementById('pack-closed');
+  const rivelate = document.getElementById('pack-reveal');
+  const ancora = document.getElementById('pack-again');
+  if(rivelate){ rivelate.style.display='none'; rivelate.innerHTML=''; }
+  if(chiusa){ chiusa.style.display=''; }
+  if(ancora) ancora.style.display='none';
+  _aggiornaStatoBustina();
+}
+
+function openPackOverlay(){
+  // Stessa regola della Collezione: e' una PAGINA, quindi entrarci smonta la
+  // partita invece di lasciarla viva sotto.
+  abandonCurrentGame();
+  showPage('packs');
+  document.getElementById('pack-overlay').classList.add('show');
+  tornaAllaBustina();
+  // Il conto alla rovescia si aggiorna ogni secondo mentre la pagina e'
+  // aperta, cosi' l'attesa si vede scorrere invece di restare ferma su un
+  // numero calcolato all'ingresso.
+  if(_bustinaTimerUI) clearInterval(_bustinaTimerUI);
+  _bustinaTimerUI = setInterval(()=>{ if(!_bustinaInCorso) _aggiornaStatoBustina(); }, 1000);
+  const bgm=document.getElementById('bgm');
+  if(bgm){
+    bgm._preMenuTrack=bgm.dataset.currentTrack||'';
+    bgm._preMenuTime=bgm.currentTime||0;
+    bgm._preMenuPaused=bgm.paused;
+    playMusicWithIntroLoop(MENU_MUSIC_TRACK);
+  }
+}
+function closePackOverlay(){
+  if(_bustinaTimerUI){ clearInterval(_bustinaTimerUI); _bustinaTimerUI=null; }
+  document.getElementById('pack-overlay').classList.remove('show');
+  setGameAudioMuted(false);
+  showPage('start');
+  const ss=document.getElementById('start-screen'); if(ss) ss.style.display='flex';
+  stopMusicLoopChain();
+}
+
+// Scorciatoia di sviluppo: rende la bustina di nuovo disponibile subito.
+function debugAzzeraTimerBustine(){
+  try { localStorage.removeItem(BUSTINA_CHIAVE); } catch(_){}
+  tornaAllaBustina();
+  const stato = document.getElementById('pack-status');
+  if(stato && document.getElementById('pack-overlay').classList.contains('show')){
+    _aggiornaStatoBustina();
+  }
+  toast('Timer bustine azzerato.');
+}
+
 function openCardDbOverlay(){
   // v0.72.31: la Collezione e' una PAGINA a tutti gli effetti, quindi entrarci
   // spegne e smonta la partita invece di lasciarla viva sotto. E' la stessa
@@ -8128,6 +8489,23 @@ function cardDbAnimateFilterChange(matchResults, animate){
 // esattamente quello che si vede sulle carte.
 // Queste gemme NON sono faction-coded — esiste una sola versione per rarita' —
 // quindi, a differenza delle icone archetipo, non cambiano col dark/light.
+// v0.72.79 FIX ("hai sbagliato gemmette rarity, l'hai messa uguale per tutti,
+// quella del livello"): giusto. Avevo usato CARD_LEVEL_GEM_IMG_BY_RARITY, che
+// e' la gemma del LIVELLO — e dalla v0.72.18 quella e' volutamente di un solo
+// colore per tutte le rarita', perche' il segno della rarita' l'ha preso il
+// name wrapper. Quella mappa punta quindi allo stesso file quattro volte, ed e'
+// esattamente quello che si vedeva.
+// Le quattro gemme colorate per rarita' esistono ancora in card-parts, rimaste
+// li' inutilizzate da quel cambio: sono queste. Vivono in una mappa TUTTA SUA e
+// non riusano quella della carta proprio per non tornare a dipendere da una
+// scelta che riguarda un'altra cosa — se un domani la gemma di livello cambiera'
+// di nuovo, il filtro non se ne accorgera'.
+const CARD_DB_GEMMA_RARITA = {
+  common:   CARD_PARTS_BASE+'level-gem-common.png',
+  rare:     CARD_PARTS_BASE+'level-gem-rare.png',
+  mythic:   CARD_PARTS_BASE+'level-gem-mythic.png',
+  timeless: CARD_PARTS_BASE+'level-gem-timeless.png',
+};
 const CARD_DB_RARITA = [
   {chiave:'common',   testo:'Common'},
   {chiave:'rare',     testo:'Rare'},
@@ -8153,7 +8531,7 @@ function cardDbBuildRarityFilter(){
     icona.className = 'card-db-filter-icon';
     icona.alt = ''; icona.draggable = false;
     icona.onerror = ()=>{ icona.style.display='none'; };
-    icona.src = CARD_LEVEL_GEM_IMG_BY_RARITY[chiave] || CARD_LEVEL_GEM_IMG;
+    icona.src = CARD_DB_GEMMA_RARITA[chiave];
     const span = document.createElement('span');
     span.textContent = testo;
     label.appendChild(cb); label.appendChild(icona); label.appendChild(span);
