@@ -4322,7 +4322,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.72.73</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.72.75</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -4621,12 +4621,13 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
          filter below. -->
     <div class="card-db-filter-box">
       <div class="card-db-filter-title">Rarity</div>
-      <div class="card-db-filter-options" id="card-db-rarity-filter-options">
-        <label class="card-db-filter-opt"><input type="checkbox" data-rarity-filter="common" onchange="cardDbApplyFilters()">Common</label>
-        <label class="card-db-filter-opt"><input type="checkbox" data-rarity-filter="rare" onchange="cardDbApplyFilters()">Rare</label>
-        <label class="card-db-filter-opt"><input type="checkbox" data-rarity-filter="mythic" onchange="cardDbApplyFilters()">Mythic</label>
-        <label class="card-db-filter-opt"><input type="checkbox" data-rarity-filter="timeless" onchange="cardDbApplyFilters()">Timeless</label>
-      </div>
+      <!-- v0.72.75: riempito da cardDbBuildRarityFilter(), che affianca a ogni
+           voce la gemma colorata della rarita' — la stessa che la carta porta
+           sotto il ritratto. Le quattro rarita' sono fisse (non le decide il
+           foglio, a differenza degli archetipi), ma costruirle in JS e' cio'
+           che permette di attaccarci l'icona senza ripetere quattro volte la
+           stessa riga di markup. -->
+      <div class="card-db-filter-options" id="card-db-rarity-filter-options"></div>
     </div>
     <!-- v0.72.73: l'elenco degli archetipi NON e' piu' scritto qui. Era una
          lista fissa di nove voci, e il foglio nel frattempo ne usa altre —
@@ -6730,6 +6731,13 @@ function _cardaDaRiga(col, get){
   // nome leggibile, non la chiave interna — quindi si cerca per nome nel
   // registro e si usa la normalizzazione solo come ripiego, per il caso in cui
   // qualcuno scriva direttamente la chiave tecnica.
+  // v0.72.74 — "Ability unlocked at level": il livello a cui la carta sblocca
+  // la propria abilita'. Sotto quel livello l'abilita' c'e' — si vede, si sa
+  // cosa fara' — ma non agisce. Colonna vuota o non numerica significa
+  // sbloccata da subito, che e' il comportamento di prima e quindi il default
+  // che non sorprende nessuno.
+  const sbloccoGrezzo=parseInt(getAlt(get,['Ability unlocked at level','Ability unlock level']),10);
+  const abilityUnlockLevel=isFinite(sbloccoGrezzo)?Math.max(1,Math.min(4,sbloccoGrezzo)):1;
   const abGrezza=(getAlt(get,['Ability key','Ability name'])||'').trim();
   let abilita='';
   if(abGrezza && abGrezza!=='/'){
@@ -6790,6 +6798,9 @@ function _cardaDaRiga(col, get){
     // Turn, Conquest, Reaction). Per ora e' solo informativo: la logica dei
     // trigger vive nel codice dell'abilita'. "In hand" e' escluso su richiesta.
     abilityTrigger:(get('Trigger')||'').trim().replace(/^\/$/,''),
+    abilityUnlockLevel,
+    // Comodita' di lettura: l'abilita' e' ancora chiusa a chiave?
+    abilityLocked: livello < abilityUnlockLevel,
     archetypes:archetipi,
     rarity:rarita,
     // Segna le carte i cui valori se li e' inventati il gioco. Per ora serve a
@@ -7285,6 +7296,8 @@ function _makeCardDbCard(entry, owner){
     abilityNameSheet:entry.abilityNameSheet||'',
     abilityDescSheet:entry.abilityDescSheet||'',
     abilityTrigger:entry.abilityTrigger||'',
+    abilityUnlockLevel: entry.abilityUnlockLevel||1,
+    abilityLocked: !!entry.abilityLocked,
     abilityNoScript:!!entry.abilityNoScript,
     archetypes:entry.archetypes||[],
     // v0.72.2 NEW: threaded through onto the runtime card object so
@@ -7551,6 +7564,7 @@ function cardDbRenderRoster(){
   // v0.72.73 — l'elenco degli archetipi si rifa' qui: e' il punto in cui il
   // roster e' appena stato letto ED e' anche quello attraversato dal cambio
   // dark/light, che deve girare pure le icone del filtro.
+  cardDbBuildRarityFilter();
   cardDbBuildArchetypeFilter();
   for(const entry of FINAL_CARDS){
     const card=_makeCardDbCard(entry, _cardDbVariant);
@@ -8084,6 +8098,46 @@ function cardDbAnimateFilterChange(matchResults, animate){
 // Il valore data-archetype-filter e' la stessa chiave interna che le carte
 // hanno in card.archetypes: cardDbApplyFilters continua a leggerlo identico,
 // senza sapere che l'elenco ora e' dinamico.
+// v0.72.75 — le gemme di rarita' accanto ai nomi nel filtro. Stessa idea del
+// filtro archetipi qui sotto, con una differenza: queste quattro voci non
+// dipendono dal foglio, quindi l'elenco e' fisso e l'unica cosa che cambia e'
+// l'icona. Le immagini sono le stesse che la carta usa per la gemma di livello
+// (CARD_LEVEL_GEM_IMG_BY_RARITY), cosi' il colore che si sceglie nel filtro e'
+// esattamente quello che si vede sulle carte.
+// Queste gemme NON sono faction-coded — esiste una sola versione per rarita' —
+// quindi, a differenza delle icone archetipo, non cambiano col dark/light.
+const CARD_DB_RARITA = [
+  {chiave:'common',   testo:'Common'},
+  {chiave:'rare',     testo:'Rare'},
+  {chiave:'mythic',   testo:'Mythic'},
+  {chiave:'timeless', testo:'Timeless'},
+];
+function cardDbBuildRarityFilter(){
+  const box = document.getElementById('card-db-rarity-filter-options');
+  if(!box) return;
+  const spuntati = new Set(
+    [...box.querySelectorAll('input[type="checkbox"]:checked')].map(cb=>cb.dataset.rarityFilter)
+  );
+  box.innerHTML = '';
+  for(const {chiave, testo} of CARD_DB_RARITA){
+    const label = document.createElement('label');
+    label.className = 'card-db-filter-opt';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.dataset.rarityFilter = chiave;
+    cb.checked = spuntati.has(chiave);
+    cb.addEventListener('change', ()=>cardDbApplyFilters());
+    const icona = document.createElement('img');
+    icona.className = 'card-db-filter-icon';
+    icona.alt = ''; icona.draggable = false;
+    icona.onerror = ()=>{ icona.style.display='none'; };
+    icona.src = CARD_LEVEL_GEM_IMG_BY_RARITY[chiave] || CARD_LEVEL_GEM_IMG;
+    const span = document.createElement('span');
+    span.textContent = testo;
+    label.appendChild(cb); label.appendChild(icona); label.appendChild(span);
+    box.appendChild(label);
+  }
+}
 function cardDbBuildArchetypeFilter(){
   const box = document.getElementById('card-db-archetype-filter-options');
   if(!box) return;
@@ -11057,7 +11111,7 @@ function countSmallCards(owner){
   return count;
 }
 function recalcHoorayShesStays(card){
-  if(card.cardAbility!=='smol_friends') return;
+  if(abilitaAttivaDi(card)!=='smol_friends') return;
   if(!card.hoorayBaseValues) card.hoorayBaseValues={...card.values};
   const smallCount=countSmallCards(card.owner);
   card.hoorayShesStaysCount=smallCount;
@@ -11329,7 +11383,7 @@ function doPlace(card,playerIdx,q,r){
   // — so simply reading card.cardAbility here, unconditionally, already
   // gives every ability exactly the "trigger once, on real hand placement
   // only" behavior the feature calls for, with no extra guard needed.
-  const cellAbilityKey = card.cardAbility;
+  const cellAbilityKey = abilitaAttivaDi(card);
   if(cellAbilityKey){
     // Snapshot the card's values right before any ability mutates them, so
     // the render can diff against this baseline and show boosted numbers in green
@@ -11426,8 +11480,43 @@ function doPlace(card,playerIdx,q,r){
 // helpers elsewhere are deliberately untouched since those evaluate a
 // DIFFERENT card's facing/defense value, never the a_kind_of_magic attacker's
 // own attack value.
+// v0.72.74 — L'ABILITA' CHE AGISCE, che non e' sempre quella che la carta ha.
+// Una carta puo' dichiarare un'abilita' e non poterla ancora usare, se il suo
+// livello e' sotto quello di sblocco (colonna "Ability unlocked at level").
+// Tutto cio' che FA qualcosa passa da qui; tutto cio' che si limita a MOSTRARE
+// l'abilita' continua a leggere card.cardAbility, perche' il giocatore deve
+// vedere cosa la carta otterra' salendo di livello.
+// Un solo punto di verita': i tre luoghi in cui un'abilita' produce un effetto
+// (il piazzamento in doPlace, la sinergia di Smol Friends, l'attacco di A Kind
+// of Magic) chiamano questa funzione invece di leggere il campo.
+// v0.72.74 FIX ("non vedo il testo dell'abilita' di Merlino, Snow White,
+// Alice e Robin Hood aggiornarsi"): erano davvero riferimenti fermi.
+// TILE_ABILITIES_DEF nasce come registro CODICE->EFFETTO: la chiave dice quale
+// funzione far girare. Ma si portava dietro anche nome e descrizione scritti a
+// mano, e chi disegna la carta leggeva quelli. Il risultato: le abilita' NON
+// ancora programmate mostravano il testo del foglio (non avendo voce nel
+// registro), mentre le quattro programmate mostravano quello del codice —
+// esattamente al contrario di quello che serve. Riscrivere la descrizione nel
+// foglio non cambiava nulla proprio sulle uniche quattro carte finite.
+// Ora il foglio vince sempre: e' li' che il testo viene scritto e riletto da
+// chi cura il gioco. Il registro resta la fonte del COMPORTAMENTO e fa da
+// ripiego per il testo, se la colonna e' vuota.
+function testiAbilitaDi(card, chiaveEsplicita){
+  if(!card) return null;
+  const chiave = chiaveEsplicita || card.cardAbility;
+  const reg = chiave ? TILE_ABILITIES_DEF[chiave] : null;
+  const nome = (card.abilityNameSheet||'').trim() || (reg && reg.name) || chiave || '';
+  const desc = (card.abilityDescSheet||'').trim() || (reg && reg.desc) || '';
+  if(!nome && !desc) return null;
+  return {name:nome, desc:desc, programmata: !!reg};
+}
+function abilitaAttivaDi(card){
+  if(!card || !card.cardAbility) return null;
+  if(card.abilityLocked) return null;
+  return card.cardAbility;
+}
 function getAttackValueForSide(card, effValues, mySide){
-  if(card && card.cardAbility==='a_kind_of_magic'){
+  if(abilitaAttivaDi(card)==='a_kind_of_magic'){
     return Math.max(...SIDES.map(s=>effValues[s]||0));
   }
   return effValues[mySide]||0;
@@ -16952,14 +17041,11 @@ function buildFullHandCardSVG(card, boxW, boxH){
   // ha voce in TILE_ABILITIES_DEF. Invece di non disegnare nulla (che rendeva
   // invisibile il lavoro ancora da fare), si costruisce una voce al volo con i
   // testi del foglio e si marca la carta con NO_SCRIPT in rosso.
-  let abilityDef = card.cardAbility ? TILE_ABILITIES_DEF[card.cardAbility] : null;
-  const abilityNoScript = !abilityDef && !!(card.abilityNameSheet || card.cardAbility);
-  if(abilityNoScript){
-    abilityDef = {
-      name: card.abilityNameSheet || card.cardAbility,
-      desc: card.abilityDescSheet || '',
-    };
-  }
+  // v0.72.74 — nome e descrizione vengono dal foglio (vedi testiAbilitaDi);
+  // il registro dice solo se l'abilita' ha davvero del codice dietro, che e'
+  // cio' che decide il marcatore NO_SCRIPT.
+  const abilityDef = testiAbilitaDi(card);
+  const abilityNoScript = !!abilityDef && !abilityDef.programmata;
   if(abilityDef){
     // v0.71.87 ("database di parole chiave... vengono scritte in bold"):
     // bold-aware wrap — each line is an array of {text,bold} runs instead of
@@ -16998,6 +17084,19 @@ function buildFullHandCardSVG(card, boxW, boxH){
       tag.setAttribute('font-size',(titleSize*0.78).toFixed(2));
       tag.textContent = '  NO_SCRIPT';
       titleText.appendChild(tag);
+    }
+    // v0.72.74 — abilita' non ancora sbloccata: si mostra lo stesso, con
+    // accanto il livello che la aprira'. Nasconderla sarebbe peggio — il
+    // giocatore non saprebbe cosa sta guadagnando salendo di livello — e
+    // mostrarla senza dire niente sarebbe una bugia, perche' in partita non
+    // succederebbe nulla. Stesso <tspan> del marcatore qui sopra, cosi' resta
+    // centrato insieme al titolo qualunque sia la lunghezza del nome.
+    if(card.abilityLocked){
+      const lucchetto=document.createElementNS('http://www.w3.org/2000/svg','tspan');
+      lucchetto.setAttribute('fill','#8A8172');
+      lucchetto.setAttribute('font-size',(titleSize*0.78).toFixed(2));
+      lucchetto.textContent = '  LV.' + (card.abilityUnlockLevel||1);
+      titleText.appendChild(lucchetto);
     }
     chromeGroup.appendChild(titleText);
     textY += titleSize+titleGap;
@@ -19788,7 +19887,7 @@ function buildCardTooltipHTML(card, onBoard, bonusInfo){
   // on-board badge section below takes over instead — a card is never shown
   // in both states at once.
   if(card.cardAbility && !card.activatedTileAbility){
-    const abilityDef = TILE_ABILITIES_DEF[card.cardAbility];
+    const abilityDef = testiAbilitaDi(card);
     if(abilityDef){
       html += `<div class="ct-card-ability"><div class="ct-card-ability-header">`;
       html += `<div class="ct-card-ability-title"><span class="ct-card-ability-eyebrow">Abilità della carta</span><span class="ct-card-ability-name">${escapeHtml(abilityDef.name)}</span></div>`;
@@ -19799,7 +19898,7 @@ function buildCardTooltipHTML(card, onBoard, bonusInfo){
   }
 
   if(onBoard && card.activatedTileAbility){
-    const abilityDef = TILE_ABILITIES_DEF[card.activatedTileAbility];
+    const abilityDef = testiAbilitaDi(card, card.activatedTileAbility);
     if(abilityDef){
       html += `<div class="ct-tile-ability"><div class="ct-tile-ability-header">`;
       html += `<span class="ct-tile-ability-name">${escapeHtml(abilityDef.name)}</span></div>`;
@@ -19939,7 +20038,7 @@ function buildBoardCardTooltipHTML(card){
   // white (.ct-tile-ability-num, unchanged) against the new muted body text.
   const abilityKey = card.activatedTileAbility || card.cardAbility;
   if(abilityKey){
-    const abilityDef = TILE_ABILITIES_DEF[abilityKey];
+    const abilityDef = testiAbilitaDi(card, abilityKey);
     if(abilityDef){
       html += `<div class="ctb-ability-box"><div class="ctb-ability-name">${escapeHtml(abilityDef.name)}</div><div class="ctb-ability-desc">${highlightAbilityNumbers(abilityDef.desc, abilityKey)}</div></div>`;
     }
