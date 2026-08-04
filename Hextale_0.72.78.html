@@ -4322,7 +4322,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.72.77</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.72.78</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -4526,8 +4526,11 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
     <div id="debug-update-box" style="display:none;margin-top:10px;font-family:var(--font-body);font-size:14px;color:#C9C2B0;">
       <div id="debug-update-msg" style="margin-bottom:8px;"></div>
       <div id="debug-update-actions" style="display:none;">
-        <a id="debug-update-download" href="#" download
-           style="display:block;text-align:center;padding:9px;border-radius:6px;background:#2b2b2b;border:1px solid #666;color:#fff;text-decoration:none;">Scarica il file</a>
+        <button id="debug-update-download" class="start-art-btn sab-primary" onclick="debugScaricaUltimaVersione()">
+          <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Scarica il file</span>
+        </button>
+        <a id="debug-update-fallback" href="#" target="_blank" rel="noopener"
+           style="display:none;margin-top:8px;text-align:center;padding:9px;border-radius:6px;background:#2b2b2b;border:1px solid #666;color:#fff;text-decoration:none;">Aprilo su GitHub e salvalo a mano</a>
         <button id="debug-update-run" class="start-art-btn sab-secondary" style="margin-top:8px;" onclick="debugEseguiUltimaVersione()">
           <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Esegui subito</span>
         </button>
@@ -9224,11 +9227,13 @@ function debugCercaUltimaVersione(){
         });
     })
     .then(file => {
-      _ultimaVersioneTrovata = {nome:file.name, url:file.download_url};
-      const link = document.getElementById('debug-update-download');
-      link.href = file.download_url;
-      link.setAttribute('download', file.name);
-      link.textContent = 'Scarica ' + file.name;
+      // Lo `sha` serve a scaricare i BYTE del file (vedi
+      // debugScaricaUltimaVersione), non solo a linkarlo.
+      _ultimaVersioneTrovata = {nome:file.name, url:file.download_url, sha:file.sha};
+      const etichetta = document.querySelector('#debug-update-download .sab-label');
+      if(etichetta) etichetta.textContent = 'Scarica ' + file.name;
+      const ripiego = document.getElementById('debug-update-fallback');
+      if(ripiego){ ripiego.href = file.download_url; ripiego.style.display = 'none'; }
       // Gia' aggiornato? Il confronto e' sul NOME DEL FILE, non su un numero:
       // il file nel repository e quello aperto adesso sono lo stesso file se si
       // chiamano allo stesso modo. Il messaggio compare nello stesso posto del
@@ -9268,6 +9273,61 @@ function debugCercaUltimaVersione(){
       // tre modi diversi.
       msg.textContent = 'Non riesco a leggere il repository: ' + (e && e.message ? e.message : e)
         + '. Se hai fatto molte richieste di fila, GitHub le limita per un\'ora.';
+    });
+}
+
+// v0.72.78 FIX ("invece di scaricarmi l'html mi apre una pagina col codice").
+// L'attributo `download` di un <a> viene IGNORATO quando l'indirizzo punta a
+// un altro sito: e' una regola del browser, non un dettaglio da aggirare —
+// serve a impedire che una pagina qualsiasi ti faccia scaricare file da domini
+// terzi mascherandone il nome. Il link puntava a raw.githubusercontent.com,
+// quindi `download` non aveva effetto e restava una normale navigazione; e
+// siccome quel sito serve i file come testo semplice, il browser li mostrava
+// invece di salvarli.
+// `download` funziona pero' su un indirizzo `blob:`, che appartiene alla pagina
+// stessa. Basta quindi avere i BYTE del file: si chiedono all'API dei blob di
+// Git, che li restituisce in base64 e — come il resto dell'API — accetta
+// `?callback=`, quindi si raggiunge col tag <script> anche da file:// (vedi
+// _githubJsonp per il perche' non si puo' usare fetch).
+// Se quella strada non fosse disponibile si mostra il vecchio link: aprirlo e
+// salvare a mano e' scomodo, ma e' meglio che un pulsante che non fa niente.
+function debugScaricaUltimaVersione(){
+  const msg = document.getElementById('debug-update-msg');
+  const ripiego = document.getElementById('debug-update-fallback');
+  if(!_ultimaVersioneTrovata){ if(msg) msg.textContent = 'Cerca prima la versione.'; return; }
+  const {nome, sha} = _ultimaVersioneTrovata;
+  if(!sha){ if(ripiego) ripiego.style.display = 'block'; if(msg) msg.textContent = 'Non ho il riferimento al file: usa il link qui sotto.'; return; }
+  if(msg) msg.textContent = 'Preparo ' + nome + '…';
+  // Tempo abbondante: il file supera il megabyte e in base64 cresce di un
+  // terzo, quindi il tag <script> ne trasporta circa un megabyte e mezzo.
+  _githubJsonp('https://api.github.com/repos/' + GITHUB_REPO + '/git/blobs/' + sha, 30000)
+    .then(esito => {
+      if(esito.errore) throw new Error(esito.errore);
+      const d = esito.dati;
+      if(!d || !d.content || d.encoding !== 'base64') throw new Error('GitHub non ha restituito il contenuto');
+      // base64 -> byte veri. Passare per una stringa e lasciar fare la
+      // codifica al Blob romperebbe le lettere accentate: il file e' UTF-8, e
+      // atob restituisce un byte per carattere, non caratteri Unicode.
+      const binario = atob(d.content.replace(/\s/g, ''));
+      const byte = new Uint8Array(binario.length);
+      for(let i=0;i<binario.length;i++) byte[i] = binario.charCodeAt(i);
+      const blob = new Blob([byte], {type:'text/html'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = nome; // qui `download` vale davvero: blob: e' della pagina
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      // L'indirizzo blob tiene il file in memoria finche' non lo si libera; un
+      // minuto e' piu' che sufficiente perche' il salvataggio parta.
+      setTimeout(()=>{ try{ URL.revokeObjectURL(url); }catch(_){} }, 60000);
+      if(msg) msg.textContent = nome + ' scaricato. Sostituisci con questo il file che stai usando.';
+    })
+    .catch(e => {
+      if(msg) msg.textContent = 'Non riesco a scaricarlo da qui (' + (e && e.message ? e.message : e)
+        + '). Apri il link qui sotto e salva la pagina con Ctrl+S.';
+      if(ripiego) ripiego.style.display = 'block';
     });
 }
 
