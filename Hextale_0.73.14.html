@@ -1969,24 +1969,33 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
 
    Tutto questo vale SOLO per il tabellone: la Collezione e le bustine hanno i
    loro giri, con nomi diversi, e restano come sono. */
+/* Il salto. --hop e' un NUMERO impostato da JS (l'altezza della carta per
+   0.26) e i px si aggiungono qui: stesso schema del contraccolpo e dello
+   scuotimento, gia' collaudato in questo file.
+   Le curve sono dichiarate keyframe per keyframe, non una sola per tutta
+   l'animazione, perche' salire e ricadere non sono lo stesso movimento: si
+   sale rallentando (la spinta si esaurisce) e si ricade accelerando (la
+   gravita' non si esaurisce affatto). Con una curva unica il salto sembra
+   galleggiare. */
 @keyframes cardHop{
-  0%   {transform:translateY(0) scale(1);}
-  /* Il punto piu' alto cade sul 50%, cioe' esattamente quando la carta e'
-     di taglio: e' li' che deve essere piu' staccata dal tavolo. */
-  50%  {transform:translateY(calc(var(--hop,14px) * -1)) scale(1.07);}
-  /* Il rientro e' piu' rapido della salita — la carta sale spinta, ricade per
-     gravita' — e chiude appena oltre lo zero, come un piccolo impatto. */
-  88%  {transform:translateY(0) scale(0.985);}
+  /* Lo stacco: parte deciso e rallenta salendo. */
+  0%   {transform:translateY(0) scale(1); animation-timing-function:cubic-bezier(.15,.7,.4,1);}
+  /* Il punto piu' alto cade esattamente sul 50%, cioe' quando la carta e' di
+     taglio: e' li' che deve essere piu' staccata dal tavolo, altrimenti si
+     vedrebbe ruotare mentre e' ancora appoggiata. */
+  50%  {transform:translateY(calc(var(--hop,26) * -1px)) scale(1.10); animation-timing-function:cubic-bezier(.55,0,.85,.45);}
+  /* Il contatto, con la schiacciata dell'impatto. */
+  90%  {transform:translateY(0) scale(0.97); animation-timing-function:ease-out;}
   100% {transform:translateY(0) scale(1);}
 }
 @keyframes cardHopB{
-  0%   {transform:translateY(0) scale(1);}
-  50%  {transform:translateY(calc(var(--hop,14px) * -1)) scale(1.07);}
-  88%  {transform:translateY(0) scale(0.985);}
+  0%   {transform:translateY(0) scale(1); animation-timing-function:cubic-bezier(.15,.7,.4,1);}
+  50%  {transform:translateY(calc(var(--hop,26) * -1px)) scale(1.10); animation-timing-function:cubic-bezier(.55,0,.85,.45);}
+  90%  {transform:translateY(0) scale(0.97); animation-timing-function:ease-out;}
   100% {transform:translateY(0) scale(1);}
 }
 .card-hop-a, .card-hop-b{
-  animation:cardHop 0.315s cubic-bezier(.33,0,.25,1);
+  animation:cardHop 0.315s linear;
   transform-box:fill-box;
   transform-origin:center center;
 }
@@ -5281,7 +5290,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.73.13</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.73.14</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -14761,17 +14770,37 @@ const TRABALLIO_DUR_MS = 560; // deve combaciare con .card-wobble
 // atterrando traballa in tondo come una moneta che si posa. Le tre animazioni
 // stanno su tre elementi annidati diversi (vedi il CSS): messe sullo stesso
 // elemento si escluderebbero a vicenda, perche' animano tutte `transform`.
+// v0.73.14 — la carta che salta va portata davanti a tutte le altre.
+// In SVG non esiste lo z-index: l'ordine di disegno E' l'ordine nel documento.
+// Una carta che si alza resta disegnata al posto suo nella pila, quindi la
+// parte sollevata finisce SOTTO ai tasselli delle celle disegnate dopo — il
+// salto avviene davvero ma non si vede, che e' esattamente il sintomo
+// riportato. E' lo stesso inciampo gia' documentato per l'atterraggio (vedi
+// cardLandApplyTo), e si risolve allo stesso modo: si sposta in fondo il
+// GRUPPO-CELLA intero, che e' l'unita' che #board-svg impila. Non serve
+// rimetterlo a posto: il prossimo renderBoard ricostruisce tutto da zero.
+function portaInPrimoPiano(el){
+  const radice = el.ownerSVGElement || document.getElementById('board-svg');
+  if(!radice) return;
+  let gruppoCella = el;
+  while(gruppoCella.parentNode && gruppoCella.parentNode !== radice) gruppoCella = gruppoCella.parentNode;
+  if(gruppoCella.parentNode === radice) radice.appendChild(gruppoCella);
+}
 function giraCarta(el){
   if(!el) return false;
   const salto = el;
   const giro = el.querySelector('[data-role="flip-host"]') || el;
   const traballio = el.querySelector('[data-role="wobble-host"]');
-  // Quanto in alto salta: proporzionale alla carta, non un numero fisso —
-  // la plancia si ridimensiona con la finestra e un salto di 14px su una
-  // carta piccola sarebbe un balzo, su una grande un fremito.
+  portaInPrimoPiano(el);
+  // Quanto in alto salta: proporzionale alla carta, non un numero fisso — la
+  // plancia si ridimensiona con la finestra e un salto di 14px su una carta
+  // piccola sarebbe un balzo, su una grande un fremito.
+  // Il valore e' un NUMERO puro e i px si aggiungono nei keyframes
+  // (`calc(var(--hop) * -1px)`): e' lo schema gia' collaudato dal contraccolpo
+  // e dallo scuotimento, e non lascia dubbi su come venga interpretato.
   try {
     const bbox = el.getBBox();
-    if(bbox && bbox.height) salto.style.setProperty('--hop', (bbox.height*0.13).toFixed(1)+'px');
+    if(bbox && bbox.height) salto.style.setProperty('--hop', (bbox.height*0.26).toFixed(1));
   } catch(_){}
   // Le classi si alternano perche' hanno due animation-name diversi: e' il solo
   // modo perche' un secondo giro riparta davvero mentre il primo e' ancora in
