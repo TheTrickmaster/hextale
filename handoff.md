@@ -95,6 +95,29 @@ ogni carta. Il suono del click e' un solo ascoltatore in cattura sul documento
 (`abilitaSuonoClickGlobale`): copre i pulsanti che esistono, quelli creati dopo
 e quelli disegnati dentro l'SVG, quindi non va aggiunto a mano da nessuna parte.
 
+**Insegnare un'abilita' all'IA.** Il punteggio di una mossa e'
+`danno - rischio + bonusAbilitaPerIA(...)`. Quel bonus ha due metа':
+
+- la parte **generale** confronta il tavolo simulato con quello vero e premia i
+  punti che finiscono sulle proprie carte, penalizzando quelli che finiscono su
+  quelle avversarie. Ogni abilita' che sposta dei valori — in campo o in mano —
+  viene capita da sola, senza scrivere niente;
+- `BONUS_STRATEGICO_IA` serve solo alle abilita' il cui valore **non si vede sul
+  tavolo** (una taglia sulla prossima pescata, una conquista da annullare). Il
+  numero restituito e' in punti danno; per convertire potere in danno c'e'
+  `VALORE_PUNTO_POTERE`.
+
+Se l'abilita' apre una scelta, `VALUTAZIONI_IA[chiave]` decide il bersaglio;
+senza voce li' dentro l'IA sceglie a caso, il che va bene per non bloccare la
+partita ma non e' giocare.
+
+Due trappole gia' pagate: **il rischio e' un colpo solo**, non la somma dei lati
+esposti (l'avversario gioca una carta per turno — sommarli rendeva ogni attacco
+sconveniente); e **non esiste un percorso di scelta "difensivo" separato**,
+perche' premiare i lati al riparo manda le carte negli angoli quando il
+tabellone e' tranquillo, cioe' quasi sempre. La prudenza sta gia' dentro
+`aiEstimateCounterRisk`, pesata contro il guadagno invece che al posto suo.
+
 **Le animazioni della carta sul tabellone stanno su quattro elementi annidati**
 — `[data-conquered]` il salto, `flip-host` il giro, `recoil-host` il
 contraccolpo, `wobble-host` il traballio — perche' animano tutte `transform` e

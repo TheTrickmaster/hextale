@@ -5290,7 +5290,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.73.18</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.73.19</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -16167,24 +16167,15 @@ function aiCountConquests(card, q, r){
 // add its flip to the count and its real facing-side damage (same rule as
 // activateReazioneCatena: attacker's side facing that old conquest vs. that
 // card's side facing back — both taken from their CURRENT board-effective
-// values, since a chain link is an automatic flip, not a fresh value-vs-value
-// fight). Before this, a placement on a reazione_catena tile was scored on
-// its direct flips only, so the AI routinely undervalued chain tiles and
-// passed up moves that would have cascaded into a second free hit.
-// Rinascita awareness (conquest side): a card that activated Rinascita and
-// hasn't used it yet (!hasUsedRinascita) is NOT permanently taken when
-// conquered — after 2 turns it flips back to its original owner with +2 on
-// every side AND heals its owner 2 PV (see the rebirthPending loop in
-// endTurn). So while the PV damage from that conquest is real and permanent
-// (defended by the actual facing-side comparison, same as any other flip),
-// the BOARD-CONTROL value of holding that card is temporary and comes back
-// to bite us slightly stronger, plus hands the opponent a small heal.
-// `boardValuePenalty` collects a small discount per such card
-// (applied only to the move's conquest-count/tie-break weight in
-// aiChooseMove, never to `damage` — the lethal shortcut and net-HP-swing
-// math must keep seeing the true, permanent PV number).
+// v0.73.19 — qui sopra c'era la descrizione di come l'IA ragionasse su
+// Reazione a Catena e su Rinascita: quante conquiste a catena una casella
+// avrebbe innescato, e quanto scontare una carta destinata a rinascere fra due
+// turni. Nessuna delle due abilita' esiste piu' da parecchie versioni, e il
+// `boardValuePenalty` che ne restava valeva sempre zero — un numero che veniva
+// sottratto da ogni punteggio senza mai cambiare niente, e un commento che
+// raccontava un gioco diverso da questo. Via entrambi.
 function aiEvaluateConquests(card, q, r){
-  let count=0, damage=0, boardValuePenalty=0;
+  let count=0, damage=0;
   const effValues=aiEffectiveValuesAt(card, q, r);
   // v0.73.5 — i DIFENSORI vanno letti dal tabellone simulato, non da quello
   // vero. Un'abilita' che indebolisce chi sta intorno (Robin Hood, oggi)
@@ -16194,7 +16185,6 @@ function aiEvaluateConquests(card, q, r){
   // l'abilita' stessa rende possibili. Vale per qualunque abilita' futura,
   // senza una riga dedicata: si guarda il mondo come sara', non com'e'.
   const simulato=simulaPiazzamento(card, q, r);
-  const directlyConquered=[];
   for(const dir of DIRS){
     const nk=key(q+dir.dq,r+dir.dr);
     const nb=G.board[nk];
@@ -16206,38 +16196,19 @@ function aiEvaluateConquests(card, q, r){
     const myVal=getAttackValueForSide(card, effValues, dir.mySide);
     const difesa=(simulato && simulato.tabellone[nk]) || nb.card.values;
     const theirVal=difesa[dir.theirSide]||0;
-    if(myVal>theirVal){ count++; damage+=(myVal-theirVal); directlyConquered.push(nk); }
+    if(myVal>theirVal){ count++; damage+=(myVal-theirVal); }
   }
-  // v0.72.72 — qui l'AI simulava la catena di conquiste di Reazione a Catena e
-  // scontava le carte con Rinascita, che sarebbero comunque tornate
-  // all'avversario. Nessuna delle due abilita' esiste piu'.
-
-  return {count, damage, boardValuePenalty};
+  return {count, damage};
 }
 
-// How many of this cell's 6 sides are "safe" if a card were placed there —
-// i.e. NOT facing an empty, in-bounds, reachable cell an enemy could later
-// place a card on. A side counts as safe when its neighbor is off the board,
-// a blocked/hole tile, or already occupied (by either player — an occupied
-// neighbor can't have a brand-new enemy card placed directly there to attack
-// that side). Used only for the AI's defensive fallback when no move on the
-// board conquers anything this turn: prefer tucking the card where the fewest
-// sides are left exposed to a future attack (board edges, next to holes, or
-// snug against other cards), instead of an arbitrary/random free cell.
-function aiCountSafeSides(q,r){
-  let safe=0;
-  const cellSet=new Set(G.cells.map(c=>key(c.q,c.r)));
-  for(const dir of DIRS){
-    const nq=q+dir.dq, nr=r+dir.dr;
-    const nk=key(nq,nr);
-    if(!cellSet.has(nk)) { safe++; continue; }        // off the board edge
-    if(G.holes.has(nk)) { safe++; continue; }          // blocked tile
-    if(G.board[nk]) { safe++; continue; }              // already occupied
-    // otherwise: empty in-bounds cell — an enemy could place there and
-    // attack this side later, so it counts as exposed (not safe)
-  }
-  return safe;
-}
+// v0.73.19 — qui viveva aiCountSafeSides, che contava quanti lati di una
+// cella nessuno potra' mai attaccare (bordo, muro, carta gia' posata). Serviva
+// al percorso difensivo, che e' stato tolto: era una misura STRUTTURALE della
+// sicurezza — un angolo e' sempre un angolo — e come tale mandava le carte a
+// nascondersi anche quando non c'era nulla da cui nascondersi.
+// Il pericolo vero lo misura gia' aiEstimateCounterRisk, che guarda le carte
+// che l'avversario ha davvero in mano: se non puo' far male, il rischio e'
+// zero e non c'e' niente da schivare.
 
 // Estimates the worst-case HP damage the HUMAN could deal back next turn by
 // exploiting a hypothetical placement of `card` at (q,r) — i.e. how exposed
@@ -16267,41 +16238,55 @@ function aiCountSafeSides(q,r){
 // below, inside the per-neighbor loop) has to ask it per-HUMAN-CARD instead
 // of once per cell, since different human hand cards can carry different
 // abilities (or none) — see the `nkIsImboscata` replacement inside the loop.
+// ═══════════════════════════════════════════════════════════════════════════
+// v0.73.19 — IL RISCHIO E' UN COLPO, NON SEI
+// ═══════════════════════════════════════════════════════════════════════════
+// Questa funzione stima quanto male puo' fare l'avversario al prossimo turno a
+// una carta appena piazzata. Sommava il colpo peggiore di OGNI lato esposto —
+// come se il giocatore, in un turno, potesse attaccare da tutte le parti
+// contemporaneamente. Ne gioca UNA di carta, e colpisce da UNA cella.
+//
+// Il conto era quindi gonfiato fino a sei volte, e siccome il punteggio di una
+// mossa e' `danno - rischio`, quasi ogni attacco risultava perdente: l'IA
+// preferiva infilare le carte negli angoli invece di conquistare. Misurato su
+// una posizione qualunque: rischio sommato 23, colpo vero possibile 6 — e una
+// conquista che valeva 8 danni giudicata sconveniente.
+//
+// Adesso il rischio e' il COLPO PEGGIORE che l'avversario puo' davvero
+// assestare. Gli altri lati esposti non vengono ignorati del tutto — una carta
+// scoperta da quattro parti e' comunque piu' fragile di una al riparo, e le
+// minacce restano li' anche per i turni dopo — ma pesano un quarto, cioe' come
+// un pericolo futuro e non come un colpo gia' subito.
+const PESO_MINACCE_SECONDARIE = 0.25;
 function aiEstimateCounterRisk(card, q, r){
   const cellSet=new Set(G.cells.map(c=>key(c.q,c.r)));
   const humanHand=(G.p1Hand||[]);
   if(!humanHand.length) return 0;
   const myEffective=aiEffectiveValuesAt(card,q,r);
-  // Fortifica awareness: if THIS placement itself carries the Fortifica
-  // ability (card.cardAbility, not a cell property anymore),
-  // activateFortifica() will shield whichever GROUP ends up with the lowest
-  // value (see previewTileAbilityEffect's fortifica branch — same rule,
-  // computed here directly off myEffective since we already have it) —
-  // those sides become unconquerable, exactly like a fortifiedSides board
-  // entry checked everywhere else. Skipping them from the risk sum means the
-  // AI correctly recognizes "my card has Fortifica" as a genuinely safer
-  // placement, not just an equally-exposed one.
-  let totalRisk=0;
+  const colpi=[];
   for(const dir of DIRS){
     const nq=q+dir.dq, nr=r+dir.dr;
     const nk=key(nq,nr);
-    if(!cellSet.has(nk) || G.holes.has(nk) || G.board[nk]) continue; // not an exposed/attackable side
+    if(!cellSet.has(nk) || G.holes.has(nk) || G.board[nk]) continue; // non e' un lato attaccabile
     const myVal=myEffective[dir.mySide]||0;
-    // dir.theirSide as seen from the empty neighbor cell attacking back INTO
-    // (q,r) is the mirror of dir — i.e. the side of a card placed at (nq,nr)
-    // that faces (q,r) is DIRS' opposite-facing entry for this direction.
+    // Il lato di una carta piazzata in (nq,nr) che guarda verso (q,r) e' la
+    // direzione opposta a questa.
     const backDir=DIRS.find(d=>nq+d.dq===q && nr+d.dr===r);
     if(!backDir) continue;
     let worstHit=0;
     for(const hCard of humanHand){
-      const hEffective=aiEffectiveValuesAt(hCard,nq,nr); // reuses the same tile/magic-tile-aware lookup, from the human's perspective at that cell
+      const hEffective=aiEffectiveValuesAt(hCard,nq,nr);
       const hVal=hEffective[backDir.mySide]||0;
       const hit = Math.max(0, hVal-myVal);
       if(hit>worstHit) worstHit=hit;
     }
-    totalRisk+=worstHit;
+    if(worstHit>0) colpi.push(worstHit);
   }
-  return totalRisk;
+  if(!colpi.length) return 0;
+  colpi.sort((a,b)=>b-a);
+  let rischio = colpi[0];
+  for(let i=1;i<colpi.length;i++) rischio += colpi[i]*PESO_MINACCE_SECONDARIE;
+  return rischio;
 }
 
 // Picks the best (card, cell) combination for the AI. The win condition is
@@ -16377,71 +16362,180 @@ function aiEstimateCounterRisk(card, q, r){
 // rimasti. Sparite quelle abilita', nessuna carta del foglio influenza piu' la
 // SCELTA della casella: le quattro rimaste agiscono dopo il piazzamento o sui
 // vicini, e l'AI le vede gia' attraverso i valori effettivi.
-function aiTilePlacementBonus(card,q,r){ return 0; }
+// ═══════════════════════════════════════════════════════════════════════════
+// v0.73.19 — COSA SA L'IA DELLE ABILITA'
+// ═══════════════════════════════════════════════════════════════════════════
+// Qui c'era `aiTilePlacementBonus`, che restituiva zero: era il residuo del
+// bonus delle tredici abilita' del prototipo, sparite da un pezzo. Se n'e'
+// andata insieme a `boardValuePenalty` (l'attenzione a Rinascita) e ai commenti
+// che spiegavano come l'IA ragionasse su Fortifica, Prosciuga, Bufera e
+// Riparare — abilita' che non esistono piu' e che la facevano ragionare su un
+// gioco diverso da quello che ha davanti.
+//
+// Al loro posto ci sono due cose.
+//
+// LA PRIMA E' GENERALE, e vale gia' oggi per ogni abilita' che sposti dei
+// valori: si simula la giocata (vedi simulaPiazzamento) e si guarda di quanto
+// cambia il valore complessivo del tavolo, contando in positivo i punti che
+// finiscono sulle proprie carte e in negativo quelli che finiscono su quelle
+// avversarie. Non c'e' una riga dedicata a Robin Hood ne' a Biancaneve: chi
+// impoverisce i nemici o arricchisce gli alleati viene premiato da solo, e una
+// carta nuova che faccia lo stesso sara' capita senza toccare nulla qui.
+//
+// LA SECONDA E' PER LE ABILITA' CHE NON SI VEDONO SUL TAVOLO — una taglia
+// sulla prossima pescata, una conquista da annullare — che nessuna simulazione
+// dei valori puo' cogliere, e che quindi vanno dichiarate una per una.
+
+// Quanto vale un punto di potere quando lo si confronta con un punto di danno.
+// Un valore in piu' su un lato non e' un danno gia' inflitto: e' la
+// possibilita' di infliggerlo. Vale meno, ma non zero.
+const VALORE_PUNTO_POTERE = 0.35;
+
+// Di quanto cambia il valore del tavolo, dal punto di vista di `giocatore`, se
+// questa carta viene giocata qui. Positivo = il tavolo migliora per lui.
+function bonusValoreDaAbilita(card, q, r, giocatore){
+  if(!abilitaAttivaDi(card)) return 0;
+  const sim = simulaPiazzamento(card, q, r);
+  if(!sim) return 0;
+  const cellaGiocata = key(q,r);
+  let saldo = 0;
+  for(const k in sim.tabellone){
+    const cella = G.board[k];
+    // La cella appena giocata non e' ancora sul tabellone vero: il suo
+    // "prima" sono i valori che la carta ha in mano.
+    const prima = (k===cellaGiocata && !cella) ? card.values : (cella ? cella.card.values : null);
+    if(!prima) continue;
+    const proprietario = (k===cellaGiocata && !cella) ? giocatore : cella.owner;
+    let scarto = 0;
+    for(const s of SIDES) scarto += (sim.tabellone[k][s]||0) - (prima[s]||0);
+    saldo += (proprietario===giocatore) ? scarto : -scarto;
+  }
+  // Anche le carte ancora in mano contano: una sinergia che potenzia qualcosa
+  // che si giochera' fra due turni e' comunque un vantaggio.
+  for(const g of [1,2]){
+    const mano = (g===1 ? G.p1Hand : G.p2Hand) || [];
+    for(const c of mano){
+      const dopo = sim.mani[g][c.id];
+      if(!dopo) continue;
+      let scarto = 0;
+      for(const s of SIDES) scarto += (dopo[s]||0) - (c.values[s]||0);
+      saldo += (g===giocatore) ? scarto : -scarto;
+    }
+  }
+  return saldo * VALORE_PUNTO_POTERE;
+}
+
+// Le abilita' il cui valore non si legge sui valori delle carte. Il numero
+// restituito e' in "punti danno", la stessa unita' del resto del punteggio.
+const BONUS_STRATEGICO_IA = {
+  // La prossima carta pescata nasce con +2 su tutti e sei i lati: dodici punti
+  // di potere. Vale solo se c'e' ancora qualcosa da pescare.
+  off_with_the_head: (card, q, r, giocatore) => {
+    const mazzo = giocatore===1 ? G.p1Deck : G.p2Deck;
+    return (mazzo && mazzo.length) ? 12 * VALORE_PUNTO_POTERE : 0;
+  },
+  // Meta' delle volte riprende la casella che l'avversario ha appena
+  // conquistato. Vale la meta' di quella casella, perche' meta' delle volte
+  // non succede niente: e' esattamente cosa vuol dire "il 50%".
+  smoke_and_mirrors: (card, q, r, giocatore) => {
+    const avversario = giocatore===1 ? 2 : 1;
+    const ultima = G.ultimaConquista && G.ultimaConquista[avversario];
+    if(!ultima) return 0;
+    const cella = G.board[ultima.cella];
+    if(!cella || cella.owner !== avversario) return 0;
+    let potere = 0;
+    for(const s of SIDES) potere += (cella.card.values[s]||0);
+    return 0.5 * potere * VALORE_PUNTO_POTERE;
+  },
+  // Se gliela portano via impazzisce, e i suoi valori diventano 1-3: chi la
+  // conquista si ritrova quasi sempre una carta peggiore di quella che ha
+  // preso. Perderla costa meno che perdere un'altra carta, quindi giocarla
+  // dove e' esposta e' meno grave. Il bonus e' la differenza fra quello che
+  // vale adesso e i due punti medi che varra' dopo essere impazzita.
+  have_i_gone_mad: (card) => {
+    let potere = 0;
+    for(const s of SIDES) potere += (card.values[s]||0);
+    const dopoLaFollia = 2 * SIDES.length; // media di 1-3 su ogni gruppo
+    return Math.max(0, potere - dopoLaFollia) * VALORE_PUNTO_POTERE * 0.5;
+  },
+};
+
+// Quanti vicini utili ha una cella: caselle vere, non muri, dentro il
+// tabellone. E' la misura di quanto quella posizione "guarda" il resto del
+// campo, e serve come ultimo criterio al posto del sorteggio.
+function aiVicinatoUtile(q, r){
+  let n=0;
+  for(const dir of DIRS){
+    const nk=key(q+dir.dq, r+dir.dr);
+    if(!G.cells.some(c=>key(c.q,c.r)===nk)) continue;
+    if(G.holes.has(nk)) continue;
+    n++;
+  }
+  return n;
+}
+
+// Il valore strategico totale di una giocata: la parte generale (i valori che
+// si spostano) piu' quella dichiarata per la singola abilita'.
+function bonusAbilitaPerIA(card, q, r, giocatore){
+  let bonus = bonusValoreDaAbilita(card, q, r, giocatore);
+  const chiave = abilitaAttivaDi(card);
+  const dichiarato = chiave && BONUS_STRATEGICO_IA[chiave];
+  if(typeof dichiarato === 'function'){
+    try { bonus += dichiarato(card, q, r, giocatore) || 0; } catch(_){}
+  }
+  return bonus;
+}
 function aiChooseMove(){
   const hand=G.p2Hand;
   if(!hand.length) return null;
   const freeCells=G.cells.filter(c=>canPlace(c.q,c.r));
   if(!freeCells.length) return null;
-  let best=null, bestNet=-Infinity, bestScore=-1, bestPower=-1;
+  let best=null, bestNet=-Infinity, bestScore=-1, bestPower=-1, bestCentro=-1;
   const candidates=[];
   for(const card of hand){
     for(const cell of freeCells){
-      const {count:conquests, damage, boardValuePenalty}=aiEvaluateConquests(card,cell.q,cell.r);
+      const {count:conquests, damage}=aiEvaluateConquests(card,cell.q,cell.r);
       const power=SIDES.reduce((s,side)=>s+(card.values[side]||0),0);
       // Lethal shortcut: a hit that would end the game right now is always
       // the best possible move, full stop — no need to weigh anything else.
       if(damage>=G.hp[1]){ return {card,cell}; }
       const risk=aiEstimateCounterRisk(card,cell.q,cell.r);
-      // boardValuePenalty (Rinascita awareness) only shaves the net score,
-      // never the underlying `damage` — the PV hit from that flip is real
-      // and permanent even though the card itself will crawl back to its
-      // original owner in 2 turns, so it must never affect the lethal
-      // shortcut above or the true HP-swing math elsewhere.
-      const net=damage-risk+aiTilePlacementBonus(card,cell.q,cell.r)-(boardValuePenalty||0);
-      if(net>bestNet || (net===bestNet && conquests>bestScore) || (net===bestNet && conquests===bestScore && power>bestPower)){
-        best={card,cell}; bestNet=net; bestScore=conquests; bestPower=power;
+      // v0.73.19 — al punteggio si aggiunge quello che l'abilita' porta:
+      // i valori che sposta sul tavolo e, per le abilita' che sul tavolo non
+      // si vedono, il loro valore dichiarato (vedi bonusAbilitaPerIA).
+      const net=damage-risk+bonusAbilitaPerIA(card,cell.q,cell.r,2);
+      // v0.73.19 — la centralita' come ultimo criterio, al posto del sorteggio.
+      // A parita' di tutto il resto una cella con piu' vicini vale di piu':
+      // da li' si attacca in piu' direzioni nei turni successivi. Prima si
+      // tirava a sorte, ed e' il motivo per cui l'IA sembrava giocare a caso:
+      // a inizio partita TUTTE le celle pareggiano, quindi era davvero a caso.
+      const centralita=aiVicinatoUtile(cell.q,cell.r);
+      const meglio = (net>bestNet)
+        || (net===bestNet && conquests>bestScore)
+        || (net===bestNet && conquests===bestScore && centralita>bestCentro)
+        || (net===bestNet && conquests===bestScore && centralita===bestCentro && power>bestPower);
+      if(meglio){
+        best={card,cell}; bestNet=net; bestScore=conquests; bestPower=power; bestCentro=centralita;
         candidates.length=0; candidates.push({card,cell});
-      } else if(net===bestNet && conquests===bestScore && power===bestPower){
+      } else if(net===bestNet && conquests===bestScore && centralita===bestCentro && power===bestPower){
         candidates.push({card,cell});
       }
     }
   }
-  // "Nothing conquers anything" (as opposed to "nothing has a good net
-  // score" — a damage-dealing move that's merely risky is still preferable
-  // to not attacking at all) still triggers the safety-first fallback below.
-  const anyDamage=hand.some(card=>freeCells.some(cell=>aiEvaluateConquests(card,cell.q,cell.r).damage>0));
-  if(!anyDamage){
-    // Defensive fallback: no placement conquers anything this turn — rank
-    // every candidate by counter-risk first (lowest risk wins), falling
-    // back to aiCountSafeSides' structural exposure count when risk ties
-    // (typically 0-0 early in the game, before the human's hand poses any
-    // real threat), then by card power, then randomly among remaining ties.
-    let bestRisk=Infinity, bestSafety=-1, bestDefPower=-1;
-    const defCandidates=[];
-    let bestDef=null;
-    for(const card of hand){
-      const power=SIDES.reduce((s,side)=>s+(card.values[side]||0),0);
-      for(const cell of freeCells){
-        if(aiCountConquests(card,cell.q,cell.r)>0) continue; // handled by the offensive path above
-        const risk=aiEstimateCounterRisk(card,cell.q,cell.r)-aiTilePlacementBonus(card,cell.q,cell.r);
-        const safety=aiCountSafeSides(cell.q,cell.r);
-        if(risk<bestRisk || (risk===bestRisk && safety>bestSafety) || (risk===bestRisk && safety===bestSafety && power>bestDefPower)){
-          bestDef={card,cell}; bestRisk=risk; bestSafety=safety; bestDefPower=power;
-          defCandidates.length=0; defCandidates.push({card,cell});
-        } else if(risk===bestRisk && safety===bestSafety && power===bestDefPower){
-          defCandidates.push({card,cell});
-        }
-      }
-    }
-    if(bestDef){
-      return defCandidates.length>1
-        ? defCandidates[Math.floor(Math.random()*defCandidates.length)]
-        : bestDef;
-    }
-    // Fall through to the (non-conquering) offensive-path result below if,
-    // for whatever reason, no defensive candidate was found.
-  }
+  // v0.73.19 — qui c'era un SECONDO percorso di scelta, che scattava quando
+  // nessuna mossa conquistava niente: ordinava le celle per rischio, poi per
+  // quanti lati restavano al riparo, poi per potenza, e infine tirava a sorte.
+  // Erano due difetti in uno.
+  // Il primo: premiando "quanti lati restano coperti" mandava le carte negli
+  // angoli e contro i muri ogni volta che il tabellone era tranquillo — cioe'
+  // quasi sempre nella prima meta' di partita. Da li' non si attacca nessuno.
+  // Il secondo: a inizio partita tutte le celle pareggiano su ogni criterio, e
+  // l'ultimo passo era un sorteggio. Non "sembrava" giocare a caso: lo faceva.
+  // Il percorso e' stato tolto del tutto perche' non serviva: il punteggio
+  // principale gia' sottrae il rischio, quindi la prudenza c'e' gia', ed e'
+  // pesata contro il guadagno invece di sostituirlo. Quando davvero non c'e'
+  // niente da conquistare, a decidere e' la centralita' della cella — che e'
+  // cio' che fa un giocatore umano: prende il centro e aspetta.
   if(candidates.length>1) return candidates[Math.floor(Math.random()*candidates.length)];
   return best;
 }
@@ -16451,20 +16545,16 @@ function aiPlay(){
   const move=aiChooseMove();
   if(!move){ endTurn(2); return; }
   doPlace(move.card, 1, move.cell.q, move.cell.r);
-  // doPlace() may have opened a bufera/riparare decision window instead of
-  // completing (that ability's branch returns early and waits for a human
-  // click on a swap target / blocked cell / the ✕ cancel button). The AI has
-  // no such UI to click, so it must resolve the same decision programmatically
-  // — otherwise the game just sits there forever waiting for input nobody can give.
+  // doPlace() puo' aver aperto una finestra di scelta invece di concludere
+  // (oggi: Spitted Image). L'IA non ha un'interfaccia da cliccare, quindi
+  // quella scelta deve risolverla da codice — altrimenti la partita resta li'
+  // in attesa di un input che nessuno puo' dare.
   aiResolvePendingAbilityIfAny();
 }
 
-// ── AI resolution of bufera/riparare decision windows ──────────
-// Called right after the AI's own placement, in case that placement landed
-// on a "bufera" or "riparare" tile and opened a pending decision state.
-// Picks a reasonable choice using the same simple greedy spirit as
-// aiChooseMove() (best immediate conquest count), or cancels/skips when no
-// choice does anything useful — mirroring what a human clicking "✕" would do.
+// ── L'IA risolve le finestre di scelta ────────────────────────────────────
+// Chiamata subito dopo il piazzamento dell'IA, nel caso quel piazzamento abbia
+// aperto una scelta in attesa.
 // v0.72.28 — REGOLA PERMANENTE, vale per OGNI abilita' futura: se
 // un'abilita' apre una finestra decisionale (cioe' se il suo ramo in
 // doPlace() fa `return` dopo aver settato uno stato in G e aspetta un click
@@ -16488,7 +16578,34 @@ function aiPlay(){
 // meglio una mossa a caso che una partita ferma, e il giorno in cui si vorra'
 // insegnarle davvero quell'abilita' basta aggiungere una voce qui sotto.
 const VALUTAZIONI_IA = {
-  // magic_mirror: non ancora insegnata — sceglie a caso, vedi sopra.
+  // v0.73.19 — Spitted Image, insegnata. Per ogni vicino copiabile si prova
+  // ad indossare la sua abilita' e si guarda cosa succederebbe: quante carte
+  // si conquistano da questa cella, quanto danno, e quanto migliora il tavolo
+  // (vedi bonusAbilitaPerIA). Vince la migliore; se nessuna porta niente si
+  // rinuncia, che e' meglio che copiare a caso qualcosa di inutile.
+  //
+  // La prova non tocca niente: si costruisce una copia della carta con
+  // l'abilita' del bersaglio e la si valuta. simulaPiazzamento lavora su
+  // cloni, e gli effetti che cambiano davvero la partita (una taglia, una
+  // conquista annullata) vivono in un registro separato che la simulazione
+  // non esegue — vedi EFFETTI_PIAZZAMENTO_REALI.
+  magic_mirror: (scelta) => {
+    let migliore = null, punteggioMigliore = 0;
+    for(const cella of scelta.bersagli){
+      const b = G.board[cella];
+      if(!b || !b.card) continue;
+      const ab = abilitaAttivaDi(b.card);
+      if(!ab) continue;
+      const sonda = Object.assign({}, scelta.card, {values:{...scelta.card.values}, cardAbility:ab});
+      let punteggio = 0;
+      try {
+        const ev = aiEvaluateConquests(sonda, scelta.q, scelta.r);
+        punteggio = ev.damage + ev.count*2 + bonusAbilitaPerIA(sonda, scelta.q, scelta.r, scelta.giocatore);
+      } catch(_){ punteggio = 0; }
+      if(punteggio > punteggioMigliore){ punteggioMigliore = punteggio; migliore = cella; }
+    }
+    return migliore;
+  },
 };
 function aiResolvePendingAbilityIfAny(){
   const scelta = G.sceltaBersaglio;
@@ -16497,6 +16614,8 @@ function aiResolvePendingAbilityIfAny(){
   let bersaglio = null;
   if(typeof valuta === 'function'){
     try { bersaglio = valuta(scelta); } catch(_){ bersaglio = null; }
+    // Una valutazione che non trova niente di buono ha deciso di rinunciare:
+    // e' una scelta, non un errore, e non va sostituita con un sorteggio.
   } else {
     // A sorte fra tutti i bersagli piu' l'opzione "lascio stare".
     const opzioni = scelta.bersagli.concat([null]);
