@@ -5290,7 +5290,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.73.17</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.73.18</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -11022,7 +11022,7 @@ function debugShowAiSpeechBubble(){
   showPage('game'); // v0.72.31: monta la pagina partita e smonta tutte le altre
   document.getElementById('app').style.display='flex';
   document.getElementById('settings-btn').style.display='block';
-  setAiSpeechBubbleText('Che carta scelgo?');
+  setAiSpeechBubbleText('Which card, then?');
   showAiSpeechBubble();
   closeDebugModal();
 }
@@ -14597,6 +14597,21 @@ function copiaAbilitaDa(specchio, cellaBersaglio, q, r){
   specchio.activatedTileAbility = copiata;
   specchio.abilityLocked = false;
   specchio.abilitaCopiataDa = bersaglio.card.name || cellaBersaglio;
+  // v0.73.18 — insieme all'abilita' si prende anche il suo TESTO.
+  // Chi disegna una carta preferisce sempre il nome e la descrizione scritti
+  // nel foglio (vedi testiAbilitaDi: e' li' che il testo viene curato), e
+  // quelli sullo specchio erano i suoi, cioe' "Spitted Image". Cambiando solo
+  // la chiave, lo specchio faceva una cosa e ne raccontava un'altra: al
+  // passaggio del mouse leggeva ancora la propria descrizione originale.
+  // Copiando anche i testi, lo specchio mostra esattamente cio' che mostrava
+  // la carta copiata — descrizione del foglio compresa, che e' la migliore
+  // disponibile. Se quella carta non ne aveva, le stringhe restano vuote e
+  // subentra il testo del registro, che e' comunque quello dell'abilita'
+  // giusta.
+  specchio.abilityNameSheet = bersaglio.card.abilityNameSheet || '';
+  specchio.abilityDescSheet = bersaglio.card.abilityDescSheet || '';
+  specchio.abilityTrigger   = bersaglio.card.abilityTrigger   || '';
+  specchio.abilityNoScript  = false;
   if(!specchio.tileAbilityBaseValues) specchio.tileAbilityBaseValues = {...specchio.values};
   applicaAbilitaPiazzamento(specchio, q, r, copiata);
   applicaEffettiRealiPiazzamento(specchio, q, r, copiata);
@@ -15754,15 +15769,19 @@ function stopAiThinkingHover(){
 // startAiThinkingHover()/stopAiThinkingHover()), gated by the same
 // aiThinkingHoverGen===gameGeneration staleness check so a game reset or
 // early turn-end can never leave a stray bubble showing.
+// v0.73.18 — in inglese, come il resto di cio' che si legge in partita.
+// Tradotte badando al tono (fiabesco e un filo impertinente) e alla LUNGHEZZA:
+// la bolla si allarga sulla frase, quindi una traduzione fedele ma lunga il
+// doppio cambierebbe la forma di un elemento disegnato su misura.
 const AI_THINKING_PHRASES=[
-  'Hmm, che carta...','Vediamo un po\'...','Fiuto la magia!','Ci penso su...',
-  'Che dilemma!','Interessante...','La strega sa!','Che mossa fare?',
-  'Aspetta un attimo','Mmm, delizioso!','Il gufo consiglia','Sento il destino',
-  'Che scelta ardua','Un attimo di magia','Rifletto un po\'','Che carta scelgo?',
-  'Il calderone ribolle','Sto tramando...','Che incantesimo!','Zitto, penso io',
-  'Che stregoneria!','Mmm, forse questa','Il fato decide','Un momento, prego',
-  'Che bel dilemma','Fiabe e strategia','Studio la mossa','Che carta magica',
-  'Il gatto sussurra','Pronto a stupirti',
+  'Hmm, which card...','Let me see now...','I smell magic!','Thinking it over...',
+  'What a dilemma!','Interesting...','The witch knows!','What move to make?',
+  'Hold on a moment','Mmm, delicious!','The owl advises','I sense destiny',
+  'Such a hard choice','A moment of magic','Let me ponder...','Which card, then?',
+  'The cauldron bubbles','I am scheming...','What a spell!','Hush, I am thinking',
+  'Such witchcraft!','Mmm, maybe this one','Fate shall decide','One moment, please',
+  'What a fine puzzle','Tales and tactics','Studying the move','What a magic card',
+  'The cat whispers','Ready to amaze you',
 ];
 let aiSpeechBubbleInterval=null;
 let aiSpeechBubbleLastPhrase=null; // avoid showing the exact same phrase twice in a row
@@ -17479,6 +17498,11 @@ function toggleBoardView(showBoard){
 // banner isn't followed by a turn banner the way Time's Up is, so it clears
 // the dim overlay itself in hideSuddenDeathBanner() instead of leaving that
 // to a later banner in a chain).
+// Durata di .show sul banner del colpo finale — deve combaciare con
+// timesUpBannerFade nel CSS (1.25s), perche' e' su questa che si decide quando
+// togliere lo scuro.
+const SUDDEN_DEATH_BANNER_MS = 1250;
+let _suddenDeathDimTimer = null;
 function showSuddenDeathBanner(){
   const overlay=document.getElementById('sudden-death-banner');
   if(!overlay) return;
@@ -17486,8 +17510,28 @@ function showSuddenDeathBanner(){
   overlay.classList.remove('show');
   void overlay.offsetWidth; // force reflow so the animation restarts every time
   overlay.classList.add('show');
+  // v0.73.18 FIX ("una volta che il banner sparisce, rimane l'overlay scuro").
+  // Lo scuro veniva tolto solo da hideSuddenDeathBanner(), che pero' viene
+  // chiamata alla fine di TUTTA la sequenza del colpo finale — le due ondate
+  // di danno, le bolle che volano, i conteggi degli HP: parecchi secondi.
+  // Il banner invece dura 1,25s e se ne va da solo, con la sua animazione.
+  // Nel mezzo restava uno schermo scurito senza piu' niente sopra, proprio
+  // mentre c'era da guardare l'unica cosa che conta: chi vince.
+  // Adesso lo scuro accompagna il banner e sparisce con lui.
+  clearTimeout(_suddenDeathDimTimer);
+  _suddenDeathDimTimer = setTimeout(()=>{
+    _suddenDeathDimTimer = null;
+    // Se nel frattempo un altro banner ha acceso lo scuro per conto suo (un
+    // cambio turno, il tempo scaduto) non glielo si spegne sotto: si controlla
+    // che sia ancora il banner del colpo finale a essere in scena.
+    const b=document.getElementById('sudden-death-banner');
+    if(b && !b.classList.contains('debug-pinned')){
+      document.getElementById('banner-dim-overlay')?.classList.remove('show');
+    }
+  }, SUDDEN_DEATH_BANNER_MS);
 }
 function hideSuddenDeathBanner(){
+  clearTimeout(_suddenDeathDimTimer); _suddenDeathDimTimer = null;
   const overlay=document.getElementById('sudden-death-banner');
   if(overlay) overlay.classList.remove('show');
   document.getElementById('banner-dim-overlay')?.classList.remove('show');
