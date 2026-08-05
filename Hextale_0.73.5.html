@@ -5119,7 +5119,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.73.4</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.73.5</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -12075,7 +12075,6 @@ function abandonCurrentGame(){
     G.gameOver=true;
     G.currentPlayer=null;
     G.selected=null; G.dragging=null; G.dragOver=null;
-    G.aliceSwapState=null;
   }
   clearInterval(timerInterval); timerInterval=null;
   stopTictoc();
@@ -12616,11 +12615,10 @@ const TILE_ABILITIES_DEF = {
   // making it randomly rollable in assignCardAbilities() or listed in the
   // ability-preview picker (both of which iterate TILE_ABILITY_KEYS, not the
   // keys of this object).
-  // v0.71.90: description text shortened per Lorenzo's own re-dictation —
-  // mechanic UNCHANGED (explicitly confirmed: still -1 to adjacent enemies
-  // AND +1 to Robin's own corresponding touching sides, see
-  // activateEatTheRich — only the displayed text got shorter/simpler).
-  eat_the_rich:      { name:'Eat the Rich',       desc:"Steals 1 Power from every adjacent enemy." },
+  // v0.73.5 — riscritta: Robin non trattiene piu' niente per se'. Ruba 1 al
+  // gruppo di ogni nemico che tocca e consegna tutto il bottino all'alleato in
+  // campo che ne ha piu' bisogno (vedi activateEatTheRich).
+  eat_the_rich:      { name:'Eat the Rich',       desc:"*Steals* 1 Power from every adjacent enemy and gives it to an ally in need." },
   // Snow White, "Hooray! She stays!": a live SYNERGY (not an on-play
   // trigger like Robin Hood above) — see activateSnowWhiteSynergy for the
   // actual mechanic. Registered here purely for the quote-box name/desc
@@ -12629,7 +12627,7 @@ const TILE_ABILITIES_DEF = {
   // re-dictation ("Synergy: +1 power on all sides for every small card on
   // the board and in your hand.") — left in English verbatim per the
   // standing rule that user-dictated ability text is never auto-translated.
-  smol_friends:  { name:'Smol Friends', desc:'Synergy: +1 Power (all sides) for every Small card on the board.' },
+  smol_friends:  { name:'Smol Friends', desc:'+1 Power ALL for every /Small/ character on the board.' },
   // Merlin, display name "A Kind of Magic" (v0.72.0 rename — internal key
   // stays a_kind_of_magic, unchanged everywhere else in the file, since it's
   // never shown to the player): no value mutation at all (unlike every
@@ -12638,14 +12636,20 @@ const TILE_ABILITIES_DEF = {
   // getAttackValueForSide, used by both resolveConquestAndEndTurn and the
   // AI's aiEvaluateConquests). Registered here purely for the quote-box
   // name/desc lookup, same as eat_the_rich/smol_friends above.
-  a_kind_of_magic:       { name:'A Kind of Magic',    desc:"Attacks with its highest Power, regardless." },
-  // Alice, "Eat me, Drink me": on placement, a swap-icon/close-icon-red
-  // choice (see doPlace's own eat_me_drink_me branch + renderBoard's "Alice
-  // UI overlay") lets the player mirror her own values horizontally
-  // (NW<->NE, W<->E, SW<->SE) before conquest resolution, or leave them
-  // untouched. Registered here purely for the quote-box name/desc lookup,
-  // same as every other character ability above.
-  eat_me_drink_me:   { name:'Eat me, Drink me',   desc:'Can mirror her values.' },
+  a_kind_of_magic:       { name:'A Kind of Magic',    desc:"Always attacks with its highest Power value, regardless its position." },
+  // v0.73.5 — Alice non e' piu' una scelta al piazzamento. Finche' resta in
+  // mano, a ogni turno del suo proprietario i valori le girano intorno di una
+  // posizione in senso orario (vedi ruotaValoriInMano).
+  eat_me_drink_me:   { name:'Eat me, Drink me',   desc:'*Rotates* its power clockwise each turn while in hand.' },
+  // v0.73.5 — Hatter. Non fa niente finche' resta suo; se lo conquista
+  // l'avversario impazzisce (vedi impazzisciSeConquistato).
+  have_i_gone_mad:   { name:'Have I Gone Mad?',   desc:'On conquer: goes mad, its power becomes a random value (1-3).' },
+  // v0.73.5 — Morgana. Al piazzamento, meta' delle volte annulla l'ultima
+  // conquista avversaria (vedi attivaSmokeAndMirrors).
+  smoke_and_mirrors: { name:'Smoke and Mirrors',  desc:"Chance of *canceling* the last opponent's conquest." },
+  // v0.73.5 — Regina di Cuori. Non tocca niente in campo: mette una taglia
+  // sulla prossima pescata di chi la gioca (vedi G.bonusProssimaPescata).
+  off_with_the_head: { name:'Off With the Head!',  desc:'The next card you *draw* earns +2 ALL.' },
 };
 
 // ── Generic ability-text keyword bolding (v0.71.87) ─────────────────────
@@ -13003,9 +13007,14 @@ function initGame(vsAI){
     growthCards:[],
     // v0.72.72 — via rebirthPending (le rinascite programmate) e i due stati di
     // attesa buferaState/distruggiState: erano gli unici tre campi che
-    // esistevano per abilita' del prototipo. aliceSwapState resta, perche' Alice
-    // c'e'.
-    aliceSwapState:null,
+    // esistevano per abilita' del prototipo.
+    // v0.73.5 — via anche aliceSwapState: Alice non apre piu' nessuna finestra
+    // decisionale, la sua abilita' agisce da sola mentre e' in mano.
+    // La taglia della Regina di Cuori sulla prossima carta pescata, invece,
+    // deve sopravvivere fino alla pescata: sta qui, uno per giocatore.
+    bonusProssimaPescata:{1:0,2:0},
+    // L'ultima conquista di ciascun giocatore, per Morgana: {cella, exProprietario}.
+    ultimaConquista:{1:null,2:null},
     destroyedHoles:new Set(), // cells whose blocked tile was removed via Distruggere — rendered with the special "free-tile-destroyed" art
     fortifiedCells:new Set(),
     // conqueredHistory teneva la lista delle carte che ognuna aveva conquistato,
@@ -13380,11 +13389,6 @@ function stopScreenEdgeFlash(){
 
 function autoPlay(player){
   if(G.gameOver)return;
-  if(G.aliceSwapState && G.aliceSwapState.player===player){
-    toast('⏱ Tempo scaduto! I valori restano invariati.');
-    cancelAliceSwap();
-    return;
-  }
   // Auto-play only for the player whose turn is actually active. Guards against a
   // stale timer firing after the turn already changed to the other player.
   player = player || G.currentPlayer;
@@ -13449,36 +13453,119 @@ function previewGemMagicEffect(card, q, r){
 // drops by 1, and every side in Robin Hood's own group that contains his
 // touching side (dir.mySide) gains +1. Applied once per adjacent enemy card
 // (up to 6 separate group-pairs, not just single sides).
-function activateEatTheRich(card, q, r){
-  let enemyAdj=0;
-  const player=card.owner;
+// Un sorteggio che da' sempre lo stesso risultato a parita' di seme. Serve
+// dove una scelta e' "a caso" ma viene calcolata DUE volte: una per
+// l'anteprima sotto il puntatore e una per il piazzamento vero. Con
+// Math.random() le due risposte non coinciderebbero — l'anteprima indicherebbe
+// una carta e il gioco poi ne premierebbe un'altra — e per di piu' l'anteprima
+// cambierebbe idea a ogni ridisegno, cioe' tremolerebbe sotto il puntatore.
+function sorteggioStabile(lista, seme){
+  if(!lista.length) return null;
+  let h = 2166136261;
+  const s = String(seme);
+  for(let i=0;i<s.length;i++){ h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return lista[(h >>> 0) % lista.length];
+}
+
+// Un lato e' "esposto" se dall'altra parte non c'e' nessuna carta: e' da li'
+// che una carta puo' essere attaccata, quindi e' li' che un valore basso e'
+// davvero un problema. Serve a Eat the Rich per capire chi ha piu' bisogno.
+function latiEsposti(q, r){
+  const esposti=[];
   for(const dir of DIRS){
-    const nk=key(q+dir.dq,r+dir.dr);
-    const nb=G.board[nk];
-    if(nb && nb.owner!==player){
-      enemyAdj++;
-      // Snapshot both cards' pre-ability values (once) so the render can
-      // diff against this baseline and show the -1/+1 deltas colored, same
-      // convention as every other tile ability in this file.
-      if(!nb.card.tileAbilityBaseValues) nb.card.tileAbilityBaseValues={...nb.card.values};
-      if(!card.tileAbilityBaseValues) card.tileAbilityBaseValues={...card.values};
-
-      // Enemy side: -1 to every side in the group containing dir.theirSide.
-      const enemyGroups=gruppiDiCarta(nb.card);
-      const enemyGroup=enemyGroups.find(g=>g.sides.includes(dir.theirSide));
-      const enemySides=enemyGroup ? enemyGroup.sides : [dir.theirSide];
-      for(const s of enemySides) nb.card.values[s]=(nb.card.values[s]||0)-1;
-
-      // Robin's side: +1 to every side in the group containing dir.mySide.
-      // Recomputed fresh per adjacent enemy so a previous enemy's +1 to this
-      // same group is already reflected when checking group membership.
-      const myGroups=gruppiDiCarta(card);
-      const myGroup=myGroups.find(g=>g.sides.includes(dir.mySide));
-      const mySides=myGroup ? myGroup.sides : [dir.mySide];
-      for(const s of mySides) card.values[s]=(card.values[s]||0)+1;
-    }
+    if(!G.board[key(q+dir.dq, r+dir.dr)]) esposti.push(dir.mySide);
   }
-  card.eatTheRichEnemyCount=enemyAdj;
+  return esposti;
+}
+// Quanto e' messa male questa carta, in due numeri: il suo gruppo piu' basso e
+// il piu' basso dei suoi valori su un lato esposto. Piu' bassi, piu' bisogno.
+// Una carta circondata da ogni lato non ha valori esposti: non e' attaccabile
+// da nessuna parte, quindi passa dietro a chi lo e' (Infinity).
+function bisognoDiCarta(card, q, r){
+  const gruppi=gruppiDiCarta(card);
+  const valori=gruppi.map(g=>card.values[g.sides[0]]||0);
+  const esposti=latiEsposti(q,r).map(s=>card.values[s]||0);
+  return {
+    gruppoPiuBasso: valori.length ? Math.min(...valori) : 0,
+    espostoPiuBasso: esposti.length ? Math.min(...esposti) : Infinity
+  };
+}
+
+// Robin Hood — "Eat the Rich" (riscritta in v0.73.5).
+//
+// Prima questa abilita' toglieva 1 ai nemici e teneva il +1 per se'. Adesso
+// Robin non trattiene niente: ruba 1 al gruppo di ogni nemico che tocca, mette
+// insieme il bottino e lo consegna tutto all'alleato in campo che ne ha piu'
+// bisogno.
+//
+// Chi ha piu' bisogno: il gruppo piu' basso vince: e' la carta piu' facile da
+// battere. A parita', ha la precedenza chi ha il valore piu' basso su un lato
+// ESPOSTO, perche' un punto debole rivolto verso il vuoto e' un punto debole
+// che qualcuno puo' sfruttare davvero, mentre uno rivolto contro un'altra
+// carta e' gia' coperto. Se anche cosi' restano piu' candidate a pari merito,
+// se ne sceglie una a caso.
+//
+// Robin non e' fra i candidati, a meno che non sia rimasto solo lui: e' un
+// ladro generoso, ma il bottino non si butta.
+function activateEatTheRich(card, q, r){
+  const player = card.owner || G.currentPlayer;
+  const miaCella = key(q,r);
+  let bottino = 0;
+
+  for(const dir of DIRS){
+    const nk = key(q+dir.dq, r+dir.dr);
+    const nb = G.board[nk];
+    if(!nb || nb.owner === player) continue;
+    // Il gruppo del nemico che tocca Robin. Si ruba a quello, cioe' a tutti i
+    // lati che ne fanno parte: i valori di un gruppo si muovono insieme.
+    const gruppoNemico = gruppiDiCarta(nb.card).find(g=>g.sides.includes(dir.theirSide));
+    const lati = gruppoNemico ? gruppoNemico.sides : [dir.theirSide];
+    const valoreAttuale = nb.card.values[dir.theirSide] || 0;
+    if(valoreAttuale <= 0) continue; // gia' a zero: non c'e' piu' niente da prendere
+    // Istantanea dei valori prima del furto, cosi' chi disegna puo'
+    // confrontare e mostrare il -1 in rosso, come per ogni altro effetto.
+    if(!nb.card.tileAbilityBaseValues) nb.card.tileAbilityBaseValues={...nb.card.values};
+    for(const s of lati) nb.card.values[s] = Math.max(0, (nb.card.values[s]||0) - 1);
+    bottino++;
+  }
+
+  card.eatTheRichEnemyCount = bottino;
+  if(!bottino) return;
+
+  // I candidati: gli alleati in campo. Robin solo se non c'e' nessun altro.
+  let candidati = [];
+  for(const k in G.board){
+    const cella = G.board[k];
+    if(!cella || !cella.card || cella.owner !== player) continue;
+    if(k === miaCella) continue;
+    const [ck, cr] = k.split(',').map(Number);
+    candidati.push({k, card: cella.card, q: ck, r: cr});
+  }
+  if(!candidati.length) candidati = [{k: miaCella, card, q, r}];
+
+  const conBisogno = candidati.map(c=>Object.assign(c, bisognoDiCarta(c.card, c.q, c.r)));
+  const minGruppo = Math.min(...conBisogno.map(c=>c.gruppoPiuBasso));
+  let finalisti = conBisogno.filter(c=>c.gruppoPiuBasso === minGruppo);
+  if(finalisti.length > 1){
+    const minEsposto = Math.min(...finalisti.map(c=>c.espostoPiuBasso));
+    finalisti = finalisti.filter(c=>c.espostoPiuBasso === minEsposto);
+  }
+  // A pari merito si sceglie a caso, ma con un caso RIPETIBILE: stessa carta,
+  // stessa cella, stesso vincitore — vedi sorteggioStabile.
+  const scelto = sorteggioStabile(finalisti, (card.id||card.name||'?')+'@'+miaCella+'#'+bottino);
+
+  // Il bottino va sul gruppo piu' basso del beneficiario: e' il punto in cui
+  // serve, ed e' quello che "an ally in need" vuol dire.
+  const gruppi = gruppiDiCarta(scelto.card);
+  let gruppoDebole = null, valoreDebole = Infinity;
+  for(const g of gruppi){
+    const v = scelto.card.values[g.sides[0]] || 0;
+    if(v < valoreDebole){ valoreDebole = v; gruppoDebole = g; }
+  }
+  if(!gruppoDebole) return;
+  if(!scelto.card.tileAbilityBaseValues) scelto.card.tileAbilityBaseValues={...scelto.card.values};
+  for(const s of gruppoDebole.sides) scelto.card.values[s] = (scelto.card.values[s]||0) + bottino;
+  card.eatTheRichBeneficiario = scelto.k;
 }
 
 // Snow White's "Hooray! She stays!" (v0.71.78): a LIVE synergy, unlike every
@@ -13597,66 +13684,102 @@ function animateAliceCirclePairSwap(elsA, elsB){
     });
   });
 }
-// Alice's "Eat me, Drink me" — confirms the swap: mirrors the card's own
-// values horizontally (NW<->NE, W<->E, SW<->SE, per explicit spec — a mirror
-// across the card's vertical axis, not just a plain W<->E value swap). The
-// two circles/numbers in each pair that actually differ animate along a
-// curved path to each other's position (see animateAliceCirclePairSwap
-// above) BEFORE the underlying card.values are mutated and conquest
-// resolution proceeds — a pair whose two sides already share the same value
-// has nothing to visually swap, so it's skipped (no animation, no-op).
-function doAliceSwap(){
-  if(!G.aliceSwapState) return;
-  const {card, player, fromK} = G.aliceSwapState;
-  G.aliceSwapState=null; G.selected=null; G.dragging=null; G.dragOver=null;
-  // Snapshot pre-swap values (if not already snapshotted by the ability
-  // trigger above) so the render can diff against this baseline and show the
-  // swapped numbers colored, same convention as every other tile ability.
-  if(!card.tileAbilityBaseValues) card.tileAbilityBaseValues={...card.values};
-  const before={...card.values};
-
-  const bsvg=document.getElementById('board-svg');
-  const cardEl=bsvg && bsvg.querySelector(`[data-conquered="${fromK}"]`);
-  const PAIRS=[['NW','NE'],['W','E'],['SW','SE']];
-  let animated=false;
-  if(cardEl){
-    for(const [sA,sB] of PAIRS){
-      if(before[sA]===before[sB]) continue; // nothing to visually swap
-      const elsA=getAliceValueElsForSide(cardEl, sA);
-      const elsB=getAliceValueElsForSide(cardEl, sB);
-      if(elsA && elsB && elsA.circleEl!==elsB.circleEl){
-        animateAliceCirclePairSwap(elsA, elsB);
-        animated=true;
-      }
-    }
+// ═══════════════════════════════════════════════════════════════════════════
+// v0.73.5 — ALICE, "Eat me, Drink me": i valori girano mentre lei aspetta
+// ═══════════════════════════════════════════════════════════════════════════
+// L'abilita' precedente era una scelta al momento del piazzamento (specchia i
+// valori oppure no). Adesso agisce PRIMA, e da sola: finche' Alice resta in
+// mano, all'inizio di ogni turno del suo proprietario tutti i suoi valori
+// scivolano di una posizione in senso orario — quello che stava a NE passa a E,
+// quello che stava a E passa a SE, e cosi' via fino a NW che torna a NE.
+// Chi la tiene in mano un giro in piu' la gioca con una faccia diversa.
+//
+// SIDES e' gia' scritto in senso orario (NE, E, SE, SW, W, NW), quindi "ruotare
+// in senso orario" vuol dire far scorrere ogni valore di un posto in avanti in
+// quell'elenco, riportando l'ultimo in testa.
+//
+// Anche i GRUPPI ruotano insieme ai valori. I gruppi di una carta sono la sua
+// identita' e non cambiano mai (vedi la regola dei gruppi stabili piu' sopra):
+// se ruotassero solo i numeri, un gruppo si ritroverebbe a cavallo di due
+// valori diversi pur dovendone mostrare uno solo, e la carta si disegnerebbe
+// sbagliata. Ruotando entrambi, la carta resta la stessa carta girata.
+function ruotaValoriInMano(card){
+  if(abilitaAttivaDi(card)!=='eat_me_drink_me') return false;
+  const prima={...card.values};
+  for(let i=0;i<SIDES.length;i++) card.values[SIDES[(i+1)%SIDES.length]] = prima[SIDES[i]];
+  if(Array.isArray(card.groupSides)){
+    card.groupSides = card.groupSides.map(lati =>
+      lati.map(s => SIDES[(SIDES.indexOf(s)+1)%SIDES.length]));
   }
-
-  const finishSwap=()=>{
-    card.values.NW=before.NE; card.values.NE=before.NW;
-    card.values.W =before.E;  card.values.E =before.W;
-    card.values.SW=before.SE; card.values.SE=before.SW;
-    const [q, r] = fromK.split(',').map(Number);
-    const cellAbilityKey = card.activatedTileAbility;
-    // skipLandAnim=true: this card was already painted on the board at this
-    // exact cell by the original doPlace() call that opened the decision
-    // window — it never moved, so replaying the landing animation here would
-    // make it flash/vanish-and-reappear for no reason (same reasoning as
-    // cancelBufera's own comment).
-    resolveConquestAndEndTurn(card, player, q, r, fromK, cellAbilityKey, true);
-  };
-  if(animated) setTimeout(finishSwap, ALICE_SWAP_ANIM_MS);
-  else finishSwap();
+  // Anche l'istantanea di partenza delle sinergie continue va ruotata, o al
+  // prossimo ricalcolo la carta tornerebbe alla disposizione di prima.
+  if(card.hoorayBaseValues){
+    const base={...card.hoorayBaseValues};
+    for(let i=0;i<SIDES.length;i++) card.hoorayBaseValues[SIDES[(i+1)%SIDES.length]] = base[SIDES[i]];
+  }
+  return true;
 }
-// Alice's "Eat me, Drink me" — cancels the swap: values stay exactly as they
-// were, but the card still attacks from its own cell and only then passes
-// the turn, exactly like a normal placement ("come di norma").
-function cancelAliceSwap(){
-  if(!G.aliceSwapState) return;
-  const {card, player, fromK} = G.aliceSwapState;
-  G.aliceSwapState=null;
-  const [q, r] = fromK.split(',').map(Number);
-  const cellAbilityKey = card.activatedTileAbility;
-  resolveConquestAndEndTurn(card, player, q, r, fromK, cellAbilityKey, true);
+
+// Il numero e il suo cerchietto viaggiano fino al posto del lato successivo,
+// tutti insieme: si vede la carta girare invece di cambiare di scatto. Riusa la
+// stessa animazione curva dello scambio (vedi animateAliceCirclePairSwap): qui
+// ogni coppia va al posto del vicino in senso orario invece che scambiarsi con
+// il lato opposto.
+function animaRotazioneAlice(cardEl){
+  if(!cardEl) return false;
+  const posti={};
+  for(const s of SIDES){
+    const els=getAliceValueElsForSide(cardEl, s);
+    if(!els || !els.circleEl) return false;
+    const box=els.circleEl.getBBox();
+    posti[s]={els, x:box.x+box.width/2, y:box.y+box.height/2};
+  }
+  for(let i=0;i<SIDES.length;i++){
+    const da=posti[SIDES[i]], a=posti[SIDES[(i+1)%SIDES.length]];
+    const dx=a.x-da.x, dy=a.y-da.y;
+    const lung=Math.hypot(dx,dy)||1;
+    const perp={x:-dy/lung, y:dx/lung};
+    const ARCO=Math.max(6, Math.min(18, lung*0.3));
+    [da.els.circleEl, da.els.textEl].forEach(el=>{
+      if(!el) return;
+      el.style.setProperty('--asdur', ALICE_SWAP_ANIM_MS+'ms');
+      el.style.setProperty('--astx', dx.toFixed(2)+'px');
+      el.style.setProperty('--asty', dy.toFixed(2)+'px');
+      el.style.setProperty('--asbowx', (perp.x*ARCO).toFixed(2)+'px');
+      el.style.setProperty('--asbowy', (perp.y*ARCO).toFixed(2)+'px');
+      el.classList.remove('alice-circle-swap-travel');
+      void el.offsetWidth; // forza il reflow: senza, riaggiungere la classe non fa ripartire niente
+      el.classList.add('alice-circle-swap-travel');
+    });
+  }
+  return true;
+}
+
+// Chiamata all'inizio del turno di ogni giocatore: fa girare tutte le carte in
+// mano che hanno l'abilita' (oggi solo Alice, domani chiunque la avra').
+function ruotaCarteInMano(player){
+  const mano = player===1 ? G.p1Hand : G.p2Hand;
+  const fanId = player===1 ? 'p1-hand-fan' : 'p2-hand-fan';
+  const daRuotare = (mano||[]).filter(c=>abilitaAttivaDi(c)==='eat_me_drink_me');
+  if(!daRuotare.length) return;
+  const fan = document.getElementById(fanId);
+  let animata=false;
+  for(const carta of daRuotare){
+    const wrap = fan && fan.querySelector(`.hand-card-wrap[data-card-id="${carta.id}"]`);
+    const svg = wrap && wrap.querySelector('.hand-card-svg');
+    if(svg && animaRotazioneAlice(svg)) animata=true;
+  }
+  // I valori veri cambiano quando l'animazione e' arrivata a destinazione, cosi'
+  // il numero non salta al posto nuovo mentre lo sta ancora raggiungendo. Se non
+  // c'e' niente da animare (carta coperta, mano non ancora disegnata) si
+  // applica subito: l'effetto non deve mai dipendere dalla riuscita di
+  // un'animazione.
+  const applica=()=>{
+    daRuotare.forEach(ruotaValoriInMano);
+    renderHand(fanId, mano, player-1);
+  };
+  if(animata) setTimeout(applica, ALICE_SWAP_ANIM_MS);
+  else applica();
 }
 
 
@@ -13804,32 +13927,14 @@ function doPlace(card,playerIdx,q,r){
     // (vedi EFFETTI_PIAZZAMENTO): quello che si vede trascinando e quello che
     // succede lasciando la carta sono per costruzione la stessa cosa.
     applicaAbilitaPiazzamento(card, q, r, cellAbilityKey);
-    // Alice's "Eat me, Drink me" (v0.71.98): same pause-and-choose pattern as
-    // Bufera/Distruggere above, but the choice is simpler — no target cell to
-    // pick, just swap-or-don't. A swap-icon (and, smaller, below it, a
-    // close-icon-red cancel icon) appears centered on Alice's own card (see
-    // renderBoard()'s "Alice UI overlay" block) until the player clicks one or
-    // the timer runs out.
-    if(cellAbilityKey==='eat_me_drink_me'){
-      if(timeAlreadyExpired){
-        // Same rule as Bufera/Distruggere: time already ran out, so don't
-        // open a fresh decision window — resolve as if the choice had timed
-        // out. The card still attacks from its own cell with its UNCHANGED
-        // values before the turn passes.
-        G.selected=null; G.dragging=null; G.dragOver=null;
-        toast('⏱ Tempo scaduto! I valori restano invariati.');
-        resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey);
-        return;
-      }
-      G.aliceSwapState={card, player, fromK:k};
-      G.selected=null; G.dragging=null; G.dragOver=null;
-      renderBoard();
-      // Keep the turn timer running while the player decides — otherwise it
-      // would stay stopped forever (doPlace cleared it above) and the pending
-      // choice would never time out.
-      startTimer();
-      return;
-    }
+    // v0.73.5 — e subito dopo quelli che esistono solo per davvero (una taglia
+    // sulla pescata, una conquista annullata, un dado tirato): vedi
+    // EFFETTI_PIAZZAMENTO_REALI per il perche' stiano in un registro a parte.
+    applicaEffettiRealiPiazzamento(card, q, r, cellAbilityKey);
+    // v0.73.5 — qui c'era la finestra decisionale di Alice (scambia i valori
+    // o lascia stare). L'abilita' e' stata riscritta: adesso agisce mentre la
+    // carta e' IN MANO e non chiede piu' niente al momento del piazzamento,
+    // quindi non c'e' piu' niente da mettere in pausa. Vedi ruotaValoriInMano.
   }
 
   resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey);
@@ -13944,35 +14049,196 @@ function applicaAbilitaPiazzamento(card, q, r, chiave){
   const effetto = EFFETTI_PIAZZAMENTO[chiave];
   if(typeof effetto === 'function') effetto(card, q, r);
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// v0.73.5 — GLI EFFETTI CHE NON SI POSSONO PROVARE
+// ═══════════════════════════════════════════════════════════════════════════
+// EFFETTI_PIAZZAMENTO qui sopra viene eseguito DUE volte: una per finta, sul
+// tabellone clonato, per mostrare l'anteprima sotto il puntatore, e una per
+// davvero quando la carta viene calata. Va benissimo finche' un effetto tocca
+// soltanto i valori delle carte, perche' quelli nella simulazione sono copie.
+//
+// Ma un effetto che cambia qualcos'altro — una taglia sulla prossima pescata,
+// una conquista annullata — toccherebbe lo stato VERO della partita anche
+// quando gira per finta: la Regina di Cuori regalerebbe +2 a ogni passaggio del
+// puntatore, e Morgana annullerebbe conquiste mentre il giocatore sta ancora
+// decidendo dove giocare. Un effetto che tira un dado, poi, non puo' proprio
+// essere mostrato in anteprima: il risultato vero sarebbe un altro.
+//
+// Questi effetti stanno quindi in un registro separato, che viene eseguito solo
+// al piazzamento vero. La regola per orientarsi: se l'effetto cambia dei
+// valori, va in EFFETTI_PIAZZAMENTO e ottiene l'anteprima gratis; se cambia
+// altro, o tira un dado, va qui e non si vede in anticipo.
+const EFFETTI_PIAZZAMENTO_REALI = {
+  off_with_the_head: (card) => attivaOffWithTheHead(card),
+  smoke_and_mirrors: (card) => attivaSmokeAndMirrors(card),
+};
+function applicaEffettiRealiPiazzamento(card, q, r, chiave){
+  const effetto = EFFETTI_PIAZZAMENTO_REALI[chiave];
+  if(typeof effetto === 'function') effetto(card, q, r);
+}
+
+// Regina di Cuori — "Off With the Head!". Non tocca niente in campo: lascia una
+// taglia su chi la gioca, che viene riscossa dalla prossima carta che pesca
+// (vedi drawAndAnimate). Non scade a fine turno: se la mano e' piena e non si
+// pesca, la taglia aspetta la prima pescata utile.
+function attivaOffWithTheHead(card){
+  const giocatore = card.owner || G.currentPlayer;
+  G.bonusProssimaPescata[giocatore] = (G.bonusProssimaPescata[giocatore]||0) + 2;
+  toast('👑 La prossima carta pescata avrà +2 ovunque!');
+}
+
+// Morgana — "Smoke and Mirrors". Meta' delle volte rimanda indietro l'ultima
+// carta che l'avversario le ha portato via: la casella torna al proprietario
+// di prima, i valori non si toccano. Se l'avversario non ha ancora conquistato
+// niente, o se quella casella nel frattempo ha gia' cambiato mano di nuovo,
+// non c'e' niente da annullare.
+function attivaSmokeAndMirrors(card){
+  const giocatore = card.owner || G.currentPlayer;
+  const avversario = giocatore===1 ? 2 : 1;
+  const ultima = G.ultimaConquista && G.ultimaConquista[avversario];
+  if(!ultima){ toast('🪞 Nessuna conquista da annullare.'); return; }
+  const cella = G.board[ultima.cella];
+  if(!cella || cella.owner !== avversario){ toast('🪞 Nessuna conquista da annullare.'); return; }
+  if(Math.random() >= 0.5){ toast('🪞 Lo specchio non risponde…'); return; }
+  G.board[ultima.cella] = { card: cella.card, owner: ultima.exProprietario };
+  G.ultimaConquista[avversario] = null;
+  toast("🪞 Smoke and Mirrors: l'ultima conquista è annullata!");
+}
+
+// Hatter — "Have I Gone Mad?". Scatta quando gliela portano via: cambia nome e
+// ogni suo gruppo valore pesca un numero da 1 a 3 per conto proprio, quindi la
+// carta esce dalla conquista completamente diversa da com'era entrata. Puo'
+// ripetersi: ogni volta che cambia mano, rimpazzisce.
+function impazzisciSeConquistato(card){
+  if(abilitaAttivaDi(card) !== 'have_i_gone_mad') return false;
+  if(!card.tileAbilityBaseValues) card.tileAbilityBaseValues={...card.values};
+  for(const gruppo of gruppiDiCarta(card)){
+    const tirato = 1 + Math.floor(Math.random()*3);
+    for(const s of gruppo.sides) card.values[s] = tirato;
+  }
+  card.name = 'Mad Hatter';
+  return true;
+}
+// Copia di lavoro di una carta per la simulazione. Superficiale, tranne i tre
+// campi che gli effetti riscrivono davvero: i valori e le due istantanee su cui
+// si calcolano le differenze colorate. Copiare la carta in profondita' sarebbe
+// piu' lento senza servire a niente.
+function clonaPerSimulazione(card){
+  const c = Object.assign({}, card);
+  c.values = Object.assign({}, card.values);
+  if(card.hoorayBaseValues) c.hoorayBaseValues = Object.assign({}, card.hoorayBaseValues);
+  if(card.tileAbilityBaseValues) c.tileAbilityBaseValues = Object.assign({}, card.tileAbilityBaseValues);
+  return c;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// v0.73.5 — L'ANTEPRIMA RIGUARDA TUTTO IL TAVOLO, NON SOLO LA CARTA IN MANO
+// ═══════════════════════════════════════════════════════════════════════════
+// Fino a qui la simulazione clonava il tabellone, applicava l'effetto e poi
+// leggeva UNA SOLA casella: i valori della carta trascinata. Tutto il resto del
+// clone — cioe' l'effetto che quella carta ha sulle ALTRE — veniva calcolato e
+// buttato via un'istruzione dopo. Si vedeva quindi Robin Hood arricchirsi e non
+// si vedeva nessuno impoverirsi.
+//
+// Qui la simulazione restituisce il tavolo intero: i valori di ogni carta in
+// campo e di ogni carta nelle due mani, come sarebbero un istante dopo il
+// piazzamento. Chi disegna confronta quei numeri con quelli veri e mostra la
+// differenza, in verde o in rosso, col meccanismo che gia' esisteva.
+//
+// Il punto importante e' che questo NON e' scritto per Robin Hood, ne' per
+// nessun'altra carta in particolare: si simula, si confronta, si mostra. Una
+// carta nuova che tolga o dia valore a chiunque — in campo o in mano — avra'
+// la sua anteprima senza che nessuno debba ricordarsi di aggiungerla qui.
+function simulaPiazzamento(card, q, r){
+  const tabelloneVero = G.board, manoVera1 = G.p1Hand, manoVera2 = G.p2Hand;
+  try {
+    const clone = {};
+    for(const k in tabelloneVero){
+      const cella = tabelloneVero[k];
+      if(!cella || !cella.card) continue;
+      clone[k] = { owner: cella.owner, card: clonaPerSimulazione(cella.card) };
+    }
+    // La carta va MESSA sul tabellone clonato prima di far partire l'effetto:
+    // le sinergie che contano chi c'e' in campo (Smol Friends) devono vedere
+    // anche lei, esattamente come la vedranno un istante dopo il piazzamento.
+    const cartaClone = clonaPerSimulazione(card);
+    const cella = key(q,r);
+    const proprietario = card.owner || G.currentPlayer;
+    clone[cella] = { owner: proprietario, card: cartaClone };
+    // Nelle mani clonate la carta trascinata non c'e' piu': l'ha appena giocata.
+    // Lasciarcela la farebbe contare due volte dalle sinergie.
+    const mano1 = (G.p1Hand||[]).filter(c=>c.id!==card.id).map(clonaPerSimulazione);
+    const mano2 = (G.p2Hand||[]).filter(c=>c.id!==card.id).map(clonaPerSimulazione);
+    G.board = clone; G.p1Hand = mano1; G.p2Hand = mano2;
+
+    const chiave = abilitaAttivaDi(card);
+    if(chiave) applicaAbilitaPiazzamento(cartaClone, q, r, chiave);
+    // Le sinergie continue (quelle che si ricalcolano a ogni disegno invece di
+    // scattare una volta sola) vanno rifatte girare sul tabellone simulato,
+    // altrimenti l'anteprima mostrerebbe il mondo nuovo con i conti vecchi.
+    for(const k in clone) recalcHoorayShesStays(clone[k].card);
+    mano1.forEach(recalcHoorayShesStays);
+    mano2.forEach(recalcHoorayShesStays);
+
+    const esito = { cellaGiocata: cella, tabellone: {}, mani: {1:{}, 2:{}} };
+    for(const k in clone) esito.tabellone[k] = Object.assign({}, clone[k].card.values);
+    mano1.forEach(c=>{ esito.mani[1][c.id] = Object.assign({}, c.values); });
+    mano2.forEach(c=>{ esito.mani[2][c.id] = Object.assign({}, c.values); });
+    return esito;
+  } catch(_){
+    return null;
+  } finally {
+    // Il tabellone e le mani veri vanno rimessi SEMPRE, anche se l'effetto
+    // lancia: lasciarli sostituiti da un clone significherebbe che la partita
+    // continua su una copia, e sarebbe un disastro silenzioso.
+    G.board = tabelloneVero; G.p1Hand = manoVera1; G.p2Hand = manoVera2;
+  }
+}
+
 // Che valori avrebbe questa carta se venisse giocata in (q,r)? Null se la sua
 // abilita' non ne cambia nessuno (o se non ne ha).
 function valoriDopoAbilita(card, q, r){
   const chiave = abilitaAttivaDi(card);
   if(!chiave || !EFFETTI_PIAZZAMENTO[chiave]) return null;
-  const tabelloneVero = G.board;
-  try {
-    // Cloni superficiali, ma con i `values` copiati a parte: sono l'unica cosa
-    // che gli effetti modificano, e copiare l'intera carta in profondita'
-    // sarebbe piu' lento senza servire a niente.
-    const clone = {};
-    for(const k in tabelloneVero){
-      const cella = tabelloneVero[k];
-      if(!cella || !cella.card) continue;
-      clone[k] = { owner: cella.owner,
-                   card: Object.assign({}, cella.card, {values: Object.assign({}, cella.card.values)}) };
-    }
-    const cartaClone = Object.assign({}, card, {values: Object.assign({}, card.values)});
-    G.board = clone;
-    applicaAbilitaPiazzamento(cartaClone, q, r, chiave);
-    return cartaClone.values;
-  } catch(_){
+  const esito = simulaPiazzamento(card, q, r);
+  return esito ? esito.tabellone[esito.cellaGiocata] : null;
+}
+
+// L'anteprima del tavolo per il trascinamento in corso, calcolata una volta
+// sola per ogni cella sorvolata: renderBoard e renderHand la chiedono entrambi
+// e ridisegnano piu' volte per la stessa posizione del puntatore.
+let _anteprimaTavolo = null;
+function anteprimaTavolo(){
+  if(!dragState || !dragState.card || !dragState.hoverCellKey){
+    _anteprimaTavolo = null;
     return null;
-  } finally {
-    // Il tabellone vero va rimesso SEMPRE, anche se l'effetto lancia: lasciarlo
-    // sostituito da un clone significherebbe che la partita continua su una
-    // copia, e sarebbe un disastro silenzioso.
-    G.board = tabelloneVero;
   }
+  const carta = dragState.card;
+  const chiave = carta.id + '@' + dragState.hoverCellKey;
+  if(_anteprimaTavolo && _anteprimaTavolo.chiave === chiave) return _anteprimaTavolo.esito;
+  const [q,r] = dragState.hoverCellKey.split(',').map(Number);
+  // Solo su una cella dove la carta puo' davvero finire: sorvolare un muro o
+  // una casella occupata non deve muovere nessun numero.
+  const esito = (!isNaN(q) && !isNaN(r) && canPlace(q,r)) ? simulaPiazzamento(carta, q, r) : null;
+  _anteprimaTavolo = { chiave, esito };
+  return esito;
+}
+
+// Riassunto in una stringa dei valori che le due mani mostrerebbero adesso.
+// Serve solo a capire se vale la pena ridisegnare i ventagli: se il riassunto
+// non cambia, non e' cambiato niente di visibile.
+let _ultimaFirmaAnteprimaMani = '';
+function firmaAnteprimaMani(){
+  const esito = anteprimaTavolo();
+  const pezzi = [];
+  for(const [giocatore, mano] of [[1,G.p1Hand||[]],[2,G.p2Hand||[]]]){
+    for(const c of mano){
+      const v = (esito && esito.mani[giocatore][c.id]) || c.values || {};
+      pezzi.push(c.id + ':' + SIDES.map(s=>v[s]||0).join('.'));
+    }
+  }
+  return pezzi.join('|');
 }
 
 function abilitaAttivaDi(card){
@@ -14112,6 +14378,11 @@ function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLa
       G.board[nk]={card:nb.card,owner:player};
       conquered.push(nk);
       conquestInfo.push({nk, dir, prevOwner:nb.owner, atkVal:myAttackVal, defVal:theirEffective[dir.theirSide]});
+      // v0.73.5 — l'ultima conquista di questo giocatore, per Morgana: e' la
+      // casella che il suo avversario potra' provare a riprendersi.
+      G.ultimaConquista[player] = {cella:nk, exProprietario:nb.owner};
+      // v0.73.5 — e qui il Hatter impazzisce, se e' lui quello appena preso.
+      if(impazzisciSeConquistato(nb.card)) toast('🎩 Have I Gone Mad?');
     }
   }
   // Neither placeCard() nor the drag-drop mouseup handler render the board
@@ -14746,6 +15017,11 @@ function startTurn(){
   // Draw 1 card at start of each regular turn, unless hand is already full.
   const hand=player===1?G.p1Hand:G.p2Hand;
   const deck=player===1?G.p1Deck:G.p2Deck;
+  // v0.73.5 — le abilita' che agiscono sulle carte ferme in mano scattano qui,
+  // all'inizio del turno del loro proprietario (oggi la rotazione di Alice).
+  // Prima della pescata: la carta appena pescata comincia il suo giro dal turno
+  // DOPO, non da quello in cui arriva.
+  ruotaCarteInMano(player);
   if(deck.length>0 && hand.length<HAND_SIZE){
     drawAndAnimate(player, false, ()=>{
       startTimerRespectingBanner();
@@ -14801,10 +15077,6 @@ let pendingTimerStartAfterBanner=null;
 function maybeTriggerAiTurn(){
   if(!G.vsAI || G.gameOver) return;
   if(G.currentPlayer!==2) return;
-  // Don't act while a pending player decision (bufera/riparare) is open —
-  // those only ever belong to the human (player 1) in vs-AI games anyway,
-  // but guard defensively in case the AI's own placement opens one.
-  if(G.aliceSwapState) return;
   // Snapshot the game generation so a stale timer from a game that's since
   // been reset (Nuova Partita clicked mid-delay) can't fire aiPlay() into a
   // brand new game's state.
@@ -15289,6 +15561,14 @@ function aiCountConquests(card, q, r){
 function aiEvaluateConquests(card, q, r){
   let count=0, damage=0, boardValuePenalty=0;
   const effValues=aiEffectiveValuesAt(card, q, r);
+  // v0.73.5 — i DIFENSORI vanno letti dal tabellone simulato, non da quello
+  // vero. Un'abilita' che indebolisce chi sta intorno (Robin Hood, oggi)
+  // cambia proprio i numeri contro cui si sta per combattere: leggendo il
+  // tabellone vero l'IA confronterebbe il proprio attacco potenziato con la
+  // difesa di PRIMA dell'attacco, e si lascerebbe sfuggire le conquiste che
+  // l'abilita' stessa rende possibili. Vale per qualunque abilita' futura,
+  // senza una riga dedicata: si guarda il mondo come sara', non com'e'.
+  const simulato=simulaPiazzamento(card, q, r);
   const directlyConquered=[];
   for(const dir of DIRS){
     const nk=key(q+dir.dq,r+dir.dr);
@@ -15299,7 +15579,8 @@ function aiEvaluateConquests(card, q, r){
     // own comment for why this stays centralized alongside the real
     // resolveConquestAndEndTurn conquest check.
     const myVal=getAttackValueForSide(card, effValues, dir.mySide);
-    const theirVal=nb.card.values[dir.theirSide]||0;
+    const difesa=(simulato && simulato.tabellone[nk]) || nb.card.values;
+    const theirVal=difesa[dir.theirSide]||0;
     if(myVal>theirVal){ count++; damage+=(myVal-theirVal); directlyConquered.push(nk); }
   }
   // v0.72.72 — qui l'AI simulava la catena di conquiste di Reazione a Catena e
@@ -15570,57 +15851,14 @@ function aiPlay(){
 //   1. il ramo in doPlace() apre uno stato e ritorna?
 //   2. c'e' un aiResolveXxx() e un ramo qui dentro?
 //   3. l'overlay in renderBoard() e' guardato da `player===1`?
+// v0.73.5 — al momento non esiste piu' nessuna abilita' che apra una finestra
+// decisionale: Alice era l'ultima, ed e' stata riscritta. La funzione resta,
+// vuota, perche' la checklist qui sopra vale per la prossima che ne aprira'
+// una — e perche' il punto in cui agganciarla dev'essere gia' li' quando
+// servira', invece di essere una cosa da ricordarsi.
 function aiResolvePendingAbilityIfAny(){
-  if(G.aliceSwapState && G.aliceSwapState.player===2){
-    aiResolveAliceSwap();
-  }
 }
 
-// ── IA: "Eat me, Drink me" di Alice ───────────────────────────────────────
-// La scelta e' binaria (specchia i valori o lasciali stare) e non ha una
-// cella bersaglio, quindi la valutazione e' molto piu' diretta di quella di
-// Bufera: si simulano i valori specchiati sulla carta — che e' GIA' sul
-// tabellone nella sua cella — e si confronta il risultato con lo stato
-// attuale sugli stessi tre assi che usa aiChooseMove(), nello stesso ordine
-// di priorita': conquiste, poi danno PV, poi rischio di contrattacco.
-//
-// Nota implementativa: aiEvaluateConquests/aiEstimateCounterRisk leggono
-// card.values (e, tramite getFactionBonus, lo stato di G.board dove questa
-// carta gia' si trova), quindi il modo piu' fedele di simulare lo swap e'
-// mutare temporaneamente i valori, misurare, e rimetterli com'erano. La
-// mutazione e' sincrona e nulla renderizza nel frattempo.
-function aliceMirroredValues(v){
-  return {NW:v.NE, NE:v.NW, W:v.E, E:v.W, SW:v.SE, SE:v.SW};
-}
-function aiResolveAliceSwap(){
-  const {card, fromK} = G.aliceSwapState;
-  const [q, r] = fromK.split(',').map(Number);
-  const before={...card.values};
-  const mirrored=aliceMirroredValues(before);
-
-  // Se lo specchio non cambia nulla (carta simmetrica) non c'e' scelta da
-  // fare: annullare e' identico allo swap ma evita l'animazione inutile.
-  if(SIDES.every(s=>before[s]===mirrored[s])){ cancelAliceSwap(); return; }
-
-  const measure=()=>{
-    const ev=aiEvaluateConquests(card, q, r);
-    return {count:ev.count, damage:ev.damage, risk:aiEstimateCounterRisk(card, q, r)};
-  };
-  const stay=measure();
-  for(const s of SIDES) card.values[s]=mirrored[s];
-  const swap=measure();
-  for(const s of SIDES) card.values[s]=before[s];
-
-  // Conquiste > danno > rischio (minore e' meglio). Lo swap deve essere
-  // STRETTAMENTE migliore per essere scelto: a parita' esatta si resta come
-  // si e', che e' anche cio' che farebbe un umano che non vede vantaggio.
-  let doIt=false;
-  if(swap.count!==stay.count)        doIt = swap.count > stay.count;
-  else if(swap.damage!==stay.damage) doIt = swap.damage > stay.damage;
-  else                               doIt = swap.risk < stay.risk;
-
-  if(doIt) doAliceSwap(); else cancelAliceSwap();
-}
 
 
 // Real per-side worst-case counter damage if the specific side facing
@@ -15693,6 +15931,20 @@ function drawAndAnimate(player,fast,callback){
   const pileRect=pileEl.getBoundingClientRect();
 
   const newCard=deck.shift();
+  // v0.73.5 — la taglia lasciata dalla Regina di Cuori si riscuote qui, sulla
+  // prima carta che questo giocatore pesca dopo averla giocata, e poi si
+  // azzera. Il bonus entra nei valori veri della carta, quindi la segue per
+  // tutta la partita.
+  const taglia = (G.bonusProssimaPescata && G.bonusProssimaPescata[player]) || 0;
+  if(taglia){
+    newCard.tileAbilityBaseValues={...newCard.values};
+    for(const s of SIDES) newCard.values[s]=(newCard.values[s]||0)+taglia;
+    if(newCard.hoorayBaseValues){
+      for(const s of SIDES) newCard.hoorayBaseValues[s]=(newCard.hoorayBaseValues[s]||0)+taglia;
+    }
+    G.bonusProssimaPescata[player]=0;
+    toast('👑 +'+taglia+' ovunque sulla carta pescata!');
+  }
   playSfx('sfx-draw');
   renderDeckPile(pileId, deck, player);
 
@@ -18876,7 +19128,12 @@ function buildHandCardSVG(card, boxW, boxH, R, preview){
 // mask's 30px rounded corners are specified "a risoluzione nativa della
 // carta", so they're scaled down by the same boxW/nativeW ratio everything
 // else in this function uses.
-function buildFullHandCardSVG(card, boxW, boxH){
+// v0.73.5 — `preview` ha la stessa forma che si passa a buildHandCardSVG
+// ({values, deltas}) e serve alle carte ferme in mano: mentre si trascina
+// un'altra carta sul tabellone, una carta in mano puo' benissimo cambiare
+// valore (una sinergia che conta chi c'e' in campo, per dirne una). Omesso da
+// tutti gli altri chiamanti, che continuano a vedere i valori veri.
+function buildFullHandCardSVG(card, boxW, boxH, preview){
   const isDark = playerFactionIsDark(card.owner||1);
   const scale = boxW/CARD_FULL_NATIVE_W;
   // v0.71.4 FIX ("stacca anche questi elementi dal bordo, e fai lo stesso con
@@ -19239,7 +19496,8 @@ function buildFullHandCardSVG(card, boxW, boxH){
   const hexFillColor=isDark?'var(--red-bg)':'var(--blue-bg)';
   const hexStrokeColor=isDark?'var(--red)':'var(--blue)';
   const hexTextColor=isDark?'var(--red-light)':'var(--blue-light)';
-  drawHexCard(content, hexCx, hexCy, hexR, card, hexFillColor, hexStrokeColor, hexTextColor, card.name, false, null, null);
+  drawHexCard(content, hexCx, hexCy, hexR, card, hexFillColor, hexStrokeColor, hexTextColor, card.name, false, null, null,
+              false, preview?preview.values:null, preview?preview.deltas:null);
 
   // Layer: gem sockets — one card-gem-socket per group slot (0-3, from
   // card.groupGems — a real slot can still be EMPTY, i.e. groupGems[key] is
@@ -20219,7 +20477,24 @@ function renderHand(containerId,hand,playerIdx){
     // parallax vivono dentro l'SVG e dipendono dai flag che
     // cardFoilVisualCard mette su una COPIA della carta — vedi li' il perche'
     // non si tocchi l'oggetto carta vero.
-    const cardSvg = buildFullHandCardSVG(cardFoilVisualCard(card), 210, 360);
+    // v0.73.5 — anche una carta ferma in mano puo' cambiare valore per via di
+    // quello che sta per succedere in campo: si legge il tavolo simulato e si
+    // mostra la differenza, esattamente come per le carte gia' piazzate.
+    let anteprimaMano = null;
+    const antTavoloMano = anteprimaTavolo();
+    if(antTavoloMano && !isBeingDragged){
+      const simulati = antTavoloMano.mani[playerIdx===0?1:2][card.id];
+      if(simulati){
+        const scarti = {};
+        let cambia = false;
+        for(const s of SIDES){
+          scarti[s] = (simulati[s]||0) - (card.values[s]||0);
+          if(scarti[s]!==0) cambia = true;
+        }
+        if(cambia) anteprimaMano = { values: simulati, deltas: scarti };
+      }
+    }
+    const cardSvg = buildFullHandCardSVG(cardFoilVisualCard(card), 210, 360, anteprimaMano);
     const cardFoilHost = cardFoilWrap(cardSvg);
     cardFoilHost.style.display = isCovered ? 'none' : '';
     flipWrap.appendChild(cardFoilHost);
@@ -20519,6 +20794,11 @@ function startDrag(e,card,playerIdx,W,H,fillColor,strokeColor,textColor,glowColo
   // pointer (e.g. a second finger touching down mid-drag) — only the
   // pointer that actually started this drag may drive/end it.
   dragState={card,playerIdx,W,H,R,fillColor,strokeColor,textColor,glowColor,pointerId:e.pointerId};
+  // v0.73.5 — ogni trascinamento riparte da zero: senza azzerare il riassunto,
+  // un nuovo trascinamento che per caso produce gli stessi numeri del
+  // precedente non farebbe ridisegnare le mani (vedi firmaAnteprimaMani).
+  _ultimaFirmaAnteprimaMani = '';
+  _anteprimaTavolo = null;
 
   // v0.69.0 REWORK ("invece di lasciare un ghost di essa, la carta deve
   // 'venire dietro' al mouse"): #drag-ghost no longer holds an SVG redraw
@@ -21039,6 +21319,18 @@ document.addEventListener('pointermove',e=>{
         // above) instead of once per raw pointermove tick, which is what
         // actually keeps this affordable on touch devices.
         renderBoard();
+        // v0.73.5 — le mani vivono in un albero DOM separato dal tabellone, e
+        // renderBoard non le tocca: senza questa riga una carta in mano che
+        // cambia valore per l'anteprima non si aggiornerebbe finche' non
+        // succede qualcos'altro. Si ridisegna solo quando i numeri in mano
+        // cambiano davvero — ricostruire i ventagli a ogni spostamento del
+        // puntatore rifarebbe partire glow e transizioni delle carte ferme.
+        const firma = firmaAnteprimaMani();
+        if(firma !== _ultimaFirmaAnteprimaMani){
+          _ultimaFirmaAnteprimaMani = firma;
+          renderHand('p1-hand-fan',G.p1Hand,0);
+          renderHand('p2-hand-fan',G.p2Hand,1);
+        }
       }
     });
   }
@@ -21821,18 +22113,10 @@ function renderBoard(){
     // rendere condizionale il return si ri-programma un render appena
     // l'intro finisce. Il flag evita di accumulare un timer per ogni
     // renderBoard saltato.
-    if(G.aliceSwapState && !_pendingOverlayRender){
-      _pendingOverlayRender = setTimeout(function retryOverlayRender(){
-        _pendingOverlayRender = null;
-        if(!G || G.gameOver) return;
-        if(!G.aliceSwapState) return; // risolta nel frattempo
-        if(G.boardDropAnimInProgress){ // ancora in corso: riprova
-          _pendingOverlayRender = setTimeout(retryOverlayRender, 120);
-          return;
-        }
-        renderBoard();
-      }, 120);
-    }
+    // v0.73.5 — non c'e' piu' nessuna finestra decisionale da proteggere
+    // (Alice era l'ultima). Il meccanismo di recupero va rimesso identico il
+    // giorno in cui un'abilita' tornera' a chiedere un click, altrimenti la
+    // partita si blocchera' di nuovo in attesa di comandi mai disegnati.
     return;
   }
   const svg=document.getElementById('board-svg');
@@ -21958,6 +22242,24 @@ function renderBoard(){
         }
       }
       let displayValuesForCell = bonusInfo.values;
+      // v0.73.5 — anteprima di quello che sta per succedere a QUESTA carta.
+      // Mentre si trascina una carta sopra una cella, ogni carta gia' in campo
+      // mostra i valori che avrebbe un istante dopo il piazzamento, con la
+      // differenza colorata come qualunque altro bonus. Non c'e' niente di
+      // specifico per una carta o per un'abilita': si legge il tavolo simulato
+      // (vedi simulaPiazzamento) e si confronta.
+      const antTavolo = anteprimaTavolo();
+      if(antTavolo && k!==antTavolo.cellaGiocata && antTavolo.tabellone[k]){
+        const simulati = antTavolo.tabellone[k];
+        const nuovi = {};
+        for(const s of SIDES){
+          const scarto = (simulati[s]||0) - (placed.card.values[s]||0);
+          // Il bonus fazione resta quello che e': si sposta solo la base.
+          nuovi[s] = (bonusInfo.values[s]||0) + scarto;
+          if(scarto!==0) factionDeltas[s]=(factionDeltas[s]||0)+scarto;
+        }
+        displayValuesForCell = nuovi;
+      }
       // Live "incoming Prosciuga drain" preview: while a card is being
       // dragged and hovered over a Prosciuga tile, every already-placed
       // ENEMY card adjacent to that hovered cell would take -2 on all sides
@@ -22252,55 +22554,9 @@ function renderBoard(){
   // A differenza degli overlay a bersaglio (che evidenziavano ALTRE celle da
   // scegliere), questa abilita' non ha un bersaglio — solo due icone impilate
   // al centro della carta di Alice:
-  // Alice's own card: swap-icon (confirm — mirrors her values) above,
-  // close-icon-red (cancel — leaves values untouched) smaller, below it, per
-  // explicit spec. Entrambe sono veri <image>, aggiunti all'svg dopo tutto il
-  // resto cosi' che vengano disegnati sopra.
-  // v0.72.28: l'overlay e' UI DI INPUT UMANO — va disegnato solo se la
-  // finestra decisionale appartiene al giocatore 1. Se apparteneva all'IA e
-  // per qualsiasi motivo fosse ancora aperta qui, mostrarla farebbe decidere
-  // al giocatore al posto dell'avversario (il bug segnalato). Stessa guardia
-  // dei due overlay Bufera/Distruggere qui sopra.
-  if(G.aliceSwapState && G.aliceSwapState.player===1){
-    const {fromK} = G.aliceSwapState;
-    const fromCell=G.cells.find(c=>key(c.q,c.r)===fromK);
-    if(fromCell){
-      const {x:bx,y:by}=axialToPixel(fromCell.q,fromCell.r,cx,cy,R);
-      const swapSize=R*0.7;
-      // v0.72.1 FIX ("la X rossa deve essere leggermente più piccola e più in
-      // basso... e di conseguenza le swap arrows un po' più in basso, verso
-      // il centro della carta"): closeSize shrunk 0.4->0.34, gap widened
-      // slightly (0.12->0.14) so the closer icon still reads as clearly
-      // separate rather than crowding the swap-icon above it — net effect,
-      // together with the smaller closeSize itself, is the whole pair sits
-      // a bit lower/more centered on the card than before.
-      const closeSize=R*0.34;
-      const gap=R*0.14; // vertical gap between the bottom of swap-icon and the top of close-icon-red
-      // Centered as a pair: swap-icon's own center sits slightly ABOVE the
-      // cell center, close-icon-red's center sits below it, so the pair as a
-      // whole reads as vertically centered on the card.
-      const pairH=swapSize+gap+closeSize;
-      const swapCy=by-pairH/2+swapSize/2;
-      const closeCy=swapCy+swapSize/2+gap+closeSize/2;
-
-      // v0.72.1 NEW ("all'hover... si devono ingrandire leggermente e
-      // 'accendere' con un overlay FFF 20% opacity mix-blend-mode overlay...
-      // non si deve vedere il rettangolo intorno al png"): builds an SVG
-      // <mask> whose CONTENT is the icon's own PNG — since these icons have
-      // real alpha transparency (confirmed: swap-icon ~55% transparent,
-      // close-icon-red ~53% transparent), using the icon image itself as the
-      // mask source produces a mask that exactly follows the icon's real
-      // silhouette (alpha/luminance-composited), with zero extra asset
-      // files needed. A plain clip-path was deliberately avoided — this file
-      // already has a documented Chromium bug where clip-path combined with
-      // mix-blend-mode on the same/descendant element lets part of the
-      // blended paint spill outside the clip region (see
-      // activateCannoneVetro's own v0.71-era comment on exactly this); a
-      // real <mask> element doesn't share that quirk.
-      buildSvgIconBtn('https://thetrickmaster.github.io/hextale/cards/card-parts/swap-icon.png', bx, swapCy, swapSize, ()=>doAliceSwap());
-      buildSvgIconBtn('https://thetrickmaster.github.io/hextale/cards/card-parts/close-icon-red.png', bx, closeCy, closeSize, ()=>cancelAliceSwap());
-    }
-  }
+  // v0.73.5 — qui c'erano i due comandi di Alice (conferma lo scambio /
+  // lascia stare), disegnati sopra la sua carta. La sua abilita' non chiede
+  // piu' niente al giocatore, quindi non c'e' piu' niente da disegnare.
 
 
 }

@@ -51,6 +51,41 @@ badge della versione in uso viene evidenziato (`.patch-corrente`).
 
 ---
 
+## Come si aggiunge un'abilita' (dalla v0.73.5)
+
+Esistono **due registri**, e sceglierne uno sbagliato e' l'errore che costa di
+piu':
+
+- `EFFETTI_PIAZZAMENTO` — per gli effetti che cambiano dei **valori** (i propri,
+  quelli dei vicini, quelli di chiunque). Vengono eseguiti due volte: una per
+  finta su un clone del tavolo, per l'anteprima sotto il puntatore, e una per
+  davvero. Chi entra qui ottiene l'anteprima gratis, su ogni carta coinvolta,
+  senza scrivere una riga di codice per il disegno.
+- `EFFETTI_PIAZZAMENTO_REALI` — per tutto il resto: una taglia sulla prossima
+  pescata, una conquista annullata, qualunque cosa tiri un dado. Girano solo al
+  piazzamento vero. Metterli nell'altro registro significa applicarli davvero
+  ogni volta che il puntatore passa sopra una casella.
+
+Se un effetto sceglie "a caso" fra piu' bersagli, il sorteggio deve passare da
+`sorteggioStabile(lista, seme)`: con `Math.random()` l'anteprima indicherebbe un
+bersaglio e il piazzamento ne premierebbe un altro, e per di piu' l'anteprima
+cambierebbe idea a ogni ridisegno.
+
+Se un'abilita' apre una **finestra decisionale** (mette uno stato in `G` e fa
+`return` in `doPlace` aspettando un click), servono tre cose insieme, o la
+partita si blocca: il ramo in `aiResolvePendingAbilityIfAny()` che la risolve
+per il computer, la guardia `player===1` sull'overlay in `renderBoard()`, e la
+rete di sicurezza che ridisegna quando l'intro dei tasselli e' finita. Oggi
+nessuna abilita' ne apre una — le tre agganciature sono state svuotate ma i
+punti in cui rimetterle sono documentati sul posto.
+
+I **gruppi valore** sono l'identita' di una carta e non cambiano mai. Un effetto
+che sposta i numeri deve muovere anche `groupSides` se cambia la disposizione
+(vedi la rotazione di Alice), altrimenti un gruppo si ritrova a cavallo di due
+valori diversi pur dovendone mostrare uno solo.
+
+---
+
 ## Vincolo tecnico principale: `file://`
 
 Lorenzo apre il gioco **facendo doppio clic sul file**, quindi l'origine e'
