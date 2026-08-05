@@ -5290,7 +5290,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.73.19</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.73.20</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -13792,6 +13792,36 @@ function previewGemMagicEffect(card, q, r){
 // drops by 1, and every side in Robin Hood's own group that contains his
 // touching side (dir.mySide) gains +1. Applied once per adjacent enemy card
 // (up to 6 separate group-pairs, not just single sides).
+// ═══════════════════════════════════════════════════════════════════════════
+// v0.73.20 — COME SI CAMBIA IL VALORE DI UNA CARTA CHE NON E' LA PROPRIA
+// ═══════════════════════════════════════════════════════════════════════════
+// Un'abilita' che tocca i valori di un'ALTRA carta non puo' limitarsi a
+// scrivere in `values`, perche' certe carte non tengono i propri valori li'
+// come verita' definitiva: Biancaneve li RICALCOLA a ogni disegno, partendo da
+// un'istantanea di quando e' nata piu' i Small che vede in campo (vedi
+// recalcHoorayShesStays). Se le si mette +1 in `values` e basta, il primo
+// ridisegno lo cancella — e siccome i ridisegni sono continui, il regalo non
+// esiste mai davvero. E' esattamente quello che succedeva a Robin Hood quando
+// il beneficiario era lei: rubava al nemico e il bottino spariva nel nulla,
+// anteprima compresa (la simulazione fa lo stesso ricalcolo).
+//
+// Passando da qui si sposta anche l'istantanea di partenza, quindi il
+// ricalcolo riparte da un punto piu' alto e il regalo sopravvive. Ogni
+// abilita' presente e futura che modifichi i valori altrui deve usare questa
+// funzione invece di scrivere in `values` a mano.
+function modificaValori(card, lati, delta, pavimento){
+  if(!card || !lati || !lati.length || !delta) return;
+  const minimo = (typeof pavimento === 'number') ? pavimento : -Infinity;
+  for(const s of lati){
+    const nuovo = Math.max(minimo, (card.values[s]||0) + delta);
+    const applicato = nuovo - (card.values[s]||0);
+    card.values[s] = nuovo;
+    // Le istantanee da cui altri ricalcoli ripartono vanno spostate dello
+    // stesso passo, o quei ricalcoli riporterebbero la carta indietro.
+    if(card.hoorayBaseValues) card.hoorayBaseValues[s] = (card.hoorayBaseValues[s]||0) + applicato;
+  }
+}
+
 // Un sorteggio che da' sempre lo stesso risultato a parita' di seme. Serve
 // dove una scelta e' "a caso" ma viene calcolata DUE volte: una per
 // l'anteprima sotto il puntatore e una per il piazzamento vero. Con
@@ -13864,7 +13894,7 @@ function activateEatTheRich(card, q, r){
     // Istantanea dei valori prima del furto, cosi' chi disegna puo'
     // confrontare e mostrare il -1 in rosso, come per ogni altro effetto.
     if(!nb.card.tileAbilityBaseValues) nb.card.tileAbilityBaseValues={...nb.card.values};
-    for(const s of lati) nb.card.values[s] = Math.max(0, (nb.card.values[s]||0) - 1);
+    modificaValori(nb.card, lati, -1, 0);
     bottino++;
   }
 
@@ -13903,8 +13933,14 @@ function activateEatTheRich(card, q, r){
   }
   if(!gruppoDebole) return;
   if(!scelto.card.tileAbilityBaseValues) scelto.card.tileAbilityBaseValues={...scelto.card.values};
-  for(const s of gruppoDebole.sides) scelto.card.values[s] = (scelto.card.values[s]||0) + bottino;
+  modificaValori(scelto.card, gruppoDebole.sides, bottino);
   card.eatTheRichBeneficiario = scelto.k;
+  // Una traccia in console: il bottino e' +1 su un gruppo di una carta sola, e
+  // in mezzo a una plancia piena e' facile non accorgersene. Invisibile
+  // giocando, a portata di mano quando qualcosa non torna.
+  console.info('[Eat the Rich] rubati '+bottino+' punti, dati a "'
+    + (scelto.card.name||scelto.k) + '" in ' + scelto.k
+    + ' (gruppo ' + gruppoDebole.sides.join('+') + ')');
 }
 
 // Snow White's "Hooray! She stays!" (v0.71.78): a LIVE synergy, unlike every

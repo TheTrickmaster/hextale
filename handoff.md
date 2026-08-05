@@ -71,6 +71,15 @@ Se un effetto sceglie "a caso" fra piu' bersagli, il sorteggio deve passare da
 bersaglio e il piazzamento ne premierebbe un altro, e per di piu' l'anteprima
 cambierebbe idea a ogni ridisegno.
 
+**Per cambiare i valori di una carta che non e' la propria si passa da
+`modificaValori()`, mai scrivendo in `card.values` a mano.** Alcune carte non
+tengono i propri valori li' come verita' definitiva: Biancaneve li ricalcola a
+ogni disegno da un'istantanea di partenza piu' i Small in campo. Scriverle +1
+in `values` e basta significa vederselo cancellare al primo ridisegno — cioe'
+subito, e anche nell'anteprima, che fa lo stesso ricalcolo. `modificaValori`
+sposta anche le istantanee, cosi' il ricalcolo riparte da un punto piu' alto e
+il dono sopravvive.
+
 Se un'abilita' deve **chiedere un bersaglio al giocatore**, si aggiunge a
 `SCELTE_PIAZZAMENTO` e basta: da li' riceve gia' pronti il disegno dei comandi
 (mirino sui bersagli, X rossa sull'origine), l'evidenziazione delle celle
