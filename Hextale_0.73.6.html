@@ -5119,7 +5119,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.73.5</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.73.6</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -13594,18 +13594,24 @@ function activateEatTheRich(card, q, r){
 // board"): per explicit follow-up confirmation, the synergy now counts ONLY
 // Small cards on the BOARD — the hand-counting loop that used to also add
 // +1 per Small card still sitting in the player's hand has been removed.
-function countSmallCards(owner){
+// v0.73.6 — si contano TUTTI i personaggi Small in campo, di chiunque siano.
+// Prima contavano solo quelli del proprietario di Biancaneve, e uno Small
+// avversario non le dava niente. La descrizione della carta non parla di
+// fazioni ("+1 Power ALL for every Small character on the board") e la
+// conferma esplicita e' arrivata: i piccoli si fanno forza a vicenda anche
+// quando giocano contro. Il parametro `owner` non serve piu' a nessuno.
+function countSmallCards(){
   let count=0;
   for(const k in G.board){
     const cell=G.board[k];
-    if(cell && cell.owner===owner && cell.card.archetypes && cell.card.archetypes.includes('small')) count++;
+    if(cell && cell.card && cell.card.archetypes && cell.card.archetypes.includes('small')) count++;
   }
   return count;
 }
 function recalcHoorayShesStays(card){
   if(abilitaAttivaDi(card)!=='smol_friends') return;
   if(!card.hoorayBaseValues) card.hoorayBaseValues={...card.values};
-  const smallCount=countSmallCards(card.owner);
+  const smallCount=countSmallCards();
   card.hoorayShesStaysCount=smallCount;
   const base=card.hoorayBaseValues;
   const newValues={};
