@@ -5290,7 +5290,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.73.14</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.73.15</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -10147,6 +10147,11 @@ const CARD_DB_RARITA = [
 const ORDINE_RARITA = ['common','rare','mythic','timeless'];
 const CARD_DB_ORDINAMENTI = [
   {chiave:'default',  testo:'Sheet order',        confronta:null},
+  // v0.73.15 — per nome. localeCompare e non un confronto fra stringhe: cosi'
+  // le lettere accentate si ordinano dove uno se le aspetta e le maiuscole non
+  // vengono prima di tutte le minuscole (in Unicode "Z" precede "a").
+  {chiave:'nome-asc', testo:'Name, A-Z',          confronta:(a,b)=>String(a.name||'').localeCompare(String(b.name||''))},
+  {chiave:'nome-desc',testo:'Name, Z-A',          confronta:(a,b)=>String(b.name||'').localeCompare(String(a.name||''))},
   {chiave:'rar-asc',  testo:'Rarity, low to high', confronta:(a,b)=>ORDINE_RARITA.indexOf(a.rarity)-ORDINE_RARITA.indexOf(b.rarity)},
   {chiave:'rar-desc', testo:'Rarity, high to low', confronta:(a,b)=>ORDINE_RARITA.indexOf(b.rarity)-ORDINE_RARITA.indexOf(a.rarity)},
   {chiave:'arc-asc',  testo:'Archetype, A-Z',      confronta:(a,b)=>_confrontaArchetipi(a,b, 1)},
@@ -14498,13 +14503,34 @@ const SCELTE_PIAZZAMENTO = {
 // specchi, altrimenti copiare aprirebbe una seconda scelta dentro la prima.
 function bersagliMagicMirror(q, r){
   const trovati = [];
+  const scartati = [];
   for(const dir of DIRS){
     const nk = key(q+dir.dq, r+dir.dr);
     const vicino = G.board[nk];
     if(!vicino || !vicino.card) continue;
+    const nome = vicino.card.name || nk;
     const sua = abilitaAttivaDi(vicino.card);
-    if(!sua || sua === 'magic_mirror') continue;
+    if(!sua){
+      scartati.push(nome + (vicino.card.cardAbility ? ': abilita\' non ancora sbloccata dal livello' : ': non ha abilita\''));
+      continue;
+    }
+    if(sua === 'magic_mirror'){ scartati.push(nome + ': e\' un altro specchio'); continue; }
+    // v0.73.15 — un'abilita' dichiarata nel foglio ma senza codice dietro
+    // (marcata NO_SCRIPT) non si puo' copiare: copiarla non farebbe niente, e
+    // offrirla come bersaglio sarebbe promettere qualcosa che non succede.
+    if(vicino.card.abilityNoScript || !TILE_ABILITIES_DEF[sua]){
+      scartati.push(nome + ': l\'abilita\' "' + sua + '" non e\' ancora programmata');
+      continue;
+    }
     trovati.push(nk);
+  }
+  // Se non c'e' nessuno da copiare la carta si comporta come una carta
+  // qualunque, e da fuori non si distingue da un'abilita' rotta. Questa riga
+  // in console — invisibile giocando, a portata di mano quando serve — dice
+  // quali vicini sono stati guardati e perche' nessuno andava bene.
+  if(!trovati.length){
+    console.info('[Spitted Image] nessuna abilita\' da copiare in ' + key(q,r) + '. Vicini esaminati: '
+      + (scartati.length ? scartati.join(' | ') : 'nessuna carta adiacente'));
   }
   return trovati;
 }
