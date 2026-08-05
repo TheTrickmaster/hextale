@@ -1919,11 +1919,28 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
   51%  {transform:rotateY(91deg);filter:brightness(0.3);}
   100% {transform:rotateY(0deg);filter:brightness(1);}
 }
-.card-flip{
+/* v0.73.9 — il giro esiste in due copie con nome diverso, e si alternano.
+   E' la stessa medicina gia' applicata ai lunge d'attacco, al contraccolpo e
+   allo scuotimento della plancia (vedi boardShakeB): rimuovere e ri-aggiungere
+   la STESSA classe mentre l'animazione e' ancora in corso non la fa ripartire,
+   il browser vede lo stesso animation-name e conclude che e' gia' in esecuzione.
+   Il `void el.offsetWidth` che avrebbe dovuto forzare il reflow non serviva a
+   niente, perche' su un elemento SVG quella proprieta' non esiste: leggerla
+   restituisce undefined senza forzare un bel niente. Il giro era quindi
+   l'ultimo effetto della sequenza di conquista rimasto senza rete. */
+@keyframes cardFlipB{
+  0%   {transform:rotateY(0deg);filter:brightness(1);}
+  49%  {transform:rotateY(89deg);filter:brightness(0.3);}
+  50%  {transform:rotateY(90deg);filter:brightness(0.3);}
+  51%  {transform:rotateY(91deg);filter:brightness(0.3);}
+  100% {transform:rotateY(0deg);filter:brightness(1);}
+}
+.card-flip, .card-flip-a, .card-flip-b{
   animation:cardFlip 0.315s ease-in-out;
   transform-box:fill-box;
   transform-origin:center center;
 }
+.card-flip-b{ animation-name:cardFlipB; }
 
 /* ── Card-draw reveal flip: the same visual "turn over" as .card-flip,
    applied to the FLYING GHOST svg (see drawAndAnimate) so a drawn card
@@ -14057,13 +14074,26 @@ function attivaSmokeAndMirrors(card){
   const giocatore = card.owner || G.currentPlayer;
   const avversario = giocatore===1 ? 2 : 1;
   const ultima = G.ultimaConquista && G.ultimaConquista[avversario];
-  if(!ultima){ toast('🪞 Nessuna conquista da annullare.'); return; }
+  if(!ultima) return;
   const cella = G.board[ultima.cella];
-  if(!cella || cella.owner !== avversario){ toast('🪞 Nessuna conquista da annullare.'); return; }
-  if(Math.random() >= 0.5){ toast('🪞 Lo specchio non risponde…'); return; }
+  if(!cella || cella.owner !== avversario) return;
+  if(Math.random() >= 0.5) return;
   G.board[ultima.cella] = { card: cella.card, owner: ultima.exProprietario };
   G.ultimaConquista[avversario] = null;
-  toast("🪞 Smoke and Mirrors: l'ultima conquista è annullata!");
+  // Quando lo specchio risponde, la carta torna indietro girandosi e con un
+  // lampo: e' l'unico modo per accorgersene, visto che non c'e' nessun colpo
+  // ne' nessun avviso a raccontarlo. Il rinvio serve perche' in questo istante
+  // la plancia non e' ancora stata ridisegnata — la carta a cui agganciare
+  // l'animazione non esiste ancora (vedi resolveConquestAndEndTurn, che
+  // ridisegna subito dopo).
+  const cellaColpita = ultima.cella;
+  setTimeout(()=>{
+    const el = elementoCarta(cellaColpita);
+    if(!el) return;
+    giraCarta(el);
+    lampeggiaCarta(el);
+    playSfxFile('card-flip.mp3');
+  }, 200);
 }
 
 // Hatter — "Have I Gone Mad?". Scatta quando gliela portano via: cambia nome e
@@ -14077,7 +14107,10 @@ function impazzisciSeConquistato(card){
     const tirato = 1 + Math.floor(Math.random()*3);
     for(const s of gruppo.sides) card.values[s] = tirato;
   }
-  card.name = 'Mad Hatter';
+  // v0.73.9 — il nome NON cambia piu'. La carta impazzisce nei valori e
+  // resta la carta che era: rinominarla "Mad Hatter" la faceva sembrare
+  // un'altra carta, e nella descrizione dell'abilita' il cambio di nome non
+  // era mai stato promesso a nessuno.
   return true;
 }
 // Copia di lavoro di una carta per la simulazione. Superficiale, tranne i tre
@@ -14254,6 +14287,47 @@ function spawnAttackStreak(attackerEl, lx, ly, sx, sy){
 // Contraccolpo del difensore, nella stessa direzione del colpo ricevuto.
 const RECOIL_PX = 9;
 let _recoilToggle = 0;
+// ── v0.73.9 — il giro e il lampo, in un posto solo ────────────────────────
+// Girare una carta e farla lampeggiare erano due pezzi di codice scritti
+// dentro la sequenza di conquista, raggiungibili solo da li'. Adesso che anche
+// Morgana deve girare una carta — quella che rimanda indietro — sono due
+// funzioni a se': chiunque cambi la fazione di una carta puo' raccontarlo allo
+// stesso modo, senza ricopiare niente.
+let _giroToggle = 0;
+function giraCarta(el){
+  if(!el) return false;
+  // Le due classi si alternano perche' hanno due animation-name diversi: e' il
+  // solo modo perche' un secondo giro riparta davvero mentre il primo e'
+  // ancora in corso (vedi .card-flip nel CSS). getBoundingClientRect, e non
+  // offsetWidth, perche' qui siamo su elementi SVG.
+  el.classList.remove('card-flip','card-flip-a','card-flip-b');
+  void el.getBoundingClientRect();
+  el.classList.add((_giroToggle++ % 2===0) ? 'card-flip-a' : 'card-flip-b');
+  return true;
+}
+// Lampo bianco sagomato sulla carta: un poligono esagonale ricavato dal suo
+// riquadro, cosi' non servono il centro e il raggio della plancia (che vivono
+// dentro renderBoard e qui non si vedono).
+function lampeggiaCarta(el){
+  if(!el) return false;
+  try{
+    const bbox=el.getBBox();
+    const fcx=bbox.x+bbox.width/2, fcy=bbox.y+bbox.height/2;
+    const fR=Math.max(bbox.width,bbox.height)/2;
+    const flash=svgEl('polygon');
+    flash.setAttribute('points',ptStr(fcx,fcy,fR));
+    flash.setAttribute('fill','#ffffff');
+    flash.classList.add('hit-flash');
+    el.appendChild(flash);
+    flash.addEventListener('animationend',()=>{ flash.remove(); });
+    return true;
+  }catch(e){ return false; }
+}
+// La carta che sta su una certa cella, se in questo momento e' disegnata.
+function elementoCarta(cella){
+  const bsvg=document.getElementById('board-svg');
+  return bsvg ? bsvg.querySelector(`[data-conquered="${cella}"]`) : null;
+}
 function playDefenderRecoil(defEl, ux, uy){
   if(!defEl) return;
   // v0.72.99 — il contraccolpo va sul gruppo INTERNO, non sulla carta stessa:
@@ -14342,7 +14416,7 @@ function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLa
       // casella che il suo avversario potra' provare a riprendersi.
       G.ultimaConquista[player] = {cella:nk, exProprietario:nb.owner};
       // v0.73.5 — e qui il Hatter impazzisce, se e' lui quello appena preso.
-      if(impazzisciSeConquistato(nb.card)) toast('🎩 Have I Gone Mad?');
+      impazzisciSeConquistato(nb.card);
     }
   }
   // Neither placeCard() nor the drag-drop mouseup handler render the board
@@ -14484,11 +14558,7 @@ function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLa
         if(!bsvg)return;
         const placedEl=bsvg.querySelector(`[data-conquered="${k}"]`);
         const defEl=bsvg.querySelector(`[data-conquered="${nk}"]`);
-        if(defEl){
-          defEl.classList.remove('card-flip');
-          void defEl.offsetWidth;
-          defEl.classList.add('card-flip');
-        }
+        giraCarta(defEl);
         // v0.72.34: il difensore incassa e la plancia trema, esattamente
         // all'istante del contatto (questo setTimeout e' gia' schedulato su
         // stepStart+STRIKE_MS, cioe' il fotogramma in cui il lunge "arriva").
@@ -14517,24 +14587,8 @@ function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLa
         // side comparison, applied at the same instant the flip visually
         // registers as a hit.
         applyHpDamage(prevOwner, atkVal, defVal, nk);
-        // Brief white impact flash on the defending card, right as it's hit.
-        // Drawn as a plain white polygon matching the defender's own hex
-        // outline (built from its bounding box, so it doesn't need the
-        // board's current cx/cy/R — those live inside renderBoard()'s local
-        // scope and aren't available here).
-        if(defEl){
-          try{
-            const bbox=defEl.getBBox();
-            const fcx=bbox.x+bbox.width/2, fcy=bbox.y+bbox.height/2;
-            const fR=Math.max(bbox.width,bbox.height)/2;
-            const flash=svgEl('polygon');
-            flash.setAttribute('points',ptStr(fcx,fcy,fR));
-            flash.setAttribute('fill','#ffffff');
-            flash.classList.add('hit-flash');
-            defEl.appendChild(flash);
-            flash.addEventListener('animationend',()=>{ flash.remove(); });
-          }catch(e){}
-        }
+        // Lampo bianco sul difensore, nell'istante in cui incassa.
+        lampeggiaCarta(defEl);
         // hit.mp3: the physical impact of the attacking card striking this
         // defender, at the exact instant the lunge "lands" — one hit per
         // conquered card, not just once for the whole turn.
