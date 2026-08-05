@@ -3320,6 +3320,29 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
   font-family:var(--font-body); font-size:13px; line-height:1.5; color:#C9C2B0;
   padding-right:6px;
 }
+/* v0.73.9 — l'avviso di aggiornamento, in cima alle note. Sta dentro lo stesso
+   riquadro perche' e' la stessa domanda: "cosa e' cambiato, e come me lo
+   prendo". Nasce nascosto (display:none) e lo accende solo il controllo
+   all'avvio, se trova davvero una versione piu' recente. */
+#patch-notes-update{
+  display:none;
+  margin-bottom:16px; padding:12px 14px;
+  border:1px solid rgba(232,195,106,0.45); border-radius:10px;
+  background:rgba(232,195,106,0.08);
+  text-align:center;
+}
+#patch-notes-update.mostra{ display:block; }
+#patch-notes-update-msg{
+  font-family:var(--font-body); font-size:13px; line-height:1.5; color:#F4E9D7;
+  margin-bottom:10px;
+}
+#patch-notes-update-msg b{ color:#E8C36A; }
+#patch-notes-update .start-art-btn{ margin:0 auto; }
+#patch-notes-update-fallback{
+  display:none; margin-top:8px;
+  font-family:var(--font-body); font-size:12px; color:#C9C2B0;
+}
+#patch-notes-update-fallback.mostra{ display:block; }
 .patch-versione{ margin-bottom:16px; }
 .patch-versione:last-child{ margin-bottom:0; }
 .patch-versione h3{
@@ -5078,6 +5101,16 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
   <div id="patch-notes-box" class="hx-modal-box">
     <button id="patch-notes-close" aria-label="Chiudi"><img src="https://thetrickmaster.github.io/hextale/player-ui/close-icon.png" alt="" draggable="false"></button>
     <h2>What's new</h2>
+    <!-- v0.73.9 — l'avviso di una versione piu' recente. Nasce nascosto e
+         compare solo se il controllo all'avvio ne trova davvero una: un
+         riquadro che dice "sei aggiornato" ogni volta non serve a nessuno. -->
+    <div id="patch-notes-update">
+      <div id="patch-notes-update-msg"></div>
+      <button class="start-art-btn sab-primary" id="patch-notes-update-btn" onclick="scaricaAggiornamentoDalRiquadro()">
+        <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Download</span>
+      </button>
+      <a id="patch-notes-update-fallback" href="#" target="_blank" rel="noopener">Apri il file su GitHub</a>
+    </div>
     <div id="patch-notes-body"></div>
     <button class="start-art-btn sab-primary" onclick="chiudiPatchNotes()">
       <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Got it</span>
@@ -5147,7 +5180,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.73.8</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.73.9</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -11153,6 +11186,11 @@ function caricaPatchNotes(){
   try { daCache = JSON.parse(localStorage.getItem(PATCH_NOTES_CACHE) || 'null'); } catch(_){}
   if(daCache && daCache.length) mostraPatchNotes(daCache);
 
+  // v0.73.9 — il controllo della versione parte insieme alle note e per conto
+  // suo: le due richieste non si aspettano a vicenda, e se quella della
+  // versione fallisce le note si vedono lo stesso (e viceversa).
+  try { controllaAggiornamentoAllAvvio(); } catch(_){}
+
   const url = 'https://api.github.com/repos/' + GITHUB_REPO + '/contents/' + PATCH_NOTES_FILE;
   _githubJsonp(url, 8000).then(esito => {
     if(esito.errore) throw new Error(esito.errore);
@@ -11171,6 +11209,84 @@ function caricaPatchNotes(){
   }).catch(()=>{ /* si resta con quelle salvate, o con niente */ });
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// v0.73.9 — QUAL E' L'ULTIMA VERSIONE PUBBLICATA
+// ═══════════════════════════════════════════════════════════════════════════
+// Questa ricerca serviva solo al pulsante del menu debug, e ci viveva dentro.
+// Adesso la usa anche il controllo automatico all'avvio, quindi sta per conto
+// suo: una sola descrizione di cosa vuol dire "ultima versione", per tutti e
+// due. `riferisci` e' facoltativo e serve solo a chi ha un posto dove
+// raccontare l'attesa; il controllo all'avvio lavora in silenzio.
+function trovaUltimaVersione(riferisci){
+  const dillo = t => { if(typeof riferisci === 'function') riferisci(t); };
+  return _githubJsonp(GITHUB_REPO_API).then(esito => {
+    if(esito.errore) throw new Error(esito.errore);
+    const elenco = esito.dati;
+    if(!Array.isArray(elenco)) throw new Error('risposta inattesa dal repository');
+    // Qualsiasi .html nella radice del repository. Nessun filtro sul nome: e'
+    // esattamente il vincolo che si vuole evitare, perche' legherebbe il
+    // controllo alla numerazione delle versioni.
+    const candidati = elenco.filter(f =>
+      f && f.type === 'file' && /\.html?$/i.test(f.name || '') && f.download_url);
+    if(!candidati.length) throw new Error('nel repository non c\'e\' nessun file .html');
+    if(candidati.length === 1) return candidati[0];
+    // Piu' d'uno: vince quello committato piu' di recente. Se GitHub non
+    // risponde (limite di richieste), _dataUltimoCommit restituisce 0 per tutti
+    // e resta l'ordine dell'elenco, che e' comunque meglio di un errore.
+    dillo('Trovati ' + candidati.length + ' file, guardo quale e\' il piu\' recente…');
+    return Promise.all(candidati.map(f => _dataUltimoCommit(f.path || f.name)))
+      .then(date => {
+        let migliore = candidati[0], quando = date[0];
+        for(let i=1;i<candidati.length;i++){
+          if(date[i] > quando){ migliore = candidati[i]; quando = date[i]; }
+        }
+        return migliore;
+      });
+  });
+}
+
+// ── L'AVVISO NEL RIQUADRO DELLE NOTE ──────────────────────────────────────
+// A ogni avvio si guarda se sul repository c'e' un file .html diverso da
+// quello aperto. Se c'e', in cima alle note compare la riga con il nome nuovo
+// e il pulsante per scaricarlo; se non c'e', o se GitHub non risponde, non
+// compare niente. Il confronto e' sul NOME DEL FILE e non su un numero di
+// versione: il file la' e quello qui sono lo stesso file se si chiamano allo
+// stesso modo, e cosi' la numerazione resta libera di cambiare.
+function controllaAggiornamentoAllAvvio(){
+  const riquadro = document.getElementById('patch-notes-update');
+  if(!riquadro) return;
+  trovaUltimaVersione().then(file => {
+    const corrente = _nomeFileCorrente();
+    if(!file || !file.name) return;
+    if(corrente && corrente === file.name) return; // gia' aggiornato: silenzio
+    _ultimaVersioneTrovata = {nome:file.name, url:file.download_url, sha:file.sha};
+    const msg = document.getElementById('patch-notes-update-msg');
+    if(msg){
+      msg.innerHTML = 'È disponibile una versione più recente: <b>' + escapeHtml(file.name) + '</b>'
+        + (corrente ? '<br>Stai usando ' + escapeHtml(corrente) + '.' : '.');
+    }
+    const ripiego = document.getElementById('patch-notes-update-fallback');
+    if(ripiego) ripiego.href = file.download_url || '#';
+    riquadro.classList.add('mostra');
+    // Il riquadro va aperto anche se le note non si sono potute leggere:
+    // mostraPatchNotes non apre niente quando non ha nulla da dire, e una
+    // versione nuova disponibile e' una cosa da dire comunque.
+    const overlay = document.getElementById('patch-notes-overlay');
+    if(overlay) overlay.classList.add('show');
+  }).catch(()=>{ /* offline o limite di richieste: si tace, non si allarma */ });
+}
+
+// Il pulsante dell'avviso. Scarica con lo stesso meccanismo del menu debug
+// (vedi scaricaVersione), scrivendo pero' nel proprio riquadro.
+function scaricaAggiornamentoDalRiquadro(){
+  const msg = document.getElementById('patch-notes-update-msg');
+  const ripiego = document.getElementById('patch-notes-update-fallback');
+  scaricaVersione(
+    t => { if(msg) msg.innerHTML = t; },
+    () => { if(ripiego) ripiego.classList.add('mostra'); }
+  );
+}
+
 function debugCercaUltimaVersione(){
   const box = document.getElementById('debug-update-box');
   const msg = document.getElementById('debug-update-msg');
@@ -11179,33 +11295,7 @@ function debugCercaUltimaVersione(){
   box.style.display = 'block';
   azioni.style.display = 'none';
   msg.textContent = 'Cerco su GitHub…';
-  // `cache:'no-store'` perche' una risposta vecchia qui vorrebbe dire non
-  // vedere proprio la versione appena pubblicata, che e' l'unica cosa che
-  // interessa a questo pulsante.
-  _githubJsonp(GITHUB_REPO_API)
-    .then(esito => {
-      if(esito.errore) throw new Error(esito.errore);
-      const elenco = esito.dati;
-      if(!Array.isArray(elenco)) throw new Error('risposta inattesa dal repository');
-      // Qualsiasi .html nella radice del repository. Nessun filtro sul nome:
-      // e' esattamente il vincolo che si vuole evitare.
-      const candidati = elenco.filter(f =>
-        f && f.type === 'file' && /\.html?$/i.test(f.name || '') && f.download_url);
-      if(!candidati.length) throw new Error('nel repository non c\'e\' nessun file .html');
-      if(candidati.length === 1) return candidati[0];
-      // Piu' d'uno: vince quello committato piu' di recente. Se GitHub non
-      // risponde (limite di richieste), _dataUltimoCommit restituisce 0 per
-      // tutti e resta l'ordine dell'elenco, che e' comunque meglio di un errore.
-      msg.textContent = 'Trovati ' + candidati.length + ' file, guardo quale e\' il piu\' recente…';
-      return Promise.all(candidati.map(f => _dataUltimoCommit(f.path || f.name)))
-        .then(date => {
-          let migliore = candidati[0], quando = date[0];
-          for(let i=1;i<candidati.length;i++){
-            if(date[i] > quando){ migliore = candidati[i]; quando = date[i]; }
-          }
-          return migliore;
-        });
-    })
+  trovaUltimaVersione(t => { msg.textContent = t; })
     .then(file => {
       // Lo `sha` serve a scaricare i BYTE del file (vedi
       // debugScaricaUltimaVersione), non solo a linkarlo.
@@ -11271,13 +11361,17 @@ function debugCercaUltimaVersione(){
 // _githubJsonp per il perche' non si puo' usare fetch).
 // Se quella strada non fosse disponibile si mostra il vecchio link: aprirlo e
 // salvare a mano e' scomodo, ma e' meglio che un pulsante che non fa niente.
-function debugScaricaUltimaVersione(){
-  const msg = document.getElementById('debug-update-msg');
-  const ripiego = document.getElementById('debug-update-fallback');
-  if(!_ultimaVersioneTrovata){ if(msg) msg.textContent = 'Cerca prima la versione.'; return; }
+// Scarica davvero il file trovato. `scrivi(testo)` riceve l'avanzamento e
+// l'esito, `mostraRipiego()` viene chiamata solo se la strada principale
+// fallisce — cosi' la stessa procedura serve sia il menu debug sia l'avviso
+// nel riquadro delle note, che hanno due posti diversi dove scrivere.
+function scaricaVersione(scrivi, mostraRipiego){
+  const dillo = t => { if(typeof scrivi === 'function') scrivi(t); };
+  const ripiego = () => { if(typeof mostraRipiego === 'function') mostraRipiego(); };
+  if(!_ultimaVersioneTrovata){ dillo('Cerca prima la versione.'); return; }
   const {nome, sha} = _ultimaVersioneTrovata;
-  if(!sha){ if(ripiego) ripiego.style.display = 'block'; if(msg) msg.textContent = 'Non ho il riferimento al file: usa il link qui sotto.'; return; }
-  if(msg) msg.textContent = 'Preparo ' + nome + '…';
+  if(!sha){ ripiego(); dillo('Non ho il riferimento al file: usa il link qui sotto.'); return; }
+  dillo('Preparo ' + nome + '…');
   // Tempo abbondante: il file supera il megabyte e in base64 cresce di un
   // terzo, quindi il tag <script> ne trasporta circa un megabyte e mezzo.
   _githubJsonp('https://api.github.com/repos/' + GITHUB_REPO + '/git/blobs/' + sha, 30000)
@@ -11302,13 +11396,22 @@ function debugScaricaUltimaVersione(){
       // L'indirizzo blob tiene il file in memoria finche' non lo si libera; un
       // minuto e' piu' che sufficiente perche' il salvataggio parta.
       setTimeout(()=>{ try{ URL.revokeObjectURL(url); }catch(_){} }, 60000);
-      if(msg) msg.textContent = nome + ' scaricato. Sostituisci con questo il file che stai usando.';
+      dillo(nome + ' scaricato. Sostituisci con questo il file che stai usando.');
     })
     .catch(e => {
-      if(msg) msg.textContent = 'Non riesco a scaricarlo da qui (' + (e && e.message ? e.message : e)
-        + '). Apri il link qui sotto e salva la pagina con Ctrl+S.';
-      if(ripiego) ripiego.style.display = 'block';
+      dillo('Non riesco a scaricarlo da qui (' + (e && e.message ? e.message : e)
+        + '). Apri il link qui sotto e salva la pagina con Ctrl+S.');
+      ripiego();
     });
+}
+
+function debugScaricaUltimaVersione(){
+  const msg = document.getElementById('debug-update-msg');
+  const ripiego = document.getElementById('debug-update-fallback');
+  scaricaVersione(
+    t => { if(msg) msg.textContent = t; },
+    () => { if(ripiego) ripiego.style.display = 'block'; }
+  );
 }
 
 // Esegue la versione trovata AL POSTO di questa pagina. Il file sul disco non
