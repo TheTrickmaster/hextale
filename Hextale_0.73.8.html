@@ -5130,7 +5130,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.73.7</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.73.8</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -12663,31 +12663,21 @@ const TILE_ABILITIES_DEF = {
   off_with_the_head: { name:'Off With the Head!',  desc:'The next card you *draw* earns +2 ALL.' },
 };
 
-// ── Generic ability-text keyword bolding (v0.71.87) ─────────────────────
-// Per explicit request ("vorrei che si creasse un database di parole chiave
-// che, ogni volta che appaiono sulla carta, vengono scritte in bold"):
-// unlike ABILITY_HIGHLIGHT_PHRASES above (a hand-picked, per-ability phrase
-// list), this is a single GLOBAL keyword set checked against EVERY ability's
-// text, on every card, automatically — no per-card wiring needed when a new
-// card's description happens to use one of these words. Lorenzo's initial
-// list: activation-type labels ("On Play", "Synergy", ...), every signed
-// number token (+1/-1/etc, matched generically via regex rather than an
-// enumerated list so it covers every possible number), the word "Power", and
-// every archetype name (so "Small" in Snow White's text, or any future
-// archetype mentioned in a future card, bolds automatically). More entries
-// will be added to ABILITY_KEYWORD_PHRASES/ARCHETYPE_DISPLAY_NAMES over time
-// per Lorenzo's own "te ne aggiungerò altre via via".
-// v0.72.96 — i nomi degli archetipi da evidenziare NON sono piu' una lista
-// scritta a mano. Era ['Animal','Royal','Small'], cioe' gli archetipi di
-// novembre: due di quelli non esistono piu' nel foglio, e i nove nuovi
-// (Artisan, Guardian, Sovereign, Chaotic, Construct, Cruel, Magical, Noble,
-// Wild) non venivano evidenziati in nessuna descrizione.
-// Ora si leggono dal roster, come fa il filtro della Collezione: si scrivono
-// una volta sola nel foglio e valgono ovunque.
-// v0.73.3 — chiave normalizzata -> grafia esatta del foglio. Si riempie
-// leggendo le righe (vedi _cardaDaRiga): cosi' ogni posto che mostra il nome
-// di un archetipo — filtro, evidenziazione in grassetto, ordinamento — usa
-// quello che c'e' scritto nel foglio e non una versione ricostruita.
+// ── v0.73.8 — IL GRASSETTO LO DECIDE SOLO IL FOGLIO ────────────────────────
+// Qui c'era un elenco di parole che venivano messe in grassetto da sole ogni
+// volta che comparivano in una descrizione: i tipi di attivazione ("On Play",
+// "Synergy", ...), la parola "Power", il nome di ogni archetipo, e qualunque
+// numero. Non c'e' piu'.
+//
+// Il motivo e' che erano due autorita' sullo stesso testo. Chi scriveva la
+// descrizione nel foglio metteva *gli asterischi* dove voleva il grassetto, e
+// poi il gioco ne aggiungeva altro per conto suo, in punti che nel foglio non
+// risultavano marcati: quello che si leggeva a schermo non era piu' quello che
+// si era scritto, e per togliere un grassetto indesiderato bisognava venire a
+// cambiare il codice invece del foglio.
+// Da adesso il grassetto (e il corsivo) esistono solo dove ci sono i marcatori
+// *cosi'* e /cosi'/ — vedi trattiMarcati. Una sola fonte, modificabile da chi
+// scrive le carte.
 const NOMI_ARCHETIPI = {};
 function registraNomeArchetipo(nome){
   const chiave = String(nome||'').trim().toLowerCase();
@@ -12698,24 +12688,11 @@ function registraNomeArchetipo(nome){
 function nomeArchetipo(chiave){
   return NOMI_ARCHETIPI[chiave] || (String(chiave||'').charAt(0).toUpperCase() + String(chiave||'').slice(1));
 }
-function archetypeDisplayNames(){
-  return (typeof archetipiDelRoster === 'function' ? archetipiDelRoster() : []).map(nomeArchetipo);
-}
-// Le parole sempre in grassetto. E' una FUNZIONE e non piu' una costante
-// perche' parte del suo contenuto dipende dalle carte caricate, che al momento
-// in cui questo file viene valutato non esistono ancora.
-const ABILITY_KEYWORD_PHRASES_FISSE = [
-  'On Play','Synergy','Passive','End of Turn','Conquest','Reaction', // tipi di attivazione
-  'Power',
-];
-function abilityKeywordPhrases(){
-  return [...ABILITY_KEYWORD_PHRASES_FISSE, ...archetypeDisplayNames()];
-}
-// Matches any signed/unsigned integer token (+1, -3, 12, ...) as a standalone
-// word — same (?<![\d.])...(?!\d) guard highlightAbilityNumbers already uses
-// for its own per-ability bare-number phrases, so "12" inside "120" (if that
-// ever came up) still wouldn't partially match.
-const ABILITY_KEYWORD_NUMBER_REGEX = /(?<![\d.])[+-]?\d+(?!\d)/g;
+// v0.73.8 — qui vivevano l'elenco delle parole sempre in grassetto
+// (ABILITY_KEYWORD_PHRASES_FISSE), la funzione che ci univa i nomi degli
+// archetipi (abilityKeywordPhrases/archetypeDisplayNames) e l'espressione che
+// riconosceva i numeri (ABILITY_KEYWORD_NUMBER_REGEX). Sono spariti tutti
+// insieme: il grassetto lo decide solo chi scrive nel foglio.
 
 // Splits `text` into an ordered array of {text, bold} segments — bold=true
 // for any run that matches a phrase in `phrases` (word-boundary, case-
@@ -12798,45 +12775,12 @@ function testoSenzaMarcatori(testo){
     .replace(MARCATORE_CORSIVO, '$1');
 }
 
-function getAbilityKeywordSegments(text, extraPhrases){
+// Il testo di un'abilita' spezzato in tratti {text, bold, italic}, per chi lo
+// disegna in SVG (dove non esiste il grassetto in linea e serve un <tspan> per
+// tratto). L'unica cosa che decide e' la marcatura scritta nel foglio.
+function getAbilityKeywordSegments(text){
   if(!text) return [];
-  // v0.72.97 — prima si separano i tratti marcati a mano: quelli sono
-  // grassetto per decisione di chi ha scritto la descrizione, e non vanno
-  // riesaminati. Sul resto si applica il riconoscimento automatico delle
-  // parole chiave, come sempre.
-  const marcati = trattiMarcati(text);
-  if(marcati.some(t=>t.grassetto || t.corsivo)){
-    const fuori = [];
-    for(const t of marcati){
-      if(t.grassetto || t.corsivo){
-        fuori.push({text:t.testo, bold:t.grassetto, italic:t.corsivo});
-      } else {
-        fuori.push(...getAbilityKeywordSegments(t.testo, extraPhrases));
-      }
-    }
-    return fuori;
-  }
-  const allPhrases = extraPhrases && extraPhrases.length
-    ? [...abilityKeywordPhrases(), ...extraPhrases]
-    : abilityKeywordPhrases();
-  // Build one alternation regex from every literal phrase (longest first, so
-  // e.g. "On Play" can't get shadowed by some future shorter overlapping
-  // entry), plus the numeric-token pattern, then scan the text once,
-  // left-to-right, emitting alternating plain/bold segments.
-  const sortedPhrases = [...allPhrases].sort((a,b)=>b.length-a.length);
-  const escaped = sortedPhrases.map(p=>p.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'));
-  const phraseAlt = escaped.length ? `\\b(?:${escaped.join('|')})\\b` : '';
-  const numAlt = '(?<![\\d.])[+-]?\\d+(?!\\d)';
-  const combined = new RegExp(phraseAlt ? `${phraseAlt}|${numAlt}` : numAlt, 'gi');
-  const segments=[];
-  let lastIndex=0, m;
-  while((m=combined.exec(text))){
-    if(m.index>lastIndex) segments.push({text:text.slice(lastIndex,m.index), bold:false});
-    segments.push({text:m[0], bold:true});
-    lastIndex=m.index+m[0].length;
-  }
-  if(lastIndex<text.length) segments.push({text:text.slice(lastIndex), bold:false});
-  return segments;
+  return trattiMarcati(text).map(t => ({text: t.testo, bold: !!t.grassetto, italic: !!t.corsivo}));
 }
 
 function getFactionBonus(card, q, r, boardState){
@@ -14102,7 +14046,6 @@ function applicaEffettiRealiPiazzamento(card, q, r, chiave){
 function attivaOffWithTheHead(card){
   const giocatore = card.owner || G.currentPlayer;
   G.bonusProssimaPescata[giocatore] = (G.bonusProssimaPescata[giocatore]||0) + 2;
-  toast('👑 La prossima carta pescata avrà +2 ovunque!');
 }
 
 // Morgana — "Smoke and Mirrors". Meta' delle volte rimanda indietro l'ultima
@@ -15960,7 +15903,6 @@ function drawAndAnimate(player,fast,callback){
       for(const s of SIDES) newCard.hoorayBaseValues[s]=(newCard.hoorayBaseValues[s]||0)+taglia;
     }
     G.bonusProssimaPescata[player]=0;
-    toast('👑 +'+taglia+' ovunque sulla carta pescata!');
   }
   playSfx('sfx-draw');
   renderDeckPile(pileId, deck, player);
@@ -19967,7 +19909,7 @@ function svgWrapText(text, maxWidth, fontFamily, fontSizePx){
 }
 
 // Bold-aware counterpart to svgWrapText, used for card ability descriptions
-// (v0.71.87, see getAbilityKeywordSegments/ABILITY_KEYWORD_PHRASES above) —
+// (vedi getAbilityKeywordSegments qui sopra) —
 // same greedy canvas-measured wrap algorithm, but operating on {word,bold}
 // tokens (pre-split from getAbilityKeywordSegments' plain/bold segments)
 // instead of plain words, so a bold run's own wider glyph metrics are
@@ -20497,19 +20439,30 @@ function renderHand(containerId,hand,playerIdx){
     // v0.73.5 — anche una carta ferma in mano puo' cambiare valore per via di
     // quello che sta per succedere in campo: si legge il tavolo simulato e si
     // mostra la differenza, esattamente come per le carte gia' piazzate.
+    // v0.73.8 — e si colorano anche i bonus che la carta si porta gia' addosso.
+    // Le carte in campo confrontano da sempre i propri valori con
+    // `tileAbilityBaseValues`, l'istantanea presa prima che un'abilita' li
+    // toccasse, e mostrano in verde quello che e' cresciuto. In mano quel
+    // confronto non lo faceva nessuno: una carta pescata col +2 della Regina di
+    // Cuori arrivava col numero giusto ma bianco, indistinguibile da un valore
+    // suo. Adesso il conto e' uno solo — da dove partiva, dove arrivera' — e
+    // copre insieme il bonus gia' incassato e quello in arrivo dall'anteprima.
     let anteprimaMano = null;
+    const partenza = card.tileAbilityBaseValues || card.values;
+    let arrivo = card.values;
     const antTavoloMano = anteprimaTavolo();
     if(antTavoloMano && !isBeingDragged){
       const simulati = antTavoloMano.mani[playerIdx===0?1:2][card.id];
-      if(simulati){
-        const scarti = {};
-        let cambia = false;
-        for(const s of SIDES){
-          scarti[s] = (simulati[s]||0) - (card.values[s]||0);
-          if(scarti[s]!==0) cambia = true;
-        }
-        if(cambia) anteprimaMano = { values: simulati, deltas: scarti };
+      if(simulati) arrivo = simulati;
+    }
+    {
+      const scarti = {};
+      let cambia = false;
+      for(const s of SIDES){
+        scarti[s] = (arrivo[s]||0) - (partenza[s]||0);
+        if(scarti[s]!==0) cambia = true;
       }
+      if(cambia) anteprimaMano = { values: arrivo, deltas: scarti };
     }
     const cardSvg = buildFullHandCardSVG(cardFoilVisualCard(card), 210, 360, anteprimaMano);
     const cardFoilHost = cardFoilWrap(cardSvg);
@@ -22684,7 +22637,7 @@ function buildCardTooltipHTML(card, onBoard, bonusInfo){
       html += `<div class="ct-card-ability"><div class="ct-card-ability-header">`;
       html += `<div class="ct-card-ability-title"><span class="ct-card-ability-eyebrow">Abilità della carta</span><span class="ct-card-ability-name">${escapeHtml(abilityDef.name)}</span></div>`;
       html += `</div>`;
-      html += `<div class="ct-card-ability-desc">${highlightAbilityNumbers(abilityDef.desc, card.cardAbility)}</div>`;
+      html += `<div class="ct-card-ability-desc">${highlightAbilityNumbers(abilityDef.desc)}</div>`;
       html += `</div>`;
     }
   }
@@ -22701,7 +22654,7 @@ function buildCardTooltipHTML(card, onBoard, bonusInfo){
       // highlights only the bare "-2"/"+2" tokens (see highlightAbilityNumbers'
       // isBareNumber branch); the old omitted-key generic fallback used to
       // wrap much longer surrounding phrases here instead.
-      html += `<div class="ct-tile-ability-desc">${highlightAbilityNumbers(abilityDef.desc, card.activatedTileAbility)}</div>`;
+      html += `<div class="ct-tile-ability-desc">${highlightAbilityNumbers(abilityDef.desc)}</div>`;
       const effectText = getTileAbilityEffectText(card);
       if(effectText){
         // getTileAbilityEffectText normally returns a plain string (run
@@ -22832,7 +22785,7 @@ function buildBoardCardTooltipHTML(card){
   if(abilityKey){
     const abilityDef = testiAbilitaDi(card, abilityKey);
     if(abilityDef){
-      html += `<div class="ctb-ability-box"><div class="ctb-ability-name">${escapeHtml(abilityDef.name)}</div><div class="ctb-ability-desc">${highlightAbilityNumbers(abilityDef.desc, abilityKey)}</div></div>`;
+      html += `<div class="ctb-ability-box"><div class="ctb-ability-name">${escapeHtml(abilityDef.name)}</div><div class="ctb-ability-desc">${highlightAbilityNumbers(abilityDef.desc)}</div></div>`;
     }
   }
 
@@ -22878,81 +22831,15 @@ function escapeHtml(s){
 // not just the "1"), since that's the actual piece of information that matters
 // to the player. Bare numbers elsewhere in the text (ranges, counts, turns)
 // are still highlighted individually.
-function highlightAbilityNumbers(s, abilityKey){
-  // v0.72.97 — i tratti fra asterischi diventano grassetto e gli asterischi
-  // spariscono. Si lavora tratto per tratto e non sul testo intero, cosi' la
-  // parte marcata non viene ripassata dall'evidenziazione automatica dei
-  // numeri: chi ha scritto *1 Power* voleva quel pezzo tutto in grassetto,
-  // non il numero dentro trattato a parte.
-  const marcati = trattiMarcati(String(s||''));
-  if(marcati.some(t=>t.grassetto || t.corsivo)){
-    return marcati.map(t => {
-      if(!t.grassetto && !t.corsivo) return highlightAbilityNumbers(t.testo, abilityKey);
-      let html = escapeHtml(t.testo);
-      // Il corsivo sta dentro, il grassetto fuori: annidati in quest'ordine i
-      // due si sommano senza che nessuno dei due debba conoscere l'altro.
-      if(t.corsivo)   html = `<em>${html}</em>`;
-      if(t.grassetto) html = `<span class="ct-tile-ability-num">${html}</span>`;
-      return html;
-    }).join('');
-  }
-  const escaped = escapeHtml(s);
-  let result;
-  // If ability has specific phrases to highlight, use those; otherwise, use generic approach
-  // v0.72.71 — le frasi da evidenziare a mano esistevano solo per le tredici
-  // abilita' del prototipo, e sono sparite con loro. Resta l'evidenziazione
-  // automatica dei numeri qui sotto, che vale per qualsiasi descrizione.
-  if(false){
-    const phrases = [];
-    result = escaped;
-    // Sort phrases by length (longest first) to avoid partial matches
-    const sortedPhrases = [...phrases].sort((a, b) => b.length - a.length);
-    for(const phrase of sortedPhrases){
-      const escapedPhrase = phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      // Bare signed/unsigned numeric tokens (e.g. "-2", "+2", "4") must match
-      // ONLY the number itself, never any word that happens to follow it in
-      // the source string — \b right after a leading +/- doesn't work (\b is
-      // not defined between a symbol and a digit), so those phrases use a
-      // dedicated numeric-token regex instead of the generic \b...\b one
-      // below (which, for a phrase like "+2", would greedily consume through
-      // the end of the next \w run and highlight "+2 su" etc). Longer,
-      // multi-word phrases still use the original whole-phrase match.
-      const isBareNumber = /^[+-]?\d+$/.test(phrase);
-      const regex = isBareNumber
-        ? new RegExp(`(?<![\\d.])${escapedPhrase}(?!\\d)`, 'g')
-        : new RegExp(`\\b${escapedPhrase}\\b|${escapedPhrase}`, 'g');
-      result = result.replace(regex, `<span class="ct-tile-ability-num">${phrase}</span>`);
-    }
-  } else {
-    // Fallback: generic highlighting (for backward compatibility)
-    const signedPhrase = /[+-]\d+(?:[^.,+\-(]|(?<=\d)[+-](?!\s*\d))*?(?=[.,(]|\s[+-]\d|$)/g;
-    result = escaped.replace(signedPhrase, m => `<span class="ct-tile-ability-num">${m}</span>`);
-    // Any remaining bare numbers (not already wrapped) get highlighted alone.
-    result = result.replace(/(<span class="ct-tile-ability-num">.*?<\/span>)|(\d+)/g,
-      (m, wrapped, bare) => wrapped ? wrapped : `<span class="ct-tile-ability-num">${bare}</span>`);
-  }
-  // v0.71.87 ("database di parole chiave... vengono scritte in bold"): an
-  // additional GLOBAL pass, layered on top of whichever branch above already
-  // ran — bolds every ABILITY_KEYWORD_PHRASES entry (activation-type labels,
-  // "Power", every archetype name) plus any signed/bare number NOT already
-  // wrapped in a highlight span by the per-ability logic above. Operates
-  // directly on the escaped HTML string, so it must avoid re-wrapping text
-  // that's already inside a <span ...>...</span> from the pass above —
-  // done by only matching text that is NOT already inside a span tag, using
-  // a split-on-tags approach: walk the string as alternating
-  // outside-span/inside-span chunks and only run the keyword regex on the
-  // outside-span chunks.
-  const chunks = result.split(/(<span[^>]*>.*?<\/span>)/g);
-  result = chunks.map(chunk=>{
-    if(chunk.startsWith('<span')) return chunk; // already highlighted by the pass above — leave as-is
-    const segments = getAbilityKeywordSegments(chunk);
-    if(!segments.length) return chunk;
-    return segments.map(seg=>seg.bold
-      ? `<span class="ct-tile-ability-num">${seg.text}</span>`
-      : seg.text
-    ).join('');
+function highlightAbilityNumbers(s){
+  return trattiMarcati(String(s||'')).map(t => {
+    let html = escapeHtml(t.testo);
+    // Il corsivo sta dentro, il grassetto fuori: annidati in quest'ordine i due
+    // si sommano senza che nessuno dei due debba conoscere l'altro.
+    if(t.corsivo)   html = `<em>${html}</em>`;
+    if(t.grassetto) html = `<span class="ct-tile-ability-num">${html}</span>`;
+    return html;
   }).join('');
-  return result;
 }
 
 // Builds a short "effect applied" line (shown in green under the ability
@@ -23453,7 +23340,7 @@ function attachTileAbilityTooltip(targetEl, abilityKey){
   if(!isTouchDevice){
     targetEl.addEventListener('mouseenter',()=>{
       const tip=getTooltipEl();
-      tip.innerHTML=`<div class="ct-name-ability" style="color:#c8a050">&#x2B21; ${escapeHtml(def.name)}</div><div class="ct-bonus-desc">${highlightAbilityNumbers(def.desc, abilityKey)}</div>`;
+      tip.innerHTML=`<div class="ct-name-ability" style="color:#c8a050">&#x2B21; ${escapeHtml(def.name)}</div><div class="ct-bonus-desc">${highlightAbilityNumbers(def.desc)}</div>`;
       tip.style.display='block';
       // v0.71.39: same ownership tracking as attachCardTooltip's mouseenter —
       // see the shared mousemove watchdog (right after getTooltipEl) for why.
@@ -23495,7 +23382,7 @@ function attachTileAbilityTooltip(targetEl, abilityKey){
   attachTapHoldTooltip(targetEl,
     (e)=>{
       const tip=getTooltipEl();
-      tip.innerHTML=`<div class="ct-name-ability" style="color:#c8a050">&#x2B21; ${escapeHtml(def.name)}</div><div class="ct-bonus-desc">${highlightAbilityNumbers(def.desc, abilityKey)}</div>`;
+      tip.innerHTML=`<div class="ct-name-ability" style="color:#c8a050">&#x2B21; ${escapeHtml(def.name)}</div><div class="ct-bonus-desc">${highlightAbilityNumbers(def.desc)}</div>`;
       tip.style.display='block';
       const pad=16;
       const tw=tip.offsetWidth||260, th=tip.offsetHeight||100;
