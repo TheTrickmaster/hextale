@@ -71,13 +71,35 @@ Se un effetto sceglie "a caso" fra piu' bersagli, il sorteggio deve passare da
 bersaglio e il piazzamento ne premierebbe un altro, e per di piu' l'anteprima
 cambierebbe idea a ogni ridisegno.
 
-Se un'abilita' apre una **finestra decisionale** (mette uno stato in `G` e fa
-`return` in `doPlace` aspettando un click), servono tre cose insieme, o la
-partita si blocca: il ramo in `aiResolvePendingAbilityIfAny()` che la risolve
-per il computer, la guardia `player===1` sull'overlay in `renderBoard()`, e la
-rete di sicurezza che ridisegna quando l'intro dei tasselli e' finita. Oggi
-nessuna abilita' ne apre una — le tre agganciature sono state svuotate ma i
-punti in cui rimetterle sono documentati sul posto.
+Se un'abilita' deve **chiedere un bersaglio al giocatore**, si aggiunge a
+`SCELTE_PIAZZAMENTO` e basta: da li' riceve gia' pronti il disegno dei comandi
+(mirino sui bersagli, X rossa sull'origine), l'evidenziazione delle celle
+selezionabili, il comportamento dell'IA e la chiusura per tempo scaduto. La
+funzione registrata restituisce `null` quando non ci sono bersagli, e in quel
+caso la finestra non si apre nemmeno — nessuna pausa e nessuna X da cliccare a
+vuoto.
+
+Fermare la partita e' la cosa piu' pericolosa che un'abilita' possa fare: se
+nessuno chiude la finestra il gioco resta li' per sempre. Le tre agganciature
+che lo impediscono sono `aiResolvePendingAbilityIfAny()` (l'IA chiude sempre;
+se non sa valutare quell'abilita' sceglie a caso — vedi `VALUTAZIONI_IA`), il
+ramo in `autoPlay()` (tempo scaduto = rinuncia) e la rete di sicurezza in cima
+a `renderBoard()` (ridisegna quando l'intro dei tasselli finisce, altrimenti i
+comandi non verrebbero mai disegnati). Ogni uscita passa da
+`chiudiSceltaBersaglio()`, che e' l'unico posto da cui il turno riparte.
+
+**Interfaccia condivisa.** Le celle su cui si puo' cliccare si evidenziano con
+`evidenziaBersaglio()` (esagono D2BB8A al 30%, plus-lighter) — non si inventa
+un'evidenziazione per abilita', o il giocatore deve re-imparare l'interfaccia a
+ogni carta. Il suono del click e' un solo ascoltatore in cattura sul documento
+(`abilitaSuonoClickGlobale`): copre i pulsanti che esistono, quelli creati dopo
+e quelli disegnati dentro l'SVG, quindi non va aggiunto a mano da nessuna parte.
+
+**Le animazioni della carta sul tabellone stanno su quattro elementi annidati**
+— `[data-conquered]` il salto, `flip-host` il giro, `recoil-host` il
+contraccolpo, `wobble-host` il traballio — perche' animano tutte `transform` e
+sullo stesso elemento si escluderebbero. Chi ne aggiunge una quinta aggiunga
+anche il suo piano.
 
 I **gruppi valore** sono l'identita' di una carta e non cambiano mai. Un effetto
 che sposta i numeri deve muovere anche `groupSides` se cambia la disposizione

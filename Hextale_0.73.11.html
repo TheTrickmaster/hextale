@@ -1912,12 +1912,19 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
 #board-svg{display:block;position:relative;z-index:2;}
 
 /* ── Conquest flip animation ── */
+/* v0.73.11 — il giro con la prospettiva. Senza `perspective()` una rotazione
+   su Y e' solo uno schiacciamento orizzontale: la carta si stringe e si
+   riapre, ma non si vede girare. Con la prospettiva il bordo che si allontana
+   rimpicciolisce e quello che si avvicina cresce, ed e' quello che l'occhio
+   legge come "sta ruotando". La prospettiva sta DENTRO la transform e non come
+   proprieta' del genitore, perche' sugli elementi SVG la seconda strada e'
+   inaffidabile mentre la funzione transform funziona ovunque. */
 @keyframes cardFlip{
-  0%   {transform:rotateY(0deg);filter:brightness(1);}
-  49%  {transform:rotateY(89deg);filter:brightness(0.3);}
-  50%  {transform:rotateY(90deg);filter:brightness(0.3);}
-  51%  {transform:rotateY(91deg);filter:brightness(0.3);}
-  100% {transform:rotateY(0deg);filter:brightness(1);}
+  0%   {transform:perspective(520px) rotateY(0deg);filter:brightness(1);}
+  49%  {transform:perspective(520px) rotateY(89deg);filter:brightness(0.3);}
+  50%  {transform:perspective(520px) rotateY(90deg);filter:brightness(0.3);}
+  51%  {transform:perspective(520px) rotateY(91deg);filter:brightness(0.3);}
+  100% {transform:perspective(520px) rotateY(0deg);filter:brightness(1);}
 }
 /* v0.73.9 — il giro esiste in due copie con nome diverso, e si alternano.
    E' la stessa medicina gia' applicata ai lunge d'attacco, al contraccolpo e
@@ -1941,6 +1948,93 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
   transform-origin:center center;
 }
 .card-flip-b{ animation-name:cardFlipB; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   v0.73.11 — LA CARTA SI GIRA COME UNA MONETA SUL TAVOLO
+   ═══════════════════════════════════════════════════════════════════════════
+   Una carta appoggiata a un tavolo non puo' girarsi restando appoggiata: per
+   ruotare deve prima staccarsi, altrimenti il suo bordo attraverserebbe il
+   piano. Il saltello non e' quindi un vezzo, e' cio' che rende credibile il
+   giro — e' il momento in cui la carta "si fa spazio sotto".
+   Poi ricade, e come ogni moneta lasciata cadere non si ferma di colpo:
+   traballa in tondo, sempre piu' piano, finche' non si posa.
+
+   Tre animazioni distinte perche' animano tutte `transform`, e due animazioni
+   sulla stessa proprieta' dello stesso elemento non si sommano: vince quella
+   dichiarata piu' in basso e l'altra sparisce (in questo file e' gia' successo
+   due volte). Vivono quindi su elementi ANNIDATI — vedi renderBoard, dove il
+   gruppo del salto contiene quello del giro, che contiene quello del
+   contraccolpo, che contiene quello del traballio. Annidate, le trasformazioni
+   si compongono invece di escludersi.
+
+   Tutto questo vale SOLO per il tabellone: la Collezione e le bustine hanno i
+   loro giri, con nomi diversi, e restano come sono. */
+@keyframes cardHop{
+  0%   {transform:translateY(0) scale(1);}
+  /* Il punto piu' alto cade sul 50%, cioe' esattamente quando la carta e'
+     di taglio: e' li' che deve essere piu' staccata dal tavolo. */
+  50%  {transform:translateY(calc(var(--hop,14px) * -1)) scale(1.07);}
+  /* Il rientro e' piu' rapido della salita — la carta sale spinta, ricade per
+     gravita' — e chiude appena oltre lo zero, come un piccolo impatto. */
+  88%  {transform:translateY(0) scale(0.985);}
+  100% {transform:translateY(0) scale(1);}
+}
+@keyframes cardHopB{
+  0%   {transform:translateY(0) scale(1);}
+  50%  {transform:translateY(calc(var(--hop,14px) * -1)) scale(1.07);}
+  88%  {transform:translateY(0) scale(0.985);}
+  100% {transform:translateY(0) scale(1);}
+}
+.card-hop-a, .card-hop-b{
+  animation:cardHop 0.315s cubic-bezier(.33,0,.25,1);
+  transform-box:fill-box;
+  transform-origin:center center;
+}
+.card-hop-b{ animation-name:cardHopB; }
+
+/* Il traballio: l'asse dell'inclinazione gira in tondo — X, poi Y, poi -X,
+   poi -Y — tre giri completi sempre piu' stretti, che e' esattamente il moto
+   di una moneta che si sta posando. L'ampiezza cala 14 -> 8 -> 4 -> 0 gradi:
+   il primo giro si vede bene, l'ultimo e' quasi solo un respiro. */
+@keyframes cardWobble{
+  0%    {transform:perspective(520px) rotateX(14deg) rotateY(0deg);}
+  8.3%  {transform:perspective(520px) rotateX(0deg) rotateY(14deg);}
+  16.6% {transform:perspective(520px) rotateX(-14deg) rotateY(0deg);}
+  25%   {transform:perspective(520px) rotateX(0deg) rotateY(-14deg);}
+  33.3% {transform:perspective(520px) rotateX(8deg) rotateY(0deg);}
+  41.6% {transform:perspective(520px) rotateX(0deg) rotateY(8deg);}
+  50%   {transform:perspective(520px) rotateX(-8deg) rotateY(0deg);}
+  58.3% {transform:perspective(520px) rotateX(0deg) rotateY(-8deg);}
+  66.6% {transform:perspective(520px) rotateX(4deg) rotateY(0deg);}
+  75%   {transform:perspective(520px) rotateX(0deg) rotateY(4deg);}
+  83.3% {transform:perspective(520px) rotateX(-4deg) rotateY(0deg);}
+  91.6% {transform:perspective(520px) rotateX(0deg) rotateY(-4deg);}
+  100%  {transform:perspective(520px) rotateX(0deg) rotateY(0deg);}
+}
+@keyframes cardWobbleB{
+  0%    {transform:perspective(520px) rotateX(14deg) rotateY(0deg);}
+  8.3%  {transform:perspective(520px) rotateX(0deg) rotateY(14deg);}
+  16.6% {transform:perspective(520px) rotateX(-14deg) rotateY(0deg);}
+  25%   {transform:perspective(520px) rotateX(0deg) rotateY(-14deg);}
+  33.3% {transform:perspective(520px) rotateX(8deg) rotateY(0deg);}
+  41.6% {transform:perspective(520px) rotateX(0deg) rotateY(8deg);}
+  50%   {transform:perspective(520px) rotateX(-8deg) rotateY(0deg);}
+  58.3% {transform:perspective(520px) rotateX(0deg) rotateY(-8deg);}
+  66.6% {transform:perspective(520px) rotateX(4deg) rotateY(0deg);}
+  75%   {transform:perspective(520px) rotateX(0deg) rotateY(4deg);}
+  83.3% {transform:perspective(520px) rotateX(-4deg) rotateY(0deg);}
+  91.6% {transform:perspective(520px) rotateX(0deg) rotateY(-4deg);}
+  100%  {transform:perspective(520px) rotateX(0deg) rotateY(0deg);}
+}
+.card-wobble-a, .card-wobble-b{
+  /* Veloce e breve, come chiesto: tre giri in poco piu' di mezzo secondo.
+     `linear` di proposito — lo smorzamento e' gia' nelle ampiezze, aggiungerci
+     anche un'accelerazione lo renderebbe molle. */
+  animation:cardWobble 0.56s linear;
+  transform-box:fill-box;
+  transform-origin:center center;
+}
+.card-wobble-b{ animation-name:cardWobbleB; }
 
 /* ── Card-draw reveal flip: the same visual "turn over" as .card-flip,
    applied to the FLYING GHOST svg (see drawAndAnimate) so a drawn card
@@ -4914,10 +5008,10 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
        request: primary is now "Login" (was "Crea account" placeholder
        text), secondary stays "Esci dal gioco". -->
   <div id="start-buttons">
-    <button id="btn-start" class="start-fade sab-primary start-art-btn" onclick="playSfxFile('click.wav',0.3);requestNewGame(false)">
+    <button id="btn-start" class="start-fade sab-primary start-art-btn" onclick="requestNewGame(false)">
       <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Login</span>
     </button>
-    <button id="btn-start-ai" class="start-fade sab-secondary start-art-btn" onclick="playSfxFile('click.wav',0.3);requestNewGame(true)">
+    <button id="btn-start-ai" class="start-fade sab-secondary start-art-btn" onclick="requestNewGame(true)">
       <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Esci</span>
     </button>
   </div>
@@ -5187,7 +5281,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.73.10</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.73.11</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -6612,6 +6706,48 @@ const _sfxBuffers={};
       .catch(()=>{ /* decode/fetch failure: the new-Audio() fallback below still covers this file */ });
   }
 })();
+
+// ═══════════════════════════════════════════════════════════════════════════
+// v0.73.11 — IL CLICK LO SUONA UN ASCOLTATORE SOLO, PER TUTTI
+// ═══════════════════════════════════════════════════════════════════════════
+// Il suono del click stava scritto a mano dentro l'onclick dei due pulsanti
+// dello schermo iniziale. Metterlo su ognuno degli altri sarebbe stato un
+// lavoro da rifare a ogni pulsante nuovo, e il primo che se ne dimentica lascia
+// un pulsante muto — in silenzio, senza che niente lo segnali.
+//
+// Qui invece c'e' UN ascoltatore solo, sul documento, in fase di cattura: ogni
+// click risale fino a lui, lui guarda se sotto al puntatore c'e' qualcosa di
+// premibile e suona. Vale per i pulsanti che esistono adesso, per quelli che
+// verranno creati fra un'ora e per quelli disegnati dentro l'SVG del tabellone
+// — nessuno deve piu' ricordarsi di niente.
+//
+// Cosa conta come "premibile": un <button>, un <a>, un elemento con
+// role="button", e le classi dei pulsanti disegnati di questo gioco. Le carte
+// no: hanno i loro suoni (pesca, presa, posa) e sovrapporgli un click li
+// sporcherebbe. Un elemento puo' chiamarsi fuori con data-no-click-sfx.
+const SELETTORE_PREMIBILE = 'button, a[href], [role="button"], .start-art-btn, .alice-icon-btn, .hx-icon-btn';
+function abilitaSuonoClickGlobale(){
+  document.addEventListener('click', (e)=>{
+    // composedPath perche' il bersaglio vero, dentro un pulsante disegnato,
+    // e' spesso un figlio (uno <span> di riempimento, un'immagine mascherata).
+    const percorso = (typeof e.composedPath === 'function') ? e.composedPath() : [e.target];
+    for(const nodo of percorso){
+      if(!nodo || nodo.nodeType !== 1) continue;
+      if(nodo.hasAttribute && nodo.hasAttribute('data-no-click-sfx')) return;
+      const premibile = (nodo.matches && nodo.matches(SELETTORE_PREMIBILE))
+        || (nodo.classList && nodo.classList.contains('hx-clickable'));
+      if(premibile){
+        // Volume fisso: e' un ritorno dell'interfaccia, non un suono di gioco,
+        // e deve restare uguale anche prima che il giocatore abbia mai visto i
+        // cursori del volume.
+        playSfxFile('click.wav', 0.3);
+        return;
+      }
+      if(nodo === document.body) return;
+    }
+  }, true);
+}
+abilitaSuonoClickGlobale();
 
 // Per-sound gain adjustments, expressed in dB and converted to a linear
 // multiplier (10^(dB/20)) — lets individual sfx be louder/quieter than the
@@ -12788,6 +12924,9 @@ const TILE_ABILITIES_DEF = {
   // v0.73.5 — Regina di Cuori. Non tocca niente in campo: mette una taglia
   // sulla prossima pescata di chi la gioca (vedi G.bonusProssimaPescata).
   off_with_the_head: { name:'Off With the Head!',  desc:'The next card you *draw* earns +2 ALL.' },
+  // v0.73.11 — Magic Mirror. L'unica abilita' che ferma il turno per chiedere
+  // qualcosa al giocatore: vedi SCELTE_PIAZZAMENTO e bersagliMagicMirror.
+  magic_mirror:      { name:'Magic Mirror',        desc:'*Copies* a selected adjacent character ability.' },
 };
 
 // ── v0.73.8 — IL GRASSETTO LO DECIDE SOLO IL FOGLIO ────────────────────────
@@ -13097,6 +13236,13 @@ function initGame(vsAI){
     bonusProssimaPescata:{1:0,2:0},
     // L'ultima conquista di ciascun giocatore, per Morgana: {cella, exProprietario}.
     ultimaConquista:{1:null,2:null},
+    // La cella che sta girando adesso e il proprietario da mostrare finche' il
+    // giro non arriva a meta' (vedi attivaSmokeAndMirrors e renderBoard).
+    girataInCorso:null,
+    // La scelta di un bersaglio in attesa del giocatore, se ce n'e' una aperta
+    // (vedi apriSceltaBersaglio). E' l'unico stato che mette la partita in
+    // pausa: chi lo apre DEVE anche chiuderlo, per entrambi i giocatori.
+    sceltaBersaglio:null,
     destroyedHoles:new Set(), // cells whose blocked tile was removed via Distruggere — rendered with the special "free-tile-destroyed" art
     fortifiedCells:new Set(),
     // conqueredHistory teneva la lista delle carte che ognuna aveva conquistato,
@@ -13471,6 +13617,14 @@ function stopScreenEdgeFlash(){
 
 function autoPlay(player){
   if(G.gameOver)return;
+  // v0.73.11 — se il tempo scade mentre una scelta e' aperta, la scelta si
+  // chiude come una rinuncia e il turno prosegue. Senza questo la finestra
+  // resterebbe aperta e il timer, ormai scattato, non tornerebbe piu' a
+  // chiuderla.
+  if(G.sceltaBersaglio && G.sceltaBersaglio.giocatore===player){
+    chiudiSceltaBersaglio(null);
+    return;
+  }
   // Auto-play only for the player whose turn is actually active. Guards against a
   // stale timer firing after the turn already changed to the other player.
   player = player || G.currentPlayer;
@@ -14019,10 +14173,17 @@ function doPlace(card,playerIdx,q,r){
     // sulla pescata, una conquista annullata, un dado tirato): vedi
     // EFFETTI_PIAZZAMENTO_REALI per il perche' stiano in un registro a parte.
     applicaEffettiRealiPiazzamento(card, q, r, cellAbilityKey);
-    // v0.73.5 — qui c'era la finestra decisionale di Alice (scambia i valori
-    // o lascia stare). L'abilita' e' stata riscritta: adesso agisce mentre la
-    // carta e' IN MANO e non chiede piu' niente al momento del piazzamento,
-    // quindi non c'e' piu' niente da mettere in pausa. Vedi ruotaValoriInMano.
+    // v0.73.11 — le abilita' che devono chiedere un bersaglio al giocatore
+    // fermano qui il turno (vedi apriSceltaBersaglio). Se il tempo era gia'
+    // scaduto non si apre nessuna finestra nuova: si risolve come una rinuncia,
+    // altrimenti si aprirebbe una decisione che nessuno puo' piu' prendere.
+    if(!timeAlreadyExpired && apriSceltaBersaglio(card, player, q, r, k, cellAbilityKey)){
+      renderBoard();
+      // Il timer va rifatto partire: doPlace l'aveva fermato, e senza di lui la
+      // finestra resterebbe aperta all'infinito se il giocatore si distrae.
+      startTimer();
+      return;
+    }
   }
 
   resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey);
@@ -14192,19 +14353,144 @@ function attivaSmokeAndMirrors(card){
   G.ultimaConquista[avversario] = null;
   // Quando lo specchio risponde, la carta torna indietro girandosi e con un
   // lampo: e' l'unico modo per accorgersene, visto che non c'e' nessun colpo
-  // ne' nessun avviso a raccontarlo. Il rinvio serve perche' in questo istante
-  // la plancia non e' ancora stata ridisegnata — la carta a cui agganciare
-  // l'animazione non esiste ancora (vedi resolveConquestAndEndTurn, che
-  // ridisegna subito dopo).
+  // ne' nessun avviso a raccontarlo.
+  //
+  // Il proprietario nel modello e' gia' cambiato qui sopra — deve esserlo, il
+  // gioco ci ragiona sopra da subito — ma A SCHERMO la carta resta di chi era
+  // finche' il giro non arriva a meta'. Ci pensa `girataInCorso`, che
+  // renderBoard legge per dipingere questa cella com'era prima; a meta' giro
+  // si spegne e i livelli colorati vengono scambiati sul posto, esattamente
+  // come fa la conquista.
   const cellaColpita = ultima.cella;
+  G.girataInCorso = { cella: cellaColpita, ownerPrima: avversario };
+  const MEZZO_GIRO_MS = 158; // meta' dei 315ms di .card-flip
   setTimeout(()=>{
+    // Il rinvio serve perche' in questo istante la plancia non e' ancora stata
+    // ridisegnata: la carta a cui agganciare l'animazione non esiste ancora
+    // (vedi resolveConquestAndEndTurn, che ridisegna subito dopo).
     const el = elementoCarta(cellaColpita);
-    if(!el) return;
+    if(!el){ G.girataInCorso = null; return; }
     giraCarta(el);
     lampeggiaCarta(el);
     playSfxFile('card-flip.mp3');
+    setTimeout(()=>{
+      G.girataInCorso = null;
+      const cellaOra = G.board[cellaColpita];
+      const elOra = elementoCarta(cellaColpita);
+      if(elOra && cellaOra) swapCardOwnerVariant(elOra, cellaOra.owner, cellaOra.card);
+    }, MEZZO_GIRO_MS);
   }, 200);
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// v0.73.11 — QUANDO UN'ABILITA' DEVE CHIEDERE QUALCOSA AL GIOCATORE
+// ═══════════════════════════════════════════════════════════════════════════
+// Alcune abilita' non possono risolversi da sole: hanno bisogno che qualcuno
+// indichi un bersaglio. Fermano quindi la partita, mostrano dove si puo'
+// cliccare, e aspettano.
+//
+// Fermare la partita e' la cosa piu' pericolosa che un'abilita' possa fare: se
+// nessuno chiude la finestra, il gioco resta li' per sempre. Per questo lo
+// schema sta scritto UNA volta sola, qui, invece che dentro ogni abilita':
+//
+//   - `SCELTE_PIAZZAMENTO[chiave]` guarda la situazione e restituisce l'elenco
+//     dei bersagli leciti, cosa fare quando se ne sceglie uno, e cosa fare se
+//     si rinuncia. Se non c'e' nessun bersaglio restituisce null e la finestra
+//     non si apre nemmeno: nessuna pausa, nessuna X da cliccare a vuoto.
+//   - renderBoard disegna da solo il mirino sui bersagli e la X sull'origine,
+//     leggendo questo stato. Nessuna abilita' disegna niente per conto proprio.
+//   - l'IA (vedi aiResolvePendingAbilityIfAny) chiude SEMPRE la finestra, e il
+//     timer del turno (vedi autoPlay) la chiude se scade il tempo.
+//
+// Un'abilita' nuova che debba chiedere un bersaglio si aggiunge qui e ottiene
+// gratis il disegno, il comportamento dell'IA e la scadenza del tempo.
+const SCELTE_PIAZZAMENTO = {
+  magic_mirror: (card, q, r, giocatore) => {
+    const bersagli = bersagliMagicMirror(q, r);
+    if(!bersagli.length) return null; // nessuno da copiare: si tira dritto
+    return {
+      chiave: 'magic_mirror',
+      giocatore,
+      cellaOrigine: key(q,r),
+      bersagli,
+      applica: (cella) => copiaAbilitaDa(card, cella, q, r),
+      rinuncia: () => {}
+    };
+  }
+};
+
+// I vicini di Magic Mirror che hanno davvero un'abilita' da copiare. Di
+// chiunque siano: lo specchio riflette anche il nemico. Si escludono gli altri
+// specchi, altrimenti copiare aprirebbe una seconda scelta dentro la prima.
+function bersagliMagicMirror(q, r){
+  const trovati = [];
+  for(const dir of DIRS){
+    const nk = key(q+dir.dq, r+dir.dr);
+    const vicino = G.board[nk];
+    if(!vicino || !vicino.card) continue;
+    const sua = abilitaAttivaDi(vicino.card);
+    if(!sua || sua === 'magic_mirror') continue;
+    trovati.push(nk);
+  }
+  return trovati;
+}
+
+// Lo specchio prende l'abilita' del vicino scelto e la usa subito. "Usarla
+// subito" serve per le abilita' che agiscono al piazzamento (rubare, guarire):
+// copiarle e non attivarle vorrebbe dire copiare niente, perche' il loro
+// momento e' gia' passato. Quelle che invece vivono nel tempo — attaccare col
+// valore piu' alto, contare i Small in campo — funzionano perche' l'abilita'
+// resta scritta sulla carta.
+// Non si riapre nessuna scelta: i vicini con la scelta sono gia' esclusi
+// dai bersagli, ma il controllo resta qui perche' e' qui che farebbe danno.
+function copiaAbilitaDa(specchio, cellaBersaglio, q, r){
+  const bersaglio = G.board[cellaBersaglio];
+  if(!bersaglio || !bersaglio.card) return;
+  const copiata = abilitaAttivaDi(bersaglio.card);
+  if(!copiata || SCELTE_PIAZZAMENTO[copiata]) return;
+  specchio.cardAbility = copiata;
+  specchio.activatedTileAbility = copiata;
+  specchio.abilityLocked = false;
+  specchio.abilitaCopiataDa = bersaglio.card.name || cellaBersaglio;
+  if(!specchio.tileAbilityBaseValues) specchio.tileAbilityBaseValues = {...specchio.values};
+  applicaAbilitaPiazzamento(specchio, q, r, copiata);
+  applicaEffettiRealiPiazzamento(specchio, q, r, copiata);
+}
+
+// Apre la finestra, se questa abilita' ne ha una e se ci sono bersagli.
+// Restituisce true quando la partita e' stata messa in pausa: chi chiama deve
+// fermarsi li' e lasciare che sia la scelta a far proseguire il turno.
+function apriSceltaBersaglio(card, player, q, r, k, chiaveAbilita){
+  const costruisci = SCELTE_PIAZZAMENTO[chiaveAbilita];
+  if(typeof costruisci !== 'function') return false;
+  const scelta = costruisci(card, q, r, player);
+  if(!scelta) return false;
+  scelta.card = card; scelta.q = q; scelta.r = r; scelta.k = k;
+  scelta.chiaveAbilita = chiaveAbilita;
+  G.sceltaBersaglio = scelta;
+  G.selected=null; G.dragging=null; G.dragOver=null;
+  return true;
+}
+
+// Chiude la finestra e fa proseguire il turno. `cella` e' il bersaglio scelto,
+// oppure null se si e' rinunciato. Passa da qui SEMPRE, chiunque decida:
+// il giocatore, l'IA o il tempo scaduto — cosi' non esiste un modo di uscire
+// che si dimentichi di far ripartire la partita.
+function chiudiSceltaBersaglio(cella){
+  const scelta = G.sceltaBersaglio;
+  if(!scelta) return;
+  G.sceltaBersaglio = null;
+  try {
+    if(cella && scelta.bersagli.indexOf(cella) >= 0) scelta.applica(cella);
+    else if(typeof scelta.rinuncia === 'function') scelta.rinuncia();
+  } catch(_){ /* un'abilita' che lancia non deve comunque bloccare il turno */ }
+  // skipLandAnim: la carta e' gia' stata dipinta su questa cella dal render
+  // che ha aperto la finestra, non si e' mossa, e rigiocarle l'atterraggio
+  // sarebbe un lampo senza motivo.
+  resolveConquestAndEndTurn(scelta.card, scelta.giocatore, scelta.q, scelta.r, scelta.k, scelta.chiaveAbilita, true);
+}
+function scegliBersaglio(cella){ chiudiSceltaBersaglio(cella); }
+function rinunciaSceltaBersaglio(){ chiudiSceltaBersaglio(null); }
 
 // Hatter — "Have I Gone Mad?". Scatta quando gliela portano via: cambia nome e
 // ogni suo gruppo valore pesca un numero da 1 a 3 per conto proprio, quindi la
@@ -14404,15 +14690,43 @@ let _recoilToggle = 0;
 // funzioni a se': chiunque cambi la fazione di una carta puo' raccontarlo allo
 // stesso modo, senza ricopiare niente.
 let _giroToggle = 0;
+const GIRO_DUR_MS = 315;    // deve combaciare con .card-flip / .card-hop
+const TRABALLIO_DUR_MS = 560; // deve combaciare con .card-wobble
+// Il giro completo di una carta sul tabellone: si stacca dal tavolo, ruota, e
+// atterrando traballa in tondo come una moneta che si posa. Le tre animazioni
+// stanno su tre elementi annidati diversi (vedi il CSS): messe sullo stesso
+// elemento si escluderebbero a vicenda, perche' animano tutte `transform`.
 function giraCarta(el){
   if(!el) return false;
-  // Le due classi si alternano perche' hanno due animation-name diversi: e' il
-  // solo modo perche' un secondo giro riparta davvero mentre il primo e'
-  // ancora in corso (vedi .card-flip nel CSS). getBoundingClientRect, e non
-  // offsetWidth, perche' qui siamo su elementi SVG.
-  el.classList.remove('card-flip','card-flip-a','card-flip-b');
+  const salto = el;
+  const giro = el.querySelector('[data-role="flip-host"]') || el;
+  const traballio = el.querySelector('[data-role="wobble-host"]');
+  // Quanto in alto salta: proporzionale alla carta, non un numero fisso —
+  // la plancia si ridimensiona con la finestra e un salto di 14px su una
+  // carta piccola sarebbe un balzo, su una grande un fremito.
+  try {
+    const bbox = el.getBBox();
+    if(bbox && bbox.height) salto.style.setProperty('--hop', (bbox.height*0.13).toFixed(1)+'px');
+  } catch(_){}
+  // Le classi si alternano perche' hanno due animation-name diversi: e' il solo
+  // modo perche' un secondo giro riparta davvero mentre il primo e' ancora in
+  // corso (vedi .card-flip nel CSS). getBoundingClientRect, e non offsetWidth,
+  // perche' qui siamo su elementi SVG e li' offsetWidth non esiste.
+  const pari = (_giroToggle++ % 2===0);
+  giro.classList.remove('card-flip','card-flip-a','card-flip-b');
+  salto.classList.remove('card-hop-a','card-hop-b');
   void el.getBoundingClientRect();
-  el.classList.add((_giroToggle++ % 2===0) ? 'card-flip-a' : 'card-flip-b');
+  giro.classList.add(pari ? 'card-flip-a' : 'card-flip-b');
+  if(salto !== giro) salto.classList.add(pari ? 'card-hop-a' : 'card-hop-b');
+  // Il traballio comincia quando la carta ha toccato: non prima, o sembrerebbe
+  // che tremi a mezz'aria.
+  if(traballio){
+    setTimeout(()=>{
+      traballio.classList.remove('card-wobble-a','card-wobble-b');
+      void traballio.getBoundingClientRect();
+      traballio.classList.add(pari ? 'card-wobble-a' : 'card-wobble-b');
+    }, GIRO_DUR_MS);
+  }
   return true;
 }
 // Lampo bianco sagomato sulla carta: un poligono esagonale ricavato dal suo
@@ -15201,6 +15515,9 @@ let pendingTimerStartAfterBanner=null;
 function maybeTriggerAiTurn(){
   if(!G.vsAI || G.gameOver) return;
   if(G.currentPlayer!==2) return;
+  // Una scelta aperta va risolta prima di qualunque altra cosa: se e' dell'IA
+  // la chiude lei, se e' del giocatore l'IA non deve muoversi.
+  if(G.sceltaBersaglio) return;
   // Snapshot the game generation so a stale timer from a game that's since
   // been reset (Nuova Partita clicked mid-delay) can't fire aiPlay() into a
   // brand new game's state.
@@ -15975,12 +16292,33 @@ function aiPlay(){
 //   1. il ramo in doPlace() apre uno stato e ritorna?
 //   2. c'e' un aiResolveXxx() e un ramo qui dentro?
 //   3. l'overlay in renderBoard() e' guardato da `player===1`?
-// v0.73.5 — al momento non esiste piu' nessuna abilita' che apra una finestra
-// decisionale: Alice era l'ultima, ed e' stata riscritta. La funzione resta,
-// vuota, perche' la checklist qui sopra vale per la prossima che ne aprira'
-// una — e perche' il punto in cui agganciarla dev'essere gia' li' quando
-// servira', invece di essere una cosa da ricordarsi.
+// v0.73.11 — l'IA CHIUDE SEMPRE la finestra, qualunque essa sia.
+// La regola non e' "l'IA gioca bene", e' "l'IA non lascia la partita appesa".
+// Sono due cose diverse e la seconda viene prima: una scelta mediocre fa
+// perdere una mano, una scelta mai fatta blocca il gioco per sempre.
+//
+// Come sceglie: se per quell'abilita' esiste una valutazione scritta apposta
+// (VALUTAZIONI_IA) la si usa. Se non esiste — cioe' se e' un'abilita' che
+// nessuno le ha ancora insegnato — tira a sorte fra i bersagli disponibili e
+// la rinuncia. Tirare a sorte e' un ripiego dichiarato, non una svista:
+// meglio una mossa a caso che una partita ferma, e il giorno in cui si vorra'
+// insegnarle davvero quell'abilita' basta aggiungere una voce qui sotto.
+const VALUTAZIONI_IA = {
+  // magic_mirror: non ancora insegnata — sceglie a caso, vedi sopra.
+};
 function aiResolvePendingAbilityIfAny(){
+  const scelta = G.sceltaBersaglio;
+  if(!scelta || scelta.giocatore !== 2) return;
+  const valuta = VALUTAZIONI_IA[scelta.chiaveAbilita];
+  let bersaglio = null;
+  if(typeof valuta === 'function'){
+    try { bersaglio = valuta(scelta); } catch(_){ bersaglio = null; }
+  } else {
+    // A sorte fra tutti i bersagli piu' l'opzione "lascio stare".
+    const opzioni = scelta.bersagli.concat([null]);
+    bersaglio = opzioni[Math.floor(Math.random()*opzioni.length)];
+  }
+  chiudiSceltaBersaglio(bersaglio);
 }
 
 
@@ -22061,6 +22399,27 @@ function tileVariant(arr, q, r){
   return arr[(Math.abs(q*7+r*13))%arr.length];
 }
 
+// ── v0.73.11 — COME SI DICE "QUESTA SI PUO' SCEGLIERE" ─────────────────────
+// Un esagono che copre tutto il tassello, colore D2BB8A al 30% in plus-lighter:
+// schiarisce quello che c'e' sotto invece di coprirlo, quindi la carta resta
+// leggibile mentre la si sta scegliendo.
+// E' una funzione a se' perche' questa e' la risposta a una domanda che
+// tornera': "su quali carte posso cliccare adesso?". Ogni abilita' futura che
+// chieda un bersaglio deve usare questa, non inventarsi la propria — un gioco
+// dove ogni abilita' evidenzia a modo suo costringe a re-imparare l'interfaccia
+// a ogni carta nuova.
+const COLORE_BERSAGLIO = '#D2BB8A';
+function evidenziaBersaglio(svg, x, y, R){
+  const alone = svgEl('polygon');
+  alone.setAttribute('points', ptStr(x, y, R-BOARD_GAP));
+  alone.setAttribute('fill', COLORE_BERSAGLIO);
+  alone.setAttribute('opacity', '0.3');
+  alone.style.mixBlendMode = 'plus-lighter';
+  alone.style.pointerEvents = 'none';
+  svg.appendChild(alone);
+  return alone;
+}
+
 // ── TILE CELL DRAWING ───────────────────────────────────────────
 // Draws a hex cell with a tile image clipped to the hex shape.
 // Returns the clip-path overlay path for event handling.
@@ -22247,10 +22606,22 @@ function renderBoard(){
     // rendere condizionale il return si ri-programma un render appena
     // l'intro finisce. Il flag evita di accumulare un timer per ogni
     // renderBoard saltato.
-    // v0.73.5 — non c'e' piu' nessuna finestra decisionale da proteggere
-    // (Alice era l'ultima). Il meccanismo di recupero va rimesso identico il
-    // giorno in cui un'abilita' tornera' a chiedere un click, altrimenti la
-    // partita si blocchera' di nuovo in attesa di comandi mai disegnati.
+    // v0.73.11 — la finestra di scelta di un bersaglio e' tornata (Magic
+    // Mirror), quindi la rete di sicurezza serve di nuovo: senza, i suoi
+    // comandi non verrebbero mai disegnati e la partita resterebbe in attesa
+    // di un click su qualcosa che non esiste.
+    if(G.sceltaBersaglio && !_pendingOverlayRender){
+      _pendingOverlayRender = setTimeout(function riprovaOverlay(){
+        _pendingOverlayRender = null;
+        if(!G || G.gameOver) return;
+        if(!G.sceltaBersaglio) return; // risolta nel frattempo
+        if(G.boardDropAnimInProgress){ // intro ancora in corso: riprova
+          _pendingOverlayRender = setTimeout(riprovaOverlay, 120);
+          return;
+        }
+        renderBoard();
+      }, 120);
+    }
     return;
   }
   const svg=document.getElementById('board-svg');
@@ -22360,9 +22731,39 @@ function renderBoard(){
       // reads placed.card.values so the synergy bonus is already baked in
       // by the time any faction-bonus/delta math below runs.
       recalcHoorayShesStays(placed.card);
-      const fc=placed.owner===1?'var(--red-bg)':'var(--blue-bg)';
-      const sc=placed.owner===1?'var(--red)':'var(--blue)';
-      const tc=placed.owner===1?'var(--red-light)':'var(--blue-light)';
+      // v0.73.11 FIX ("quando si droppa una carta su un tile, sembra che
+      // sparisca il disegno del tile sotto"): non sembrava, spariva davvero.
+      // Una cella occupata disegnava SOLO la carta: il tassello non veniva
+      // proprio creato, e sotto la carta non c'era niente. Finche' la carta e'
+      // opaca e ferma non si nota, ma basta che si alzi, si giri o si inclini
+      // — e con il nuovo saltello del giro succede a ogni conquista — perche'
+      // sotto si veda il fondo della plancia invece del tassello.
+      // Il tassello si disegna adesso sempre, per primo; la carta gli finisce
+      // sopra perche' in SVG l'ordine del documento E' l'ordine di disegno.
+      // `placeable` e' false di proposito: la cella e' occupata, evidenziarla
+      // come giocabile sarebbe una bugia.
+      const tileSottoSrc = (G.destroyedHoles && G.destroyedHoles.has(k))
+        ? tileVariant(TILE_FIXED,q,r)
+        : isMagicTile(k)
+          ? tileVariant(TILE_MAGIC,q,r)
+          : tileVariant(TILE_FREE,q,r);
+      drawTileCell(svg,x,y,R,tileSottoSrc,k+'f',false);
+      // v0.73.11 FIX ("quando morgana procca, il bordo cambia colore molto
+      // prima della metà dell'animazione"): il cambio di proprietario e' JS
+      // istantaneo, il giro e' un'animazione di 315ms. Se la plancia viene
+      // ridisegnata col proprietario NUOVO e solo dopo parte il giro, il
+      // colore e' gia' cambiato prima che la carta si muova — un "pop", non un
+      // ribaltamento. La conquista risolve la stessa cosa dipingendo le celle
+      // conquistate col proprietario VECCHIO per un render e scambiando i
+      // livelli a meta' giro (vedi swapCardOwnerVariant).
+      // Qui la stessa regola vive in un flag, perche' fra il momento in cui
+      // Morgana agisce e il giro passano piu' render, non uno solo: finche'
+      // `girataInCorso` punta a questa cella, la si dipinge com'era PRIMA.
+      const ownerDisegnato = (G.girataInCorso && G.girataInCorso.cella===k)
+        ? G.girataInCorso.ownerPrima : placed.owner;
+      const fc=ownerDisegnato===1?'var(--red-bg)':'var(--blue-bg)';
+      const sc=ownerDisegnato===1?'var(--red)':'var(--blue)';
+      const tc=ownerDisegnato===1?'var(--red-light)':'var(--blue-light)';
       const bonusInfo=getFactionBonus(placed.card,q,r,G.board);
       let factionDeltas={};
       for(const s of SIDES) factionDeltas[s]=bonusInfo.values[s]-placed.card.values[s];
@@ -22420,12 +22821,27 @@ function renderBoard(){
       // Le due animazioni vivono ora su elementi annidati: il giro qui, il
       // contraccolpo sul gruppo interno. Annidate, le trasformazioni si
       // compongono invece di escludersi.
+      // v0.73.11 — i piani sono diventati quattro, uno per animazione, perche'
+      // ognuna di esse anima `transform` e sullo stesso elemento si
+      // escluderebbero (vedi il CSS del giro). Dall'esterno all'interno:
+      //   [data-conquered]   il salto, quando la carta si stacca dal tavolo
+      //   flip-host          il giro vero e proprio
+      //   recoil-host        il contraccolpo del colpo incassato
+      //   wobble-host        il traballio della moneta che si posa
+      // Annidate, le trasformazioni si compongono: la carta puo' saltare,
+      // girare, incassare e traballare tutto insieme.
+      const flipGroup=document.createElementNS('http://www.w3.org/2000/svg','g');
+      flipGroup.setAttribute('data-role','flip-host');
+      cardGroup.appendChild(flipGroup);
       const recoilGroup=document.createElementNS('http://www.w3.org/2000/svg','g');
       recoilGroup.setAttribute('data-role','recoil-host');
-      cardGroup.appendChild(recoilGroup);
+      flipGroup.appendChild(recoilGroup);
+      const wobbleGroup=document.createElementNS('http://www.w3.org/2000/svg','g');
+      wobbleGroup.setAttribute('data-role','wobble-host');
+      recoilGroup.appendChild(wobbleGroup);
       // Merge placed.owner into card so border-top reflects current owner after conquest
-      const cardWithOwner = {...placed.card, owner: placed.owner};
-      drawHexCard(recoilGroup,x,y,R,cardWithOwner,fc,sc,tc,placed.card.name,false,null,null,true,displayValuesForCell,factionDeltas);
+      const cardWithOwner = {...placed.card, owner: ownerDisegnato};
+      drawHexCard(wobbleGroup,x,y,R,cardWithOwner,fc,sc,tc,placed.card.name,false,null,null,true,displayValuesForCell,factionDeltas);
       // v0.71.6 FIX ("bisogna rimuovere il cerchietto abilità al centro
       // della carta. è obsoleto"): the activated-ability badge (a circle +
       // icon permanently sitting over the middle of every placed card with
@@ -22678,21 +23094,31 @@ function renderBoard(){
     return btnGroup;
   }
 
-  // v0.72.72 — qui c'erano gli overlay di scelta di Bufera (scegli la carta
-  // con cui scambiarti) e Distruggere (scegli la casella bloccata da riparare).
-  // Erano le uniche due abilita' del prototipo che mettevano in pausa il turno
-  // per chiedere qualcosa al giocatore, e se ne sono andate con loro. Il
-  // meccanismo che avevano inaugurato resta vivo nell'overlay di Alice qui
-  // sotto, che e' modellato su di essi.
-  // ── Alice "Eat me, Drink me" UI overlay ──
-  // A differenza degli overlay a bersaglio (che evidenziavano ALTRE celle da
-  // scegliere), questa abilita' non ha un bersaglio — solo due icone impilate
-  // al centro della carta di Alice:
-  // v0.73.5 — qui c'erano i due comandi di Alice (conferma lo scambio /
-  // lascia stare), disegnati sopra la sua carta. La sua abilita' non chiede
-  // piu' niente al giocatore, quindi non c'e' piu' niente da disegnare.
-
-
+  // ── v0.73.11 — I COMANDI DELLA SCELTA DI UN BERSAGLIO ────────────────────
+  // Il mirino sulle carte che si possono indicare, la X rossa sulla carta di
+  // chi sta scegliendo. Sono disegnati QUI, una volta sola, leggendo
+  // G.sceltaBersaglio: nessuna abilita' disegna comandi per conto proprio, e
+  // quindi nessuna abilita' nuova puo' dimenticarsene.
+  //
+  // La guardia su `giocatore===1` non e' un dettaglio: questa e' interfaccia
+  // per una persona. Se la finestra appartiene all'IA e per qualche motivo
+  // fosse ancora aperta, mostrarla farebbe decidere al giocatore al posto
+  // dell'avversario — e' un bug gia' successo, con Alice, in v0.72.28.
+  if(G.sceltaBersaglio && G.sceltaBersaglio.giocatore===1){
+    const scelta = G.sceltaBersaglio;
+    for(const cella of scelta.bersagli){
+      const c = G.cells.find(x=>key(x.q,x.r)===cella);
+      if(!c) continue;
+      const {x:bx,y:by} = axialToPixel(c.q,c.r,cx,cy,R);
+      evidenziaBersaglio(svg, bx, by, R);
+      buildSvgIconBtn(CARD_PARTS_BASE+'crosshair-icon.png', bx, by, R*0.62, ()=>scegliBersaglio(cella));
+    }
+    const orig = G.cells.find(x=>key(x.q,x.r)===scelta.cellaOrigine);
+    if(orig){
+      const {x:ox,y:oy} = axialToPixel(orig.q,orig.r,cx,cy,R);
+      buildSvgIconBtn(CARD_PARTS_BASE+'close-icon-red.png', ox, oy, R*0.42, ()=>rinunciaSceltaBersaglio());
+    }
+  }
 }
 
 // ── FULL RENDER ──────────────────────────────────────────────────
