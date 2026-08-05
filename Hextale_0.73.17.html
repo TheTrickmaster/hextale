@@ -5290,7 +5290,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.73.16</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.73.17</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -14509,6 +14509,11 @@ function attivaSmokeAndMirrors(card){
 // gratis il disegno, il comportamento dell'IA e la scadenza del tempo.
 const SCELTE_PIAZZAMENTO = {
   magic_mirror: (card, q, r, giocatore) => {
+    // Da qui in poi questa carta e' uno specchio per sempre, qualunque
+    // abilita' finisca per portare addosso: e' il marchio che impedisce a un
+    // altro specchio di prenderla di mira anche dopo che ha copiato qualcosa
+    // (vedi bersagliMagicMirror).
+    card.eSpecchio = true;
     const bersagli = bersagliMagicMirror(q, r);
     if(!bersagli.length) return null; // nessuno da copiare: si tira dritto
     return {
@@ -14533,6 +14538,16 @@ function bersagliMagicMirror(q, r){
     const vicino = G.board[nk];
     if(!vicino || !vicino.card) continue;
     const nome = vicino.card.name || nk;
+    // Uno specchio non copia MAI un altro specchio. La regola guarda cosa la
+    // carta E', non cosa sa fare in questo momento: uno specchio che ha gia'
+    // copiato qualcosa non ha piu' `magic_mirror` come abilita' — ha quella
+    // presa in prestito — e controllando solo l'abilita' attuale tornerebbe a
+    // essere un bersaglio buono. `eSpecchio` invece resta addosso alla carta
+    // per sempre, quindi la regola vale prima e dopo la copia.
+    if(vicino.card.eSpecchio || vicino.card.cardAbility === 'magic_mirror'){
+      scartati.push(nome + ': e\' un altro specchio');
+      continue;
+    }
     const sua = abilitaAttivaDi(vicino.card);
     if(!sua){
       scartati.push(nome + (vicino.card.cardAbility ? ': abilita\' non ancora sbloccata dal livello' : ': non ha abilita\''));
@@ -14570,8 +14585,14 @@ function bersagliMagicMirror(q, r){
 function copiaAbilitaDa(specchio, cellaBersaglio, q, r){
   const bersaglio = G.board[cellaBersaglio];
   if(!bersaglio || !bersaglio.card) return;
+  // Seconda guardia, deliberatamente ridondante con bersagliMagicMirror: uno
+  // specchio non copia mai un altro specchio, e la cosa non deve dipendere dal
+  // fatto che l'elenco dei bersagli sia stato compilato bene. E' la regola
+  // scritta due volte perche' e' l'unica che, se saltasse, farebbe copiare a
+  // uno specchio la capacita' di copiare.
+  if(bersaglio.card.eSpecchio || bersaglio.card.cardAbility === 'magic_mirror') return;
   const copiata = abilitaAttivaDi(bersaglio.card);
-  if(!copiata || SCELTE_PIAZZAMENTO[copiata]) return;
+  if(!copiata || copiata === 'magic_mirror' || SCELTE_PIAZZAMENTO[copiata]) return;
   specchio.cardAbility = copiata;
   specchio.activatedTileAbility = copiata;
   specchio.abilityLocked = false;
