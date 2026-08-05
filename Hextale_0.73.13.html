@@ -5281,7 +5281,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.73.11</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.73.13</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -11360,22 +11360,71 @@ function caricaPatchNotes(){
 // suo: una sola descrizione di cosa vuol dire "ultima versione", per tutti e
 // due. `riferisci` e' facoltativo e serve solo a chi ha un posto dove
 // raccontare l'attesa; il controllo all'avvio lavora in silenzio.
+// Il numero di versione dentro un nome di file, come elenco di numeri:
+// "Hextale_0.73.12.html" -> [0,73,12]. Null se nel nome non c'e' niente del
+// genere. Va confrontato PEZZO PER PEZZO e non come testo, o "0.73.9"
+// risulterebbe piu' recente di "0.73.10" — nell'ordine alfabetico il 9 viene
+// dopo l'1, ed e' un errore che si vede solo dopo dieci versioni.
+function numeroVersioneDa(nome){
+  const m = String(nome||'').match(/(\d+(?:\.\d+)+)/);
+  if(!m) return null;
+  return m[1].split('.').map(n=>parseInt(n,10)).filter(n=>isFinite(n));
+}
+// Negativo se a viene prima di b, positivo se dopo, zero se pari.
+function confrontaVersioni(a, b){
+  if(!a && !b) return 0;
+  if(!a) return -1;
+  if(!b) return 1;
+  const n = Math.max(a.length, b.length);
+  for(let i=0;i<n;i++){
+    const x = a[i]||0, y = b[i]||0;
+    if(x!==y) return x-y;
+  }
+  return 0;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// v0.73.13 — QUAL E' L'ULTIMA VERSIONE: SI GUARDA IL NUMERO, NON LA DATA
+// ═══════════════════════════════════════════════════════════════════════════
+// Prima si sceglieva il file .html committato piu' di recente, chiedendo a
+// GitHub la data dell'ultimo commit di OGNI file. Con una ventina di versioni
+// nel repository sono venti richieste in fila, e GitHub, a chi non si
+// autentica, ne concede sessanta all'ora: quelle oltre il limite falliscono,
+// `_dataUltimoCommit` restituisce 0 per loro, e la piu' recente risulta essere
+// una qualsiasi fra le poche riuscite. Ecco perche' il gioco proponeva di
+// scaricare una versione vecchia come se fosse nuova.
+//
+// La data non serviva nemmeno: il numero e' gia' scritto nel nome del file, e
+// dice esattamente quello che si vuole sapere. Confrontarlo non costa nessuna
+// richiesta, quindi non c'e' nessun limite da superare e nessun risultato
+// parziale da interpretare male. La data resta come ripiego per i soli file il
+// cui nome non contiene un numero di versione.
+//
+// (Questo non "hardcoda il numero di versione": nessun numero e' scritto nel
+// codice. Si legge quello che c'e' nel repository e lo si ordina.)
 function trovaUltimaVersione(riferisci){
   const dillo = t => { if(typeof riferisci === 'function') riferisci(t); };
   return _githubJsonp(GITHUB_REPO_API).then(esito => {
     if(esito.errore) throw new Error(esito.errore);
     const elenco = esito.dati;
     if(!Array.isArray(elenco)) throw new Error('risposta inattesa dal repository');
-    // Qualsiasi .html nella radice del repository. Nessun filtro sul nome: e'
-    // esattamente il vincolo che si vuole evitare, perche' legherebbe il
-    // controllo alla numerazione delle versioni.
     const candidati = elenco.filter(f =>
       f && f.type === 'file' && /\.html?$/i.test(f.name || '') && f.download_url);
     if(!candidati.length) throw new Error('nel repository non c\'e\' nessun file .html');
     if(candidati.length === 1) return candidati[0];
-    // Piu' d'uno: vince quello committato piu' di recente. Se GitHub non
-    // risponde (limite di richieste), _dataUltimoCommit restituisce 0 per tutti
-    // e resta l'ordine dell'elenco, che e' comunque meglio di un errore.
+
+    const numerati = candidati.filter(f => numeroVersioneDa(f.name));
+    if(numerati.length){
+      let migliore = numerati[0], suo = numeroVersioneDa(migliore.name);
+      for(let i=1;i<numerati.length;i++){
+        const q = numeroVersioneDa(numerati[i].name);
+        if(confrontaVersioni(q, suo) > 0){ migliore = numerati[i]; suo = q; }
+      }
+      return migliore;
+    }
+    // Nessun nome contiene un numero: si ripiega sulla data dell'ultimo
+    // commit. Qui le richieste sono poche per definizione, perche' i file
+    // senza numero in un repository di versioni sono l'eccezione.
     dillo('Trovati ' + candidati.length + ' file, guardo quale e\' il piu\' recente…');
     return Promise.all(candidati.map(f => _dataUltimoCommit(f.path || f.name)))
       .then(date => {
@@ -11402,6 +11451,14 @@ function controllaAggiornamentoAllAvvio(){
     const corrente = _nomeFileCorrente();
     if(!file || !file.name) return;
     if(corrente && corrente === file.name) return; // gia' aggiornato: silenzio
+    // v0.73.13 — e mai, per nessun motivo, proporre di tornare INDIETRO.
+    // Qualunque cosa vada storta nella ricerca, il peggio che puo' capitare e'
+    // che l'avviso non compaia: un avviso mancante e' una scocciatura, un
+    // avviso che invita a sostituire il gioco con una versione vecchia fa
+    // perdere lavoro. Questa riga vale a prescindere da come e' stato scelto
+    // il file, e resterebbe giusta anche se il criterio di scelta cambiasse.
+    const suo = numeroVersioneDa(file.name), mio = numeroVersioneDa(corrente);
+    if(suo && mio && confrontaVersioni(suo, mio) <= 0) return;
     _ultimaVersioneTrovata = {nome:file.name, url:file.download_url, sha:file.sha};
     const msg = document.getElementById('patch-notes-update-msg');
     if(msg){
@@ -11452,9 +11509,17 @@ function debugCercaUltimaVersione(){
       // chiamano allo stesso modo. Il messaggio compare nello stesso posto del
       // "Cerco su GitHub…", cosi' si legge dove si stava gia' guardando.
       const corrente = _nomeFileCorrente();
-      const aggiornato = !!corrente && corrente === file.name;
+      // v0.73.13 — "aggiornato" non vuol dire solo "stesso file": vuol dire
+      // anche "quello sul repository non e' piu' recente del mio". Nel menu
+      // debug l'informazione si mostra comunque per intero, perche' li' serve
+      // a capire cosa c'e' davvero sul repository — e' l'avviso all'avvio che
+      // deve tacere, non questo.
+      const suoNum = numeroVersioneDa(file.name), mioNum = numeroVersioneDa(corrente);
+      const nonPiuRecente = suoNum && mioNum && confrontaVersioni(suoNum, mioNum) <= 0;
+      const aggiornato = (!!corrente && corrente === file.name) || nonPiuRecente;
       msg.innerHTML = aggiornato
         ? 'Il client è già aggiornato all\'ultima versione.'
+          + (corrente !== file.name ? '<br>Sul repository la più recente è ' + file.name + '.' : '')
         : 'Ultima versione sul repository: <b>' + file.name + '</b>'
           + (corrente ? ' (stai usando ' + corrente + ').' : '.');
       // Con il client gia' aggiornato i due pulsanti restano comunque
@@ -12926,7 +12991,7 @@ const TILE_ABILITIES_DEF = {
   off_with_the_head: { name:'Off With the Head!',  desc:'The next card you *draw* earns +2 ALL.' },
   // v0.73.11 — Magic Mirror. L'unica abilita' che ferma il turno per chiedere
   // qualcosa al giocatore: vedi SCELTE_PIAZZAMENTO e bersagliMagicMirror.
-  magic_mirror:      { name:'Magic Mirror',        desc:'*Copies* a selected adjacent character ability.' },
+  magic_mirror:      { name:'Spitted Image',       desc:'*Copies* a selected adjacent character ability.' },
 };
 
 // ── v0.73.8 — IL GRASSETTO LO DECIDE SOLO IL FOGLIO ────────────────────────
