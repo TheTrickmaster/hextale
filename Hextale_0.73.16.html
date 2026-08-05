@@ -5290,7 +5290,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.73.15</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.73.16</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -7902,6 +7902,14 @@ function _cardaDaRiga(col, get){
       for(const k in reg){
         // combacia il nome mostrato ("Smol Friends") oppure la chiave stessa
         if(norm(reg[k].name)===cercato || norm(k)===cercato){ abilita=k; break; }
+        // v0.73.16 — oppure uno dei nomi con cui quell'abilita' e' gia' stata
+        // chiamata. Serve perche' il legame fra foglio e codice e' il NOME, e
+        // un nome si cambia: rinominando "Magic Mirror" in "Spitted Image" il
+        // foglio ha smesso di combaciare col registro, la chiave e' diventata
+        // sconosciuta e la carta ha perso l'abilita' SENZA DIRLO — sembrava
+        // rotta, ed era solo scollegata. Ogni nome vecchio resta valido, cosi'
+        // un rinominare non spegne mai piu' una carta.
+        if(Array.isArray(reg[k].altriNomi) && reg[k].altriNomi.some(n=>norm(n)===cercato)){ abilita=k; break; }
       }
     }
     if(!abilita) abilita=abGrezza.toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'');
@@ -8163,7 +8171,18 @@ function _applicaRigheFoglio(righe){
       // NO_SCRIPT in rosso, cosi' lo stato di avanzamento si legge a colpo
       // d'occhio giocando invece che aprendo la console.
       c.abilityNoScript = true;
-      console.warn('[carte] abilita\' non ancora programmata: "'+c.cardAbility+'" su '+c.name);
+      // v0.73.16 — l'avviso dice anche COME rimediare. Il caso piu' comune non
+      // e' un'abilita' davvero da scrivere, e' un nome che nel foglio non
+      // combacia piu' con quello del registro (una rinomina, un refuso): la
+      // carta perde l'abilita' e da fuori sembra rotta. Elencare i nomi
+      // accettati trasforma un'ora di indagine in dieci secondi di lettura.
+      const accettati = Object.keys(registro).map(k=>{
+        const n = [registro[k].name].concat(registro[k].altriNomi||[]);
+        return n.join(' / ');
+      });
+      console.warn('[carte] "'+c.name+'" dichiara l\'abilita\' "'+(c.abilityNameSheet||c.cardAbility)
+        + '", che non corrisponde a nessuna abilita\' programmata: la carta non ne avra\' nessuna.'
+        + '\nNomi che il foglio puo\' usare:\n  ' + accettati.join('\n  '));
     }
   }
   FINAL_CARDS.length=0;
@@ -13005,7 +13024,12 @@ const TILE_ABILITIES_DEF = {
   off_with_the_head: { name:'Off With the Head!',  desc:'The next card you *draw* earns +2 ALL.' },
   // v0.73.11 — Magic Mirror. L'unica abilita' che ferma il turno per chiedere
   // qualcosa al giocatore: vedi SCELTE_PIAZZAMENTO e bersagliMagicMirror.
-  magic_mirror:      { name:'Spitted Image',       desc:'*Copies* a selected adjacent character ability.' },
+  // `altriNomi` sono i nomi con cui questa stessa abilita' e' gia' stata
+  // chiamata nel foglio. Non sono sinonimi decorativi: sono l'unica cosa che
+  // impedisce a un rinominare di scollegare la carta dal suo codice. Chi
+  // cambia il `name` qui sopra aggiunge il vecchio qui sotto, sempre.
+  magic_mirror:      { name:'Spitted Image',       desc:'*Copies* a selected adjacent character ability.',
+                       altriNomi:['Magic Mirror','Spitting Image'] },
 };
 
 // ── v0.73.8 — IL GRASSETTO LO DECIDE SOLO IL FOGLIO ────────────────────────
