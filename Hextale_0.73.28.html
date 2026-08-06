@@ -5322,7 +5322,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.73.27</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.73.28</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -8440,15 +8440,48 @@ function _vociDiPersonaggio(slug){
 // Cosi' un suono appena aggiunto si sente subito, senza aspettare di caricarlo
 // su GitHub — che e' il modo in cui questo gioco viene provato.
 const SUONI_EXTRA = ['the-caterpillar-smoke.mp3'];
+// v0.73.28 — un whoosh per rarita' quando si scopre una carta dalla bustina.
+// Vengono cercati come tutti gli altri asset: prima accanto al file, poi sul
+// repository. Quelli che non esistono ancora non fanno danno — chi non trova
+// il proprio ripiega sul piu' vicino gia' disponibile (vedi whooshDiRarita).
+const WHOOSH_PER_RARITA = {
+  common:   'unpack-whoosh.mp3',
+  rare:     'unpack-whoosh-rare.mp3',
+  mythic:   'unpack-whoosh-mythic.mp3',
+  timeless: 'unpack-whoosh-timeless.mp3',
+};
+const SUONI_SFX_EXTRA = Object.values(WHOOSH_PER_RARITA);
+const SFX_REL = 'audio/sfx/';
+const SFX_BASE = 'https://thetrickmaster.github.io/hextale/audio/sfx/';
 function registraSuoniExtra(){
-  return Promise.all(SUONI_EXTRA.map(nome =>
-    _primoCheEsiste(_candidati(VOCI_REL + nome, VOCI_BASE + nome), _provaAudio)
+  const cerca = (nome, rel, base, obbligatorio) =>
+    _primoCheEsiste(_candidati(rel + nome, base + nome), _provaAudio)
       .then(url => {
         if(url){ registraVociSfx([url]); return; }
-        console.warn('[audio] non trovo "'+nome+'" ne in '+VOCI_REL+' ne sul repository: quel suono restera muto');
+        if(obbligatorio) console.warn('[audio] non trovo "'+nome+'" ne in '+rel+' ne sul repository: quel suono restera muto');
+        else console.info('[audio] "'+nome+'" non c\'e\' ancora: al suo posto si usera\' il whoosh piu\' vicino');
       })
-      .catch(()=>{})
-  ));
+      .catch(()=>{});
+  return Promise.all([
+    ...SUONI_EXTRA.map(n => cerca(n, VOCI_REL, VOCI_BASE, true)),
+    // I whoosh per rarita' non sono obbligatori: se ne manca uno si ripiega.
+    ...SUONI_SFX_EXTRA.map(n => cerca(n, SFX_REL, SFX_BASE, false)),
+  ]);
+}
+
+// Il whoosh che tocca a questa rarita'. Se il file non e' ancora stato
+// caricato si scende di rarita' fino a trovarne uno che esiste: meglio il
+// suono della rarita' vicina che il silenzio, e il giorno in cui il file
+// arriva comincia a sentirsi da solo, senza toccare niente qui.
+function whooshDiRarita(rarita){
+  const i = Math.max(0, ORDINE_RARITA.indexOf(rarita));
+  for(let n=i; n>=0; n--){
+    const file = WHOOSH_PER_RARITA[ORDINE_RARITA[n]];
+    if(!file) continue;
+    const chiave = file.replace(/\.(mp3|wav)$/i,'');
+    if(AUDIO_DATA_URLS[chiave]) return file;
+  }
+  return WHOOSH_PER_RARITA.common;
 }
 
 function verificaArtCarte(){
@@ -9214,7 +9247,12 @@ function giraCartaBustina(carta){
   if(!carta || carta.classList.contains('revealed') || carta.classList.contains('popping')) return;
   if(_bustinaInCorso) return; // ancora in volo: non si tocca
   carta.classList.add('popping');
-  try { playSfxFile('unpack-whoosh.mp3', undefined, saltoSilenzioIniziale('unpack-whoosh')); } catch(_){}
+  // v0.73.28 — il whoosh dipende dalla rarita' della carta che si sta girando.
+  try {
+    const entry = carta.__entry || {};
+    const file = whooshDiRarita(entry.rarity);
+    playSfxFile(file, undefined, saltoSilenzioIniziale(file.replace(/\.(mp3|wav)$/i,'')));
+  } catch(_){}
   _bustinaDopo(BUSTINA_GIRO_RITARDO_MS, ()=>{
     carta.classList.add('revealed');
     carta.classList.remove('popping');
@@ -15074,15 +15112,22 @@ function opacitaFumoPer(card){
   const mia = card && card.owner === G.currentPlayer;
   return mia ? FUMO_OPACITA_PROPRIETARIO : 1;
 }
-// Lo stato del velo NON puo' stare sulla carta. Chi disegna riceve una COPIA
-// della carta (vedi renderBoard: `cardWithOwner = {...placed.card, owner}`),
-// quindi qualunque cosa si scriva li' dentro vive il tempo di un disegno e poi
-// viene buttata. E' per questo che il velo saltava: a ogni ridisegno ripartiva
-// da capo, senza memoria di quanto valesse un istante prima, e quindi senza
-// niente da cui animare.
-// Sta quindi qui, in una mappa per carta, che i ridisegni non toccano.
-// Regola generale: leggere dalla carta si puo', scriverci lo stato di
-// un'animazione no.
+// ═══════════════════════════════════════════════════════════════════════════
+// v0.73.28 — DOVE VIVE LO STATO DI UN'ANIMAZIONE
+// ═══════════════════════════════════════════════════════════════════════════
+// Non sulla carta. Chi disegna riceve una COPIA della carta, non la carta:
+// renderBoard passa `{...placed.card, owner}` e la Collezione passa quella di
+// cardFoilVisualCard. Le copie esistono per una ragione buona — chi disegna
+// non deve poter cambiare il modello di gioco per sbaglio, e certi campi
+// (proprietario attuale, lamina, livelli d'arte) sono cose del DISEGNO, non
+// della carta — ma hanno un difetto: non lo dicono. Un `card.qualcosa = ...`
+// dentro il disegno sembra funzionare, e invece dura il tempo di un
+// fotogramma.
+//
+// Chi ha bisogno di ricordare qualcosa fra un disegno e l'altro lo tiene
+// quindi qui, in una mappa indicizzata per carta, che i ridisegni non toccano.
+// La regola, in una riga: dalla carta si LEGGE; lo stato di un'animazione si
+// scrive altrove.
 const _veloFumo = new Map(); // id carta -> {corrente, prima, da}
 function aggiornaVeloFumo(card){
   const bersaglio = opacitaFumoPer(card);
