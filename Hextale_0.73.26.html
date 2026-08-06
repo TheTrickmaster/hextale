@@ -1949,10 +1949,21 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
    proprietario, piena per l'avversario — vedi opacitaFumoPer).
    `forwards` su entrambe: finita l'animazione l'elemento deve RESTARE dov'e'
    arrivato, altrimenti il fumo tornerebbe di colpo al punto di partenza. */
-@keyframes fumoEntra{ from{opacity:0;} to{opacity:var(--fumo-op,1);} }
-@keyframes fumoEsce { from{opacity:var(--fumo-op,1);} to{opacity:0;} }
-.fumo-entra{ animation:fumoEntra 1.1s ease-out forwards; }
+@keyframes fumoEntra{ from{opacity:0;} to{opacity:1;} }
+@keyframes fumoEsce { from{opacity:1;} to{opacity:0;} }
+.fumo-entra{ animation:fumoEntra 0.85s ease-out forwards; }
 .fumo-esce { animation:fumoEsce 0.6s ease-in forwards; }
+/* Quanto il fumo lascia intravedere sta su un elemento DIVERSO da quello che
+   fa la dissolvenza, e cambia con una transizione invece che di scatto.
+   Il perche' e' che quel valore dipende da chi e' di turno: se stesse sullo
+   stesso elemento della dissolvenza, al cambio turno il bersaglio
+   dell'animazione cambierebbe A META' STRADA e la dissolvenza salterebbe di
+   colpo al nuovo valore. E' il salto che si vedeva quando compariva il banner
+   del cambio turno.
+   La regola generale, buona per ogni animazione futura: cio' che si anima e
+   cio' che dipende dallo stato del turno non stanno mai sullo stesso
+   elemento. */
+.fumo-velo{ transition:opacity 0.25s ease; }
 .card-flip, .card-flip-a, .card-flip-b{
   animation:cardFlip 0.315s ease-in-out;
   transform-box:fill-box;
@@ -5301,7 +5312,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.73.25</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.73.26</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -14928,7 +14939,7 @@ function rimandaFineTurnoFino(istante){
   _fineTurnoNonPrimaDi = Math.max(_fineTurnoNonPrimaDi, istante);
 }
 
-const FUMO_ENTRATA_MS = 1100;  // deve combaciare con .fumo-entra
+const FUMO_ENTRATA_MS = 850;   // deve combaciare con .fumo-entra
 const FUMO_USCITA_MS  = 600;   // deve combaciare con .fumo-esce
 const FUMO_PASSO_MS   = 45;    // ogni quanto i numeri fanno un giro
 
@@ -14937,6 +14948,23 @@ const FUMO_PASSO_MS   = 45;    // ogni quanto i numeri fanno un giro
 // renderBoard ricostruisce tutto da capo piu' volte al secondo e senza questo
 // la dissolvenza ripartirebbe da zero a ogni ridisegno, cioe' non finirebbe
 // mai. E' lo stesso accorgimento gia' usato per l'atterraggio delle carte.
+// Mette l'elemento dentro un gruppo che porta la dissolvenza, e lascia
+// sull'elemento stesso soltanto quanto il fumo e' velato. Due elementi per due
+// cose che cambiano per motivi diversi: la dissolvenza scorre nel tempo, il
+// velo dipende da chi e' di turno. Tenerle insieme faceva saltare la prima
+// ogni volta che cambiava la seconda.
+function avvolgiInDissolvenzaFumo(el, card){
+  if(!el || !el.parentNode) return el;
+  const gruppo = svgEl('g');
+  gruppo.setAttribute('data-role','smoke-fade');
+  el.parentNode.insertBefore(gruppo, el);
+  gruppo.appendChild(el);
+  el.classList.add('fumo-velo');
+  el.setAttribute('opacity', opacitaFumoPer(card));
+  applicaFaseFumo(gruppo, card);
+  return gruppo;
+}
+
 function applicaFaseFumo(el, card){
   if(!el || !card) return;
   const ora = performance.now();
@@ -19020,8 +19048,7 @@ function drawHexCard(svg,cx,cy,R,card,fillColor,strokeColor,textColor,nameText,i
   if(fumoArt){
     const fumoImg = addClippedImage(fumoArt);
     fumoImg.setAttribute('data-role','smoke-art');
-    fumoImg.style.setProperty('--fumo-op', opacitaFumoPer(card));
-    applicaFaseFumo(fumoImg, card);
+    avvolgiInDissolvenzaFumo(fumoImg, card);
   }
 
   // ── v0.72.15: LAMINA OLOGRAFICA, qui e non come overlay HTML ────────────
@@ -19631,13 +19658,8 @@ function drawHexCard(svg,cx,cy,R,card,fillColor,strokeColor,textColor,nameText,i
       fumo.setAttribute('preserveAspectRatio','xMidYMid meet');
       fumo.setAttribute('data-role','smoke-value-cover');
       fumo.style.pointerEvents='none';
-      // L'opacita' di arrivo passa da una variabile perche' le due dissolvenze
-      // devono andare a finire li' (vedi @keyframes fumoEntra/fumoEsce).
-      // Quando non c'e' nessuna dissolvenza in corso, l'attributo la fissa.
-      fumo.style.setProperty('--fumo-op', opacitaFumoPer(card));
-      fumo.setAttribute('opacity', opacitaFumoPer(card));
-      applicaFaseFumo(fumo, card);
       svg.appendChild(fumo);
+      avvolgiInDissolvenzaFumo(fumo, card);
     }
   }
 

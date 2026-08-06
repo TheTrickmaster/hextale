@@ -127,6 +127,22 @@ perche' premiare i lati al riparo manda le carte negli angoli quando il
 tabellone e' tranquillo, cioe' quasi sempre. La prudenza sta gia' dentro
 `aiEstimateCounterRisk`, pesata contro il guadagno invece che al posto suo.
 
+**Cio' che si anima e cio' che dipende dallo stato del turno non stanno mai
+sullo stesso elemento.** Una dissolvenza che punta a un valore variabile — per
+esempio l'opacita' del fumo del Brucaliffo, che e' meta' per il proprietario e
+piena per l'avversario — cambia bersaglio a meta' strada nell'istante in cui il
+turno passa, e l'animazione salta di colpo al nuovo valore. Da fuori sembra che
+si blocchi o che scatti alla fine. La cura e' annidare: un elemento porta
+l'animazione (sempre verso un valore fisso), quello dentro porta il valore che
+dipende dal turno, con una transizione per non cambiare di scatto.
+
+**Un effetto che ha qualcosa da mostrare alza la soglia della pausa di fine
+turno, non ci si somma.** `endTurn` si prende gia' un secondo perche' la
+plancia stia ferma e si possa leggere: chi ha bisogno di piu' tempo chiama
+`rimandaFineTurnoFino()`. Sommare la propria attesa a quella (come faceva la
+v0.73.24) lascia la carta immobile a schermo per il tempo di troppo, e si legge
+come un blocco.
+
 **Le animazioni della carta sul tabellone stanno su quattro elementi annidati**
 — `[data-conquered]` il salto, `flip-host` il giro, `recoil-host` il
 contraccolpo, `wobble-host` il traballio — perche' animano tutte `transform` e
