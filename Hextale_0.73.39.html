@@ -3959,11 +3959,29 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
    oltre il bordo dello schermo. Il 90% di opacita' vive nel colore e non
    nella proprieta' opacity, che e' gia' impegnata dall'animazione di entrata
    e uscita. */
+/* ── v0.73.39 — IL FASCIO E' UN'ILLUSTRAZIONE, NON PIU' UN CONO DISEGNATO ──
+   Al posto del triangolo bianco ritagliato col clip-path c'e' pack-opened-flash:
+   un raggiera disegnata a mano, con la sua forma e le sue sfumature. Le
+   misure stanno in due variabili perche' sono l'unica cosa da ritoccare per
+   farla salire piu' o meno alta o partire piu' o meno in basso.
+   Il fondo dell'immagine si appoggia SOPRA il libro (--fascio-base), cosi' i
+   raggi sembrano uscire dalle pagine aperte e salire. */
 #pack-beam{
+  /* Abbastanza grande da uscire dal bordo alto dello schermo: il fondo si
+     appoggia 60px sopra il centro della plancia (che sta a 540 su 1080) e da
+     li' l'immagine sale per 1150px, cioe' ben oltre il bordo. I raggi non
+     finiscono mai dentro l'inquadratura: escono, ed e' quello che li fa
+     sembrare luce e non un disegno appoggiato.
+     Le due misure mantengono le proporzioni vere dell'immagine (1683x1974,
+     cioe' 1.173): cambiandone una va cambiata anche l'altra, o la raggiera si
+     deforma. */
+  --fascio-larghezza:980px;
+  --fascio-altezza:1150px;
+  --fascio-base:60px;       /* quanto il fondo sta sopra il centro del libro */
   position:absolute; left:50%; bottom:50%;
-  width:442px;            /* 15% in meno del doppio della busta */
-  height:130vh;           /* piu' alta della finestra: esce dallo schermo */
-  margin:0 0 -223px -221px; /* il fondo coincide con la base della busta */
+  width:var(--fascio-larghezza);
+  height:var(--fascio-altezza);
+  margin:0 0 var(--fascio-base) calc(var(--fascio-larghezza) / -2);
   transform-origin:center bottom;
   /* v0.72.92 FIX ("vedo ancora il fascio di luce non blurrato"): la sfocatura
      c'era, ma il clip-path la tagliava via. In CSS il ritaglio si applica DOPO
@@ -3973,16 +3991,42 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      Adesso i due compiti stanno su due elementi: qui la sfocatura, sul figlio
      il ritaglio. Il cono viene prima ritagliato e poi sfocato, quindi la
      sfumatura puo' espandersi liberamente oltre il suo profilo. */
-  filter:blur(20px);
+  /* La sfocatura ora e' leggera: il cono di prima era una forma piatta e
+     aveva bisogno di essere ammorbidita tutta, questa e' un'illustrazione e
+     sfocarla di venti pixel vorrebbe dire buttare via il disegno. */
+  filter:blur(4px);
   mix-blend-mode:plus-lighter;
   opacity:0;
   pointer-events:none;
   z-index:1;
 }
+/* L'immagine, con addosso la maschera a strisce che scorre.
+   Le strisce non hanno bordi netti: sono le sfumature del gradiente a farle
+   morbide. Sfocare una maschera con un filtro non si puo' — il filtro agisce
+   sull'elemento, non sulla maschera — quindi la morbidezza si ottiene dove
+   nasce, cioe' nelle fermate del gradiente.
+   La maschera e' larga il doppio dell'elemento e scorre da sinistra a destra
+   di tutta la propria larghezza: il ciclo si chiude su se stesso e non si
+   vede nessun salto quando ricomincia. */
 #pack-beam-shape{
   position:absolute; inset:0;
-  clip-path:polygon(0% 0%, 100% 0%, 75% 100%, 25% 100%); /* 442 in alto, 221 in basso */
-  background:rgba(255,255,255,0.9);
+  background-image:url('https://thetrickmaster.github.io/hextale/cards/packs/pack-opened-flash.png');
+  background-size:100% 100%;
+  background-position:center bottom;
+  background-repeat:no-repeat;
+  -webkit-mask-image:repeating-linear-gradient(100deg,
+      rgba(0,0,0,1) 0px, rgba(0,0,0,1) 26px,
+      rgba(0,0,0,0.45) 74px, rgba(0,0,0,1) 130px);
+          mask-image:repeating-linear-gradient(100deg,
+      rgba(0,0,0,1) 0px, rgba(0,0,0,1) 26px,
+      rgba(0,0,0,0.45) 74px, rgba(0,0,0,1) 130px);
+  -webkit-mask-size:200% 100%;
+          mask-size:200% 100%;
+  animation:fascioStrisce 7s linear infinite;
+}
+@keyframes fascioStrisce{
+  from{ -webkit-mask-position:0 0;    mask-position:0 0; }
+  to  { -webkit-mask-position:100% 0; mask-position:100% 0; }
 }
 /* v0.72.87 — il fascio si NASCONDE quando ha finito, non resta a opacita' 0.
    Un elemento alto 130vh con blur(30px) e mix-blend-mode continua a essere
@@ -4111,7 +4155,12 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
   perspective:1400px;
   z-index:2;
 }
-.pack-card.popping .pack-card-pop{ animation:packPop .28s cubic-bezier(.2,1.6,.4,1) forwards; }
+/* v0.73.39 — l'ingrandimento e' istantaneo (20ms), non un movimento.
+   Deve leggersi come la reazione al tocco: la carta scatta avanti e poi resta
+   ferma, e nel silenzio che segue si vede il bagliore salire e spegnersi. Con
+   i 280ms di prima l'ingrandimento si sovrapponeva al bagliore e le due cose
+   si disturbavano a vicenda. */
+.pack-card.popping .pack-card-pop{ animation:packPop .02s linear forwards; }
 @keyframes packPop{
   0%   { transform:scale(1); }
   100% { transform:scale(1.12); }
@@ -4197,17 +4246,20 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
   z-index:5;
   display:none;
 }
-/* v0.72.92 — il lampo tocca il massimo POCO PRIMA che cominci il giro (che
-   parte a 500ms dal tocco): sale per 460ms fino a opacita' piena e da li'
-   sfuma mentre la carta ruota. Prima faceva il contrario — un guizzo nei
-   primi 60ms e poi piu' niente — quindi al momento del giro era gia' spento e
-   il collegamento fra le due cose non si leggeva. */
-.pack-card.popping .pack-card-flash{ display:block; animation:packFlash 1.25s ease-out forwards; }
+/* v0.73.39 — il bagliore si consuma TUTTO prima che la carta giri.
+   Prima le due cose si sovrapponevano: il giro cominciava a 500ms mentre il
+   lampo era al culmine, e si vedevano due eventi accavallati. Adesso sono in
+   fila — la carta scatta avanti, il bagliore sale e si spegne del tutto, e
+   solo allora la carta si gira.
+   La durata qui e il ritardo del giro (BUSTINA_GIRO_RITARDO_MS nel codice)
+   sono lo stesso numero: se si cambia uno va cambiato l'altro, o si torna ad
+   accavallarli. */
+.pack-card.popping .pack-card-flash{ display:block; animation:packFlash .7s ease-out forwards; }
 @keyframes packFlash{
   0%   { opacity:0; }
-  37%  { opacity:1; }   /* 460ms: la carta sta per girare */
-  48%  { opacity:1; }   /* 600ms: il giro e' cominciato, il lampo e' al culmine */
-  100% { opacity:0; }
+  8%   { opacity:1; }   /* 56ms: il lampo e' gia' pieno, come lo scatto */
+  40%  { opacity:1; }   /* 280ms: tiene */
+  100% { opacity:0; }   /* 700ms: spento, e solo ora la carta gira */
 }
 /* ── ALONE DELLA RARITA' ───────────────────────────────────────────────────
    Un blob molto sfocato del colore della rarita', dietro la carta, il cui
@@ -9109,7 +9161,9 @@ const BUSTINA_SFALSAMENTO_MS = 120;  // scarto fra la prima e la seconda carta
 const PACK_SWAP_META_MS = 220;
 // Quanto passa fra il tocco e l'inizio del giro: il tempo di vedere
 // l'ingrandimento e il lampo, senza che l'attesa diventi un'esitazione.
-const BUSTINA_GIRO_RITARDO_MS = 500;
+// v0.73.39 — la carta gira quando il bagliore si e' spento del tutto: questo
+// numero deve combaciare con la durata di packFlash nel CSS.
+const BUSTINA_GIRO_RITARDO_MS = 700;
 // Quanto dura il fascio di luce: deve combaciare con l'animazione packBeam nel
 // CSS, perche' e' a fascio spento che la bustina comincia a svanire.
 const BUSTINA_FASCIO_MS = 1150;
