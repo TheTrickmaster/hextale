@@ -136,6 +136,28 @@ si blocchi o che scatti alla fine. La cura e' annidare: un elemento porta
 l'animazione (sempre verso un valore fisso), quello dentro porta il valore che
 dipende dal turno, con una transizione per non cambiare di scatto.
 
+## Plancia e ventagli non si ridisegnano se non e' cambiato niente
+
+`renderBoard` e `renderHand` confrontano una FIRMA dello stato con quella
+dell'ultimo disegno e, se coincide, escono subito. La firma non e' un elenco di
+campi scelti a mano: di ogni carta si prende lo stato intero serializzato,
+quindi **un campo nuovo su una carta entra nella firma da solo** e nessuno deve
+ricordarsene. Vanno elencate a mano solo le cose che vivono fuori dalle carte
+(turno, selezione, trascinamento, scelta di un bersaglio...), che stanno tutte
+dentro `firmaTabellone()` e `firmaMano()` con il motivo scritto accanto.
+
+**Se aggiungi qualcosa che il disegno legge e che non sta dentro una carta,
+aggiungilo alla firma.** Per non doverci pensare: accendi `CONTROLLO_FIRME`
+(dal menu debug) mentre provi la carta nuova. Con quello acceso nessun disegno
+viene saltato, e il gioco confronta il risultato con quello precedente: se due
+disegni diversi hanno la stessa firma lo scrive in console dicendo dove
+differiscono. E' il modo per scoprire in dieci secondi un guasto che altrimenti
+si manifesterebbe come "ogni tanto resta a schermo roba vecchia".
+
+Una firma che non sa rispondere (carta non serializzabile) restituisce un
+valore sempre diverso: si ridisegna, cioe' si torna al comportamento di prima.
+Il caso peggiore e' non guadagnare nulla, mai mostrare qualcosa di vecchio.
+
 **Lo stato di un'animazione non si scrive sulla carta.** Chi disegna riceve una
 COPIA (`renderBoard` passa `{...placed.card, owner}`), quindi qualunque cosa
 scritta li' dentro vive il tempo di un disegno e poi sparisce. Leggere dalla

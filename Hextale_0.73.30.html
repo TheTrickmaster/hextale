@@ -5337,7 +5337,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.73.29</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.73.30</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -13438,13 +13438,22 @@ function initGame(vsAI){
   // DECK_TOTAL copies of the chosen FINAL_CARDS entry, overwriting whatever
   // injectFinalCardIntoDeck just did to d1 above (a debug-requested specific
   // card must win over the normal random-final-card injection, not compete
-  // with it for a single deck slot). Player 2's deck is deliberately left
-  // untouched — a normal random AI deck — so the chosen card can still be
-  // tested in a realistic match instead of only in solitaire. Cleared right
-  // after being consumed so the NEXT match started normally goes back to
-  // regular deck-building instead of silently staying forced.
+  // with it for a single deck slot).
+  // v0.73.30 — la carta scelta finisce in ENTRAMBI i mazzi. Prima l'avversario
+  // giocava un mazzo normale, e per vedere come una carta si comporta contro
+  // se stessa — due specchi vicini, due Brucaliffi, chi ruba a chi — bisognava
+  // sperare che il caso la pescasse. Provando una carta si vuole provare
+  // proprio quella, da tutte e due le parti del tabellone.
+  // Cleared right after being consumed so the NEXT match started normally goes
+  // back to regular deck-building instead of silently staying forced.
   if(window.__debugForcedCardEntry){
     const forcedEntry = window.__debugForcedCardEntry;
+    for(let i=0;i<d2.length;i++){
+      const cartaAvversaria = _makeCardDbCard(forcedEntry, 2);
+      cartaAvversaria.id = `debugcard2-${forcedEntry.id}-${i}`;
+      cartaAvversaria.baseId = forcedEntry.id;
+      d2[i] = cartaAvversaria;
+    }
     for(let i=0;i<d1.length;i++){
       const forcedCard = _makeCardDbCard(forcedEntry, 1);
       forcedCard.id = `debugcard-${forcedEntry.id}-${i}`;
@@ -21464,6 +21473,17 @@ function svgWrapBoldWords(text, maxWidth, fontFamily, fontSizePx){
 
 function renderHand(containerId,hand,playerIdx){
   const container=document.getElementById(containerId);
+  // v0.73.30 — stesso ragionamento della plancia: se lo stato e' identico a
+  // quello dell'ultimo disegno, il ventaglio che si costruirebbe sarebbe
+  // identico a quello gia' a schermo. Ricostruirlo significa buttare via otto
+  // carte complete di lamina e rifarle, e il browser paga quel lavoro tutto
+  // insieme — e' meta' del blocco che si vedeva al cambio turno.
+  if(container){
+    const firmaOra = firmaMano(hand, playerIdx);
+    if(!CONTROLLO_FIRME && _firmaManoPrecedente[containerId] === firmaOra && container.childNodes.length) return;
+    _firmaManoPrecedente[containerId] = firmaOra;
+    controllaFirmaMano(containerId, firmaOra);
+  }
   // Wiping the container's DOM below destroys whichever .hand-card-wrap the
   // mouse is currently over (if any) WITHOUT ever firing its mouseleave —
   // e.g. the turn passes (or any other render() happens) while the player is
@@ -23574,6 +23594,172 @@ function startCardLandAnim(k){
   // rigiocherebbe sovrapponendo piu' copie del suono.
   setTimeout(()=>{ playSfxFile('bump.mp3'); }, CARD_LAND_IMPACT_MS);
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// v0.73.30 — NON RIDISEGNARE CIO' CHE NON E' CAMBIATO
+// ═══════════════════════════════════════════════════════════════════════════
+// Un solo cambio turno chiedeva quattro ricostruzioni complete della plancia e
+// dieci dei ventagli. Ogni ricostruzione butta via l'SVG e lo rifa da capo:
+// diciannove celle con maschere, gradienti e fusioni, otto carte intere con la
+// lamina. Il browser paga tutto quel lavoro in una volta, e per quella frazione
+// di secondo si ferma ogni animazione in corso — e' il blocco che si vedeva
+// comparire insieme al banner del cambio turno.
+//
+// La cura e' non rifare il lavoro quando lo stato e' identico. La difficolta'
+// non e' scriverla: e' fare in modo che resti giusta il giorno in cui si
+// aggiunge una carta o una meccanica nuova. Una firma che si dimentica un dato
+// non fa rumore — lascia a schermo qualcosa di vecchio, e lo si scopre per
+// caso settimane dopo.
+//
+// Per questo la firma NON e' un elenco di campi scelti a mano. Di ogni carta si
+// prende lo stato INTERO, cosi' com'e'. Un campo nuovo su una carta — un flag,
+// un contatore, un istante — entra nella firma da solo, senza che nessuno
+// debba ricordarsene. Restano da elencare a mano soltanto le cose che vivono
+// FUORI dalle carte (selezione, trascinamento, turno), che sono poche e
+// stabili, e ognuna sta scritta qui sotto con accanto il motivo.
+//
+// E per il giorno in cui anche quelle non bastassero, c'e' il controllore:
+// vedi CONTROLLO_FIRME piu' sotto.
+
+// Serializzazione difensiva: se una carta contenesse qualcosa di non
+// serializzabile (un riferimento al DOM, un ciclo), si restituisce un valore
+// sempre diverso. Il risultato e' che si ridisegna — cioe' il comportamento di
+// prima. Una firma che non sa rispondere deve far ridisegnare, mai far saltare.
+let _contatoreFirmeFallite = 0;
+function _statoSerializzabile(x){
+  try { return JSON.stringify(x); }
+  catch(_){ return 'NON-SERIALIZZABILE#' + (++_contatoreFirmeFallite); }
+}
+
+// Tutto cio' che la plancia disegna. Chi aggiunge qualcosa che renderBoard
+// legge e che NON sta dentro una carta deve aggiungerlo qui.
+function firmaTabellone(){
+  const celle = [];
+  for(const c of G.cells){
+    const k = key(c.q, c.r);
+    const cella = G.board[k];
+    celle.push(k + '|' + (G.holes.has(k) ? 'X' : '') + '|' +
+      (cella ? cella.owner + '|' + _statoSerializzabile(cella.card) : ''));
+  }
+  return _statoSerializzabile({
+    generazione: (typeof gameGeneration!=='undefined' ? gameGeneration : 0),
+    celle,
+    // Quali celle sono state sfondate e quali sono magiche: cambiano il
+    // tassello disegnato sotto la carta.
+    rotte: G.destroyedHoles ? [...G.destroyedHoles].sort() : [],
+    magiche: G.magicTiles ? Object.keys(G.magicTiles).sort() : [],
+    // La selezione e il trascinamento accendono l'evidenziazione delle celle
+    // giocabili e l'anteprima dei valori.
+    scelta: G.selected && G.selected.card ? G.selected.card.id : null,
+    trascina: (typeof dragState!=='undefined' && dragState && dragState.card) ? dragState.card.id : null,
+    sorvolata: (typeof dragState!=='undefined' && dragState) ? dragState.hoverCellKey : null,
+    // Di chi e' il turno: decide il velo del fumo e le celle giocabili.
+    turno: G.currentPlayer,
+    finita: !!G.gameOver,
+    // La scelta di un bersaglio disegna mirini, X ed evidenziazioni.
+    bersagli: G.sceltaBersaglio ? _statoSerializzabile({
+      g: G.sceltaBersaglio.giocatore, o: G.sceltaBersaglio.cellaOrigine, b: G.sceltaBersaglio.bersagli
+    }) : null,
+    // La carta che sta girando viene dipinta col proprietario di prima.
+    girata: G.girataInCorso ? _statoSerializzabile(G.girataInCorso) : null,
+    // L'atterraggio in corso sposta la cella in cima alla pila.
+    atterraggio: (typeof _cardLand!=='undefined' && _cardLand) ? _cardLand.k : null,
+    // Le impostazioni della lamina cambiano come ogni carta viene disegnata.
+    lamina: (typeof cardDbHoloEnabled!=='undefined' ? !!cardDbHoloEnabled : null),
+    parallasse: (typeof cardDbParallaxEnabled!=='undefined' ? !!cardDbParallaxEnabled : null),
+  });
+}
+
+// ── IL CONTROLLORE ────────────────────────────────────────────────────────
+// Acceso, la plancia non salta MAI un ridisegno: lo fa comunque e confronta il
+// risultato con quello di prima. Se la firma diceva "non e' cambiato niente" e
+// il disegno invece e' cambiato, vuol dire che la firma si e' persa qualcosa —
+// e lo dice, indicando cosa. E' il modo per accorgersi subito, provando una
+// carta nuova, che serve aggiungere un dato alla firma: senza, quel dato
+// mancante si manifesterebbe come "ogni tanto resta a schermo roba vecchia",
+// che e' il tipo di guasto piu' difficile da rintracciare.
+// Si accende dal menu debug e resta spento in partita, perche' raddoppia il
+// lavoro proprio nel punto che si sta cercando di alleggerire.
+let CONTROLLO_FIRME = false;
+let _ultimoDisegnoTabellone = null;
+// Gli identificativi generati a caso (maschere delle icone) cambiano a ogni
+// disegno pur non essendo un cambiamento vero: vanno normalizzati, o il
+// controllore segnalerebbe differenze che non lo sono.
+function _normalizzaDisegno(html){
+  return String(html||'').replace(/svg-icon-mask-[a-z0-9]+/g, 'svg-icon-mask-X');
+}
+// Lo stesso controllore, per i ventagli. Il confronto avviene PRIMA del
+// disegno: si guarda cosa c'e' a schermo adesso, che e' il risultato del
+// disegno precedente. Se la firma non e' cambiata ma quello che c'era a
+// schermo e' diverso da quello che avevamo lasciato, la firma e' incompleta.
+const _ultimoDisegnoMano = {};
+function controllaFirmaMano(containerId, firma){
+  if(!CONTROLLO_FIRME) return;
+  const el = document.getElementById(containerId);
+  if(!el) return;
+  const disegno = _normalizzaDisegno(el.innerHTML);
+  const prec = _ultimoDisegnoMano[containerId];
+  if(prec && prec.firma === firma && prec.disegno !== disegno){
+    console.error('[firme] LA FIRMA DEL VENTAGLIO "'+containerId+'" E\' INCOMPLETA:\n'
+      + 'due contenuti diversi con la stessa firma. Qualcosa che renderHand legge\n'
+      + 'non e\' dentro firmaMano(). Aggiungilo li\'.');
+  }
+  // Si annota DOPO il disegno, dal prossimo giro.
+  setTimeout(()=>{ const e2=document.getElementById(containerId);
+    if(e2) _ultimoDisegnoMano[containerId] = {firma, disegno:_normalizzaDisegno(e2.innerHTML)}; }, 0);
+}
+
+function controllaFirmaTabellone(firma){
+  if(!CONTROLLO_FIRME) return;
+  const svg = document.getElementById('board-svg');
+  if(!svg) return;
+  const disegno = _normalizzaDisegno(svg.innerHTML);
+  if(_ultimoDisegnoTabellone && _ultimoDisegnoTabellone.firma === firma
+     && _ultimoDisegnoTabellone.disegno !== disegno){
+    console.error('[firme] LA FIRMA DELLA PLANCIA E\' INCOMPLETA: due disegni diversi con la stessa firma.\n'
+      + 'Qualcosa che renderBoard legge non e\' dentro firmaTabellone(). Aggiungilo li\'.\n'
+      + 'Primo punto in cui differiscono: carattere '
+      + (()=>{ const a=_ultimoDisegnoTabellone.disegno, b=disegno;
+               let i=0; while(i<a.length && i<b.length && a[i]===b[i]) i++;
+               return i + '\n  prima: …' + a.slice(Math.max(0,i-60), i+60)
+                        + '\n  dopo:  …' + b.slice(Math.max(0,i-60), i+60); })());
+  }
+  _ultimoDisegnoTabellone = {firma, disegno};
+}
+
+let _firmaTabellonePrecedente = null;
+
+// Tutto cio' che un ventaglio disegna. Vale la stessa regola della plancia: lo
+// stato delle carte si prende intero, cosi' un campo nuovo entra da solo;
+// quello che vive fuori dalle carte e' elencato qui, con il perche' accanto.
+function firmaMano(hand, playerIdx){
+  const giocatore = playerIdx + 1;
+  const anteprima = (typeof anteprimaTavolo === 'function') ? anteprimaTavolo() : null;
+  return _statoSerializzabile({
+    generazione: (typeof gameGeneration!=='undefined' ? gameGeneration : 0),
+    giocatore,
+    carte: (hand||[]).map(c => _statoSerializzabile(c)),
+    // Turno e fine partita decidono se la mano e' attiva e se e' coperta.
+    turno: G.currentPlayer,
+    finita: !!G.gameOver,
+    controIA: !!G.vsAI,
+    // Selezione e trascinamento: una carta selezionata si alza, una trascinata
+    // sparisce dal ventaglio.
+    scelta: G.selected && G.selected.card ? G.selected.card.id : null,
+    trascina: G.dragging && G.dragging.card ? G.dragging.card.id : null,
+    fuori: !!G.dragFullyOut,
+    // Le carte ancora in volo dal mazzo non ricevono il bagliore del turno.
+    inVolo: (typeof cardsCurrentlyDrawing!=='undefined' && cardsCurrentlyDrawing) ? [...cardsCurrentlyDrawing].sort() : [],
+    posate:  (typeof cardsGlowSettled!=='undefined' && cardsGlowSettled) ? [...cardsGlowSettled].sort() : [],
+    // I valori che le carte in mano mostrerebbero per via di cio' che sta per
+    // succedere in campo (vedi anteprimaTavolo).
+    anteprima: anteprima ? _statoSerializzabile(anteprima.mani[giocatore]) : null,
+    lamina: (typeof cardDbHoloEnabled!=='undefined' ? !!cardDbHoloEnabled : null),
+    parallasse: (typeof cardDbParallaxEnabled!=='undefined' ? !!cardDbParallaxEnabled : null),
+  });
+}
+const _firmaManoPrecedente = {};
+
 function renderBoard(){
   // While the once-per-game "tiles falling from above" intro is still
   // playing, skip any further full re-renders entirely — every renderBoard()
@@ -23618,6 +23804,13 @@ function renderBoard(){
   const wrap=document.getElementById('board-wrap');
   const availW=wrap.clientWidth, availH=wrap.clientHeight;
   if(!availW||!availH)return;
+  // v0.73.30 — se lo stato e' identico a quello dell'ultimo disegno, l'SVG che
+  // si costruirebbe sarebbe identico a quello gia' a schermo: si esce.
+  // Le dimensioni entrano nella firma perche' ridimensionando la finestra
+  // cambia tutta la geometria pur non cambiando niente della partita.
+  const firmaOra = firmaTabellone() + '|' + availW + 'x' + availH;
+  if(!CONTROLLO_FIRME && _firmaTabellonePrecedente === firmaOra && svg.childNodes.length) return;
+  _firmaTabellonePrecedente = firmaOra;
   const R=bestBoardR(availW-16,availH-16);
   svg.setAttribute('width',availW); svg.setAttribute('height',availH);
   // v0.22.1: no longer force-closed here either — same reasoning as
@@ -24021,6 +24214,7 @@ function renderBoard(){
   // sopra ai tasselli e gli overlay restano sopra a tutto.
   cardLandReattach();
   fumoReattach();
+  controllaFirmaTabellone(firmaOra);
 
   // ── v0.72.36: builder di pulsanti-icona SVG, condiviso da tutti gli overlay
   // decisionali ─────────────────────────────────────────────────────────────
