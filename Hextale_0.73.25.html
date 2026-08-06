@@ -5301,7 +5301,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.73.23</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.73.25</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -6290,6 +6290,7 @@ if(document.readyState==='loading'){
     const carteProntePer = (typeof caricaCarteDalFoglio === 'function')
       ? caricaCarteDalFoglio() : Promise.resolve(false);
     carteProntePer
+      .then(()=> (typeof registraSuoniExtra === 'function') ? registraSuoniExtra() : null)
       .then(()=> (typeof verificaArtCarte === 'function') ? verificaArtCarte() : null)
       .then(()=> (typeof verificaIconeArchetipi === 'function') ? verificaIconeArchetipi() : null)
       .then(_proseguiCaricamento, _proseguiCaricamento);
@@ -6521,9 +6522,12 @@ const AUDIO_DATA_URLS = {
   'howl': 'https://thetrickmaster.github.io/hextale/audio/sfx/howl.mp3', // Lupo Solitario placement VFX
   'chain': 'https://thetrickmaster.github.io/hextale/audio/sfx/chain.wav', // Reazione a Catena's chained flips
   'click': 'https://thetrickmaster.github.io/hextale/audio/sfx/click.wav', // start-screen button press feedback
-  // v0.73.23 — il sibilo del fumo del Brucaliffo. Sta fra le voci sul repo, ma
-  // qui e' un effetto: parte insieme all'animazione, non quando la carta parla.
-  'the-caterpillar-smoke': 'https://thetrickmaster.github.io/hextale/audio/voices/the-caterpillar-smoke.mp3',
+  // v0.73.24 — il sibilo del fumo del Brucaliffo NON sta qui, e non e' una
+  // dimenticanza: un indirizzo scritto a mano qui dentro punta sempre e solo a
+  // GitHub, quindi un file che esiste sul disco ma non e' ancora stato caricato
+  // sul repo non si sente. Viene registrato da registraSuoniExtra(), che prova
+  // prima la cartella locale e poi il repo — le stesse due strade che l'arte e
+  // le voci percorrono gia'.
   'drain': 'https://thetrickmaster.github.io/hextale/audio/sfx/drain.wav',
   // v0.72.83 — bustine: 'unpack-load' accompagna i due secondi di carica,
   // 'unpack-hit' scocca esattamente quando la carica finisce.
@@ -8409,6 +8413,23 @@ function _vociDiPersonaggio(slug){
 }
 
 // Passata unica su tutto il roster: per ogni carta, arte e voci.
+// v0.73.24 — i suoni che non appartengono a nessun elenco fisso: stanno fra le
+// voci sul disco ma sono effetti, e vanno risolti come tutto il resto degli
+// asset, provando prima la cartella accanto al file e poi il repository.
+// Cosi' un suono appena aggiunto si sente subito, senza aspettare di caricarlo
+// su GitHub — che e' il modo in cui questo gioco viene provato.
+const SUONI_EXTRA = ['the-caterpillar-smoke.mp3'];
+function registraSuoniExtra(){
+  return Promise.all(SUONI_EXTRA.map(nome =>
+    _primoCheEsiste(_candidati(VOCI_REL + nome, VOCI_BASE + nome), _provaAudio)
+      .then(url => {
+        if(url){ registraVociSfx([url]); return; }
+        console.warn('[audio] non trovo "'+nome+'" ne in '+VOCI_REL+' ne sul repository: quel suono restera muto');
+      })
+      .catch(()=>{})
+  ));
+}
+
 function verificaArtCarte(){
   if(!Array.isArray(FINAL_CARDS) || !FINAL_CARDS.length) return Promise.resolve();
   const lavori = [];
@@ -14817,16 +14838,19 @@ function nascondiNelFumo(card, q, r){
 // e' un caso particolare del Brucaliffo: e' un momento del turno, e come tale
 // ha il suo registro. Chi ci si iscrive viene chiamato quando l'animazione
 // dell'attacco e' finita e prima che il turno passi.
+// Ogni effetto restituisce QUANTO il turno deve aspettarlo, in millisecondi.
+// Zero vuol dire "non aspettarmi". Serve perche' un effetto che mette in scena
+// qualcosa — il fumo che sale, un'animazione — deve poterla far vedere prima
+// che arrivi il banner del cambio turno a coprire tutto.
 const EFFETTI_DOPO_SCONTRO = {
-  exaketededly: (card, q, r) => nascondiNelFumo(card, q, r),
+  exaketededly: (card, q, r) => nascondiNelFumo(card, q, r) ? FUMO_ENTRATA_MS : 0,
 };
 function effettiDopoLoScontro(card, q, r){
-  if(!card) return;
+  if(!card) return 0;
   const chiave = card.activatedTileAbility || abilitaAttivaDi(card);
   const effetto = chiave && EFFETTI_DOPO_SCONTRO[chiave];
-  if(typeof effetto === 'function'){
-    try { effetto(card, q, r); } catch(_){}
-  }
+  if(typeof effetto !== 'function') return 0;
+  try { return effetto(card, q, r) || 0; } catch(_){ return 0; }
 }
 
 // Fa scorrere valori E gruppi di un posto in senso orario. E' il cuore che
@@ -14894,9 +14918,19 @@ function artaFumoDi(card){
 // diverse, e qualunque conto fatto in quel secondo — una conquista, un'IA che
 // valuta — userebbe numeri di passaggio. Quello che gira sullo schermo e'
 // quindi solo un effetto ottico che finisce sui valori veri.
+// La pausa che il gioco si prende fra la fine dell'azione e il cambio turno:
+// un momento perche' la plancia stia ferma e si possa leggere. Un effetto che
+// ha qualcosa da mostrare puo' allungarla — non sommarcisi — passando da
+// rimandaFineTurnoFino.
+const PAUSA_FINE_TURNO_MS = 1000;
+let _fineTurnoNonPrimaDi = 0;
+function rimandaFineTurnoFino(istante){
+  _fineTurnoNonPrimaDi = Math.max(_fineTurnoNonPrimaDi, istante);
+}
+
 const FUMO_ENTRATA_MS = 1100;  // deve combaciare con .fumo-entra
 const FUMO_USCITA_MS  = 600;   // deve combaciare con .fumo-esce
-const FUMO_PASSO_MS   = 15;    // ogni quanto i numeri fanno un giro
+const FUMO_PASSO_MS   = 45;    // ogni quanto i numeri fanno un giro
 
 // Mette sull'elemento la classe giusta per la fase in cui il fumo si trova,
 // col ritardo NEGATIVO che ne riprende l'animazione a meta' — serve perche'
@@ -15562,12 +15596,20 @@ function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLa
   // v0.73.23 — gli effetti che aspettano la fine dello scontro (vedi
   // EFFETTI_DOPO_SCONTRO). Vanno qui e non dentro endTurn perche' devono
   // vedere la carta ancora al suo posto e con lo scontro gia' risolto.
-  if(conquestAnimMs>0){
-    setTimeout(()=>{ effettiDopoLoScontro(card, q, r); endTurn(player); },conquestAnimMs);
-  } else {
-    effettiDopoLoScontro(card, q, r);
+  // v0.73.25 — l'effetto di fine scontro dichiara quanto vuole essere
+  // aspettato, e quell'attesa si SOVRAPPONE alla pausa che endTurn si prende
+  // gia' di suo (vedi li'). Nella v0.73.24 le due si sommavano: un secondo di
+  // animazione piu' un secondo di pausa facevano due secondi, e il secondo
+  // secondo era una carta ferma a schermo che non faceva niente. Da fuori si
+  // legge come un blocco, ed e' esattamente cosi' che e' stato segnalato.
+  const chiudiIlTurno = ()=>{
+    if(!G || G.gameOver) return;
+    const attesa = effettiDopoLoScontro(card, q, r);
+    if(attesa>0) rimandaFineTurnoFino(performance.now() + attesa);
     endTurn(player);
-  }
+  };
+  if(conquestAnimMs>0) setTimeout(chiudiIlTurno, conquestAnimMs);
+  else chiudiIlTurno();
 }
 
 
@@ -15608,8 +15650,14 @@ function endTurn(player, animationsSettled){
   // "already waited, now actually proceed" — using a flag on G here instead
   // would have re-triggered a fresh wait on this same recursive call (an
   // earlier version of this fix looped forever that way).
+  // v0.73.25 — la pausa non e' piu' fissa a un secondo: e' il piu' lungo fra
+  // quel secondo e il tempo che un effetto in scena ha chiesto (vedi
+  // rimandaFineTurnoFino). Cosi' un'animazione lunga viene aspettata senza che
+  // la pausa le si sommi dietro, e una corta non allunga niente.
   if(!animationsSettled){
-    setTimeout(()=>endTurn(player, true), 1000);
+    const pausa = Math.max(PAUSA_FINE_TURNO_MS, _fineTurnoNonPrimaDi - performance.now());
+    _fineTurnoNonPrimaDi = 0;
+    setTimeout(()=>endTurn(player, true), pausa);
     return;
   }
   calcScores();
