@@ -53,7 +53,7 @@
 :root{
   --cursore:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;
   /* Il colore del bordo luminoso che dice "e' il tuo turno". */
-  --bagliore-turno:#A1F3FF;
+  --bagliore-turno:#DDFBFF;
   /* Stessa immagine, ripiego diverso: sulle aree che si trascinano il browser
      deve ripiegare su "grab" e non su "pointer" se il file non si carica. */
   --cursore-trascina:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, grab;
@@ -1924,9 +1924,15 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
 .hand-card-rim-ring{
   position:absolute; inset:0;
   border-radius:24px;
-  padding:10px;
+  /* v0.73.40 — il filo e' la meta' di prima (era 10px) e la sfocatura il
+     doppio (era 3px): un bordo sottile molto sfocato legge come luce, uno
+     spesso e nitido legge come una cornice. */
+  padding:5px;
   overflow:hidden;
-  filter:blur(3px);
+  filter:blur(6px);
+  /* Somma luce a cio' che ha sotto invece di coprirlo: e' la differenza fra
+     un bagliore e una vernice. */
+  mix-blend-mode:plus-lighter;
   /* Sfoca, fonde e si anima in continuo: promuoverlo contiene i ridisegni, e
      su una macchia sfocata la nitidezza non e' in gioco (vedi la regola sul
      will-change nell'handoff). */
@@ -1935,7 +1941,8 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
           mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite:xor;
           mask-composite:exclude;
-  animation:manoRimRespira 4.3s ease-in-out infinite;
+  /* v0.73.40 — molto piu' lento: e' un respiro di fondo, non un lampeggio. */
+  animation:manoRimRespira 9s ease-in-out infinite;
 }
 .hand-card-rim-ring::before{
   content:'';
@@ -1947,7 +1954,8 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
                             var(--bagliore-turno) 130deg, transparent 200deg,
                             var(--bagliore-turno) 270deg, transparent 330deg,
                             var(--bagliore-turno) 360deg);
-  animation:manoRimGira 5.5s linear infinite;
+  /* Un giro ogni quindici secondi: si deve intuire che si muove, non seguirlo. */
+  animation:manoRimGira 15s linear infinite;
 }
 @keyframes manoRimGira{ from{ transform:rotate(0deg); } to{ transform:rotate(360deg); } }
 @keyframes manoRimRespira{ 0%,100%{ opacity:0.72; } 50%{ opacity:1; } }
@@ -3977,7 +3985,17 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      deforma. */
   --fascio-larghezza:980px;
   --fascio-altezza:1150px;
-  --fascio-base:60px;       /* quanto il fondo sta sopra il centro del libro */
+  /* Quanto il fondo dell'immagine sta SOPRA il centro della plancia.
+     Non e' un numero scelto a occhio, e' calcolato: il libro viene disegnato
+     alto --altezza-libro (451px) rimpicciolito di --riposo-libro (0.781), cioe'
+     352px, ed e' centrato sul centro della plancia. Il suo bordo ALTO cade
+     quindi a meta' di quei 352, cioe' 176px sopra il centro — ed e' esattamente
+     li' che deve appoggiarsi il fondo del fascio.
+     Se un giorno il libro cambiasse misura, questo numero e' la meta' della sua
+     altezza a schermo. (Le due variabili vivono su #pack-closed, che e' un
+     fratello e non un antenato: da qui non si possono leggere, e il conto va
+     rifatto a mano.) */
+  --fascio-base:176px;
   position:absolute; left:50%; bottom:50%;
   width:var(--fascio-larghezza);
   height:var(--fascio-altezza);
@@ -4010,8 +4028,17 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
    vede nessun salto quando ricomincia. */
 #pack-beam-shape{
   position:absolute; inset:0;
-  background-image:url('https://thetrickmaster.github.io/hextale/cards/packs/pack-opened-flash.png');
-  background-size:100% 100%;
+  /* L'immagine la mette il JS (vedi impostaSfondoDaCandidati): va cercata
+     prima nella cartella accanto al file e poi sul repository, come ogni
+     altro asset. Scriverla qui vorrebbe dire vederla solo dopo averla
+     pubblicata. */
+  /* `contain` e non `100% 100%`: la seconda forma STIRA l'immagine per
+     riempire il riquadro, e basta che riquadro e disegno non abbiano
+     esattamente le stesse proporzioni perche' la raggiera esca deformata.
+     Con `contain` l'immagine tiene le proprie proporzioni sempre, qualunque
+     riquadro le si dia — al massimo resta del vuoto ai lati, che essendo
+     trasparente non si vede. */
+  background-size:contain;
   background-position:center bottom;
   background-repeat:no-repeat;
   -webkit-mask-image:repeating-linear-gradient(100deg,
@@ -4022,7 +4049,10 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
       rgba(0,0,0,0.45) 74px, rgba(0,0,0,1) 130px);
   -webkit-mask-size:200% 100%;
           mask-size:200% 100%;
-  animation:fascioStrisce 7s linear infinite;
+  /* Due secondi: il fascio dura poco piu' di uno, e con sette secondi le
+     strisce facevano in tempo a spostarsi di un terzo — non si vedevano
+     scorrere affatto. */
+  animation:fascioStrisce 2s linear infinite;
 }
 @keyframes fascioStrisce{
   from{ -webkit-mask-position:0 0;    mask-position:0 0; }
@@ -4035,12 +4065,20 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
    opacita' zero non si vede, ma il browser lo sta ancora disegnando: e'
    display:none la differenza fra "trasparente" e "non c'e'". */
 #pack-beam{ display:none; }
-#pack-beam.firing{ display:block; animation:packBeam 1.15s cubic-bezier(.2,.8,.3,1) forwards; }
+/* v0.73.40 — il fascio non cresce piu': c'e'. Compare gia' alla sua misura e
+   alla sua opacita' piena nell'istante in cui il libro si apre, come uno
+   scoppio di luce, e da li' si spegne. Prima partiva da opacita' zero e da
+   una scala di 0.04 e ci metteva un quinto dell'animazione a diventare
+   visibile: nel poco tempo che dura, quella salita si mangiava il momento. */
+#pack-beam.firing{ display:block; animation:packBeam 1.15s ease-out forwards; }
+/* Gli ingrandimenti sono UNIFORMI. Prima scaleX e scaleY erano diversi fra
+   loro (1.08 contro 0.94): e' una deformazione, e su una raggiera disegnata si
+   vede subito che i raggi si allargano e si accorciano. Un solo fattore per
+   entrambi gli assi non puo' deformare niente. */
 @keyframes packBeam{
-  0%   { opacity:0;   transform:scaleY(0.04) scaleX(0.5); }
-  18%  { opacity:1;   transform:scaleY(1)    scaleX(1.12); }
-  55%  { opacity:0.75;transform:scaleY(1.04) scaleX(0.95); }
-  100% { opacity:0;   transform:scaleY(1.08) scaleX(0.7); }
+  0%   { opacity:1; transform:scale(1); }
+  55%  { opacity:1; transform:scale(1.02); }
+  100% { opacity:0; transform:scale(1.06); }
 }
 
 /* ── Le carte ─────────────────────────────────────────────────────────────
@@ -9263,6 +9301,32 @@ function packImgRel(stato){
 function packImgCandidati(stato){
   return _candidati(packImgRel(stato), packImgSrc(stato));
 }
+// v0.73.40 — lo stesso, per un file qualunque della cartella packs. Serve
+// perche' il fascio di luce e' un'immagine come le altre e non puo' avere un
+// indirizzo scritto a mano che punta solo a GitHub: un file appena disegnato
+// sta sul disco e sul repository non c'e' ancora, e da file:// il browser non
+// trova niente. E' esattamente il motivo per cui il fascio non si vedeva.
+function packFileCandidati(nome){
+  return _candidati('cards/packs/' + nome,
+                    'https://thetrickmaster.github.io/hextale/cards/packs/' + nome);
+}
+// Mette sull'elemento la prima immagine che esiste davvero, come sfondo.
+function impostaSfondoDaCandidati(el, candidati){
+  if(!el) return;
+  let i = 0;
+  const prova = ()=>{
+    if(i >= candidati.length){
+      console.warn('[bustine] immagine non trovata: ' + candidati.join(' | '));
+      return;
+    }
+    const url = candidati[i++];
+    const test = new Image();
+    test.onload = ()=>{ el.style.backgroundImage = "url('" + url + "')"; };
+    test.onerror = prova;
+    test.src = url;
+  };
+  prova();
+}
 function impostaImmagineBustina(stato){
   const img = document.getElementById('pack-closed-img');
   const velo = document.getElementById('pack-white');
@@ -9842,6 +9906,13 @@ function initPackTilt(){
   palco.addEventListener('pointerleave', ()=>{ spegni(attiva); attiva = null; });
 }
 
+// v0.73.40 — l'immagine del fascio si risolve all'apertura della pagina, non
+// nel CSS: prima la cartella accanto al file, poi il repository.
+function impostaImmagineFascio(){
+  impostaSfondoDaCandidati(document.getElementById('pack-beam-shape'),
+                           packFileCandidati('pack-opened-flash.png'));
+}
+
 function openPackOverlay(){
   // Stessa regola della Collezione: e' una PAGINA, quindi entrarci smonta la
   // partita invece di lasciarla viva sotto.
@@ -9849,6 +9920,7 @@ function openPackOverlay(){
   showPage('packs');
   document.getElementById('pack-overlay').classList.add('show');
   initPackTilt();
+  impostaImmagineFascio();
   packUpdateToggleLabel();
   tornaAllaBustina();
   // Il conto alla rovescia si aggiorna ogni secondo mentre la pagina e'
