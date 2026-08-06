@@ -52,6 +52,8 @@
    quello di html/body invece di cadere su quello del sistema. */
 :root{
   --cursore:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;
+  /* Il colore del bordo luminoso che dice "e' il tuo turno". */
+  --bagliore-turno:#A1F3FF;
   /* Stessa immagine, ripiego diverso: sulle aree che si trascinano il browser
      deve ripiegare su "grab" e non su "pointer" se il file non si carica. */
   --cursore-trascina:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, grab;
@@ -751,6 +753,44 @@ body.mouse-down{
 .dmg-bubble-light .dmg-bubble-text{ color:#352D1B; }
 .dmg-bubble-heal .dmg-bubble-art{ background-image:url('https://thetrickmaster.github.io/hextale/player-ui/healing-bubble.png'); }
 .dmg-bubble-heal{ filter:drop-shadow(0 0 30px #219164); }
+
+/* ── v0.73.38 — L'ALONE DIETRO LE BOLLE ───────────────────────────────────
+   Una macchia di luce molto forte, che si muove piano dietro alla bolla. Non
+   e' un'ombra colorata come i drop-shadow qui sopra — quelli seguono la
+   sagoma e restano fermi — ma una luce viva che pulsa e ruota, e che si vede
+   sporgere da dietro il disco.
+   Il colore lo porta ogni variante nella propria riga (--alone), cosi' la
+   struttura e' una sola e i tre casi cambiano solo di tinta.
+   Sta DIETRO: z-index negativo dentro la bolla, che ha gia' un contesto suo.
+   La rotazione e la pulsazione stanno su due elementi annidati perche' sono
+   due animazioni e sullo stesso elemento si escluderebbero. */
+.dmg-bubble-alone{
+  position:absolute; left:50%; top:50%;
+  width:190%; height:190%;
+  transform:translate(-50%,-50%);
+  z-index:-1; pointer-events:none;
+  animation:bollaAlonePulsa 1.15s ease-in-out infinite;
+}
+.dmg-bubble-alone::before{
+  content:''; position:absolute; inset:0;
+  border-radius:50%;
+  /* Due sorgenti sfalsate invece di un cerchio solo: ruotando, una luce
+     perfettamente centrata non si vedrebbe muovere. */
+  background:
+    radial-gradient(circle at 34% 40%, var(--alone) 0%, transparent 58%),
+    radial-gradient(circle at 68% 62%, var(--alone) 0%, transparent 52%);
+  filter:blur(16px);
+  opacity:0.95;
+  animation:bollaAloneGira 2.6s linear infinite;
+}
+@keyframes bollaAloneGira{ from{transform:rotate(0deg);} to{transform:rotate(360deg);} }
+@keyframes bollaAlonePulsa{
+  0%,100% { transform:translate(-50%,-50%) scale(1);    opacity:0.85; }
+  50%     { transform:translate(-50%,-50%) scale(1.14); opacity:1;    }
+}
+.dmg-bubble-dark  .dmg-bubble-alone{ --alone:#00DFFF; }
+.dmg-bubble-light .dmg-bubble-alone{ --alone:#FFCF68; }
+.dmg-bubble-heal  .dmg-bubble-alone{ --alone:#43FFB4; }
 /* ── Turn-change banner (v0.55.0 art rebuild) ────────────────────────
    Shown centered on the SCREEN whenever the active player switches, so
    there's an unmistakable beat between turns. Drops in from above, holds,
@@ -1856,47 +1896,61 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
 .hand-card-wrap.dragging-out .hand-card-full-chrome{
   opacity: 0;
 }
-/* Turn-indicator glow (card-glow.png): sits behind each hand card, aligned
-   to it, visible ONLY while it's that player's turn — a soft ambient cue
-   independent of hover/selection. v0.64.0: sized to exactly match the
-   card's own edges per explicit measurement ("le dimensioni dovrebbero
-   essere esattamente width 124% e height 114% per combaciare con i bordi
-   delle carte") — replaces the earlier eyeballed 140%/140%. */
-/* v0.71.12 FIX ("il glow delle carte è disallineato di 1 o 2 px verso
-   sinistra"): the CSS box itself was already measured perfectly centered on
-   the card (verified via getBoundingClientRect — center-to-center delta was
-   ~0px), so the visible left-ward bias is baked into card-glow.png's own
-   painted glow not being centered within the PNG's own bounds — the asset
-   has slightly more transparent padding on its right edge than its left.
-   v0.71.13 FIX ("adesso è troppo. metti left: 49% sul glow"): the first
-   attempt (a +2px translateX nudge on top of the centering transform)
-   overshot — reverted to the simpler, explicitly requested left:49% (was
-   50%) instead, still paired with the same translate(-50%,-50%) centering. */
-/* v0.71.21 FIX ("il glow non sembra centrato e sopratutto è molto più
-   grande della carta... si deve vedere appena sbucare un bagliore dai
-   contorni della carta"): the 124%/114% sizing above was tuned for the
-   OLD card-glow.png (a pre-rendered soft radial haze concentrated near a
-   tight card-shaped region). Lorenzo since replaced the asset with a new
-   card-glow.png (now living in cards/card-parts/, per his own separate
-   move request) — inspected directly (1076×1776px): it's a solid white
-   silhouette at full alpha across ~90% of its own canvas, with a soft
-   feather only in the outer ~5% margin on each side. Sized at the OLD
-   124%/114%, that opaque core reads as a big rectangular halo far past
-   the card's edges instead of a thin peeking rim. Re-measured for the NEW
-   asset: since its own feather band is ~5% of its canvas per side, sizing
-   the box at ~111% (so the card's own edge lands right where the new
-   asset's feather begins) makes only that soft rim peek past the card,
-   matching Lorenzo's screenshot spec. left:49% kept unchanged (still the
-   correct center-alignment fix from v0.71.13, independent of which glow
-   asset is in use). */
+/* v0.73.38 — qui c'era la descrizione di card-glow.png, l'immagine ferma che
+   faceva da bagliore del turno: come era allineata, perche' sbordava piu' da
+   un lato, quanto veniva ingrandita perche' se ne vedesse solo il bordo
+   sfumato. Quell'immagine non viene piu' caricata da nessuno — il bagliore
+   adesso lo disegna il CSS, qui sotto. */
+/* ── v0.73.38 — IL BAGLIORE DEL TURNO E' UN BORDO CHE SCORRE ───────────────
+   Era un'immagine ferma appoggiata dietro la carta. Adesso e' lo stesso bordo
+   luminoso che gira intorno alle carte rare appena scoperte da un Book Pack,
+   in un unico colore per tutte.
+   Il COMPORTAMENTO non cambia di una virgola, ed e' per questo che il
+   contenitore resta lo stesso elemento con la stessa classe: si accende solo
+   quando e' il tuo turno (.my-turn), sfuma in entrata con lo sfalsamento di
+   100ms per carta (transition-delay, messo da renderHand) e si spegne subito
+   quando il turno passa. Qui dentro cambia solo cosa si vede.
+   Le due animazioni — il giro e il respiro — stanno su due elementi diversi:
+   sullo stesso si escluderebbero, e la dissolvenza del turno ha bisogno che
+   l'opacita' del contenitore resti libera. */
 .hand-card-glow{
   position:absolute; left:50%; top:50%;
-  width:111%; height:107%;
+  width:calc(100% + 18px); height:calc(100% + 18px);
   transform:translate(-50%,-50%);
   opacity:0; transition:opacity .3s ease;
   pointer-events:none; z-index:-1;
 }
 .hand-card-wrap.my-turn .hand-card-glow{ opacity:1; }
+.hand-card-rim-ring{
+  position:absolute; inset:0;
+  border-radius:24px;
+  padding:10px;
+  overflow:hidden;
+  filter:blur(3px);
+  /* Sfoca, fonde e si anima in continuo: promuoverlo contiene i ridisegni, e
+     su una macchia sfocata la nitidezza non e' in gioco (vedi la regola sul
+     will-change nell'handoff). */
+  will-change:opacity, filter;
+  -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+          mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor;
+          mask-composite:exclude;
+  animation:manoRimRespira 4.3s ease-in-out infinite;
+}
+.hand-card-rim-ring::before{
+  content:'';
+  will-change:transform;
+  position:absolute; left:-60%; top:-60%; width:220%; height:220%;
+  /* Un colore solo per tutte le carte, per esplicita richiesta: qui il bordo
+     non racconta la rarita', dice "tocca a te". */
+  background:conic-gradient(var(--bagliore-turno) 0deg, transparent 55deg,
+                            var(--bagliore-turno) 130deg, transparent 200deg,
+                            var(--bagliore-turno) 270deg, transparent 330deg,
+                            var(--bagliore-turno) 360deg);
+  animation:manoRimGira 5.5s linear infinite;
+}
+@keyframes manoRimGira{ from{ transform:rotate(0deg); } to{ transform:rotate(360deg); } }
+@keyframes manoRimRespira{ 0%,100%{ opacity:0.72; } 50%{ opacity:1; } }
 
 /* ── board ── */
 /* translateY(-15.4px) aligns the rendered board with battle-bg.png's painted
@@ -6594,7 +6648,9 @@ const BOARD_TILE_GHOST_HEX_R = (()=>{
   return ((boxW-2*CONTENT_MARGIN)/Math.sqrt(3))*HEX_EXTRA_SHRINK;
 })();
 // Turn-indicator glow shown behind each of the active player's hand cards.
-const HAND_CARD_GLOW = 'https://thetrickmaster.github.io/hextale/cards/card-parts/card-glow.png';
+// v0.73.38 — l'immagine del bagliore fermo dietro le carte non serve piu': il
+// bagliore del turno e' ora un bordo luminoso disegnato dal CSS (vedi
+// .hand-card-glow), e nessuno carica piu' quel file.
 const GEM_COLORS_LIST = ['red','blue','green','orange','purple'];
 const GEM_HEX = {
   red:    '#c0392b',
@@ -7933,7 +7989,7 @@ function getAlt(get, nomi){
 // Da riga del foglio a voce di FINAL_CARDS. Ritorna null se la riga non e'
 // utilizzabile (manca il nome o mancano i sei valori): meglio saltare una
 // carta incompleta che immetterne una rotta nel mazzo.
-function _cardaDaRiga(col, get){
+function _cardaDaRiga(col, get, haColonna){
   const nome=(get('Name')||'').trim();
   if(!nome) return null;
   // v0.72.73 — E' LA COLONNA "VISIBLE" A DIRE SE UNA RIGA E' UNA CARTA.
@@ -7945,7 +8001,12 @@ function _cardaDaRiga(col, get){
   // Se la colonna non c'e' proprio (schede piu' vecchie), si ripiega sul
   // criterio precedente invece di dichiarare che non esiste nessuna carta.
   const AFFERMATIVI=['yes','y','si','sì','true','vero','x','1'];
-  const haColonnaVisible = col.indexOf('Visible') >= 0;
+  // v0.73.37 — il controllo passa dallo stesso confronto tollerante di tutto
+  // il resto (vedi haColonna). Il ripiego serve a chi chiama questa funzione
+  // da una prova isolata, senza indice delle colonne.
+  const haColonnaVisible = (typeof haColonna === 'function')
+    ? haColonna('Visible')
+    : (Array.isArray(col) && col.some(x=>String(x||'').toLowerCase().trim()==='visible'));
   if(haColonnaVisible && !AFFERMATIVI.includes((get('Visible')||'').trim().toLowerCase())) return null;
   // La rarita' resta necessaria a gemme, drop rate e colore della gemma di
   // livello: se manca si assume la piu' comune, che e' il default meno
@@ -8287,8 +8348,18 @@ function _applicaRigheFoglio(righe){
   // obbligatorie fanno da firma: se non ci sono, quello che e' arrivato non e'
   // il database delle carte e si preferisce la tabella interna a un roster
   // costruito su colonne che non esistono.
+  // v0.73.37 — i nomi delle colonne si confrontano SENZA badare a maiuscole e
+  // spazi. Una colonna scritta "Ability Key" o "ability key" o con uno spazio
+  // di troppo funzionava prima come se non esistesse: il foglio non se ne
+  // accorgeva, il gioco nemmeno, e la carta usciva senza abilita' senza che
+  // nessuno dicesse niente. Un foglio si compila a mano, e a mano si scrive
+  // "Ability Key" tanto quanto "Ability key".
+  const _chiaveColonna = x => String(x||'').toLowerCase().replace(/\s+/g,' ').trim();
+  const indiceColonne = {};
+  col.forEach((nome, j)=>{ const k=_chiaveColonna(nome); if(k && !(k in indiceColonne)) indiceColonne[k]=j; });
+  const haColonna = nome => _chiaveColonna(nome) in indiceColonne;
   const COLONNE_ATTESE = ['Name','Rarity'];
-  const mancanti = COLONNE_ATTESE.filter(c => col.indexOf(c) < 0);
+  const mancanti = COLONNE_ATTESE.filter(c => !haColonna(c));
   if(mancanti.length){
     console.warn('[carte] la tabella ricevuta non sembra il database delle carte'
       + ' (mancano le colonne: ' + mancanti.join(', ') + '). Colonne trovate: ' + col.join(' | '));
@@ -8297,8 +8368,8 @@ function _applicaRigheFoglio(righe){
   const nuove = [];
   for(let i=1;i<righe.length;i++){
     const r = righe[i];
-    const get = k => { const j = col.indexOf(k); return j<0 ? '' : (r[j]||''); };
-    const c = _cardaDaRiga(col, get);
+    const get = k => { const j = indiceColonne[_chiaveColonna(k)]; return (j===undefined) ? '' : (r[j]||''); };
+    const c = _cardaDaRiga(col, get, haColonna);
     if(c) nuove.push(c);
   }
   if(!nuove.length){
@@ -8336,9 +8407,19 @@ function _applicaRigheFoglio(righe){
         const n = [registro[k].name].concat(registro[k].altriNomi||[]);
         return n.join(' / ');
       });
+      // v0.73.36 — l'avviso indica anche la strada per non ricascarci. Il
+      // legame fra foglio e codice puo' passare dal NOME (fragile: cambiarlo
+      // scollega la carta, ed e' successo) oppure dalla colonna "Ability key",
+      // che contiene la chiave tecnica e non cambia mai. Con quella colonna
+      // compilata il nome torna a essere quello che dovrebbe essere: testo da
+      // leggere sulla carta, libero di cambiare quando si vuole.
       console.warn('[carte] "'+c.name+'" dichiara l\'abilita\' "'+(c.abilityNameSheet||c.cardAbility)
         + '", che non corrisponde a nessuna abilita\' programmata: la carta non ne avra\' nessuna.'
-        + '\nNomi che il foglio puo\' usare:\n  ' + accettati.join('\n  '));
+        + '\n\nRIMEDIO CONSIGLIATO: nel foglio, colonna "Ability key", scrivi la chiave'
+        + '\ntecnica dell\'abilita\'. Quella comanda sul nome, quindi il nome puo\' essere'
+        + '\nqualunque cosa e non si scollega mai piu\'.'
+        + '\n\nChiavi disponibili:\n  ' + Object.keys(registro).join('\n  ')
+        + '\n\nIn alternativa, il nome deve essere uno di questi:\n  ' + accettati.join('\n  '));
     }
   }
   FINAL_CARDS.length=0;
@@ -14484,17 +14565,28 @@ function animaRotazioneValori(cardEl){
 
 // Chiamata all'inizio del turno di ogni giocatore: fa girare tutte le carte in
 // mano che hanno l'abilita' (oggi solo Alice, domani chiunque la avra').
-function ruotaCarteInMano(player){
+// v0.73.38 — `poi` viene chiamata a rotazione CONCLUSA. Serve perche' chi
+// chiama (l'inizio del turno) deve aspettare: la pescata ricostruisce il
+// ventaglio da capo, e un ventaglio ricostruito porta via gli elementi che si
+// stanno animando. Era questo il salto — l'animazione non era rotta, veniva
+// demolita a meta' da un ridisegno che arrivava un istante dopo averla
+// avviata.
+const LAMPO_PRIMA_DI_RUOTARE_MS = 220; // deve combaciare con .hit-flash
+function ruotaCarteInMano(player, poi){
+  const finito = ()=>{ if(typeof poi === 'function') poi(); };
   const mano = player===1 ? G.p1Hand : G.p2Hand;
   const fanId = player===1 ? 'p1-hand-fan' : 'p2-hand-fan';
   const daRuotare = (mano||[]).filter(c=>abilitaAttivaDi(c)==='eat_me_drink_me');
-  if(!daRuotare.length) return;
+  if(!daRuotare.length){ finito(); return; }
   const fan = document.getElementById(fanId);
-  let animata=false;
+  // Gli esagoni delle carte che stanno per ruotare. Si raccolgono prima:
+  // servono sia al lampo sia alla rotazione, e cercarli due volte vorrebbe
+  // dire rischiare di trovarne di diversi se qualcosa ridisegna in mezzo.
+  const esagoni = [];
   for(const carta of daRuotare){
     const wrap = fan && fan.querySelector(`.hand-card-wrap[data-card-id="${carta.id}"]`);
     const svg = wrap && wrap.querySelector('.hand-card-svg');
-    if(svg && animaRotazioneValori(svg)) animata=true;
+    if(svg) esagoni.push(svg);
   }
   // I valori veri cambiano quando l'animazione e' arrivata a destinazione, cosi'
   // il numero non salta al posto nuovo mentre lo sta ancora raggiungendo. Se non
@@ -14504,9 +14596,18 @@ function ruotaCarteInMano(player){
   const applica=()=>{
     daRuotare.forEach(ruotaValoriInMano);
     renderHand(fanId, mano, player-1);
+    finito();
   };
-  if(animata) setTimeout(applica, ROTAZIONE_VALORI_MS);
-  else applica();
+  if(!esagoni.length){ applica(); return; }
+  // Prima un lampo bianco sull'esagono: annuncia che quella carta sta per
+  // cambiare, cosi' i numeri non si mettono in moto senza preavviso.
+  esagoni.forEach(lampeggiaCarta);
+  setTimeout(()=>{
+    let animata = false;
+    for(const svg of esagoni) if(animaRotazioneValori(svg)) animata = true;
+    if(animata) setTimeout(applica, ROTAZIONE_VALORI_MS);
+    else applica();
+  }, LAMPO_PRIMA_DI_RUOTARE_MS);
 }
 
 
@@ -16388,21 +16489,26 @@ function startTurn(){
   const hand=player===1?G.p1Hand:G.p2Hand;
   const deck=player===1?G.p1Deck:G.p2Deck;
   // v0.73.5 — le abilita' che agiscono sulle carte ferme in mano scattano qui,
-  // all'inizio del turno del loro proprietario (oggi la rotazione di Alice).
-  // Prima della pescata: la carta appena pescata comincia il suo giro dal turno
-  // DOPO, non da quello in cui arriva.
-  ruotaCarteInMano(player);
-  if(deck.length>0 && hand.length<HAND_SIZE){
-    drawAndAnimate(player, false, ()=>{
+  // all'inizio del turno del loro proprietario (oggi la rotazione del Cheshire
+  // Cat). Prima della pescata: la carta appena pescata comincia il suo giro dal
+  // turno DOPO, non da quello in cui arriva.
+  // v0.73.38 — e la pescata ASPETTA che la rotazione sia finita. Pescare
+  // ricostruisce il ventaglio, e ricostruirlo mentre i numeri stanno viaggiando
+  // li fa sparire a meta' strada.
+  ruotaCarteInMano(player, ()=>{
+    if(!G || G.gameOver) return;
+    if(deck.length>0 && hand.length<HAND_SIZE){
+      drawAndAnimate(player, false, ()=>{
+        startTimerRespectingBanner();
+        render();
+        maybeTriggerAiTurn();
+      });
+    } else {
       startTimerRespectingBanner();
       render();
       maybeTriggerAiTurn();
-    });
-  } else {
-    startTimerRespectingBanner();
-    render();
-    maybeTriggerAiTurn();
-  }
+    }
+  });
 }
 
 // Starts the turn timer immediately, UNLESS the "Turno del Player X" banner
@@ -17883,6 +17989,13 @@ function flyArcedBounceBubble(el, from, to, durationMs, onDone, opts){
 function createDamageBubbleVisual(variant, extraClasses){
   const el=document.createElement('div');
   el.className=['dmg-bubble-visual','dmg-bubble-'+variant].concat(extraClasses||[]).join(' ');
+  // v0.73.38 — l'alone va aggiunto per PRIMO: in mancanza di uno z-index
+  // esplicito vincerebbe l'ordine del documento, e comparirebbe davanti al
+  // disco invece che dietro. Lo z-index negativo lo tiene comunque indietro,
+  // ma l'ordine giusto rende la cosa vera due volte invece che una.
+  const alone=document.createElement('div');
+  alone.className='dmg-bubble-alone';
+  el.appendChild(alone);
   const art=document.createElement('div');
   art.className='dmg-bubble-art';
   el.appendChild(art);
@@ -22061,10 +22174,15 @@ function renderHand(containerId,hand,playerIdx){
     // opacity toggle). Always rendered in the DOM (not conditionally
     // created) so the opacity transition has something to animate between
     // turns rather than popping in/out with the element itself.
-    const glowImg=document.createElement('img');
+    // v0.73.38 — non piu' un'immagine ferma ma il bordo luminoso che scorre
+    // (vedi .hand-card-glow nel CSS). Il contenitore resta lo stesso e con la
+    // stessa classe, perche' e' su di lui che vivono l'accensione a turno e lo
+    // sfalsamento: cambia soltanto cosa contiene.
+    const glowImg=document.createElement('div');
     glowImg.className='hand-card-glow';
-    glowImg.src=HAND_CARD_GLOW;
-    glowImg.alt=''; glowImg.draggable=false;
+    const rimRing=document.createElement('div');
+    rimRing.className='hand-card-rim-ring';
+    glowImg.appendChild(rimRing);
     // v0.70.9: the per-card 100ms stagger is now a genuine CSS
     // transition-delay on THIS element rather than a JS setTimeout gating
     // when the class itself gets added (see glowOnNow's own big comment) —
