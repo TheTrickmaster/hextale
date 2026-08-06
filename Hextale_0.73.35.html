@@ -2526,7 +2526,11 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
   transform-origin:center center;
 }
 
-/* ── Alice "Eat me, Drink me" value-circle swap travel (v0.72.1) ──
+/* ── "Eat me, Drink me": il viaggio dei cerchietti valore (v0.72.1) ──
+   v0.73.35 — l'abilita' era di Alice ed e' passata al Cheshire Cat: qui e nei
+   nomi qui sotto non compare piu' nessuna carta, perche' la meccanica non
+   appartiene a nessuna di loro — appartiene alla chiave dell'abilita', e la
+   carta che ce l'ha si decide dal foglio.
    "vorrei che per l'animazione dello swap, si animassero i due cerchi del
    gruppo valori e che con movimento circolare si spostino l'uno nella
    posizione dell'altro": each side's value-circle (+ its number text,
@@ -2543,8 +2547,8 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
    travel delta to the other side's position) and --asbowx/--asbowy (bow
    offset, opposite sign per element so the two circles bow away from
    each other rather than colliding on the same midpoint) via inline
-   custom properties set in animateAliceCirclePairSwap(). */
-@keyframes aliceCircleSwapTravel{
+   custom properties set in animaScambioCoppiaValori(). */
+@keyframes valoreInViaggio{
   0%   {transform:translate(0,0);}
   2%  {transform:translate(calc(var(--astx,0px) * 0.00099 + var(--asbowx,0px) * 0.06279),calc(var(--asty,0px) * 0.00099 + var(--asbowy,0px) * 0.06279));}
   4%  {transform:translate(calc(var(--astx,0px) * 0.00394 + var(--asbowx,0px) * 0.12533),calc(var(--asty,0px) * 0.00394 + var(--asbowy,0px) * 0.12533));}
@@ -2597,37 +2601,37 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
   98%  {transform:translate(calc(var(--astx,0px) * 0.99901 + var(--asbowx,0px) * 0.06279),calc(var(--asty,0px) * 0.99901 + var(--asbowy,0px) * 0.06279));}
   100% {transform:translate(var(--astx,0px),var(--asty,0px));}
 }
-.alice-circle-swap-travel{
-  animation:aliceCircleSwapTravel var(--asdur,0.52s) linear forwards;
+.valore-in-viaggio{
+  animation:valoreInViaggio var(--asdur,0.52s) linear forwards;
   transform-box:fill-box;
   transform-origin:center center;
 }
 
 
-/* ── Alice "Eat me, Drink me" swap-icon / close-icon-red hover (v0.72.1) ──
+/* ── Le icone di scelta (mirino, X rossa): passaggio del mouse (v0.72.1) ──
    "all'hover del mouse sulla swap arrow e la x, queste si devono ingrandire
    leggermente e 'accendere' con un overlay FFF 20% opacity mix-blend-mode
    overlay": the icon itself scales up slightly, and a same-shape white
    overlay (masked to the icon's own alpha silhouette in JS — see
-   buildAliceIconBtn's own comment — so no rectangular halo is ever visible)
+   buildSvgIconBtn's own comment — so no rectangular halo is ever visible)
    fades in via mix-blend-mode:overlay. transform-box:fill-box +
    transform-origin:center center makes the scale grow from the icon's own
    center rather than the SVG canvas origin. */
-.alice-icon-btn{
+.hx-icon-scelta{
   transform-box:fill-box;
   transform-origin:center center;
   transition:transform 0.15s ease-out;
 }
-.alice-icon-btn:hover{
+.hx-icon-scelta:hover{
   transform:scale(1.08);
 }
-.alice-icon-btn-overlay{
+.hx-icon-scelta-overlay{
   opacity:0;
   mix-blend-mode:overlay;
   pointer-events:none;
   transition:opacity 0.15s ease-out;
 }
-.alice-icon-btn:hover .alice-icon-btn-overlay{
+.hx-icon-scelta:hover .hx-icon-scelta-overlay{
   opacity:0.2;
 }
 
@@ -6883,7 +6887,7 @@ const _sfxBuffers={};
 // role="button", e le classi dei pulsanti disegnati di questo gioco. Le carte
 // no: hanno i loro suoni (pesca, presa, posa) e sovrapporgli un click li
 // sporcherebbe. Un elemento puo' chiamarsi fuori con data-no-click-sfx.
-const SELETTORE_PREMIBILE = 'button, a[href], [role="button"], .start-art-btn, .alice-icon-btn, .hx-icon-btn';
+const SELETTORE_PREMIBILE = 'button, a[href], [role="button"], .start-art-btn, .hx-icon-scelta, .hx-icon-btn';
 function abilitaSuonoClickGlobale(){
   document.addEventListener('click', (e)=>{
     // composedPath perche' il bersaglio vero, dentro un pulsante disegnato,
@@ -7776,7 +7780,10 @@ const FINAL_CARDS = [
     groupGems:{},
     activatedGroups:{},
     slug:'alice',
-    cardAbility:'eat_me_drink_me',
+    // v0.73.35 — Alice non ha piu' "Eat me, Drink me": l'abilita' e' passata
+    // al Cheshire Cat. Questo elenco e' solo il ripiego di quando il foglio
+    // non risponde; la verita' e' la colonna "Ability name" del foglio, ed e'
+    // li' che l'abilita' va spostata di riga.
     archetypes:['child','explorer'],
     rarity:'timeless',
     level:4, // Alice — governa gemme livello + tier effetti in Collezione (v0.72.15)
@@ -13308,9 +13315,12 @@ const TILE_ABILITIES_DEF = {
   // AI's aiEvaluateConquests). Registered here purely for the quote-box
   // name/desc lookup, same as eat_the_rich/smol_friends above.
   a_kind_of_magic:       { name:'A Kind of Magic',    desc:"Always attacks with its highest Power value, regardless its position." },
-  // v0.73.5 — Alice non e' piu' una scelta al piazzamento. Finche' resta in
+  // v0.73.5 — non e' piu' una scelta al piazzamento: finche' la carta resta in
   // mano, a ogni turno del suo proprietario i valori le girano intorno di una
   // posizione in senso orario (vedi ruotaValoriInMano).
+  // v0.73.35 — l'abilita' e' passata da Alice al Cheshire Cat. Il codice non
+  // la lega a nessuna carta: guarda la chiave, non il nome. Spostarla e' stato
+  // quindi solo cambiare una riga nel foglio.
   eat_me_drink_me:   { name:'Eat me, Drink me',   desc:'*Rotates* its power clockwise each turn while in hand.' },
   // v0.73.5 — Hatter. Non fa niente finche' resta suo; se lo conquista
   // l'avversario impazzisce (vedi impazzisciSeConquistato).
@@ -14364,7 +14374,7 @@ function recalcHoorayShesStays(card){
 // element gets data-value-side-*), so the circle is found by matching its
 // center against the text's — text x/y IS the circle's center by
 // construction (drawHexCard positions both at the same lx,ly).
-function getAliceValueElsForSide(cardEl, side){
+function elementiValoreDelLato(cardEl, side){
   const textEl = cardEl.querySelector(`[data-value-side-${side}]`);
   if(!textEl) return null;
   const tx=parseFloat(textEl.getAttribute('x')), ty=parseFloat(textEl.getAttribute('y'));
@@ -14376,14 +14386,14 @@ function getAliceValueElsForSide(cardEl, side){
   });
   return {textEl, circleEl};
 }
-const ALICE_SWAP_ANIM_MS=520; // must match --asdur below / the CSS animation-duration
+const ROTAZIONE_VALORI_MS=520; // must match --asdur below / the CSS animation-duration
 // Animates one circle+text pair traveling to the other pair's position along
 // a curved/bowed arc — same technique as doBuferaSwap's whole-card travel
 // (perpendicular "bow" offset scaled to travel distance, opposite sign for
 // each of the two elements so they arc away from each other rather than
 // colliding), just without that animation's rotation/scale-squash flourish
 // (not appropriate for small flat circles/numbers).
-function animateAliceCirclePairSwap(elsA, elsB){
+function animaScambioCoppiaValori(elsA, elsB){
   if(!elsA || !elsB || !elsA.circleEl || !elsB.circleEl) return;
   const aBox=elsA.circleEl.getBBox(), bBox=elsB.circleEl.getBBox();
   const aCenter={x:aBox.x+aBox.width/2, y:aBox.y+aBox.height/2};
@@ -14397,14 +14407,14 @@ function animateAliceCirclePairSwap(elsA, elsB){
     {els:elsB, tx:-dx, ty:-dy, bowSign:-1},
   ].forEach(({els,tx,ty,bowSign})=>{
     [els.circleEl, els.textEl].forEach(el=>{
-      el.style.setProperty('--asdur', ALICE_SWAP_ANIM_MS+'ms');
+      el.style.setProperty('--asdur', ROTAZIONE_VALORI_MS+'ms');
       el.style.setProperty('--astx', tx.toFixed(2)+'px');
       el.style.setProperty('--asty', ty.toFixed(2)+'px');
       el.style.setProperty('--asbowx', (perp.x*BOW_PX*bowSign).toFixed(2)+'px');
       el.style.setProperty('--asbowy', (perp.y*BOW_PX*bowSign).toFixed(2)+'px');
-      el.classList.remove('alice-circle-swap-travel');
+      el.classList.remove('valore-in-viaggio');
       void el.offsetWidth; // force reflow so a re-add always restarts the animation
-      el.classList.add('alice-circle-swap-travel');
+      el.classList.add('valore-in-viaggio');
     });
   });
 }
@@ -14442,11 +14452,11 @@ function ruotaValoriInMano(card){
 // stessa animazione curva dello scambio (vedi animateAliceCirclePairSwap): qui
 // ogni coppia va al posto del vicino in senso orario invece che scambiarsi con
 // il lato opposto.
-function animaRotazioneAlice(cardEl){
+function animaRotazioneValori(cardEl){
   if(!cardEl) return false;
   const posti={};
   for(const s of SIDES){
-    const els=getAliceValueElsForSide(cardEl, s);
+    const els=elementiValoreDelLato(cardEl, s);
     if(!els || !els.circleEl) return false;
     const box=els.circleEl.getBBox();
     posti[s]={els, x:box.x+box.width/2, y:box.y+box.height/2};
@@ -14459,14 +14469,14 @@ function animaRotazioneAlice(cardEl){
     const ARCO=Math.max(6, Math.min(18, lung*0.3));
     [da.els.circleEl, da.els.textEl].forEach(el=>{
       if(!el) return;
-      el.style.setProperty('--asdur', ALICE_SWAP_ANIM_MS+'ms');
+      el.style.setProperty('--asdur', ROTAZIONE_VALORI_MS+'ms');
       el.style.setProperty('--astx', dx.toFixed(2)+'px');
       el.style.setProperty('--asty', dy.toFixed(2)+'px');
       el.style.setProperty('--asbowx', (perp.x*ARCO).toFixed(2)+'px');
       el.style.setProperty('--asbowy', (perp.y*ARCO).toFixed(2)+'px');
-      el.classList.remove('alice-circle-swap-travel');
+      el.classList.remove('valore-in-viaggio');
       void el.offsetWidth; // forza il reflow: senza, riaggiungere la classe non fa ripartire niente
-      el.classList.add('alice-circle-swap-travel');
+      el.classList.add('valore-in-viaggio');
     });
   }
   return true;
@@ -14484,7 +14494,7 @@ function ruotaCarteInMano(player){
   for(const carta of daRuotare){
     const wrap = fan && fan.querySelector(`.hand-card-wrap[data-card-id="${carta.id}"]`);
     const svg = wrap && wrap.querySelector('.hand-card-svg');
-    if(svg && animaRotazioneAlice(svg)) animata=true;
+    if(svg && animaRotazioneValori(svg)) animata=true;
   }
   // I valori veri cambiano quando l'animazione e' arrivata a destinazione, cosi'
   // il numero non salta al posto nuovo mentre lo sta ancora raggiungendo. Se non
@@ -14495,7 +14505,7 @@ function ruotaCarteInMano(player){
     daRuotare.forEach(ruotaValoriInMano);
     renderHand(fanId, mano, player-1);
   };
-  if(animata) setTimeout(applica, ALICE_SWAP_ANIM_MS);
+  if(animata) setTimeout(applica, ROTAZIONE_VALORI_MS);
   else applica();
 }
 
@@ -24410,7 +24420,7 @@ function renderBoard(){
     overlayDefs.appendChild(maskEl);
 
     const btnGroup=svgEl('g');
-    btnGroup.classList.add('alice-icon-btn'); // classe hover condivisa, vedi CSS
+    btnGroup.classList.add('hx-icon-scelta'); // classe hover condivisa, vedi CSS
     btnGroup.style.cursor="url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer";
 
     const iconImg=svgEl('image');
@@ -24428,7 +24438,7 @@ function renderBoard(){
     overlayRect.setAttribute('height',size.toFixed(1));
     overlayRect.setAttribute('fill','#ffffff');
     overlayRect.setAttribute('mask',`url(#${maskId})`);
-    overlayRect.classList.add('alice-icon-btn-overlay');
+    overlayRect.classList.add('hx-icon-scelta-overlay');
     btnGroup.appendChild(overlayRect);
 
     btnGroup.addEventListener('click',onClick);
