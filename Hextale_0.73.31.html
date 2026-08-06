@@ -3652,9 +3652,14 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      cambia il risultato voluto e limita la zona da ricomporre a questo
      riquadro invece che a tutta la pagina. */
   isolation:isolate;
+  /* L'altezza a cui vengono disegnati entrambi i libri, chiuso e aperto.
+     Cambiarla qui li cambia tutti e due insieme: e' proprio il punto. */
+  --altezza-libro:352px;
   position:absolute; left:50%; top:50%;
   width:260px; height:446px;
   margin:-223px 0 0 -130px;
+  /* Il libro aperto e' piu' largo del riquadro: deve poter sbordare. */
+  overflow:visible;
   /* v0.72.93 — la bustina ricompare in dissolvenza a fine sequenza (vedi
      tornaAllaBustina). Una transizione e non un'animazione: cosi' vale anche
      per il passaggio fra disponibile e non disponibile, che cambia l'opacita'
@@ -3664,8 +3669,19 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
   cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;
   z-index:2;
 }
+/* v0.73.31 — I DUE LIBRI ALLA STESSA ALTEZZA.
+   Il libro chiuso e quello aperto hanno proporzioni molto diverse (370x501
+   contro 843x464). Con `object-fit:contain` dentro un riquadro fisso e' la
+   LARGHEZZA a comandare per entrambi, e il libro aperto — molto piu' largo —
+   finiva alto meno della meta' dell'altro: aprendolo sembrava rimpicciolirsi
+   di colpo.
+   Ora comanda l'altezza: fissata quella, la larghezza la decidono le
+   proporzioni dell'immagine. I due stati sono alti uguali per costruzione,
+   qualunque immagine ci si metta domani. Il riquadro lascia sbordare
+   (overflow:visible) perche' il libro aperto e' piu' largo di lui. */
 #pack-closed > #pack-shake > #pack-closed-img{
-  width:100%; height:100%; object-fit:contain; display:block;
+  position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+  height:var(--altezza-libro,352px); width:auto; max-width:none; display:block;
   filter:drop-shadow(0 26px 30px rgba(0,0,0,0.6));
 }
 /* v0.72.86 — IL BAGLIORE E' UNA COPIA DELLA BUSTINA, RESA BIANCA.
@@ -3684,8 +3700,10 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
    Con plus-lighter il bianco SOMMA luce invece di coprire — e' cio' che
    distingue un bagliore da una vernice. */
 #pack-white{
-  position:absolute; inset:0;
-  width:100%; height:100%; object-fit:contain; display:block;
+  /* Stessa regola dell'immagine sotto: e' la stessa immagine resa bianca, e
+     deve restarci esattamente sopra. */
+  position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+  height:var(--altezza-libro,352px); width:auto; max-width:none; display:block;
   filter:brightness(0) invert(1);
   mix-blend-mode:plus-lighter;
   opacity:0;
@@ -4260,8 +4278,35 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
    ogni modifica fatta sulla prima non aveva effetto. Rimossa.
    Con essa se ne va l'etichetta col nome della rarita' sotto la carta: il
    colore dell'alone e del bordo la dicono gia'. */
-#pack-actions{ display:flex; gap:14px; align-items:center; min-height:56px; }
+#pack-actions{ display:flex; gap:14px; align-items:center; justify-content:center; min-height:56px; }
 #pack-actions .start-art-btn{ min-width:220px; }
+/* v0.73.31 — i pulsanti della pagina compaiono e spariscono in dissolvenza.
+   `visibility` accanto a `opacity` perche' un pulsante trasparente resta
+   cliccabile: e' proprio il click per sbaglio che si vuole impedire mentre si
+   sta aprendo un libro. */
+#pack-actions .start-art-btn{ transition:opacity .22s ease, visibility .22s; }
+#pack-actions .start-art-btn.pack-nascosto{ opacity:0; visibility:hidden; pointer-events:none; }
+
+/* v0.73.31 — IL LAMPO DELL'APERTURA.
+   Arriva praticamente istantaneo (10ms) e se ne va con calma: e' il modo in
+   cui un lampo si comporta davvero, e la differenza fra le due durate e' cio'
+   che lo fa leggere come un lampo invece che come una schiarita.
+   Sta sopra a tutto il resto della pagina ma sotto ai pulsanti, e non
+   intercetta i click. */
+#pack-flash{
+  position:fixed; inset:0; background:#fff; opacity:0;
+  pointer-events:none; z-index:9000; display:none;
+}
+/* Il nome NON puo' essere packFlash: esiste gia' un'animazione con quel nome
+   (il lampo bianco sulla singola carta della bustina) e i due si
+   sovrascriverebbero a vicenda a seconda di quale viene dichiarata dopo, con
+   il risultato che uno dei due lampi farebbe la curva dell'altro. */
+#pack-flash.acceso{ display:block; animation:packLampoApertura 900ms linear forwards; }
+@keyframes packLampoApertura{
+  0%    {opacity:0;}
+  1.1%  {opacity:0.92;}   /* 10ms su 900: il lampo e' gia' al massimo */
+  100%  {opacity:0;}
+}
 
 
 /* ── Card DB browser (v0.71.70 NEW) ───────────────────────────────────────
@@ -5337,7 +5382,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.73.30</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.73.31</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -5507,9 +5552,9 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
       </button>
     </div></div><div class="debug-item"><!-- v0.72.79 NEW: pagina delle bustine. Vive nel menu di debug perche' il
          possesso delle carte non esiste ancora — vedi openPackOverlay. --><button class="start-art-btn sab-secondary" onclick="closeDebugModal();openPackOverlay()">
-      <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Apri bustine</span>
+      <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Apri Book Pack</span>
     </button></div><div class="debug-item"><button class="start-art-btn sab-secondary" style="margin-top:8px;" onclick="debugAzzeraTimerBustine()">
-      <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Azzera timer bustine</span>
+      <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Azzera timer Book Pack</span>
     </button></div><div class="debug-item"><!-- v0.72.76 NEW: cerca su GitHub il file Hextale_*.html con il numero di
          versione piu' alto e offre due cose: scaricarlo, oppure eseguirlo
          subito al posto di questa pagina. Vedi debugCercaUltimaVersione nello
@@ -5551,9 +5596,11 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      nello script per il ragionamento completo. -->
 <div id="pack-overlay">
   <div id="pack-bg"></div>
+  <!-- v0.73.31 — il lampo dell'apertura del libro: vedi #pack-flash nel CSS. -->
+  <div id="pack-flash"></div>
   <div id="pack-main">
     <div id="pack-header">
-      <h1>Packs</h1>
+      <h1>Book Packs</h1>
       <button class="start-art-btn sab-secondary" id="pack-toggle-variant" onclick="packToggleVariant()">
         <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label" id="pack-toggle-variant-label">Show dark version</span>
       </button>
@@ -5574,7 +5621,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
       <button class="start-art-btn sab-secondary" id="pack-putaway" style="display:none;" onclick="mettiViaCarte()">
         <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Put away</span>
       </button>
-      <button class="start-art-btn sab-primary" onclick="closePackOverlay()">
+      <button class="start-art-btn sab-primary" id="pack-back" onclick="closePackOverlay()">
         <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Back</span>
       </button>
     </div>
@@ -9060,6 +9107,43 @@ function _bustinaDurataCarica(){
   return BUSTINA_CARICA_DEFAULT_MS;
 }
 
+// ── v0.73.31 — I DUE PULSANTI DELLA PAGINA ────────────────────────────────
+// "Back" c'e' solo quando non sta succedendo niente; "Put away" solo quando ci
+// sono carte scoperte da mettere via. Non compaiono mai insieme: durante
+// l'apertura di un Book Pack il giocatore non deve poter uscire per sbaglio, e
+// a carte scoperte l'unica cosa da fare e' metterle via.
+// `display` resta a governare l'ingombro (i pulsanti sono centrati e uno solo
+// alla volta deve occupare spazio), l'opacita' fa la dissolvenza. Per questo
+// il passaggio da display:none a visibile ha bisogno di un fotogramma in
+// mezzo: senza, il browser vedrebbe comparsa e dissolvenza nello stesso
+// istante e non animerebbe niente.
+function mostraPulsanteBustina(id, visibile, subito){
+  const b = document.getElementById(id);
+  if(!b) return;
+  if(visibile){
+    b.style.display = '';
+    if(subito){ b.classList.remove('pack-nascosto'); return; }
+    b.classList.add('pack-nascosto');
+    requestAnimationFrame(()=>requestAnimationFrame(()=>b.classList.remove('pack-nascosto')));
+  } else {
+    b.classList.add('pack-nascosto');
+    // Si toglie dall'ingombro solo a dissolvenza finita, o l'altro pulsante
+    // scatterebbe al centro mentre questo sta ancora svanendo.
+    setTimeout(()=>{ if(b.classList.contains('pack-nascosto')) b.style.display = 'none'; }, 240);
+  }
+}
+
+// Il lampo dell'apertura. Riavviarlo richiede di togliere e rimettere la
+// classe con un reflow in mezzo, altrimenti il browser considera l'animazione
+// gia' in corso e non riparte — la stessa trappola dei lunge d'attacco.
+function lampoAperturaLibro(){
+  const el = document.getElementById('pack-flash');
+  if(!el) return;
+  el.classList.remove('acceso');
+  void el.offsetWidth;
+  el.classList.add('acceso');
+}
+
 function apriBustina(){
   if(_bustinaInCorso || _bustinaDaGirare > 0) return;
   if(!bustinaDisponibile() || !(FINAL_CARDS||[]).length) return;
@@ -9069,7 +9153,6 @@ function apriBustina(){
   const raggio = document.getElementById('pack-beam');
   const rivelate = document.getElementById('pack-reveal');
   const stato = document.getElementById('pack-status');
-  const bottone = document.getElementById('pack-putaway');
   // Il tempo riparte ADESSO, non a fine animazione: due click ravvicinati
   // durante i due secondi di carica aprirebbero altrimenti due bustine.
   _bustinaSalvaProssima(Date.now() + BUSTINA_ATTESA_MS);
@@ -9079,7 +9162,9 @@ function apriBustina(){
     const e = _pescaCartaBustina(uscite);
     if(e) uscite.push(e);
   }
-  if(bottone) bottone.style.display = 'none';
+  mostraPulsanteBustina('pack-putaway', false, true);
+  // Da qui in poi non si esce dalla pagina: si sta aprendo un Book Pack.
+  mostraPulsanteBustina('pack-back', false);
   rivelate.innerHTML = '';
   stato.textContent = '';
   chiusa.classList.remove('ready','locked');
@@ -9111,6 +9196,9 @@ function apriBustina(){
     // arrivava dopo, slegato. Ora le tre cose — bianco al 100%, apertura,
     // fascio — sono lo stesso evento.
     impostaImmagineBustina('opened');
+    // Il lampo appartiene a QUESTO istante: il libro che si apre, il bianco al
+    // massimo, il fascio che parte. Sono lo stesso evento.
+    lampoAperturaLibro();
     raggio.classList.add('firing');
 
     // La bustina resta in scena per tutta la durata del fascio: e' la sorgente
@@ -9279,7 +9367,10 @@ function giraCartaBustina(carta){
       // del flip dura un secondo e vederlo apparire prima toglierebbe forza
       // al momento della rivelazione.
       _bustinaDopo(1050, ()=>{
-        if(bottone) bottone.style.display = '';
+        // Girate entrambe le carte, l'unica cosa da fare e' metterle via: il
+        // pulsante compare da solo, in dissolvenza, e "Back" resta fuori
+        // scena finche' non si e' finito.
+        mostraPulsanteBustina('pack-putaway', true);
         if(stato) stato.textContent = '';
       });
     }
@@ -9388,8 +9479,7 @@ function impostaTraiettoriaUscita(carta, dir, da){
 }
 
 function mettiViaCarte(){
-  const bottone = document.getElementById('pack-putaway');
-  if(bottone) bottone.style.display = 'none';
+  mostraPulsanteBustina('pack-putaway', false);
   const carte = [...document.querySelectorAll('.pack-card')];
   carte.forEach((c, i)=>{
     const dir = parseFloat(c.style.getPropertyValue('--dir')) || (i===0?-1:1);
@@ -9421,10 +9511,12 @@ function tornaAllaBustina(){
   const chiusa = document.getElementById('pack-closed');
   const rivelate = document.getElementById('pack-reveal');
   const raggio = document.getElementById('pack-beam');
-  const bottone = document.getElementById('pack-putaway');
   if(rivelate) rivelate.innerHTML='';
   if(raggio) raggio.classList.remove('firing');
-  if(bottone) bottone.style.display='none';
+  // Si ricomincia dal principio: niente piu' carte da mettere via, e si puo'
+  // di nuovo uscire dalla pagina.
+  mostraPulsanteBustina('pack-putaway', false, true);
+  mostraPulsanteBustina('pack-back', true);
   if(chiusa){
     chiusa.classList.remove('charging','tearing','dissolving');
     impostaImmagineBustina('closed');
