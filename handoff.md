@@ -136,6 +136,13 @@ si blocchi o che scatti alla fine. La cura e' annidare: un elemento porta
 l'animazione (sempre verso un valore fisso), quello dentro porta il valore che
 dipende dal turno, con una transizione per non cambiare di scatto.
 
+**Lo stato di un'animazione non si scrive sulla carta.** Chi disegna riceve una
+COPIA (`renderBoard` passa `{...placed.card, owner}`), quindi qualunque cosa
+scritta li' dentro vive il tempo di un disegno e poi sparisce. Leggere dalla
+carta va benissimo; scriverci lo stato di un'animazione no — va in una mappa a
+parte, come `_veloFumo`. Il sintomo, quando si sbaglia, e' un'animazione che
+riparte da capo a ogni ridisegno e quindi sembra saltare.
+
 **Un effetto che ha qualcosa da mostrare alza la soglia della pausa di fine
 turno, non ci si somma.** `endTurn` si prende gia' un secondo perche' la
 plancia stia ferma e si possa leggere: chi ha bisogno di piu' tempo chiama

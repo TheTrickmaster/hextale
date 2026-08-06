@@ -1954,7 +1954,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
 .fumo-entra{ animation:fumoEntra 0.85s ease-out forwards; }
 .fumo-esce { animation:fumoEsce 0.6s ease-in forwards; }
 /* Quanto il fumo lascia intravedere sta su un elemento DIVERSO da quello che
-   fa la dissolvenza, e cambia con una transizione invece che di scatto.
+   fa la dissolvenza, e cambia con una sua animazione.
    Il perche' e' che quel valore dipende da chi e' di turno: se stesse sullo
    stesso elemento della dissolvenza, al cambio turno il bersaglio
    dell'animazione cambierebbe A META' STRADA e la dissolvenza salterebbe di
@@ -1963,7 +1963,17 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
    La regola generale, buona per ogni animazione futura: cio' che si anima e
    cio' che dipende dallo stato del turno non stanno mai sullo stesso
    elemento. */
-.fumo-velo{ transition:opacity 0.25s ease; }
+/* v0.73.27 — e il cambio del velo e' un'ANIMAZIONE, non una transizione.
+   Una transizione ha bisogno di un valore precedente da cui partire, e qui
+   quel valore non c'e' mai: al cambio turno renderBoard ricostruisce la
+   plancia da zero, quindi l'elemento e' appena nato e la transizione non
+   scatta — il velo saltava da meta' a pieno di colpo, ed e' lo scatto che si
+   vedeva comparire insieme al banner.
+   Un'animazione invece si puo' RIPRENDERE a meta' su un elemento nuovo, dando
+   un ritardo negativo pari al tempo gia' trascorso: e' lo stesso accorgimento
+   che tiene in piedi la dissolvenza del fumo e l'atterraggio delle carte. */
+@keyframes fumoVelo{ from{opacity:var(--velo-da,1);} to{opacity:var(--velo-a,1);} }
+.fumo-velo-cambia{ animation:fumoVelo 0.3s ease forwards; }
 .card-flip, .card-flip-a, .card-flip-b{
   animation:cardFlip 0.315s ease-in-out;
   transform-box:fill-box;
@@ -5312,7 +5322,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.73.26</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.73.27</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -13923,24 +13933,46 @@ function sorteggioStabile(lista, seme){
 // Un lato e' "esposto" se dall'altra parte non c'e' nessuna carta: e' da li'
 // che una carta puo' essere attaccata, quindi e' li' che un valore basso e'
 // davvero un problema. Serve a Eat the Rich per capire chi ha piu' bisogno.
-function latiEsposti(q, r){
-  const esposti=[];
+// v0.73.27 — un lato e' SCOPERTO solo se di la' c'e' una casella vera, libera e
+// giocabile. Prima bastava che non ci fosse una carta, e quindi contavano come
+// scoperti anche il bordo del tabellone e i tasselli bloccati: posti da cui
+// nessuno potra' mai attaccare. Una carta appoggiata a un muro risultava
+// esposta su quel lato, che e' l'esatto contrario del vero.
+function latiScoperti(q, r){
+  const scoperti=[];
   for(const dir of DIRS){
-    if(!G.board[key(q+dir.dq, r+dir.dr)]) esposti.push(dir.mySide);
+    const nq=q+dir.dq, nr=r+dir.dr, nk=key(nq,nr);
+    if(!G.cells.some(c=>c.q===nq && c.r===nr)) continue; // fuori dal tabellone
+    if(G.holes.has(nk)) continue;                        // tassello bloccato
+    if(G.board[nk]) continue;                            // gia' occupato
+    scoperti.push(dir.mySide);
   }
-  return esposti;
+  return scoperti;
 }
 // Quanto e' messa male questa carta, in due numeri: il suo gruppo piu' basso e
 // il piu' basso dei suoi valori su un lato esposto. Piu' bassi, piu' bisogno.
 // Una carta circondata da ogni lato non ha valori esposti: non e' attaccabile
 // da nessuna parte, quindi passa dietro a chi lo e' (Infinity).
+// v0.73.27 — il bisogno si misura SOLO sui gruppi che hanno almeno un lato
+// scoperto. Un gruppo tutto murato non puo' essere attaccato da nessuna parte:
+// rinforzarlo non serve a niente, e regalargli il maltolto vorrebbe dire
+// buttarlo via. Se una carta non ha nemmeno un gruppo scoperto non e' proprio
+// una candidata (gruppiUtili vuoto).
+function gruppiScopertiDi(card, q, r){
+  const scoperti = latiScoperti(q, r);
+  if(!scoperti.length) return [];
+  return gruppiDiCarta(card).filter(g => g.sides.some(s => scoperti.indexOf(s) >= 0));
+}
 function bisognoDiCarta(card, q, r){
-  const gruppi=gruppiDiCarta(card);
-  const valori=gruppi.map(g=>card.values[g.sides[0]]||0);
-  const esposti=latiEsposti(q,r).map(s=>card.values[s]||0);
+  const utili = gruppiScopertiDi(card, q, r);
+  if(!utili.length) return null; // non c'e' niente da rinforzare qui
+  const scoperti = latiScoperti(q, r);
+  const valori = utili.map(g => card.values[g.sides[0]] || 0);
+  const suiLatiScoperti = scoperti.map(s => card.values[s] || 0);
   return {
-    gruppoPiuBasso: valori.length ? Math.min(...valori) : 0,
-    espostoPiuBasso: esposti.length ? Math.min(...esposti) : Infinity
+    gruppiUtili: utili,
+    gruppoPiuBasso: Math.min(...valori),
+    espostoPiuBasso: suiLatiScoperti.length ? Math.min(...suiLatiScoperti) : Infinity
   };
 }
 
@@ -13996,7 +14028,15 @@ function activateEatTheRich(card, q, r){
   }
   if(!candidati.length) candidati = [{k: miaCella, card, q, r}];
 
-  const conBisogno = candidati.map(c=>Object.assign(c, bisognoDiCarta(c.card, c.q, c.r)));
+  const conBisogno = candidati
+    .map(c=>{ const b = bisognoDiCarta(c.card, c.q, c.r); return b ? Object.assign(c, b) : null; })
+    .filter(Boolean);
+  // Nessun alleato ha un gruppo attaccabile: non c'e' nessuno a cui il bottino
+  // serva davvero, e non lo si da' a nessuno.
+  if(!conBisogno.length){
+    console.info('[Eat the Rich] rubati '+bottino+' punti ma nessun alleato ha un gruppo scoperto da rinforzare: il bottino va perso.');
+    return;
+  }
   const minGruppo = Math.min(...conBisogno.map(c=>c.gruppoPiuBasso));
   let finalisti = conBisogno.filter(c=>c.gruppoPiuBasso === minGruppo);
   if(finalisti.length > 1){
@@ -14009,7 +14049,7 @@ function activateEatTheRich(card, q, r){
 
   // Il bottino va sul gruppo piu' basso del beneficiario: e' il punto in cui
   // serve, ed e' quello che "an ally in need" vuol dire.
-  const gruppi = gruppiDiCarta(scelto.card);
+  const gruppi = scelto.gruppiUtili || gruppiDiCarta(scelto.card);
   let gruppoDebole = null, valoreDebole = Infinity;
   for(const g of gruppi){
     const v = scelto.card.values[g.sides[0]] || 0;
@@ -14959,8 +14999,7 @@ function avvolgiInDissolvenzaFumo(el, card){
   gruppo.setAttribute('data-role','smoke-fade');
   el.parentNode.insertBefore(gruppo, el);
   gruppo.appendChild(el);
-  el.classList.add('fumo-velo');
-  el.setAttribute('opacity', opacitaFumoPer(card));
+  applicaVeloFumo(el, card);
   applicaFaseFumo(gruppo, card);
   return gruppo;
 }
@@ -15030,9 +15069,47 @@ function fumoReattach(){
 // proprietario la cortina resta visibile ma trasparente, cosi' si vede che la
 // carta e' nascosta e insieme si leggono i numeri.
 const FUMO_OPACITA_PROPRIETARIO = 0.5;
+const VELO_CAMBIO_MS = 300; // deve combaciare con .fumo-velo-cambia
 function opacitaFumoPer(card){
   const mia = card && card.owner === G.currentPlayer;
   return mia ? FUMO_OPACITA_PROPRIETARIO : 1;
+}
+// Lo stato del velo NON puo' stare sulla carta. Chi disegna riceve una COPIA
+// della carta (vedi renderBoard: `cardWithOwner = {...placed.card, owner}`),
+// quindi qualunque cosa si scriva li' dentro vive il tempo di un disegno e poi
+// viene buttata. E' per questo che il velo saltava: a ogni ridisegno ripartiva
+// da capo, senza memoria di quanto valesse un istante prima, e quindi senza
+// niente da cui animare.
+// Sta quindi qui, in una mappa per carta, che i ridisegni non toccano.
+// Regola generale: leggere dalla carta si puo', scriverci lo stato di
+// un'animazione no.
+const _veloFumo = new Map(); // id carta -> {corrente, prima, da}
+function aggiornaVeloFumo(card){
+  const bersaglio = opacitaFumoPer(card);
+  const id = (card && (card.id || card.name)) || '?';
+  let stato = _veloFumo.get(id);
+  if(!stato){
+    stato = {corrente: bersaglio, prima: bersaglio, da: null};
+    _veloFumo.set(id, stato);
+  } else if(stato.corrente !== bersaglio){
+    stato.prima = stato.corrente;
+    stato.corrente = bersaglio;
+    stato.da = performance.now();
+  }
+  return stato;
+}
+// Mette sull'elemento il velo giusto: fermo se non sta cambiando, oppure
+// l'animazione ripresa dal punto in cui e' arrivata.
+function applicaVeloFumo(el, card){
+  const stato = aggiornaVeloFumo(card);
+  el.setAttribute('opacity', stato.corrente);
+  if(stato.da == null) return;
+  const passato = performance.now() - stato.da;
+  if(passato >= VELO_CAMBIO_MS){ stato.da = null; return; }
+  el.style.setProperty('--velo-da', stato.prima);
+  el.style.setProperty('--velo-a', stato.corrente);
+  el.style.animationDelay = (-passato).toFixed(0)+'ms';
+  el.classList.add('fumo-velo-cambia');
 }
 
 // Hatter — "Have I Gone Mad?". Scatta quando gliela portano via: cambia nome e
