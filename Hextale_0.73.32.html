@@ -3652,9 +3652,21 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      cambia il risultato voluto e limita la zona da ricomporre a questo
      riquadro invece che a tutta la pagina. */
   isolation:isolate;
-  /* L'altezza a cui vengono disegnati entrambi i libri, chiuso e aperto.
-     Cambiarla qui li cambia tutti e due insieme: e' proprio il punto. */
-  --altezza-libro:352px;
+  /* v0.73.33 — L'ALTEZZA E' QUELLA MASSIMA, NON QUELLA A RIPOSO.
+     Il libro CRESCE fino a scale(1.28) durante i due secondi di carica (vedi
+     packGrow). Un'immagine disegnata alla misura di riposo e poi ingrandita
+     del 28% e' un ingrandimento di un fotogramma piu' piccolo: sfoca.
+     Si fa quindi il contrario. L'immagine viene disegnata alla sua misura
+     MASSIMA — 352 x 1.28 = 451 — e a riposo la si rimpicciolisce con uno
+     scale fisso (--riposo-libro, 1/1.28 = 0.781). A riposo si vede esattamente
+     come prima; al culmine della carica i due fattori si annullano e
+     l'immagine e' mostrata a grandezza naturale, uno a uno. Il browser non
+     ingrandisce mai niente: al massimo rimpicciolisce, e rimpicciolire e'
+     nitido.
+     E' il "reverse scale": si progetta alla misura piu' grande e si parte
+     rimpiccioliti, invece di partire piccoli e ingrandire. */
+  --altezza-libro:451px;
+  --riposo-libro:0.781;
   position:absolute; left:50%; top:50%;
   width:260px; height:446px;
   margin:-223px 0 0 -130px;
@@ -3680,8 +3692,9 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
    qualunque immagine ci si metta domani. Il riquadro lascia sbordare
    (overflow:visible) perche' il libro aperto e' piu' largo di lui. */
 #pack-closed > #pack-shake > #pack-closed-img{
-  position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
-  height:var(--altezza-libro,352px); width:auto; max-width:none; display:block;
+  position:absolute; left:50%; top:50%;
+  transform:translate(-50%,-50%) scale(var(--riposo-libro,1));
+  height:var(--altezza-libro,451px); width:auto; max-width:none; display:block;
   filter:drop-shadow(0 26px 30px rgba(0,0,0,0.6));
 }
 /* v0.72.86 — IL BAGLIORE E' UNA COPIA DELLA BUSTINA, RESA BIANCA.
@@ -3701,9 +3714,11 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
    distingue un bagliore da una vernice. */
 #pack-white{
   /* Stessa regola dell'immagine sotto: e' la stessa immagine resa bianca, e
-     deve restarci esattamente sopra. */
-  position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
-  height:var(--altezza-libro,352px); width:auto; max-width:none; display:block;
+     deve restarci esattamente sopra — stessa altezza E stesso rimpicciolimento
+     di riposo, o i due si scollerebbero durante la carica. */
+  position:absolute; left:50%; top:50%;
+  transform:translate(-50%,-50%) scale(var(--riposo-libro,1));
+  height:var(--altezza-libro,451px); width:auto; max-width:none; display:block;
   filter:brightness(0) invert(1);
   mix-blend-mode:plus-lighter;
   opacity:0;
@@ -3941,10 +3956,27 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
    Effetto collaterale da sapere: l'alone non somma piu' luce allo SFONDO
    della pagina, solo a cio' che sta dentro la carta. Su fondo scuro la
    differenza e' minima; se dovesse sembrare spento, e' questa riga da
-   togliere per prima. */
+   togliere per prima.
+
+   v0.73.32 — VIA `will-change:transform` DA QUI, ed e' la correzione della
+   sfocatura. Promuovere un elemento a livello di composizione vuol dire che
+   il browser lo disegna UNA volta alla risoluzione che ha in quel momento e
+   poi ricampiona quella immagine per ogni ingrandimento applicato sopra. Su
+   questa carta di ingrandimenti ce ne sono due: il suo (fino a scale(1.28)
+   nell'animazione d'uscita dal libro) e soprattutto quello di #game-root, che
+   scala l'intera pagina per adattarla allo schermo — su un monitor grande e'
+   ben oltre 1. Il risultato e' un'immagine nitida ingrandita da un
+   fotogramma piu' piccolo: sfocata.
+   E' esattamente lo stesso guasto gia' trovato e corretto nella Collezione in
+   v0.72.30, dove la cura fu la stessa: togliere la promozione, non
+   aggiungerne altre. Senza, il browser ri-rasterizza alla scala finale e la
+   carta resta nitida.
+   `isolation:isolate` resta: quello non promuove niente, chiude soltanto il
+   gruppo di fusione, ed e' la meta' del rimedio alle scie che non costa
+   nitidezza. L'altra meta' — la causa vera — era il mix-blend-mode sugli
+   elementi sfocati in movimento, tolto in v0.72.95. */
 .pack-card{
   isolation:isolate;
-  will-change:transform;
   position:absolute; left:50%; top:50%;
   /* v0.72.92 — 15% piu' grandi (erano 210x360). I margini negativi valgono
      meta' delle nuove misure: sono loro a tenere la carta centrata sul punto
@@ -5382,7 +5414,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.73.31</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.73.32</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o

@@ -158,6 +158,16 @@ Una firma che non sa rispondere (carta non serializzabile) restituisce un
 valore sempre diverso: si ridisegna, cioe' si torna al comportamento di prima.
 Il caso peggiore e' non guadagnare nulla, mai mostrare qualcosa di vecchio.
 
+**`will-change:transform` su qualcosa di NITIDO lo sfoca.** Promuovere un
+elemento a livello di composizione vuol dire che il browser lo disegna una
+volta alla risoluzione che ha in quel momento e poi ricampiona quel fotogramma
+per ogni ingrandimento applicato sopra. E sopra c'e' sempre `#game-root`, che
+scala l'intera pagina per adattarla allo schermo — su un monitor grande, ben
+oltre 1. Contro la sfocatura da ingrandimento la promozione non e' la cura: e'
+la causa. Va bene solo su cio' che e' gia' morbido (aloni sfocati, gradienti),
+dove serve a contenere i ridisegni e la perdita di nitidezza non si vede.
+Successo due volte: Collezione (v0.72.30) e carte del Book Pack (v0.73.32).
+
 **Lo stato di un'animazione non si scrive sulla carta.** Chi disegna riceve una
 COPIA (`renderBoard` passa `{...placed.card, owner}`), quindi qualunque cosa
 scritta li' dentro vive il tempo di un disegno e poi sparisce. Leggere dalla
