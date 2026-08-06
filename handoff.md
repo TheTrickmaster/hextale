@@ -154,6 +154,15 @@ disegni diversi hanno la stessa firma lo scrive in console dicendo dove
 differiscono. E' il modo per scoprire in dieci secondi un guasto che altrimenti
 si manifesterebbe come "ogni tanto resta a schermo roba vecchia".
 
+Il caso vero, per capirsi (v0.73.42): la mano aperta a tutto schermo col tasto
+destro e' una geometria decisa dentro `renderHand`, ma lo stato che la comanda
+(`handExpandState`) viveva solo in una variabile e non era in firma. Il gesto
+accendeva la penombra — che e' una classe messa a mano su un div, non un
+disegno — e chiedeva un render, ma la firma risultava identica e il disegno
+veniva saltato: penombra sopra la mano ancora a ventaglio. **Se una cosa si
+accende con una classe messa a mano E cambia anche il disegno, il pezzo messo a
+mano ti convincera' che funziona.** Sono i guasti piu' difficili da vedere.
+
 Una firma che non sa rispondere (carta non serializzabile) restituisce un
 valore sempre diverso: si ridisegna, cioe' si torna al comportamento di prima.
 Il caso peggiore e' non guadagnare nulla, mai mostrare qualcosa di vecchio.

@@ -1935,7 +1935,10 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
   /* v0.73.40 — il filo e' la meta' di prima (era 10px) e la sfocatura il
      doppio (era 3px): un bordo sottile molto sfocato legge come luce, uno
      spesso e nitido legge come una cornice. */
-  padding:5px;
+  /* v0.73.42 — filo di luce piu' spesso di due pixel (era cinque). Lo spessore
+     e' il padding: la maschera ritaglia il pieno del contenuto e lascia solo
+     questa cornice. */
+  padding:7px;
   overflow:hidden;
   filter:blur(6px);
   /* Somma luce a cio' che ha sotto invece di coprirlo: e' la differenza fra
@@ -5586,7 +5589,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.33</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.42</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -24175,6 +24178,21 @@ function firmaMano(hand, playerIdx){
     anteprima: anteprima ? _statoSerializzabile(anteprima.mani[giocatore]) : null,
     lamina: (typeof cardDbHoloEnabled!=='undefined' ? !!cardDbHoloEnabled : null),
     parallasse: (typeof cardDbParallaxEnabled!=='undefined' ? !!cardDbParallaxEnabled : null),
+    // v0.73.42 FIX ("le carte non si espandono piu' cliccando col tasto
+    // destro: appare l'overlay, ma le carte non si vedono"). La mano aperta a
+    // tutto schermo e' una GEOMETRIA diversa, decisa qui dentro renderHand,
+    // ma lo stato che la comanda viveva solo in handExpandState — fuori dalla
+    // firma. Quindi setHandExpand accendeva la penombra (che e' una classe
+    // messa a mano sull'overlay, non un disegno) e chiedeva un render, ma la
+    // firma risultava identica a quella di un attimo prima e il disegno
+    // veniva saltato: restava la penombra sopra la mano ancora a ventaglio.
+    // Regola generale (handoff.md): qualunque stato che cambi COME si disegna
+    // deve comparire qui, altrimenti la cache lo nasconde.
+    espansa: !!handExpandState[giocatore],
+    // Anche il flag "questo e' il render in cui la geometria cambia, animalo"
+    // conta: senza, due render consecutivi con la stessa geometria ma uno solo
+    // da animare verrebbero considerati uguali.
+    animaApertura: !!(window.__handExpandFlipFromSet && window.__handExpandFlipFromSet.has(giocatore)),
   });
 }
 const _firmaManoPrecedente = {};
