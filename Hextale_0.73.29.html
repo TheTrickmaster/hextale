@@ -1974,6 +1974,21 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
    che tiene in piedi la dissolvenza del fumo e l'atterraggio delle carte. */
 @keyframes fumoVelo{ from{opacity:var(--velo-da,1);} to{opacity:var(--velo-a,1);} }
 .fumo-velo-cambia{ animation:fumoVelo 0.3s ease forwards; }
+
+/* v0.73.29 — la cortina non sale soltanto: si posa ruotando. La rotazione sta
+   su un TERZO piano, dentro la dissolvenza e fuori dal velo, perche' i tre
+   valori si animano tutti con `animation` e due animazioni sullo stesso
+   elemento non convivono: vince l'ultima dichiarata e l'altra sparisce.
+   Annidate invece si compongono — e' la stessa disposizione delle quattro
+   animazioni della carta sul tabellone.
+   L'angolo di partenza cambia da una cortina all'altra (--gira-da), cosi' i
+   tre dischetti non ruotano all'unisono come un ingranaggio. */
+@keyframes fumoGira{ from{transform:rotate(var(--gira-da,-30deg));} to{transform:rotate(0deg);} }
+.fumo-gira{
+  animation:fumoGira 0.85s cubic-bezier(.16,1,.3,1) forwards;
+  transform-box:fill-box;
+  transform-origin:center center;
+}
 .card-flip, .card-flip-a, .card-flip-b{
   animation:cardFlip 0.315s ease-in-out;
   transform-box:fill-box;
@@ -5322,7 +5337,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.73.28</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.73.29</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -15031,15 +15046,38 @@ const FUMO_PASSO_MS   = 45;    // ogni quanto i numeri fanno un giro
 // cose che cambiano per motivi diversi: la dissolvenza scorre nel tempo, il
 // velo dipende da chi e' di turno. Tenerle insieme faceva saltare la prima
 // ogni volta che cambiava la seconda.
-function avvolgiInDissolvenzaFumo(el, card){
+function avvolgiInDissolvenzaFumo(el, card, giroDaGradi){
   if(!el || !el.parentNode) return el;
   const gruppo = svgEl('g');
   gruppo.setAttribute('data-role','smoke-fade');
   el.parentNode.insertBefore(gruppo, el);
-  gruppo.appendChild(el);
+  // Piano della rotazione, quando serve: dentro la dissolvenza, fuori dal velo.
+  let contenitore = gruppo;
+  if(giroDaGradi != null){
+    const giro = svgEl('g');
+    giro.setAttribute('data-role','smoke-spin');
+    giro.style.setProperty('--gira-da', giroDaGradi+'deg');
+    gruppo.appendChild(giro);
+    applicaFaseGiroFumo(giro, card);
+    contenitore = giro;
+  }
+  contenitore.appendChild(el);
   applicaVeloFumo(el, card);
   applicaFaseFumo(gruppo, card);
   return gruppo;
+}
+
+// La rotazione accompagna solo l'ENTRATA: quando il fumo se ne va non serve
+// che giri di nuovo, se ne sta andando e basta. Come tutto il resto si
+// riprende a meta' con un ritardo negativo, cosi' un ridisegno non la fa
+// ripartire da capo.
+function applicaFaseGiroFumo(el, card){
+  if(!el || !card || card.fumoUscitaDa != null) return;
+  if(card.fumoEntrataDa == null) return;
+  const passato = performance.now() - card.fumoEntrataDa;
+  if(passato >= FUMO_ENTRATA_MS) return;
+  el.style.animationDelay = (-Math.max(0, passato)).toFixed(0)+'ms';
+  el.classList.add('fumo-gira');
 }
 
 function applicaFaseFumo(el, card){
@@ -15108,9 +15146,24 @@ function fumoReattach(){
 // carta e' nascosta e insieme si leggono i numeri.
 const FUMO_OPACITA_PROPRIETARIO = 0.5;
 const VELO_CAMBIO_MS = 300; // deve combaciare con .fumo-velo-cambia
+// v0.73.29 — chi puo' leggere attraverso il fumo dipende da CHI GUARDA, e chi
+// guarda cambia a seconda del modo di gioco.
+//
+// Contro il computer davanti allo schermo c'e' sempre e solo il giocatore 1:
+// le sue carte deve poterle leggere sempre, quelle dell'avversario mai. Non
+// c'entra di chi sia il turno — e legarcelo era la causa dello scatto, perche'
+// costringeva il velo a cambiare esattamente nell'istante piu' affollato del
+// gioco, quello in cui la plancia si ricostruisce e compare il banner. Adesso
+// li' non cambia piu' niente: non c'e' nessuna animazione da mangiare.
+//
+// A due giocatori sullo stesso schermo, invece, chi guarda cambia davvero a
+// ogni turno — e infatti cambia anche il resto: le mani si girano a faccia in
+// giu'. Li' il velo segue il turno come prima, e il suo cambio fa parte del
+// passaggio di consegne insieme a tutto il resto.
 function opacitaFumoPer(card){
-  const mia = card && card.owner === G.currentPlayer;
-  return mia ? FUMO_OPACITA_PROPRIETARIO : 1;
+  if(!card) return 1;
+  const chiGuarda = G.vsAI ? 1 : G.currentPlayer;
+  return card.owner === chiGuarda ? FUMO_OPACITA_PROPRIETARIO : 1;
 }
 // ═══════════════════════════════════════════════════════════════════════════
 // v0.73.28 — DOVE VIVE LO STATO DI UN'ANIMAZIONE
@@ -19781,7 +19834,10 @@ function drawHexCard(svg,cx,cy,R,card,fillColor,strokeColor,textColor,nameText,i
       fumo.setAttribute('data-role','smoke-value-cover');
       fumo.style.pointerEvents='none';
       svg.appendChild(fumo);
-      avvolgiInDissolvenzaFumo(fumo, card);
+      // Ogni cortina parte da un angolo diverso, deciso dall'indice del gruppo:
+      // ruotano insieme ma non come un ingranaggio.
+      const GIRI_DI_PARTENZA = [-34, 26, -18, 40];
+      avvolgiInDissolvenzaFumo(fumo, card, GIRI_DI_PARTENZA[indiceGruppo % GIRI_DI_PARTENZA.length]);
     }
   }
 
