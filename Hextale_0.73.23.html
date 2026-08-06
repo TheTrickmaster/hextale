@@ -5301,7 +5301,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.73.22</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;">v0.73.23</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -6521,6 +6521,9 @@ const AUDIO_DATA_URLS = {
   'howl': 'https://thetrickmaster.github.io/hextale/audio/sfx/howl.mp3', // Lupo Solitario placement VFX
   'chain': 'https://thetrickmaster.github.io/hextale/audio/sfx/chain.wav', // Reazione a Catena's chained flips
   'click': 'https://thetrickmaster.github.io/hextale/audio/sfx/click.wav', // start-screen button press feedback
+  // v0.73.23 — il sibilo del fumo del Brucaliffo. Sta fra le voci sul repo, ma
+  // qui e' un effetto: parte insieme all'animazione, non quando la carta parla.
+  'the-caterpillar-smoke': 'https://thetrickmaster.github.io/hextale/audio/voices/the-caterpillar-smoke.mp3',
   'drain': 'https://thetrickmaster.github.io/hextale/audio/sfx/drain.wav',
   // v0.72.83 — bustine: 'unpack-load' accompagna i due secondi di carica,
   // 'unpack-hit' scocca esattamente quando la carica finisce.
@@ -8240,7 +8243,20 @@ const ART_BASE = 'https://thetrickmaster.github.io/hextale/cards/art/';
 // Sta nella cartella di The Caterpillar perche' e' li' che e' stato caricato,
 // ma non e' suo: e' l'aspetto che ha "questo numero non si puo' leggere", e
 // varra' per qualunque carta futura che si nasconda.
-const SMOKE_VALUE_CIRCLE = ART_BASE + 'the-caterpillar/smoke-value-circle.png';
+// Sono QUATTRO: ogni gruppo valore della carta ne prende uno diverso, cosi' la
+// cortina non sembra tre volte lo stesso timbro.
+const SMOKE_VALUE_CIRCLES = [1,2,3,4].map(n => ART_BASE + 'the-caterpillar/smoke-value-circle-'+n+'.png');
+// Quale dischetto tocca al gruppo numero `indice` di questa carta. L'indice da'
+// gia' la garanzia che due gruppi vicini non condividano lo stesso disegno; lo
+// scarto ricavato dalla carta fa si' che due Brucaliffi diversi non si vestano
+// nello stesso ordine. Deterministico: la stessa carta mostra sempre la stessa
+// cortina, anche dopo un ridisegno.
+function smokeValueCircleSrc(card, indice){
+  let h = 0;
+  const s = String((card && (card.id||card.name)) || '');
+  for(let i=0;i<s.length;i++) h = (h*31 + s.charCodeAt(i)) >>> 0;
+  return SMOKE_VALUE_CIRCLES[(indice + h) % SMOKE_VALUE_CIRCLES.length];
+}
 const VOCI_BASE = 'https://thetrickmaster.github.io/hextale/audio/voices/';
 // v0.72.69 — GLI ASSET APPENA AGGIUNTI, SENZA DOVER PUBBLICARE.
 // Tutti gli URL del gioco puntano a GitHub Pages, cosa necessaria perche' chi
@@ -14762,7 +14778,24 @@ function rinunciaSceltaBersaglio(){ chiudiSceltaBersaglio(null); }
 // spezzano mai (vedi la regola dei gruppi stabili). Ruotandoli insieme ai
 // valori la carta resta la stessa carta, girata — e chi la guarda non sa piu'
 // da che parte, che e' esattamente il punto.
+// v0.73.23 — PRIMA COMBATTE, POI SI NASCONDE.
+// Qui la carta veniva mescolata nell'istante del piazzamento, cioe' PRIMA che
+// lo scontro venisse risolto: attaccava con dei valori che il giocatore non
+// aveva mai visto, e da fuori non si capiva con che cosa avesse colpito.
+// Adesso l'abilita' al piazzamento non fa niente: si limita a segnare che
+// questa carta dovra' nascondersi. La mescolata e il fumo arrivano DOPO che
+// l'attacco e' stato risolto e mostrato (vedi effettiDopoLoScontro), cosi'
+// l'ordine di lettura e' quello giusto: ecco i miei valori, ecco il colpo,
+// e adesso sparisco.
 function attivaExaketededly(card, q, r){
+  card.fumoDaAvviare = true;
+}
+
+// La mescolata vera e propria, con l'entrata del fumo. Chiamata a scontro
+// concluso.
+function nascondiNelFumo(card, q, r){
+  if(!card || !card.fumoDaAvviare) return false;
+  card.fumoDaAvviare = false;
   // Da 1 a 5 posti: lo zero e' escluso perche' "cambia i valori" non puo'
   // voler dire "a volte non cambia niente".
   const passi = 1 + Math.floor(Math.random()*(SIDES.length-1));
@@ -14771,11 +14804,29 @@ function attivaExaketededly(card, q, r){
   card.fumoPassi = passi;
   card.fumoEntrataDa = performance.now();
   card.fumoUscitaDa = null;
-  // I numeri cominciano a girare appena la carta e' dipinta. Il rinvio serve
-  // perche' in questo istante la plancia non e' ancora stata ridisegnata: la
-  // carta a cui agganciarsi non esiste ancora nel documento.
+  playSfxFile('the-caterpillar-smoke.mp3');
   const cella = key(q,r);
+  try { renderBoard(); } catch(_){}
+  // I numeri cominciano a girare appena la carta e' ridisegnata col fumo.
   setTimeout(()=>avviaMescolaFumo(cella, card), 0);
+  return true;
+}
+
+// ── Gli effetti che scattano a scontro concluso ────────────────────────────
+// Un'abilita' che entra in scena DOPO il combattimento, invece che prima, non
+// e' un caso particolare del Brucaliffo: e' un momento del turno, e come tale
+// ha il suo registro. Chi ci si iscrive viene chiamato quando l'animazione
+// dell'attacco e' finita e prima che il turno passi.
+const EFFETTI_DOPO_SCONTRO = {
+  exaketededly: (card, q, r) => nascondiNelFumo(card, q, r),
+};
+function effettiDopoLoScontro(card, q, r){
+  if(!card) return;
+  const chiave = card.activatedTileAbility || abilitaAttivaDi(card);
+  const effetto = chiave && EFFETTI_DOPO_SCONTRO[chiave];
+  if(typeof effetto === 'function'){
+    try { effetto(card, q, r); } catch(_){}
+  }
 }
 
 // Fa scorrere valori E gruppi di un posto in senso orario. E' il cuore che
@@ -14845,7 +14896,7 @@ function artaFumoDi(card){
 // quindi solo un effetto ottico che finisce sui valori veri.
 const FUMO_ENTRATA_MS = 1100;  // deve combaciare con .fumo-entra
 const FUMO_USCITA_MS  = 600;   // deve combaciare con .fumo-esce
-const FUMO_PASSO_MS   = 90;    // ogni quanto i numeri fanno un giro
+const FUMO_PASSO_MS   = 15;    // ogni quanto i numeri fanno un giro
 
 // Mette sull'elemento la classe giusta per la fase in cui il fumo si trova,
 // col ritardo NEGATIVO che ne riprende l'animazione a meta' — serve perche'
@@ -15508,9 +15559,13 @@ function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLa
   // also now covers the Reazione a Catena follow-up sequence, if any —
   // conquestAnimMs was bumped above to cover it too, so the turn never
   // switches (and endTurn's own render() never fires) mid-chain-reaction.
+  // v0.73.23 — gli effetti che aspettano la fine dello scontro (vedi
+  // EFFETTI_DOPO_SCONTRO). Vanno qui e non dentro endTurn perche' devono
+  // vedere la carta ancora al suo posto e con lo scontro gia' risolto.
   if(conquestAnimMs>0){
-    setTimeout(()=>{ endTurn(player); },conquestAnimMs);
+    setTimeout(()=>{ effettiDopoLoScontro(card, q, r); endTurn(player); },conquestAnimMs);
   } else {
+    effettiDopoLoScontro(card, q, r);
     endTurn(player);
   }
 }
@@ -19409,7 +19464,9 @@ function drawHexCard(svg,cx,cy,R,card,fillColor,strokeColor,textColor,nameText,i
   const labelInset=0.78;
   const activatedGroups = card.activatedGroups || {};
 
+  let indiceGruppo = -1;
   for(const g of groups){
+    indiceGruppo++;
     const n=g.sides.length;
     let lx,ly;
     if(n%2===1){
@@ -19514,8 +19571,11 @@ function drawHexCard(svg,cx,cy,R,card,fillColor,strokeColor,textColor,nameText,i
     // resta un anello di bordo scoperto intorno.
     if(card && card.fumo){
       const fumo = svgEl('image');
-      const dimFumo = circleSize*1.18;
-      fumo.setAttribute('href', SMOKE_VALUE_CIRCLE);
+      // v0.73.23 — esattamente la misura dello sfondo del cerchio valore, non
+      // un'unghia di piu': la cortina deve coincidere col dischetto che copre,
+      // non debordarci intorno.
+      const dimFumo = circleSize;
+      fumo.setAttribute('href', smokeValueCircleSrc(card, indiceGruppo));
       fumo.setAttribute('x',(lx-dimFumo/2).toFixed(2));
       fumo.setAttribute('y',(ly-dimFumo/2).toFixed(2));
       fumo.setAttribute('width',dimFumo.toFixed(2));
