@@ -3996,21 +3996,33 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      deforma. */
   --fascio-larghezza:980px;
   --fascio-altezza:1150px;
-  /* Quanto il fondo dell'immagine sta SOPRA il centro della plancia.
-     Non e' un numero scelto a occhio, e' calcolato: il libro viene disegnato
-     alto --altezza-libro (451px) rimpicciolito di --riposo-libro (0.781), cioe'
-     352px, ed e' centrato sul centro della plancia. Il suo bordo ALTO cade
-     quindi a meta' di quei 352, cioe' 176px sopra il centro — ed e' esattamente
-     li' che deve appoggiarsi il fondo del fascio.
-     Se un giorno il libro cambiasse misura, questo numero e' la meta' della sua
-     altezza a schermo. (Le due variabili vivono su #pack-closed, che e' un
+  /* META' DELL'ALTEZZA DEL LIBRO A SCHERMO.
+     Non e' un numero a occhio: il libro viene disegnato alto --altezza-libro
+     (451px) e rimpicciolito di --riposo-libro (0.781), cioe' 352px a schermo,
+     ed e' centrato sul centro della plancia. Meta' di 352 e' 176: da qui si
+     ricavano sia il suo bordo ALTO (176px sopra il centro) sia quello BASSO
+     (176px sotto). (Le due variabili vivono su #pack-closed, che e' un
      fratello e non un antenato: da qui non si possono leggere, e il conto va
-     rifatto a mano.) */
-  --fascio-base:176px;
+     rifatto a mano. Se il libro cambia misura, si cambia questo.) */
+  --libro-mezza-altezza:176px;
+  /* v0.73.44 FIX ("pack beam e' posizionato male, la parte inferiore
+     dell'immagine deve combaciare con la parte inferiore del libro aperto;
+     adesso e' molto in alto").
+     Il fondo del fascio andava sul bordo ALTO del libro: era la lettura
+     sbagliata di "deve partire da sopra il libro". Cosi' il disegno cominciava
+     dove il libro finisce, e la luce sembrava nascere staccata da lui, un
+     palmo piu' in su.
+     Adesso il fondo del fascio cade sul bordo BASSO del libro, cioe' 176px
+     SOTTO il centro invece che sopra: il fascio copre il libro per tutta la
+     sua altezza e ne esce dall'alto. Il libro resta comunque davanti (lui e'
+     a z-index 2, il fascio a 1), quindi la luce si legge come se salisse da
+     dietro le pagine — che e' il punto da cui deve sembrare partire.
+     Il segno meno e' tutta la differenza: `bottom:50%` mette il fondo sul
+     centro, il margine negativo lo spinge in giu' di mezza altezza di libro. */
   position:absolute; left:50%; bottom:50%;
   width:var(--fascio-larghezza);
   height:var(--fascio-altezza);
-  margin:0 0 var(--fascio-base) calc(var(--fascio-larghezza) / -2);
+  margin:0 0 calc(var(--libro-mezza-altezza) * -1) calc(var(--fascio-larghezza) / -2);
   transform-origin:center bottom;
   /* v0.72.92 FIX ("vedo ancora il fascio di luce non blurrato"): la sfocatura
      c'era, ma il clip-path la tagliava via. In CSS il ritaglio si applica DOPO
@@ -4029,14 +4041,12 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
   pointer-events:none;
   z-index:1;
 }
-/* L'immagine, con addosso la maschera a strisce che scorre.
-   Le strisce non hanno bordi netti: sono le sfumature del gradiente a farle
-   morbide. Sfocare una maschera con un filtro non si puo' — il filtro agisce
-   sull'elemento, non sulla maschera — quindi la morbidezza si ottiene dove
-   nasce, cioe' nelle fermate del gradiente.
-   La maschera e' larga il doppio dell'elemento e scorre da sinistra a destra
-   di tutta la propria larghezza: il ciclo si chiude su se stesso e non si
-   vede nessun salto quando ricomincia. */
+/* v0.73.45 — VIA LA MASCHERA A STRISCE.
+   C'era un gradiente ripetuto che scorreva da sinistra a destra e rendeva
+   l'immagine semitrasparente a bande. Serviva a dare movimento a una forma
+   piatta, ma su un'illustrazione disegnata toglieva e basta: le bande si
+   leggevano come buchi nel disegno, non come luce che passa.
+   Adesso il PNG si vede intero. Il movimento resta quello di packBeam. */
 #pack-beam-shape{
   position:absolute; inset:0;
   /* L'immagine la mette il JS (vedi impostaSfondoDaCandidati): va cercata
@@ -4052,22 +4062,6 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
   background-size:contain;
   background-position:center bottom;
   background-repeat:no-repeat;
-  -webkit-mask-image:repeating-linear-gradient(100deg,
-      rgba(0,0,0,1) 0px, rgba(0,0,0,1) 26px,
-      rgba(0,0,0,0.45) 74px, rgba(0,0,0,1) 130px);
-          mask-image:repeating-linear-gradient(100deg,
-      rgba(0,0,0,1) 0px, rgba(0,0,0,1) 26px,
-      rgba(0,0,0,0.45) 74px, rgba(0,0,0,1) 130px);
-  -webkit-mask-size:200% 100%;
-          mask-size:200% 100%;
-  /* Due secondi: il fascio dura poco piu' di uno, e con sette secondi le
-     strisce facevano in tempo a spostarsi di un terzo — non si vedevano
-     scorrere affatto. */
-  animation:fascioStrisce 2s linear infinite;
-}
-@keyframes fascioStrisce{
-  from{ -webkit-mask-position:0 0;    mask-position:0 0; }
-  to  { -webkit-mask-position:100% 0; mask-position:100% 0; }
 }
 /* v0.72.87 — il fascio si NASCONDE quando ha finito, non resta a opacita' 0.
    Un elemento alto 130vh con blur(30px) e mix-blend-mode continua a essere
@@ -4082,6 +4076,10 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
    una scala di 0.04 e ci metteva un quinto dell'animazione a diventare
    visibile: nel poco tempo che dura, quella salita si mangiava il momento. */
 #pack-beam.firing{ display:block; animation:packBeam 1.15s ease-out forwards; }
+/* ── v0.73.43 — DIAGNOSTICA (RIMOSSA in v0.73.44) ─────────────────────────
+   Il blocco che spegneva sfocatura, strisce e animazione del fascio e' stato
+   tolto: serviva solo a guardare il PNG nudo, ed e' servito — il fascio era
+   posizionato male (vedi il FIX su --libro-mezza-altezza qui sopra). */
 /* Gli ingrandimenti sono UNIFORMI. Prima scaleX e scaleY erano diversi fra
    loro (1.08 contro 0.94): e' una deformazione, e su una raggiera disegnata si
    vede subito che i raggi si allargano e si accorciano. Un solo fattore per
@@ -4309,6 +4307,42 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
   8%   { opacity:1; }   /* 56ms: il lampo e' gia' pieno, come lo scatto */
   40%  { opacity:1; }   /* 280ms: tiene */
   100% { opacity:0; }   /* 700ms: spento, e solo ora la carta gira */
+}
+/* ── v0.73.44 — LA VAMPATA SOTTO IL DORSO ─────────────────────────────────
+   Richiesta: quando si tocca una carta e il dorso lampeggia, sotto di lui
+   deve accendersi anche un bagliore molto forte del colore della rarita'.
+   E' un elemento a parte e non un'ombra sul lampo: il lampo sta DENTRO
+   .pack-card-pop, cioe' dentro il livello che si ingrandisce e che apre lo
+   spazio 3D, e un alone messo li' verrebbe ingrandito col resto e tagliato
+   dal contesto 3D. Questo invece e' figlio diretto della carta, sotto tutto
+   (z-index 0 contro il 2 di .pack-card-pop), quindi sborda liberamente e
+   resta sempre dietro.
+   Sborda di 46px e sfoca di 40: la sfocatura e' piu' larga dello sbordo,
+   quindi il bordo netto del rettangolo non si vede mai e resta solo la luce
+   che si spegne verso fuori.
+   Il tempo e' lo STESSO del lampo (0.7s, salita in 56ms, tiene fino a 280ms,
+   spenta a 700ms): sono un solo evento visto da due parti, e sfasarli si
+   leggerebbe come due cose diverse che succedono di seguito. La scala che
+   cresce appena serve a farla sentire come una vampata che si espande invece
+   che come una luce che si accende e basta.
+   La fusione e' la stessa del lampo (--fusione-lampo): additiva sulle carte
+   dark, hard-light sulle light, per la ragione scritta li' sopra. */
+.pack-card-blaze{
+  position:absolute; inset:-46px;
+  background:var(--rarita, #fff);
+  border-radius:34px;
+  filter:blur(40px);
+  mix-blend-mode:var(--fusione-lampo, plus-lighter);
+  opacity:0; pointer-events:none;
+  z-index:0;
+  display:none;
+}
+.pack-card.popping .pack-card-blaze{ display:block; animation:packBlaze .7s ease-out forwards; }
+@keyframes packBlaze{
+  0%   { opacity:0;    transform:scale(0.92); }
+  8%   { opacity:1;    transform:scale(1.04); }
+  40%  { opacity:0.95; transform:scale(1.08); }
+  100% { opacity:0;    transform:scale(1.14); }
 }
 /* ── ALONE DELLA RARITA' ───────────────────────────────────────────────────
    Un blob molto sfocato del colore della rarita', dietro la carta, il cui
@@ -5589,7 +5623,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.42</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.44</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -9589,6 +9623,15 @@ function _costruisciCartaBustina(entry, dir, indice){
   const lampo = document.createElement('div');
   lampo.className = 'pack-card-flash';
   pop.appendChild(lampo);
+
+  // v0.73.44 — la vampata sotto il dorso. Va sulla CARTA e non dentro `pop`
+  // (vedi .pack-card-blaze nel CSS): dentro verrebbe ingrandita col livello
+  // che scatta avanti e tagliata dal suo contesto 3D. Aggiunta PRIMA di `pop`
+  // cosi' l'ordine del documento concorda con lo z-index, e resta dietro
+  // anche se un domani gli z-index venissero tolti.
+  const vampata = document.createElement('div');
+  vampata.className = 'pack-card-blaze';
+  carta.appendChild(vampata);
 
   carta.appendChild(pop);
 
