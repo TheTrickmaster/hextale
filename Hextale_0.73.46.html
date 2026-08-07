@@ -4057,6 +4057,98 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
   background-position:center bottom;
   background-repeat:no-repeat;
 }
+/* ── v0.73.46 — LE SCINTILLE DELL'APERTURA ────────────────────────────────
+   Escono dal centro del libro, salgono veloci e nervose per tutta la durata
+   del fascio, e quando il fascio si spegne cominciano a scendere piano, come
+   cenere.
+   PERCHE' TRE ELEMENTI ANNIDATI E NON UNO.
+   Salita e caduta sono due animazioni che muovono la STESSA proprieta'
+   (transform). Sullo stesso elemento non convivono: a parita' di tutto vince
+   l'ultima dichiarata, e la caduta cancellerebbe la salita fin dal primo
+   fotogramma — e' lo stesso difetto gia' visto sull'alone e sul bordo delle
+   carte. Su elementi annidati invece le due trasformazioni si COMPONGONO: la
+   scintilla sale dentro un contenitore che, piu' tardi, comincia a scendere.
+   Il terzo livello e' l'aspetto (colore, sfocatura, fusione, dissolvenza):
+   sta a parte perche' l'opacita' e' la quarta animazione in gioco e deve
+   poter durare quanto vuole, indipendente dalle altre due.
+   PERCHE' NON C'E' CODICE CHE GIRA.
+   Ogni scintilla riceve alla nascita i propri numeri (angolo, distanza,
+   durata, ritardo, misura, deriva) come variabili CSS; da li' in poi anima il
+   browser. Le uniche proprieta' toccate sono `transform` e `opacity`, che il
+   compositore cambia senza ridisegnare nulla: la scintilla viene rasterizzata
+   una volta sola e poi spostata come un adesivo.
+   LA SFOCATURA E' UN RISCHIO NOTO.
+   2px, richiesti. Un elemento sfocato E fuso che si muove costringe il
+   browser a rileggere il fondale a ogni fotogramma e puo' lasciare scie —
+   e' il difetto che nel v0.72.95 ci fece togliere `plus-lighter` dall'alone
+   delle carte. Qui gli elementi sono minuscoli e pochi, quindi vale la prova;
+   se comparissero scie, la riga da togliere e' una sola (`filter` su
+   .pack-spark-dot) e la morbidezza si rifa' con un radial-gradient, che non
+   costa niente perche' e' gia' dentro al disegno. */
+#pack-sparks{
+  position:absolute; left:50%; top:50%;
+  width:0; height:0;
+  pointer-events:none;
+  /* Davanti al libro: nascono dal suo centro, e dietro sarebbero invisibili
+     proprio nel momento in cui partono. */
+  z-index:3;
+}
+/* Livello 1 — LA SALITA. Nervosa: la traiettoria non e' una retta ma una
+   serpentina, ottenuta spostando la scintilla di lato a scatti alterni
+   (--zig, positivo o negativo secondo la scintilla) mentre sale. La salita
+   rallenta verso la fine (ease-out), cosi' lo slancio iniziale si legge come
+   uno scoppio e non come una risalita costante. */
+.pack-spark{
+  position:absolute; left:0; top:0;
+  will-change:transform;
+  animation:scintillaSale var(--su,1150ms) cubic-bezier(.12,.75,.35,1) var(--ritardo,0ms) both;
+}
+@keyframes scintillaSale{
+  0%   { transform:translate(var(--x0,0px), var(--y0,0px)); }
+  18%  { transform:translate(calc(var(--x0,0px) + var(--zig,0px) *  1.00), calc(var(--y0,0px) + var(--sy,-300px) * 0.30)); }
+  34%  { transform:translate(calc(var(--x0,0px) + var(--zig,0px) * -0.75), calc(var(--y0,0px) + var(--sy,-300px) * 0.52)); }
+  52%  { transform:translate(calc(var(--x0,0px) + var(--zig,0px) *  1.30), calc(var(--y0,0px) + var(--sy,-300px) * 0.70)); }
+  70%  { transform:translate(calc(var(--x0,0px) + var(--zig,0px) * -0.55), calc(var(--y0,0px) + var(--sy,-300px) * 0.85)); }
+  86%  { transform:translate(calc(var(--x0,0px) + var(--zig,0px) *  0.85), calc(var(--y0,0px) + var(--sy,-300px) * 0.95)); }
+  100% { transform:translate(calc(var(--x0,0px) + var(--zig,0px) *  0.35), calc(var(--y0,0px) + var(--sy,-300px))); }
+}
+/* Livello 2 — LA CADUTA. Comincia quando il fascio si spegne: il ritardo e'
+   la somma del ritardo di nascita e della durata della salita, cioe' l'istante
+   esatto in cui quella scintilla ha finito di salire. Nessuno stacco: la
+   salita finisce quasi ferma (ease-out) e la caduta parte da ferma (ease-in),
+   quindi il cambio di direzione e' una decelerazione seguita da una discesa,
+   come un oggetto leggero che perde slancio.
+   Cade PIANO e vaga di lato: la cenere non precipita, galleggia. */
+.pack-spark-fall{
+  position:absolute; left:0; top:0;
+  will-change:transform;
+  animation:scintillaCade var(--giu,4200ms) cubic-bezier(.4,0,.7,.5) var(--giu-ritardo,1150ms) both;
+}
+@keyframes scintillaCade{
+  0%   { transform:translate(0,0) rotate(0deg); }
+  35%  { transform:translate(calc(var(--deriva,20px) *  1), calc(var(--cy,260px) * 0.22)) rotate(calc(var(--giro,90deg) * 0.35)); }
+  70%  { transform:translate(calc(var(--deriva,20px) * -1), calc(var(--cy,260px) * 0.58)) rotate(calc(var(--giro,90deg) * 0.72)); }
+  100% { transform:translate(calc(var(--deriva,20px) * 0.4), var(--cy,260px)) rotate(var(--giro,90deg)); }
+}
+/* Livello 3 — L'ASPETTO. Si accende subito, resta accesa per tutta la salita,
+   e si spegne lentamente lungo la caduta: la cenere non sparisce di colpo. */
+.pack-spark-dot{
+  display:block;
+  width:var(--dim,2px); height:var(--dim,2px);
+  margin:calc(var(--dim,2px) / -2) 0 0 calc(var(--dim,2px) / -2);
+  border-radius:50%;
+  background:#fff;
+  filter:blur(2px);
+  mix-blend-mode:plus-lighter;
+  animation:scintillaVive var(--vita,5350ms) linear var(--ritardo,0ms) both;
+}
+@keyframes scintillaVive{
+  0%   { opacity:0; }
+  3%   { opacity:1; }
+  22%  { opacity:1; }
+  55%  { opacity:0.7; }
+  100% { opacity:0; }
+}
 /* v0.72.87 — il fascio si NASCONDE quando ha finito, non resta a opacita' 0.
    Un elemento alto 130vh con blur(30px) e mix-blend-mode continua a essere
    composto a ogni fotogramma anche se e' invisibile, e il suo livello sfocato
@@ -5617,7 +5709,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.45</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.46</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -5843,6 +5935,10 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
     <div id="pack-status"></div>
     <div id="pack-stage">
       <div id="pack-beam"><div id="pack-beam-shape"></div></div>
+      <!-- v0.73.46 — le scintille dell'apertura: il contenitore e' un punto
+           senza dimensioni piantato al centro della plancia, cioe' al centro
+           del libro. Le scintille le crea accendiScintille(). -->
+      <div id="pack-sparks"></div>
       <div id="pack-closed" onclick="apriBustina()">
         <div id="pack-glow"></div>
         <div id="pack-shake" style="width:100%;height:100%;">
@@ -9244,6 +9340,84 @@ const BUSTINA_GIRO_RITARDO_MS = 700;
 // Quanto dura il fascio di luce: deve combaciare con l'animazione packBeam nel
 // CSS, perche' e' a fascio spento che la bustina comincia a svanire.
 const BUSTINA_FASCIO_MS = 1150;
+
+// ── v0.73.46 — LE SCINTILLE DELL'APERTURA ──────────────────────────────────
+// Quaranta-e-passa puntini bianchi che escono dal centro del libro, salgono
+// veloci e nervosi per tutta la durata del fascio e poi scendono piano, come
+// cenere. Tutta la costruzione sta nel CSS (vedi #pack-sparks e le tre classi
+// .pack-spark*): qui si crea la scintilla e le si consegnano i suoi numeri.
+// Da quel momento in poi non gira NIENTE — nessun ciclo, nessun timer per
+// particella. Il caso si estrae una volta sola, alla nascita.
+const SCINTILLE_QUANTE = 54;
+function accendiScintille(){
+  const casa = document.getElementById('pack-sparks');
+  if(!casa) return;
+  casa.innerHTML = '';
+  const caso = (min, max) => min + Math.random() * (max - min);
+  for(let i = 0; i < SCINTILLE_QUANTE; i++){
+    const sale = document.createElement('div');
+    sale.className = 'pack-spark';
+    const cade = document.createElement('div');
+    cade.className = 'pack-spark-fall';
+    const punto = document.createElement('i');
+    punto.className = 'pack-spark-dot';
+
+    // Da dove parte: un punto qualunque dentro il libro, non il suo centro
+    // matematico. Cinquantaquattro scintille dallo stesso identico pixel si
+    // leggono come un ventaglio disegnato; sparse su un palmo si leggono come
+    // qualcosa che esce da un oggetto che ha una sua larghezza.
+    const x0 = caso(-46, 46);
+    const y0 = caso(-26, 26);
+    // La salita dura poco meno del fascio, con scarto: se finissero tutte
+    // insieme il passaggio alla caduta sarebbe un gesto solo, coreografato.
+    const su = caso(BUSTINA_FASCIO_MS * 0.72, BUSTINA_FASCIO_MS * 1.06);
+    // Nascono sfalsate lungo il primo quinto di secondo, non tutte allo
+    // scoccare: e' la differenza fra uno sbuffo e un fotogramma.
+    const ritardo = caso(0, 190);
+    // Quanto salgono. Il segno e' negativo perche' in CSS l'asse Y cresce
+    // verso il basso. Chi sale meno e' anche piu' lento: le due cose insieme
+    // danno profondita', sembrano scintille piu' lontane.
+    const sy = -caso(210, 620);
+    // Lo scarto laterale della serpentina, con segno casuale: e' questo a
+    // rendere la salita nervosa invece che dritta.
+    const zig = caso(9, 34) * (Math.random() < 0.5 ? -1 : 1);
+    // La caduta: lunga e lenta, molto piu' della salita.
+    const giu = caso(3400, 6200);
+    const cy = caso(150, 420);
+    const deriva = caso(10, 46) * (Math.random() < 0.5 ? -1 : 1);
+    const giro = caso(-220, 220);
+    const dim = caso(1, 4);
+
+    sale.style.cssText =
+      '--x0:'+x0.toFixed(1)+'px; --y0:'+y0.toFixed(1)+'px; --sy:'+sy.toFixed(1)+'px;'+
+      '--zig:'+zig.toFixed(1)+'px; --su:'+su.toFixed(0)+'ms; --ritardo:'+ritardo.toFixed(0)+'ms;';
+    // La caduta comincia quando QUESTA scintilla ha finito di salire, non a un
+    // orario comune: ritardo di nascita piu' durata della propria salita.
+    cade.style.cssText =
+      '--giu:'+giu.toFixed(0)+'ms; --giu-ritardo:'+(ritardo + su).toFixed(0)+'ms;'+
+      '--cy:'+cy.toFixed(1)+'px; --deriva:'+deriva.toFixed(1)+'px; --giro:'+giro.toFixed(0)+'deg;';
+    // La dissolvenza copre tutta la vita della scintilla, salita e caduta
+    // insieme: una sola animazione dell'opacita', che quindi non litiga con
+    // nessun'altra.
+    punto.style.cssText =
+      '--dim:'+dim.toFixed(1)+'px; --vita:'+(su + giu).toFixed(0)+'ms; --ritardo:'+ritardo.toFixed(0)+'ms;';
+
+    cade.appendChild(punto);
+    sale.appendChild(cade);
+    casa.appendChild(sale);
+  }
+  // Si smontano da sole. Il tempo e' il piu' lungo possibile fra tutte
+  // (ritardo massimo + salita massima + caduta massima) piu' un margine:
+  // lasciare a schermo cinquantaquattro elementi fusi e sfocati che non si
+  // vedono piu' e' esattamente il tipo di costo invisibile che ci ha gia'
+  // fatto nascondere il fascio invece di lasciarlo a opacita' zero.
+  // Passa da _bustinaDopo, quindi uscire dalla pagina lo annulla.
+  _bustinaDopo(190 + BUSTINA_FASCIO_MS * 1.06 + 6200 + 300, spegniScintille);
+}
+function spegniScintille(){
+  const casa = document.getElementById('pack-sparks');
+  if(casa) casa.innerHTML = '';
+}
 // Di quanto il colpo entra PRIMA che il suono di carica finisca. Un filo di
 // sovrapposizione e' l'unico modo di non sentire il buco fra i due: farli
 // combaciare al millisecondo esatto lascia sempre uno scalino udibile, perche'
@@ -9493,6 +9667,9 @@ function apriBustina(){
     // massimo, il fascio che parte. Sono lo stesso evento.
     lampoAperturaLibro();
     raggio.classList.add('firing');
+    // Le scintille appartengono allo stesso istante: il libro si apre, il
+    // fascio parte, e la magia schizza fuori.
+    accendiScintille();
 
     // La bustina resta in scena per tutta la durata del fascio: e' la sorgente
     // della luce, e vederla sparire prima toglierebbe il nesso. Svanisce
@@ -9832,6 +10009,9 @@ function tornaAllaBustina(){
   const raggio = document.getElementById('pack-beam');
   if(rivelate) rivelate.innerHTML='';
   if(raggio) raggio.classList.remove('firing');
+  // Le scintille si smontano da sole a fine caduta, ma mettere via le carte
+  // puo' arrivare prima: qui si chiude comunque il conto.
+  spegniScintille();
   // Si ricomincia dal principio: niente piu' carte da mettere via, e si puo'
   // di nuovo uscire dalla pagina.
   mostraPulsanteBustina('pack-putaway', false, true);
@@ -9991,6 +10171,11 @@ function closePackOverlay(){
   showPage('start');
   const ss=document.getElementById('start-screen'); if(ss) ss.style.display='flex';
   stopMusicLoopChain();
+  // v0.73.46 — uscendo dalla pagina le scintille vanno via con lei: sono
+  // elementi fusi e sfocati, e lasciarli in un ramo nascosto significa
+  // lasciarli comporre a ogni fotogramma per niente.
+  _bustinaAnnullaTempi();
+  spegniScintille();
 }
 
 // Scorciatoia di sviluppo: rende la bustina di nuovo disponibile subito.
