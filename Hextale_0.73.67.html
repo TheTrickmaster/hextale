@@ -6329,7 +6329,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.66</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.67</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -14853,10 +14853,11 @@ const TILE_ABILITIES_DEF = {
   // vive interamente nei controlli degli altri (vedi cartaIntoccabile), non in
   // un effetto proprio — e' il primo caso del genere nel gioco.
   immovable:         { name:'Immovable',          desc:'Cannot be *Conquered*, *Moved*, or *Destroyed*.' },
-  // v0.73.66 — 12 Dancing Princesses. Non cambia niente al piazzamento: dopo
-  // aver conquistato una carta, ferma il turno e chiede su quale casella VUOTA
-  // adiacente a se stessa portarla a ballare (vedi SCELTE_DOPO_CONQUISTA).
-  dancing_around:    { name:'Dancing Around',      desc:'On conquer: *moves* the conquered card to an adjacent empty tile.' },
+  // v0.73.67 — 12 Dancing Princesses. Non cambia niente al piazzamento: dopo
+  // aver conquistato una carta, ferma il turno e chiede su quale casella
+  // libera adiacente spostare SE STESSA — a ballare via dallo scontro (vedi
+  // SCELTE_DOPO_CONQUISTA).
+  dancing_around:    { name:'Dancing Around',      desc:'On conquer: *moves* itself to an adjacent empty tile.' },
 };
 // ── v0.73.49 — QUESTI `name` SONO IL LEGAME COL FOGLIO ─────────────────────
 // Il gioco aggancia l'abilita' di un personaggio confrontando la cella
@@ -16871,27 +16872,34 @@ function rinunciaSceltaBersaglio(){ chiudiSceltaBersaglio(null); }
 // solo QUANDO si apre e cosa succede chiudendola (vedi il ramo
 // `scelta.dopoConquista` in chiudiSceltaBersaglio, qui sopra).
 const SCELTE_DOPO_CONQUISTA = {
-  // ── v0.73.66 — 12 DANCING PRINCESSES, "Dancing Around" ──────────────────
-  // Solo l'ULTIMA carta conquistata in questo turno viene spostata: se ha
-  // preso piu' vicini in un colpo solo, le altre restano dove sono finite.
-  // Le caselle fra cui scegliere sono quelle VUOTE adiacenti alla Principessa
-  // stessa (non alla carta appena presa): la si porta a ballare CON se', non
-  // semplicemente altrove.
+  // ── v0.73.67 — 12 DANCING PRINCESSES, "Dancing Around" ──────────────────
+  // Chi si sposta e' LEI, la Principessa che ha appena conquistato — non la
+  // carta che ha preso, che resta dov'e' finita. Le caselle fra cui scegliere
+  // sono quelle libere adiacenti alla sua posizione attuale.
+  // v0.73.67 FIX (Lorenzo: "la carta che si deve muovere e' quella di 12
+  // dancing princesses, non la carta conquistata"): la prima versione
+  // spostava la carta appena presa. Corretto qui, e insieme corretto anche un
+  // difetto piu' serio che quella prima versione portava con se': i bersagli
+  // venivano scritti guardando solo se la casella era OCCUPATA, mai se era
+  // BLOCCATA (un tassello sfondato). Passando da `celleLibere()` — la stessa
+  // funzione, l'unica, che gia' filtra buchi e fuori-tabellone per ogni altro
+  // spostamento del gioco (Cheshire compreso) — questa casistica non puo'
+  // proprio presentarsi: non e' un controllo aggiunto qui sopra, e' che i
+  // bersagli non vengono mai costruiti guardando altro.
   dancing_around: (card, q, r, giocatore, conquestInfo) => {
-    if(!conquestInfo || !conquestInfo.length) return null;
-    const ultima = conquestInfo[conquestInfo.length-1].nk;
-    const libere = [];
-    for(const dir of DIRS){
-      const vk = key(q+dir.dq, r+dir.dr);
-      if(!G.board[vk]) libere.push(vk);
-    }
-    if(!libere.length) return null; // nessuna casella libera intorno: si tira dritto
+    if(!conquestInfo || !conquestInfo.length) return null; // solo dopo aver conquistato qualcosa
+    const libereVicine = new Set(celleLibere());
+    const bersagli = DIRS
+      .map(dir => key(q+dir.dq, r+dir.dr))
+      .filter(vk => libereVicine.has(vk));
+    if(!bersagli.length) return null; // nessuna casella libera intorno: si tira dritto
+    const origine = key(q,r);
     return {
       chiave: 'dancing_around',
       giocatore,
-      cellaOrigine: key(q,r),
-      bersagli: libere,
-      applica: (cella) => spostaCartaConSalto(ultima, cella),
+      cellaOrigine: origine,
+      bersagli,
+      applica: (cella) => spostaCartaConSalto(origine, cella),
       rinuncia: () => {},
     };
   },
@@ -25809,6 +25817,13 @@ function startCardLandAnim(k){
 // sposta una carta gia' piazzata.
 function spostaCartaConSalto(daCella, aCella, poi){
   const finito=()=>{ if(typeof poi==='function') poi(); };
+  // v0.73.67 — MAI su una casella bloccata, per nessun motivo. Il controllo
+  // sta QUI e non solo in chi sceglie i bersagli (celleLibere() gia' esclude
+  // i buchi): e' l'unico punto da cui passa ogni spostamento di una carta gia'
+  // in campo, quindi e' anche l'unico posto dove questa regola deve essere
+  // scritta perche' valga sempre, per chiunque chiami questa funzione oggi o
+  // in futuro.
+  if(G.holes.has(aCella)){ finito(); return; }
   if(G.board[aCella]){ finito(); return; } // occupata nel frattempo: non si sovrascrive niente
   const partito=avviaSaltoCarta(daCella);
   const atterra=()=>{

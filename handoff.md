@@ -38,7 +38,7 @@ esiste anche `desktop/package.json`, il suo `version` va allineato.
 
 ---
 
-## Stato attuale (v0.73.66)
+## Stato attuale (v0.73.67)
 
 **Fatto e funzionante:** partita completa contro IA e in locale, Collezione,
 Book Packs, menu principale, schermata iniziale, salvataggio delle
@@ -141,7 +141,12 @@ posizioni calcolate.
 | `vivo.js` | il gioco parte e la tabella interna e' coerente |
 | `stato.js` | utilita': legge il foglio VERO e dice quali carte sono agganciate (serve rete, escluso da `tutti.js`) |
 
-Alla consegna della v0.73.66 erano 332 asserzioni, tutte verdi.
+Alla consegna della v0.73.66 erano 332 asserzioni, tutte verdi. **Non
+riverificato dalla v0.73.67**, per la nuova regola qui sopra — e
+`dancing_around.js` in particolare e' oggi DESALLINEATO dal codice: testa
+ancora "si sposta la carta conquistata", che non e' piu' vero (vedi il FIX
+piu' sotto, sezione "Come si aggiunge un'abilita'"). Va riscritto o cancellato
+prima di fidarsi di un suo verde.
 
 ---
 ## REGOLA FISSA — le patch notes si aggiornano SEMPRE
@@ -235,9 +240,22 @@ per tempo scaduto — cambia solo il momento e cosa succede alla chiusura:
 `chiudiSceltaBersaglio` riconosce le due dal flag `dopoConquista` e per queste
 non richiama `resolveConquestAndEndTurn` (rifarebbe la conquista da capo), fa
 solo proseguire il turno. Primo e finora unico caso: Dancing Around (12
-Dancing Princesses), che dopo aver conquistato chiede su quale casella VUOTA
-adiacente a se stessa portare l'ultima carta presa (se ne conquista piu' d'una
-nello stesso turno, conta solo l'ultima).
+Dancing Princesses), che dopo aver conquistato chiede su quale casella libera
+adiacente spostare SE STESSA — non la carta appena presa, che resta dov'e'
+finita (v0.73.67 FIX: la prima versione spostava la carta conquistata;
+Lorenzo l'ha corretta).
+
+**I bersagli di uno spostamento passano SEMPRE da `celleLibere()`, mai da un
+controllo scritto a mano.** Lo stesso v0.73.67 FIX ha scoperto che la prima
+versione di Dancing Around calcolava le caselle libere guardando solo se
+erano occupate, non se erano BLOCCATE (un tassello sfondato) — un giocatore
+avrebbe potuto, in teoria, farla atterrare su un buco. `celleLibere()` e' la
+funzione che gia' filtra buchi e fuori-tabellone per ogni altro spostamento
+del gioco (il salto del Cheshire compreso): usarla sempre, invece di
+riscrivere il filtro ogni volta, e' l'unico modo per essere certi che non
+capiti mai. Come ulteriore rete di sicurezza, anche `spostaCartaConSalto()` —
+il punto UNICO da cui passa ogni spostamento di una carta gia' in campo —
+adesso rifiuta da se' una destinazione bloccata, chiunque la chiami.
 
 Fermare la partita e' la cosa piu' pericolosa che un'abilita' possa fare: se
 nessuno chiude la finestra il gioco resta li' per sempre. Le tre agganciature
