@@ -6329,7 +6329,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.62</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.63</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -10242,8 +10242,8 @@ function _bustinaTempoRimasto(){
 // statisticamente legittima. Se il roster e' cosi' piccolo da non permetterlo,
 // si accetta il doppione invece di restituire meno carte del previsto.
 function _pescaCartaBustina(escluse){
-  const pool = (FINAL_CARDS||[]).filter(e => e && !escluse.includes(e));
-  const scelti = pool.length ? pool : (FINAL_CARDS||[]);
+  const pool = carteGiocabili().filter(e => e && !escluse.includes(e));
+  const scelti = pool.length ? pool : carteGiocabili();
   if(!scelti.length) return null;
   let totale = 0;
   for(const e of scelti) totale += (typeof e.dropRate === 'number' && e.dropRate > 0) ? e.dropRate : 0;
@@ -14438,12 +14438,25 @@ function getSideCornerPairs(corners){
 // makeBalancedDecks): prima serviva a limare valori generati, ora sceglie fra
 // diverse PESCATE quella piu' equilibrata — le carte non si possono ritoccare,
 // ma si puo' ancora decidere quali finiscono da che parte.
+// ── v0.73.63 — LE CARTE CHE ESISTONO SOLO SE QUALCUNO LE EVOCA ────────────
+// Una carta con drop rate 0 dichiarato nel foglio non e' una carta rara: e'
+// una carta che non si ottiene. Excalibur arriva perche' King Arthur la
+// chiama, non perche' e' capitata nel mazzo — e con tutti i lati a zero, in
+// mano sarebbe una carta ingiocabile.
+// La regola guarda il drop rate e non un elenco di nomi, cosi' ogni carta
+// evocabile futura e' gia' a posto senza toccare niente qui.
+function soloEvocabile(entry){
+  return !!entry && typeof entry.dropRate === 'number' && entry.dropRate <= 0;
+}
+function carteGiocabili(){
+  return (FINAL_CARDS || []).filter(e => e && !soloEvocabile(e));
+}
 function makeDeck(owner,total){
   if(!Array.isArray(FINAL_CARDS) || !FINAL_CARDS.length) return [];
   // Mescolata alla Fisher-Yates: ogni ordine e' ugualmente probabile, cosa che
   // sort(()=>Math.random()-0.5) — usato altrove in questo file — non
   // garantisce affatto. Qui conta, perche' e' cio' che decide il mazzo.
-  const mescolate = FINAL_CARDS.slice();
+  const mescolate = carteGiocabili().slice();
   for(let i=mescolate.length-1;i>0;i--){
     const j = Math.floor(Math.random()*(i+1));
     const t = mescolate[i]; mescolate[i] = mescolate[j]; mescolate[j] = t;
@@ -14822,6 +14835,13 @@ const TILE_ABILITIES_DEF = {
   // finche' l'avversario non le mette una carta accanto (vedi
   // attivaExaketededly e diradaFumoIntorno).
   exaketededly:      { name:'Exaketededly',        desc:'Power *changes* and hides in smoke until an enemy card is adjacent.' },
+  // v0.73.63 — King Arthur. Ferma il turno e chiede DOVE mettere Excalibur:
+  // vedi SCELTE_PIAZZAMENTO ed evocaExcalibur.
+  excalibur:         { name:'Excalibur!',         desc:'*Summons* Excalibur on the board.' },
+  // v0.73.63 — Excalibur. Non fa niente: SUBISCE di meno. E' un'abilita' che
+  // vive interamente nei controlli degli altri (vedi cartaIntoccabile), non in
+  // un effetto proprio — e' il primo caso del genere nel gioco.
+  immovable:         { name:'Immovable',          desc:'Cannot be *Conquered*, *Moved*, or *Destroyed*.' },
 };
 // ── v0.73.49 — QUESTI `name` SONO IL LEGAME COL FOGLIO ─────────────────────
 // Il gioco aggancia l'abilita' di un personaggio confrontando la cella
@@ -15539,7 +15559,17 @@ function autoPlay(player){
   // resterebbe aperta e il timer, ormai scattato, non tornerebbe piu' a
   // chiuderla.
   if(G.sceltaBersaglio && G.sceltaBersaglio.giocatore===player){
-    chiudiSceltaBersaglio(null);
+    // v0.73.63 — scadere il tempo non vuol dire per forza rinunciare.
+    // Alcune abilita' hanno un esito di ripiego dichiarato (`seScade`): King
+    // Arthur, per esempio, cala comunque Excalibur su una casella a caso,
+    // perche' l'abilita' e' gia' scattata e il turno l'ha gia' pagata. Chi
+    // non lo dichiara si comporta come sempre, cioe' rinuncia.
+    const scelta = G.sceltaBersaglio;
+    let ripiego = null;
+    if(typeof scelta.seScade === 'function'){
+      try { ripiego = scelta.seScade(); } catch(_){ ripiego = null; }
+    }
+    chiudiSceltaBersaglio(ripiego);
     return;
   }
   // Auto-play only for the player whose turn is actually active. Guards against a
@@ -16135,6 +16165,11 @@ function carteCheSiSpostano(player){
     if(!cella || !cella.card) continue;
     if(cella.owner!==player) continue;
     if(abilitaAttivaDi(cella.card)!=='different_reality') continue;
+    // v0.73.63 — una carta intoccabile non si sposta, nemmeno da sola. Oggi il
+    // caso non puo' capitare (chi salta e' il Cheshire, che non e' Excalibur),
+    // ma la regola "non puo' essere spostata" deve vivere in ogni punto che
+    // sposta qualcosa, o vale solo finche' nessuno ne aggiunge un altro.
+    if(cartaIntoccabile(cella.card)) continue;
     trovate.push(k);
   }
   return trovate;
@@ -16607,6 +16642,35 @@ function attivaSmokeAndMirrors(card){
 // Un'abilita' nuova che debba chiedere un bersaglio si aggiunge qui e ottiene
 // gratis il disegno, il comportamento dell'IA e la scadenza del tempo.
 const SCELTE_PIAZZAMENTO = {
+  // ── v0.73.63 — KING ARTHUR, "Excalibur!" ────────────────────────────────
+  // Chiede su quale casella LIBERA calare Excalibur. A differenza dello
+  // specchio, che sceglie fra i propri vicini, qui i bersagli sono tutte le
+  // caselle vuote del tabellone: la finestra e' la stessa, cambia solo cosa
+  // ci si mette dentro. E' la prova che quello schema regge anche per le
+  // abilita' che non guardano l'adiacenza.
+  excalibur: (card, q, r, giocatore) => {
+    const entry = cartaEvocabilePerNome('Excalibur');
+    if(!entry){
+      // Il foglio non ha (piu') quella riga. Si tira dritto invece di aprire
+      // una finestra che non potrebbe mantenere la promessa.
+      console.info('[Excalibur!] la carta "Excalibur" non e\' nel foglio: l\'abilita\' non fa niente.');
+      return null;
+    }
+    const libere = celleLibere();
+    if(!libere.length) return null; // tabellone pieno: nessuna pausa, si prosegue
+    return {
+      chiave: 'excalibur',
+      giocatore,
+      cellaOrigine: key(q,r),
+      bersagli: libere,
+      applica: (cella) => evocaExcalibur(cella, giocatore, entry),
+      rinuncia: () => {},
+      // Se il tempo scade senza decidere, la spada cade dove capita invece di
+      // non cadere affatto: e' cio' che e' stato chiesto, ed e' anche piu'
+      // onesto — l'abilita' e' scattata, il turno l'ha gia' pagata.
+      seScade: () => libere[Math.floor(Math.random()*libere.length)],
+    };
+  },
   magic_mirror: (card, q, r, giocatore) => {
     // Da qui in poi questa carta e' uno specchio per sempre, qualunque
     // abilita' finisca per portare addosso: e' il marchio che impedisce a un
@@ -16625,6 +16689,35 @@ const SCELTE_PIAZZAMENTO = {
     };
   }
 };
+
+// La riga del foglio di una carta evocabile, cercata per nome. Si guarda fra
+// TUTTE le carte e non fra quelle giocabili: le evocabili sono proprio quelle
+// escluse da mazzi e bustine (vedi soloEvocabile), quindi cercarle nell'elenco
+// filtrato non le troverebbe mai.
+function cartaEvocabilePerNome(nome){
+  const cercato = String(nome||'').trim().toLowerCase();
+  return (FINAL_CARDS || []).find(e => e && String(e.name||'').trim().toLowerCase() === cercato) || null;
+}
+// Cala Excalibur sulla casella scelta. La carta e' del giocatore che ha giocato
+// King Arthur: e' una spada che risponde al suo re.
+function evocaExcalibur(cella, giocatore, entry){
+  if(!cella || G.board[cella]) return;   // occupata nel frattempo: non si sovrascrive niente
+  const carta = _makeCardDbCard(entry, giocatore);
+  // Un id irripetibile: il gioco riconosce le carte sul tabellone da li', e due
+  // Excalibur evocate nella stessa partita sarebbero due carte diverse con lo
+  // stesso nome.
+  carta.id = 'excalibur-' + giocatore + '-' + Date.now() + '-' + Math.floor(Math.random()*1000);
+  carta.baseId = entry.id;
+  G.board[cella] = { card: carta, owner: giocatore };
+  renderBoard();
+  // L'atterraggio e' quello dei piazzamenti normali. NON si risolve nessuno
+  // scontro: Excalibur ha tutti i lati a zero e non conquisterebbe niente
+  // comunque, ma soprattutto una conquista dentro alla risoluzione di
+  // un'altra carta aprirebbe una catena dentro una catena — e quella e' la
+  // classe di problemi che in questo gioco e' costata piu' tempo.
+  startCardLandAnim(cella);
+  try { playCardVoiceLine(carta); } catch(_){}
+}
 
 // I vicini di Magic Mirror che hanno davvero un'abilita' da copiare. Di
 // chiunque siano: lo specchio riflette anche il nemico. Si escludono gli altri
@@ -17219,6 +17312,20 @@ function abilitaAttivaDi(card){
   if(card.abilityLocked) return null;
   return card.cardAbility;
 }
+// ── v0.73.63 — EXCALIBUR, "Immovable" ─────────────────────────────────────
+// "Cannot be Conquered, Moved, or Destroyed". E' un'abilita' che non FA
+// niente: cambia cosa gli altri possono fare a questa carta. Non ha quindi un
+// effetto da registrare da nessuna parte — ha un controllo, e quel controllo
+// deve stare nei punti in cui qualcuno prova a toccarla.
+// Sta qui, in una funzione sola, e non ripetuto in ogni punto: il giorno in
+// cui un'altra carta diventera' intoccabile bastera' aggiungere la sua chiave,
+// e il giorno in cui nascera' un nuovo modo di spostare le carte bastera'
+// chiamare questa. Sparpagliare `cardAbility === 'immovable'` per il file
+// sarebbe la stessa regola scritta in cinque posti, cioe' quattro occasioni di
+// dimenticarsene.
+function cartaIntoccabile(card){
+  return abilitaAttivaDi(card) === 'immovable';
+}
 function getAttackValueForSide(card, effValues, mySide){
   if(abilitaAttivaDi(card)==='a_kind_of_magic'){
     return Math.max(...SIDES.map(s=>effValues[s]||0));
@@ -17433,6 +17540,10 @@ function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLa
     const nk=key(q+dir.dq,r+dir.dr);
     const nb=snap[nk];
     if(!nb||nb.owner===player)continue;
+    // v0.73.63 — Excalibur non si conquista, qualunque sia il numero che le si
+    // punta contro. Il controllo sta PRIMA del confronto e non dentro: cosi'
+    // non esiste un valore, per quanto alto, che la porti via.
+    if(cartaIntoccabile(nb.card)) continue;
     const[nq,nr]=nk.split(',').map(Number);
     const theirEffective=getFactionBonus(nb.card,nq,nr,snap).values;
     const myAttackVal=getAttackValueForSide(card, myEffective, dir.mySide);
@@ -18684,6 +18795,10 @@ function aiEvaluateConquests(card, q, r){
     const nk=key(q+dir.dq,r+dir.dr);
     const nb=G.board[nk];
     if(!nb||nb.owner===2) continue;
+    // v0.73.63 — l'IA deve vedere il mondo com'e': una carta intoccabile non
+    // e' un bersaglio, e contarla le farebbe scegliere celle per una conquista
+    // che non avverra' mai.
+    if(cartaIntoccabile(nb.card)) continue;
     // Merlin's "Hocus-pocus": attacks with its single strongest side instead
     // of the one actually facing this neighbor — see getAttackValueForSide's
     // own comment for why this stays centralized alongside the real
@@ -19125,6 +19240,29 @@ const VALUTAZIONI_IA = {
     }
     return migliore;
   },
+};
+// ── v0.73.63 — dove l'IA cala Excalibur ───────────────────────────────────
+// Excalibur non conquista niente e non puo' essere presa: il suo valore non e'
+// quello che fa, e' la CASELLA che toglie all'avversario, per sempre.
+// La stima e' quindi tutta posizionale: vale di piu' una casella attaccata a
+// molte carte proprie — perche' ogni lato coperto da Excalibur e' un lato che
+// nessuno potra' mai attaccare — e a parita' vale di piu' una casella centrale,
+// che e' quella che l'avversario avrebbe voluto.
+// E' una prima approssimazione dichiarata: non simula il turno dopo, e non
+// prova a indovinare dove l'avversario vorrebbe giocare.
+VALUTAZIONI_IA.excalibur = (scelta) => {
+  let migliore = null, punteggioMigliore = -Infinity;
+  for(const cella of scelta.bersagli){
+    const [q, r] = cella.split(',').map(Number);
+    let alleateVicine = 0;
+    for(const dir of DIRS){
+      const vicino = G.board[key(q+dir.dq, r+dir.dr)];
+      if(vicino && vicino.owner === scelta.giocatore) alleateVicine++;
+    }
+    const punteggio = alleateVicine*2 + aiVicinatoUtile(q, r);
+    if(punteggio > punteggioMigliore){ punteggioMigliore = punteggio; migliore = cella; }
+  }
+  return migliore;
 };
 function aiResolvePendingAbilityIfAny(){
   const scelta = G.sceltaBersaglio;
