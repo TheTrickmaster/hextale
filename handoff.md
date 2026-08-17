@@ -2,11 +2,131 @@
 
 Nota per chi riprende il lavoro (umano o assistente). Il file HTML resta
 la fonte di verita' piu' aggiornata: i suoi commenti interni descrivono il
-perche' di ogni scelta. Questo documento raccoglie solo le regole di
-processo che non stanno dentro al codice.
+perche' di ogni scelta. Questo documento raccoglie le regole di processo e le
+informazioni che non stanno dentro al codice.
 
 ---
 
+## Dove si trova cosa
+
+Tutto vive in `game-assets/`, che e' anche il repository GitHub
+(`TheTrickmaster/hextale`, pubblicato su `thetrickmaster.github.io/hextale/`).
+
+| Cosa | Dove |
+|---|---|
+| Il gioco | `Hextale_<versione>.html` — un unico file, ~26.000 righe |
+| Note di aggiornamento | `patch-notes.txt` |
+| Questo documento | `handoff.md` |
+| Banco di prova | `test/` — vedi piu' sotto |
+| Applicazione desktop | `desktop/` — vedi piu' sotto |
+| Illustrazioni carte | `cards/art/<personaggio>/` |
+| Voci | `audio/voices/` |
+| Interfaccia di gioco | `player-ui/`, `card-parts/`, `buttons/`, `tiles/` |
+| Menu principale | `main-menu/` |
+| Bustine | `cards/packs/` |
+| Schermata iniziale | `loading-screen/` |
+
+Il database delle carte NON e' nel repository: sta su un Google Sheet
+(foglio `Cards DB`), letto a ogni avvio. La copia interna nell'HTML e' solo un
+ripiego per quando il foglio non risponde, ed e' vecchia.
+
+**Come si consegna una versione.** Si rinomina il file col numero nuovo, si
+aggiorna il badge `#build-version-badge`, si scrive il blocco in
+`patch-notes.txt`, e Lorenzo carica entrambi su GitHub. Il numero di versione
+sta in DUE posti che devono combaciare: il nome del file e il badge. Se
+esiste anche `desktop/package.json`, il suo `version` va allineato.
+
+---
+
+## Stato attuale (v0.73.65)
+
+**Fatto e funzionante:** partita completa contro IA e in locale, Collezione,
+Book Packs, menu principale, schermata iniziale, salvataggio delle
+impostazioni audio, controllo automatico degli aggiornamenti, guscio desktop.
+
+**Abilita' programmate (11).** Eat the Rich (Robin Hood), Smol Friends
+(Snow White), A Kind of Magic (Merlin), Eat me Drink me (Alice), Different
+Reality (Cheshire Cat), Have I Gone Mad? (Mad Hatter), Smoke and Mirrors
+(Morgana), Off With the Head! (Queen of Hearts), Spitting Image (Magic
+Mirror), Exaketededly (The Caterpillar), Excalibur! (King Arthur) e Immovable
+(Excalibur).
+
+**Da programmare: 24 carte visibili.** Raggruppate per famiglia, perche' dentro
+una famiglia il codice si somiglia:
+
+- **Valori che cambiano** (11): Sleight of Hand, Bear Necessities, Tic Toc,
+  Loyalty, Power of Love, Mischief, Bothered, Dark Pact, Nightmare, Everyone
+  gets a wish, Rush Hour.
+- **Dopo lo scontro** (3): Hunger Bites, Scaredy cat, Dancing Around.
+- **Reazione all'essere conquistati** (2): Hex (Pun Intended), Little Mermaid.
+- **Tessere e posizioni** (3): Heigh-ho, Open Celery!, Braaaaaids.
+- **Trasformazioni** (2): Kiss, Bell of the Ball.
+- **Furti e regole** (4): New Tax, Give me that, Power Nap, True Story.
+
+Una carta con un'abilita' dichiarata nel foglio ma non programmata non si
+rompe: esce con `NO_SCRIPT` in rosso e in console si legge perche'.
+
+**Deciso con Lorenzo (importante, non ricontrattare senza motivo):** le
+abilita' si scrivono **una alla volta**, non con un motore generico. La
+tentazione di una tabella dichiarativa per la famiglia "valori che cambiano"
+c'e' ed e' forte, ma la si disegnerebbe leggendo undici descrizioni invece che
+guardando undici implementazioni funzionanti. In questo progetto generalizzare
+DOPO aver visto il caso vero e' andata bene (la rotazione condivisa fra Alice
+e il Caterpillar, `modificaValori`); anticipare una struttura e' andata male
+(la colonna `Ability key`, poi rimossa). Se dopo cinque o sei abilita' scritte
+a mano emerge una forma ricorrente, la si estrae allora.
+
+**Prima di scrivere un'abilita' servono quattro risposte**, e vanno chieste
+invece che indovinate: **quando** scatta, **chi** colpisce (nemici compresi?
+se stessa?), **cosa** fa e per quanto (finche' resta li' o per sempre), e
+**cosa succede se non si puo'** (nessun bersaglio, tabellone pieno, effetto
+gia' attivo).
+
+---
+
+## Il banco di prova (`test/`)
+
+Non e' zavorra: i tre guasti piu' costosi di questo progetto — il potere di
+Robin Hood che spariva nel nulla, i valori del Cheshire che saltavano da una
+parte all'altra della carta, il turno che restava appeso — erano tutti
+**invisibili guardando il gioco** e ovvi in una prova scritta.
+
+```
+cd test
+npm install        # una volta sola, scarica jsdom
+node tutti.js      # lancia tutto e riassume
+node excalibur.js  # una prova sola
+```
+
+`harness.js` trova da solo il file `Hextale_*.html` col numero piu' alto: le
+prove non contengono nessun percorso scritto a mano, quindi consegnare una
+versione nuova non richiede di aggiornarle.
+
+Le prove caricano il gioco vero in jsdom con dei sostituti per cio' che jsdom
+non ha (`fetch`, `AudioContext`, `HTMLMediaElement`, `getContext` del canvas,
+`Image`, `localStorage`), quindi eseguono le funzioni VERE. Cosa NON possono
+vedere: l'impaginazione e il disegno. `getBBox` e' finto e le misure a schermo
+non esistono — per quelle si controllano gli attributi e le regole CSS, mai le
+posizioni calcolate.
+
+| File | Cosa prova |
+|---|---|
+| `tutti.js` | lancia tutte le altre |
+| `excalibur.js` | King Arthur, Immovable, carte solo evocabili |
+| `collezione.js` | cosa compare nella griglia della Collezione |
+| `gatto.js`, `turnogatto.js` | Different Reality: rotazione, salto, catena del turno |
+| `rotazione.js` | la geometria della rotazione dei valori |
+| `salto.js` | l'animazione del salto e dell'atterraggio |
+| `nomi.js` | come il foglio aggancia le abilita' |
+| `menu.js` | il menu principale, per intero |
+| `volumi.js` | i volumi di partenza |
+| `guscio.js`, `guscio2.js` | l'aggiornatore desktop e la sua configurazione |
+| `vivo.js` | il gioco parte e la tabella interna e' coerente |
+| `stato.js` | utilita': legge il foglio VERO e dice quali carte sono agganciate (serve rete, escluso da `tutti.js`) |
+
+Alla consegna della v0.73.65 erano 311 asserzioni, tutte verdi.
+
+---
 ## REGOLA FISSA — le patch notes si aggiornano SEMPRE
 
 **A ogni consegna di una nuova versione del file HTML va aggiornato anche
@@ -241,17 +361,19 @@ ignorato cross-origin, quindi si scarica il blob in base64 e si passa da
 
 ## Verifica prima di consegnare
 
-`node --check` non basta: controlla la sintassi, non l'esecuzione. Un
-`const` usato prima della sua riga di dichiarazione (temporal dead zone)
-passa il check ma manda in errore l'intero script al caricamento, e in quel
-caso **nessun pulsante del gioco funziona piu'** — e' gia' successo con
-`CARD_DB_GEMMA_RARITA` in v0.72.81.
+`node --check` non basta: controlla la sintassi, non l'esecuzione. Un `const`
+usato prima della sua riga di dichiarazione (temporal dead zone) passa il check
+ma manda in errore l'intero script al caricamento, e in quel caso **nessun
+pulsante del gioco funziona piu'** — e' gia' successo con `CARD_DB_GEMMA_RARITA`
+in v0.72.81.
 
-Va quindi eseguito il file in jsdom con degli stub (`fetch`, `AudioContext`,
-`HTMLMediaElement`, `getContext` del canvas, `Image`, `localStorage`),
-verificando che dopo il caricamento esistano ancora le funzioni chiave:
-`showPage`, `requestNewGame`, `closeDebugModal`, `openCardDbOverlay`,
-`openPackOverlay`, `caricaPatchNotes`.
+Si lancia quindi `node tutti.js` dentro `test/` (vedi sopra): la prova `vivo.js`
+copre proprio questo caso, caricando il gioco e verificando che le funzioni
+chiave esistano ancora.
+
+**Ogni cosa nuova arriva con le sue prove.** Non "quando c'e' tempo": nello
+stesso passaggio. Una prova scritta dopo verifica cio' che il codice fa, non
+cio' che doveva fare.
 
 ---
 
@@ -311,3 +433,86 @@ obbligava a tenere a mente due nomi per abilita' e a ricordare quale dei due
 comandasse davvero — e nel momento in cui si scambiano abilita' fra personaggi,
 diventava una fonte continua di confusione. Adesso quello che si legge nel
 foglio e' quello che succede nel gioco.
+
+
+---
+
+## L'applicazione desktop (`desktop/`)
+
+Electron, Windows per ora, Mac quando servira'. Vedi `desktop/LEGGIMI.md` per
+i comandi.
+
+**L'idea:** il guscio non contiene il gioco, lo APRE. Il gioco e' il documento,
+il guscio e' il lettore. Il lettore cambia quasi mai; il documento cambia dieci
+volte al giorno ed e' un file solo.
+
+Da qui i due livelli di aggiornamento:
+
+- **il contenuto** si aggiorna a ogni avvio, scaricando da GitHub l'HTML col
+  numero piu' alto. Pubblicare una versione nuova resta quello che e' sempre
+  stato: caricare il file. Nessuna reinstallazione, nessuna firma.
+- **il guscio** si aggiorna solo con un pacchetto nuovo, cioe' quasi mai.
+
+Il gioco riconosce di girare dentro l'applicazione da `window.hextaleDesktop`
+(esposto da `preload.js`) e li' spegne il proprio avviso "e' disponibile una
+versione piu' recente", che manderebbe a scaricare un HTML in una cartella
+qualunque.
+
+**Cosa cambierebbe se un giorno il gioco girasse SOLO dentro Electron:** cade
+il vincolo `file://`, quindi `fetch()` torna a funzionare e tutta la macchina
+JSONP (`_foglioViaScript`, `_githubJsonp`) diventa superflua, insieme alla
+ripresa dell'audio al primo gesto. Finche' Lorenzo apre anche l'HTML col
+doppio clic, tutto questo resta necessario.
+
+---
+
+## Il menu principale
+
+E' una pagina del gestore (`PAGE_ELEMENT_IDS.mainmenu`), si raggiunge dal
+"Login" della schermata iniziale.
+
+**Tutte le misure stanno in un blocco solo**, in cima alle regole di
+`#main-menu`, come variabili CSS con nomi in italiano (`--libro-larghezza`,
+`--banner-x`, `--griglia-y`, `--segna-store-x`...). Sono percentuali **del
+libro**, non dello schermo, cosi' cambiare la misura del libro non scompagina
+niente. **Quando Lorenzo chiede di spostare qualcosa, si cambia una variabile
+li' dentro** — non si aggiungono regole nuove sparse.
+
+Due cose da sapere:
+
+- Il gruppo `#mm-book-rot` e' ruotato di 3 gradi e ha i click SPENTI; chi sta
+  dentro se li riprende con `.mm-clic`. Quella classe fa SOLO questo: quando
+  azzerava anche `font` e `background` cancellava la grafica dei pulsanti veri
+  (v0.73.55). Chi ha bisogno di un `<button>` spogliato usa `.mm-nudo`.
+- I segnalibri sono una finestrella ferma con `overflow:hidden` dentro cui
+  scorre il disegno: e' il taglio a farli leggere come "si sfilano dalle
+  pagine" invece che "si staccano dal libro". `--sotto` (quanto disegno resta
+  nascosto) deve restare maggiore di `--sfilo` (quanto esce), o all'uscita
+  ricompare il bordo destro. La larghezza della finestrella la detta
+  l'immagine stessa (`adattaSegnalibroAlDisegno`), non un numero copiato.
+
+**La musica dei menu e' una sola e non ricomincia mai.** Schermata iniziale,
+menu, Collezione e Book Packs condividono lo stesso brano: `musicaMenuAvvia()`
+non fa niente se sta gia' suonando, e a spegnerlo e' solo chi sa dove si sta
+andando (`tornaAllaPaginaChiamante`, `startGame`). Aggiungendo una pagina di
+menu nuova basta chiamare `musicaMenuAvvia()` entrandoci.
+
+**Le finestre si chiudono tutte** con la X in alto a destra e con un click
+fuori. C'e' una prova che le verifica tutte insieme (`menu.js`), cosi' una
+finestra nuova senza via d'uscita non passa inosservata.
+
+---
+
+## Un dato non appartiene a una schermata
+
+Regola generale, imparata due volte in un giorno.
+
+I tre volumi nascevano dentro `startGame`. Finche' le impostazioni si aprivano
+solo durante una partita tornava; dal menu principale no, e i cursori
+restavano a zero senza rispondere. Il rimedio non e' stata la chiamata in piu':
+e' che il volume e' del GIOCO, non della partita.
+
+Stessa forma: `_daFileLocale`, la risoluzione locale-prima-di-remoto degli
+asset, la definizione di "carta che si ottiene" (`carteGiocabili`, usata da
+mazzi, bustine e Collezione). Quando un dato serve a due schermate, non deve
+vivere in nessuna delle due.
