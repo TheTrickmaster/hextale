@@ -6329,7 +6329,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.63</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.64</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -11427,7 +11427,11 @@ function cardDbRenderRoster(){
     grid.appendChild(slot);
   }
   const countEl=document.getElementById('card-db-count');
-  if(countEl) countEl.textContent = `${FINAL_CARDS.length}/${FINAL_CARDS.length}`;
+  // v0.73.64 — si contano le carte MOSTRATE, non tutte quelle che esistono:
+  // con le evocabili escluse dalla griglia, il totale di prima avrebbe detto
+  // un numero piu' alto di quello che si vede, e sembrerebbe che ne manchi una.
+  const mostrate = carteGiocabili().length;
+  if(countEl) countEl.textContent = `${mostrate}/${mostrate}`;
   // v0.72.4 NEW: every slot just got position:absolute with no left/top/
   // width/height at all (CSS Grid used to provide these) — lay them all out
   // NOW, before cardDbApplyFilters (which may hide some via display:none;
@@ -11980,7 +11984,14 @@ function cardDbBuildSortMenu(){
 // si guarda la Collezione.
 function cardDbRosterOrdinato(){
   const criterio = cardDbOrdinamentoAttivo();
-  const copia = [...FINAL_CARDS];
+  // v0.73.64 — le carte solo evocabili non compaiono in Collezione. La
+  // Collezione racconta cosa si puo' possedere, e Excalibur non si possiede:
+  // arriva perche' King Arthur la chiama, e sparisce con la partita. Mostrarla
+  // fra le altre prometterebbe che prima o poi capitera' in una bustina.
+  // Il filtro passa da carteGiocabili, la stessa regola che la tiene fuori da
+  // mazzi e bustine: una sola definizione di "carta che si ottiene", valida in
+  // tutti e tre i posti.
+  const copia = carteGiocabili();
   if(!criterio.confronta) return copia;
   // A parita' di criterio si ordina per nome: senza, carte equivalenti
   // cambierebbero posto a ogni ridisegno e la griglia sembrerebbe instabile.
