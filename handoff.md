@@ -38,26 +38,26 @@ esiste anche `desktop/package.json`, il suo `version` va allineato.
 
 ---
 
-## Stato attuale (v0.73.65)
+## Stato attuale (v0.73.66)
 
 **Fatto e funzionante:** partita completa contro IA e in locale, Collezione,
 Book Packs, menu principale, schermata iniziale, salvataggio delle
 impostazioni audio, controllo automatico degli aggiornamenti, guscio desktop.
 
-**Abilita' programmate (11).** Eat the Rich (Robin Hood), Smol Friends
+**Abilita' programmate (12).** Eat the Rich (Robin Hood), Smol Friends
 (Snow White), A Kind of Magic (Merlin), Eat me Drink me (Alice), Different
 Reality (Cheshire Cat), Have I Gone Mad? (Mad Hatter), Smoke and Mirrors
 (Morgana), Off With the Head! (Queen of Hearts), Spitting Image (Magic
-Mirror), Exaketededly (The Caterpillar), Excalibur! (King Arthur) e Immovable
-(Excalibur).
+Mirror), Exaketededly (The Caterpillar), Excalibur! (King Arthur), Immovable
+(Excalibur) e Dancing Around (12 Dancing Princesses).
 
-**Da programmare: 24 carte visibili.** Raggruppate per famiglia, perche' dentro
+**Da programmare: 23 carte visibili.** Raggruppate per famiglia, perche' dentro
 una famiglia il codice si somiglia:
 
 - **Valori che cambiano** (11): Sleight of Hand, Bear Necessities, Tic Toc,
   Loyalty, Power of Love, Mischief, Bothered, Dark Pact, Nightmare, Everyone
   gets a wish, Rush Hour.
-- **Dopo lo scontro** (3): Hunger Bites, Scaredy cat, Dancing Around.
+- **Dopo lo scontro** (2): Hunger Bites, Scaredy cat.
 - **Reazione all'essere conquistati** (2): Hex (Pun Intended), Little Mermaid.
 - **Tessere e posizioni** (3): Heigh-ho, Open Celery!, Braaaaaids.
 - **Trasformazioni** (2): Kiss, Bell of the Ball.
@@ -113,6 +113,7 @@ posizioni calcolate.
 |---|---|
 | `tutti.js` | lancia tutte le altre |
 | `excalibur.js` | King Arthur, Immovable, carte solo evocabili |
+| `dancing_around.js` | 12 Dancing Princesses: la scelta dopo lo scontro, dalla registrazione al turno che riparte |
 | `collezione.js` | cosa compare nella griglia della Collezione |
 | `gatto.js`, `turnogatto.js` | Different Reality: rotazione, salto, catena del turno |
 | `rotazione.js` | la geometria della rotazione dei valori |
@@ -124,7 +125,7 @@ posizioni calcolate.
 | `vivo.js` | il gioco parte e la tabella interna e' coerente |
 | `stato.js` | utilita': legge il foglio VERO e dice quali carte sono agganciate (serve rete, escluso da `tutti.js`) |
 
-Alla consegna della v0.73.65 erano 311 asserzioni, tutte verdi.
+Alla consegna della v0.73.66 erano 332 asserzioni, tutte verdi.
 
 ---
 ## REGOLA FISSA — le patch notes si aggiornano SEMPRE
@@ -207,6 +208,20 @@ selezionabili, il comportamento dell'IA e la chiusura per tempo scaduto. La
 funzione registrata restituisce `null` quando non ci sono bersagli, e in quel
 caso la finestra non si apre nemmeno — nessuna pausa e nessuna X da cliccare a
 vuoto.
+
+**v0.73.66 — se invece la scelta arriva DOPO uno scontro** (la carta ha gia'
+conquistato qualcosa, non sta venendo piazzata), il registro giusto e'
+`SCELTE_DOPO_CONQUISTA`, non `SCELTE_PIAZZAMENTO`: quello apre la finestra
+PRIMA che la conquista sia risolta, questo la apre DOPO, da dentro
+`resolveConquestAndEndTurn` a scontro e animazione gia' finiti. E' il gemello
+esatto — stessa `G.sceltaBersaglio`, stesso mirino, stessa X, stessa chiusura
+per tempo scaduto — cambia solo il momento e cosa succede alla chiusura:
+`chiudiSceltaBersaglio` riconosce le due dal flag `dopoConquista` e per queste
+non richiama `resolveConquestAndEndTurn` (rifarebbe la conquista da capo), fa
+solo proseguire il turno. Primo e finora unico caso: Dancing Around (12
+Dancing Princesses), che dopo aver conquistato chiede su quale casella VUOTA
+adiacente a se stessa portare l'ultima carta presa (se ne conquista piu' d'una
+nello stesso turno, conta solo l'ultima).
 
 Fermare la partita e' la cosa piu' pericolosa che un'abilita' possa fare: se
 nessuno chiude la finestra il gioco resta li' per sempre. Le tre agganciature
