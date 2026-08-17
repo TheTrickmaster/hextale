@@ -5549,25 +5549,64 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
    `--sfilo`, o all'uscita il bordo destro tornerebbe visibile e l'illusione
    crollerebbe di colpo. */
 .mm-bookmark{
-  --sotto:38px;   /* quanto disegno resta sotto la pagina */
-  --sfilo:14px;   /* di quanto esce al passaggio del puntatore */
+  --sotto:24px;   /* quanto disegno resta sotto la pagina */
+  --sfilo:18px;   /* di quanto esce al passaggio del puntatore */
   position:absolute;
   overflow:hidden;
   transition:filter .16s ease-out;
   filter:drop-shadow(0 6px 14px rgba(0,0,0,0.45));
 }
-.mm-bookmark img{
-  display:block; height:auto;
-  /* Largo quanto il pulsante e spostato a destra di `--sotto`: quel tanto
-     esce dalla finestrella e viene tagliato via. */
-  position:relative; left:var(--sotto); width:100%;
+/* v0.73.57 — a scorrere non e' piu' il solo disegno ma un CONTENITORE, e
+   dentro ci stanno sia il disegno sia le scritte. Devono muoversi insieme:
+   le scritte sono stampate sul segnalibro, e un segnalibro che si sfila si
+   porta dietro cio' che c'e' scritto sopra. Tenerle fuori le avrebbe fatte
+   scivolare sul nastro come se fossero appoggiate. */
+.mm-bookmark-scorri{
+  display:block;
+  /* Spostato a destra di `--sotto`: quel tanto esce dalla finestrella e
+     viene tagliato via. */
+  position:relative; left:var(--sotto);
   transition:transform .16s ease-out;
+}
+.mm-bookmark img{
+  display:block; height:auto; width:100%;
   pointer-events:none; user-select:none; -webkit-user-drag:none;
 }
-/* All'hover il disegno scorre DENTRO la finestrella, che resta ferma: e'
+/* All'hover il contenuto scorre DENTRO la finestrella, che resta ferma: e'
    questo a farlo leggere come "si sta sfilando" invece che "si sta
    allontanando". */
-.mm-bookmark:hover img{ transform:translateX(calc(var(--sfilo) * -1)); }
+.mm-bookmark:hover .mm-bookmark-scorri{ transform:translateX(calc(var(--sfilo) * -1)); }
+/* ── LE SCRITTE SUI SEGNALIBRI ────────────────────────────────────────────
+   Erano stampate dentro all'immagine; adesso sono testo vero, cosi' possono
+   cambiare (un "3 rewards ready" non richiede un nuovo disegno) e restano
+   nitide a qualunque scala.
+   Allineate a sinistra e ancorate con due variabili per segnalibro, perche'
+   i tre nastri hanno forme e icone diverse e non esiste una posizione che
+   vada bene per tutti e tre. */
+.mm-bookmark-testi{
+  position:absolute; left:var(--testo-x, 32%); top:var(--testo-y, 21%);
+  display:flex; flex-direction:column; align-items:flex-start; gap:2px;
+  text-align:left; white-space:nowrap; pointer-events:none;
+  /* Una sola ombra sul gruppo invece di due sui singoli: e' la stessa cosa
+     a schermo e una sfocatura in meno da comporre. */
+  filter:drop-shadow(0 0 7px #000);
+}
+.mm-bookmark-titolo{
+  font-family:'Marcellus SC','Marcellus',serif;
+  font-size:28px; line-height:1; color:#DDCAA1;
+}
+.mm-bookmark-sotto{
+  /* IM Fell non esiste piu' nel progetto: dalla v0.71.88 e' stato sostituito
+     ovunque da Rosarivo, che e' il carattere di testo del gioco. Qui si usa
+     quello, o sarebbe l'unico punto con un carattere tutto suo. */
+  font-family:var(--font-body, serif);
+  font-size:20px; line-height:1; color:rgba(255,255,255,0.7);
+}
+/* Lo Store e' l'unico col titolo in oro acceso. */
+#mm-store .mm-bookmark-titolo{ color:#FFB100; }
+#mm-store{    --testo-x:34%; --testo-y:20%; }
+#mm-missions{ --testo-x:22%; --testo-y:22%; }
+#mm-packs{    --testo-x:28%; --testo-y:22%; }
 .mm-bookmark:hover{ filter:drop-shadow(0 8px 18px rgba(0,0,0,0.55)) brightness(1.06); }
 #mm-store{    left:var(--segna-store-x);    top:var(--segna-store-y);    width:calc(325px * var(--segnalibro-scala)); }
 #mm-missions{ left:var(--segna-missioni-x); top:var(--segna-missioni-y); width:calc(351px * var(--segnalibro-scala)); }
@@ -5575,7 +5614,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
 /* Lo Store non e' ancora aperto: si vede che c'e', ma sbiadito, e non
    risponde. Niente hover, perche' un oggetto che reagisce promette di
    funzionare. */
-#mm-store{ opacity:0.2; }
+#mm-store{ opacity:0.4; }
 #mm-store:hover{ filter:drop-shadow(0 6px 14px rgba(0,0,0,0.45)); }
 #mm-store:hover img{ transform:none; }
 
@@ -5623,7 +5662,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
 }
 #mm-quick-grid{
   position:absolute; left:var(--griglia-x); top:var(--griglia-y);
-  display:grid; grid-template-columns:repeat(2, 190px); gap:30px;
+  display:grid; grid-template-columns:repeat(2, 190px); gap:24px;
 }
 /* Il bordo e' un GRADIENTE, e un gradiente non si puo' dare a `border`.
    Si disegna quindi come sfondo e si ritaglia la sola cornice sottraendo il
@@ -5646,7 +5685,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
    ritagliata via insieme al centro del riquadro. */
 .mm-quick-slot-icon{
   position:absolute; left:50%; top:50%;
-  width:63px; height:64px;
+  width:30px; height:30px;
   transform:translate(-50%,-50%);
   pointer-events:none; user-select:none; -webkit-user-drag:none;
   opacity:0.85;
@@ -5680,7 +5719,9 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
   transition:transform .16s ease-out, filter .16s ease-out;
 }
 #mm-settings-btn img{ display:block; width:100%; height:100%; pointer-events:none; user-select:none; -webkit-user-drag:none; }
-#mm-settings-btn:hover{ transform:rotate(35deg); filter:brightness(1.15); }
+/* v0.73.57 — al passaggio del puntatore si ACCENDE e basta: non gira piu'.
+   Un ingranaggio che ruota promette che qualcosa si stia gia' regolando. */
+#mm-settings-btn:hover{ filter:brightness(1.35); }
 
 /* Le due valute. Stessa struttura per entrambe — sfondo, icona, numero,
    pulsante piu' — cosi' l'unica differenza dichiarata e' quella vera: il
@@ -5934,9 +5975,9 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
       <img id="mm-book-glow" alt="" draggable="false">
 
       <!-- I segnalibri che escono dal taglio delle pagine -->
-      <button class="mm-clic mm-nudo mm-bookmark" id="mm-store" aria-label="Store" disabled><img alt="" draggable="false"></button>
-      <button class="mm-clic mm-nudo mm-bookmark" id="mm-missions" onclick="mmApriMissioni()" aria-label="Missions"><img alt="" draggable="false"></button>
-      <button class="mm-clic mm-nudo mm-bookmark" id="mm-packs" onclick="openPackOverlay()" aria-label="Book Packs"><img alt="" draggable="false"></button>
+      <button class="mm-clic mm-nudo mm-bookmark" id="mm-store" aria-label="Store" disabled><span class="mm-bookmark-scorri"><img alt="" draggable="false"><span class="mm-bookmark-testi"><span class="mm-bookmark-titolo">Store</span><span class="mm-bookmark-sotto">Summer Sales!</span></span></span></button>
+      <button class="mm-clic mm-nudo mm-bookmark" id="mm-missions" onclick="mmApriMissioni()" aria-label="Missions"><span class="mm-bookmark-scorri"><img alt="" draggable="false"><span class="mm-bookmark-testi"><span class="mm-bookmark-titolo">Missions</span><span class="mm-bookmark-sotto">2 rewards ready</span></span></span></button>
+      <button class="mm-clic mm-nudo mm-bookmark" id="mm-packs" onclick="openPackOverlay()" aria-label="Book Packs"><span class="mm-bookmark-scorri"><img alt="" draggable="false"><span class="mm-bookmark-testi"><span class="mm-bookmark-titolo">Book Packs</span><span class="mm-bookmark-sotto">1 available!</span></span></span></button>
 
       <!-- Pagina sinistra: il giocatore -->
       <div id="mm-player">
@@ -6271,7 +6312,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.56</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.57</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -8505,17 +8546,7 @@ function startGame(vsAI){
   // [0-1] level (initSettingsSliders() below wires the custom drag sliders
   // and defaults these three the first time it runs), read directly instead
   // of via a slider element's .value.
-  if(window.globalVolume===undefined) window.globalVolume=0.45;
-  // v0.71.48 ("avvia sempre il gioco con la musica muta"): musicVolume now
-  // defaults to 0 (muted) instead of 1 — this only applies the FIRST time a
-  // match starts in a given page session (same "only if undefined" guard as
-  // globalVolume/sfxVolume above), so if the player manually raises the
-  // music slider mid-session, later matches in that same session (e.g.
-  // clicking "Nuova partita") correctly keep respecting that choice instead
-  // of snapping back to muted — only a fresh page load resets it to muted
-  // again.
-  if(window.musicVolume===undefined) window.musicVolume=0;
-  if(window.sfxVolume===undefined) window.sfxVolume=1;
+  preparaImpostazioniAudio();
   if(bgm){
     bgm.volume=getEffectiveMusicVolume();
     // First call picks and plays a random track and wires the 'ended'
@@ -8529,9 +8560,30 @@ function startGame(vsAI){
     }
   }
   document.querySelectorAll('audio[id^="sfx-"]').forEach(el=>{ el.volume=getGlobalVolume(); });
+  initGame(!!vsAI);
+}
+
+// ── v0.73.57 FIX ("perche' in settings i volumi sono tutti a zero?") ───────
+// I tre volumi nascevano dentro startGame, insieme ai cursori che li
+// mostrano. Finche' le impostazioni si aprivano solo DURANTE una partita
+// tornava: quando le si apriva, una partita era per forza gia' cominciata.
+// Dal menu principale non e' piu' vero — le si apre senza aver mai giocato,
+// quindi i tre valori non esistevano ancora e i cursori, non essendo mai
+// stati collegati, restavano a zero e non rispondevano al trascinamento.
+// Adesso i valori e i cursori si preparano da soli, e startGame si limita a
+// chiedere la stessa cosa. Il vero rimedio non e' chiamare questa funzione in
+// un punto in piu': e' che un dato non appartenga a una schermata. Il volume
+// e' del gioco, non della partita.
+function preparaImpostazioniAudio(){
+  if(window.globalVolume===undefined) window.globalVolume=0.45;
+  // v0.71.48 ("avvia sempre il gioco con la musica muta"): la musica parte
+  // muta, ma solo la prima volta in una sessione — se il giocatore alza il
+  // cursore, le partite successive rispettano la sua scelta; solo un
+  // ricaricamento della pagina lo riporta a zero.
+  if(window.musicVolume===undefined) window.musicVolume=0;
+  if(window.sfxVolume===undefined) window.sfxVolume=1;
   updateMuteIcon(); updateMusicMuteIcon(); updateSfxMuteIcon();
   initSettingsSliders();
-  initGame(!!vsAI);
 }
 
 // v0.70.18: wires the three custom drag sliders (see settings-modal's own
@@ -8714,6 +8766,9 @@ function toggleSfxMute(){
 // sempre stata chiamata, e un vecchio richiamo senza argomenti deve
 // continuare a comportarsi come prima.
 function openSettingsModal(quando){
+  // I cursori del volume devono mostrare il valore vero anche se non si e'
+  // mai giocato: vedi preparaImpostazioniAudio.
+  preparaImpostazioniAudio();
   const dove = (quando === 'menu') ? 'menu' : 'partita';
   document.querySelectorAll('#settings-modal .settings-voci').forEach(g=>{
     g.classList.toggle('mostra', g.getAttribute('data-quando') === dove);
