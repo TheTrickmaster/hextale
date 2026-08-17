@@ -86,10 +86,26 @@ gia' attivo).
 
 ## Il banco di prova (`test/`)
 
-Non e' zavorra: i tre guasti piu' costosi di questo progetto — il potere di
-Robin Hood che spariva nel nulla, i valori del Cheshire che saltavano da una
-parte all'altra della carta, il turno che restava appeso — erano tutti
-**invisibili guardando il gioco** e ovvi in una prova scritta.
+**v0.73.66 — non e' piu' il passaggio di default.** Scriverne una per ogni
+abilita' e rilanciare l'intera suite a ogni modifica costava troppo tempo per
+il ritmo con cui Lorenzo vuole lavorare: da qui in avanti si lavora
+direttamente sull'HTML, senza scrivere ne' lanciare `test/*.js` a meno che
+Lorenzo non lo chieda esplicitamente ("lancia le prove", "scrivi una prova per
+questa"). Il banco resta com'e', intatto, per quando servira'.
+
+Non e' zavorra, se lo si usa: i tre guasti piu' costosi di questo progetto —
+il potere di Robin Hood che spariva nel nulla, i valori del Cheshire che
+saltavano da una parte all'altra della carta, il turno che restava appeso —
+erano tutti **invisibili guardando il gioco** e ovvi in una prova scritta.
+Vale la pena riproporlo a Lorenzo quando un'abilita' e' particolarmente
+intrecciata con l'animazione o il turno (proprio i casi sopra), anche se non
+e' piu' un passaggio automatico.
+
+**Nota d'ambiente:** in alcune sessioni la cartella montata ha reso `require
+('jsdom')` lentissimo o bloccato senza motivo apparente (non e' successo
+sempre, ma quando capita sembra un bug del codice e non lo e'). Se le prove
+vanno lanciate, copiarle insieme all'HTML in una cartella locale (es. `/tmp`)
+e lanciarle da li' aggira il problema.
 
 ```
 cd test
@@ -376,19 +392,21 @@ ignorato cross-origin, quindi si scarica il blob in base64 e si passa da
 
 ## Verifica prima di consegnare
 
-`node --check` non basta: controlla la sintassi, non l'esecuzione. Un `const`
-usato prima della sua riga di dichiarazione (temporal dead zone) passa il check
-ma manda in errore l'intero script al caricamento, e in quel caso **nessun
-pulsante del gioco funziona piu'** — e' gia' successo con `CARD_DB_GEMMA_RARITA`
-in v0.72.81.
+**v0.73.66 — non e' piu' obbligatorio passare da `test/`** (vedi sopra): si
+lavora sull'HTML e si consegna, senza scrivere ne' lanciare prove di default.
 
-Si lancia quindi `node tutti.js` dentro `test/` (vedi sopra): la prova `vivo.js`
-copre proprio questo caso, caricando il gioco e verificando che le funzioni
-chiave esistano ancora.
+Resta vero pero' che `node --check` non basta: controlla la sintassi, non
+l'esecuzione. Un `const` usato prima della sua riga di dichiarazione (temporal
+dead zone) passa il check ma manda in errore l'intero script al caricamento, e
+in quel caso **nessun pulsante del gioco funziona piu'** — e' gia' successo
+con `CARD_DB_GEMMA_RARITA` in v0.72.81. Vale quindi la pena, prima di
+consegnare una modifica che tocca dichiarazioni in cima al file o l'ordine
+delle `const` di alto livello, controllare a occhio quella riga — e' li' che
+questo genere di guasto nasce, non nella logica dell'abilita' in se'.
 
-**Ogni cosa nuova arriva con le sue prove.** Non "quando c'e' tempo": nello
-stesso passaggio. Una prova scritta dopo verifica cio' che il codice fa, non
-cio' che doveva fare.
+Se Lorenzo chiede di lanciare le prove, si usa `node tutti.js` dentro `test/`
+(vedi sopra): la prova `vivo.js` copre proprio il caso della temporal dead
+zone, caricando il gioco e verificando che le funzioni chiave esistano ancora.
 
 ---
 
