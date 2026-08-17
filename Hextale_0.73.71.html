@@ -6329,7 +6329,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.70</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.71</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -6351,6 +6351,28 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
     </button>
     <button class="start-art-btn sab-primary" onclick="confirmFactionChoice('light')">
       <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Play as Light</span>
+    </button>
+  </div>
+</div>
+<!-- v0.73.71 — PROVA CARTA: CHE MAZZO HA L'AVVERSARIO?
+     Dalla v0.73.30 la carta in prova finiva in ENTRAMBI i mazzi, sempre. E'
+     giusto per vedere una carta contro se stessa (due specchi, due Brucaliffi,
+     chi ruba a chi), ma e' sbagliato per tutte le prove in cui serve un
+     avversario NORMALE: quanto vale davvero contro un mazzo qualunque, come si
+     comporta l'IA che non ha quella carta. Erano due esigenze diverse servite
+     da un comportamento solo, quindi adesso la si chiede.
+     Riusa .hx-modal-overlay/.hx-modal-box e i pulsanti .start-art-btn gia'
+     esistenti: nessuno stile inventato. -->
+<div id="prova-carta-overlay" class="hx-modal-overlay" onclick="if(event.target===this) chiudiSceltaMazzoAvversario();">
+  <div id="prova-carta-modal" class="hx-modal-box">
+    <button class="hx-modal-close" aria-label="Chiudi" onclick="chiudiSceltaMazzoAvversario()"><img src="https://thetrickmaster.github.io/hextale/player-ui/close-icon.png" alt="" draggable="false"></button>
+    <h2>Il mazzo dell'avversario</h2>
+    <div id="prova-carta-nome" style="text-align:center;margin-bottom:4px;opacity:0.75;font-size:15px;"></div>
+    <button class="start-art-btn sab-primary" onclick="confermaSceltaMazzoAvversario(true)">
+      <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">La stessa carta</span>
+    </button>
+    <button class="start-art-btn sab-secondary" onclick="confermaSceltaMazzoAvversario(false)">
+      <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Carte casuali</span>
     </button>
   </div>
 </div>
@@ -14185,12 +14207,44 @@ if(!window.__debugCardSearchOutsideClickWired){
 // instead. Player 2 (the AI opponent) keeps a completely normal random deck,
 // so testing this card's behavior IN COMBAT against a realistic opposing
 // hand is still possible, not just a solitaire preview.
+// v0.73.71 — non avvia piu' direttamente: prima CHIEDE che mazzo debba avere
+// l'avversario (vedi #prova-carta-overlay per il perche' la domanda esista).
+// La carta scelta resta in sospeso in `__provaCartaInAttesa` finche' la
+// risposta non arriva: e' li' e non gia' in `__debugForcedCardEntry` perche'
+// quest'ultimo e' l'interruttore che startGame legge, e armarlo prima di
+// sapere la risposta vorrebbe dire lasciarlo acceso se la finestra viene
+// chiusa senza scegliere — la partita successiva, avviata da tutt'altro
+// pulsante, si ritroverebbe il mazzo forzato senza che nessuno l'abbia
+// chiesto.
 function debugStartMatchWithCard(){
   const cardId = window.__debugSelectedCardId || (FINAL_CARDS[0] && FINAL_CARDS[0].id);
   const entry = FINAL_CARDS.find(c=>c.id===cardId);
   if(!entry){ closeDebugModal(); return; }
-  window.__debugForcedCardEntry = entry;
+  window.__provaCartaInAttesa = entry;
   closeDebugModal();
+  const eti = document.getElementById('prova-carta-nome');
+  if(eti) eti.textContent = 'Prova di: ' + (entry.name||'');
+  const ov = document.getElementById('prova-carta-overlay');
+  if(ov) ov.classList.add('show');
+}
+// Rinuncia: nessuna partita, e soprattutto nessun mazzo forzato che resti
+// armato per la prossima volta.
+function chiudiSceltaMazzoAvversario(){
+  window.__provaCartaInAttesa = null;
+  const ov = document.getElementById('prova-carta-overlay');
+  if(ov) ov.classList.remove('show');
+}
+// `ancheAvversario` true = tutti e due i mazzi pieni di quella carta (per
+// vederla contro se stessa), false = solo il proprio, l'avversario gioca un
+// mazzo normale.
+function confermaSceltaMazzoAvversario(ancheAvversario){
+  const entry = window.__provaCartaInAttesa;
+  const ov = document.getElementById('prova-carta-overlay');
+  if(ov) ov.classList.remove('show');
+  window.__provaCartaInAttesa = null;
+  if(!entry) return;
+  window.__debugForcedCardEntry = entry;
+  window.__debugForcedAncheAvversario = !!ancheAvversario;
   requestNewGame(true);
 }
 
@@ -15148,15 +15202,22 @@ function initGame(vsAI){
   // se stessa — due specchi vicini, due Brucaliffi, chi ruba a chi — bisognava
   // sperare che il caso la pescasse. Provando una carta si vuole provare
   // proprio quella, da tutte e due le parti del tabellone.
+  // v0.73.71 — ma non SEMPRE: adesso lo si chiede (vedi
+  // debugStartMatchWithCard e #prova-carta-overlay). Il mazzo dell'avversario
+  // viene riempito solo se e' stato scelto, altrimenti resta quello casuale
+  // costruito qui sopra — che e' cio' che serve per capire quanto vale la
+  // carta contro un mazzo qualunque, invece che contro il proprio riflesso.
   // Cleared right after being consumed so the NEXT match started normally goes
   // back to regular deck-building instead of silently staying forced.
   if(window.__debugForcedCardEntry){
     const forcedEntry = window.__debugForcedCardEntry;
-    for(let i=0;i<d2.length;i++){
-      const cartaAvversaria = _makeCardDbCard(forcedEntry, 2);
-      cartaAvversaria.id = `debugcard2-${forcedEntry.id}-${i}`;
-      cartaAvversaria.baseId = forcedEntry.id;
-      d2[i] = cartaAvversaria;
+    if(window.__debugForcedAncheAvversario){
+      for(let i=0;i<d2.length;i++){
+        const cartaAvversaria = _makeCardDbCard(forcedEntry, 2);
+        cartaAvversaria.id = `debugcard2-${forcedEntry.id}-${i}`;
+        cartaAvversaria.baseId = forcedEntry.id;
+        d2[i] = cartaAvversaria;
+      }
     }
     for(let i=0;i<d1.length;i++){
       const forcedCard = _makeCardDbCard(forcedEntry, 1);
@@ -15176,6 +15237,10 @@ function initGame(vsAI){
       d1[i] = forcedCard;
     }
     window.__debugForcedCardEntry = null;
+    // Si spegne INSIEME alla carta forzata, non altrove: sono un interruttore
+    // solo in due variabili, e lasciarne accesa una sola vorrebbe dire una
+    // scelta vecchia applicata alla prova successiva.
+    window.__debugForcedAncheAvversario = false;
   }
 
   G={
