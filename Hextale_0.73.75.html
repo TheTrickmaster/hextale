@@ -6347,7 +6347,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.74</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.75</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -14941,9 +14941,10 @@ const TILE_ABILITIES_DEF = {
   // da guardare: il nome qui e quello nel foglio devono coincidere.
   hex:               { name:'Hex',                  desc:'When *Conquered*, *Inflicts* -1 ALL per Power difference with the attacker.' },
   // v0.73.74 — Pixies. Sinergia viva, parente stretta di Smol Friends: +3 a un
-  // gruppo valori sorteggiato per ogni Trickster in campo, ricalcolata a ogni
-  // disegno sia in mano sia sul tabellone (vedi recalcMischief).
-  mischief:          { name:'Mischief',              desc:'+3 Power RAND for every /Trickster/ character on the board.' },
+  // gruppo valori sorteggiato per ogni ALTRO Trickster in campo (v0.73.75: se
+  // stessa non si conta), ricalcolata a ogni disegno sia in mano sia sul
+  // tabellone (vedi recalcMischief).
+  mischief:          { name:'Mischief',              desc:'+3 Power RAND for every other /Trickster/ character on the board.' },
 };
 // ── v0.73.49 — QUESTI `name` SONO IL LEGAME COL FOGLIO ─────────────────────
 // Il gioco aggancia l'abilita' di un personaggio confrontando la cella
@@ -16080,11 +16081,24 @@ function accendiLampiMischief(){
     }
   }
 }
-function contaTrickster(){
+// v0.73.75 — le Pixies NON contano se stesse. Sono Trickster anche loro, quindi
+// il conto le includeva e il bonus partiva gia' da +3 nell'istante in cui
+// toccavano il tabellone: il potere e' "per ogni Trickster in campo" nel senso
+// di compagni di malefatta, non di autoconteggio.
+// L'esclusione e' per IDENTITA' (`id`), non per abilita': due Pixies in campo
+// devono continuare a farsi forza a vicenda, ognuna contando l'altra ma non se
+// stessa. Escludere "chi ha mischief" le avrebbe rese cieche l'una all'altra.
+// Il conto cambia anche a seconda di DOVE si trova chi chiede: in mano non e'
+// sul tabellone, quindi non c'e' niente da escludere e i Trickster in campo si
+// contano tutti. E' anche il motivo per cui il bonus fa uno scatto quando la si
+// cala: prima non c'era, e chi c'era resta.
+function contaTrickster(esclusa){
   let n=0;
   for(const k in G.board){
     const cella=G.board[k];
-    if(cella && cella.card && cella.card.archetypes && cella.card.archetypes.includes('trickster')) n++;
+    if(!cella || !cella.card) continue;
+    if(esclusa && cella.card.id===esclusa) continue;
+    if(cella.card.archetypes && cella.card.archetypes.includes('trickster')) n++;
   }
   return n;
 }
@@ -16094,7 +16108,7 @@ function recalcMischief(card){
   const base=card.mischiefBaseValues;
   const gruppi=gruppiDiCarta(card);
   if(!gruppi.length) return;
-  const quanti=contaTrickster();
+  const quanti=contaTrickster(card.id); // se e' in campo, se stessa non si conta
   const nuovi={...base};
   // Chi ha ricevuto il bonus, per poterlo far lampeggiare quando e' appena
   // arrivato. L'indice e' quello del gruppo dentro `gruppi`.
