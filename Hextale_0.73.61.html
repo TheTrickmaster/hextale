@@ -6329,7 +6329,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.60</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.61</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -8280,11 +8280,20 @@ function bgmStartEndedHandler(){
   }
   playRandomStartTrack();
 }
+// v0.73.61 — LA SCHERMATA INIZIALE SUONA LA STESSA MUSICA DEI MENU.
+// Prima pescava a caso da START_MUSIC_TRACKS, poi entrando nel menu la musica
+// cambiava: due brani per due schermate che sono lo stesso momento, quello
+// prima di giocare. Adesso e' un brano solo, dal caricamento fino alla
+// partita, e passando fra login, menu, Collezione e Book Packs non ricomincia
+// mai da capo (vedi musicaMenuAvvia: se sta gia' suonando, non si tocca).
+// La musica cambia in un punto solo: quando comincia una partita.
+// START_MUSIC_TRACKS, playRandomStartTrack e bgmStartEndedHandler restano nel
+// file ma non li chiama piu' nessuno: sono la rotazione casuale della
+// schermata iniziale, che potrebbe tornare utile e che cancellare adesso
+// vorrebbe dire riscrivere da zero (compresa la ripresa dopo il primo gesto
+// dell'utente, che i browser richiedono per l'audio).
 function playStartScreenMusic(){
-  const bgm=document.getElementById('bgm');
-  if(!bgm||bgm.dataset.rotationWired||!START_MUSIC_TRACKS.length) return;
-  bgm.addEventListener('ended', bgmStartEndedHandler);
-  playRandomStartTrack();
+  musicaMenuAvvia();
 }
 if(document.readyState==='loading'){
   document.addEventListener('DOMContentLoaded', playStartScreenMusic);
@@ -8504,11 +8513,10 @@ function tornaAllaPaginaChiamante(){
   showPage(dove);
   const ss = document.getElementById('start-screen');
   if(ss) ss.style.display = (dove === 'start') ? 'flex' : 'none';
-  // v0.73.60 — la musica dei menu vive quanto il mondo dei menu. Fra una sua
-  // pagina e l'altra prosegue; uscendo verso la schermata iniziale si ferma e
-  // si rimette cio' che c'era prima.
-  if(dove === 'start') musicaMenuFerma();
-  else musicaMenuAvvia();
+  // v0.73.61 — la musica e' la stessa anche sulla schermata iniziale, quindi
+  // non c'e' piu' nessuna uscita da questo mondo: prosegue e basta. Si ferma
+  // solo cominciando una partita (vedi startGame).
+  musicaMenuAvvia();
 }
 // ── v0.73.60 — LA MUSICA DEI MENU E' UNA SOLA, E NON RICOMINCIA MAI ───────
 // Menu principale, Collezione e Book Packs sono tre stanze dello stesso
@@ -8531,6 +8539,29 @@ function musicaMenuAvvia(){
   bgm._preMenuTime=bgm.currentTime||0;
   bgm._preMenuPaused=bgm.paused;
   playMusicWithIntroLoop(MENU_MUSIC_TRACK);
+  attendiIlPrimoGestoPerLaMusica();
+}
+// v0.73.61 — I BROWSER NON FANNO PARTIRE L'AUDIO DA SOLI.
+// Nessun browser suona niente prima che la pagina abbia ricevuto un vero
+// gesto dell'utente (click o tocco): a caricamento la play() viene rifiutata
+// in silenzio. La schermata iniziale aveva gia' una ripresa al primo gesto,
+// scritta apposta per questo; passando alla musica dei menu andava rifatta
+// qui, o il gioco si sarebbe aperto muto e non si sarebbe piu' ripreso.
+// Il listener si arma una volta sola e si smonta appena serve.
+let _attesaGestoMusica = false;
+function attendiIlPrimoGestoPerLaMusica(){
+  if(_attesaGestoMusica) return;
+  _attesaGestoMusica = true;
+  const riprova = ()=>{
+    document.removeEventListener('pointerdown', riprova, true);
+    _attesaGestoMusica = false;
+    const bgm=document.getElementById('bgm');
+    if(!bgm || bgm.dataset.rotationWired) return; // una partita ha preso il comando
+    if(!_musicIntroLoopActive) return;            // la musica dei menu non e' piu' quella attesa
+    if(!bgm.paused) return;                       // era gia' partita da sola
+    bgm.play().catch(()=>{});
+  };
+  document.addEventListener('pointerdown', riprova, true);
 }
 // Si spegne solo uscendo dal mondo dei menu: verso la schermata iniziale o
 // verso una partita. Fra una pagina di menu e l'altra non va chiamata.
@@ -8652,6 +8683,11 @@ function startGame(vsAI){
   // and defaults these three the first time it runs), read directly instead
   // of via a slider element's .value.
   preparaImpostazioniAudio();
+  // v0.73.61 — la musica dei menu finisce qui: da adesso comanda la rotazione
+  // dei brani di partita. Senza questo, la coda del brano dei menu resterebbe
+  // in riproduzione SOTTO al brano nuovo — sono due elementi audio diversi, e
+  // nessuno dei due sa dell'altro.
+  musicaMenuFerma();
   if(bgm){
     bgm.volume=getEffectiveMusicVolume();
     // First call picks and plays a random track and wires the 'ended'
@@ -8680,12 +8716,18 @@ function startGame(vsAI){
 // un punto in piu': e' che un dato non appartenga a una schermata. Il volume
 // e' del gioco, non della partita.
 function preparaImpostazioniAudio(){
-  if(window.globalVolume===undefined) window.globalVolume=0.45;
-  // v0.71.48 ("avvia sempre il gioco con la musica muta"): la musica parte
-  // muta, ma solo la prima volta in una sessione — se il giocatore alza il
-  // cursore, le partite successive rispettano la sua scelta; solo un
-  // ricaricamento della pagina lo riporta a zero.
-  if(window.musicVolume===undefined) window.musicVolume=0;
+  // v0.73.61 — si parte con tutto al massimo.
+  // Il volume generale era a 0.45: un gioco che si presenta a meta' voce
+  // sembra piu' silenzioso di quello che e', e chi non apre le impostazioni
+  // non lo scopre mai.
+  // La musica era a 0, cioe' MUTA. Veniva dalla v0.71.48 ("avvia sempre il
+  // gioco con la musica mutata"), che riguardava la musica DELLA PARTITA
+  // quando ancora era l'unica che ci fosse. Da allora e' arrivata quella dei
+  // menu, che passa da un'altra strada e infatti si sentiva lo stesso: il
+  // risultato era il cursore a zero mentre la musica suonava — una spia che
+  // diceva il falso. La riga e' stata tolta.
+  if(window.globalVolume===undefined) window.globalVolume=1;
+  if(window.musicVolume===undefined) window.musicVolume=1;
   if(window.sfxVolume===undefined) window.sfxVolume=1;
   updateMuteIcon(); updateMusicMuteIcon(); updateSfxMuteIcon();
   initSettingsSliders();
