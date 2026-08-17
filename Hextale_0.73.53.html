@@ -3641,19 +3641,19 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
 .patch-versione.patch-corrente h3{ color:#E8C36A; }
 .patch-versione ul{ margin:0; padding-left:18px; }
 .patch-versione li{ margin-bottom:4px; }
-#patch-notes-close, #settings-modal-close, #debug-modal-close{
+#patch-notes-close, #settings-modal-close, #debug-modal-close, .hx-modal-close{
   position:absolute; top:20px; right:20px; width:24px; height:24px;
   padding:0; border:none; background:transparent;
   cursor:var(--cursore);
   z-index:2;
 }
-#patch-notes-close img, #settings-modal-close img, #debug-modal-close img{ width:100%; height:100%; display:block; pointer-events:none; }
-#patch-notes-close::after, #settings-modal-close::after, #debug-modal-close::after{
+#patch-notes-close img, #settings-modal-close img, #debug-modal-close img, .hx-modal-close img{ width:100%; height:100%; display:block; pointer-events:none; }
+#patch-notes-close::after, #settings-modal-close::after, #debug-modal-close::after, .hx-modal-close::after{
   content:''; position:absolute; inset:0; border-radius:50%;
   background:#fff; opacity:0; mix-blend-mode:overlay; transition:opacity .15s ease; pointer-events:none;
 }
-#patch-notes-close:hover::after, #settings-modal-close:hover::after, #debug-modal-close:hover::after{ opacity:0.3; }
-#settings-modal h2, #debug-modal h2{
+#patch-notes-close:hover::after, #settings-modal-close:hover::after, #debug-modal-close:hover::after, .hx-modal-close:hover::after{ opacity:0.3; }
+#settings-modal h2, #debug-modal h2, .hx-modal-box h2{
   /* v0.70.22 FIX ("'settings' non è centrata... il pulsante di chiusura la
      spinge verso sinistra"): the old padding-right:30px was meant to keep
      the heading text clear of the absolutely-positioned close button, but
@@ -3696,7 +3696,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
    widening the button here just grows those two filler regions; the fixed
    49px caps and 160px center art stay pinned at their real native size,
    never scaled. */
-#settings-modal .start-art-btn, #debug-modal .start-art-btn{ width:100%; }
+#settings-modal .start-art-btn, #debug-modal .start-art-btn, .hx-modal-box .start-art-btn{ width:100%; }
 .settings-divider{
   width:240px; height:1px; align-self:center;
   margin:10px 0; /* on top of the flex `gap` already separating it from its neighbors, per spec's own explicit top/bottom margin */
@@ -5387,6 +5387,12 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
   user-select:none;
 }
 .settings-mute-icon img{ width:100%; height:100%; display:block; pointer-events:none; }
+/* v0.73.53 — i due gruppi di voci in cima alla finestra delle impostazioni.
+   Nascosti tutti e due per difetto: e' openSettingsModal a mostrare quello
+   giusto. Cosi' aprirla senza dire da dove non fa comparire le voci sbagliate,
+   fa comparire solo i cursori del volume — che valgono sempre. */
+.settings-voci{ display:none; flex-direction:column; gap:14px; width:100%; }
+.settings-voci.mostra{ display:flex; }
 
 /* ═══════════════════════════════════════════════════════════════════════════
    v0.73.53 — MENU PRINCIPALE
@@ -5845,11 +5851,106 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
        request: primary is now "Login" (was "Crea account" placeholder
        text), secondary stays "Esci dal gioco". -->
   <div id="start-buttons">
-    <button id="btn-start" class="start-fade sab-primary start-art-btn" onclick="requestNewGame(false)">
+    <button id="btn-start" class="start-fade sab-primary start-art-btn" onclick="apriMenuPrincipale()">
       <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Login</span>
     </button>
     <button id="btn-start-ai" class="start-fade sab-secondary start-art-btn" onclick="requestNewGame(true)">
       <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Esci</span>
+    </button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     v0.73.53 — MENU PRINCIPALE
+     Si arriva qui dal "Login" della schermata iniziale. E' una PAGINA a tutti
+     gli effetti (vedi PAGE_ELEMENT_IDS), quindi entrandoci tutto il resto
+     viene smontato.
+     Le immagini NON hanno un src scritto qui: lo mette il JS cercando prima
+     nella cartella accanto al file e poi sul repository (menuFileCandidati).
+     Scriverlo qui vorrebbe dire non vedere mai un disegno appena fatto finche'
+     non e' pubblicato — errore gia' commesso, vedi il fascio del libro. -->
+<div id="main-menu">
+  <img id="mm-bg" alt="" draggable="false">
+  <img class="mm-radial" id="mm-radial-a" alt="" draggable="false">
+  <img class="mm-radial" id="mm-radial-b" alt="" draggable="false">
+
+  <!-- Il gruppo inclinato di 3 gradi: il libro e TUTTO cio' che ci sta
+       sopra. Le impostazioni e le valute stanno fuori di proposito. -->
+  <div id="mm-book-rot">
+    <div id="mm-book">
+      <img id="mm-book-art" alt="" draggable="false">
+      <img id="mm-book-glow" alt="" draggable="false">
+
+      <!-- I segnalibri che escono dal taglio delle pagine -->
+      <button class="mm-clic mm-bookmark" id="mm-store" onclick="mmApriStore()" aria-label="Store"><img alt="" draggable="false"></button>
+      <button class="mm-clic mm-bookmark" id="mm-missions" onclick="mmApriMissioni()" aria-label="Missions"><img alt="" draggable="false"></button>
+      <button class="mm-clic mm-bookmark" id="mm-packs" onclick="openPackOverlay()" aria-label="Book Packs"><img alt="" draggable="false"></button>
+
+      <!-- Pagina sinistra: il giocatore -->
+      <div id="mm-player">
+        <img class="player-banner" id="mm-player-banner" alt="" draggable="false">
+        <div class="player-name" id="mm-player-name"><span id="mm-player-name-label">Ulbabrab</span></div>
+        <div class="player-avatar">
+          <img class="player-avatar-photo" id="mm-player-avatar" alt="" draggable="false">
+          <img class="player-avatar-frame" id="mm-player-frame" alt="" draggable="false">
+        </div>
+      </div>
+
+      <!-- Pagina sinistra: i tre comandi -->
+      <div id="mm-actions">
+        <button class="mm-clic start-art-btn sab-secondary" onclick="mmApriSceltaPartita()">
+          <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Start Game</span>
+        </button>
+        <button class="mm-clic start-art-btn sab-secondary mm-inerte" disabled>
+          <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Edit Decks</span>
+        </button>
+        <button class="mm-clic start-art-btn sab-secondary" onclick="openCardDbOverlay()">
+          <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Collection</span>
+        </button>
+      </div>
+
+      <!-- Pagina destra -->
+      <div id="mm-quick-title">Quick decks</div>
+      <div id="mm-quick-grid" aria-label="Quick decks"></div>
+      <button class="mm-clic" id="mm-patch" onclick="apriPatchNotesDalMenu()" aria-label="Patch notes">
+        <img alt="" draggable="false">
+        <span id="mm-patch-label">Patch Notes</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Fuori dal libro: non ruotati, ancorati agli angoli dello schermo -->
+  <button id="mm-settings-btn" onclick="openSettingsModal('menu')" aria-label="Settings">
+    <img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false">
+  </button>
+  <div id="mm-currencies">
+    <div class="mm-cur" id="mm-ink">
+      <img class="mm-cur-bg" alt="" draggable="false">
+      <img class="mm-cur-icon" alt="" draggable="false">
+      <div class="mm-cur-value" id="mm-ink-value">0</div>
+      <button class="mm-cur-plus" aria-label="Compra magic ink"><img alt="" draggable="false"></button>
+    </div>
+    <div class="mm-cur mm-cur-premium" id="mm-dust">
+      <img class="mm-cur-bg" alt="" draggable="false">
+      <img class="mm-cur-icon" alt="" draggable="false">
+      <div class="mm-cur-value" id="mm-dust-value">0</div>
+      <button class="mm-cur-plus" aria-label="Compra fairy dust"><img alt="" draggable="false"></button>
+    </div>
+  </div>
+</div>
+
+<!-- v0.73.53 — la scelta della partita, aperta da "Start Game" del menu.
+     Stessa scatola di ogni altra finestra (.hx-modal-box): pulsante di
+     chiusura in alto a destra e click fuori per chiudere. -->
+<div id="mm-play-overlay" class="hx-modal-overlay" onclick="if(event.target===this) mmChiudiSceltaPartita();">
+  <div class="hx-modal-box">
+    <button class="hx-modal-close" aria-label="Chiudi" onclick="mmChiudiSceltaPartita()"><img src="https://thetrickmaster.github.io/hextale/player-ui/close-icon.png" alt="" draggable="false"></button>
+    <h2>Start Game</h2>
+    <button class="start-art-btn sab-primary" onclick="mmAvviaPartita(true)">
+      <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Contro il computer</span>
+    </button>
+    <button class="start-art-btn sab-secondary" onclick="mmAvviaPartita(false)">
+      <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Due giocatori</span>
     </button>
   </div>
 </div>
@@ -6118,7 +6219,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.52</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.53</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -6142,12 +6243,33 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
   <div id="settings-modal">
     <button id="settings-modal-close" aria-label="Chiudi" onclick="closeSettingsModal()"><img src="https://thetrickmaster.github.io/hextale/player-ui/close-icon.png" alt="" draggable="false"></button>
     <h2>Settings</h2>
-    <button class="start-art-btn sab-primary" onclick="surrenderGame()">
-      <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Surrender</span>
-    </button>
-    <button class="start-art-btn sab-secondary" onclick="backToMainMenu()">
-      <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Back to main menu</span>
-    </button>
+    <!-- v0.73.53 — UNA SOLA FINESTRA, DUE FACCE.
+         Il menu principale vuole le stesse impostazioni della partita ma con
+         voci diverse in cima. Duplicare la finestra vorrebbe dire duplicare
+         anche i tre cursori del volume — e quelli non sono grafica, sono lo
+         stato vero dell'audio, agganciato per id: due copie significherebbe
+         due verita' diverse sullo stesso volume, e quella nascosta sarebbe
+         sempre sbagliata. Cambiano quindi solo i pulsanti in cima, secondo
+         chi ha aperto la finestra (vedi openSettingsModal). -->
+    <div class="settings-voci" data-quando="partita">
+      <button class="start-art-btn sab-primary" onclick="surrenderGame()">
+        <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Surrender</span>
+      </button>
+      <button class="start-art-btn sab-secondary" onclick="backToMainMenu()">
+        <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Back to main menu</span>
+      </button>
+    </div>
+    <div class="settings-voci" data-quando="menu">
+      <button class="start-art-btn sab-primary mm-inerte" disabled>
+        <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Esci dal gioco</span>
+      </button>
+      <button class="start-art-btn sab-secondary mm-inerte" disabled>
+        <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Personalizza</span>
+      </button>
+      <button class="start-art-btn sab-secondary mm-inerte" disabled>
+        <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Account</span>
+      </button>
+    </div>
     <div class="settings-divider"></div>
     <div class="settings-row">
       <label>General volume</label>
@@ -7654,6 +7776,7 @@ const PAGE_ELEMENT_IDS = {
     'drag-ghost','hand-hover-preview','sudden-death-banner',
     'timer-bar-wrap','gameover','settings-btn',
   ],
+  mainmenu: ['main-menu'],
   collection: ['card-db-overlay'],
   packs: ['pack-overlay'],
   foillab: ['foil-lab'],
@@ -7769,6 +7892,11 @@ const PAGE_ENTER_HOOKS = {
     // si ferma uscendone: lasciarla girare sotto una pagina non visibile
     // terrebbe vivo un timer e due video in riproduzione per niente.
     if(typeof loopParticelle === 'function') loopParticelle();
+  },
+  // v0.73.53 — il menu principale: le immagini si montano alla prima entrata,
+  // nome, valute e numero di versione si riscrivono a ogni entrata.
+  mainmenu(){
+    if(typeof montaMenuPrincipale === 'function') montaMenuPrincipale();
   },
   // game: la ricostruzione la fa gia' startGame(), che e' l'unico percorso
   // che porta a questa pagina — un hook qui sarebbe un secondo punto di
@@ -8057,6 +8185,177 @@ if(document.readyState==='loading'){
 // funzionare come prima, ed e' anche cio' che questa funzione chiama una
 // volta che la scelta e' stata fatta.
 let _pendingNewGameVsAI = null;
+// ═══════════════════════════════════════════════════════════════════════════
+// v0.73.53 — MENU PRINCIPALE
+// ═══════════════════════════════════════════════════════════════════════════
+// Il libro aperto con tutti i comandi. Ci si arriva dal "Login" della
+// schermata iniziale. Qui dentro non c'e' logica di gioco: si montano le
+// immagini, si scrivono i numeri e si aprono le finestre.
+//
+// Le immagini si risolvono LOCALE-PRIMA-DI-REMOTO come ogni altro asset (vedi
+// _candidati): scrivere l'indirizzo di GitHub nel markup vorrebbe dire non
+// vedere mai un disegno appena fatto finche' non e' pubblicato — errore gia'
+// commesso col fascio di luce del libro delle bustine.
+function menuFileCandidati(nome){
+  return _candidati('main-menu/' + nome,
+                    'https://thetrickmaster.github.io/hextale/main-menu/' + nome);
+}
+// Mette sull'<img> il primo indirizzo che esiste davvero.
+function impostaImgDaCandidati(el, candidati){
+  if(!el) return;
+  let i = 0;
+  const prova = ()=>{
+    if(i >= candidati.length){
+      console.warn('[menu] immagine non trovata: ' + candidati.join(' | '));
+      return;
+    }
+    const url = candidati[i++];
+    const test = new Image();
+    test.onload = ()=>{ el.src = url; };
+    test.onerror = prova;
+    test.src = url;
+  };
+  prova();
+}
+// Valute e nome: numeri finti, in un posto solo. Quando ci sara' un'economia
+// vera bastera' cambiare questi tre valori con quelli del giocatore, e il
+// menu non se ne accorgera'.
+const MENU_GIOCATORE = { nome:'Ulbabrab', magicInk:14000, fairyDust:300 };
+// I riquadri dei mazzi rapidi: sei, tutti vuoti, tutti inerti. I mazzi non
+// esistono ancora — quando esisteranno, questo e' il punto in cui riempirli.
+const MENU_QUICK_SLOT = 6;
+let _menuMontato = false;
+function montaMenuPrincipale(){
+  const radice = document.getElementById('main-menu');
+  if(!radice) return;
+  // Le immagini si mettono una volta sola: rifarlo a ogni entrata vorrebbe
+  // dire far ripartire il caricamento (e sfarfallare) ogni volta che si torna
+  // al menu.
+  if(!_menuMontato){
+    _menuMontato = true;
+    const img = (id, file)=> impostaImgDaCandidati(document.getElementById(id), menuFileCandidati(file));
+    img('mm-bg', 'main-menu-bg.png');
+    img('mm-radial-a', 'radial-glow.png');
+    img('mm-radial-b', 'radial-glow-flipped.png');
+    img('mm-book-art', 'main-menu-book.png');
+    img('mm-book-glow', 'glow.png');
+    // Il pulsante delle patch notes e' un <button>: l'immagine e' il suo figlio.
+    impostaImgDaCandidati(document.querySelector('#mm-patch img'), menuFileCandidati('patch.png'));
+    impostaImgDaCandidati(document.querySelector('#mm-store img'),    menuFileCandidati('store-button.png'));
+    impostaImgDaCandidati(document.querySelector('#mm-missions img'), menuFileCandidati('missions-button.png'));
+    impostaImgDaCandidati(document.querySelector('#mm-packs img'),    menuFileCandidati('book-packs-button.png'));
+    impostaImgDaCandidati(document.querySelector('#mm-ink .mm-cur-bg'),    menuFileCandidati('magic-ink-wrapper.png'));
+    impostaImgDaCandidati(document.querySelector('#mm-ink .mm-cur-icon'),  menuFileCandidati('magic-ink-icon.png'));
+    impostaImgDaCandidati(document.querySelector('#mm-dust .mm-cur-bg'),   menuFileCandidati('fairy-dust-wrapper.png'));
+    impostaImgDaCandidati(document.querySelector('#mm-dust .mm-cur-icon'), menuFileCandidati('fairy-dust-icon.png'));
+    document.querySelectorAll('.mm-cur-plus img').forEach(el=>{
+      impostaImgDaCandidati(el, menuFileCandidati('plus-icon.png'));
+    });
+    // Il banner del giocatore riusa i pezzi della partita: stesso disegno,
+    // stessa targa, stessa cornice. Se un domani cambiano li', cambiano qui.
+    const base = 'https://thetrickmaster.github.io/hextale/player-ui/';
+    const banner = document.getElementById('mm-player-banner');
+    if(banner) banner.src = base + 'banner-dark.png';
+    const targa = document.getElementById('mm-player-name');
+    if(targa) targa.style.backgroundImage = "url('" + base + "player-name-dark.png')";
+    const avatar = document.getElementById('mm-player-avatar');
+    if(avatar) avatar.src = base + 'pinocchio-avatar-test.png';
+    const cornice = document.getElementById('mm-player-frame');
+    if(cornice) cornice.src = base + 'avatar-frame.png';
+    // I sei riquadri dei mazzi rapidi. Il riquadro col bordo sfumato e
+    // l'icona sono due elementi separati: il bordo e' ritagliato con una
+    // maschera, e cio' che sta dentro alla maschera verrebbe ritagliato via
+    // insieme al centro (vedi .mm-quick-slot nel CSS).
+    const griglia = document.getElementById('mm-quick-grid');
+    if(griglia && !griglia.childNodes.length){
+      for(let i=0;i<MENU_QUICK_SLOT;i++){
+        const contenitore = document.createElement('div');
+        contenitore.className = 'mm-clic mm-quick-wrap';
+        const bordo = document.createElement('div');
+        bordo.className = 'mm-quick-slot';
+        const icona = document.createElement('img');
+        icona.className = 'mm-quick-slot-icon';
+        icona.alt = ''; icona.draggable = false;
+        impostaImgDaCandidati(icona, menuFileCandidati('add-icon.png'));
+        contenitore.appendChild(bordo);
+        contenitore.appendChild(icona);
+        griglia.appendChild(contenitore);
+      }
+    }
+  }
+  aggiornaDatiMenu();
+}
+// Nome, valute e numero di versione. Separata dal montaggio perche' questi
+// sono gli unici dati che cambieranno davvero, e devono poter essere
+// riscritti a ogni entrata senza ricaricare niente.
+function aggiornaDatiMenu(){
+  const nome = document.getElementById('mm-player-name-label');
+  if(nome) nome.textContent = MENU_GIOCATORE.nome;
+  const ink = document.getElementById('mm-ink-value');
+  if(ink) ink.textContent = MENU_GIOCATORE.magicInk.toLocaleString('en-US');
+  const dust = document.getElementById('mm-dust-value');
+  if(dust) dust.textContent = MENU_GIOCATORE.fairyDust.toLocaleString('en-US');
+  // La versione si legge dalla targhetta in basso, che e' l'unico posto in cui
+  // il numero e' scritto: due posti vorrebbero dire, prima o poi, due numeri
+  // diversi.
+  const targhetta = document.getElementById('build-version-badge');
+  const etichetta = document.getElementById('mm-patch-label');
+  if(etichetta) etichetta.textContent = 'Patch Notes ' + ((targhetta && targhetta.textContent.trim()) || '');
+}
+function apriMenuPrincipale(){
+  const start = document.getElementById('start-screen');
+  if(start) start.style.display = 'none';
+  showPage('mainmenu');
+}
+// Le patch notes hanno gia' la loro finestra: qui si riapre quella, con le
+// note gia' caricate all'avvio. Se per qualche motivo non ce ne fossero (prima
+// visita, rete assente), si prova a ricaricarle invece di aprire un riquadro
+// vuoto.
+function apriPatchNotesDalMenu(){
+  const corpo = document.getElementById('patch-notes-body');
+  const overlay = document.getElementById('patch-notes-overlay');
+  if(!overlay) return;
+  if(corpo && corpo.childNodes.length) overlay.classList.add('show');
+  else if(typeof caricaPatchNotes === 'function') caricaPatchNotes();
+}
+function mmApriSceltaPartita(){
+  const ov = document.getElementById('mm-play-overlay');
+  if(ov) ov.classList.add('show');
+}
+function mmChiudiSceltaPartita(){
+  const ov = document.getElementById('mm-play-overlay');
+  if(ov) ov.classList.remove('show');
+}
+function mmAvviaPartita(controIA){
+  mmChiudiSceltaPartita();
+  requestNewGame(!!controIA);
+}
+// Store e Missions non esistono ancora. Restano agganciati a una funzione
+// invece che a niente: il giorno in cui esisteranno, si scrive qui dentro e
+// non si va a cercare i tre pulsanti nel markup.
+function mmApriStore(){}
+function mmApriMissioni(){}
+
+// ── v0.73.53 — DA DOVE SI ERA ARRIVATI ─────────────────────────────────────
+// Collezione e Book Packs si aprono sia dalla schermata iniziale sia dal menu
+// principale. Uscendone si tornava sempre alla schermata iniziale, perche'
+// quando sono state scritte era l'unico posto da cui ci si potesse arrivare.
+// Adesso non e' piu' vero, e tornare al login dopo aver aperto la Collezione
+// dal menu si legge come un pezzo di gioco che si e' perso per strada.
+// Si segna quindi la pagina di partenza all'apertura e ci si torna alla
+// chiusura. Il ripiego resta la schermata iniziale: se non si sa da dove si
+// veniva, e' l'unico posto sicuro.
+let _paginaChiamante = null;
+function ricordaPaginaChiamante(){
+  _paginaChiamante = (_activePage === 'mainmenu') ? 'mainmenu' : 'start';
+}
+function tornaAllaPaginaChiamante(){
+  const dove = (_paginaChiamante === 'mainmenu') ? 'mainmenu' : 'start';
+  _paginaChiamante = null;
+  showPage(dove);
+  const ss = document.getElementById('start-screen');
+  if(ss) ss.style.display = (dove === 'start') ? 'flex' : 'none';
+}
 function requestNewGame(vsAI){
   _pendingNewGameVsAI = !!vsAI;
   const ov=document.getElementById('faction-choice-overlay');
@@ -8355,7 +8654,17 @@ function toggleSfxMute(){
 }
 
 // ── Settings modal (gear icon) ──────────────────────────────────────────
-function openSettingsModal(){
+// v0.73.53 — `quando` dice CHI ha aperto la finestra: 'partita' o 'menu'.
+// Da quello dipendono le voci in cima (vedi .settings-voci nel markup). I
+// cursori del volume non dipendono da niente: sono gli stessi tre, sempre.
+// Il valore di ripiego e' 'partita' perche' e' da li' che questa funzione e'
+// sempre stata chiamata, e un vecchio richiamo senza argomenti deve
+// continuare a comportarsi come prima.
+function openSettingsModal(quando){
+  const dove = (quando === 'menu') ? 'menu' : 'partita';
+  document.querySelectorAll('#settings-modal .settings-voci').forEach(g=>{
+    g.classList.toggle('mostra', g.getAttribute('data-quando') === dove);
+  });
   document.getElementById('settings-modal-overlay').classList.add('show');
 }
 function closeSettingsModal(){
@@ -10614,6 +10923,7 @@ function impostaImmagineFascio(){
 }
 
 function openPackOverlay(){
+  ricordaPaginaChiamante();
   // Stessa regola della Collezione: e' una PAGINA, quindi entrarci smonta la
   // partita invece di lasciarla viva sotto.
   abandonCurrentGame();
@@ -10640,8 +10950,7 @@ function closePackOverlay(){
   if(_bustinaTimerUI){ clearInterval(_bustinaTimerUI); _bustinaTimerUI=null; }
   document.getElementById('pack-overlay').classList.remove('show');
   setGameAudioMuted(false);
-  showPage('start');
-  const ss=document.getElementById('start-screen'); if(ss) ss.style.display='flex';
+  tornaAllaPaginaChiamante();
   stopMusicLoopChain();
   // v0.73.46 — uscendo dalla pagina le scintille vanno via con lei: sono
   // elementi fusi e sfocati, e lasciarli in un ramo nascosto significa
@@ -10662,6 +10971,7 @@ function debugAzzeraTimerBustine(){
 }
 
 function openCardDbOverlay(){
+  ricordaPaginaChiamante();
   // v0.72.31: la Collezione e' una PAGINA a tutti gli effetti, quindi entrarci
   // spegne e smonta la partita invece di lasciarla viva sotto. E' la stessa
   // regola che vale per il ritorno al menu: pagine mutuamente esclusive, mai
@@ -10687,8 +10997,7 @@ function closeCardDbOverlay(){
   // v0.72.31: si esce dalla Collezione verso la schermata iniziale — la
   // partita da cui si era arrivati non esiste piu' (vedi openCardDbOverlay).
   setGameAudioMuted(false);
-  showPage('start');
-  const ss=document.getElementById('start-screen'); if(ss) ss.style.display='flex';
+  tornaAllaPaginaChiamante();
   const bgm=document.getElementById('bgm');
   // v0.72.39: lo spegnimento della catena NON puo' stare dentro la guardia
   // qui sotto. Quella controlla che #bgm stia ancora suonando la intro del
@@ -13695,8 +14004,12 @@ function backToMainMenu(){
   // startGame()'s own matching v0.71.9 comment for why this needs explicit
   // show/hide rather than relying on z-index alone.
   document.getElementById('settings-btn').style.display='none';
-  showPage('start'); // smonta davvero la partita: niente piu' schermo di gioco sotto allo start
-  document.getElementById('start-screen').style.display='flex';
+  // v0.73.53 — "Back to main menu" adesso porta al MENU PRINCIPALE, che da
+  // questa versione esiste davvero. Prima riportava alla schermata di
+  // apertura col logo, perche' era l'unica cosa che ci fosse.
+  showPage('mainmenu'); // smonta davvero la partita: niente piu' schermo di gioco sotto
+  const start = document.getElementById('start-screen');
+  if(start) start.style.display='none';
 }
 
 // ═══════════════════════════════════════════════════════════════════
