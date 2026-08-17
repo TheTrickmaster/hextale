@@ -2267,6 +2267,47 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
   transform-origin:center bottom;
 }
 
+/* ── v0.73.52 — IL SALTO DEL CHESHIRE CAT ─────────────────────────────────
+   La carta lascia il tabellone uscendo dal bordo alto dello schermo, e da li'
+   ricadra' su un'altra casella con la stessa animazione di atterraggio dei
+   piazzamenti normali (.card-land).
+   E' l'atterraggio letto al contrario, e per questo funziona: si accovaccia
+   un istante prima di staccare (l'anticipo, senza il quale un salto sembra
+   un teletrasporto), poi accelera verso l'alto rimpicciolendo — chi si
+   allontana diventa piu' piccolo — mentre l'ombra si allarga e si sfoca,
+   perche' e' l'ombra a dire all'occhio quanto in alto si e' arrivati.
+   La distanza da percorrere non e' scritta qui: la calcola il JS a partire da
+   dove si trova la casella (--salto-y), perche' "uscire dallo schermo"
+   dipende da quanto e' alta la carta sul tabellone in quel momento. */
+@keyframes cardJump{
+  0%{
+    transform:translateY(0) scale(1); opacity:1;
+    filter:drop-shadow(0 2px 4px rgba(0,0,0,0.45));
+    animation-timing-function:ease-out;
+  }
+  16%{ /* l'anticipo: si accovaccia contro il tassello */
+    transform:translateY(6px) scale(1.04,0.93); opacity:1;
+    filter:drop-shadow(0 1px 3px rgba(0,0,0,0.5));
+    animation-timing-function:cubic-bezier(.5,0,.75,0); /* stacco secco */
+  }
+  30%{ /* si allunga nella direzione del salto */
+    transform:translateY(-40px) scale(0.97,1.08); opacity:1;
+    filter:drop-shadow(0 16px 14px rgba(0,0,0,0.34));
+    animation-timing-function:cubic-bezier(.4,0,.9,.35); /* continua ad accelerare */
+  }
+  100%{
+    transform:translateY(var(--salto-y,-1200px)) scale(0.55);
+    opacity:0;
+    filter:drop-shadow(0 46px 30px rgba(0,0,0,0.18));
+  }
+}
+.card-jump{
+  animation:cardJump 0.46s linear;
+  transform-box:fill-box;
+  /* Come per l'atterraggio: l'accovacciamento va fatto CONTRO il tassello. */
+  transform-origin:center bottom;
+}
+
 /* ── Attack lunge: an elastic "slingshot" strike toward a single card being
    conquered. Direction is supplied per-instance via CSS custom properties
    --lx/--ly (unit vector scaled by caller, in px).
@@ -5776,7 +5817,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.51</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.52</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -13888,20 +13929,25 @@ const TILE_ABILITIES_DEF = {
   // v0.73.5 — non e' piu' una scelta al piazzamento: finche' la carta resta in
   // mano, a ogni turno del suo proprietario i valori le girano intorno di una
   // posizione in senso orario (vedi ruotaValoriInMano).
-  // v0.73.35 — l'abilita' e' passata da Alice al Cheshire Cat.
-  // v0.73.50 — e col passaggio ha cambiato nome: nel foglio il Cheshire Cat
-  // la chiama "Different Reality", quindi e' quello il nome che il registro
-  // deve dichiarare, perche' dalla v0.73.49 il nome e' l'unico legame.
-  // La chiave `eat_me_drink_me` resta com'e': e' il nome interno con cui il
-  // codice si riferisce all'abilita' (EFFETTI, IA, animazioni) e cambiarla
-  // vorrebbe dire toccare venti punti per un vantaggio nullo. Che una chiave
-  // non somigli piu' al nome mostrato e' normale e voluto: sono due cose
-  // diverse, ed e' esattamente la separazione che rende possibile rinominare.
-  // ATTENZIONE: nel foglio anche Alice ha ancora "Eat me, Drink me" nella
-  // cella del nome. Quel nome adesso non corrisponde piu' a niente, quindi
-  // Alice esce con NO_SCRIPT finche' la sua cella non viene svuotata. E'
-  // l'effetto voluto — l'abilita' e' del Cheshire — ma va visto e non subito.
-  eat_me_drink_me:   { name:'Different Reality', desc:'*Rotates* its power clockwise each turn while in hand.' },
+  // v0.73.52 — TORNA AD ALICE, identica a com'era.
+  // Era passata al Cheshire (v0.73.35) e col passaggio aveva preso il nome
+  // "Different Reality" (v0.73.50). Adesso il Cheshire ha la sua, che e' una
+  // cosa diversa (vedi `different_reality` qui sotto), e questa torna a
+  // chiamarsi come si e' sempre chiamata.
+  eat_me_drink_me:   { name:'Eat me, Drink me',   desc:'*Rotates* its power clockwise each turn while in hand.' },
+  // v0.73.52 — CHESHIRE CAT. Parente stretta di "Eat me, Drink me", ma di
+  // scena opposta: quella agisce sulla carta che ASPETTA in mano, questa sulla
+  // carta che e' gia' IN CAMPO. A ogni turno del suo proprietario i valori
+  // ruotano di un posto in senso orario — stessa identica meccanica, stessa
+  // funzione condivisa — e in piu' la carta sparisce dal tabellone saltando
+  // oltre il bordo alto dello schermo e ricade su una casella libera scelta a
+  // caso.
+  // Sono due chiavi separate e non una sola con un "se": la differenza non e'
+  // un dettaglio dell'esecuzione, e' QUANDO l'abilita' guarda il mondo. Chi
+  // legge il registro deve poter vedere che sono due carte con due tempi
+  // diversi, e chi domani cambiera' una delle due non deve rischiare di
+  // toccare l'altra.
+  different_reality: { name:'Different Reality', desc:'*Moves* and *rotates* its power clockwise each turn while on the board.' },
   // v0.73.5 — Hatter. Non fa niente finche' resta suo; se lo conquista
   // l'avversario impazzisce (vedi impazzisciSeConquistato).
   have_i_gone_mad:   { name:'Have I Gone Mad?',   desc:'On conquer: goes mad, its power becomes a random value (1-3).' },
@@ -15191,6 +15237,113 @@ function ruotaCarteInMano(player, poi){
   }, LAMPO_PRIMA_DI_RUOTARE_MS);
 }
 
+
+// ═══════════════════════════════════════════════════════════════════════════
+// v0.73.52 — CHESHIRE CAT, "Different Reality": ruota e si sposta, in campo
+// ═══════════════════════════════════════════════════════════════════════════
+// A ogni turno del suo proprietario, e solo mentre la carta e' SUL TABELLONE:
+//   1. l'esagono lampeggia e i valori ruotano di un posto in senso orario —
+//      la stessa identica meccanica di "Eat me, Drink me" di Alice, tramite le
+//      stesse due funzioni (ruotaGruppiDiUnPosto, animaRotazioneValori);
+//   2. la carta salta oltre il bordo alto dello schermo;
+//   3. ricade su una casella libera scelta a caso, con l'animazione di
+//      atterraggio dei piazzamenti normali (startCardLandAnim).
+//
+// PERCHE' TUTTO IN FILA E NON INSIEME. Ruotare mentre si salta vorrebbe dire
+// far viaggiare i numeri lungo un arco su una carta che nel frattempo si sta
+// allontanando e rimpicciolendo: due movimenti sullo stesso elemento che si
+// annullano a vicenda nella lettura. In fila si leggono come due fatti — "e'
+// cambiata" e poi "se n'e' andata".
+//
+// PERCHE' IL SORTEGGIO E' Math.random E NON sorteggioStabile. La regola del
+// sorteggio stabile vale per gli effetti di PIAZZAMENTO, che il gioco esegue
+// due volte (una in prova per l'anteprima sotto il puntatore, una per
+// davvero): li' due sorteggi diversi mostrerebbero un'anteprima bugiarda.
+// Questa abilita' non ha anteprima — accade all'inizio del turno, una volta
+// sola — quindi non c'e' nessun secondo passaggio da far combaciare.
+const CHESHIRE_ATTESA_PRIMA_DEL_SALTO_MS = 260;  // il tempo di vedere i valori fermi
+function celleLibere(){
+  const libere=[];
+  for(const c of boardCells()){
+    const k=key(c.q,c.r);
+    if(G.holes.has(k)) continue;   // tassello bloccato
+    if(G.board[k]) continue;       // gia' occupato
+    libere.push(k);
+  }
+  return libere;
+}
+// Le carte del giocatore che in questo momento sono in campo con l'abilita'.
+function carteCheSiSpostano(player){
+  const trovate=[];
+  for(const k in G.board){
+    const cella=G.board[k];
+    if(!cella || !cella.card) continue;
+    if(cella.owner!==player) continue;
+    if(abilitaAttivaDi(cella.card)!=='different_reality') continue;
+    trovate.push(k);
+  }
+  return trovate;
+}
+// Una carta sola: lampo, rotazione, salto, atterraggio. `poi` viene chiamata a
+// cose finite — chi chiama deve poter aspettare, esattamente come per la
+// rotazione in mano (una pescata o un render che arrivano nel mezzo
+// demolirebbero l'animazione).
+function spostaUnaCartaCheshire(k, poi){
+  const finito=()=>{ if(typeof poi==='function') poi(); };
+  const cella=G.board[k];
+  if(!cella || !cella.card){ finito(); return; }
+  const el=elementoCarta(k);
+  const ruotaEPoi=(dopo)=>{
+    // I valori veri cambiano a viaggio finito, come in mano: il numero non
+    // deve saltare al posto nuovo mentre lo sta ancora raggiungendo.
+    const applica=()=>{ ruotaGruppiDiUnPosto(cella.card); renderBoard(); dopo(); };
+    if(!el){ applica(); return; }
+    lampeggiaCarta(el);
+    setTimeout(()=>{
+      if(animaRotazioneValori(el)) setTimeout(applica, ROTAZIONE_VALORI_MS);
+      else applica();
+    }, LAMPO_PRIMA_DI_RUOTARE_MS);
+  };
+  ruotaEPoi(()=>{
+    const libere=celleLibere();
+    // Nessuna casella dove andare: i valori hanno comunque ruotato. Un
+    // tabellone pieno non deve trasformare l'abilita' in un blocco.
+    if(!libere.length){ finito(); return; }
+    const destinazione=libere[Math.floor(Math.random()*libere.length)];
+    setTimeout(()=>{
+      const partito=avviaSaltoCarta(k);
+      const atterra=()=>{
+        // Lo spostamento avviene DOPO il salto: fino a quel momento la carta
+        // deve restare disegnata dov'era, o sparirebbe invece di andarsene.
+        const contenuto=G.board[k];
+        if(!contenuto){ finito(); return; }   // conquistata nel frattempo
+        delete G.board[k];
+        G.board[destinazione]=contenuto;
+        _cardJump=null;
+        renderBoard();
+        startCardLandAnim(destinazione);
+        setTimeout(finito, CARD_LAND_MS);
+      };
+      if(partito) setTimeout(atterra, CARD_JUMP_MS);
+      else atterra();
+    }, CHESHIRE_ATTESA_PRIMA_DEL_SALTO_MS);
+  });
+}
+// Tutte le carte in campo con l'abilita', una dopo l'altra. In fila e non
+// insieme: due gatti che saltano nello stesso istante potrebbero scegliere la
+// stessa casella libera, e comunque due salti simultanei non si leggono.
+function spostaCarteCheshire(player, poi){
+  const finito=()=>{ if(typeof poi==='function') poi(); };
+  if(!G || G.gameOver){ finito(); return; }
+  const celle=carteCheSiSpostano(player);
+  if(!celle.length){ finito(); return; }
+  let i=0;
+  const prossima=()=>{
+    if(i>=celle.length || !G || G.gameOver){ finito(); return; }
+    spostaUnaCartaCheshire(celle[i++], prossima);
+  };
+  prossima();
+}
 
 // ── PLACE LOGIC ─────────────────────────────────────────────────
 function selectCard(card,playerIdx){
@@ -17076,7 +17229,13 @@ function startTurn(){
   // v0.73.38 — e la pescata ASPETTA che la rotazione sia finita. Pescare
   // ricostruisce il ventaglio, e ricostruirlo mentre i numeri stanno viaggiando
   // li fa sparire a meta' strada.
-  ruotaCarteInMano(player, ()=>{
+  // v0.73.52 — in fila: prima le carte in mano che ruotano (Alice), poi quelle
+  // in campo che ruotano e si spostano (Cheshire Cat), e solo alla fine la
+  // pescata. Ognuna aspetta la precedente per la stessa ragione gia' scritta
+  // qui sopra: chi ridisegna nel mezzo porta via gli elementi che si stanno
+  // animando. Sono tre passaggi in catena e non tre chiamate di seguito
+  // proprio perche' "di seguito" vorrebbe dire "tutte insieme".
+  ruotaCarteInMano(player, ()=> spostaCarteCheshire(player, ()=>{
     if(!G || G.gameOver) return;
     if(deck.length>0 && hand.length<HAND_SIZE){
       drawAndAnimate(player, false, ()=>{
@@ -17089,7 +17248,7 @@ function startTurn(){
       render();
       maybeTriggerAiTurn();
     }
-  });
+  }));
 }
 
 // Starts the turn timer immediately, UNLESS the "Turno del Player X" banner
@@ -17940,6 +18099,28 @@ const BONUS_STRATEGICO_IA = {
     for(const s of SIDES) potere += (card.values[s]||0);
     const dopoLaFollia = 2 * SIDES.length; // media di 1-3 su ogni gruppo
     return Math.max(0, potere - dopoLaFollia) * VALORE_PUNTO_POTERE * 0.5;
+  },
+  // v0.73.52 — Cheshire Cat. Una volta in campo non STA dove la metti: a ogni
+  // turno se ne va altrove. Questo cambia il senso stesso di "sceglierle una
+  // casella", e all'IA va detto in due modi opposti.
+  // 1) La posizione conta pochissimo. Piazzarla in un angolo protetto non
+  //    serve a niente, perche' al proprio turno successivo sara' gia' da
+  //    un'altra parte. Il bonus toglie quindi buona parte del peso che l'IA
+  //    darebbe alla sicurezza della cella: un posto vale l'altro, e cio' che
+  //    conta davvero e' cosa conquista ADESSO.
+  // 2) I valori ruotano. Il lato che oggi e' forte domani guarda altrove,
+  //    quindi la carta non "difende" un fianco in modo stabile. Vale come una
+  //    carta con i valori mediati sui sei lati, non come i valori che mostra
+  //    in questo istante.
+  // Il numero e' volutamente modesto: e' un correttivo, non un incentivo a
+  // giocarla. Chi vuole insegnarle davvero a sfruttare il salto dovra'
+  // simulare il turno dopo, che e' un altro ordine di lavoro.
+  different_reality: (card, q, r, giocatore) => {
+    const valori = SIDES.map(s => card.values[s]||0);
+    const massimo = Math.max(...valori);
+    const media = valori.reduce((a,b)=>a+b,0) / valori.length;
+    // Quanto l'IA si sta illudendo che il lato migliore resti dov'e'.
+    return -(massimo - media) * VALORE_PUNTO_POTERE * 0.5;
   },
 };
 
@@ -24458,6 +24639,63 @@ function cardLandReattach(){
   const el=bsvg && bsvg.querySelector(`[data-conquered="${_cardLand.k}"]`);
   if(el) cardLandApplyTo(el);
 }
+
+// ── v0.73.52 — IL SALTO (Cheshire Cat) ─────────────────────────────────────
+// Gemello dell'atterraggio, e costruito allo stesso modo per la stessa
+// ragione: lo stato vive FUORI dal DOM, cosi' una ricostruzione del tabellone
+// nel mezzo del volo non lo interrompe. Il ritardo negativo rimette
+// l'animazione esattamente dov'era, quindi l'occhio vede un movimento
+// continuo anche se dietro le quinte l'elemento e' stato ricreato.
+const CARD_JUMP_MS = 460;   // deve combaciare con la durata di .card-jump
+let _cardJump = null;       // {k, t0, distanza}
+function cardJumpApplyTo(el){
+  if(!el || !_cardJump) return;
+  const passato = performance.now() - _cardJump.t0;
+  if(passato >= CARD_JUMP_MS){ _cardJump = null; return; }
+  // In SVG non esiste z-index: comanda l'ordine nel documento. La carta che
+  // salta deve passare SOPRA a tutte le altre celle che sorvola, quindi il
+  // suo gruppo-cella va spostato in fondo (stesso ragionamento, e stessa
+  // trappola, dell'atterraggio: non basta spostare la carta dentro la propria
+  // cella, va spostata la cella intera).
+  const radice = el.ownerSVGElement || document.getElementById('board-svg');
+  let cella = el;
+  while(cella.parentNode && cella.parentNode !== radice) cella = cella.parentNode;
+  if(cella.parentNode === radice) radice.appendChild(cella);
+  el.style.setProperty('--salto-y', (-_cardJump.distanza).toFixed(0)+'px');
+  el.classList.remove('card-jump');
+  void el.getBoundingClientRect(); // forza il reflow prima di riavviare
+  el.style.animationDelay = (-passato).toFixed(0)+'ms';
+  el.classList.add('card-jump');
+}
+function cardJumpReattach(){
+  if(!_cardJump) return;
+  if(performance.now() - _cardJump.t0 >= CARD_JUMP_MS){ _cardJump = null; return; }
+  const bsvg=document.getElementById('board-svg');
+  const el=bsvg && bsvg.querySelector(`[data-conquered="${_cardJump.k}"]`);
+  if(el) cardJumpApplyTo(el);
+}
+// Quanto deve salire per USCIRE DAVVERO dallo schermo. Non e' un numero fisso:
+// dipende da quanto in alto sta la casella. Si prende la distanza fra il bordo
+// alto del tabellone e la carta, piu' tutta l'altezza del tabellone come
+// margine — cosi' la carta e' fuori campo anche quando la plancia e' disegnata
+// piccola in un angolo, e anche se un domani cambiassero le proporzioni.
+function altezzaDelSalto(el){
+  const RIPIEGO = 1400;
+  try{
+    const bsvg = el.ownerSVGElement || document.getElementById('board-svg');
+    const vb = bsvg && bsvg.viewBox && bsvg.viewBox.baseVal;
+    const box = el.getBBox ? el.getBBox() : null;
+    if(!vb || !box || !vb.height) return RIPIEGO;
+    return (box.y + box.height - vb.y) + vb.height;
+  }catch(_){ return RIPIEGO; }
+}
+function avviaSaltoCarta(k){
+  const bsvg=document.getElementById('board-svg');
+  const el=bsvg && bsvg.querySelector(`[data-conquered="${k}"]`);
+  _cardJump = { k, t0: performance.now(), distanza: el ? altezzaDelSalto(el) : 1400 };
+  if(el) cardJumpApplyTo(el);
+  return !!el;
+}
 function startCardLandAnim(k){
   _cardLand = { k, t0: performance.now() };
   const bsvg=document.getElementById('board-svg');
@@ -25104,6 +25342,7 @@ function renderBoard(){
   // intercetta anche i click. Invertendo l'ordine la carta che atterra resta
   // sopra ai tasselli e gli overlay restano sopra a tutto.
   cardLandReattach();
+  cardJumpReattach(); // v0.73.52 — stessa ragione, e stesso posto: vedi sopra
   fumoReattach();
   controllaFirmaTabellone(firmaOra);
 

@@ -202,6 +202,25 @@ che sposta i numeri deve muovere anche `groupSides` se cambia la disposizione
 (vedi la rotazione di Alice), altrimenti un gruppo si ritrova a cavallo di due
 valori diversi pur dovendone mostrare uno solo.
 
+**I valori si disegnano per GRUPPO, non per lato.** Un gruppo che copre due
+lati e' UN elemento solo, marcato con `data-value-side-*` per ciascuno dei suoi
+lati. Chiedere "l'elemento del lato NE" e "l'elemento del lato E" puo' quindi
+restituire lo stesso nodo: chi cicla sui sei lati per animare i valori scrive
+due volte sullo stesso elemento e la seconda cancella la prima (era il guasto
+v0.73.51, i cerchi che saltavano da una parte all'altra). Si cicla sui gruppi.
+Per la stessa ragione, "far scorrere i gruppi di un lato" si anima come una
+**rotazione di 60 gradi attorno al centro dell'esagono**, non come "vai dove sta
+il prossimo": i gruppi dispari sono ancorati al punto di mezzo di un lato e i
+pari a un vertice, quindi stanno su due raggi diversi.
+
+**Le abilita' che agiscono da sole a ogni turno stanno in catena, non in fila.**
+`startTurn` incatena rotazione in mano (Alice) → spostamento in campo (Cheshire)
+→ pescata, e ognuna riceve un `poi` che chiama la successiva. Metterle una dopo
+l'altra vorrebbe dire farle partire tutte insieme, e chi ridisegna per primo
+porta via gli elementi che le altre stanno animando. Ogni abilita' di questo
+tipo deve quindi accettare una richiamata e chiamarla SEMPRE, anche quando non
+fa niente: se una tace, il turno resta appeso e la partita si ferma.
+
 ---
 
 ## Vincolo tecnico principale: `file://`
