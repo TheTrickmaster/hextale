@@ -5418,20 +5418,20 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
    del gioco: qui non si usano mai vw/vh. */
 #main-menu{
   /* Il libro: quanto e' largo e dove sta. Da qui dipende tutto il resto. */
-  --libro-larghezza:1500px;
-  --libro-alto:14%;      /* distanza dal bordo alto del canvas */
+  --libro-larghezza:1560px;
+  --libro-alto:8%;      /* distanza dal bordo alto del canvas */
   /* Pagina sinistra */
-  --banner-x:36.5%;  --banner-y:6%;    --banner-scala:0.62;
-  --azioni-x:36.5%;  --azioni-y:50%;   --azioni-larghezza:255px; --azioni-passo:57px;
+  --banner-x:27.5%;  --banner-y:4%;    --banner-scala:0.8;
+  --azioni-x:28.5%;  --azioni-y:50%;   --azioni-larghezza:275px; --azioni-passo:57px;
   /* Pagina destra */
-  --quick-x:65%;     --quick-y:11%;
-  --griglia-x:53.6%; --griglia-y:15.5%;
-  --patch-x:53.6%;   --patch-y:55%;    --patch-larghezza:500px;
+  --quick-x:63%;     --quick-y:11%;
+  --griglia-x:49.6%; --griglia-y:15.5%;
+  --patch-x:48%;   --patch-y:60%;    --patch-larghezza:440px;
   /* I segnalibri che escono dal taglio delle pagine, volutamente sfalsati */
-  --segna-store-x:0.5%;    --segna-store-y:44%;
-  --segna-missioni-x:-1%;  --segna-missioni-y:54%;
-  --segna-packs-x:1.5%;    --segna-packs-y:64%;
-  --segnalibro-scala:0.78;
+  --segna-store-x:-8%;    --segna-store-y:36%;
+  --segna-missioni-x:-11%;  --segna-missioni-y:61%;
+  --segna-packs-x:-7.5%;    --segna-packs-y:74%;
+  --segnalibro-scala:0.8;
 
   position:fixed; inset:0; z-index:290;
   overflow:hidden;
@@ -5451,7 +5451,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
    luce vera e non due dischi appoggiati sopra allo sfondo. */
 .mm-radial{
   position:absolute; left:50%; top:50%;
-  width:120%; height:120%;
+  width:250%; height:250%;
   object-fit:contain;
   transform-origin:center center;
   mix-blend-mode:plus-lighter;
@@ -5479,6 +5479,9 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
    fine. Cambiare l'inclinazione e' cambiare un numero solo. */
 #mm-book-rot{
   position:absolute; inset:0;
+  /* Il libro non e' centrato sullo schermo: lascia respiro a sinistra ai
+     segnalibri, che sporgono oltre il suo bordo. */
+  left:8%;
   transform:rotate(-3deg);
   transform-origin:center center;
   pointer-events:none;   /* i figli se la riprendono: vedi .mm-clic */
@@ -5496,8 +5499,8 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
 /* Il bagliore del libro: stessa posizione e stessa misura del libro, quindi
    non puo' disallinearsi. Respira molto lentamente in trasparenza. */
 #mm-book-glow{
-  position:absolute; left:50%; top:50%;
-  width:104%; height:auto;
+  position:absolute; left:48%; top:50%;
+  width:110%; height:auto;
   transform:translate(-50%,-50%);
   mix-blend-mode:plus-lighter;
   pointer-events:none; user-select:none; -webkit-user-drag:none;
@@ -5511,33 +5514,70 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
    perche' il gruppo che ruota li ha spenti (vedi sopra): senza, il rettangolo
    invisibile del gruppo intercetterebbe i click destinati a cio' che sta
    sotto, valute comprese. */
+/* v0.73.55 FIX ("sembra che tu abbia cambiato il font"). Questa classe
+   azzerava anche `font`, `color`, `background`, `border` e `padding`. Su un
+   <button> nudo serviva; su .start-art-btn no — e siccome e' dichiarata DOPO,
+   a parita' di specificita' vinceva lei e cancellava il carattere, il colore
+   e la grafica dei pulsanti veri. Adesso fa solo il suo mestiere: rendere
+   cliccabile cio' che sta dentro al gruppo che ruota (li' i click sono spenti,
+   vedi #mm-book-rot). Chi ha bisogno di un <button> senza vestiti se lo toglie
+   per conto proprio: .mm-nudo. */
 .mm-clic{
   pointer-events:auto;
   cursor:var(--cursore);
+}
+.mm-nudo{
   background:none; border:0; padding:0; margin:0;
   font:inherit; color:inherit;
 }
-.mm-clic:disabled{ cursor:var(--cursore); }
 
 /* ── I SEGNALIBRI ─────────────────────────────────────────────────────────
    Escono dal taglio delle pagine sul lato sinistro. Le tre X sono diverse
    apposta: allineati sarebbero tre linguette stampate, sfalsati sono tre
    segnalibri infilati da una mano. */
+/* v0.73.54 — IL SEGNALIBRO SI SFILA, NON SI STACCA.
+   Prima il pulsante intero scorreva: si vedeva un oggetto separato che si
+   spostava accanto al libro, e la coda destra si portava via il suo bordo
+   netto. Un segnalibro vero non ha una coda: sparisce fra le pagine.
+   Il pezzo che mancava e' il TAGLIO. Il pulsante e' adesso una finestrella
+   ferma, larga quanto la parte che si deve vedere, con `overflow:hidden`: il
+   disegno ci scorre dentro. Il suo bordo destro e' quindi una linea FISSA,
+   ancorata alla pagina, e il disegno la attraversa sparendo — non finisce, va
+   sotto. E' la stessa illusione di una lettera infilata in una busta.
+   `--sotto` e' quanta parte del disegno resta nascosta a riposo: e' il
+   margine di manovra dello scorrimento, quindi deve essere piu' grande di
+   `--sfilo`, o all'uscita il bordo destro tornerebbe visibile e l'illusione
+   crollerebbe di colpo. */
 .mm-bookmark{
+  --sotto:38px;   /* quanto disegno resta sotto la pagina */
+  --sfilo:14px;   /* di quanto esce al passaggio del puntatore */
   position:absolute;
-  transform-origin:left center;
-  transition:transform .16s ease-out, filter .16s ease-out;
+  overflow:hidden;
+  transition:filter .16s ease-out;
   filter:drop-shadow(0 6px 14px rgba(0,0,0,0.45));
 }
 .mm-bookmark img{
-  display:block; width:100%; height:auto;
+  display:block; height:auto;
+  /* Largo quanto il pulsante e spostato a destra di `--sotto`: quel tanto
+     esce dalla finestrella e viene tagliato via. */
+  position:relative; left:var(--sotto); width:100%;
+  transition:transform .16s ease-out;
   pointer-events:none; user-select:none; -webkit-user-drag:none;
 }
-/* All'hover esce di un soffio, come se lo si stesse sfilando. */
-.mm-bookmark:hover{ transform:translateX(-10px); filter:drop-shadow(0 8px 18px rgba(0,0,0,0.55)) brightness(1.06); }
+/* All'hover il disegno scorre DENTRO la finestrella, che resta ferma: e'
+   questo a farlo leggere come "si sta sfilando" invece che "si sta
+   allontanando". */
+.mm-bookmark:hover img{ transform:translateX(calc(var(--sfilo) * -1)); }
+.mm-bookmark:hover{ filter:drop-shadow(0 8px 18px rgba(0,0,0,0.55)) brightness(1.06); }
 #mm-store{    left:var(--segna-store-x);    top:var(--segna-store-y);    width:calc(325px * var(--segnalibro-scala)); }
 #mm-missions{ left:var(--segna-missioni-x); top:var(--segna-missioni-y); width:calc(351px * var(--segnalibro-scala)); }
 #mm-packs{    left:var(--segna-packs-x);    top:var(--segna-packs-y);    width:calc(296px * var(--segnalibro-scala)); }
+/* Lo Store non e' ancora aperto: si vede che c'e', ma sbiadito, e non
+   risponde. Niente hover, perche' un oggetto che reagisce promette di
+   funzionare. */
+#mm-store{ opacity:0.2; }
+#mm-store:hover{ filter:drop-shadow(0 6px 14px rgba(0,0,0,0.45)); }
+#mm-store:hover img{ transform:none; }
 
 /* ── PAGINA SINISTRA: il giocatore ────────────────────────────────────────
    Stesso impianto del banner in partita (sfondo, targa col nome, avatar
@@ -5646,7 +5686,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
    pulsante piu' — cosi' l'unica differenza dichiarata e' quella vera: il
    colore del numero. */
 #mm-currencies{
-  position:absolute; right:40px; bottom:26px;
+  position:absolute; right:40px; bottom:40px;
   display:flex; align-items:center; gap:26px;
 }
 .mm-cur{
@@ -5658,18 +5698,30 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
   position:absolute; inset:0; width:100%; height:100%;
   pointer-events:none; user-select:none; -webkit-user-drag:none;
 }
+/* Le due icone hanno la stessa misura ma non lo stesso posto: sono due
+   disegni diversi, con la propria aria attorno, e allinearli a occhio uno per
+   uno e' l'unico modo perche' sembrino centrati nel loro riquadro. Le
+   differenze stanno tutte nelle due regole qui sotto. */
 .mm-cur-icon{
-  position:absolute; left:-14px; top:50%;
+  position:absolute; top:50%;
   transform:translateY(-50%);
-  height:66px; width:auto;
+  height:106px; width:auto;
   pointer-events:none; user-select:none; -webkit-user-drag:none;
   filter:drop-shadow(0 4px 10px rgba(0,0,0,0.45));
 }
+#mm-ink .mm-cur-icon{  left:-55px; }
+#mm-dust .mm-cur-icon{ left:-5px; top:54%; }
 .mm-cur-value{
-  position:absolute; left:74px; right:56px; top:50%;
+  /* Ancorato SOLO a destra: il numero cresce verso sinistra man mano che le
+     cifre aumentano, e la sua ultima cifra resta sempre alla stessa distanza
+     dal pulsante piu'. Con anche `left` scritto, il riquadro sarebbe stato
+     largo fisso e il numero centrato dentro: passando da 300 a 14000 si
+     sarebbe spostato tutto, e i due wrapper non si sarebbero mai allineati
+     fra loro. */
+  position:absolute; right:56px; top:50%;
   transform:translateY(-50%);
   font-family:var(--font-display, serif);
-  font-size:30px; line-height:1; text-align:center;
+  font-size:30px; font-weight:700; line-height:1; text-align:right;
   color:#F4E9D7;
   /* Richiesto: ombra nera al 50%, sfocata 15px. `drop-shadow` e non
      `text-shadow` perche' l'oro della fairy dust e' un gradiente ritagliato
@@ -5882,9 +5934,9 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
       <img id="mm-book-glow" alt="" draggable="false">
 
       <!-- I segnalibri che escono dal taglio delle pagine -->
-      <button class="mm-clic mm-bookmark" id="mm-store" onclick="mmApriStore()" aria-label="Store"><img alt="" draggable="false"></button>
-      <button class="mm-clic mm-bookmark" id="mm-missions" onclick="mmApriMissioni()" aria-label="Missions"><img alt="" draggable="false"></button>
-      <button class="mm-clic mm-bookmark" id="mm-packs" onclick="openPackOverlay()" aria-label="Book Packs"><img alt="" draggable="false"></button>
+      <button class="mm-clic mm-nudo mm-bookmark" id="mm-store" aria-label="Store" disabled><img alt="" draggable="false"></button>
+      <button class="mm-clic mm-nudo mm-bookmark" id="mm-missions" onclick="mmApriMissioni()" aria-label="Missions"><img alt="" draggable="false"></button>
+      <button class="mm-clic mm-nudo mm-bookmark" id="mm-packs" onclick="openPackOverlay()" aria-label="Book Packs"><img alt="" draggable="false"></button>
 
       <!-- Pagina sinistra: il giocatore -->
       <div id="mm-player">
@@ -5898,13 +5950,13 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
 
       <!-- Pagina sinistra: i tre comandi -->
       <div id="mm-actions">
-        <button class="mm-clic start-art-btn sab-secondary" onclick="mmApriSceltaPartita()">
+        <button class="mm-clic start-art-btn sab-primary" onclick="mmApriSceltaPartita()">
           <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Start Game</span>
         </button>
-        <button class="mm-clic start-art-btn sab-secondary mm-inerte" disabled>
+        <button class="mm-clic start-art-btn sab-primary mm-inerte" disabled>
           <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Edit Decks</span>
         </button>
-        <button class="mm-clic start-art-btn sab-secondary" onclick="openCardDbOverlay()">
+        <button class="mm-clic start-art-btn sab-primary" onclick="openCardDbOverlay()">
           <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Collection</span>
         </button>
       </div>
@@ -5912,7 +5964,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
       <!-- Pagina destra -->
       <div id="mm-quick-title">Quick decks</div>
       <div id="mm-quick-grid" aria-label="Quick decks"></div>
-      <button class="mm-clic" id="mm-patch" onclick="apriPatchNotesDalMenu()" aria-label="Patch notes">
+      <button class="mm-clic mm-nudo" id="mm-patch" onclick="apriPatchNotesDalMenu()" aria-label="Patch notes">
         <img alt="" draggable="false">
         <span id="mm-patch-label">Patch Notes</span>
       </button>
@@ -6219,7 +6271,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.53</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.56</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -8330,10 +8382,11 @@ function mmAvviaPartita(controIA){
   mmChiudiSceltaPartita();
   requestNewGame(!!controIA);
 }
-// Store e Missions non esistono ancora. Restano agganciati a una funzione
-// invece che a niente: il giorno in cui esisteranno, si scrive qui dentro e
-// non si va a cercare i tre pulsanti nel markup.
-function mmApriStore(){}
+// Missions non esiste ancora. Resta agganciato a una funzione invece che a
+// niente: il giorno in cui esistera', si scrive qui dentro e non si va a
+// cercare il pulsante nel markup.
+// Lo Store e' proprio spento (`disabled` nel markup, e sbiadito al 20%): non
+// e' "da scrivere", e' "non ancora aperto", ed e' giusto che si veda.
 function mmApriMissioni(){}
 
 // ── v0.73.53 — DA DOVE SI ERA ARRIVATI ─────────────────────────────────────
