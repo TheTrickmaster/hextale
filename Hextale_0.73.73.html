@@ -6329,7 +6329,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.72</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.73</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -18981,6 +18981,40 @@ function valoriVistiDallIA(cella, valoriSimulati){
   return valoriSimulati || (cella && cella.card && cella.card.values) || {};
 }
 
+// ── v0.73.73 — QUANTO COSTA DAVVERO PRENDERSI BABA YAGA ────────────────────
+// Segnalato da Lorenzo: "l'AI di adesso non attacca mai Baba Yaga".
+// Era vero e il conto lo spiega. La v0.73.69 valutava la punizione al suo
+// prezzo pieno di listino: `differenza * 6 lati * VALORE_PUNTO_POTERE`, cioe'
+// 2.1 punti danno per ogni punto di differenza. Ma il guadagno di quello
+// stesso attacco e' la differenza stessa, cioe' 1 per punto. Il saldo era
+// quindi NEGATIVO per costruzione, a qualunque numero: -1.1 per punto di
+// sfondamento. Non "attaccava di rado" — non poteva attaccarla mai, nemmeno
+// colpendola di misura, nemmeno se l'alternativa era passare il turno.
+//
+// La correzione e' una FRANCHIGIA: il primo punto di sfondamento non si paga,
+// ogni punto oltre quello si paga caro. Coglierla di misura e' cio' che la
+// carta stessa insegna a fare, e va quindi reso possibile — non solo "meno
+// sconveniente".
+//
+// Perche' una franchigia e non semplicemente un coefficiente piu' basso:
+// abbassare il prezzo e basta (sotto 1 per punto) avrebbe rimesso l'IA a
+// preferire lo sfondamento piu' VIOLENTO, perche' il guadagno cresce con la
+// differenza tanto quanto il costo. Con la franchigia il saldo parte positivo
+// e poi CALA a ogni punto di eccesso, che e' la forma giusta:
+//   differenza 1 -> +1.0   (colpo di misura: gratis)
+//   differenza 2 -> +0.6
+//   differenza 3 -> +0.2
+//   differenza 4 -> -0.2   (da qui in giu' la si lascia stare, salvo necessita')
+//
+// Il costo non scende MAI sotto zero: se diventasse un premio, Baba Yaga
+// risulterebbe piu' appetibile di una carta qualunque e l'IA si metterebbe a
+// cercarla apposta — l'errore opposto a quello appena corretto. A parita' di
+// danno una conquista normale resta sempre almeno buona quanto la sua.
+const FRANCHIGIA_HEX = 1;          // punti di differenza che non si pagano
+const PESO_AUTOLESIONE_HEX = 1.4;  // punti danno per ogni punto oltre la franchigia
+function costoHexPerIA(differenza){
+  return Math.max(0, differenza - FRANCHIGIA_HEX) * PESO_AUTOLESIONE_HEX;
+}
 function aiEvaluateConquests(card, q, r){
   let count=0, damage=0, autolesione=0;
   const effValues=aiEffectiveValuesAt(card, q, r);
@@ -19018,7 +19052,7 @@ function aiEvaluateConquests(card, q, r){
       // spaccarla con la carta piu' forte che ha, prendendosi ogni volta la
       // punizione piu' grossa possibile invece della piu' piccola.
       if(abilitaAttivaDi(nb.card)==='hex'){
-        autolesione += (myVal-theirVal) * SIDES.length * VALORE_PUNTO_POTERE;
+        autolesione += costoHexPerIA(myVal-theirVal);
       }
     }
   }
