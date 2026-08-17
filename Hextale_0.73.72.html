@@ -6329,7 +6329,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.71</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.72</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -19034,34 +19034,20 @@ function aiEvaluateConquests(card, q, r){
 // che l'avversario ha davvero in mano: se non puo' far male, il rischio e'
 // zero e non c'e' niente da schivare.
 
-// Estimates the worst-case HP damage the HUMAN could deal back next turn by
-// exploiting a hypothetical placement of `card` at (q,r) — i.e. how exposed
-// this move would leave the AI. For every side of the placed card that faces
-// an empty, reachable cell, this checks every card actually in the human's
-// hand (G.p1Hand) against every tile ability that empty cell might boost a
-// card placed there with (since the AI can't know which specific ability a
-// still-hidden tile holds — see the note below — it has to consider the
-// worst case across all of them), and keeps the single worst realistic hit.
-// Those per-side worst-hits are summed into one total: this is deliberately
-// pessimistic (assuming the opponent has the single best card/side pairing
-// for EVERY exposed side at once, which in practice they can only ever play
-// one card into one of those cells per turn) — a strict "how bad could this
-// possibly go" upper bound is exactly what a defensively-minded evaluation
-// wants here, rather than a precise expected value: it's what stops the AI
-// from placing a strong card such that it also hands the human a big free
-// hit, even when that placement's own immediate damage looks good in
-// isolation (the AI used to ignore this entirely whenever ANY offensive
-// move existed — see aiChooseMove).
+// Stima quanto male potrebbe fare l'avversario al turno dopo a una carta
+// piazzata in (q,r): quanto cioe' questa mossa lascia scoperta l'IA. Serve a
+// non farle giocare una carta forte in un posto che regala all'avversario un
+// colpo ancora piu' grosso — prima di questa misura l'IA guardava solo il
+// danno del proprio turno.
+// La stima e' volutamente prudente: si prende il colpo peggiore fra i lati
+// esposti, e gli altri pesano un quarto (vedi PESO_MINACCE_SECONDARIE).
 //
-// EXPERIMENTAL (v0.21.0-abilities-on-cards): tile abilities now travel with
-// CARDS, not cells, so "what ability would apply at this empty neighbor
-// cell" is no longer a fixed property of that cell — it depends entirely on
-// WHICH card the opponent might place there. Fortifica awareness (below)
-// already only ever asks about `card` itself (the AI's OWN candidate card),
-// so it reads `card.cardAbility` directly. Imboscata awareness (further
-// below, inside the per-neighbor loop) has to ask it per-HUMAN-CARD instead
-// of once per cell, since different human hand cards can carry different
-// abilities (or none) — see the `nkIsImboscata` replacement inside the loop.
+// v0.73.72 — qui sopra c'era un lungo commento che descriveva il vecchio
+// funzionamento: "checks every card actually in the human's hand (G.p1Hand)".
+// Non e' piu' vero, ed e' proprio la cosa che e' stata tolta — vedi il blocco
+// qui sotto. E' rimosso invece che corretto perche' un commento che racconta
+// un comportamento che non c'e' piu' e' peggio di nessun commento: chi legge
+// si fida.
 // ═══════════════════════════════════════════════════════════════════════════
 // v0.73.19 — IL RISCHIO E' UN COLPO, NON SEI
 // ═══════════════════════════════════════════════════════════════════════════
@@ -19082,29 +19068,57 @@ function aiEvaluateConquests(card, q, r){
 // minacce restano li' anche per i turni dopo — ma pesano un quarto, cioe' come
 // un pericolo futuro e non come un colpo gia' subito.
 const PESO_MINACCE_SECONDARIE = 0.25;
+// ═══════════════════════════════════════════════════════════════════════════
+// v0.73.72 — L'IA NON GUARDA PIU' LA MANO DELL'AVVERSARIO
+// ═══════════════════════════════════════════════════════════════════════════
+// Segnalato da Lorenzo: "sembra come se l'IA potesse vedere le mie carte".
+// Era vero, alla lettera. Questa funzione cicla sui lati esposti di una carta
+// per stimare quanto male puo' fargli l'avversario al turno dopo, e per farlo
+// APRIVA `G.p1Hand` e provava una per una le carte che il giocatore aveva
+// davvero in mano, tenendo la peggiore. Siccome il risultato entra nel
+// punteggio di OGNI mossa (vedi aiChooseMove), l'IA non evitava un fianco
+// scoperto in generale: evitava esattamente il lato dove il giocatore aveva il
+// numero per punirla. Da fuori si legge, giustamente, come barare.
+//
+// Adesso la minaccia e' STIMATA da cio' che l'IA puo' onestamente sapere: i
+// valori gia' visibili sul tabellone e la propria mano (vedi
+// valoreStimatoAlBuio, che era gia' li' per il fumo del Brucaliffo — stesso
+// principio, applicato al posto giusto). E' la stessa idea con cui il gioco
+// gia' rifiutava di far sbirciare l'IA sotto al fumo: se un dato non e'
+// visibile, non si guarda, si stima.
+//
+// Cosa l'IA continua a sapere, ed e' giusto cosi' perche' lo vede anche il
+// giocatore guardando lo schermo: QUANTE carte ha in mano l'avversario (se
+// zero, nessuno puo' colpire e il rischio e' davvero nullo) e tutto cio' che
+// e' gia' stato calato sul tabellone.
+//
+// Il margine sopra la media serve perche' chi attacca sceglie: non gioca una
+// carta a caso ne' un lato a caso, gioca il lato buono contro il fianco
+// scoperto. Una minaccia pari alla media pura renderebbe l'IA troppo
+// spavalda.
+const MARGINE_MINACCIA_IA = 1.25;
+function minacciaStimataDallIA(){
+  return valoreStimatoAlBuio() * MARGINE_MINACCIA_IA;
+}
 function aiEstimateCounterRisk(card, q, r){
   const cellSet=new Set(G.cells.map(c=>key(c.q,c.r)));
-  const humanHand=(G.p1Hand||[]);
-  if(!humanHand.length) return 0;
+  // Solo il NUMERO di carte in mano, mai il loro contenuto: e' un'informazione
+  // pubblica, sta a schermo.
+  if(!(G.p1Hand||[]).length) return 0;
   const myEffective=aiEffectiveValuesAt(card,q,r);
+  const minaccia=minacciaStimataDallIA();
   const colpi=[];
   for(const dir of DIRS){
     const nq=q+dir.dq, nr=r+dir.dr;
     const nk=key(nq,nr);
     if(!cellSet.has(nk) || G.holes.has(nk) || G.board[nk]) continue; // non e' un lato attaccabile
     const myVal=myEffective[dir.mySide]||0;
-    // Il lato di una carta piazzata in (nq,nr) che guarda verso (q,r) e' la
-    // direzione opposta a questa.
-    const backDir=DIRS.find(d=>nq+d.dq===q && nr+d.dr===r);
-    if(!backDir) continue;
-    let worstHit=0;
-    for(const hCard of humanHand){
-      const hEffective=aiEffectiveValuesAt(hCard,nq,nr);
-      const hVal=hEffective[backDir.mySide]||0;
-      const hit = Math.max(0, hVal-myVal);
-      if(hit>worstHit) worstHit=hit;
-    }
-    if(worstHit>0) colpi.push(worstHit);
+    // Quanto male farebbe una carta PLAUSIBILE calata li' contro questo mio
+    // lato. Il conto resta per-lato — l'IA sa benissimo dove e' scoperta LEI,
+    // e deve saperlo — ma la forza di chi la punirebbe non e' piu' letta dalla
+    // mano avversaria: e' la stessa stima per ogni direzione.
+    const hit = Math.max(0, minaccia - myVal);
+    if(hit>0) colpi.push(hit);
   }
   if(!colpi.length) return 0;
   colpi.sort((a,b)=>b-a);
@@ -19236,6 +19250,13 @@ function bonusValoreDaAbilita(card, q, r, giocatore){
   }
   // Anche le carte ancora in mano contano: una sinergia che potenzia qualcosa
   // che si giochera' fra due turni e' comunque un vantaggio.
+  // v0.73.72 — ATTENZIONE, qui si legge anche la mano AVVERSARIA. Oggi non e'
+  // uno sbirciamento: si guarda solo di QUANTO l'effetto simulato sposta i
+  // valori (`dopo` meno `prima`), e nessuna abilita' programmata tocca la mano
+  // altrui, quindi quel ramo vale sempre zero. Il giorno in cui ne arrivasse
+  // una che la tocca davvero, questo diventerebbe una lettura delle carte
+  // coperte dalla porta di servizio — e andrebbe stimata come si e' fatto in
+  // aiEstimateCounterRisk, non letta.
   for(const g of [1,2]){
     const mano = (g===1 ? G.p1Hand : G.p2Hand) || [];
     for(const c of mano){
@@ -19542,31 +19563,14 @@ function aiResolvePendingAbilityIfAny(){
 
 
 
-// Real per-side worst-case counter damage if the specific side facing
-// (nq,nr) — currently a wall/hole — were opened up to a future enemy
-// placement instead. Mirrors aiEstimateCounterRisk's own per-side worst-hit
-// search (same "assume the human has the single best card for this exact
-// spot" pessimism) but scoped to just ONE candidate side, since that's
-// exactly the question aiResolveDistruggere needs answered: not "how exposed
-// is this card overall" but "how bad would THIS ONE newly-opened side be".
-function aiEstimateSingleSideRisk(card, q, r, nq, nr){
-  const humanHand=(G.p1Hand||[]);
-  if(!humanHand.length) return 0;
-  const myEffective=aiEffectiveValuesAt(card,q,r);
-  const dir=DIRS.find(d=>q+d.dq===nq && r+d.dr===nr);
-  if(!dir) return 0;
-  const myVal=myEffective[dir.mySide]||0;
-  const backDir=DIRS.find(d=>nq+d.dq===q && nr+d.dr===r);
-  if(!backDir) return 0;
-  let worstHit=0;
-  for(const hCard of humanHand){
-    const hEffective=aiEffectiveValuesAt(hCard,nq,nr);
-    const hVal=hEffective[backDir.mySide]||0;
-    const hit=Math.max(0, hVal-myVal);
-    if(hit>worstHit) worstHit=hit;
-  }
-  return worstHit;
-}
+// v0.73.72 — QUI VIVEVA `aiEstimateSingleSideRisk`.
+// Stessa domanda di aiEstimateCounterRisk ma su UN lato solo, e serviva a
+// Distruggere per decidere se valesse la pena aprire un muro. Distruggere non
+// esiste piu' da un pezzo (v0.72.72) e nessuno la chiamava piu': era codice
+// morto che pero' conteneva la stessa lettura della mano avversaria appena
+// tolta qui sopra. Lasciarla avrebbe voluto dire tenere in casa un secondo
+// posto da cui l'imbroglio poteva rientrare il giorno in cui qualcuno l'avesse
+// ripescata credendola buona.
 
 
 // v0.70.7 REWRITE ("Non puoi creare l'istanza della carta finale già dal
