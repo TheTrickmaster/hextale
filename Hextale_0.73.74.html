@@ -2762,6 +2762,24 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
   transform-origin:center center;
 }
 
+/* ── v0.73.74 — Mischief (Pixies): il gruppo valori che ha appena ricevuto
+   il +3 lampeggia di bianco, cosi' si vede QUALE gruppo e' stato premiato.
+   Stessa costruzione di .value-win — un solo elemento, transform-box:fill-box
+   perche' in SVG l'origine di default e' quella del viewBox e non del glifo —
+   ma bianca e piu' breve: qui non c'e' niente da spiegare, solo da indicare.
+   Vale sia per il numero sia per il cerchio sotto (vedi accendiLampiMischief),
+   che sono due elementi distinti nel disegno. ── */
+@keyframes mischiefLampo{
+  0%   {filter:drop-shadow(0 0 0 rgba(255,255,255,0)); transform:scale(1);}
+  25%  {filter:drop-shadow(0 0 7px rgba(255,255,255,1)) brightness(2.2); transform:scale(1.35);}
+  100% {filter:drop-shadow(0 0 0 rgba(255,255,255,0)); transform:scale(1);}
+}
+.mischief-lampo{
+  animation:mischiefLampo 0.62s ease-out;
+  transform-box:fill-box;
+  transform-origin:center center;
+}
+
 /* ── Hit flash: a very brief white flash on a card the instant it's struck
    by the attack lunge, landing in sync with hit.mp3/the flip. Implemented as
    a full-card white overlay whose opacity spikes then drops to zero almost
@@ -6329,7 +6347,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.73</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.74</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -14922,6 +14940,10 @@ const TILE_ABILITIES_DEF = {
   // diversi. Quando un'abilita' nuova non fa niente, questa e' la prima cosa
   // da guardare: il nome qui e quello nel foglio devono coincidere.
   hex:               { name:'Hex',                  desc:'When *Conquered*, *Inflicts* -1 ALL per Power difference with the attacker.' },
+  // v0.73.74 — Pixies. Sinergia viva, parente stretta di Smol Friends: +3 a un
+  // gruppo valori sorteggiato per ogni Trickster in campo, ricalcolata a ogni
+  // disegno sia in mano sia sul tabellone (vedi recalcMischief).
+  mischief:          { name:'Mischief',              desc:'+3 Power RAND for every /Trickster/ character on the board.' },
 };
 // ── v0.73.49 — QUESTI `name` SONO IL LEGAME COL FOGLIO ─────────────────────
 // Il gioco aggancia l'abilita' di un personaggio confrontando la cella
@@ -15754,6 +15776,11 @@ function modificaValori(card, lati, delta, pavimento){
     // Le istantanee da cui altri ricalcoli ripartono vanno spostate dello
     // stesso passo, o quei ricalcoli riporterebbero la carta indietro.
     if(card.hoorayBaseValues) card.hoorayBaseValues[s] = (card.hoorayBaseValues[s]||0) + applicato;
+    // v0.73.74 — vale identico per Pixies: recalcMischief ricostruisce i valori
+    // da `mischiefBaseValues` a ogni disegno, quindi senza questa riga un dono
+    // o una penalita' ricevuti da lei (la vendetta di Baba Yaga, il furto di
+    // Robin Hood) verrebbero cancellati al primo ridisegno, cioe' subito.
+    if(card.mischiefBaseValues) card.mischiefBaseValues[s] = (card.mischiefBaseValues[s]||0) + applicato;
   }
 }
 
@@ -15961,6 +15988,134 @@ function recalcHoorayShesStays(card){
   // activateEatTheRich's own tileAbilityBaseValues comment) — lets the
   // render diff against this baseline and show the +N synergy bonus
   // highlighted, consistent with how every other ability's bonus renders.
+  card.tileAbilityBaseValues={...base};
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// v0.73.74 — PIXIES, "Mischief": +3 a un gruppo a sorte per ogni Trickster
+// ═══════════════════════════════════════════════════════════════════════════
+// Stessa famiglia di Smol Friends — una sinergia VIVA, che si ricalcola da
+// un'istantanea di partenza a ogni disegno invece di essere applicata una
+// volta sola — e per la stessa ragione: i valori devono essere aggiornati nel
+// momento in cui vengono letti, che sia per disegnarli o per risolvere uno
+// scontro. Da qui la chiamata sia in renderHand sia in renderBoard, esattamente
+// come per Biancaneve.
+// Due differenze rispetto a lei, entrambe volute:
+//
+// 1) IL BONUS NON VA SU TUTTI I LATI, ma su UN gruppo sorteggiato per ogni
+//    Trickster in campo. Piu' Trickster arrivano, piu' gruppi si accendono (e
+//    lo stesso gruppo puo' uscire piu' volte: +3 due volte fa +6).
+// 2) IL SORTEGGIO PASSA DA `sorteggioStabile`, mai da Math.random. Questa
+//    funzione gira a OGNI disegno e anche sui CLONI dell'anteprima (vedi
+//    simulaPiazzamento): con un sorteggio vero il gruppo premiato cambierebbe
+//    a ogni ridisegno — i numeri tremolerebbero sotto gli occhi — e l'anteprima
+//    prometterebbe un gruppo diverso da quello che poi si accende davvero.
+//    Il seme e' l'identita' della carta piu' il NUMERO d'ordine del Trickster
+//    (`id#1`, `id#2`, ...): cosi' il primo Trickster premia sempre lo stesso
+//    gruppo, e l'arrivo del secondo non rimescola quello che il primo aveva
+//    gia' assegnato.
+//
+// Ricalcolare sempre dall'istantanea, invece di sommare al valore corrente,
+// e' cio' che rende gratis anche il caso opposto: se un Trickster viene
+// conquistato o lascia il campo il conto scende da solo, senza dover tenere
+// traccia di cosa era stato dato a chi.
+const BONUS_MISCHIEF = 3;
+// ── Il lampo bianco sul cerchietto premiato ────────────────────────────────
+// Lo stato dell'animazione NON si scrive sulla carta: chi disegna la plancia
+// riceve una COPIA (`renderBoard` passa {...placed.card, owner}), quindi
+// qualunque cosa scritta li' dentro vivrebbe il tempo di un disegno e poi
+// sparirebbe — e l'animazione ripartirebbe da capo a ogni ridisegno. Vive
+// quindi qui fuori, in una mappa a parte, esattamente come `_veloFumo`.
+// Chiave: id della carta. Valore: i gruppi (lati uniti da '|') da accendere.
+const _lampiMischief = new Map();
+// L'anteprima sotto il puntatore ricalcola tutto su dei CLONI (vedi
+// simulaPiazzamento) e lo fa a ogni movimento del mouse: senza questa guardia
+// ogni passaggio sopra una casella accenderebbe i lampi di una cosa che non e'
+// ancora successa, e li accenderebbe decine di volte. Il lampo appartiene al
+// piazzamento vero.
+let _simulazioneInCorso = false;
+function segnaLampoMischief(cardId, gruppi){
+  if(_simulazioneInCorso) return;
+  if(!cardId || !gruppi || !gruppi.length) return;
+  const gia = _lampiMischief.get(cardId) || [];
+  _lampiMischief.set(cardId, gia.concat(gruppi));
+}
+// Chiamata in fondo a ogni disegno: accende i lampi in sospeso e li consuma.
+// Cerca il numero del gruppo per `data-value-group`, che drawHexCard scrive
+// gia' su ogni valore, e accende anche il cerchio sotto — quello non ha un
+// attributo suo e si ritrova per posizione (vedi elementiValoreDelLato, stessa
+// tecnica).
+const LAMPO_MISCHIEF_MS = 620; // deve combaciare con la durata di .mischief-lampo
+// Dove e' disegnata ADESSO questa carta: in mano (il wrap porta data-cardId)
+// oppure sul tabellone (il gruppo porta data-conquered con la cella). Mai in
+// due posti insieme, quindi il primo che si trova e' quello giusto.
+function contenitoreDisegnatoDellaCarta(cardId){
+  const inMano=document.querySelector('[data-card-id="'+CSS.escape(cardId)+'"]');
+  if(inMano) return inMano;
+  for(const k in G.board){
+    const cella=G.board[k];
+    if(cella && cella.card && cella.card.id===cardId) return elementoCarta(k);
+  }
+  return null;
+}
+function accendiLampiMischief(){
+  if(!_lampiMischief.size) return;
+  for(const [cardId, gruppi] of [..._lampiMischief.entries()]){
+    // Consumato subito, comunque vada: se la carta non e' ancora disegnata quel
+    // lampo e' perso — un lampo mancato e' un dettaglio, una coda che cresce
+    // per sempre e' una perdita di memoria.
+    _lampiMischief.delete(cardId);
+    const contenitore=contenitoreDisegnatoDellaCarta(cardId);
+    if(!contenitore) continue;
+    for(const gruppo of gruppi){
+      const testo=contenitore.querySelector('[data-value-group="'+gruppo+'"]');
+      if(!testo) continue;
+      const pezzi=elementiValoreDelLato(contenitore, gruppo.split('|')[0]||'');
+      for(const el of [testo, pezzi && pezzi.circleEl]){
+        if(!el) continue;
+        el.classList.remove('mischief-lampo');
+        void el.getBoundingClientRect(); // forza il reflow, o riaccendere non riparte
+        el.classList.add('mischief-lampo');
+      }
+    }
+  }
+}
+function contaTrickster(){
+  let n=0;
+  for(const k in G.board){
+    const cella=G.board[k];
+    if(cella && cella.card && cella.card.archetypes && cella.card.archetypes.includes('trickster')) n++;
+  }
+  return n;
+}
+function recalcMischief(card){
+  if(abilitaAttivaDi(card)!=='mischief') return;
+  if(!card.mischiefBaseValues) card.mischiefBaseValues={...card.values};
+  const base=card.mischiefBaseValues;
+  const gruppi=gruppiDiCarta(card);
+  if(!gruppi.length) return;
+  const quanti=contaTrickster();
+  const nuovi={...base};
+  // Chi ha ricevuto il bonus, per poterlo far lampeggiare quando e' appena
+  // arrivato. L'indice e' quello del gruppo dentro `gruppi`.
+  const premiati=[];
+  for(let n=1;n<=quanti;n++){
+    const scelto=sorteggioStabile(gruppi, card.id+'#'+n);
+    if(!scelto) continue;
+    for(const s of scelto.sides) nuovi[s]=(nuovi[s]||0)+BONUS_MISCHIEF;
+    premiati.push(scelto.sides.join('|'));
+  }
+  // Il lampo si accende solo per i bonus APPENA arrivati, cioe' quando il
+  // conto dei Trickster e' salito: un ricalcolo qualunque (e ce n'e' uno a
+  // ogni disegno) non deve far lampeggiare niente.
+  const primaEra = (typeof card.mischiefCount==='number') ? card.mischiefCount : 0;
+  if(quanti>primaEra && card.mischiefCount!==undefined){
+    segnaLampoMischief(card.id, premiati.slice(primaEra));
+  }
+  card.mischiefCount=quanti;
+  card.values=nuovi;
+  // Stessa convenzione di ogni altra abilita': l'istantanea da cui il disegno
+  // calcola il verde/rosso della differenza.
   card.tileAbilityBaseValues={...base};
 }
 
@@ -16604,6 +16759,9 @@ function testiAbilitaDi(card, chiaveEsplicita){
 const EFFETTI_PIAZZAMENTO = {
   eat_the_rich: (card, q, r) => activateEatTheRich(card, q, r),
   smol_friends: (card) => recalcHoorayShesStays(card),
+  // v0.73.74 — come sopra: Pixies deve avere i suoi +3 gia' addosso quando lo
+  // scontro del piazzamento viene risolto, non solo quando viene ridisegnata.
+  mischief: (card) => recalcMischief(card),
 };
 function applicaAbilitaPiazzamento(card, q, r, chiave){
   const effetto = EFFETTI_PIAZZAMENTO[chiave];
@@ -17366,6 +17524,7 @@ function clonaPerSimulazione(card){
   const c = Object.assign({}, card);
   c.values = Object.assign({}, card.values);
   if(card.hoorayBaseValues) c.hoorayBaseValues = Object.assign({}, card.hoorayBaseValues);
+  if(card.mischiefBaseValues) c.mischiefBaseValues = Object.assign({}, card.mischiefBaseValues);
   if(card.tileAbilityBaseValues) c.tileAbilityBaseValues = Object.assign({}, card.tileAbilityBaseValues);
   return c;
 }
@@ -17390,6 +17549,7 @@ function clonaPerSimulazione(card){
 // la sua anteprima senza che nessuno debba ricordarsi di aggiungerla qui.
 function simulaPiazzamento(card, q, r){
   const tabelloneVero = G.board, manoVera1 = G.p1Hand, manoVera2 = G.p2Hand;
+  _simulazioneInCorso = true; // vedi segnaLampoMischief: qui non si accende niente
   try {
     const clone = {};
     for(const k in tabelloneVero){
@@ -17415,9 +17575,13 @@ function simulaPiazzamento(card, q, r){
     // Le sinergie continue (quelle che si ricalcolano a ogni disegno invece di
     // scattare una volta sola) vanno rifatte girare sul tabellone simulato,
     // altrimenti l'anteprima mostrerebbe il mondo nuovo con i conti vecchi.
-    for(const k in clone) recalcHoorayShesStays(clone[k].card);
-    mano1.forEach(recalcHoorayShesStays);
-    mano2.forEach(recalcHoorayShesStays);
+    // v0.73.74 — Mischief e' della stessa specie: ricalcolata qui, l'anteprima
+    // mostra il +3 che arriverebbe posando un Trickster accanto alle Pixies.
+    // Il gruppo premiato coincide con quello che si accendera' davvero perche'
+    // il sorteggio e' stabile (vedi recalcMischief), non casuale.
+    for(const k in clone){ recalcHoorayShesStays(clone[k].card); recalcMischief(clone[k].card); }
+    mano1.forEach(c=>{ recalcHoorayShesStays(c); recalcMischief(c); });
+    mano2.forEach(c=>{ recalcHoorayShesStays(c); recalcMischief(c); });
 
     const esito = { cellaGiocata: cella, tabellone: {}, mani: {1:{}, 2:{}} };
     for(const k in clone) esito.tabellone[k] = Object.assign({}, clone[k].card.values);
@@ -17431,6 +17595,7 @@ function simulaPiazzamento(card, q, r){
     // lancia: lasciarli sostituiti da un clone significherebbe che la partita
     // continua su una copia, e sarebbe un disastro silenzioso.
     G.board = tabelloneVero; G.p1Hand = manoVera1; G.p2Hand = manoVera2;
+    _simulazioneInCorso = false;
   }
 }
 
@@ -23931,6 +24096,9 @@ function renderHand(containerId,hand,playerIdx){
     // comment for why this per-render-call approach (rather than a deeper
     // engine change) covers both the hand and board cases.
     recalcHoorayShesStays(card);
+    // v0.73.74 — stessa cosa per Pixies, che il bonus lo riceve anche mentre
+    // aspetta in mano (vedi recalcMischief).
+    recalcMischief(card);
     const isSelected=G.selected&&G.selected.card.id===card.id;
     const isBeingDragged=!!(G.dragging&&G.dragging.card.id===card.id);
     if(isBeingDragged && dragFullyOut) return; // fully out: no slot at all, rendered by the floating drag element instead
@@ -24511,6 +24679,10 @@ function renderHand(containerId,hand,playerIdx){
     }
     container.appendChild(wrap);
   });
+  // v0.73.74 — a ventaglio ridisegnato, i lampi in sospeso di Mischief: stessa
+  // ragione della gemella in fondo a renderBoard (prima di qui gli elementi da
+  // illuminare non esistono).
+  accendiLampiMischief();
 }
 
 const CLICK_MOVE_THRESHOLD=6; // px of movement before a mousedown is treated as a drag instead of a click
@@ -26368,6 +26540,7 @@ function renderBoard(){
       // reads placed.card.values so the synergy bonus is already baked in
       // by the time any faction-bonus/delta math below runs.
       recalcHoorayShesStays(placed.card);
+      recalcMischief(placed.card); // v0.73.74 — vedi la gemella in renderHand
       // v0.73.11 FIX ("quando si droppa una carta su un tile, sembra che
       // sparisca il disegno del tile sotto"): non sembrava, spariva davvero.
       // Una cella occupata disegnava SOLO la carta: il tassello non veniva
@@ -26669,6 +26842,10 @@ function renderBoard(){
   cardLandReattach();
   cardJumpReattach(); // v0.73.52 — stessa ragione, e stesso posto: vedi sopra
   fumoReattach();
+  // v0.73.74 — i lampi di Mischief si accendono a disegno FINITO: prima gli
+  // elementi da illuminare non esistono ancora (l'SVG viene ricostruito da
+  // capo a ogni render).
+  accendiLampiMischief();
   controllaFirmaTabellone(firmaOra);
 
   // ── v0.72.36: builder di pulsanti-icona SVG, condiviso da tutti gli overlay
