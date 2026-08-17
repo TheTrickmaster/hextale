@@ -6329,7 +6329,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.68</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.69</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -14858,6 +14858,10 @@ const TILE_ABILITIES_DEF = {
   // libera adiacente spostare SE STESSA — a ballare via dallo scontro (vedi
   // SCELTE_DOPO_CONQUISTA).
   dancing_around:    { name:'Dancing Around',      desc:'On conquer: *moves* itself to an adjacent empty tile.' },
+  // v0.73.69 — Baba Yaga. Non fa niente finche' resta sua; se la conquistano,
+  // si vendica: -1 a OGNI gruppo dell'attaccante per ogni punto di differenza
+  // di potere sul lato toccato (vedi applicaHexSeConquistata).
+  hex:               { name:'Hex (Pun Intended)',   desc:"On conquer: *inflicts* -1 to ALL of the attacker's Power groups, per point of Power difference on the touched side." },
 };
 // ── v0.73.49 — QUESTI `name` SONO IL LEGAME COL FOGLIO ─────────────────────
 // Il gioco aggancia l'abilita' di un personaggio confrontando la cella
@@ -17263,6 +17267,26 @@ function impazzisciSeConquistato(card){
   // era mai stato promesso a nessuno.
   return true;
 }
+
+// v0.73.69 — Baba Yaga, "Hex". Scatta quando gliela portano via, ma a
+// differenza di "Have I Gone Mad?" non tocca se stessa: punisce chi l'ha
+// appena conquistata. La punizione e' -1 su OGNI gruppo valore
+// dell'ATTACCANTE, ripetuto per quanta differenza di potere c'e' stata sul
+// lato che si sono toccati (es.: si attacca con 8 il suo 6 -> differenza 2 ->
+// -2 a tutti i gruppi dell'attaccante). Passa da modificaValori() e non
+// scrive mai in card.values a mano, per lo stesso motivo di sempre: chi
+// ricalcola i propri valori da un'istantanea (Biancaneve) altrimenti si
+// vedrebbe cancellare la punizione al primo ridisegno.
+// Il pavimento a 0 e' deliberato: un valore negativo non ha senso in questo
+// gioco, e nessun'altra carta che tocca valori altrui lo permette (vedi Eat
+// the Rich).
+function applicaHexSeConquistata(attaccante, babaYaga, atkVal, defVal){
+  if(abilitaAttivaDi(babaYaga) !== 'hex') return false;
+  const differenza = atkVal - defVal;
+  if(differenza<=0) return false; // non dovrebbe mai capitare (e' cosi' che si e' conquistata)
+  modificaValori(attaccante, SIDES, -differenza, 0);
+  return true;
+}
 // Copia di lavoro di una carta per la simulazione. Superficiale, tranne i tre
 // campi che gli effetti riscrivono davvero: i valori e le due istantanee su cui
 // si calcolano le differenze colorate. Copiare la carta in profondita' sarebbe
@@ -17633,6 +17657,9 @@ function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLa
       G.ultimaConquista[player] = {cella:nk, exProprietario:nb.owner};
       // v0.73.5 — e qui il Hatter impazzisce, se e' lui quello appena preso.
       impazzisciSeConquistato(nb.card);
+      // v0.73.69 — e qui Baba Yaga si vendica, se e' lei quella appena presa:
+      // vedi applicaHexSeConquistata. `card` e' l'attaccante, `nb.card` lei.
+      applicaHexSeConquistata(card, nb.card, myAttackVal, theirEffective[dir.theirSide]);
     }
   }
   // Neither placeCard() nor the drag-drop mouseup handler render the board
@@ -18884,7 +18911,7 @@ function valoriVistiDallIA(cella, valoriSimulati){
 }
 
 function aiEvaluateConquests(card, q, r){
-  let count=0, damage=0;
+  let count=0, damage=0, autolesione=0;
   const effValues=aiEffectiveValuesAt(card, q, r);
   // v0.73.5 — i DIFENSORI vanno letti dal tabellone simulato, non da quello
   // vero. Un'abilita' che indebolisce chi sta intorno (Robin Hood, oggi)
@@ -18911,9 +18938,20 @@ function aiEvaluateConquests(card, q, r){
     // si usa la stima (vedi valoriVistiDallIA).
     const difesa=valoriVistiDallIA(nb, simulato && simulato.tabellone[nk]);
     const theirVal=difesa[dir.theirSide]||0;
-    if(myVal>theirVal){ count++; damage+=(myVal-theirVal); }
+    if(myVal>theirVal){
+      count++; damage+=(myVal-theirVal);
+      // v0.73.69 — Baba Yaga, "Hex": conquistarla si ritorce contro
+      // l'attaccante, che perde su OGNI suo gruppo tanto quanto ha sfondato
+      // (vedi applicaHexSeConquistata). L'IA deve vederlo QUI, nella stessa
+      // valutazione con cui sceglie dove giocare — altrimenti continuerebbe a
+      // spaccarla con la carta piu' forte che ha, prendendosi ogni volta la
+      // punizione piu' grossa possibile invece della piu' piccola.
+      if(abilitaAttivaDi(nb.card)==='hex'){
+        autolesione += (myVal-theirVal) * SIDES.length * VALORE_PUNTO_POTERE;
+      }
+    }
   }
-  return {count, damage};
+  return {count, damage, autolesione};
 }
 
 // v0.73.19 — qui viveva aiCountSafeSides, che contava quanti lati di una
@@ -19253,7 +19291,7 @@ function aiChooseMove(){
   const candidates=[];
   for(const card of hand){
     for(const cell of freeCells){
-      const {count:conquests, damage}=aiEvaluateConquests(card,cell.q,cell.r);
+      const {count:conquests, damage, autolesione}=aiEvaluateConquests(card,cell.q,cell.r);
       const power=SIDES.reduce((s,side)=>s+(card.values[side]||0),0);
       // Lethal shortcut: a hit that would end the game right now is always
       // the best possible move, full stop — no need to weigh anything else.
@@ -19262,7 +19300,10 @@ function aiChooseMove(){
       // v0.73.19 — al punteggio si aggiunge quello che l'abilita' porta:
       // i valori che sposta sul tavolo e, per le abilita' che sul tavolo non
       // si vedono, il loro valore dichiarato (vedi bonusAbilitaPerIA).
-      const net=damage-risk+bonusAbilitaPerIA(card,cell.q,cell.r,2);
+      // v0.73.69 — e si sottrae quanto Hex si riprenderebbe indietro (vedi
+      // aiEvaluateConquests): stessa logica del rischio, un costo che questa
+      // mossa specifica porta con se'.
+      const net=damage-risk-autolesione+bonusAbilitaPerIA(card,cell.q,cell.r,2);
       // v0.73.19 — la centralita' come ultimo criterio, al posto del sorteggio.
       // A parita' di tutto il resto una cella con piu' vicini vale di piu':
       // da li' si attacca in piu' direzioni nei turni successivi. Prima si
@@ -19359,7 +19400,7 @@ const VALUTAZIONI_IA = {
       let punteggio = 0;
       try {
         const ev = aiEvaluateConquests(sonda, scelta.q, scelta.r);
-        punteggio = ev.damage + ev.count*2 + bonusAbilitaPerIA(sonda, scelta.q, scelta.r, scelta.giocatore);
+        punteggio = ev.damage + ev.count*2 - ev.autolesione + bonusAbilitaPerIA(sonda, scelta.q, scelta.r, scelta.giocatore);
       } catch(_){ punteggio = 0; }
       if(punteggio > punteggioMigliore){ punteggioMigliore = punteggio; migliore = cella; }
     }
