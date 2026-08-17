@@ -269,3 +269,26 @@ verificando che dopo il caricamento esistano ancora le funzioni chiave:
 Il database delle carte vive sul Google Sheet (foglio `Cards DB`); serve
 `Visible = Yes`. Le colonne non riconosciute vengono ignorate, quindi
 aggiungerne di nuove non rompe niente.
+
+### Come il foglio aggancia un'abilita' a un personaggio (dalla v0.73.49)
+
+**Solo tramite la cella `Ability name`**, confrontata col `name` dichiarato in
+`TILE_ABILITIES_DEF`. Nient'altro: nessuna colonna `Ability key`, nessuna
+chiave tecnica scritta al posto del nome, nessun elenco di nomi vecchi.
+Maiuscole, spazi e punteggiatura non contano.
+
+- **Scambiare due abilita' fra personaggi**: si scambiano le due celle nel
+  foglio. Nel codice non si tocca niente, perche' nessuna abilita' e' legata a
+  un personaggio.
+- **Rinominare un'abilita'**: si cambia il `name` nel registro **e** la cella,
+  insieme. Cambiarne uno solo la scollega.
+
+Una carta scollegata non si rompe: esce con `NO_SCRIPT` in rosso sotto al nome,
+e la console elenca i nomi esatti che il registro conosce. E' rumoroso apposta.
+
+Questa e' una scelta consapevole di **leggibilita' contro robustezza**: prima
+comandava una chiave tecnica, che un rinominare non poteva scollegare, ma che
+obbligava a tenere a mente due nomi per abilita' e a ricordare quale dei due
+comandasse davvero — e nel momento in cui si scambiano abilita' fra personaggi,
+diventava una fonte continua di confusione. Adesso quello che si legge nel
+foglio e' quello che succede nel gioco.

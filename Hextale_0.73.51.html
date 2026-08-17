@@ -5776,7 +5776,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.48</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.51</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -8402,26 +8402,44 @@ function _cardaDaRiga(col, get, haColonna){
   // che non sorprende nessuno.
   const sbloccoGrezzo=parseInt(getAlt(get,['Ability unlocked at level','Ability unlock level']),10);
   const abilityUnlockLevel=isFinite(sbloccoGrezzo)?Math.max(1,Math.min(4,sbloccoGrezzo)):1;
-  const abGrezza=(getAlt(get,['Ability key','Ability name'])||'').trim();
+  // ── v0.73.49 — IL LEGAME E' IL NOME, E SOLO IL NOME ──────────────────────
+  // Si legge SOLO la colonna "Ability name" e si confronta SOLO col `name`
+  // del registro. Non si guarda piu' nessuna colonna "Ability key", nessuna
+  // chiave tecnica scritta al posto del nome, nessun nome vecchio.
+  // Perche' e' meglio, pur essendo piu' fragile: le abilita' si scambiano fra
+  // personaggi. Scambiarle per NOME e' un'operazione che si legge — due celle
+  // che si scambiano di posto, e cio' che si legge nel foglio e' cio' che
+  // succede nel gioco. Scambiarle per chiave tecnica voleva dire tenere a
+  // mente due nomi per ogni abilita' e ricordarsi quale dei due comanda: piu'
+  // robusto sulla carta, ma nei fatti una fonte continua di confusione.
+  // Il prezzo, dichiarato: cambiare il nome di un'abilita' nel foglio senza
+  // cambiarlo anche qui nel registro la scollega. La carta non si rompe — si
+  // vede NO_SCRIPT in rosso sotto al nome e la console dice esattamente quali
+  // nomi sono accettati — ma va rimessa in pari a mano. E' voluto.
+  const abGrezza=(get('Ability name')||'').trim();
   let abilita='';
   if(abGrezza && abGrezza!=='/'){
     const cercato=norm(abGrezza);
     let reg=null; try{ reg=TILE_ABILITIES_DEF; }catch(_){ reg=null; }
     if(reg){
       for(const k in reg){
-        // combacia il nome mostrato ("Smol Friends") oppure la chiave stessa
-        if(norm(reg[k].name)===cercato || norm(k)===cercato){ abilita=k; break; }
-        // v0.73.16 — oppure uno dei nomi con cui quell'abilita' e' gia' stata
-        // chiamata. Serve perche' il legame fra foglio e codice e' il NOME, e
-        // un nome si cambia: rinominando "Magic Mirror" in "Spitted Image" il
-        // foglio ha smesso di combaciare col registro, la chiave e' diventata
-        // sconosciuta e la carta ha perso l'abilita' SENZA DIRLO — sembrava
-        // rotta, ed era solo scollegata. Ogni nome vecchio resta valido, cosi'
-        // un rinominare non spegne mai piu' una carta.
-        if(Array.isArray(reg[k].altriNomi) && reg[k].altriNomi.some(n=>norm(n)===cercato)){ abilita=k; break; }
+        if(norm(reg[k].name)===cercato){ abilita=k; break; }
       }
     }
-    if(!abilita) abilita=abGrezza.toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'');
+    // Nessuna corrispondenza: si tiene comunque una chiave segnaposto ricavata
+    // dal nome. NON e' un secondo modo di agganciarsi — nel registro non
+    // esiste e nessun effetto verra' mai eseguito. Serve solo a far arrivare
+    // la carta al controllo piu' sotto, che e' quello che la marca NO_SCRIPT e
+    // scrive in console i nomi giusti. Senza, una carta con un nome sbagliato
+    // uscirebbe muta, senza abilita' e senza che nessuno lo dica.
+    // Il punto esclamativo davanti non e' un vezzo. Senza, il segnaposto
+    // ricavato da "Magic Mirror" sarebbe stato `magic_mirror` — che nel
+    // registro ESISTE: il nome vecchio avrebbe continuato ad agganciare
+    // l'abilita' per la porta di servizio, e quel legame che dovevo togliere
+    // sarebbe rimasto vivo senza che si vedesse da nessuna parte. Un carattere
+    // che nessuna chiave puo' contenere rende la collisione impossibile per
+    // costruzione invece che per fortuna.
+    if(!abilita) abilita='!'+abGrezza.toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'');
   }
   // Il drop rate accetta sia "3" sia "3%" sia "3,5", perche' in un foglio
   // compilato a mano compaiono tutte e tre.
@@ -8641,11 +8659,11 @@ function _applicaRigheFoglio(righe){
   // il database delle carte e si preferisce la tabella interna a un roster
   // costruito su colonne che non esistono.
   // v0.73.37 — i nomi delle colonne si confrontano SENZA badare a maiuscole e
-  // spazi. Una colonna scritta "Ability Key" o "ability key" o con uno spazio
-  // di troppo funzionava prima come se non esistesse: il foglio non se ne
-  // accorgeva, il gioco nemmeno, e la carta usciva senza abilita' senza che
-  // nessuno dicesse niente. Un foglio si compila a mano, e a mano si scrive
-  // "Ability Key" tanto quanto "Ability key".
+  // spazi. Una colonna scritta "Ability Name" o "ability name" o con uno
+  // spazio di troppo funzionava prima come se non esistesse: il foglio non se
+  // ne accorgeva, il gioco nemmeno, e la carta usciva senza abilita' senza
+  // che nessuno dicesse niente. Un foglio si compila a mano, e a mano si
+  // scrive "Ability Name" tanto quanto "Ability name".
   const _chiaveColonna = x => String(x||'').toLowerCase().replace(/\s+/g,' ').trim();
   const indiceColonne = {};
   col.forEach((nome, j)=>{ const k=_chiaveColonna(nome); if(k && !(k in indiceColonne)) indiceColonne[k]=j; });
@@ -8656,6 +8674,14 @@ function _applicaRigheFoglio(righe){
     console.warn('[carte] la tabella ricevuta non sembra il database delle carte'
       + ' (mancano le colonne: ' + mancanti.join(', ') + '). Colonne trovate: ' + col.join(' | '));
     return false;
+  }
+  // v0.73.49 — se nel foglio e' rimasta la vecchia colonna "Ability key", lo
+  // si dice. Non e' un errore e non cambia niente, ma una colonna che sembra
+  // comandare e non comanda piu' e' peggio di una colonna assente: si finisce
+  // per correggere quella mentre il gioco legge l'altra.
+  if(haColonna('Ability key')){
+    console.info('[carte] la colonna "Ability key" non viene piu\' letta: dalla v0.73.49'
+      + ' l\'abilita\' si aggancia SOLO tramite "Ability name". Si puo\' eliminare.');
   }
   const nuove = [];
   for(let i=1;i<righe.length;i++){
@@ -8695,23 +8721,18 @@ function _applicaRigheFoglio(righe){
       // combacia piu' con quello del registro (una rinomina, un refuso): la
       // carta perde l'abilita' e da fuori sembra rotta. Elencare i nomi
       // accettati trasforma un'ora di indagine in dieci secondi di lettura.
-      const accettati = Object.keys(registro).map(k=>{
-        const n = [registro[k].name].concat(registro[k].altriNomi||[]);
-        return n.join(' / ');
-      });
-      // v0.73.36 — l'avviso indica anche la strada per non ricascarci. Il
-      // legame fra foglio e codice puo' passare dal NOME (fragile: cambiarlo
-      // scollega la carta, ed e' successo) oppure dalla colonna "Ability key",
-      // che contiene la chiave tecnica e non cambia mai. Con quella colonna
-      // compilata il nome torna a essere quello che dovrebbe essere: testo da
-      // leggere sulla carta, libero di cambiare quando si vuole.
+      // v0.73.49 — l'unico rimedio possibile e' il nome, perche' il nome e'
+      // l'unico legame (vedi il commento in _cardaDaRiga). L'avviso elenca
+      // quindi i nomi esatti che il registro conosce: incollarne uno nella
+      // cella "Ability name" e' tutto quello che serve.
+      const accettati = Object.keys(registro).map(k=>registro[k].name);
       console.warn('[carte] "'+c.name+'" dichiara l\'abilita\' "'+(c.abilityNameSheet||c.cardAbility)
         + '", che non corrisponde a nessuna abilita\' programmata: la carta non ne avra\' nessuna.'
-        + '\n\nRIMEDIO CONSIGLIATO: nel foglio, colonna "Ability key", scrivi la chiave'
-        + '\ntecnica dell\'abilita\'. Quella comanda sul nome, quindi il nome puo\' essere'
-        + '\nqualunque cosa e non si scollega mai piu\'.'
-        + '\n\nChiavi disponibili:\n  ' + Object.keys(registro).join('\n  ')
-        + '\n\nIn alternativa, il nome deve essere uno di questi:\n  ' + accettati.join('\n  '));
+        + '\n\nRIMEDIO: nella colonna "Ability name" del foglio deve esserci ESATTAMENTE uno'
+        + '\ndi questi nomi (maiuscole, spazi e punteggiatura non contano):\n  '
+        + accettati.join('\n  ')
+        + '\n\nSe invece l\'abilita\' e\' stata rinominata di proposito, il nome va cambiato'
+        + '\nanche nel registro TILE_ABILITIES_DEF, nel codice.');
     }
   }
   FINAL_CARDS.length=0;
@@ -13867,10 +13888,20 @@ const TILE_ABILITIES_DEF = {
   // v0.73.5 — non e' piu' una scelta al piazzamento: finche' la carta resta in
   // mano, a ogni turno del suo proprietario i valori le girano intorno di una
   // posizione in senso orario (vedi ruotaValoriInMano).
-  // v0.73.35 — l'abilita' e' passata da Alice al Cheshire Cat. Il codice non
-  // la lega a nessuna carta: guarda la chiave, non il nome. Spostarla e' stato
-  // quindi solo cambiare una riga nel foglio.
-  eat_me_drink_me:   { name:'Eat me, Drink me',   desc:'*Rotates* its power clockwise each turn while in hand.' },
+  // v0.73.35 — l'abilita' e' passata da Alice al Cheshire Cat.
+  // v0.73.50 — e col passaggio ha cambiato nome: nel foglio il Cheshire Cat
+  // la chiama "Different Reality", quindi e' quello il nome che il registro
+  // deve dichiarare, perche' dalla v0.73.49 il nome e' l'unico legame.
+  // La chiave `eat_me_drink_me` resta com'e': e' il nome interno con cui il
+  // codice si riferisce all'abilita' (EFFETTI, IA, animazioni) e cambiarla
+  // vorrebbe dire toccare venti punti per un vantaggio nullo. Che una chiave
+  // non somigli piu' al nome mostrato e' normale e voluto: sono due cose
+  // diverse, ed e' esattamente la separazione che rende possibile rinominare.
+  // ATTENZIONE: nel foglio anche Alice ha ancora "Eat me, Drink me" nella
+  // cella del nome. Quel nome adesso non corrisponde piu' a niente, quindi
+  // Alice esce con NO_SCRIPT finche' la sua cella non viene svuotata. E'
+  // l'effetto voluto — l'abilita' e' del Cheshire — ma va visto e non subito.
+  eat_me_drink_me:   { name:'Different Reality', desc:'*Rotates* its power clockwise each turn while in hand.' },
   // v0.73.5 — Hatter. Non fa niente finche' resta suo; se lo conquista
   // l'avversario impazzisce (vedi impazzisciSeConquistato).
   have_i_gone_mad:   { name:'Have I Gone Mad?',   desc:'On conquer: goes mad, its power becomes a random value (1-3).' },
@@ -13882,18 +13913,28 @@ const TILE_ABILITIES_DEF = {
   off_with_the_head: { name:'Off With the Head!',  desc:'The next card you *draw* earns +2 ALL.' },
   // v0.73.11 — Magic Mirror. L'unica abilita' che ferma il turno per chiedere
   // qualcosa al giocatore: vedi SCELTE_PIAZZAMENTO e bersagliMagicMirror.
-  // `altriNomi` sono i nomi con cui questa stessa abilita' e' gia' stata
-  // chiamata nel foglio. Non sono sinonimi decorativi: sono l'unica cosa che
-  // impedisce a un rinominare di scollegare la carta dal suo codice. Chi
-  // cambia il `name` qui sopra aggiunge il vecchio qui sotto, sempre.
-  magic_mirror:      { name:'Spitted Image',       desc:'*Copies* a selected adjacent character ability.',
-                       altriNomi:['Magic Mirror','Spitting Image'] },
+  // v0.73.50 — "Spitting Image", che e' quello che c'e' scritto nel foglio.
+  // Era "Spitted Image" e la carta risultava scollegata: finche' un elenco di
+  // nomi vecchi teneva insieme i pezzi non si vedeva, adesso si.
+  magic_mirror:      { name:'Spitting Image',      desc:'*Copies* a selected adjacent character ability.' },
   // v0.73.21 — The Caterpillar. Mescola i propri gruppi e si nasconde nel fumo
   // finche' l'avversario non le mette una carta accanto (vedi
   // attivaExaketededly e diradaFumoIntorno).
-  exaketededly:      { name:'Exaketededly',        desc:'Power *changes* and hides in smoke until an enemy card is adjacent.',
-                       altriNomi:['Exactetedly','Exaketedly'] },
+  exaketededly:      { name:'Exaketededly',        desc:'Power *changes* and hides in smoke until an enemy card is adjacent.' },
 };
+// ── v0.73.49 — QUESTI `name` SONO IL LEGAME COL FOGLIO ─────────────────────
+// Il gioco aggancia l'abilita' di un personaggio confrontando la cella
+// "Ability name" del foglio con questi `name`, e con nient'altro: niente
+// colonna "Ability key", niente chiavi tecniche, niente elenchi di nomi
+// vecchi. Le chiavi qui a sinistra (`magic_mirror`, `exaketededly`, ...)
+// restano il nome interno con cui il codice si riferisce all'abilita' e non
+// vanno mai scritte nel foglio.
+// SCAMBIARE DUE ABILITA' FRA PERSONAGGI: si scambiano le due celle
+// "Ability name" nel foglio. Qui non si tocca niente — nessuna abilita' e'
+// legata a un personaggio, e non lo e' mai stata.
+// RINOMINARE UN'ABILITA': si cambia il `name` qui E la cella nel foglio,
+// insieme. Cambiarne uno solo scollega la carta; non si rompe niente, ma
+// quella carta esce con NO_SCRIPT in rosso finche' i due non tornano pari.
 
 // ── v0.73.8 — IL GRASSETTO LO DECIDE SOLO IL FOGLIO ────────────────────────
 // Qui c'era un elenco di parole che venivano messe in grassetto da sole ogni
@@ -15001,34 +15042,106 @@ function ruotaValoriInMano(card){
 // stessa animazione curva dello scambio (vedi animateAliceCirclePairSwap): qui
 // ogni coppia va al posto del vicino in senso orario invece che scambiarsi con
 // il lato opposto.
+// v0.73.51 FIX ("i cerchi dei valori saltano da una parte all'altra della
+// carta"). Il guasto era nel modello, non nei numeri.
+//
+// Questa funzione ragionava PER LATO: sei lati, sei posizioni, ognuna va a
+// quella del lato successivo. Ma i valori non si disegnano per lato — si
+// disegnano per GRUPPO. Una carta con quattro gruppi ha quattro cerchi, e un
+// gruppo che copre due lati e' UN SOLO elemento marcato con tutti e due.
+// Chiedere "l'elemento del lato NE" e "l'elemento del lato E" restituiva
+// quindi lo stesso identico nodo, e il ciclo gli scriveva sopra due
+// destinazioni diverse: vinceva l'ultima, che era la destinazione calcolata
+// per un lato che non era il suo. Da fuori si vedeva un cerchio schizzare
+// dall'altra parte della carta.
+//
+// Il modello giusto e' geometrico e vale per qualunque raggruppamento: far
+// scorrere ogni gruppo di un lato in senso orario equivale, a schermo, a
+// RUOTARE TUTTO IL DISEGNO DI 60 GRADI attorno al centro dell'esagono. Ogni
+// cerchio va quindi dove lo porta quella rotazione — punto e basta. Non conta
+// quanti gruppi ci sono ne' quanto sono larghi: un gruppo che ruota conserva
+// la propria ampiezza, quindi conserva anche la propria distanza dal centro,
+// e i 60 gradi bastano a descriverlo tutto.
+// (I gruppi dispari sono ancorati al punto di mezzo di un lato, i pari a un
+// vertice: due distanze diverse dal centro. Proprio per questo la rotazione
+// funziona e un "vai dove sta il prossimo" non funzionerebbe mai.)
+//
+// La curva non e' piu' inventata: l'arco e' quello VERO del cerchio su cui il
+// valore viaggia. La freccia (sagitta) di un arco di 60 gradi e' r*(1-cos30),
+// e le tappe dell'animazione fanno gia' salire lo scostamento come un seno,
+// che e' esattamente la forma di un arco. I numeri seguono la circonferenza
+// invece di tagliarla.
+const ROTAZIONE_PASSO_RAD = Math.PI/3;              // 60 gradi, un lato
+const ROTAZIONE_SAGITTA = 1 - Math.cos(Math.PI/6);  // freccia dell'arco
 function animaRotazioneValori(cardEl){
   if(!cardEl) return false;
-  const posti={};
-  for(const s of SIDES){
-    const els=elementiValoreDelLato(cardEl, s);
-    if(!els || !els.circleEl) return false;
-    const box=els.circleEl.getBBox();
-    posti[s]={els, x:box.x+box.width/2, y:box.y+box.height/2};
-  }
-  for(let i=0;i<SIDES.length;i++){
-    const da=posti[SIDES[i]], a=posti[SIDES[(i+1)%SIDES.length]];
-    const dx=a.x-da.x, dy=a.y-da.y;
-    const lung=Math.hypot(dx,dy)||1;
-    const perp={x:-dy/lung, y:dx/lung};
-    const ARCO=Math.max(6, Math.min(18, lung*0.3));
-    [da.els.circleEl, da.els.textEl].forEach(el=>{
-      if(!el) return;
+  // Un elemento per GRUPPO: sono i testi a portare data-value-group, e ogni
+  // testo ha accanto il proprio cerchio.
+  const testi=[...cardEl.querySelectorAll('[data-value-group]')];
+  if(!testi.length) return false;
+  let mosso=false;
+  for(const testo of testi){
+    // Un gruppo che copre tutti e sei i lati e' identico a se stesso dopo la
+    // rotazione: sta fermo. Animarlo vorrebbe dire portarlo via e riportarlo
+    // indietro di scatto.
+    const lati=(testo.getAttribute('data-value-group')||'').split('|').filter(Boolean);
+    if(lati.length>=SIDES.length) continue;
+    const centro=(testo.getAttribute('data-hex-c')||'').split(',').map(parseFloat);
+    if(centro.length!==2 || !isFinite(centro[0]) || !isFinite(centro[1])) return false;
+    const cerchio=cerchioDelValore(cardEl, testo);
+    // La posizione si legge dagli ATTRIBUTI, non da getBBox(). Sono gli stessi
+    // numeri con cui il renderer ha disegnato il valore, quindi sono esatti,
+    // non dipendono dall'impaginazione e — soprattutto — non risentono di una
+    // trasformazione lasciata addosso da un'animazione precedente: getBBox
+    // misura la geometria dell'elemento, ma su un elemento gia' spostato il
+    // punto di partenza sarebbe quello sbagliato e l'errore si sommerebbe a
+    // ogni giro.
+    const px=parseFloat(testo.getAttribute('x')), py=parseFloat(testo.getAttribute('y'));
+    if(!isFinite(px) || !isFinite(py)) return false;
+    // Dove finisce: lo stesso punto ruotato di 60 gradi attorno al centro.
+    // In SVG la Y cresce verso il basso, quindi un angolo positivo gira in
+    // senso orario — cioe' proprio il verso dell'abilita'.
+    const rx=px-centro[0], ry=py-centro[1];
+    const co=Math.cos(ROTAZIONE_PASSO_RAD), si=Math.sin(ROTAZIONE_PASSO_RAD);
+    const dx=(rx*co - ry*si) - rx;
+    const dy=(rx*si + ry*co) - ry;
+    // La pancia dell'arco punta in fuori, lungo il raggio che passa per la
+    // meta' della corda: e' quello che rende il tragitto una circonferenza e
+    // non una corda gonfiata a caso.
+    const mx=rx+dx/2, my=ry+dy/2;
+    const lung=Math.hypot(mx,my)||1;
+    const freccia=Math.hypot(rx,ry)*ROTAZIONE_SAGITTA;
+    const bowx=(mx/lung)*freccia, bowy=(my/lung)*freccia;
+    for(const el of [cerchio, testo]){
+      if(!el) continue;
       el.style.setProperty('--asdur', ROTAZIONE_VALORI_MS+'ms');
       el.style.setProperty('--astx', dx.toFixed(2)+'px');
       el.style.setProperty('--asty', dy.toFixed(2)+'px');
-      el.style.setProperty('--asbowx', (perp.x*ARCO).toFixed(2)+'px');
-      el.style.setProperty('--asbowy', (perp.y*ARCO).toFixed(2)+'px');
-      el.classList.remove('valore-in-viaggio');
-      void el.offsetWidth; // forza il reflow: senza, riaggiungere la classe non fa ripartire niente
+      el.style.setProperty('--asbowx', bowx.toFixed(2)+'px');
+      el.style.setProperty('--asbowy', bowy.toFixed(2)+'px');
+      // Niente `void el.offsetWidth` per far ripartire l'animazione: su un
+      // elemento SVG quella proprieta' non esiste e la riga non fa nulla (e'
+      // lo stesso equivoco gia' corretto sul flip delle carte). Qui non serve
+      // comunque, perche' ogni rotazione lavora su elementi appena disegnati:
+      // la classe non c'e' ancora, e aggiungerla avvia l'animazione da sola.
       el.classList.add('valore-in-viaggio');
-    });
+    }
+    mosso=true;
   }
-  return true;
+  return mosso;
+}
+
+// Il cerchio che sta sotto a un numero. Non c'e' un legame dichiarato fra i
+// due — sono due elementi fratelli disegnati nello stesso punto — quindi si
+// riconosce dalla posizione, con la stessa tolleranza usata altrove.
+function cerchioDelValore(cardEl, testo){
+  const tx=parseFloat(testo.getAttribute('x')), ty=parseFloat(testo.getAttribute('y'));
+  if(!isFinite(tx) || !isFinite(ty)) return null;
+  return [...cardEl.querySelectorAll('[data-role="owner-value-circle"]')].find(c=>{
+    const ccx=parseFloat(c.getAttribute('x'))+parseFloat(c.getAttribute('width'))/2;
+    const ccy=parseFloat(c.getAttribute('y'))+parseFloat(c.getAttribute('height'))/2;
+    return Math.abs(ccx-tx)<0.5 && Math.abs(ccy-ty)<0.5;
+  }) || null;
 }
 
 // Chiamata all'inizio del turno di ogni giocatore: fa girare tutte le carte in
@@ -15546,7 +15659,7 @@ function bersagliMagicMirror(q, r){
   // in console — invisibile giocando, a portata di mano quando serve — dice
   // quali vicini sono stati guardati e perche' nessuno andava bene.
   if(!trovati.length){
-    console.info('[Spitted Image] nessuna abilita\' da copiare in ' + key(q,r) + '. Vicini esaminati: '
+    console.info('[Spitting Image] nessuna abilita\' da copiare in ' + key(q,r) + '. Vicini esaminati: '
       + (scartati.length ? scartati.join(' | ') : 'nessuna carta adiacente'));
   }
   return trovati;
@@ -15578,7 +15691,7 @@ function copiaAbilitaDa(specchio, cellaBersaglio, q, r){
   // v0.73.18 — insieme all'abilita' si prende anche il suo TESTO.
   // Chi disegna una carta preferisce sempre il nome e la descrizione scritti
   // nel foglio (vedi testiAbilitaDi: e' li' che il testo viene curato), e
-  // quelli sullo specchio erano i suoi, cioe' "Spitted Image". Cambiando solo
+  // quelli sullo specchio erano i suoi, cioe' "Spitting Image". Cambiando solo
   // la chiave, lo specchio faceva una cosa e ne raccontava un'altra: al
   // passaggio del mouse leggeva ancora la propria descrizione originale.
   // Copiando anche i testi, lo specchio mostra esattamente cio' che mostrava
@@ -17916,7 +18029,7 @@ function aiPlay(){
   if(!move){ endTurn(2); return; }
   doPlace(move.card, 1, move.cell.q, move.cell.r);
   // doPlace() puo' aver aperto una finestra di scelta invece di concludere
-  // (oggi: Spitted Image). L'IA non ha un'interfaccia da cliccare, quindi
+  // (oggi: Spitting Image). L'IA non ha un'interfaccia da cliccare, quindi
   // quella scelta deve risolverla da codice — altrimenti la partita resta li'
   // in attesa di un input che nessuno puo' dare.
   aiResolvePendingAbilityIfAny();
@@ -17948,7 +18061,7 @@ function aiPlay(){
 // meglio una mossa a caso che una partita ferma, e il giorno in cui si vorra'
 // insegnarle davvero quell'abilita' basta aggiungere una voce qui sotto.
 const VALUTAZIONI_IA = {
-  // v0.73.19 — Spitted Image, insegnata. Per ogni vicino copiabile si prova
+  // v0.73.19 — Spitting Image, insegnata. Per ogni vicino copiabile si prova
   // ad indossare la sua abilita' e si guarda cosa succederebbe: quante carte
   // si conquistano da questa cella, quanto danno, e quanto migliora il tavolo
   // (vedi bonusAbilitaPerIA). Vince la migliore; se nessuna porta niente si
@@ -20504,6 +20617,15 @@ function drawHexCard(svg,cx,cy,R,card,fillColor,strokeColor,textColor,nameText,i
     circImg.style.pointerEvents='none';
     // v0.71.56 FIX: same tagging as cornerImg above, one per value group.
     circImg.setAttribute('data-role','owner-value-circle');
+    // v0.73.51 — il centro dell'esagono, scritto addosso al cerchio.
+    // Serve all'animazione della rotazione dei valori: ruotare i gruppi di un
+    // posto significa, a schermo, ruotare ogni cerchio di 60 gradi attorno a
+    // QUESTO punto, e senza saperlo l'animazione non puo' sapere dove mandarli.
+    // Sta qui e non su un elemento a parte perche' un esagono sul tabellone
+    // convive con altri cinquanta dentro lo stesso SVG: ogni cerchio deve
+    // portarsi dietro il proprio centro, o si finirebbe per usare quello del
+    // vicino.
+    circImg.setAttribute('data-hex-c', cx.toFixed(2)+','+cy.toFixed(2));
     svg.appendChild(circImg);
 
     // v0.72.72 — qui il numero del gruppo veniva sostituito da un'icona scudo
@@ -20557,6 +20679,7 @@ function drawHexCard(svg,cx,cy,R,card,fillColor,strokeColor,textColor,nameText,i
       // resolution can find & highlight the exact winning number later.
       for(const gs of g.sides) t.setAttribute('data-value-side-'+gs,'1');
       t.setAttribute('data-value-group', g.sides.join('|'));
+      t.setAttribute('data-hex-c', cx.toFixed(2)+','+cy.toFixed(2)); // vedi il cerchio qui sopra
       svg.appendChild(t);
       // Giocatore d'Azzardo preview: the exact random bonus can't be shown, so
       // mark it with a small "?" next to the value instead of a color.
