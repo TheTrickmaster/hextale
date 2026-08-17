@@ -5387,6 +5387,307 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
   user-select:none;
 }
 .settings-mute-icon img{ width:100%; height:100%; display:block; pointer-events:none; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   v0.73.53 — MENU PRINCIPALE
+   ═══════════════════════════════════════════════════════════════════════════
+   Un libro aperto su cui stanno tutti i comandi. Si arriva qui dal "Login"
+   della schermata iniziale.
+   Composizione, dal fondo in su:
+     1. lo sfondo a tutto schermo
+     2. due raggiere sovrapposte che girano piano in versi opposti
+     3. IL LIBRO, che e' un contenitore: tutto cio' che gli sta dentro e'
+        ruotato con lui di 3 gradi (vedi #mm-book-rot)
+     4. il bagliore del libro, che respira
+     5. fuori dal libro e quindi NON ruotati: le impostazioni e le valute
+
+   ── TUTTE LE MISURE STANNO QUI SOTTO, IN UN POSTO SOLO ──
+   Sono variabili e non numeri sparsi nelle regole apposta: l'allineamento fra
+   un disegno e una griglia di pulsanti non lo si azzecca a mente, lo si
+   aggiusta guardando. Ogni valore e' espresso in percentuale del LIBRO (non
+   dello schermo), cosi' cambiare la misura del libro non scompagina niente:
+   i segnalibri restano attaccati alle pagine e i pulsanti restano al loro
+   posto sulla carta.
+   L'unita' e' quella del canvas 1920x1080 (vedi #game-root), come nel resto
+   del gioco: qui non si usano mai vw/vh. */
+#main-menu{
+  /* Il libro: quanto e' largo e dove sta. Da qui dipende tutto il resto. */
+  --libro-larghezza:1500px;
+  --libro-alto:14%;      /* distanza dal bordo alto del canvas */
+  /* Pagina sinistra */
+  --banner-x:36.5%;  --banner-y:6%;    --banner-scala:0.62;
+  --azioni-x:36.5%;  --azioni-y:50%;   --azioni-larghezza:255px; --azioni-passo:57px;
+  /* Pagina destra */
+  --quick-x:65%;     --quick-y:11%;
+  --griglia-x:53.6%; --griglia-y:15.5%;
+  --patch-x:53.6%;   --patch-y:55%;    --patch-larghezza:500px;
+  /* I segnalibri che escono dal taglio delle pagine, volutamente sfalsati */
+  --segna-store-x:0.5%;    --segna-store-y:44%;
+  --segna-missioni-x:-1%;  --segna-missioni-y:54%;
+  --segna-packs-x:1.5%;    --segna-packs-y:64%;
+  --segnalibro-scala:0.78;
+
+  position:fixed; inset:0; z-index:290;
+  overflow:hidden;
+  background:#1a1108;
+  cursor:var(--cursore);
+  user-select:none;
+}
+#mm-bg{
+  position:absolute; inset:0; width:100%; height:100%;
+  object-fit:cover; display:block;
+  pointer-events:none; user-select:none; -webkit-user-drag:none;
+}
+/* Le due raggiere. Grandi il 20% in piu' della pagina e centrate: girano in
+   versi opposti, cosi' la luce non ha mai un ritmo riconoscibile — due giri
+   nello stesso verso si leggerebbero come un'unica immagine che ruota.
+   `plus-lighter` somma luce invece di coprire: e' quello che le fa sembrare
+   luce vera e non due dischi appoggiati sopra allo sfondo. */
+.mm-radial{
+  position:absolute; left:50%; top:50%;
+  width:120%; height:120%;
+  object-fit:contain;
+  transform-origin:center center;
+  mix-blend-mode:plus-lighter;
+  pointer-events:none; user-select:none; -webkit-user-drag:none;
+  opacity:0.85;
+}
+#mm-radial-a{ animation:mmRuotaOraria 140s linear infinite; }
+#mm-radial-b{ animation:mmRuotaAntioraria 190s linear infinite; }
+/* Le due durate sono diverse e non multiple fra loro: due cicli che non
+   tornano mai in fase non mostrano mai due volte la stessa sovrapposizione. */
+@keyframes mmRuotaOraria{
+  from{ transform:translate(-50%,-50%) rotate(0deg); }
+  to  { transform:translate(-50%,-50%) rotate(360deg); }
+}
+@keyframes mmRuotaAntioraria{
+  from{ transform:translate(-50%,-50%) rotate(0deg); }
+  to  { transform:translate(-50%,-50%) rotate(-360deg); }
+}
+
+/* IL GRUPPO CHE RUOTA. La rotazione sta su un contenitore vuoto e non sul
+   libro stesso: il libro ha gia' il proprio posizionamento, e sommare una
+   rotazione a una traslazione sullo stesso elemento vuol dire ricalcolare
+   entrambe ogni volta che se ne cambia una. Cosi' invece il libro e i suoi
+   comandi vivono in un mondo dritto, e il mondo intero viene inclinato alla
+   fine. Cambiare l'inclinazione e' cambiare un numero solo. */
+#mm-book-rot{
+  position:absolute; inset:0;
+  transform:rotate(-3deg);
+  transform-origin:center center;
+  pointer-events:none;   /* i figli se la riprendono: vedi .mm-clic */
+}
+#mm-book{
+  position:absolute; left:50%; top:var(--libro-alto);
+  width:var(--libro-larghezza); height:auto;
+  transform:translateX(-50%);
+}
+#mm-book-art{
+  display:block; width:100%; height:auto;
+  pointer-events:none; user-select:none; -webkit-user-drag:none;
+  filter:drop-shadow(0 26px 50px rgba(0,0,0,0.55));
+}
+/* Il bagliore del libro: stessa posizione e stessa misura del libro, quindi
+   non puo' disallinearsi. Respira molto lentamente in trasparenza. */
+#mm-book-glow{
+  position:absolute; left:50%; top:50%;
+  width:104%; height:auto;
+  transform:translate(-50%,-50%);
+  mix-blend-mode:plus-lighter;
+  pointer-events:none; user-select:none; -webkit-user-drag:none;
+  animation:mmRespiroGlow 9s ease-in-out infinite;
+}
+@keyframes mmRespiroGlow{
+  0%,100%{ opacity:0.35; }
+  50%    { opacity:0.85; }
+}
+/* Tutto cio' che si clicca dentro al libro. `pointer-events` torna qui
+   perche' il gruppo che ruota li ha spenti (vedi sopra): senza, il rettangolo
+   invisibile del gruppo intercetterebbe i click destinati a cio' che sta
+   sotto, valute comprese. */
+.mm-clic{
+  pointer-events:auto;
+  cursor:var(--cursore);
+  background:none; border:0; padding:0; margin:0;
+  font:inherit; color:inherit;
+}
+.mm-clic:disabled{ cursor:var(--cursore); }
+
+/* ── I SEGNALIBRI ─────────────────────────────────────────────────────────
+   Escono dal taglio delle pagine sul lato sinistro. Le tre X sono diverse
+   apposta: allineati sarebbero tre linguette stampate, sfalsati sono tre
+   segnalibri infilati da una mano. */
+.mm-bookmark{
+  position:absolute;
+  transform-origin:left center;
+  transition:transform .16s ease-out, filter .16s ease-out;
+  filter:drop-shadow(0 6px 14px rgba(0,0,0,0.45));
+}
+.mm-bookmark img{
+  display:block; width:100%; height:auto;
+  pointer-events:none; user-select:none; -webkit-user-drag:none;
+}
+/* All'hover esce di un soffio, come se lo si stesse sfilando. */
+.mm-bookmark:hover{ transform:translateX(-10px); filter:drop-shadow(0 8px 18px rgba(0,0,0,0.55)) brightness(1.06); }
+#mm-store{    left:var(--segna-store-x);    top:var(--segna-store-y);    width:calc(325px * var(--segnalibro-scala)); }
+#mm-missions{ left:var(--segna-missioni-x); top:var(--segna-missioni-y); width:calc(351px * var(--segnalibro-scala)); }
+#mm-packs{    left:var(--segna-packs-x);    top:var(--segna-packs-y);    width:calc(296px * var(--segnalibro-scala)); }
+
+/* ── PAGINA SINISTRA: il giocatore ────────────────────────────────────────
+   Stesso impianto del banner in partita (sfondo, targa col nome, avatar
+   incorniciato) e stesse proporzioni fra i pezzi: qui e' solo rimpicciolito
+   tutto insieme con uno `scale`, invece di ricalcolare tre misure e tre
+   offset. Se un giorno si ritocca il banner in partita, questo lo segue. */
+#mm-player{
+  position:absolute; left:var(--banner-x); top:var(--banner-y);
+  width:326px; height:432px;
+  transform:translateX(-50%) scale(var(--banner-scala));
+  transform-origin:top center;
+  pointer-events:none;
+}
+#mm-player .player-banner{ position:absolute; left:0; top:0; }
+#mm-player .player-name{ position:absolute; left:50%; top:59.3px; width:375px; height:58px; transform:translateX(-50%); }
+#mm-player .player-name span{ color:#FBF0D7; font-family:var(--font-display, serif); font-size:32px; }
+#mm-player .player-avatar{ position:absolute; left:50%; top:127.1px; width:231px; height:267px; transform:translateX(-50%); }
+
+/* ── PAGINA SINISTRA: i tre comandi ──────────────────────────────────────
+   Riusano il pulsante di gioco (.start-art-btn) nella sua variante chiara,
+   perche' e' lo stesso oggetto e deve avere lo stesso suono, lo stesso hover
+   e lo stesso click: un secondo pulsante che somiglia al primo e' un debito
+   che si paga alla prima modifica. */
+#mm-actions{
+  position:absolute; left:var(--azioni-x); top:var(--azioni-y);
+  transform:translateX(-50%);
+  display:flex; flex-direction:column; align-items:center;
+  gap:calc(var(--azioni-passo) - 44px);
+}
+#mm-actions .start-art-btn{ width:var(--azioni-larghezza); pointer-events:auto; }
+/* Edit Decks non porta ancora da nessuna parte: si vede che c'e' ma non
+   finge di funzionare. */
+#mm-actions .start-art-btn.mm-inerte{ opacity:0.55; }
+#mm-actions .start-art-btn.mm-inerte:hover{ filter:none; }
+
+/* ── PAGINA DESTRA ───────────────────────────────────────────────────────*/
+#mm-quick-title{
+  position:absolute; left:var(--quick-x); top:var(--quick-y);
+  transform:translateX(-50%);
+  font-family:var(--font-display, serif);
+  font-size:24px; color:#352D1B; letter-spacing:1px;
+  white-space:nowrap; pointer-events:none;
+}
+#mm-quick-grid{
+  position:absolute; left:var(--griglia-x); top:var(--griglia-y);
+  display:grid; grid-template-columns:repeat(2, 190px); gap:30px;
+}
+/* Il bordo e' un GRADIENTE, e un gradiente non si puo' dare a `border`.
+   Si disegna quindi come sfondo e si ritaglia la sola cornice sottraendo il
+   riquadro interno (mask-composite), che e' la stessa tecnica del bordo
+   luminoso delle carte. Il centro resta davvero trasparente: si vede la
+   pagina del libro sotto, come deve essere. */
+.mm-quick-slot{
+  position:relative;
+  width:190px; height:90px;
+  display:flex; align-items:center; justify-content:center;
+  background:linear-gradient(90deg, #89713B 0%, #E6CA8E 50%, #89713B 100%);
+  padding:4px;
+  -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+          mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor;
+          mask-composite:exclude;
+  transition:filter .16s ease-out;
+}
+/* L'icona sta in un elemento a parte, FUORI dalla maschera: dentro verrebbe
+   ritagliata via insieme al centro del riquadro. */
+.mm-quick-slot-icon{
+  position:absolute; left:50%; top:50%;
+  width:63px; height:64px;
+  transform:translate(-50%,-50%);
+  pointer-events:none; user-select:none; -webkit-user-drag:none;
+  opacity:0.85;
+}
+.mm-quick-wrap{ position:relative; width:190px; height:90px; pointer-events:auto; cursor:var(--cursore); }
+.mm-quick-wrap:hover .mm-quick-slot{ filter:brightness(1.25); }
+.mm-quick-wrap:hover .mm-quick-slot-icon{ opacity:1; }
+
+#mm-patch{
+  position:absolute; left:var(--patch-x); top:var(--patch-y);
+  width:var(--patch-larghezza);
+  transition:filter .16s ease-out, transform .16s ease-out;
+  filter:drop-shadow(0 8px 18px rgba(0,0,0,0.4));
+}
+#mm-patch img{ display:block; width:100%; height:auto; pointer-events:none; user-select:none; -webkit-user-drag:none; }
+#mm-patch:hover{ filter:drop-shadow(0 10px 22px rgba(0,0,0,0.5)) brightness(1.07); transform:translateY(-2px); }
+#mm-patch-label{
+  position:absolute; right:7%; top:14%;
+  font-family:var(--font-display, serif);
+  font-size:24px; color:#FBF0D7;
+  text-shadow:0 2px 8px rgba(0,0,0,0.55);
+  white-space:nowrap; pointer-events:none;
+}
+
+/* ── FUORI DAL LIBRO (non ruotati) ───────────────────────────────────────*/
+#mm-settings-btn{
+  position:absolute; right:36px; top:26px;
+  width:56px; height:56px;
+  background:none; border:0; padding:0;
+  cursor:var(--cursore);
+  transition:transform .16s ease-out, filter .16s ease-out;
+}
+#mm-settings-btn img{ display:block; width:100%; height:100%; pointer-events:none; user-select:none; -webkit-user-drag:none; }
+#mm-settings-btn:hover{ transform:rotate(35deg); filter:brightness(1.15); }
+
+/* Le due valute. Stessa struttura per entrambe — sfondo, icona, numero,
+   pulsante piu' — cosi' l'unica differenza dichiarata e' quella vera: il
+   colore del numero. */
+#mm-currencies{
+  position:absolute; right:40px; bottom:26px;
+  display:flex; align-items:center; gap:26px;
+}
+.mm-cur{
+  position:relative;
+  width:270px; height:62px;
+  display:flex; align-items:center;
+}
+.mm-cur-bg{
+  position:absolute; inset:0; width:100%; height:100%;
+  pointer-events:none; user-select:none; -webkit-user-drag:none;
+}
+.mm-cur-icon{
+  position:absolute; left:-14px; top:50%;
+  transform:translateY(-50%);
+  height:66px; width:auto;
+  pointer-events:none; user-select:none; -webkit-user-drag:none;
+  filter:drop-shadow(0 4px 10px rgba(0,0,0,0.45));
+}
+.mm-cur-value{
+  position:absolute; left:74px; right:56px; top:50%;
+  transform:translateY(-50%);
+  font-family:var(--font-display, serif);
+  font-size:30px; line-height:1; text-align:center;
+  color:#F4E9D7;
+  /* Richiesto: ombra nera al 50%, sfocata 15px. `drop-shadow` e non
+     `text-shadow` perche' l'oro della fairy dust e' un gradiente ritagliato
+     sul testo, e su un testo ritagliato text-shadow non compare. */
+  filter:drop-shadow(0 0 15px rgba(0,0,0,0.5));
+  pointer-events:none;
+}
+/* La fairy dust e' la valuta comprata coi soldi veri: il suo numero e' oro
+   con un colpo di luce al centro. Il gradiente si ritaglia sulle lettere. */
+.mm-cur-premium .mm-cur-value{
+  background:linear-gradient(90deg, #FFEA94 0%, #FFFFFF 50%, #FFEA94 100%);
+  -webkit-background-clip:text; background-clip:text;
+  -webkit-text-fill-color:transparent; color:transparent;
+}
+.mm-cur-plus{
+  position:absolute; right:14px; top:50%;
+  width:31px; height:33px;
+  transform:translateY(-50%);
+  background:none; border:0; padding:0;
+  cursor:var(--cursore);
+  transition:transform .16s ease-out, filter .16s ease-out;
+}
+.mm-cur-plus img{ display:block; width:100%; height:100%; pointer-events:none; user-select:none; -webkit-user-drag:none; }
+.mm-cur-plus:hover{ transform:translateY(-50%) scale(1.12); filter:brightness(1.2); }
 </style>
 </head>
 <body>
