@@ -6464,7 +6464,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.96</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.97</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -15218,6 +15218,10 @@ const TILE_ABILITIES_DEF = {
   // trascinandolo su una casella adiacente: vedi SCELTE_PIAZZAMENTO.open_celery
   // e il blocco del trascinamento in renderBoard.
   open_celery:       { name:'Open, Celery!',         desc:'*Move* a blocked tile to an adjacent free space.' },
+  // v0.73.97 — Baloo. Non guadagna niente lui: regala +1 ALL agli alleati
+  // /Wild/ che gli stanno accanto, finche' gli stanno accanto (vedi
+  // recalcBearNecessities).
+  bear_necessities:  { name:'Bear Necessities',      desc:'Adjacent /Wild/ allies *Gain* +1 ALL.' },
 };
 // ── v0.73.49 — QUESTI `name` SONO IL LEGAME COL FOGLIO ─────────────────────
 // Il gioco aggancia l'abilita' di un personaggio confrontando la cella
@@ -16067,6 +16071,7 @@ function modificaValori(card, lati, delta, pavimento){
     // Robin Hood) verrebbero cancellati al primo ridisegno, cioe' subito.
     if(card.mischiefBaseValues) card.mischiefBaseValues[s] = (card.mischiefBaseValues[s]||0) + applicato;
     if(card.nightmareBaseValues) card.nightmareBaseValues[s] = (card.nightmareBaseValues[s]||0) + applicato;
+    if(card.balooBaseValues) card.balooBaseValues[s] = (card.balooBaseValues[s]||0) + applicato;
   }
   lampeggiaDifferenzaValori(card, prima);
 }
@@ -16499,6 +16504,54 @@ function recalcNightmare(card){
     segnaLampoValori(card.id, gruppiDiCarta(card).map(g=>g.sides.join('|')), 'su');
     calaLaNotteSu(card);
   }
+}
+// ═══════════════════════════════════════════════════════════════════════════
+// v0.73.97 — BALOO, "Bear Necessities": +1 agli amici Wild che gli stanno vicino
+// ═══════════════════════════════════════════════════════════════════════════
+// Quarta sinergia viva, ma la PRIMA che non tocca la carta che possiede
+// l'abilita': Baloo non guadagna niente, guadagnano gli ALTRI. Cambia quindi
+// chi va ricalcolato — non "la carta con l'abilita'", ma ogni carta in campo,
+// che deve chiedersi "ho un Baloo amico accanto?".
+//
+// E' per questo che la funzione riceve anche la CELLA: senza sapere dov'e', una
+// carta non puo' guardarsi intorno. Le tre sorelle (Smol Friends, Mischief,
+// Nightmare) non ne avevano bisogno perche' guardavano il tabellone intero o
+// l'orologio, mai il proprio vicinato.
+//
+// "FINCHE' ADIACENTI" e' gratis, e non per caso: ricalcolando ogni volta da
+// un'istantanea di partenza, il bonus esiste solo finche' la condizione e'
+// vera. Se Baloo viene conquistato cambia proprietario e smette di essere un
+// amico; se lui o l'amico si spostano, l'adiacenza salta; e in tutti i casi il
+// +1 sparisce da solo al primo ridisegno, senza che nessuno debba ricordarsi
+// di toglierlo.
+//
+// In mano non succede niente: l'adiacenza esiste solo sul tabellone.
+const BONUS_BALOO = 1;
+function recalcBearNecessities(card, cella){
+  if(!card || !cella) return;
+  if(!card.balooBaseValues) card.balooBaseValues={...card.values};
+  const base=card.balooBaseValues;
+  // Solo le carte Wild ricevono il dono. Baloo stesso e' Wild, ma non conta
+  // se stesso: il potere parla di chi gli sta ACCANTO.
+  const wild = card.archetypes && card.archetypes.includes('wild');
+  let quantiBaloo = 0;
+  if(wild){
+    const [q,r] = String(cella).split(',').map(Number);
+    for(const dir of DIRS){
+      const vicino = G.board[key(q+dir.dq, r+dir.dr)];
+      if(!vicino || !vicino.card) continue;
+      if(vicino.card === card) continue;                 // mai se stessa
+      if(vicino.owner !== (G.board[cella] && G.board[cella].owner)) continue; // solo alleati
+      if(abilitaAttivaDi(vicino.card) !== 'bear_necessities') continue;
+      quantiBaloo++;
+    }
+  }
+  const nuovi={...base};
+  // Due Baloo accanto fanno +2: il dono e' di ciascuno, come per ogni altra
+  // sinergia che si conta per teste (vedi Smol Friends).
+  if(quantiBaloo) for(const s of SIDES) nuovi[s]=(nuovi[s]||0)+BONUS_BALOO*quantiBaloo;
+  card.values=nuovi;
+  card.tileAbilityBaseValues={...base};
 }
 // Il cambio d'abito vero e proprio. L'illustrazione notturna PRENDE IL POSTO
 // della coppia dark/light: da qui in avanti la carta si comporta come se
@@ -18510,6 +18563,7 @@ function clonaPerSimulazione(card){
   if(card.hoorayBaseValues) c.hoorayBaseValues = Object.assign({}, card.hoorayBaseValues);
   if(card.mischiefBaseValues) c.mischiefBaseValues = Object.assign({}, card.mischiefBaseValues);
   if(card.nightmareBaseValues) c.nightmareBaseValues = Object.assign({}, card.nightmareBaseValues);
+  if(card.balooBaseValues) c.balooBaseValues = Object.assign({}, card.balooBaseValues);
   if(card.tileAbilityBaseValues) c.tileAbilityBaseValues = Object.assign({}, card.tileAbilityBaseValues);
   return c;
 }
@@ -18565,6 +18619,10 @@ function simulaPiazzamento(card, q, r){
     // Il gruppo premiato coincide con quello che si accendera' davvero perche'
     // il sorteggio e' stabile (vedi recalcMischief), non casuale.
     for(const k in clone){ recalcHoorayShesStays(clone[k].card); recalcMischief(clone[k].card); recalcNightmare(clone[k].card); }
+    // v0.73.97 — Baloo per ultimo e in un giro suo: il suo dono dipende dai
+    // VICINI, quindi va calcolato quando tutte le altre sinergie hanno gia'
+    // sistemato i propri numeri, o si baserebbe su valori a meta' strada.
+    for(const k in clone) recalcBearNecessities(clone[k].card, k);
     mano1.forEach(c=>{ recalcHoorayShesStays(c); recalcMischief(c); recalcNightmare(c); });
     mano2.forEach(c=>{ recalcHoorayShesStays(c); recalcMischief(c); recalcNightmare(c); });
 
@@ -27813,6 +27871,9 @@ function renderBoard(){
       recalcHoorayShesStays(placed.card);
       recalcMischief(placed.card); // v0.73.74 — vedi la gemella in renderHand
       recalcNightmare(placed.card); // v0.73.78 — idem
+      // v0.73.97 — e Baloo, che pero' ha bisogno di sapere DOVE si trova
+      // questa carta: il suo dono dipende da chi le sta accanto.
+      recalcBearNecessities(placed.card, k);
       // v0.73.11 FIX ("quando si droppa una carta su un tile, sembra che
       // sparisca il disegno del tile sotto"): non sembrava, spariva davvero.
       // Una cella occupata disegnava SOLO la carta: il tassello non veniva
