@@ -6594,7 +6594,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.74.2</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.74.3</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -15424,9 +15424,10 @@ const TILE_ABILITIES_DEF = {
   // v0.74.0 — Cenerentola. Se la Fata Madrina e' in campo, giocandola diventa
   // The Crystal Princess (vedi attivaBellOfTheBall).
   bell_of_the_ball:  { name:'Bell of the Ball',      desc:'If The Fairy Godmother is on the board, *Transforms* into The Crystal Princess.' },
-  // v0.74.0 — The Crystal Princess. Il gruppo piu' basso porta uno scudo al
+  // v0.74.0 — The Crystal Princess. Il gruppo protetto porta uno scudo al
   // posto del numero e non si puo' conquistare (vedi latiProtettiDi).
-  crowned:           { name:'Crowned',               desc:'Lowest Power value cannot be *Conquered*.' },
+  // v0.74.3 — la corona e' passata dal valore piu' basso al piu' alto.
+  crowned:           { name:'Crowned',               desc:'Highest Power value cannot be *Conquered*.' },
 };
 // ── v0.73.49 — QUESTI `name` SONO IL LEGAME COL FOGLIO ─────────────────────
 // Il gioco aggancia l'abilita' di un personaggio confrontando la cella
@@ -17768,10 +17769,14 @@ function attivaBellOfTheBall(card){
   try { playCardBattlecry(card); } catch(_){}
   return true;
 }
-// ── v0.74.0 — THE CRYSTAL PRINCESS, "Crowned": il lato piu' basso e' sacro ──
-// Il gruppo col valore piu' basso non si puo' conquistare, in nessun caso: al
-// posto del numero si vede uno scudo. Se piu' gruppi pareggiano al minimo,
-// sono protetti tutti — "il valore piu' basso" e' un valore, non un lato, e
+// ── v0.74.0 — THE CRYSTAL PRINCESS, "Crowned": il lato piu' alto e' sacro ──
+// v0.74.3 — la corona e' passata dal valore piu' BASSO al piu' ALTO. Prima
+// proteggeva il fianco debole, cioe' proprio quello da cui la si sarebbe
+// attaccata: adesso protegge la sua forza, e per prenderla bisogna passare da
+// dove e' scoperta.
+// Il gruppo col valore piu' alto non si puo' conquistare, in nessun caso: al
+// posto del numero si vede uno scudo. Se piu' gruppi pareggiano al massimo,
+// sono protetti tutti — "il valore piu' alto" e' un valore, non un lato, e
 // tutti quelli che lo portano stanno sotto la stessa corona.
 // Si ricalcola dal vivo a ogni lettura invece di essere deciso una volta: i
 // valori cambiano di continuo in questo gioco (doni, furti, sinergie), e uno
@@ -17780,10 +17785,10 @@ function latiProtettiDi(card){
   if(!card || abilitaAttivaDi(card) !== 'crowned') return [];
   const gruppi = gruppiDiCarta(card);
   if(!gruppi.length) return [];
-  let minimo = Infinity;
-  for(const g of gruppi) minimo = Math.min(minimo, g.val||0);
+  let massimo = -Infinity;
+  for(const g of gruppi) massimo = Math.max(massimo, g.val||0);
   const lati = [];
-  for(const g of gruppi) if((g.val||0) === minimo) lati.push(...g.sides);
+  for(const g of gruppi) if((g.val||0) === massimo) lati.push(...g.sides);
   return lati;
 }
 function latoInconquistabile(card, lato){
@@ -19334,7 +19339,7 @@ function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLa
     // punta contro. Il controllo sta PRIMA del confronto e non dentro: cosi'
     // non esiste un valore, per quanto alto, che la porti via.
     if(cartaIntoccabile(nb.card)) continue;
-    // v0.74.0 — "Crowned": il lato piu' basso di The Crystal Princess non cade
+    // v0.74.0 — "Crowned": il lato incoronato (v0.74.3: il piu' ALTO) non cade
     // MAI, qualunque numero gli si punti contro. Il controllo sta PRIMA del
     // confronto e non dentro, esattamente come per Excalibur: cosi' non esiste
     // un valore, per quanto alto, che lo porti via.
@@ -23902,8 +23907,8 @@ function drawHexCard(svg,cx,cy,R,card,fillColor,strokeColor,textColor,nameText,i
     // v0.72.72 — qui il numero del gruppo veniva sostituito da un'icona scudo
     // sui lati resi inconquistabili da Fortifica. Rimossa quell'abilita',
     // nessuna carta ha piu' lati fortificati e il numero si disegna sempre.
-    // v0.74.0 — E TORNA, per "Crowned" di The Crystal Princess. Il gruppo piu'
-    // basso non mostra un numero ma uno scudo: nasconderlo non e' un vezzo
+    // v0.74.0 — E TORNA, per "Crowned" di The Crystal Princess. Il gruppo
+    // protetto (v0.74.3: il piu' ALTO) non mostra un numero ma uno scudo: nasconderlo non e' un vezzo
     // grafico, e' l'informazione giusta — quel lato non ha piu' un valore con
     // cui confrontarsi, perche' nessun confronto lo riguarda piu'.
     // Il parametro `displayFortifiedSides` esisteva gia' e serviva alle
