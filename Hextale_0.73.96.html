@@ -6464,7 +6464,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.95</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.96</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -20798,26 +20798,92 @@ VALUTAZIONI_IA.dancing_around = (scelta) => {
   }
   return migliore;
 };
-// ── v0.73.89 — quale tassello sposta l'IA ─────────────────────────────────
-// Un muro vale per lo spazio che toglie. Spostarne uno dal bordo verso il
-// centro toglie all'avversario una casella buona; spostarne uno dal centro
-// verso il bordo gliela regala. L'IA sceglie quindi il tassello che, potendo,
-// guadagna di piu' in centralita' — dove poi lo posa lo decide gia'
-// miglioreCasellaPerTassello, che prende la casella piu' in mezzo fra quelle
-// disponibili.
-// E' una stima dichiaratamente semplice: non guarda le carte in campo ne'
-// prova a chiudere una strada precisa all'avversario.
-VALUTAZIONI_IA.open_celery = (scelta) => {
-  let migliore = null, guadagnoMigliore = -Infinity;
-  for(const tassello of scelta.bersagli){
-    const [q,r] = tassello.split(',').map(Number);
-    const partenza = aiVicinatoUtile(q,r);
-    const dove = miglioreCasellaPerTassello(tassello);
-    if(!dove) continue;
-    const [dq,dr] = dove.split(',').map(Number);
-    const guadagno = aiVicinatoUtile(dq,dr) - partenza;
-    if(guadagno > guadagnoMigliore){ guadagnoMigliore = guadagno; migliore = tassello; }
+// ═══════════════════════════════════════════════════════════════════════════
+// v0.73.96 — COME L'IA USA "Open, Celery!" (Ali Baba)
+// ═══════════════════════════════════════════════════════════════════════════
+// Un muro spostato fa due cose insieme, e sono la stessa cosa vista dai due
+// lati: COPRE la casella dove arriva e SCOPRE quella da cui parte. Da qui i
+// due modi di usarlo bene:
+//
+//   1. COPRIRE il fianco debole e scoperto di una carta AMICA. Un lato basso
+//      esposto e' un invito: mettergli davanti un muro lo toglie dal tavolo
+//      per sempre, e vale quanto il colpo che si e' evitato.
+//   2. SCOPRIRE il fianco debole di una carta NEMICA. Un muro che protegge
+//      l'avversario sta lavorando per lui: togliendolo, quel lato torna
+//      attaccabile — e vale quanto la conquista che rende possibile.
+//
+// Le due si valutano nella stessa moneta (punti di potere di scarto) e si
+// sommano, perche' una mossa sola puo' farle entrambe: staccare il muro dal
+// fianco molle di un nemico e appoggiarlo su quello del proprio guardiano.
+// Si sottraggono anche i due rovesci speculari — scoprire un PROPRIO fianco,
+// coprire un fianco nemico che si sarebbe potuto attaccare — perche' ogni
+// spostamento fa sempre e comunque tutte e quattro le cose, e sceglierne una
+// guardando solo il lato buono e' il modo classico di regalare la partita.
+//
+// Cosa NON fa: non guarda cosa l'avversario ha in mano (l'IA non lo sa piu',
+// vedi aiEstimateCounterRisk) e non simula il turno dopo. La minaccia e' la
+// stima onesta, la propria capacita' d'attacco e' il colpo migliore che ha
+// davvero in mano.
+const PESO_FIANCO_SCOPERTO = 0.8; // quanto pesa un proprio fianco lasciato nudo
+// Il colpo migliore che l'IA ha in mano adesso: serve a sapere se un fianco
+// nemico appena scoperto e' davvero attaccabile o solo teoricamente tale.
+function miglioreAttaccoInMano(){
+  let massimo = 0;
+  for(const c of (G.p2Hand||[])){
+    for(const s of SIDES) massimo = Math.max(massimo, c.values[s]||0);
   }
+  return massimo;
+}
+// Quanto vale spostare QUESTO tassello DA una casella A un'altra.
+function valoreSpostamentoTassello(daCella, aCella){
+  const minaccia = minacciaStimataDallIA();
+  const attacco = miglioreAttaccoInMano();
+  let punti = 0;
+  const guarda = (cella, coprendo) => {
+    const [q,r] = String(cella).split(',').map(Number);
+    for(const dir of DIRS){
+      const nk = key(q+dir.dq, r+dir.dr);
+      const nb = G.board[nk];
+      if(!nb || !nb.card) continue;
+      // Il lato del vicino che guarda VERSO questa casella: e' quello che il
+      // muro copre arrivando, o che lascia nudo andandosene.
+      const valori = valoriVistiDallIA(nb, null);
+      const lato = valori[dir.theirSide] || 0;
+      if(nb.owner === 2){
+        // Carta mia: coprirla mi protegge, scoprirla mi espone.
+        const vale = Math.max(0, minaccia - lato) * PESO_FIANCO_SCOPERTO;
+        punti += coprendo ? vale : -vale;
+      } else {
+        // Carta avversaria: scoprirla me la offre, coprirla me la toglie.
+        const vale = Math.max(0, attacco - lato);
+        punti += coprendo ? -vale : vale;
+      }
+    }
+  };
+  guarda(daCella, false); // la casella che si libera
+  guarda(aCella, true);   // la casella che si occupa
+  // A parita' di tutto, un muro piu' al centro toglie piu' spazio: resta come
+  // ultimo criterio, com'era prima, ma non decide piu' da solo.
+  const [aq,ar] = String(aCella).split(',').map(Number);
+  const [dq,dr] = String(daCella).split(',').map(Number);
+  punti += (aiVicinatoUtile(aq,ar) - aiVicinatoUtile(dq,dr)) * 0.1;
+  return punti;
+}
+VALUTAZIONI_IA.open_celery = (scelta) => {
+  let migliore = null, doveMigliore = null, punteggioMigliore = 0;
+  for(const tassello of scelta.bersagli){
+    for(const dove of celleLibereAttornoATassello(tassello)){
+      const p = valoreSpostamentoTassello(tassello, dove);
+      if(p > punteggioMigliore){ punteggioMigliore = p; migliore = tassello; doveMigliore = dove; }
+    }
+  }
+  // La destinazione si scrive sullo stato della scelta, che e' lo stesso
+  // oggetto che `applica` legge (vedi SCELTE_PIAZZAMENTO.open_celery): cosi'
+  // l'IA sceglie DOVE e non solo QUALE, senza un secondo canale.
+  if(migliore) scelta.destinazioneScelta = doveMigliore;
+  // Nessuno spostamento migliora la posizione: si lascia stare. Muovere un
+  // muro a caso e' peggio che non muoverlo — puo' scoprire un proprio fianco
+  // o riparare quello di un avversario.
   return migliore;
 };
 function aiResolvePendingAbilityIfAny(){
