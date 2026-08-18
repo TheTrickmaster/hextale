@@ -2251,6 +2251,30 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
   animation:glowAzioneRespira 2.4s ease-in-out infinite;
 }
 
+/* ── v0.73.93 — IL TILT DEL TASSELLO TRASCINATO ───────────────────────────
+   Stessa identica formula del tilt della carta trascinata sul tabellone
+   (vedi .card-db-foil-tilt e #drag-ghost.ghost-su-tabellone): le stesse due
+   variabili --foil-rx/--foil-ry, la stessa ampiezza di 20 gradi, gli stessi
+   assi. Non e' un'imitazione a occhio: e' la stessa riga, cosi' i due gesti
+   non possono divergere il giorno in cui uno dei due viene ritoccato.
+   L'unica differenza e' la `perspective()` scritta dentro alla lista invece
+   che sul genitore: qui il genitore e' un <g> SVG, e la prospettiva
+   dichiarata li' non e' affidabile su tutti i motori. Messa nella stessa
+   trasformazione, il risultato e' identico e non dipende da nessun altro
+   elemento.
+   Vive su un livello SUO, annidato dentro a quello che porta lo spostamento:
+   sono entrambe trasformazioni, e sullo stesso elemento si sovrascriverebbero
+   — e' la stessa ragione per cui la carta ha il tilt su un piano separato dal
+   giro. */
+.tassello-inclinato{
+  --tilt-ampiezza:20deg;
+  transform-box:fill-box;
+  transform-origin:center center;
+  transform:perspective(760px)
+            rotateX(calc(var(--foil-ry,0) * var(--tilt-ampiezza, 10deg) * -1))
+            rotateY(calc(var(--foil-rx,0) * var(--tilt-ampiezza, 10deg)));
+}
+
 /* ── Card "landing" animation: newly placed card pops in ── */
 /* v0.72.19 REWORK ("deve sembrare che si abbassi e cali sul tile, invece
    adesso fa solo una specie di bounce delle dimensioni. voglio vedere che la
@@ -6428,7 +6452,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.92</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.93</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -17672,11 +17696,10 @@ const TRASCINA_SOGLIA_PX = 3; // sotto questa soglia e' un tocco, non un trascin
 // Quanto "si alza" il tassello mentre lo si tiene. E' lo stesso mestiere che
 // fa l'ombra: dire che quella cosa non e' piu' appoggiata al tavolo.
 const TRASCINA_INGRANDIMENTO = 1.12;
-// Quanto pende, e quanto in fretta. Il massimo e' basso di proposito: oltre i
-// dieci gradi un esagono smette di sembrare inclinato e comincia a sembrare
-// storto.
-const TRASCINA_INCLINAZIONE_MAX = 10;      // gradi
-const TRASCINA_INCLINAZIONE_PER_PX = 0.06; // gradi per pixel di scostamento
+// v0.73.93 — qui vivevano due costanti per una rotazione PIANA, proporzionale
+// allo scostamento orizzontale. Non era l'inclinazione della carta: quella e'
+// una rotazione in 3D guidata dalla velocita'. Sostituita da quella vera (vedi
+// .tassello-inclinato e passoMolla), queste non servono piu' a nessuno.
 function preparaTrascinamentoTassello(svg, cella, bx, by, R, buildSvgIconBtn){
   const bsvg = document.getElementById('board-svg');
   const wrap = bsvg && bsvg.querySelector('[data-tile-wrap="'+cella+'h"]');
@@ -17715,63 +17738,90 @@ function preparaTrascinamentoTassello(svg, cella, bx, by, R, buildSvgIconBtn){
     if(!preso.mosso && Math.hypot(dx,dy) < TRASCINA_SOGLIA_PX) return;
     if(!preso.mosso){
       preso.mosso = true;
-      // v0.73.90 — da qui in poi il tassello e' IN MANO: prende l'ombra lunga
-      // delle carte trascinate (vedi .tassello-sollevato) e sale in cima alla
-      // pila. In SVG non esiste z-index, comanda l'ordine nel documento:
-      // spostare il gruppo-cella in fondo e' l'unico modo perche' il tassello
-      // passi SOPRA le celle che sorvola invece che sotto — stessa tecnica del
-      // salto e dell'atterraggio delle carte.
-      if(wrap){
-        wrap.classList.add('tassello-sollevato');
-        const radice = wrap.ownerSVGElement || document.getElementById('board-svg');
-        let gruppoCella = wrap;
-        while(gruppoCella.parentNode && gruppoCella.parentNode !== radice) gruppoCella = gruppoCella.parentNode;
-        if(gruppoCella.parentNode === radice) radice.appendChild(gruppoCella);
-        // v0.73.92 FIX ("non si puo' piu' ridraggare quel tile") — LA MANO
-        // DEVE RESTARE SOPRA AL TASSELLO.
-        // Portando il tassello in cima alla pila lo si metteva anche sopra
-        // alla propria manina, e il tassello ha un poligono invisibile che
-        // intercetta i click: da quel momento premere sulla mano voleva dire
-        // premere sul tassello, e il gesto non ripartiva piu'. La mano si
-        // rimette in cima subito dopo — in SVG "sopra" vuol dire "piu' avanti
-        // nel documento", quindi basta ri-appenderla per ultima.
-        if(gruppoIcona.parentNode === radice) radice.appendChild(gruppoIcona);
-      }
+      apriPresaTassello();
       // v0.73.91 — il bagliore SEGUE il gesto: da "questi puoi prenderli" a
       // "qui puoi posarlo". E' la parte dinamica della regola, e il momento in
       // cui serve davvero — con il tassello in mano, la domanda del giocatore
       // non e' piu' quale prendere ma dove metterlo.
       aggiornaGlowAzione(celleLibereAttornoATassello(cella));
     }
-    // v0.73.92 — L'INCLINAZIONE, come quella della carta trascinata.
-    // La carta si inclina seguendo il movimento (vedi --foil-rx/--foil-ry e
-    // .card-db-foil-tilt): un oggetto tenuto in mano non resta mai dritto.
-    // Qui l'inclinazione non puo' essere una `transform` CSS in 3D — su questo
-    // elemento la `transform` e' un ATTRIBUTO SVG, e una regola CSS la
-    // sostituirebbe invece di sommarcisi, facendo sparire lo spostamento. Si
-    // usa quindi una rotazione piana, proporzionale a quanto il tassello si e'
-    // allontanato in orizzontale dal punto in cui e' stato afferrato: pende
-    // dalla parte verso cui lo si sta portando, come un peso appeso a un dito.
-    const inclinazione = Math.max(-TRASCINA_INCLINAZIONE_MAX,
-                          Math.min(TRASCINA_INCLINAZIONE_MAX, dx * TRASCINA_INCLINAZIONE_PER_PX));
-    // L'ingrandimento e la rotazione sono attorno al CENTRO del tassello, non
-    // all'origine del disegno: senza quel centro dichiarato, scalare e ruotare
-    // lo farebbero schizzare verso l'angolo in alto a sinistra. La forma
-    // "sposta, trasforma, rimetti" e' la trasformazione attorno a un punto
-    // scritta per esteso — e `rotate` in SVG il centro lo accetta come
-    // parametro, quindi li' basta dirglielo.
-    const s = TRASCINA_INGRANDIMENTO;
-    const spostamento = 'translate('+dx.toFixed(2)+','+dy.toFixed(2)+') '
-      + 'rotate('+inclinazione.toFixed(2)+','+bx.toFixed(2)+','+by.toFixed(2)+') '
-      + 'translate('+(bx*(1-s)).toFixed(2)+','+(by*(1-s)).toFixed(2)+') scale('+s+')';
-    if(wrap) wrap.setAttribute('transform', spostamento);
-    // La mano riceve la STESSA trasformazione, quindi resta incollata al
-    // centro del tassello per tutto il viaggio, inclinazione compresa.
-    gruppoIcona.setAttribute('transform', spostamento);
+    // La molla insegue questo punto; il disegno lo fa il passo della molla,
+    // non questo gestore (vedi passoMolla).
+    preso.bersaglioX = dx; preso.bersaglioY = dy;
     // Si accende la casella sotto al dito, se e' una di quelle buone: il
     // giocatore deve sapere dove sta per posare PRIMA di lasciare.
     evidenziaApprodoTassello(cella, cellaSottoAlPunto(p));
   };
+  // ── v0.73.93 — LA PRESA: due livelli annidati, come per la carta ─────────
+  // Fuori il livello che SPOSTA (una `transform` SVG), dentro quello che
+  // INCLINA (una `transform` CSS in 3D). Devono essere due elementi diversi:
+  // sono entrambe trasformazioni, e sullo stesso elemento la CSS sostituisce
+  // l'attributo invece di sommarcisi — e' la stessa ragione per cui la carta
+  // tiene tilt e giro su piani separati.
+  // Dentro al livello che inclina finiscono INSIEME il tassello e la sua
+  // mano: cosi' non ci sono due trasformazioni da tenere sincronizzate, e la
+  // mano non puo' piu' "fluttuare a caso" — e' letteralmente attaccata al
+  // tassello, come un adesivo.
+  let gSposta = null, gInclina = null, postoTassello = null, postoIcona = null, rafId = null;
+  function apriPresaTassello(){
+    const radice = (wrap && wrap.ownerSVGElement) || bsvg;
+    if(!radice || !wrap) return;
+    postoTassello = {padre: wrap.parentNode, dopo: wrap.nextSibling};
+    postoIcona = {padre: gruppoIcona.parentNode, dopo: gruppoIcona.nextSibling};
+    gSposta = svgEl('g');
+    gInclina = svgEl('g');
+    gInclina.setAttribute('class','tassello-inclinato');
+    gSposta.appendChild(gInclina);
+    radice.appendChild(gSposta); // ultimo = sopra a tutto (in SVG comanda l'ordine)
+    wrap.classList.add('tassello-sollevato');
+    gInclina.appendChild(wrap);
+    gInclina.appendChild(gruppoIcona); // la mano dopo il tassello = sopra di lui
+    rafId = requestAnimationFrame(passoMolla);
+  }
+  function chiudiPresaTassello(){
+    if(rafId){ cancelAnimationFrame(rafId); rafId = null; }
+    if(wrap){ wrap.classList.remove('tassello-sollevato'); }
+    // Si rimette tutto dov'era, esattamente: il ridisegno della plancia non e'
+    // garantito (una scelta annullata non cambia lo stato, e la firma lo
+    // salterebbe), quindi il DOM va lasciato in ordine da soli.
+    // Il "dopo" ricordato puo' non essere piu' li' — fra la presa e il
+    // rilascio la plancia puo' essere stata ridisegnata da altro. Se non c'e'
+    // piu', si rimette in fondo invece di lanciare: rimettere a posto un
+    // pezzo non deve MAI poter interrompere la chiusura del gesto, o resta
+    // tutto appeso a meta'.
+    const rimetti = (el, posto)=>{
+      if(!el || !posto || !posto.padre) return;
+      const dopo = (posto.dopo && posto.dopo.parentNode === posto.padre) ? posto.dopo : null;
+      try { posto.padre.insertBefore(el, dopo); } catch(_){ try { posto.padre.appendChild(el); } catch(__){} }
+    };
+    rimetti(wrap, postoTassello);
+    rimetti(gruppoIcona, postoIcona);
+    if(gSposta && gSposta.parentNode) gSposta.parentNode.removeChild(gSposta);
+    gSposta = gInclina = null; postoTassello = postoIcona = null;
+  }
+  // Stessa molla della carta trascinata (GHOST_STIFFNESS/GHOST_DAMPING) e
+  // stessa formula del tilt: l'inclinazione esce dalla VELOCITA' della molla,
+  // non dalla posizione del dito. E' gia' il dato giusto — direzione e
+  // intensita' del movimento — ed e' gia' smorzato, quindi quando il tassello
+  // si ferma torna in piano da solo. Vedi ghostSpringStep: qui c'e' la stessa
+  // identica idea, applicata a un pezzo di tabellone invece che a una carta.
+  let mollaX = 0, mollaY = 0, mollaVX = 0, mollaVY = 0;
+  function passoMolla(){
+    if(!preso || !gSposta){ rafId = null; return; }
+    const bx0 = preso.bersaglioX || 0, by0 = preso.bersaglioY || 0;
+    mollaVX = (mollaVX + (bx0-mollaX)*GHOST_STIFFNESS) * GHOST_DAMPING;
+    mollaVY = (mollaVY + (by0-mollaY)*GHOST_STIFFNESS) * GHOST_DAMPING;
+    mollaX += mollaVX; mollaY += mollaVY;
+    const s = TRASCINA_INGRANDIMENTO;
+    gSposta.setAttribute('transform',
+      'translate('+mollaX.toFixed(2)+','+mollaY.toFixed(2)+') '
+      + 'translate('+(bx*(1-s)).toFixed(2)+','+(by*(1-s)).toFixed(2)+') scale('+s+')');
+    const rx = Math.max(-1, Math.min(1, mollaVX/DRAG_TILT_REF_SPEED));
+    const ry = Math.max(-1, Math.min(1, mollaVY/DRAG_TILT_REF_SPEED));
+    gInclina.style.setProperty('--foil-rx', rx.toFixed(3));
+    gInclina.style.setProperty('--foil-ry', ry.toFixed(3));
+    rafId = requestAnimationFrame(passoMolla);
+  }
   const lascia = (e)=>{
     document.removeEventListener('pointermove', muovi, true);
     document.removeEventListener('pointerup', lascia, true);
@@ -17781,6 +17831,8 @@ function preparaTrascinamentoTassello(svg, cella, bx, by, R, buildSvgIconBtn){
     if(!preso) return;
     const eraMosso = preso.mosso;
     preso = null;
+    mollaX = mollaY = mollaVX = mollaVY = 0;
+    chiudiPresaTassello();
     evidenziaApprodoTassello(cella, null);
     const p = puntoNelDisegno(e);
     const destinazione = eraMosso ? cellaSottoAlPunto(p) : null;
@@ -17794,11 +17846,10 @@ function preparaTrascinamentoTassello(svg, cella, bx, by, R, buildSvgIconBtn){
       scegliBersaglio(cella);
       return;
     }
-    // Rilasciato fuori bersaglio: il tassello torna al suo posto e la finestra
-    // resta aperta, cosi' si puo' riprovare senza aver sprecato l'abilita'.
-    // Si posa anche davvero: via l'ombra, che e' cio' che lo teneva "in mano".
-    if(wrap){ wrap.removeAttribute('transform'); wrap.classList.remove('tassello-sollevato'); }
-    gruppoIcona.removeAttribute('transform');
+    // Rilasciato fuori bersaglio: il tassello e' gia' tornato al suo posto
+    // (chiudiPresaTassello qui sopra ha smontato la presa e rimesso ogni pezzo
+    // dov'era), e la finestra resta aperta: si puo' riprovare senza aver
+    // sprecato l'abilita'.
     // v0.73.91 FIX ("se si torna sullo spazio originale e si rilascia, la
     // manina sparisce e non si puo' piu' ridraggare"): il bagliore era passato
     // sulle caselle d'arrivo e li' restava, mentre i tasselli prendibili
@@ -26995,10 +27046,11 @@ function glowEsagonale(svg, x, y, R, cella){
   // v0.73.92 — tre pixel piu' spesso e due di sfocatura in piu' (era 9 e 6):
   // il bagliore doveva vedersi meglio da lontano, e su un esagono grande un
   // filo sottile si perde contro l'arte del tassello.
-  alone.setAttribute('stroke-width', '12');
+  // v0.73.93 — e altri tre e due (da 12/8 a 15/10), per lo stesso motivo.
+  alone.setAttribute('stroke-width', '15');
   alone.setAttribute('stroke-linejoin', 'round');
   alone.setAttribute('opacity', '0.28');
-  alone.style.filter = 'blur(8px)';
+  alone.style.filter = 'blur(10px)';
   alone.style.mixBlendMode = 'plus-lighter';
   gruppo.appendChild(alone);
   const filo = svgEl('polygon');
