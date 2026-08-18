@@ -3515,7 +3515,12 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
 #btn-back-to-results.show{display:block;}
 
 /* ── card detail modal ── */
-#card-modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);align-items:center;justify-content:center;z-index:300;}
+/* v0.74.5 — sopra a TUTTO. Era a 300: bastava in partita, dove il tabellone
+   sta in basso, ma la Collezione e le bustine sono #card-db-overlay /
+   #pack-overlay a z-index 4000, quindi la finestra si apriva sotto la pagina e
+   non si vedeva ne' si poteva cliccare. 5200 la mette sopra le pagine
+   restando sotto ai messaggi di servizio (9000). */
+#card-modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);align-items:center;justify-content:center;z-index:5200;}
 #card-modal-overlay.show{display:flex;}
 /* v0.71.8 FIX: #card-modal-info (the old HTML text panel) is no longer
    populated — openCardModal() now shows one big full-card SVG (see that
@@ -3618,7 +3623,9 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
 }
 #card-modal-info .cm-ab-desc{
   font-family:'Rosarivo',serif; font-size:18px; line-height:1.35; color:#B5C5C7;
-  text-align:right; max-width:330px;
+  /* v0.74.5 — la colonna e' cresciuta di 150px: la descrizione la usa tutta
+     invece di restare ferma ai 330px di prima. */
+  text-align:right; max-width:100%;
 }
 /* "Unlocked at level 3": il numero grande, perche' e' l'informazione che si
    sta cercando quando si sfoglia i livelli. */
@@ -3636,6 +3643,12 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
 #card-modal-info .cm-lv-et{ color:#B5C5C7; }
 #card-modal-info .cm-lv-val{ color:#FFFFFF; }
 #card-modal-info .cm-livello b{ font-size:27px; font-weight:400; }
+/* v0.74.5 — le frecce stanno ai due BORDI della colonna, non appiccicate al
+   numero. `margin` automatico invece di space-between sul contenitore: cosi'
+   in partita, dove le frecce non ci sono, il testo resta centrato da solo
+   senza una seconda regola. */
+#card-modal-info .cm-freccia[data-cm-passo="-1"]{ margin-right:auto; }
+#card-modal-info .cm-freccia[data-cm-passo="1"]{ margin-left:auto; }
 #card-modal-info .cm-freccia{
   width:38px; height:38px; padding:0; border:none; background:transparent;
   cursor:var(--cursore); position:relative;
@@ -6594,7 +6607,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.74.4</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.74.5</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -29164,7 +29177,9 @@ function disegnaCardModal(card, playerIdx){
     // La colonna destra e' legata alla larghezza della carta (la stessa
     // 210*EXPANDED_SCALE calcolata piu' sotto): cosi' le due colonne restano
     // in proporzione a qualunque scala si disegni la carta.
-    infoHost.style.width = Math.round(210*EXPANDED_SCALE*1.15)+'px';
+    // v0.74.5 — piu' 150px: una carta con tre gemme mandava la riga a capo, e
+    // le tre gemme devono stare tutte sulla stessa linea.
+    infoHost.style.width = (Math.round(210*EXPANDED_SCALE*1.15) + 150)+'px';
     infoHost.innerHTML = costruisciSchedaCarta(card, _cmLivello, _cmConSelettore);
     infoHost.querySelectorAll('[data-cm-passo]').forEach(b=>{
       b.addEventListener('click', ()=>{
@@ -29240,9 +29255,8 @@ function disegnaCardModal(card, playerIdx){
 // Collezione, aprendo una bustina — la stessa finestra diventa una vetrina, e
 // le frecce servono a chiedersi "come sara' quando salira'".
 const CM_LIVELLO_MAX = 4;
-// I due tappi dei pulsanti gia' in uso ovunque nel gioco: le frecce del
-// selettore sono quelli, non un disegno nuovo da tenere allineato allo stile.
-const BOTTONI_BASE = 'https://thetrickmaster.github.io/hextale/buttons/';
+// v0.74.5 — le frecce sono le icone di player-ui (left-button/right-button),
+// non i tappi dei pulsanti di menu che erano stati presi per sbaglio.
 function _cmEtichettaRarita(chiave){
   const voce = (typeof CARD_DB_RARITA!=='undefined' ? CARD_DB_RARITA : []).find(r=>r.chiave===chiave);
   return voce ? voce.testo : (chiave || '');
@@ -29303,14 +29317,14 @@ function costruisciSchedaCarta(card, livello, conSelettore){
   html += '<div class="cm-livello">';
   if(conSelettore){
     html += '<button class="cm-freccia" data-cm-passo="-1"'+(livello<=1?' disabled':'')+'>'
-          + '<img src="'+BOTTONI_BASE+'left-button-primary.png" alt="&lt;"></button>';
+          + '<img src="'+PLAYER_UI_BASE+'left-button.png" alt="&lt;"></button>';
   }
   html += '<span class="cm-lv-et">Level:</span>'
         + '<span class="cm-lv-val"><b>'+livello+'</b>/<b>'+CM_LIVELLO_MAX+'</b>'
         + (conSelettore && livello===(card.level||1) ? ' (Current)' : '')+'</span>';
   if(conSelettore){
     html += '<button class="cm-freccia" data-cm-passo="1"'+(livello>=CM_LIVELLO_MAX?' disabled':'')+'>'
-          + '<img src="'+BOTTONI_BASE+'right-button-primary.png" alt="&gt;"></button>';
+          + '<img src="'+PLAYER_UI_BASE+'right-button.png" alt="&gt;"></button>';
   }
   html += '</div>';
   return html;
