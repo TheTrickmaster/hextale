@@ -2796,23 +2796,33 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
   transform-origin:center center;
 }
 
-/* ── v0.73.74 — Mischief (Pixies): il gruppo valori che ha appena ricevuto
-   il +3 lampeggia di bianco, cosi' si vede QUALE gruppo e' stato premiato.
-   Stessa costruzione di .value-win — un solo elemento, transform-box:fill-box
-   perche' in SVG l'origine di default e' quella del viewBox e non del glifo —
-   ma bianca e piu' breve: qui non c'e' niente da spiegare, solo da indicare.
-   Vale sia per il numero sia per il cerchio sotto (vedi accendiLampiMischief),
-   che sono due elementi distinti nel disegno. ── */
-@keyframes mischiefLampo{
-  0%   {filter:drop-shadow(0 0 0 rgba(255,255,255,0)); transform:scale(1);}
-  25%  {filter:drop-shadow(0 0 7px rgba(255,255,255,1)) brightness(2.2); transform:scale(1.35);}
-  100% {filter:drop-shadow(0 0 0 rgba(255,255,255,0)); transform:scale(1);}
+/* ── v0.73.77 — I LAMPI SUI VALORI: verde su, rosso giu', bianco spostati ──
+   Vedi il blocco JS omonimo per il perche' dei tre casi. I due colori non
+   sono scelti qui: sono ESATTAMENTE gli stessi con cui drawHexCard tinge il
+   numero quando e' sopra o sotto al suo valore stampato (#00A349 e #C43F3F).
+   Il lampo e' l'istante, il colore del numero e' lo stato: dicendo la stessa
+   cosa con lo stesso colore, non ci sono due linguaggi da imparare.
+
+   ANIMA SOLO `filter`, mai `transform`. Non e' un dettaglio: questi stessi
+   cerchi possono essere gia' in viaggio lungo l'arco della rotazione
+   (.valore-in-viaggio, che anima `transform`), e due animazioni sulla STESSA
+   proprieta' dello stesso elemento si escludono — vincerebbe l'ultima
+   dichiarata e la rotazione si spezzerebbe. Su proprieta' diverse convivono
+   senza accorgersi l'una dell'altra, ed e' cosi' che una carta puo' lampeggiare
+   mentre i suoi numeri stanno ancora ruotando.
+   Il colore viaggia in una variabile, cosi' la forma del lampo e' scritta una
+   volta sola e le tre classi cambiano solo la tinta. ── */
+@keyframes lampoValori{
+  0%   {filter:drop-shadow(0 0 0 var(--lampo-colore-t));}
+  25%  {filter:drop-shadow(0 0 7px var(--lampo-colore)) brightness(1.9);}
+  100% {filter:drop-shadow(0 0 0 var(--lampo-colore-t));}
 }
-.mischief-lampo{
-  animation:mischiefLampo 0.62s ease-out;
-  transform-box:fill-box;
-  transform-origin:center center;
+.lampo-valori-su, .lampo-valori-giu, .lampo-valori-cambia{
+  animation:lampoValori 0.62s ease-out;
 }
+.lampo-valori-su    { --lampo-colore:rgba(0,163,73,1);    --lampo-colore-t:rgba(0,163,73,0); }
+.lampo-valori-giu   { --lampo-colore:rgba(196,63,63,1);   --lampo-colore-t:rgba(196,63,63,0); }
+.lampo-valori-cambia{ --lampo-colore:rgba(255,255,255,1); --lampo-colore-t:rgba(255,255,255,0); }
 
 /* ── Hit flash: a very brief white flash on a card the instant it's struck
    by the attack lunge, landing in sync with hit.mp3/the flip. Implemented as
@@ -6381,7 +6391,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.76</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.77</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -6441,11 +6451,14 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
          sempre sbagliata. Cambiano quindi solo i pulsanti in cima, secondo
          chi ha aperto la finestra (vedi openSettingsModal). -->
     <div class="settings-voci" data-quando="partita">
+      <!-- v0.73.77 — durante la partita resta solo "Surrender". "Back to main
+           menu" era una seconda via d'uscita che lasciava la partita a meta'
+           senza dichiararlo: chi vuole andarsene si arrende, e lo dice.
+           Il pulsante esiste ancora dove ha senso, cioe' a partita finita
+           (vedi #btn-back-main dentro #gameover) e nelle impostazioni aperte
+           dal menu, dove non c'e' nessuna partita da abbandonare. -->
       <button class="start-art-btn sab-primary" onclick="surrenderGame()">
         <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Surrender</span>
-      </button>
-      <button class="start-art-btn sab-secondary" onclick="backToMainMenu()">
-        <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Back to main menu</span>
       </button>
     </div>
     <div class="settings-voci" data-quando="menu">
@@ -15811,6 +15824,11 @@ function previewGemMagicEffect(card, q, r){
 function modificaValori(card, lati, delta, pavimento){
   if(!card || !lati || !lati.length || !delta) return;
   const minimo = (typeof pavimento === 'number') ? pavimento : -Infinity;
+  // v0.73.77 — l'istantanea di partenza serve al lampo: passando TUTTI da qui,
+  // ogni dono e ogni furto ottiene il suo verde o il suo rosso senza che
+  // l'abilita' debba chiederlo. Un'abilita' nuova che tolga o dia potere lo
+  // avra' gratis, e chi la scrive non puo' dimenticarsene.
+  const prima = {...card.values};
   for(const s of lati){
     const nuovo = Math.max(minimo, (card.values[s]||0) + delta);
     const applicato = nuovo - (card.values[s]||0);
@@ -15824,6 +15842,7 @@ function modificaValori(card, lati, delta, pavimento){
     // Robin Hood) verrebbero cancellati al primo ridisegno, cioe' subito.
     if(card.mischiefBaseValues) card.mischiefBaseValues[s] = (card.mischiefBaseValues[s]||0) + applicato;
   }
+  lampeggiaDifferenzaValori(card, prima);
 }
 
 // Un sorteggio che da' sempre lo stesso risultato a parita' di seme. Serve
@@ -16062,32 +16081,67 @@ function recalcHoorayShesStays(card){
 // conquistato o lascia il campo il conto scende da solo, senza dover tenere
 // traccia di cosa era stato dato a chi.
 const BONUS_MISCHIEF = 3;
-// ── Il lampo bianco sul cerchietto premiato ────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// v0.73.77 — I LAMPI SUI CERCHI DEI VALORI: VERDE, ROSSO, BIANCO
+// ═══════════════════════════════════════════════════════════════════════════
+// Un valore che cambia deve dirlo. Fino alla v0.73.76 lo diceva soltanto il
+// COLORE DEL NUMERO (verde se sopra al valore stampato, rosso se sotto), che
+// pero' e' uno stato permanente: dice "questa carta e' potenziata", non
+// "e' appena successo qualcosa". Il lampo racconta l'ISTANTE.
+//
+// Tre casi, tre colori, e i primi due riusano di proposito gli stessi codici
+// del numero (vedi drawHexCard: #00A349 e #C43F3F) — un solo linguaggio, non
+// due da imparare:
+//   - VERDE  ('su')     il valore e' salito: un dono, una sinergia, un furto
+//                       andato a buon fine.
+//   - ROSSO  ('giu')    il valore e' sceso: una vendetta, un furto subito.
+//   - BIANCO ('cambia') i valori si sono solo SPOSTATI: la somma e' la stessa,
+//                       ma non sono piu' dov'erano (la rotazione di Alice e del
+//                       Cheshire, il rimescolamento del Brucaliffo). Non c'e'
+//                       niente da festeggiare ne' da temere, solo da notare.
+//
 // Lo stato dell'animazione NON si scrive sulla carta: chi disegna la plancia
 // riceve una COPIA (`renderBoard` passa {...placed.card, owner}), quindi
 // qualunque cosa scritta li' dentro vivrebbe il tempo di un disegno e poi
 // sparirebbe — e l'animazione ripartirebbe da capo a ogni ridisegno. Vive
 // quindi qui fuori, in una mappa a parte, esattamente come `_veloFumo`.
-// Chiave: id della carta. Valore: i gruppi (lati uniti da '|') da accendere.
-const _lampiMischief = new Map();
+// Chiave: id della carta. Valore: elenco di {gruppo, tipo}.
+const _lampiValori = new Map();
 // L'anteprima sotto il puntatore ricalcola tutto su dei CLONI (vedi
 // simulaPiazzamento) e lo fa a ogni movimento del mouse: senza questa guardia
 // ogni passaggio sopra una casella accenderebbe i lampi di una cosa che non e'
-// ancora successa, e li accenderebbe decine di volte. Il lampo appartiene al
-// piazzamento vero.
+// ancora successa, e li accenderebbe decine di volte. Il lampo appartiene a
+// cio' che succede davvero.
 let _simulazioneInCorso = false;
-function segnaLampoMischief(cardId, gruppi){
+function segnaLampoValori(cardId, gruppi, tipo){
   if(_simulazioneInCorso) return;
   if(!cardId || !gruppi || !gruppi.length) return;
-  const gia = _lampiMischief.get(cardId) || [];
-  _lampiMischief.set(cardId, gia.concat(gruppi));
+  const gia = _lampiValori.get(cardId) || [];
+  _lampiValori.set(cardId, gia.concat(gruppi.map(g=>({gruppo:g, tipo}))));
 }
-// Chiamata in fondo a ogni disegno: accende i lampi in sospeso e li consuma.
-// Cerca il numero del gruppo per `data-value-group`, che drawHexCard scrive
-// gia' su ogni valore, e accende anche il cerchio sotto — quello non ha un
-// attributo suo e si ritrova per posizione (vedi elementiValoreDelLato, stessa
-// tecnica).
-const LAMPO_MISCHIEF_MS = 620; // deve combaciare con la durata di .mischief-lampo
+// Il caso piu' comune: si confrontano i valori PRIMA e DOPO e si accende ogni
+// gruppo che si e' mosso, col colore del verso in cui si e' mosso. Scritta una
+// volta qui, la usa chiunque tocchi i valori altrui — cosi' un'abilita' nuova
+// che dia o tolga potere ottiene il suo lampo senza aggiungere una riga.
+function lampeggiaDifferenzaValori(card, prima){
+  if(!card || !prima) return;
+  const gruppi = gruppiDiCarta(card);
+  const saliti=[], scesi=[];
+  for(const g of gruppi){
+    const lato = g.sides[0];
+    const dopoV = (card.values[lato]||0), primaV = (prima[lato]||0);
+    if(dopoV>primaV) saliti.push(g.sides.join('|'));
+    else if(dopoV<primaV) scesi.push(g.sides.join('|'));
+  }
+  segnaLampoValori(card.id, saliti, 'su');
+  segnaLampoValori(card.id, scesi, 'giu');
+}
+// I valori si sono solo spostati: lampo bianco su tutti i gruppi.
+function lampeggiaSpostamentoValori(card){
+  if(!card) return;
+  segnaLampoValori(card.id, gruppiDiCarta(card).map(g=>g.sides.join('|')), 'cambia');
+}
+const CLASSE_LAMPO = { su:'lampo-valori-su', giu:'lampo-valori-giu', cambia:'lampo-valori-cambia' };
 // Dove e' disegnata ADESSO questa carta: in mano (il wrap porta data-cardId)
 // oppure sul tabellone (il gruppo porta data-conquered con la cella). Mai in
 // due posti insieme, quindi il primo che si trova e' quello giusto.
@@ -16100,24 +16154,30 @@ function contenitoreDisegnatoDellaCarta(cardId){
   }
   return null;
 }
-function accendiLampiMischief(){
-  if(!_lampiMischief.size) return;
-  for(const [cardId, gruppi] of [..._lampiMischief.entries()]){
+// Chiamata in fondo a ogni disegno: accende i lampi in sospeso e li consuma.
+// Cerca il numero del gruppo per `data-value-group`, che drawHexCard scrive
+// gia' su ogni valore, e accende anche il cerchio sotto — quello non ha un
+// attributo suo e si ritrova per posizione (vedi elementiValoreDelLato, stessa
+// tecnica).
+function accendiLampiValori(){
+  if(!_lampiValori.size) return;
+  for(const [cardId, voci] of [..._lampiValori.entries()]){
     // Consumato subito, comunque vada: se la carta non e' ancora disegnata quel
     // lampo e' perso — un lampo mancato e' un dettaglio, una coda che cresce
     // per sempre e' una perdita di memoria.
-    _lampiMischief.delete(cardId);
+    _lampiValori.delete(cardId);
     const contenitore=contenitoreDisegnatoDellaCarta(cardId);
     if(!contenitore) continue;
-    for(const gruppo of gruppi){
+    for(const {gruppo, tipo} of voci){
+      const classe = CLASSE_LAMPO[tipo] || CLASSE_LAMPO.cambia;
       const testo=contenitore.querySelector('[data-value-group="'+gruppo+'"]');
       if(!testo) continue;
       const pezzi=elementiValoreDelLato(contenitore, gruppo.split('|')[0]||'');
       for(const el of [testo, pezzi && pezzi.circleEl]){
         if(!el) continue;
-        el.classList.remove('mischief-lampo');
+        for(const c in CLASSE_LAMPO) el.classList.remove(CLASSE_LAMPO[c]);
         void el.getBoundingClientRect(); // forza il reflow, o riaccendere non riparte
-        el.classList.add('mischief-lampo');
+        el.classList.add(classe);
       }
     }
   }
@@ -16165,7 +16225,9 @@ function recalcMischief(card){
   // ogni disegno) non deve far lampeggiare niente.
   const primaEra = (typeof card.mischiefCount==='number') ? card.mischiefCount : 0;
   if(quanti>primaEra && card.mischiefCount!==undefined){
-    segnaLampoMischief(card.id, premiati.slice(primaEra));
+    // v0.73.77 — il +3 e un BUFF, quindi lampo VERDE (prima era bianco: il
+    // bianco adesso vuol dire "i valori si sono spostati", non "sono saliti").
+    segnaLampoValori(card.id, premiati.slice(primaEra), 'su');
   }
   card.mischiefCount=quanti;
   card.values=nuovi;
@@ -17335,6 +17397,11 @@ function ruotaGruppiDiUnPosto(card){
     const base = {...card.tileAbilityBaseValues};
     for(let i=0;i<SIDES.length;i++) card.tileAbilityBaseValues[SIDES[(i+1)%SIDES.length]] = base[SIDES[i]];
   }
+  // v0.73.77 — i valori non sono ne' saliti ne' scesi: sono altrove. Lampo
+  // BIANCO, che e' il colore riservato proprio a questo (vedi il blocco dei
+  // lampi). Vale per Alice in mano, per il Cheshire in campo e per ogni giro
+  // del Brucaliffo, perche' passano tutti da qui.
+  lampeggiaSpostamentoValori(card);
 }
 
 // Il fumo si dirada quando l'AVVERSARIO posa una carta accanto. Va chiamata
@@ -17640,7 +17707,7 @@ function clonaPerSimulazione(card){
 // la sua anteprima senza che nessuno debba ricordarsi di aggiungerla qui.
 function simulaPiazzamento(card, q, r){
   const tabelloneVero = G.board, manoVera1 = G.p1Hand, manoVera2 = G.p2Hand;
-  _simulazioneInCorso = true; // vedi segnaLampoMischief: qui non si accende niente
+  _simulazioneInCorso = true; // vedi segnaLampoValori: qui non si accende niente
   try {
     const clone = {};
     for(const k in tabelloneVero){
@@ -17982,8 +18049,15 @@ function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLa
       // v0.73.5 — l'ultima conquista di questo giocatore, per Morgana: e' la
       // casella che il suo avversario potra' provare a riprendersi.
       G.ultimaConquista[player] = {cella:nk, exProprietario:nb.owner};
-      // v0.73.5 — e qui il Hatter impazzisce, se e' lui quello appena preso.
-      impazzisciSeConquistato(nb.card);
+      // v0.73.77 — il Hatter NON impazzisce piu' qui.
+      // Qui e' il momento in cui la conquista viene DECISA, ma a schermo non e'
+      // ancora successo niente: l'attacco parte fra qualche decina di
+      // millisecondi e il giro della carta piu' tardi ancora. Cambiandogli i
+      // valori adesso li si vedeva cambiare PRIMA di essere attaccato — la
+      // carta impazziva e poi veniva presa, cioe' l'ordine rovesciato.
+      // Adesso la follia e' agganciata alla FINE del giro, insieme a tutto il
+      // resto di cio' che si vede (vedi piu' sotto, nel blocco che schedula
+      // lunge, flip e scambio dei colori).
       // v0.73.69 — e qui Baba Yaga si vendica, se e' lei quella appena presa:
       // vedi applicaHexSeConquistata. `card` e' l'attaccante, `nb.card` lei.
       applicaHexSeConquistata(card, nb.card, myAttackVal, theirEffective[dir.theirSide]);
@@ -18179,6 +18253,25 @@ function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLa
         if(!defEl)return;
         swapCardOwnerVariant(defEl, player, G.board[nk]&&G.board[nk].card);
       },stepStart+STRIKE_MS+FLIP_HALF_MS);
+
+      // v0.73.77 — E QUI IL HATTER IMPAZZISCE: a giro FINITO, non prima.
+      // L'ordine che si vede adesso e' quello giusto — la carta attacca, il
+      // Hatter si gira cambiando padrone, e solo allora i suoi numeri
+      // impazziscono, con il lampo rosso addosso. Prima la follia scattava
+      // insieme alla decisione della conquista, cioe' con l'attacco ancora da
+      // partire: i valori cambiavano davanti agli occhi di chi non aveva ancora
+      // visto il colpo.
+      // Il ridisegno serve perche' i numeri nuovi esistono solo nel modello:
+      // il giro ha scambiato i colori sul posto (vedi qui sopra) ma non ha
+      // toccato le cifre.
+      setTimeout(()=>{
+        const posata = G.board[nk];
+        if(!posata || !posata.card) return;
+        const prima = {...posata.card.values};
+        if(!impazzisciSeConquistato(posata.card)) return;
+        lampeggiaDifferenzaValori(posata.card, prima);
+        try { renderBoard(); } catch(_){}
+      },stepStart+STRIKE_MS+FLIP_DUR_MS);
     });
 
     // Final re-render once every lunge+flip has played, so all new owner
@@ -24773,7 +24866,7 @@ function renderHand(containerId,hand,playerIdx){
   // v0.73.74 — a ventaglio ridisegnato, i lampi in sospeso di Mischief: stessa
   // ragione della gemella in fondo a renderBoard (prima di qui gli elementi da
   // illuminare non esistono).
-  accendiLampiMischief();
+  accendiLampiValori();
 }
 
 const CLICK_MOVE_THRESHOLD=6; // px of movement before a mousedown is treated as a drag instead of a click
@@ -26936,7 +27029,7 @@ function renderBoard(){
   // v0.73.74 — i lampi di Mischief si accendono a disegno FINITO: prima gli
   // elementi da illuminare non esistono ancora (l'SVG viene ricostruito da
   // capo a ogni render).
-  accendiLampiMischief();
+  accendiLampiValori();
   controllaFirmaTabellone(firmaOra);
 
   // ── v0.72.36: builder di pulsanti-icona SVG, condiviso da tutti gli overlay
