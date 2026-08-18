@@ -6403,7 +6403,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.88</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.89</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -7737,6 +7737,43 @@ function _vociDellaCarta(card){
   const baseId = card && (card.baseId || String(card.id||'').replace(/-\d+$/,''));
   const entry = baseId && Array.isArray(FINAL_CARDS) && FINAL_CARDS.find(e=>e.id===baseId);
   return (entry && Array.isArray(entry.voci) && entry.voci.length) ? entry.voci : null;
+}
+// v0.73.90 — IL GRIDO DI BATTAGLIA quando la carta viene GIOCATA.
+// Si cerca `<slug>-battlecry.mp3` da solo (vedi _battlecryDiPersonaggio): chi
+// ce l'ha lo urla, chi non ce l'ha tace, e nessuno deve dichiarare niente.
+//
+// Se il grido non c'e', si ripiega sulle battute normali del personaggio —
+// cioe' su cio' che il gioco fa da sempre nell'istante del piazzamento. E'
+// una scelta, e vale la pena scriverla: passare direttamente al silenzio
+// avrebbe ammutolito di colpo le quattordici carte che oggi una battuta ce
+// l'hanno, in cambio di niente. Il giorno in cui ognuna avra' il suo
+// battlecry, il ripiego smettera' da solo di servire.
+function _sorgenteVoceGiocata(card){
+  if(card && card.battlecry) return card.battlecry;
+  const baseId = card && (card.baseId || String(card.id||'').replace(/-\d+$/,''));
+  const entry = baseId && Array.isArray(FINAL_CARDS) && FINAL_CARDS.find(e=>e.id===baseId);
+  if(entry && entry.battlecry) return entry.battlecry;
+  return null;
+}
+function playCardBattlecry(card){
+  const grido = _sorgenteVoceGiocata(card);
+  if(!grido){ playCardVoiceLine(card); return; } // nessun grido: le battute di sempre
+  const voiceKey = card.baseId || String(card.id||'').replace(/-\d+$/,'');
+  // Stessa guardia "una voce alla volta" delle battute: due carte giocate in
+  // fretta non devono sovrapporsi, e non ha senso che un grido copra il
+  // precedente della STESSA carta.
+  if(_cardVoicePlaying){
+    if(_cardVoicePlaying.voiceKey===voiceKey) return;
+    clearTimeout(_cardVoicePlaying.timer);
+    if(_cardVoicePlaying.src){ try{ _cardVoicePlaying.src.stop(); }catch(e){} }
+    _cardVoicePlaying = null;
+  }
+  const fileKey = grido.split('/').pop().replace(/\.(mp3|wav)$/i,'');
+  const buf = _sfxBuffers[fileKey];
+  const durationMs = (buf && buf.duration ? buf.duration : 3) * 1000;
+  const src = playSfxFile(fileKey+'.mp3');
+  const timer = setTimeout(()=>{ if(_cardVoicePlaying && _cardVoicePlaying.voiceKey===voiceKey) _cardVoicePlaying = null; }, durationMs);
+  _cardVoicePlaying = { voiceKey, src, timer };
 }
 let _cardVoicePlaying = null; // {voiceKey, src, timer} | null
 function playCardVoiceLine(card){
@@ -10189,6 +10226,9 @@ function _makeCardDbCard(entry, owner){
     // carte costruite fuori dalla Collezione (mazzi di partita, "prova
     // carta"), senza dover risalire all'entry ogni volta.
     voci: (entry.voci && entry.voci.length) ? entry.voci.slice() : null,
+    // v0.73.90 — il grido di battaglia, sulla carta per la stessa ragione
+    // delle battute: chi lo suona ce l'ha sottomano senza risalire al roster.
+    battlecry: entry.battlecry || null,
     cardAbility:entry.cardAbility||null,
     // v0.72.62 — testi dell'abilita' presi dal foglio + marcatore NO_SCRIPT.
     // Questa factory copia i campi UNO A UNO, quindi ogni campo nuovo va
@@ -16994,7 +17034,11 @@ function doPlace(card,playerIdx,q,r){
   }
 
   G.board[k]={card,owner:player};
-  playCardVoiceLine(card);
+  // v0.73.90 — questo e' l'istante in cui la carta viene GIOCATA, quindi qui
+  // tocca al grido di battaglia (vedi playCardBattlecry). Gli altri punti che
+  // fanno parlare una carta — il click in Collezione, l'evocazione di
+  // Excalibur — restano sulle battute normali: sono momenti diversi.
+  playCardBattlecry(card);
   // v0.72.22 ("ci sono casistiche per le quali l'animazione di drop non
   // avviene o viene saltata, tipo quando una carta attacca una carta
   // avversaria oppure quando ha bisogno di un input giocatore, tipo Alice"):
