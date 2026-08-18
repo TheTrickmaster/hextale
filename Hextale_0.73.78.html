@@ -2820,6 +2820,18 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
 .lampo-valori-su, .lampo-valori-giu, .lampo-valori-cambia{
   animation:lampoValori 0.62s ease-out;
 }
+/* ── v0.73.78 — la notte che scende su Strigoi: l'illustrazione VECCHIA,
+   appoggiata sopra alla nuova, se ne va in un secondo. Lenta apposta: e' una
+   trasformazione, non uno scatto. La durata arriva dal codice (--notte-durata)
+   cosi' esiste un solo numero, non due da tenere d'accordo. ── */
+@keyframes arteNotteSvanisce{
+  from{ opacity:1; }
+  to  { opacity:0; }
+}
+.arte-notte-svanisce{
+  animation:arteNotteSvanisce var(--notte-durata,1000ms) ease-in-out forwards;
+  pointer-events:none;
+}
 .lampo-valori-su    { --lampo-colore:rgba(0,163,73,1);    --lampo-colore-t:rgba(0,163,73,0); }
 .lampo-valori-giu   { --lampo-colore:rgba(196,63,63,1);   --lampo-colore-t:rgba(196,63,63,0); }
 .lampo-valori-cambia{ --lampo-colore:rgba(255,255,255,1); --lampo-colore-t:rgba(255,255,255,0); }
@@ -6391,7 +6403,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.77</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.78</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -7636,6 +7648,11 @@ function cardHasAnyGem(card){
 }
 
 const AUDIO_DATA_URLS = {
+  // v0.73.78 — la risata di Strigoi quando cala la notte (vedi calaLaNotteSu).
+  // ATTENZIONE: alla consegna di questa versione il file NON e' ancora in
+  // audio/sfx/ — l'indirizzo e' pronto e la trasformazione funziona lo stesso,
+  // ma resta muta finche' `strigoi-laugh.mp3` non viene caricato li'.
+  'strigoi-laugh': 'https://thetrickmaster.github.io/hextale/audio/sfx/strigoi-laugh.mp3',
   'hit': 'https://thetrickmaster.github.io/hextale/audio/sfx/hit.mp3',
   'hit2': 'https://thetrickmaster.github.io/hextale/audio/sfx/hit2.mp3',
   'hit3': 'https://thetrickmaster.github.io/hextale/audio/sfx/hit3.mp3',
@@ -10019,6 +10036,16 @@ function verificaArtCarte(){
     lavori.push(_primoCheEsiste(_candidati(ART_REL+slug+'/'+slug+'-smoke-light.png',
                                            ART_BASE+slug+'/'+slug+'-smoke-light.png'), _provaImmagine)
       .then(u=>{ entry.artFumoLight = u || null; }));
+    // v0.73.78 — la variante NOTTURNA, per chi cambia pelle a partita
+    // inoltrata (Nightmare di Strigoi). Cercata come tutte le altre: se il
+    // file non c'e' resta null e la carta si limita a non cambiare
+    // illustrazione, invece di mostrarne una rotta.
+    lavori.push(_primoCheEsiste(_candidati(ART_REL+slug+'/'+slug+'-night-dark.png',
+                                           ART_BASE+slug+'/'+slug+'-night-dark.png'), _provaImmagine)
+      .then(u=>{ entry.artNotteDark = u || null; }));
+    lavori.push(_primoCheEsiste(_candidati(ART_REL+slug+'/'+slug+'-night-light.png',
+                                           ART_BASE+slug+'/'+slug+'-night-light.png'), _provaImmagine)
+      .then(u=>{ entry.artNotteLight = u || null; }));
     lavori.push(_vociDiPersonaggio(slug).then(v=>{
       entry.voci = v;
       if(v.length) registraVociSfx(v);
@@ -10090,6 +10117,12 @@ function _makeCardDbCard(entry, owner){
     // cosi' che il cambio di fazione alla conquista possa scambiarle.
     artFumoDark: entry.artFumoDark || null,
     artFumoLight: entry.artFumoLight || null,
+    // v0.73.78 — la coppia notturna, tenuta sulla carta per la stessa ragione
+    // delle altre: quando cala la notte queste DIVENTANO artDark/artLight, e
+    // da li' in poi il cambio di fazione alla conquista continua a funzionare
+    // da solo, senza sapere niente della notte.
+    artNotteDark: entry.artNotteDark || null,
+    artNotteLight: entry.artNotteLight || null,
     // v0.72.67 — i livelli d'arte adesso stanno sulla carta VERA, non solo
     // sulla copia usata dalla Collezione. Fino alla v0.72.66 erano confinati
     // li' apposta, perche' sul tabellone lo scambio dark/light alla conquista
@@ -14999,6 +15032,10 @@ const TILE_ABILITIES_DEF = {
   // stessa non si conta), ricalcolata a ogni disegno sia in mano sia sul
   // tabellone (vedi recalcMischief).
   mischief:          { name:'Mischief',              desc:'+3 Power RAND for every other /Trickster/ character on the board.' },
+  // v0.73.78 — Strigoi. Non guarda il tabellone: guarda l'orologio della
+  // partita. Dal sesto turno vale +2 ovunque e cambia illustrazione, anche
+  // restando in mano (vedi recalcNightmare).
+  nightmare:         { name:'Nightmare',             desc:'Becomes stronger at night (+2 ALL from turn 6).' },
 };
 // ── v0.73.49 — QUESTI `name` SONO IL LEGAME COL FOGLIO ─────────────────────
 // Il gioco aggancia l'abilita' di un personaggio confrontando la cella
@@ -15341,6 +15378,12 @@ function initGame(vsAI){
     bonusProssimaPescata:{1:0,2:0},
     // L'ultima conquista di ciascun giocatore, per Morgana: {cella, exProprietario}.
     ultimaConquista:{1:null,2:null},
+    // v0.73.78 — che turno e'. Serve alle abilita' che scattano a un certo
+    // punto della partita invece che a un evento (Nightmare di Strigoi, che
+    // cala col buio dal sesto turno). Si conta un turno per GIOCATA, cioe' la
+    // stessa cosa che annuncia il banner "Turno del Player X": il primo turno
+    // e' l'1, e ogni passaggio di mano lo fa salire di uno.
+    numeroTurno:1,
     // La cella che sta girando adesso e il proprietario da mostrare finche' il
     // giro non arriva a meta' (vedi attivaSmokeAndMirrors e renderBoard).
     girataInCorso:null,
@@ -15841,6 +15884,7 @@ function modificaValori(card, lati, delta, pavimento){
     // o una penalita' ricevuti da lei (la vendetta di Baba Yaga, il furto di
     // Robin Hood) verrebbero cancellati al primo ridisegno, cioe' subito.
     if(card.mischiefBaseValues) card.mischiefBaseValues[s] = (card.mischiefBaseValues[s]||0) + applicato;
+    if(card.nightmareBaseValues) card.nightmareBaseValues[s] = (card.nightmareBaseValues[s]||0) + applicato;
   }
   lampeggiaDifferenzaValori(card, prima);
 }
@@ -16234,6 +16278,103 @@ function recalcMischief(card){
   // Stessa convenzione di ogni altra abilita': l'istantanea da cui il disegno
   // calcola il verde/rosso della differenza.
   card.tileAbilityBaseValues={...base};
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// v0.73.78 — STRIGOI, "Nightmare": dal sesto turno cala la notte
+// ═══════════════════════════════════════════════════════════════════════════
+// Terza della famiglia delle sinergie vive (Smol Friends, Mischief), e la piu'
+// semplice: non guarda il tabellone, guarda l'OROLOGIO della partita. Dal
+// turno TURNO_NOTTE in poi Strigoi vale +2 su ogni gruppo e cambia
+// illustrazione, e questo vale anche mentre aspetta in mano — da qui la
+// chiamata sia in renderHand sia in renderBoard, come per le sorelle.
+//
+// Ricalcolare sempre dall'istantanea invece di sommare rende gratis anche il
+// caso che oggi non si presenta ma domani chissa': se un giorno il turno
+// potesse tornare indietro, il +2 se ne andrebbe da solo.
+//
+// La NOTTE E' UNA SOLA. Il cambio d'abito — lampo, dissolvenza, risata — e'
+// un evento, non uno stato, e deve succedere una volta sola nell'istante in
+// cui il sole tramonta: `notteGiaCalata` e' il fermo che lo garantisce, anche
+// se questa funzione gira decine di volte al secondo (e gira).
+const TURNO_NOTTE = 6;
+const BONUS_NOTTE = 2;
+function eNotte(){ return (G && G.numeroTurno || 1) >= TURNO_NOTTE; }
+function recalcNightmare(card){
+  if(abilitaAttivaDi(card)!=='nightmare') return;
+  if(!card.nightmareBaseValues) card.nightmareBaseValues={...card.values};
+  const base=card.nightmareBaseValues;
+  const notte=eNotte();
+  const nuovi={...base};
+  if(notte) for(const s of SIDES) nuovi[s]=(nuovi[s]||0)+BONUS_NOTTE;
+  card.values=nuovi;
+  card.tileAbilityBaseValues={...base};
+  if(notte && !card.notteGiaCalata){
+    card.notteGiaCalata=true;
+    // Il potere e' salito: lampo verde su tutti i gruppi, come ogni altro
+    // buff (vedi il blocco dei lampi).
+    segnaLampoValori(card.id, gruppiDiCarta(card).map(g=>g.sides.join('|')), 'su');
+    calaLaNotteSu(card);
+  }
+}
+// Il cambio d'abito vero e proprio. L'illustrazione notturna PRENDE IL POSTO
+// della coppia dark/light: da qui in avanti la carta si comporta come se
+// quella fosse sempre stata la sua arte, e il cambio di fazione alla conquista
+// continua a funzionare senza sapere niente della notte.
+// Lo stato dell'ANIMAZIONE invece non si scrive sulla carta (chi disegna
+// riceve una copia): vive in `_notteInCorso`, come il velo del fumo.
+const NOTTE_DISSOLVENZA_MS = 1000;
+const _notteInCorso = new Map(); // id carta -> {da:istante, artPrima:url}
+function calaLaNotteSu(card){
+  if(_simulazioneInCorso) return;
+  const nuovaDark = card.artNotteDark || card.artDark;
+  const nuovaLight = card.artNotteLight || card.artLight;
+  const artPrima = card.artSrc;
+  card.artDark = nuovaDark;
+  card.artLight = nuovaLight;
+  card.artSrc = playerFactionIsDark(card.owner||1) ? nuovaDark : nuovaLight;
+  // Niente da mostrare se l'illustrazione non cambia (file mancante): il +2
+  // c'e' lo stesso, ma non si mette in scena una trasformazione che non si
+  // vedrebbe.
+  if(!artPrima || artPrima===card.artSrc) return;
+  _notteInCorso.set(card.id, {da:performance.now(), artPrima});
+  // L'ordine e' quello chiesto: prima il lampo bianco, e mentre l'arte si
+  // dissolve la risata. Il suono parte insieme alla dissolvenza e non insieme
+  // al lampo, perche' e' la trasformazione che ride, non il colpo di luce.
+  // Il lampo NON si accende qui: questa funzione gira DENTRO al disegno (la
+  // chiama recalcNightmare, che renderBoard/renderHand invocano su ogni carta),
+  // e l'elemento a cui attaccarlo o non esiste ancora o sta per essere buttato
+  // via e rifatto. Si mette in coda e si accende a disegno finito, esattamente
+  // come i lampi sui valori.
+  _lampiNotte.add(card.id);
+  try { playSfxFile('strigoi-laugh.mp3'); } catch(_){}
+  // A dissolvenza conclusa serve un ultimo disegno che tolga di mezzo l'arte
+  // vecchia: nessun altro lo farebbe, perche' lo stato della dissolvenza vive
+  // fuori dalla carta e quindi non entra nella firma del tabellone — senza
+  // questo, l'immagine ormai trasparente resterebbe appesa al disegno fino al
+  // primo ridisegno dovuto ad altro.
+  setTimeout(()=>{ try{ renderBoard(); renderHand('p1-hand-fan',G.p1Hand,0); renderHand('p2-hand-fan',G.p2Hand,1); }catch(_){} }, NOTTE_DISSOLVENZA_MS+30);
+}
+// I lampi bianchi in attesa del prossimo disegno (vedi sopra il perche').
+const _lampiNotte = new Set();
+function accendiLampiNotte(){
+  if(!_lampiNotte.size) return;
+  for(const id of [..._lampiNotte]){
+    _lampiNotte.delete(id);
+    const contenitore=contenitoreDisegnatoDellaCarta(id);
+    if(contenitore) lampeggiaCarta(contenitore);
+  }
+}
+// Riaggancia la dissolvenza dopo un ridisegno, e la dimentica quando e'
+// finita. Stessa forma di fumoReattach/cardLandReattach: lo stato vive fuori
+// dal DOM proprio perche' il DOM viene rifatto da capo di continuo.
+function artaNotteInDissolvenza(card){
+  if(!card) return null;
+  const stato=_notteInCorso.get(card.id);
+  if(!stato) return null;
+  const passato=performance.now()-stato.da;
+  if(passato>=NOTTE_DISSOLVENZA_MS){ _notteInCorso.delete(card.id); return null; }
+  return {artPrima:stato.artPrima, passato};
 }
 
 
@@ -16915,6 +17056,9 @@ const EFFETTI_PIAZZAMENTO = {
   // v0.73.74 — come sopra: Pixies deve avere i suoi +3 gia' addosso quando lo
   // scontro del piazzamento viene risolto, non solo quando viene ridisegnata.
   mischief: (card) => recalcMischief(card),
+  // v0.73.78 — come sopra: Strigoi deve avere il suo +2 gia' addosso quando lo
+  // scontro del piazzamento viene risolto, non solo quando viene ridisegnata.
+  nightmare: (card) => recalcNightmare(card),
 };
 function applicaAbilitaPiazzamento(card, q, r, chiave){
   const effetto = EFFETTI_PIAZZAMENTO[chiave];
@@ -17683,6 +17827,7 @@ function clonaPerSimulazione(card){
   c.values = Object.assign({}, card.values);
   if(card.hoorayBaseValues) c.hoorayBaseValues = Object.assign({}, card.hoorayBaseValues);
   if(card.mischiefBaseValues) c.mischiefBaseValues = Object.assign({}, card.mischiefBaseValues);
+  if(card.nightmareBaseValues) c.nightmareBaseValues = Object.assign({}, card.nightmareBaseValues);
   if(card.tileAbilityBaseValues) c.tileAbilityBaseValues = Object.assign({}, card.tileAbilityBaseValues);
   return c;
 }
@@ -17737,9 +17882,9 @@ function simulaPiazzamento(card, q, r){
     // mostra il +3 che arriverebbe posando un Trickster accanto alle Pixies.
     // Il gruppo premiato coincide con quello che si accendera' davvero perche'
     // il sorteggio e' stabile (vedi recalcMischief), non casuale.
-    for(const k in clone){ recalcHoorayShesStays(clone[k].card); recalcMischief(clone[k].card); }
-    mano1.forEach(c=>{ recalcHoorayShesStays(c); recalcMischief(c); });
-    mano2.forEach(c=>{ recalcHoorayShesStays(c); recalcMischief(c); });
+    for(const k in clone){ recalcHoorayShesStays(clone[k].card); recalcMischief(clone[k].card); recalcNightmare(clone[k].card); }
+    mano1.forEach(c=>{ recalcHoorayShesStays(c); recalcMischief(c); recalcNightmare(c); });
+    mano2.forEach(c=>{ recalcHoorayShesStays(c); recalcMischief(c); recalcNightmare(c); });
 
     const esito = { cellaGiocata: cella, tabellone: {}, mani: {1:{}, 2:{}} };
     for(const k in clone) esito.tabellone[k] = Object.assign({}, clone[k].card.values);
@@ -18415,6 +18560,11 @@ function endTurn(player, animationsSettled){
   // and renderHand()'s own big comments for the full picture.
   (player===1?G.p1Hand:G.p2Hand).forEach(c=>cardsGlowSettled.delete(c.id));
   G.currentPlayer=player===1?2:1;
+  // v0.73.78 — il turno che comincia adesso. Il conto sale QUI, insieme al
+  // cambio di giocatore, perche' e' esattamente lo stesso evento: chi conta i
+  // turni e chi li annuncia devono essere d'accordo, o un'abilita' che scatta
+  // "dal sesto turno" scatterebbe mezza giocata prima o dopo del banner.
+  G.numeroTurno = (G.numeroTurno||1) + 1;
   render(); // show board update before draw anim
   // v0.71.35 ("sostituisci il banner del tempo scaduto con timesup-banner
   // ... deve apparire a fine turno... prima che appaia il banner del turno
@@ -21916,6 +22066,25 @@ function drawHexCard(svg,cx,cy,R,card,fillColor,strokeColor,textColor,nameText,i
     avvolgiInDissolvenzaFumo(fumoImg, card);
   }
 
+  // ── v0.73.78: la notte che scende su Strigoi ────────────────────────────
+  // Stessa idea del fumo qui sopra, al contrario: qui sotto c'e' gia' l'arte
+  // NUOVA (il modello e' cambiato nell'istante del tramonto), e in dissolvenza
+  // se ne va quella VECCHIA, appoggiata sopra. Farlo al contrario — vecchia
+  // sotto, nuova che entra — avrebbe voluto dire tenere il modello indietro di
+  // un secondo, e quel secondo sarebbe stato una bugia per chiunque legga i
+  // valori nel frattempo.
+  // Il ritardo negativo e' lo stesso trucco dell'atterraggio: riapplicando
+  // l'animazione con l'avanzamento gia' trascorso, un ridisegno nel mezzo non
+  // fa ripartire la dissolvenza da capo.
+  const notte = artaNotteInDissolvenza(card);
+  if(notte){
+    const vecchiaImg = addClippedImage(notte.artPrima);
+    vecchiaImg.setAttribute('data-role','night-art-old');
+    vecchiaImg.style.setProperty('--notte-durata', NOTTE_DISSOLVENZA_MS+'ms');
+    vecchiaImg.style.animationDelay = (-notte.passato).toFixed(0)+'ms';
+    vecchiaImg.classList.add('arte-notte-svanisce');
+  }
+
   // ── v0.72.15: LAMINA OLOGRAFICA, qui e non come overlay HTML ────────────
   // Richiesta: "il foil deve rimanere sotto al bordo (card-frame) e ai
   // cerchietti coi valori (value-circle)". Fino alla v0.72.14 la lamina era
@@ -24283,6 +24452,9 @@ function renderHand(containerId,hand,playerIdx){
     // v0.73.74 — stessa cosa per Pixies, che il bonus lo riceve anche mentre
     // aspetta in mano (vedi recalcMischief).
     recalcMischief(card);
+    // v0.73.78 — e Strigoi, che cambia col calare del turno anche restando in
+    // mano (vedi recalcNightmare).
+    recalcNightmare(card);
     const isSelected=G.selected&&G.selected.card.id===card.id;
     const isBeingDragged=!!(G.dragging&&G.dragging.card.id===card.id);
     if(isBeingDragged && dragFullyOut) return; // fully out: no slot at all, rendered by the floating drag element instead
@@ -24867,6 +25039,7 @@ function renderHand(containerId,hand,playerIdx){
   // ragione della gemella in fondo a renderBoard (prima di qui gli elementi da
   // illuminare non esistono).
   accendiLampiValori();
+  accendiLampiNotte(); // v0.73.78 — il lampo bianco del tramonto, stessa ragione
 }
 
 const CLICK_MOVE_THRESHOLD=6; // px of movement before a mousedown is treated as a drag instead of a click
@@ -26725,6 +26898,7 @@ function renderBoard(){
       // by the time any faction-bonus/delta math below runs.
       recalcHoorayShesStays(placed.card);
       recalcMischief(placed.card); // v0.73.74 — vedi la gemella in renderHand
+      recalcNightmare(placed.card); // v0.73.78 — idem
       // v0.73.11 FIX ("quando si droppa una carta su un tile, sembra che
       // sparisca il disegno del tile sotto"): non sembrava, spariva davvero.
       // Una cella occupata disegnava SOLO la carta: il tassello non veniva
@@ -27030,6 +27204,7 @@ function renderBoard(){
   // elementi da illuminare non esistono ancora (l'SVG viene ricostruito da
   // capo a ogni render).
   accendiLampiValori();
+  accendiLampiNotte(); // v0.73.78 — il lampo bianco del tramonto, stessa ragione
   controllaFirmaTabellone(firmaOra);
 
   // ── v0.72.36: builder di pulsanti-icona SVG, condiviso da tutti gli overlay
