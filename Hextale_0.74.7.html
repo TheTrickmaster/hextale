@@ -166,7 +166,7 @@ body.mouse-down{
 }
 /* ── v0.72.57 — strati 2 e 3 dello sfondo dello start screen ──────────────
    Ordine richiesto, dal fondo: loading-bg (#start-bg-img, sopra) →
-   particles.mp4 in `screen` → bars.png. Tutti a schermo pieno.
+   le tre tele della polvere in `plus-lighter` → bars.png. Tutti a schermo pieno.
    Sono figli di #start-screen come #start-bg-img e si impilano con z-index
    espliciti (0 / 1 / 2) invece che per ordine nel documento: piu' avanti nel
    markup ci sono logo, barra e pulsanti, che devono restare SOPRA tutti e
@@ -182,24 +182,26 @@ body.mouse-down{
    `isolation:isolate` su questi strati crea un contesto di composizione
    proprio, cosi' non entrano nel gruppo di fusione del glow. Verificato a
    schermo: il glow continua a fondersi correttamente. */
-#start-particles-video, #start-particles-video-b{
+/* v0.74.7 — le tre tele della polvere, al posto del video.
+   La tela e' trasparente dove non c'e' nulla, quindi qui `plus-lighter` (e non
+   piu' `screen`): somma la luce dei granelli a quella dello sfondo senza
+   toccare il resto. */
+.start-particelle{
   /* position/z-index forzati per lo stesso motivo di #start-bars-img qui
      sotto: .start-fade imporrebbe position:relative;z-index:1 e schiaccerebbe
      i tre strati sullo stesso piano. */
   position:absolute !important;inset:0;width:100%;height:100%;
-  object-fit:cover;object-position:center;
   z-index:1 !important;pointer-events:none;user-select:none;
-  /* `screen` = il nero non aggiunge nulla, le particelle chiare accendono.
-     E' il motivo per cui il video puo' stare sopra lo sfondo senza coprirlo. */
-  mix-blend-mode:screen;
-  /* v0.73.2 — la dissolvenza fra le due copie (vedi loopParticelle). La
-     seconda parte trasparente; a turni si scambiano il ruolo. */
-  transition:opacity var(--particelle-fade, 700ms) linear;
-  /* Isola il video dal gruppo di fusione in cui vive il glow della barra
-     (vedi il commento qui sopra). */
-  isolation:isolate;
+  mix-blend-mode:plus-lighter;
   transition:opacity 3s ease;
 }
+/* La sfocatura e' PER PIANO, non per granello: e' l'unica ragione per cui le
+   tele sono tre invece di una. Il piano di mezzo resta nitido — e' il fuoco
+   della scena, e senza un piano a fuoco gli altri due non leggono come
+   "fuori fuoco" ma solo come "sporchi". */
+#start-particles-far { filter:blur(2px); }
+#start-particles-mid { filter:none; }
+#start-particles-near{ filter:blur(7px); }
 /* v0.72.57 — bars.png e' lo strato piu' alto del fondale e va reso PIENO.
    Il PNG ha gia' un alpha binario (misurato: solo 0 e 255, zero pixel
    semitrasparenti), quindi la forma la disegna il file e il CSS non deve
@@ -6161,8 +6163,8 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
 <div id="start-screen">
   <div id="start-bg-img" class="start-fade"></div>
   <!-- v0.72.57 — sfondo dello start screen a TRE STRATI, dal fondo verso
-       l'osservatore: #start-bg-img (loading-bg.png) → #start-particles-video
-       (particles.mp4 in loop, blend `screen`) → #start-bars-img (bars.png).
+       l'osservatore: #start-bg-img (loading-bg.png) → le tre tele della
+       polvere (blend `plus-lighter`) → #start-bars-img (bars.png).
        Tutti e tre a schermo pieno.
        Il video sta in mezzo e non e' un <img>: `screen` scarta il nero, che
        e' esattamente il fondo su cui sono girate le particelle, quindi lo
@@ -6174,24 +6176,19 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
        runPreload): sono 4 MB, e metterlo nel cancello di caricamento
        ritarderebbe la barra per un elemento puramente decorativo che puo'
        benissimo arrivare in streaming a schermo gia' visibile. -->
-  <!-- v0.73.2 — DUE copie dello stesso video invece di una in `loop`.
-       Anche quando un video e' montato per ripartire perfettamente, l'attributo
-       `loop` produce uno scatto: il browser deve riportare la lettura
-       all'inizio e riempire di nuovo il buffer, e per un fotogramma o due
-       l'immagine si ferma. E' un limite della riproduzione, non del montaggio,
-       quindi non si risolve rimontando il video.
-       Con due copie sfalsate il problema non si pone: mentre la prima si
-       avvicina alla fine, la seconda e' gia' partita e in dissolvenza; quando
-       la prima finisce non la sta piu' guardando nessuno, e ha tutto il tempo
-       di riavvolgersi prima del suo turno successivo. Vedi loopParticelle. -->
-  <video id="start-particles-video" class="start-fade particelle-video" muted playsinline autoplay
-         preload="auto" disablepictureinpicture tabindex="-1" aria-hidden="true">
-    <source src="https://thetrickmaster.github.io/hextale/loading-screen/particles.mp4" type="video/mp4">
-  </video>
-  <video id="start-particles-video-b" class="start-fade particelle-video" muted playsinline
-         preload="auto" disablepictureinpicture tabindex="-1" aria-hidden="true">
-    <source src="https://thetrickmaster.github.io/hextale/loading-screen/particles.mp4" type="video/mp4">
-  </video>
+  <!-- v0.74.7 — LA POLVERE E' DISEGNATA, NON FILMATA.
+       Al posto di particles.mp4 (4 MB, in loop, con due copie sfalsate per
+       nascondere lo scatto del riavvolgimento) ci sono tre tele. Non una:
+       la profondita' si legge dalla SFOCATURA, e sfocare ogni granello a mano
+       sulla tela costerebbe un filtro per granello a ogni fotogramma. Tre
+       piani, un `filter: blur()` per piano, e ogni granello sta su quello
+       che gli compete — il costo e' di tre sfocature in tutto.
+       Ordine dal fondo: lontano (minuscolo, sfocato), medio (a fuoco),
+       vicino (grosso, molto sfocato, come pulviscolo che passa davanti
+       all'obiettivo). Vedi ParticelleAvvia. -->
+  <canvas id="start-particles-far"  class="start-fade start-particelle" aria-hidden="true"></canvas>
+  <canvas id="start-particles-mid"  class="start-fade start-particelle" aria-hidden="true"></canvas>
+  <canvas id="start-particles-near" class="start-fade start-particelle" aria-hidden="true"></canvas>
   <img id="start-bars-img" class="start-fade" src="https://thetrickmaster.github.io/hextale/loading-screen/bars.png" alt="" draggable="false">
   <!-- Title/logo/subtitle: the h1 fallback stays hidden permanently in favor
        of the real logo image (kept only as a no-JS/broken-image fallback
@@ -6607,7 +6604,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.74.6</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.74.7</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -7245,13 +7242,10 @@ if(document.readyState==='loading'){
     // track starts playing, until the whole pool is cached. See the
     // "Chained background-music preloading" block next to MUSIC_TRACKS.
     // (SFX under /audio/sfx/ are tiny and still preload here as before.)
-    // v0.72.57 — stessa logica per il video delle particelle dello start
-    // screen (particles.mp4, ~4 MB): e' decorativo e sta DIETRO a tutto, ma
-    // scaricarlo dentro il cancello di caricamento allungherebbe la barra di
-    // parecchio prima che si veda alcunche'. Fuori dal preloader arriva in
-    // streaming mentre la schermata e' gia' visibile, che e' esattamente il
-    // comportamento voluto per un fondale in loop. (Il <video> ha comunque
-    // preload="auto": il browser se lo prende da solo, senza bloccare noi.)
+    // v0.74.7 — qui c'era anche l'esclusione di particles.mp4 (~4 MB), il
+    // video delle particelle dello start screen. Il video non esiste piu': la
+    // polvere e' disegnata (vedi ParticelleAvvia) e non pesa un byte. Il
+    // filtro sui video resta come rete per qualunque filmato futuro.
     return Array.from(urls)
       .filter(u=>!u.includes('/audio/music/'))
       .filter(u=>!/\.(mp4|webm|mov)(\?.*)?$/i.test(u));
@@ -7685,13 +7679,12 @@ if(document.readyState==='loading'){
   // Prima il fade partiva su DOMContentLoaded, cioe' quando il DOM era
   // pronto ma le immagini no: si dissolveva dal nero verso un fondale
   // ancora vuoto, e gli strati comparivano dopo, a dissolvenza gia' in corso.
-  // Qui si aspetta che ENTRAMBI siano davvero utilizzabili:
+  // Qui si aspetta che lo sfondo sia davvero utilizzabile:
   //   - loading-bg.png: decodificato (decode(), non solo scaricato — un'immagine
-  //     scaricata ma non decodificata si dipinge lo stesso al primo frame utile);
-  //   - particles.mp4: readyState >= HAVE_CURRENT_DATA (2), cioe' c'e' almeno
-  //     un fotogramma da mostrare. Aspettare il caricamento COMPLETO di 4 MB
-  //     sarebbe sbagliato: il video e' in streaming e in loop, basta il primo
-  //     fotogramma perche' non si veda un buco nero al posto delle particelle.
+  //     scaricata ma non decodificata si dipinge lo stesso al primo frame utile).
+  // v0.74.7 — la seconda attesa era il primo fotogramma di particles.mp4. La
+  // polvere adesso e' disegnata e c'e' dal primo fotogramma utile: non c'e'
+  // piu' niente da aspettare, e resta solo lo sfondo.
   // Rete lenta o asset rotto non devono pero' lasciare lo schermo nero per
   // sempre: c'e' un tetto massimo di attesa, scaduto il quale si parte comunque.
   const FONDALE_ATTESA_MAX_MS = 8000;
@@ -7706,22 +7699,9 @@ if(document.readyState==='loading'){
       im.onerror = fine; // un asset rotto non deve bloccare l'avvio
       im.src = bgUrl;
     }));
-    // 2) il video, primo fotogramma disponibile
-    promesse.push(new Promise(res=>{
-      const v = document.getElementById('start-particles-video');
-      if(!v) return res();
-      if(v.readyState >= 2) return res();
-      const fine = ()=>{
-        v.removeEventListener('loadeddata', fine);
-        v.removeEventListener('error', fine);
-        res();
-      };
-      v.addEventListener('loadeddata', fine);
-      v.addEventListener('error', fine); // idem: errore = si prosegue
-      // Il <video> ha preload="auto", ma un load() esplicito accelera il
-      // caricamento nei browser che rimandano il preload dei media.
-      try{ v.load(); }catch(_){}
-    }));
+    // v0.74.7 — qui si aspettava il primo fotogramma di particles.mp4. La
+    // polvere adesso e' disegnata (vedi ParticelleAvvia): non c'e' niente da
+    // scaricare, quindi non c'e' piu' niente da aspettare.
     // Tetto di attesa: vince chi arriva prima fra "tutto pronto" e il timeout.
     return Promise.race([
       Promise.all(promesse),
@@ -8285,30 +8265,23 @@ function mountPage(name){
 // stato in startGame(), la Collezione ridisegna il roster, e la schermata
 // iniziale rigioca solo la parte visiva (vedi window.__replayStartReveal).
 // ── v0.72.57 — strati aggiuntivi del fondale dello start screen ───────────
-// Accende particles.mp4 e bars.png insieme a loading-bg. Sono due funzioni
+// Accende le tele della polvere e bars.png insieme a loading-bg. Sono due funzioni
 // globali e non locali a runPreload perche' servono in due momenti distinti:
 // il primo caricamento (revealBg) e il rientro sulla pagina (__replayStartReveal).
 function startBgExtraLayersOn(){
-  ['start-particles-video','start-bars-img'].forEach(id=>{
+  // v0.74.7 — le tre tele della polvere al posto del video.
+  ['start-particles-far','start-particles-mid','start-particles-near','start-bars-img'].forEach(id=>{
     const el = document.getElementById(id);
     if(el) el.classList.add('show');
   });
 }
-// Il <video> va ripreso a mano dopo ogni rientro: unmountPage() lo stacca dal
-// documento e il browser mette in pausa un media element staccato, senza far
-// ripartire l'autoplay quando torna dentro.
-// play() restituisce una Promise che RIGETTA se l'autoplay viene bloccato
-// (succede se il `muted` sparisce, o su politiche piu' severe): va assorbita,
-// altrimenti finisce come "unhandled rejection" nella console per un elemento
-// puramente decorativo.
+// v0.74.7 — la polvere va (ri)avviata a mano dopo ogni rientro, per la stessa
+// ragione per cui prima andava ripreso il video: unmountPage() stacca gli
+// elementi dal documento, e una tela staccata perde il proprio contenuto.
+// ParticelleAvvia ferma sempre il giro precedente prima di aprirne uno nuovo,
+// quindi chiamarla due volte non lascia mai due animazioni in corsa.
 function startParticlesPlay(){
-  const v = document.getElementById('start-particles-video');
-  if(!v) return;
-  try{
-    v.muted = true; // requisito dell'autoplay: riaffermato a ogni ripresa
-    const p = v.play();
-    if(p && typeof p.catch === 'function') p.catch(()=>{});
-  }catch(_){}
+  if(typeof ParticelleAvvia === 'function') ParticelleAvvia();
 }
 // ── v0.72.62 — riflesso sul logo, a intervalli casuali ────────────────────
 // Uno swipe ogni 3-5 secondi, sorteggiati a ogni giro: un intervallo fisso
@@ -8373,44 +8346,119 @@ let _activePage = null;
 // calma prima del suo turno successivo.
 // La dissolvenza dura meno del pezzo di coda che si sacrifica, cosi' non
 // capita mai di vedere l'una svanire prima che l'altra sia arrivata.
-const PARTICELLE_FADE_MS = 700;
-const PARTICELLE_ANTICIPO_S = 1.0; // quanto prima della fine parte l'altra copia
-let _particelleTimer = null;
+const PARTICELLE_COLORE = '#FFF8C3';
+// I tre piani. `quante` somma esattamente 200.
+// Il piano vicino e' POCO popolato di proposito: sono granelli grossi e molto
+// sfocati, cioe' macchie di luce larghe — trenta bastano a dare la sensazione
+// di qualcosa che passa davanti all'obiettivo, cento farebbero velo.
+// La velocita' cresce avvicinandosi: e' la parallasse, ed e' cio' che da'
+// davvero la profondita'. La sfocatura da sola direbbe solo "sfocato".
+const PARTICELLE_PIANI = [
+  { id:'start-particles-far',  quante:90, rMin:0.6, rMax:1.4, vMin:5,  vMax:11, alfaMin:0.25, alfaMax:0.55, ondaMin:2,  ondaMax:7  },
+  { id:'start-particles-mid',  quante:80, rMin:1.4, rMax:3.0, vMin:12, vMax:22, alfaMin:0.45, alfaMax:0.90, ondaMin:5,  ondaMax:14 },
+  { id:'start-particles-near', quante:30, rMin:5.0, rMax:11.0,vMin:22, vMax:40, alfaMin:0.18, alfaMax:0.40, ondaMin:10, ondaMax:26 },
+];
+let _particelleRAF = null;
+let _particelleStrati = null;   // [{tela, ctx, granelli, ...}]
+let _particelleUltimo = 0;
+let _particelleResize = null;
 
-function loopParticelle(){
-  const a = document.getElementById('start-particles-video');
-  const b = document.getElementById('start-particles-video-b');
-  if(!a || !b) return;
-  if(_particelleTimer){ clearInterval(_particelleTimer); _particelleTimer = null; }
-  a.style.setProperty('--particelle-fade', PARTICELLE_FADE_MS+'ms');
-  b.style.setProperty('--particelle-fade', PARTICELLE_FADE_MS+'ms');
-  a.style.opacity = '1';
-  b.style.opacity = '0';
-  let inScena = a, inAttesa = b;
-  const avvia = v => { try { v.play(); } catch(_){} };
-  avvia(a);
-  // Si controlla a intervalli invece di affidarsi a `timeupdate`: quell'evento
-  // arriva a cadenza irregolare (circa quattro volte al secondo, ma senza
-  // garanzie) e puo' saltare proprio la finestra in cui va fatto il cambio.
-  _particelleTimer = setInterval(()=>{
-    const d = inScena.duration;
-    if(!isFinite(d) || d <= 0) return;
-    if(d - inScena.currentTime > PARTICELLE_ANTICIPO_S) return;
-    // Tocca all'altra: si riavvolge, parte e sale.
-    try { inAttesa.currentTime = 0; } catch(_){}
-    avvia(inAttesa);
-    inAttesa.style.opacity = '1';
-    inScena.style.opacity = '0';
-    const uscita = inScena;
-    // Messa in pausa solo a dissolvenza finita: fermarla subito la
-    // congelerebbe mentre e' ancora visibile.
-    setTimeout(()=>{ try { uscita.pause(); uscita.currentTime = 0; } catch(_){} }, PARTICELLE_FADE_MS + 60);
-    const t = inScena; inScena = inAttesa; inAttesa = t;
-  }, 120);
+const _pCaso = (a,b)=> a + Math.random()*(b-a);
+
+// Un granello nuovo. `dallAlto` false = nasce sparso ovunque sullo schermo
+// (serve al primo fotogramma: partire tutti dal bordo basso darebbe una
+// marea che sale, non della polvere gia' sospesa).
+function _pNuovoGranello(piano, w, h, sparso){
+  const r = _pCaso(piano.rMin, piano.rMax);
+  return {
+    x: _pCaso(-20, w+20),
+    // Rinascendo entra dal bordo basso, appena fuori: cosi' non si vede
+    // comparire dal nulla.
+    y: sparso ? _pCaso(-20, h+20) : h + r + _pCaso(4, 90),
+    r,
+    v: _pCaso(piano.vMin, piano.vMax),          // px/s verso l'ALTO
+    onda: _pCaso(piano.ondaMin, piano.ondaMax), // ampiezza dell'ondeggiare
+    freq: _pCaso(0.10, 0.34),                   // giri/s dell'ondeggiare
+    fase: Math.random()*Math.PI*2,
+    alfa: _pCaso(piano.alfaMin, piano.alfaMax),
+  };
 }
-function fermaLoopParticelle(){
-  if(_particelleTimer){ clearInterval(_particelleTimer); _particelleTimer = null; }
+
+function _pDimensiona(strato){
+  const dpr = Math.min(window.devicePixelRatio || 1, 2); // oltre 2x non si vede, si paga e basta
+  const w = window.innerWidth, h = window.innerHeight;
+  strato.w = w; strato.h = h; strato.dpr = dpr;
+  strato.tela.width  = Math.max(1, Math.round(w*dpr));
+  strato.tela.height = Math.max(1, Math.round(h*dpr));
+  strato.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
+
+// ── v0.74.7 — LA POLVERE, DISEGNATA ────────────────────────────────────────
+// Duecento granelli su tre piani, che salgono piano ondeggiando.
+// Due regole che vengono dalla richiesta e che il codice rispetta alla
+// lettera: un granello non svanisce MAI mentre e' ancora a schermo (niente
+// ciclo di vita, niente dissolvenze: l'alfa e' fissa dalla nascita), e sparisce
+// solo quando e' uscito davvero, cioe' quando l'ultimo pixel del suo raggio ha
+// superato il bordo alto. Solo allora rinasce dal basso.
+function ParticelleAvvia(){
+  ParticelleFerma();
+  const strati = [];
+  for(const piano of PARTICELLE_PIANI){
+    const tela = document.getElementById(piano.id);
+    if(!tela || !tela.getContext) continue;
+    const ctx = tela.getContext('2d');
+    if(!ctx) continue;
+    const strato = { piano, tela, ctx, granelli:[], w:0, h:0, dpr:1 };
+    _pDimensiona(strato);
+    for(let i=0;i<piano.quante;i++) strato.granelli.push(_pNuovoGranello(piano, strato.w, strato.h, true));
+    strati.push(strato);
+  }
+  if(!strati.length) return;
+  _particelleStrati = strati;
+  _particelleResize = ()=>{ for(const s of _particelleStrati||[]) _pDimensiona(s); };
+  window.addEventListener('resize', _particelleResize);
+  _particelleUltimo = 0;
+  const passo = (ora)=>{
+    _particelleRAF = requestAnimationFrame(passo);
+    // Primo giro, o ritorno da una scheda in secondo piano: un dt enorme
+    // teletrasporterebbe tutta la polvere. Si taglia a 50ms.
+    const dt = _particelleUltimo ? Math.min((ora-_particelleUltimo)/1000, 0.05) : 0.016;
+    _particelleUltimo = ora;
+    const t = ora/1000;
+    for(const s of _particelleStrati){
+      const {ctx, w, h} = s;
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = PARTICELLE_COLORE;
+      for(const g of s.granelli){
+        g.y -= g.v * dt;
+        // Uscito dal bordo alto con tutto il suo raggio: solo ora si spegne e
+        // rientra dal basso. Il margine tiene conto anche della sfocatura del
+        // piano, che allarga il granello oltre il suo raggio.
+        if(g.y < -(g.r + 24)){
+          Object.assign(g, _pNuovoGranello(s.piano, w, h, false));
+          continue;
+        }
+        const x = g.x + Math.sin(t*g.freq*Math.PI*2 + g.fase) * g.onda;
+        ctx.globalAlpha = g.alfa;
+        ctx.beginPath();
+        ctx.arc(x, g.y, g.r, 0, Math.PI*2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+  };
+  _particelleRAF = requestAnimationFrame(passo);
+}
+function ParticelleFerma(){
+  if(_particelleRAF){ cancelAnimationFrame(_particelleRAF); _particelleRAF = null; }
+  if(_particelleResize){ window.removeEventListener('resize', _particelleResize); _particelleResize = null; }
+  _particelleStrati = null;
+  _particelleUltimo = 0;
+}
+// I due nomi di prima restano: sono chiamati da showPage e dagli agganci di
+// pagina, e cambiarli non aggiungerebbe nulla.
+function loopParticelle(){ ParticelleAvvia(); }
+function fermaLoopParticelle(){ ParticelleFerma(); }
 
 function showPage(name){
   if(name !== 'start' && typeof fermaLoopParticelle === 'function') fermaLoopParticelle();
