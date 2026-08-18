@@ -5278,7 +5278,14 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
 .card-db-card-slot svg text,
 .hand-card-wrap svg text,
 #drag-ghost svg text,
-#board-svg text{
+#board-svg text,
+/* v0.75.2 — mancavano due posti in cui una carta si inclina, e in tutti e due
+   il testo saltellava per la stessa identica ragione: la finestra della carta
+   ingrandita e le carte di una bustina. L'elenco qui sopra era stato scritto
+   quando quei due tilt non esistevano ancora, e nessuno dei due si e' poi
+   ricordato di aggiungersi. */
+#card-modal-card svg text,
+.pack-card svg text{
   text-rendering:geometricPrecision;
 }
 /* v0.73.2 — l'ampiezza del tilt e' una variabile, non piu' un numero fisso:
@@ -5304,11 +5311,11 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
   position:absolute; inset:0;
   border-radius:6.148% / 3.586%;
   pointer-events:none;
-  /* v0.75.1 — visibile anche a riposo, tenue. Il centro di default di
+  /* v0.75.2 — visibile a riposo, a piena forza. Il centro di default di
      --foil-mx/my e' 32/24 e non 50/50: una luce esattamente al centro della
      carta non e' una luce, e' un alone. Messa in alto a sinistra sembra una
      finestra fuori campo, che e' cio' che il riflesso deve raccontare. */
-  opacity:var(--glare-strength-riposo,0.3);
+  opacity:1;
   transition:opacity 0.28s ease-out;
   mix-blend-mode:overlay;
   background:radial-gradient(circle at calc(var(--foil-mx,32) * 1%) calc(var(--foil-my,24) * 1%),
@@ -5382,33 +5389,32 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
    Prima ogni livello (lamina, riflesso, speculare) partiva da opacity:0 e si
    accendeva solo sotto il puntatore: una carta ferma era una carta spenta, e
    la maggior parte delle carte a schermo e' sempre ferma.
-   Adesso ognuno ha una forza a RIPOSO, piu' bassa di quella sotto il mouse:
-   la carta vive da sola, e passarci sopra la accende. La differenza fra le
-   due forze e' quello che rende il passaggio ancora una ricompensa. */
+   v0.75.2 — e si vedono a PIENA FORZA, non attenuati. La prima versione li
+   teneva a un terzo a riposo per lasciare al passaggio del mouse qualcosa da
+   aggiungere: a quell'intensita' pero' non si vedevano affatto, che e' come
+   non averli. Adesso l'opacita' e' la stessa in tutti e due gli stati, e la
+   differenza la fa il MOVIMENTO — la tinta che ruota, il riflesso che segue
+   il puntatore, i livelli che si sfalsano. Una lamina ferma e' comunque una
+   lamina; una lamina che non si vede non e' niente. */
 .card-holo-layer{
-  opacity:var(--foil-strength-riposo,0.34);
-  filter:saturate(1.25);
+  opacity:var(--foil-strength,0.78);
+  filter:saturate(1.5);
   transition:opacity 0.28s ease-out, filter 0.28s ease-out;
   mix-blend-mode:overlay;
 }
+/* v0.75.2 — l'opacita' e' gia' quella giusta a riposo (vedi .card-holo-layer):
+   qui resta solo da spegnere la transizione, perche' durante l'inseguimento
+   del puntatore una dissolvenza da 0.28s farebbe arrancare l'effetto dietro
+   al mouse. Stesso discorso per gli altri livelli qui sotto. */
 [data-foil-active="1"] .card-holo-layer{
-  /* saturate: satura i COLORI invece di alzare solo l'opacità, che da sola
-     (provata a 0.85) slavava l'illustrazione verso il bianco-rosa prima
-     ancora che l'arcobaleno diventasse leggibile. */
-  opacity:var(--foil-strength,0.78);
-  filter:saturate(1.5);
   transition:none;
 }
 .card-holo-layer[data-holo-variant="dark"]{
   mix-blend-mode:color-dodge;
-  opacity:var(--foil-strength-dark-riposo,0.14);
-  filter:none;
-}
-[data-foil-active="1"] .card-holo-layer[data-holo-variant="dark"]{
   opacity:var(--foil-strength-dark,0.30);
   filter:none; /* su color-dodge gia' saturo spingerebbe i colori fuori scala */
 }
-[data-foil-variant="dark"][data-foil-active="1"] .card-db-foil-glare{
+[data-foil-variant="dark"] .card-db-foil-glare{
   opacity:0.65;
 }
 /* v0.72.30 FIX ("a volte vedo le carte estremamente blurrate/sgranate", sia
@@ -5457,26 +5463,25 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      contributo dove la banda passa, senza toccare il resto della carta —
      che il livello non contiene proprio. */
   filter:brightness(1.35);
-  /* v0.75.1 — a riposo si vede, ma piu' tenue: il commento qui sopra diceva
-     che una banda di luce ferma a meta' carta sarebbe un artefatto, ed e'
-     vero a piena forza. A un terzo legge come il metallo che prende luce da
-     una finestra, che e' esattamente cio' che deve sembrare. */
-  opacity:var(--gloss-strength-riposo,0.34);
+  /* v0.75.2 — a piena forza anche a riposo, come la lamina. Il commento qui
+     sopra temeva che una banda di luce ferma sembrasse un artefatto: si e'
+     visto che il rischio vero era l'opposto, cioe' non vederla. La banda
+     resta dov'e' finche' non ci passi sopra il mouse, ed e' esattamente cio'
+     che fa la luce su un oggetto fermo. */
+  opacity:var(--gloss-strength,1);
   transition:opacity 0.28s ease-out;
 }
 [data-foil-active="1"] .card-db-gloss-layer{
-  opacity:var(--gloss-strength,1);
   transition:none;
 }
 /* v0.72.15 ("abbassa l'intensità della specular map sulle carte light di un
    20%"): sulla pergamena chiara il metallo parte già luminoso, quindi lo
    stesso guadagno che sulla scura legge come riflesso lì tende al bruciato.
    1 -> 0.8, esattamente il 20% richiesto. */
-[data-foil-variant="light"][data-foil-active="1"] .card-db-gloss-layer{
+[data-foil-variant="light"] .card-db-gloss-layer{
   opacity:var(--gloss-strength-light,0.8);
 }
 [data-foil-active="1"] .card-db-foil-glare{
-  opacity:1;
   transition:none;
 }
 /* v0.71.76 ("rendi le carte girate di dorso trasparenti al 50%"): every
@@ -6635,7 +6640,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.1</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.2</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -12970,11 +12975,15 @@ const CARD_DB_GLOSS_SWEEP_Y = 0.15;
 // speculare di una carta: cloni dei soli elementi lucidi, fusi in `screen` e
 // mascherati da una banda di luce che scorre con l'inclinazione.
 //
-// Costruzione PIGRA di proposito: ora che tilt+glare valgono per tutte le
-// carte, farlo al render significherebbe pagare ~20 nodi clonati × 82 carte
-// per un effetto che si vede su una carta alla volta, e quasi mai su tutte.
-// Così si paga solo per le carte davvero sfiorate. Il flag vive sul nodo
-// slot, quindi si azzera da sé a ogni rebuild della griglia.
+// Era PIGRA di proposito: quando il livello si vedeva solo sotto il puntatore,
+// costruirlo al render significava pagare ~20 nodi clonati per ogni carta a
+// schermo per un effetto che se ne vedeva una alla volta.
+// v0.75.1 — adesso il livello si vede anche a carta ferma, quindi la pigrizia
+// e' diventata un difetto: la carta si sarebbe accesa la prima volta che ci
+// passavi sopra e poi sarebbe rimasta accesa. Le chiamate al render lo
+// costruiscono subito (vedi renderHand e cardDbRenderRoster); il flag
+// _glossBuilt resta e continua a fare il suo mestiere, cioe' impedire che una
+// seconda chiamata lo costruisca due volte.
 function cardDbBuildGlossLayer(host, cardOverride, svgOverride){
   if(host._glossBuilt) return;
   host._glossBuilt = true;
