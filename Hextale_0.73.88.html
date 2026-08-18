@@ -6403,7 +6403,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.87</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.88</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -10269,6 +10269,17 @@ let _musicLoopTimer = null;   // id del setTimeout finale
 // E' il bug segnalato ("menu music loopa con la canzone sbagliata"): la coda
 // era quella giusta, ma sopra ci finiva un secondo brano.
 let _musicIntroLoopActive = false;
+// v0.73.88 — sta suonando la musica DEI MENU (e non quella di una partita)?
+// Si guarda cosa c'e' davvero nel lettore, non una variabile a parte: due
+// verita' sullo stesso fatto finirebbero prima o poi per discordare.
+// `_musicIntroLoopActive` da solo non basta perche' dice "una coppia
+// intro+coda e' in corso", che vale anche per un brano di partita che un
+// domani ne avesse una.
+function staSuonandoMusicaDeiMenu(){
+  if(!_musicIntroLoopActive) return false;
+  const bgm=document.getElementById('bgm');
+  return !!(bgm && bgm.src && typeof MENU_MUSIC_TRACK==='string' && bgm.src.indexOf(MENU_MUSIC_TRACK)!==-1);
+}
 function stopMusicLoopChain(){
   _musicIntroLoopActive = false;
   if(_musicLoopWatch){ clearInterval(_musicLoopWatch); _musicLoopWatch=null; }
@@ -14422,7 +14433,19 @@ function abandonCurrentGame(){
   stopAiThinkingHover();
   collapseAllHandExpand();
   _cardLand=null;
-  stopMusicLoopChain(); // v0.72.39: nessuna coda musicale deve sopravvivere a una partita annullata
+  // v0.72.39: nessuna coda musicale deve sopravvivere a una partita annullata.
+  // v0.73.88 FIX ("ogni volta che si entra in collezione la musica riparte"):
+  // ...ma la coda dei MENU non appartiene alla partita, e da qui si esce quasi
+  // sempre verso un menu. Questa funzione viene chiamata entrando in
+  // Collezione, in Book Packs e tornando al menu principale: spegnere la
+  // catena spegneva anche il segnale che dice "la musica dei menu sta gia'
+  // suonando" (_musicIntroLoopActive), e musicaMenuAvvia — che proprio su
+  // quel segnale decide se non fare niente — la faceva ripartire da capo.
+  // Il risultato era uno stacco a ogni ingresso, invece del brano unico e
+  // continuo che questi tre posti devono condividere (vedi musicaMenuAvvia).
+  // A spegnere la musica dei menu resta un solo punto, quello che sa dove si
+  // sta andando: startGame, quando comincia una partita vera.
+  if(!staSuonandoMusicaDeiMenu()) stopMusicLoopChain();
   if(_pendingOverlayRender){ clearTimeout(_pendingOverlayRender); _pendingOverlayRender=null; }
   // Zittisce quel che e' gia' in volo, poi riapre subito il cancello: la
   // schermata iniziale ha i suoi suoni (il click dei pulsanti) e non deve
