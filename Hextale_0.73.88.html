@@ -9942,6 +9942,17 @@ function _livelliDiVariante(slug, fazione){
 // trovano. Si procede in fila e ci si ferma al primo buco, perche' la
 // numerazione e' incrementale per definizione: se manca la 3 non ha senso
 // chiedere la 4.
+// v0.73.90 — IL GRIDO DI BATTAGLIA, TROVATO DA SOLO.
+// Ogni personaggio puo' avere `<slug>-battlecry.mp3` accanto alle sue battute.
+// Non c'e' niente da dichiarare da nessuna parte: se il file esiste, la carta
+// lo urla quando viene giocata; se non esiste, resta null e non succede
+// niente. E' la stessa strada dell'arte e delle voci — si bussa, e chi
+// risponde entra in gioco — ed e' cio' che rende una carta nuova completa nel
+// momento in cui i suoi file vengono caricati, senza passare di qui.
+function _battlecryDiPersonaggio(slug){
+  const coda = slug + '-battlecry.mp3';
+  return _primoCheEsiste(_candidati(VOCI_REL + coda, VOCI_BASE + coda), _provaAudio);
+}
 function _vociDiPersonaggio(slug){
   const trovate = [];
   const passo = n => {
@@ -10074,6 +10085,12 @@ function verificaArtCarte(){
     lavori.push(_vociDiPersonaggio(slug).then(v=>{
       entry.voci = v;
       if(v.length) registraVociSfx(v);
+    }));
+    // v0.73.90 — e il grido di battaglia, cercato con la stessa insistenza e
+    // con lo stesso diritto di non esistere.
+    lavori.push(_battlecryDiPersonaggio(slug).then(u=>{
+      entry.battlecry = u || null;
+      if(u) registraVociSfx([u]);
     }));
   }
   // Un limite complessivo: se la rete e' lenta o assente il gioco deve
@@ -17415,7 +17432,13 @@ const SCELTE_PIAZZAMENTO = {
   open_celery: (card, q, r, giocatore) => {
     const spostabili = tasselliBloccatiSpostabili();
     if(!spostabili.length) return null; // nessun tassello da muovere: si tira dritto
-    return {
+    // Lo stato si tiene per NOME e non si rilegge da `G.sceltaBersaglio`:
+    // chiudiSceltaBersaglio azzera quella variabile PRIMA di chiamare
+    // `applica` — deve farlo, o una chiusura dentro l'altra troverebbe una
+    // finestra che sta gia' morendo — quindi da dentro qui `G.sceltaBersaglio`
+    // e' sempre null. Ci si era gia' cascati: la destinazione trascinata
+    // veniva persa e il tassello finiva dove l'avrebbe messo l'IA.
+    const stato = {
       chiave: 'open_celery',
       giocatore,
       modo: 'trascina',
@@ -17427,14 +17450,15 @@ const SCELTE_PIAZZAMENTO = {
       // casella libera accanto piu' centrale, che e' la scelta meno stupida
       // fra quelle disponibili.
       applica: (cella) => {
-        const scelta = G.sceltaBersaglio || {};
-        const dove = scelta.destinazioneScelta && celleLibereAttornoATassello(cella).includes(scelta.destinazioneScelta)
-          ? scelta.destinazioneScelta
+        const chiesta = stato.destinazioneScelta;
+        const dove = (chiesta && celleLibereAttornoATassello(cella).includes(chiesta))
+          ? chiesta
           : miglioreCasellaPerTassello(cella);
         spostaTasselloBloccato(cella, dove);
       },
       rinuncia: () => {},
     };
+    return stato;
   },
   magic_mirror: (card, q, r, giocatore) => {
     // Da qui in poi questa carta e' uno specchio per sempre, qualunque
