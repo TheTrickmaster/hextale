@@ -2239,6 +2239,18 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
   pointer-events:none;
 }
 
+/* ── v0.73.91 — il respiro del bagliore sulle caselle su cui si puo' agire.
+   Stesso ritmo lento del bordo luminoso delle carte in mano (.hand-card-rim-
+   ring, 9s): e' la stessa cosa detta sulla stessa lunghezza d'onda, non due
+   effetti diversi che pulsano ognuno per conto suo. ── */
+@keyframes glowAzioneRespira{
+  0%,100%{ opacity:0.55; }
+  50%    { opacity:1; }
+}
+.glow-azione{
+  animation:glowAzioneRespira 2.4s ease-in-out infinite;
+}
+
 /* ── Card "landing" animation: newly placed card pops in ── */
 /* v0.72.19 REWORK ("deve sembrare che si abbassi e cali sul tile, invece
    adesso fa solo una specie di bounce delle dimensioni. voglio vedere che la
@@ -6416,7 +6428,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.90</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.91</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -17674,11 +17686,22 @@ function preparaTrascinamentoTassello(svg, cella, bx, by, R, buildSvgIconBtn){
   gruppoIcona.style.cursor = 'grab';
 
   let preso = null; // {x0,y0,mosso}
+  // v0.73.91 FIX ("non vedo fluttuare i tile") — SI RESTITUISCONO NUMERI, NON
+  // UN SVGPoint. Il punto convertito e' un DOMPoint, e i suoi `x`/`y` vivono
+  // sul prototipo, non come proprieta' proprie: `{...punto}` restituiva quindi
+  // un oggetto VUOTO. Da li' in poi ogni conto diventava NaN, la `transform`
+  // usciva come `translate(NaN,NaN)` — che il browser scarta in silenzio — e
+  // il tassello restava immobile mentre tutto il resto (l'ombra, la mano
+  // chiusa) faceva finta di funzionare. In jsdom non si vedeva perche' li' il
+  // punto era un oggetto normale, e lo spread funzionava: la prova confermava
+  // un percorso che il browser vero non ha.
   const puntoNelDisegno = (e)=>{
+    const m = bsvg.getScreenCTM && bsvg.getScreenCTM();
+    if(!m || !bsvg.createSVGPoint) return {x:e.clientX, y:e.clientY};
     const p = bsvg.createSVGPoint();
     p.x = e.clientX; p.y = e.clientY;
-    const m = bsvg.getScreenCTM();
-    return m ? p.matrixTransform(m.inverse()) : {x:0,y:0};
+    const q = p.matrixTransform(m.inverse());
+    return {x:q.x, y:q.y};
   };
   const muovi = (e)=>{
     if(!preso) return;
@@ -17696,10 +17719,15 @@ function preparaTrascinamentoTassello(svg, cella, bx, by, R, buildSvgIconBtn){
       if(wrap){
         wrap.classList.add('tassello-sollevato');
         const radice = wrap.ownerSVGElement || document.getElementById('board-svg');
-        let cella = wrap;
-        while(cella.parentNode && cella.parentNode !== radice) cella = cella.parentNode;
-        if(cella.parentNode === radice) radice.appendChild(cella);
+        let gruppoCella = wrap;
+        while(gruppoCella.parentNode && gruppoCella.parentNode !== radice) gruppoCella = gruppoCella.parentNode;
+        if(gruppoCella.parentNode === radice) radice.appendChild(gruppoCella);
       }
+      // v0.73.91 — il bagliore SEGUE il gesto: da "questi puoi prenderli" a
+      // "qui puoi posarlo". E' la parte dinamica della regola, e il momento in
+      // cui serve davvero — con il tassello in mano, la domanda del giocatore
+      // non e' piu' quale prendere ma dove metterlo.
+      aggiornaGlowAzione(celleLibereAttornoATassello(cella));
     }
     // L'ingrandimento e' attorno al CENTRO del tassello, non all'origine del
     // disegno: scalare e basta lo farebbe schizzare verso l'angolo in alto a
@@ -17740,12 +17768,19 @@ function preparaTrascinamentoTassello(svg, cella, bx, by, R, buildSvgIconBtn){
     // Si posa anche davvero: via l'ombra, che e' cio' che lo teneva "in mano".
     if(wrap){ wrap.removeAttribute('transform'); wrap.classList.remove('tassello-sollevato'); }
     gruppoIcona.removeAttribute('transform');
+    // v0.73.91 FIX ("se si torna sullo spazio originale e si rilascia, la
+    // manina sparisce e non si puo' piu' ridraggare"): il bagliore era passato
+    // sulle caselle d'arrivo e li' restava, mentre i tasselli prendibili
+    // tornavano spenti — da fuori sembrava che l'abilita' si fosse consumata.
+    // Rimettendolo su tutti i tasselli spostabili si torna esattamente allo
+    // stato di partenza, che e' cio' che un tentativo annullato deve fare.
+    aggiornaGlowAzione(tasselliBloccatiSpostabili());
   };
   gruppoIcona.addEventListener('pointerdown', (e)=>{
     if(e.button!==undefined && e.button!==0) return;
     e.preventDefault(); e.stopPropagation();
-    preso = {...puntoNelDisegno(e), mosso:false};
-    preso.x0 = preso.x; preso.y0 = preso.y;
+    const p0 = puntoNelDisegno(e);
+    preso = {x0:p0.x, y0:p0.y, mosso:false};
     if(immagineIcona) immagineIcona.setAttribute('href', iconaChiusa);
     gruppoIcona.style.cursor = 'grabbing';
     document.addEventListener('pointermove', muovi, true);
@@ -26897,6 +26932,69 @@ function tileVariant(arr, q, r){
 // dove ogni abilita' evidenzia a modo suo costringe a re-imparare l'interfaccia
 // a ogni carta nuova.
 const COLORE_BERSAGLIO = '#D2BB8A';
+// ═══════════════════════════════════════════════════════════════════════════
+// v0.73.91 — IL BAGLIORE SULLE CASELLE SU CUI SI PUO' AGIRE
+// ═══════════════════════════════════════════════════════════════════════════
+// REGOLA GENERALE, per ogni abilita' presente e futura: quando un'abilita'
+// chiede al giocatore di fare qualcosa su dei tasselli — cliccarli,
+// trascinarli, sceglierli — quei tasselli si accendono con QUESTO bagliore.
+// E' lo stesso linguaggio del bordo luminoso che circonda le carte in mano
+// quando e' il tuo turno ("qui puoi agire"), tradotto nella forma esagonale
+// del tabellone, in #FFE991.
+//
+// E' DINAMICO. Non e' una decorazione messa una volta all'apertura della
+// finestra: segue la fase del gesto. Con Ali Baba, per esempio, all'inizio
+// brillano i tasselli bloccati che si possono prendere; appena se ne afferra
+// uno, il bagliore si sposta sulle caselle dove lo si puo' posare. Chi guarda
+// non deve mai chiedersi "e adesso dove?".
+//
+// Perche' un doppio contorno e non un `filter: drop-shadow`: il bagliore deve
+// stare INTORNO all'esagono senza toccare il disegno del tassello, e un filtro
+// avrebbe sfocato anche l'arte sotto. Due tracciati concentrici — uno largo e
+// tenue, uno sottile e pieno — danno la stessa lettura restando nitidi.
+const COLORE_GLOW_AZIONE = '#FFE991';
+function glowEsagonale(svg, x, y, R, cella){
+  const gruppo = svgEl('g');
+  gruppo.setAttribute('data-glow-azione', cella || '');
+  gruppo.style.pointerEvents = 'none';
+  const alone = svgEl('polygon');
+  alone.setAttribute('points', ptStr(x, y, R - BOARD_GAP));
+  alone.setAttribute('fill', 'none');
+  alone.setAttribute('stroke', COLORE_GLOW_AZIONE);
+  alone.setAttribute('stroke-width', '9');
+  alone.setAttribute('stroke-linejoin', 'round');
+  alone.setAttribute('opacity', '0.28');
+  alone.style.filter = 'blur(6px)';
+  alone.style.mixBlendMode = 'plus-lighter';
+  gruppo.appendChild(alone);
+  const filo = svgEl('polygon');
+  filo.setAttribute('points', ptStr(x, y, R - BOARD_GAP));
+  filo.setAttribute('fill', 'none');
+  filo.setAttribute('stroke', COLORE_GLOW_AZIONE);
+  filo.setAttribute('stroke-width', '2');
+  filo.setAttribute('stroke-linejoin', 'round');
+  filo.style.mixBlendMode = 'plus-lighter';
+  gruppo.appendChild(filo);
+  gruppo.classList.add('glow-azione');
+  svg.appendChild(gruppo);
+  return gruppo;
+}
+// Riaccende il bagliore su UN NUOVO insieme di caselle, spegnendo il
+// precedente. E' il modo in cui il bagliore "segue" il gesto senza ridisegnare
+// tutta la plancia: un ridisegno nel mezzo di un trascinamento porterebbe via
+// proprio l'elemento che si sta muovendo.
+function aggiornaGlowAzione(celle){
+  const bsvg = document.getElementById('board-svg');
+  if(!bsvg) return;
+  bsvg.querySelectorAll('[data-glow-azione]').forEach(el=>el.remove());
+  if(!celle || !celle.length || !_ultimoCentroPlancia || !_ultimoRaggioCella) return;
+  for(const k of celle){
+    const c = G.cells.find(x=>key(x.q,x.r)===k);
+    if(!c) continue;
+    const {x,y} = axialToPixel(c.q,c.r,_ultimoCentroPlancia.x,_ultimoCentroPlancia.y,_ultimoRaggioCella);
+    glowEsagonale(bsvg, x, y, _ultimoRaggioCella, k);
+  }
+}
 function evidenziaBersaglio(svg, x, y, R){
   const alone = svgEl('polygon');
   alone.setAttribute('points', ptStr(x, y, R-BOARD_GAP));
@@ -27910,6 +28008,10 @@ function renderBoard(){
       const c = G.cells.find(x=>key(x.q,x.r)===cella);
       if(!c) continue;
       const {x:bx,y:by} = axialToPixel(c.q,c.r,cx,cy,R);
+      // v0.73.91 — il bagliore #FFE991 su ogni casella su cui si puo' agire.
+      // Vale per OGNI abilita' che chieda qualcosa sul tabellone, non solo per
+      // questa: e' il posto in cui passano tutte (vedi glowEsagonale).
+      glowEsagonale(svg, bx, by, R, cella);
       evidenziaBersaglio(svg, bx, by, R);
       // v0.73.89 — due modi di scegliere, un disegno per ciascuno. Il mirino
       // dice "cliccami"; la mano dice "prendimi e portami". Il resto della
