@@ -6403,7 +6403,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.80</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.81</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -16325,8 +16325,26 @@ function recalcNightmare(card){
 // continua a funzionare senza sapere niente della notte.
 // Lo stato dell'ANIMAZIONE invece non si scrive sulla carta (chi disegna
 // riceve una copia): vive in `_notteInCorso`, come il velo del fumo.
-const NOTTE_DISSOLVENZA_MS = 1000;
+// v0.73.81 — la dissolvenza raddoppia (era 1s). E' una trasformazione, e
+// merita il tempo di essere guardata.
+const NOTTE_DISSOLVENZA_MS = 2000;
 const _notteInCorso = new Map(); // id carta -> {da:istante, artPrima:url}
+// v0.73.81 — IL SUONO NON PUO' DIPENDERE DALL'ORDINE DI CARICAMENTO.
+// La risata sta in audio/voices/ e viene registrata da registraSuoniExtra()
+// all'avvio, cercandola prima accanto al file e poi sul repository. Se quella
+// ricerca non e' ancora finita — o non e' andata a buon fine, per esempio
+// perche' il guscio desktop si porta dietro una copia degli asset piu' vecchia
+// del file — playSfxFile non trova nessun indirizzo e il suono resta muto in
+// silenzio, senza dire niente a nessuno. E' quello che e' successo.
+// Questa funzione garantisce che un indirizzo ci sia comunque, al momento del
+// bisogno: se la chiave manca la si crea puntando al repository, che c'e'
+// sempre. Non toglie niente alla ricerca normale (che resta piu' veloce e
+// funziona anche senza rete): la copre soltanto.
+function assicuraSuonoDaVoce(nomeFile){
+  const chiave = nomeFile.replace(/\.(mp3|wav)$/i,'');
+  if(!AUDIO_DATA_URLS[chiave]) AUDIO_DATA_URLS[chiave] = VOCI_BASE + nomeFile;
+  return nomeFile;
+}
 function calaLaNotteSu(card){
   if(_simulazioneInCorso) return;
   const nuovaDark = card.artNotteDark || card.artDark;
@@ -16367,7 +16385,7 @@ function calaLaNotteSu(card){
   // via e rifatto. Si mette in coda e si accende a disegno finito, esattamente
   // come i lampi sui valori.
   _lampiNotte.add(card.id);
-  try { playSfxFile('strigoi-laugh.mp3'); } catch(_){}
+  try { playSfxFile(assicuraSuonoDaVoce('strigoi-laugh.mp3')); } catch(_){}
   // A dissolvenza conclusa serve un ultimo disegno che tolga di mezzo l'arte
   // vecchia: nessun altro lo farebbe, perche' lo stato della dissolvenza vive
   // fuori dalla carta e quindi non entra nella firma del tabellone — senza
