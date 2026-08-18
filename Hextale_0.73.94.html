@@ -2266,12 +2266,24 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
    sono entrambe trasformazioni, e sullo stesso elemento si sovrascriverebbero
    — e' la stessa ragione per cui la carta ha il tilt su un piano separato dal
    giro. */
+/* v0.73.94 — DUE CORREZIONI, dopo aver riguardato la carta da vicino.
+   1) LA PROSPETTIVA STA SUL PADRE, non nella lista delle trasformazioni.
+      E' quello che fa la carta (vedi .card-db-foil-wrap: `perspective:800px`,
+      col commento che dice esplicitamente "deve stare sul PADRE dell'elemento
+      ruotato, non su di esso"). Scritta dentro alla `transform` dell'elemento
+      stesso, la prospettiva viene applicata attorno all'origine della
+      trasformazione e deforma la figura invece di darle profondita': era il
+      "si distorce in maniera strana".
+   2) IL PERNO E' IL CENTRO DEL TASSELLO, dichiarato in coordinate del disegno.
+      Con `fill-box` il perno diventa il centro del riquadro che contiene
+      TUTTO il gruppo — tassello piu' mano — che non e' il centro del tassello:
+      la figura ruotava attorno a un punto spostato, e da fuori si legge come
+      una deformazione. Il centro vero lo passa il codice (vedi apriPresa
+      Tassello), perche' solo li' si sa dove sia questo tassello. */
 .tassello-inclinato{
   --tilt-ampiezza:20deg;
-  transform-box:fill-box;
-  transform-origin:center center;
-  transform:perspective(760px)
-            rotateX(calc(var(--foil-ry,0) * var(--tilt-ampiezza, 10deg) * -1))
+  transform-box:view-box;
+  transform:rotateX(calc(var(--foil-ry,0) * var(--tilt-ampiezza, 10deg) * -1))
             rotateY(calc(var(--foil-rx,0) * var(--tilt-ampiezza, 10deg)));
 }
 
@@ -6452,7 +6464,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.93</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.94</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -17657,23 +17669,16 @@ function spostaTasselloBloccato(da, a){
   // abbattuti invece che con quello normale.
   if(G.destroyedHoles) G.destroyedHoles.delete(a);
   renderBoard();
-  avviaAtterraggioTassello(a);
-  playSfxFile('bump.mp3');
+  // v0.73.94 — l'atterraggio e' quello delle carte, chiamato per nome: il
+  // bump all'impatto e il riaggancio dopo un ridisegno arrivano inclusi.
+  startCardLandAnim(a, '[data-tile-wrap="'+a+'h"]');
   return true;
 }
-// L'atterraggio del tassello e' lo STESSO dell'atterraggio delle carte — la
-// classe .card-land, gli stessi fotogrammi, la stessa durata. Non e' pigrizia:
-// due cose che cadono sullo stesso tavolo devono cadere allo stesso modo, o la
-// seconda sembra appartenere a un altro gioco.
-function avviaAtterraggioTassello(cella){
-  const bsvg=document.getElementById('board-svg');
-  const wrap=bsvg && bsvg.querySelector('[data-tile-wrap="'+cella+'h"]');
-  if(!wrap) return false;
-  wrap.classList.remove('card-land');
-  void wrap.getBoundingClientRect();
-  wrap.classList.add('card-land');
-  return true;
-}
+// v0.73.94 — qui viveva avviaAtterraggioTassello, che riapplicava a mano la
+// classe .card-land. Faceva la stessa cosa a meta': niente bump all'impatto,
+// niente riaggancio se la plancia veniva ridisegnata a meta' caduta. Adesso il
+// tassello passa dallo stesso startCardLandAnim delle carte (vedi li'), che
+// quelle due cose le fa gia'.
 
 // ── v0.73.89 — PRENDERE UN TASSELLO E PORTARLO ALTROVE ────────────────────
 // Il gesto: si preme sulla mano aperta, la mano si chiude, il tassello segue
@@ -17695,7 +17700,8 @@ function avviaAtterraggioTassello(cella){
 const TRASCINA_SOGLIA_PX = 3; // sotto questa soglia e' un tocco, non un trascinamento
 // Quanto "si alza" il tassello mentre lo si tiene. E' lo stesso mestiere che
 // fa l'ombra: dire che quella cosa non e' piu' appoggiata al tavolo.
-const TRASCINA_INGRANDIMENTO = 1.12;
+// v0.73.94 — qui viveva TRASCINA_INGRANDIMENTO: il tassello sollevato non si
+// ingrandisce piu' (vedi passoMolla), quindi non serve a nessuno.
 // v0.73.93 — qui vivevano due costanti per una rotazione PIANA, proporzionale
 // allo scostamento orizzontale. Non era l'inclinazione della carta: quella e'
 // una rotazione in 3D guidata dalla velocita'. Sostituita da quella vera (vedi
@@ -17769,8 +17775,14 @@ function preparaTrascinamentoTassello(svg, cella, bx, by, R, buildSvgIconBtn){
     postoTassello = {padre: wrap.parentNode, dopo: wrap.nextSibling};
     postoIcona = {padre: gruppoIcona.parentNode, dopo: gruppoIcona.nextSibling};
     gSposta = svgEl('g');
+    // La prospettiva sul PADRE, come per la carta (vedi .card-db-foil-wrap).
+    gSposta.style.perspective = '800px';
     gInclina = svgEl('g');
     gInclina.setAttribute('class','tassello-inclinato');
+    // Il perno del tilt e' il centro di QUESTO tassello, in coordinate del
+    // disegno: senza dirlo, ruoterebbe attorno al centro del riquadro che
+    // contiene anche la mano, cioe' attorno a un punto sbagliato.
+    gInclina.style.transformOrigin = bx.toFixed(2)+'px '+by.toFixed(2)+'px';
     gSposta.appendChild(gInclina);
     radice.appendChild(gSposta); // ultimo = sopra a tutto (in SVG comanda l'ordine)
     wrap.classList.add('tassello-sollevato');
@@ -17812,12 +17824,24 @@ function preparaTrascinamentoTassello(svg, cella, bx, by, R, buildSvgIconBtn){
     mollaVX = (mollaVX + (bx0-mollaX)*GHOST_STIFFNESS) * GHOST_DAMPING;
     mollaVY = (mollaVY + (by0-mollaY)*GHOST_STIFFNESS) * GHOST_DAMPING;
     mollaX += mollaVX; mollaY += mollaVY;
-    const s = TRASCINA_INGRANDIMENTO;
+    // v0.73.94 — NIENTE INGRANDIMENTO: il tassello resta della misura con cui
+    // e' disegnato sulla plancia. A dire "e' in mano" bastano l'ombra e
+    // l'inclinazione, che e' esattamente il corredo di una carta trascinata;
+    // ingrandirlo lo faceva sembrare un pezzo di un altro tabellone.
     gSposta.setAttribute('transform',
-      'translate('+mollaX.toFixed(2)+','+mollaY.toFixed(2)+') '
-      + 'translate('+(bx*(1-s)).toFixed(2)+','+(by*(1-s)).toFixed(2)+') scale('+s+')');
-    const rx = Math.max(-1, Math.min(1, mollaVX/DRAG_TILT_REF_SPEED));
-    const ry = Math.max(-1, Math.min(1, mollaVY/DRAG_TILT_REF_SPEED));
+      'translate('+mollaX.toFixed(2)+','+mollaY.toFixed(2)+')');
+    // v0.73.94 — LA VELOCITA' VA PORTATA NELLA STESSA UNITA' DELLA CARTA.
+    // DRAG_TILT_REF_SPEED e' tarato sui pixel di SCHERMO, perche' la carta
+    // trascinata e' un elemento HTML mosso in pixel. Qui la molla lavora nelle
+    // coordinate del DISEGNO, che sul tabellone sono piu' grandi: dividere per
+    // lo stesso riferimento faceva sembrare ogni movimento velocissimo, la
+    // rotazione andava subito al massimo e restava li'. Da qui "il tilt e'
+    // troppo esagerato". Convertendo prima, i due gesti si inclinano davvero
+    // allo stesso modo a parita' di gesto della mano.
+    const perSchermo = (lastBoardGeom && _ultimoRaggioCella)
+      ? (lastBoardGeom.R / _ultimoRaggioCella) : 1;
+    const rx = Math.max(-1, Math.min(1, (mollaVX*perSchermo)/DRAG_TILT_REF_SPEED));
+    const ry = Math.max(-1, Math.min(1, (mollaVY*perSchermo)/DRAG_TILT_REF_SPEED));
     gInclina.style.setProperty('--foil-rx', rx.toFixed(3));
     gInclina.style.setProperty('--foil-ry', ry.toFixed(3));
     rafId = requestAnimationFrame(passoMolla);
@@ -27047,10 +27071,11 @@ function glowEsagonale(svg, x, y, R, cella){
   // il bagliore doveva vedersi meglio da lontano, e su un esagono grande un
   // filo sottile si perde contro l'arte del tassello.
   // v0.73.93 — e altri tre e due (da 12/8 a 15/10), per lo stesso motivo.
-  alone.setAttribute('stroke-width', '15');
+  // v0.73.94 — e ancora cinque e tre (da 15/10 a 20/13).
+  alone.setAttribute('stroke-width', '20');
   alone.setAttribute('stroke-linejoin', 'round');
   alone.setAttribute('opacity', '0.28');
-  alone.style.filter = 'blur(10px)';
+  alone.style.filter = 'blur(13px)';
   alone.style.mixBlendMode = 'plus-lighter';
   gruppo.appendChild(alone);
   const filo = svgEl('polygon');
@@ -27241,7 +27266,7 @@ function cardLandReattach(){
   if(!_cardLand) return;
   if(performance.now() - _cardLand.t0 >= CARD_LAND_MS){ _cardLand = null; return; }
   const bsvg=document.getElementById('board-svg');
-  const el=bsvg && bsvg.querySelector(`[data-conquered="${_cardLand.k}"]`);
+  const el=bsvg && bsvg.querySelector(_cardLand.selettore || `[data-conquered="${_cardLand.k}"]`);
   if(el) cardLandApplyTo(el);
 }
 
@@ -27301,10 +27326,16 @@ function avviaSaltoCarta(k){
   if(el) cardJumpApplyTo(el);
   return !!el;
 }
-function startCardLandAnim(k){
-  _cardLand = { k, t0: performance.now() };
+// v0.73.94 — `selettore` facoltativo: di norma la carta appena posata, ma
+// puo' essere QUALUNQUE pezzo del tabellone che cade. Serve al tassello
+// spostato da Ali Baba, che deve atterrare esattamente come una carta —
+// stessi fotogrammi, stesso rimbalzo, stesso bump.mp3 all'impatto, stesso
+// riaggancio se la plancia viene ridisegnata a meta' caduta. Passando di qui
+// invece di rifarne una copia, le due cadute non possono divergere.
+function startCardLandAnim(k, selettore){
+  _cardLand = { k, t0: performance.now(), selettore: selettore || null };
   const bsvg=document.getElementById('board-svg');
-  const el=bsvg && bsvg.querySelector(`[data-conquered="${k}"]`);
+  const el=bsvg && bsvg.querySelector(_cardLand.selettore || `[data-conquered="${k}"]`);
   if(el) cardLandApplyTo(el);
   // v0.72.21 ("nel momento esatto in cui si cala la carta sul tabellone, si
   // riproduca bump.mp3"): non all'inizio della caduta ma all'IMPATTO, cioe'
