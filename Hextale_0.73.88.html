@@ -14535,6 +14535,10 @@ const BOARD_GAP=2; // px gap between board hexagons
 // see cellKeyAtPoint()'s own comment for why elementFromPoint alone isn't
 // enough (blocked/hole cells and the BOARD_GAP seams between tiles).
 let lastBoardGeom = null; // {rect, cx, cy, R} in real screen-space (rect is a real DOMRect)
+// v0.73.89 — la stessa geometria nelle coordinate del DISEGNO (viewBox), non
+// dello schermo: vedi dove vengono riempite, in fondo al calcolo di renderBoard.
+let _ultimoCentroPlancia = null; // {x,y}
+let _ultimoRaggioCella = 0;
 
 // v0.70.15 FIX ("la carta deve rimanere tile anche su una cella bloccata" /
 // "nello spazio vuoto tra i tile la carta torna carta normale"): the ghost's
@@ -15092,6 +15096,10 @@ const TILE_ABILITIES_DEF = {
   // v0.73.83 — Aladdin. Al piazzamento alza il proprio gruppo piu' alto: +1,
   // oppure +3 se in campo c'e' una Principessa (vedi attivaSleightOfHand).
   sleight_of_hand:   { name:'Sleight of Hand',       desc:'*Gains* +1 on the highest Power, +3 if a /Princess/ character is present on the board.' },
+  // v0.73.89 — Ali Baba. Ferma il turno e lascia SPOSTARE un tassello bloccato
+  // trascinandolo su una casella adiacente: vedi SCELTE_PIAZZAMENTO.open_celery
+  // e il blocco del trascinamento in renderBoard.
+  open_celery:       { name:'Open, Celery!',         desc:'*Move* a blocked tile to an adjacent free space.' },
 };
 // ── v0.73.49 — QUESTI `name` SONO IL LEGAME COL FOGLIO ─────────────────────
 // Il gioco aggancia l'abilita' di un personaggio confrontando la cella
@@ -17393,6 +17401,41 @@ const SCELTE_PIAZZAMENTO = {
       seScade: () => libere[Math.floor(Math.random()*libere.length)],
     };
   },
+  // ── v0.73.89 — ALI BABA, "Open, Celery!" ────────────────────────────────
+  // La prima scelta che non si fa CLICCANDO un bersaglio ma TRASCINANDO una
+  // cosa: si prende un tassello bloccato e lo si posa su una casella libera
+  // accanto a lui. Riusa comunque tutta l'impalcatura delle altre scelte —
+  // la pausa del turno, il timer, la X per rinunciare, l'IA che chiude sempre
+  // — e ne cambia solo due cose: `modo:'trascina'`, che dice a renderBoard di
+  // disegnare la mano invece del mirino, e il fatto che la destinazione arrivi
+  // dal trascinamento invece che dal click.
+  // I bersagli sono i tasselli bloccati che hanno almeno una casella libera
+  // accanto: uno circondato da carte non si puo' spostare da nessuna parte, e
+  // offrirlo vorrebbe dire promettere un gesto che non si puo' compiere.
+  open_celery: (card, q, r, giocatore) => {
+    const spostabili = tasselliBloccatiSpostabili();
+    if(!spostabili.length) return null; // nessun tassello da muovere: si tira dritto
+    return {
+      chiave: 'open_celery',
+      giocatore,
+      modo: 'trascina',
+      cellaOrigine: key(q,r),
+      bersagli: spostabili,
+      // `cella` e' il tassello scelto. Dove vada a finire lo dice
+      // `destinazioneScelta`, che il trascinamento riempie un istante prima di
+      // chiudere; quando manca — l'IA, o il tempo scaduto — si prende la
+      // casella libera accanto piu' centrale, che e' la scelta meno stupida
+      // fra quelle disponibili.
+      applica: (cella) => {
+        const scelta = G.sceltaBersaglio || {};
+        const dove = scelta.destinazioneScelta && celleLibereAttornoATassello(cella).includes(scelta.destinazioneScelta)
+          ? scelta.destinazioneScelta
+          : miglioreCasellaPerTassello(cella);
+        spostaTasselloBloccato(cella, dove);
+      },
+      rinuncia: () => {},
+    };
+  },
   magic_mirror: (card, q, r, giocatore) => {
     // Da qui in poi questa carta e' uno specchio per sempre, qualunque
     // abilita' finisca per portare addosso: e' il marchio che impedisce a un
@@ -17439,6 +17482,205 @@ function evocaExcalibur(cella, giocatore, entry){
   // classe di problemi che in questo gioco e' costata piu' tempo.
   startCardLandAnim(cella);
   try { playCardVoiceLine(carta); } catch(_){}
+}
+
+// ── v0.73.89 — LO SPOSTAMENTO DI UN TASSELLO BLOCCATO (Ali Baba) ───────────
+// Dove puo' andare un tassello bloccato: sulle caselle a lui adiacenti che
+// esistono sul tabellone, non sono a loro volta bloccate e non hanno una carta
+// sopra. Un tassello non passa MAI sopra a una carta — sarebbe l'unico modo,
+// in tutto il gioco, di far sparire un personaggio dal tavolo.
+function celleLibereAttornoATassello(cella){
+  const [q,r] = String(cella).split(',').map(Number);
+  if(!isFinite(q) || !isFinite(r)) return [];
+  const libere = [];
+  for(const dir of DIRS){
+    const nk = key(q+dir.dq, r+dir.dr);
+    if(!G.cells.some(c=>key(c.q,c.r)===nk)) continue; // fuori dal tabellone
+    if(G.holes.has(nk)) continue;                     // gia' bloccata
+    if(G.board[nk]) continue;                         // c'e' una carta
+    libere.push(nk);
+  }
+  return libere;
+}
+// I tasselli che si possono davvero muovere: quelli con almeno una via d'uscita.
+function tasselliBloccatiSpostabili(){
+  const elenco = [];
+  for(const k of G.holes){
+    if(celleLibereAttornoATassello(k).length) elenco.push(k);
+  }
+  return elenco;
+}
+// Dove lo metterebbe chi non sta scegliendo (l'IA, o il tempo scaduto): la
+// casella piu' "in mezzo" fra quelle disponibili. Un muro al centro toglie
+// piu' spazio di uno sul bordo, quindi e' la mossa meno sprecata.
+function miglioreCasellaPerTassello(cella){
+  const libere = celleLibereAttornoATassello(cella);
+  if(!libere.length) return null;
+  let migliore = libere[0], punteggio = -1;
+  for(const k of libere){
+    const [q,r] = k.split(',').map(Number);
+    const p = aiVicinatoUtile(q,r);
+    if(p > punteggio){ punteggio = p; migliore = k; }
+  }
+  return migliore;
+}
+// Lo spostamento vero. Il tassello lascia la sua casella — che torna una
+// casella libera qualunque, ed e' gia' disegnata sotto (vedi renderBoard) —
+// e si posa su quella nuova, con l'atterraggio del salto.
+function spostaTasselloBloccato(da, a){
+  if(!da || !a) return false;
+  if(!G.holes.has(da)) return false;
+  if(!celleLibereAttornoATassello(da).includes(a)) return false;
+  G.holes.delete(da);
+  G.holes.add(a);
+  // v0.73.89 — una casella che era bloccata e non lo e' piu' NON e' una
+  // casella "riparata" (vedi destroyedHoles, che serve a chi i muri li
+  // sfonda): il tassello non e' stato rotto, si e' spostato. Se il segno
+  // restasse, quella casella verrebbe disegnata col tassello dei muri
+  // abbattuti invece che con quello normale.
+  if(G.destroyedHoles) G.destroyedHoles.delete(a);
+  renderBoard();
+  avviaAtterraggioTassello(a);
+  playSfxFile('bump.mp3');
+  return true;
+}
+// L'atterraggio del tassello e' lo STESSO dell'atterraggio delle carte — la
+// classe .card-land, gli stessi fotogrammi, la stessa durata. Non e' pigrizia:
+// due cose che cadono sullo stesso tavolo devono cadere allo stesso modo, o la
+// seconda sembra appartenere a un altro gioco.
+function avviaAtterraggioTassello(cella){
+  const bsvg=document.getElementById('board-svg');
+  const wrap=bsvg && bsvg.querySelector('[data-tile-wrap="'+cella+'h"]');
+  if(!wrap) return false;
+  wrap.classList.remove('card-land');
+  void wrap.getBoundingClientRect();
+  wrap.classList.add('card-land');
+  return true;
+}
+
+// ── v0.73.89 — PRENDERE UN TASSELLO E PORTARLO ALTROVE ────────────────────
+// Il gesto: si preme sulla mano aperta, la mano si chiude, il tassello segue
+// il dito, e lasciandolo su una casella libera adiacente ci si posa.
+//
+// PERCHE' IL TRASCINAMENTO E' SCRITTO QUI E NON RIUSA QUELLO DELLE CARTE.
+// Quello delle carte (armDragOrClick) porta con se' mezzo mondo: la mano che
+// si riapre, la carta fantasma che vola, la soglia click-contro-trascinamento,
+// il ritorno al ventaglio. Qui non serve niente di tutto questo — c'e' un
+// pezzo gia' sul tabellone che si sposta di una casella — e adattarlo avrebbe
+// voluto dire aggiungere altrettanti "se" a un percorso che gia' regge il
+// gesto piu' delicato del gioco.
+//
+// La geometria: si lavora nelle coordinate del disegno (viewBox), non in
+// pixel di schermo, perche' #game-root scala tutta la pagina e i pixel del
+// puntatore non corrispondono a quelli dell'SVG. La conversione la fa il
+// browser con getScreenCTM().inverse(), che e' la sola cosa che sa di quanto
+// e' scalata la pagina in questo istante.
+const TRASCINA_SOGLIA_PX = 3; // sotto questa soglia e' un tocco, non un trascinamento
+function preparaTrascinamentoTassello(svg, cella, bx, by, R, buildSvgIconBtn){
+  const bsvg = document.getElementById('board-svg');
+  const wrap = bsvg && bsvg.querySelector('[data-tile-wrap="'+cella+'h"]');
+  const iconaAperta = CARD_PARTS_BASE+'hand-icon.png';
+  // v0.73.89 — se la mano chiusa non c'e' ancora fra gli asset si continua con
+  // quella aperta: il gesto funziona lo stesso, cambia solo che non si vede
+  // stringere. Un file mancante non deve rendere inutilizzabile un'abilita'.
+  const iconaChiusa = CARD_PARTS_BASE+'hand-closed-icon.png';
+  const gruppoIcona = buildSvgIconBtn(iconaAperta, bx, by, R*0.62, ()=>{});
+  if(!gruppoIcona) return;
+  const immagineIcona = gruppoIcona.querySelector('image');
+  gruppoIcona.style.cursor = 'grab';
+
+  let preso = null; // {x0,y0,mosso}
+  const puntoNelDisegno = (e)=>{
+    const p = bsvg.createSVGPoint();
+    p.x = e.clientX; p.y = e.clientY;
+    const m = bsvg.getScreenCTM();
+    return m ? p.matrixTransform(m.inverse()) : {x:0,y:0};
+  };
+  const muovi = (e)=>{
+    if(!preso) return;
+    const p = puntoNelDisegno(e);
+    const dx = p.x - preso.x0, dy = p.y - preso.y0;
+    if(!preso.mosso && Math.hypot(dx,dy) < TRASCINA_SOGLIA_PX) return;
+    preso.mosso = true;
+    const spostamento = 'translate('+dx.toFixed(2)+','+dy.toFixed(2)+')';
+    if(wrap) wrap.setAttribute('transform', spostamento);
+    gruppoIcona.setAttribute('transform', spostamento);
+    // Si accende la casella sotto al dito, se e' una di quelle buone: il
+    // giocatore deve sapere dove sta per posare PRIMA di lasciare.
+    evidenziaApprodoTassello(cella, cellaSottoAlPunto(p));
+  };
+  const lascia = (e)=>{
+    document.removeEventListener('pointermove', muovi, true);
+    document.removeEventListener('pointerup', lascia, true);
+    document.removeEventListener('pointercancel', lascia, true);
+    if(immagineIcona) immagineIcona.setAttribute('href', iconaAperta);
+    gruppoIcona.style.cursor = 'grab';
+    if(!preso) return;
+    const eraMosso = preso.mosso;
+    preso = null;
+    evidenziaApprodoTassello(cella, null);
+    const p = puntoNelDisegno(e);
+    const destinazione = eraMosso ? cellaSottoAlPunto(p) : null;
+    const buone = celleLibereAttornoATassello(cella);
+    if(destinazione && buone.includes(destinazione)){
+      // La destinazione viaggia sullo stato della scelta e non come parametro,
+      // perche' la chiusura passa dall'UNICO punto di uscita gia' esistente
+      // (vedi chiudiSceltaBersaglio): un secondo modo di chiudere sarebbe un
+      // secondo modo di dimenticarsi di far ripartire il turno.
+      if(G.sceltaBersaglio) G.sceltaBersaglio.destinazioneScelta = destinazione;
+      scegliBersaglio(cella);
+      return;
+    }
+    // Rilasciato fuori bersaglio: il tassello torna al suo posto e la finestra
+    // resta aperta, cosi' si puo' riprovare senza aver sprecato l'abilita'.
+    if(wrap) wrap.removeAttribute('transform');
+    gruppoIcona.removeAttribute('transform');
+  };
+  gruppoIcona.addEventListener('pointerdown', (e)=>{
+    if(e.button!==undefined && e.button!==0) return;
+    e.preventDefault(); e.stopPropagation();
+    preso = {...puntoNelDisegno(e), mosso:false};
+    preso.x0 = preso.x; preso.y0 = preso.y;
+    if(immagineIcona) immagineIcona.setAttribute('href', iconaChiusa);
+    gruppoIcona.style.cursor = 'grabbing';
+    document.addEventListener('pointermove', muovi, true);
+    document.addEventListener('pointerup', lascia, true);
+    document.addEventListener('pointercancel', lascia, true);
+  });
+}
+// Quale cella del tabellone sta sotto a questo punto del disegno. Si misura
+// dal CENTRO di ogni cella e si prende la piu' vicina entro il raggio: e' piu'
+// tollerante di un ritaglio esagonale esatto, e in un gesto col dito la
+// tolleranza e' cio' che fa sembrare le cose "agganciate".
+function cellaSottoAlPunto(p){
+  const bsvg=document.getElementById('board-svg');
+  if(!bsvg || !p) return null;
+  const R = _ultimoRaggioCella || 0;
+  const cx = _ultimoCentroPlancia ? _ultimoCentroPlancia.x : 0;
+  const cy = _ultimoCentroPlancia ? _ultimoCentroPlancia.y : 0;
+  if(!R) return null;
+  let vicina=null, distanza=Infinity;
+  for(const c of G.cells){
+    const {x,y} = axialToPixel(c.q,c.r,cx,cy,R);
+    const d = Math.hypot(p.x-x, p.y-y);
+    if(d < distanza){ distanza = d; vicina = key(c.q,c.r); }
+  }
+  return distanza <= R ? vicina : null;
+}
+// Accende la casella su cui si sta per posare. Riusa l'evidenziazione
+// condivisa invece di inventarne una: chi gioca ha gia' imparato che
+// quell'esagono chiaro vuol dire "qui si puo'".
+function evidenziaApprodoTassello(tassello, cella){
+  const bsvg=document.getElementById('board-svg');
+  if(!bsvg) return;
+  const vecchia = bsvg.querySelector('[data-approdo-tassello]');
+  if(vecchia) vecchia.remove();
+  if(!cella || !celleLibereAttornoATassello(tassello).includes(cella)) return;
+  const c = G.cells.find(x=>key(x.q,x.r)===cella);
+  if(!c || !_ultimoCentroPlancia || !_ultimoRaggioCella) return;
+  const {x,y} = axialToPixel(c.q,c.r,_ultimoCentroPlancia.x,_ultimoCentroPlancia.y,_ultimoRaggioCella);
+  const segno = evidenziaBersaglio(bsvg, x, y, _ultimoRaggioCella);
+  if(segno) segno.setAttribute('data-approdo-tassello', cella);
 }
 
 // I vicini di Magic Mirror che hanno davvero un'abilita' da copiare. Di
@@ -20307,6 +20549,28 @@ VALUTAZIONI_IA.dancing_around = (scelta) => {
     const meglio = rischio < rischioMigliore
       || (rischio === rischioMigliore && centralita > centroMigliore);
     if(meglio){ migliore = cella; rischioMigliore = rischio; centroMigliore = centralita; }
+  }
+  return migliore;
+};
+// ── v0.73.89 — quale tassello sposta l'IA ─────────────────────────────────
+// Un muro vale per lo spazio che toglie. Spostarne uno dal bordo verso il
+// centro toglie all'avversario una casella buona; spostarne uno dal centro
+// verso il bordo gliela regala. L'IA sceglie quindi il tassello che, potendo,
+// guadagna di piu' in centralita' — dove poi lo posa lo decide gia'
+// miglioreCasellaPerTassello, che prende la casella piu' in mezzo fra quelle
+// disponibili.
+// E' una stima dichiaratamente semplice: non guarda le carte in campo ne'
+// prova a chiudere una strada precisa all'avversario.
+VALUTAZIONI_IA.open_celery = (scelta) => {
+  let migliore = null, guadagnoMigliore = -Infinity;
+  for(const tassello of scelta.bersagli){
+    const [q,r] = tassello.split(',').map(Number);
+    const partenza = aiVicinatoUtile(q,r);
+    const dove = miglioreCasellaPerTassello(tassello);
+    if(!dove) continue;
+    const [dq,dr] = dove.split(',').map(Number);
+    const guadagno = aiVicinatoUtile(dq,dr) - partenza;
+    if(guadagno > guadagnoMigliore){ guadagnoMigliore = guadagno; migliore = tassello; }
   }
   return migliore;
 };
@@ -27052,6 +27316,14 @@ function renderBoard(){
       cx: cx*screenScale, cy: cy*screenScale, R: R*screenScale,
     };
   }
+  // v0.73.89 — la stessa geometria ma nelle coordinate DEL DISEGNO, non dello
+  // schermo. Serve al trascinamento del tassello di Ali Baba, che converte il
+  // punto del puntatore nel sistema del viewBox e poi deve chiedersi quale
+  // cella ci sia sotto: li' i numeri buoni sono questi, non quelli scalati.
+  // Due copie della stessa cosa in due unita' diverse sono un rischio, quindi
+  // stanno una accanto all'altra e con scritto qual e' la differenza.
+  _ultimoCentroPlancia = {x:cx, y:cy};
+  _ultimoRaggioCella = R;
 
   // Outer border: convex hull of the board = a big hex with radius = boardR*2 + some padding
   // The board is a radius-2 hex grid; the outermost cell centers are at axial distance 2.
@@ -27118,7 +27390,21 @@ function renderBoard(){
     let svg = cellGroup;
 
     if(hole){
+      // v0.73.89 — SOTTO OGNI TASSELLO BLOCCATO C'E' GIA' QUELLO LIBERO.
+      // Serve a "Open, Celery!" di Ali Baba, che solleva un tassello bloccato
+      // e lo posa altrove: sollevandolo, sotto deve esserci la plancia intera e
+      // non un buco. Disegnarlo solo al momento del sollevamento non sarebbe
+      // bastato — l'immagine si carica in un istante che non si controlla, e
+      // per quell'istante si vedrebbe il fondo. Disegnandolo SEMPRE, quando il
+      // tassello bloccato si alza sotto c'e' gia' tutto, decodificato e pronto.
+      // Non costa niente a chi non usa l'abilita': e' un'immagine coperta al
+      // 100% da quella sopra, che il browser non ridisegna mai da sola.
+      drawTileCell(svg,x,y,R,tileVariant(TILE_FREE,q,r),k+'sotto',false);
       const holePoly=drawTileCell(svg,x,y,R,tileVariant(TILE_BLOCKED,q,r),k+'h',false);
+      // Il tassello bloccato viaggia come un pezzo unico quando lo si trascina:
+      // gli si mette addosso un contrassegno per ritrovarlo (vedi
+      // apriSceltaTassello e il trascinamento in renderBoard).
+      holePoly.setAttribute('data-tassello-bloccato', k);
       // Tagged so the Distruggere attack sequence (see doDistruggi) can find
       // this exact cell's overlay polygon to play a shatter/impact flash on
       // it at the precise instant the wall actually comes down, and so the
@@ -27520,7 +27806,16 @@ function renderBoard(){
       if(!c) continue;
       const {x:bx,y:by} = axialToPixel(c.q,c.r,cx,cy,R);
       evidenziaBersaglio(svg, bx, by, R);
-      buildSvgIconBtn(CARD_PARTS_BASE+'crosshair-icon.png', bx, by, R*0.62, ()=>scegliBersaglio(cella));
+      // v0.73.89 — due modi di scegliere, un disegno per ciascuno. Il mirino
+      // dice "cliccami"; la mano dice "prendimi e portami". Il resto della
+      // finestra (evidenziazione, X per rinunciare, IA, tempo scaduto) e'
+      // identico, ed e' il motivo per cui questa e' una riga di differenza e
+      // non una seconda finestra da mantenere.
+      if(scelta.modo === 'trascina'){
+        preparaTrascinamentoTassello(svg, cella, bx, by, R, buildSvgIconBtn);
+      } else {
+        buildSvgIconBtn(CARD_PARTS_BASE+'crosshair-icon.png', bx, by, R*0.62, ()=>scegliBersaglio(cella));
+      }
     }
     const orig = G.cells.find(x=>key(x.q,x.r)===scelta.cellaOrigine);
     if(orig){
