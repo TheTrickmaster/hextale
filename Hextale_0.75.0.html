@@ -2937,7 +2937,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
 }
 
 /* ── Sudden death: end-of-board card glow (each surviving card flashes
-   before firing its damage bubble — see runSuddenDeath) and the traveling
+   before firing its damage bubble — see ondataDanno) and the traveling
    "feeder"/merged bubbles that carry that damage across the screen. Cards
    keep a soft afterglow for the rest of the animation window so the
    sequence still reads clearly even after the flash peak.
@@ -2947,7 +2947,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
    glow for both, since the card's own art already reads as belonging to
    whichever player owns it; sdFlashRed/sdFlashBlue collapsed into one
    sdFlashWhite keyframe, reused by both .sd-flash-red/.sd-flash-blue
-   (selectors kept as-is so runSuddenDeathWave's existing class-toggle logic
+   (selectors kept as-is so ondataDanno's existing class-toggle logic
    needs no changes). ── */
 @keyframes sdFlashWhite{
   0%   {filter:drop-shadow(0 0 0 rgba(255,255,255,0)) brightness(1);}
@@ -2973,7 +2973,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
   width:26px;height:26px;
 }
 /* The persistent "collector" bubble at screen-center: grows a little with
-   each feeder bubble that merges into it (see runSuddenDeathWave), and
+   each feeder bubble that merges into it (see ondataDanno), and
    shows the running total so far — same visual language as the merged
    totals shown on .sd-bubble-big once it's launched on to strike the PV
    avatar. font-size is set inline per-instance since it scales with size. */
@@ -2989,18 +2989,9 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
    canvas-center position, same width/opacity-fade animation shape) — see
    showSuddenDeathBanner() in the script for the JS side of this, which
    drives #banner-dim-overlay exactly like showTimesUpBanner() does. */
-#sudden-death-banner{
-  position:fixed; top:510.4px; left:50%;
-  transform:translate(-50%,-50%);
-  width:562.5px; height:auto;
-  opacity:0;
-  pointer-events:none;
-  z-index:700;
-  display:block;
-}
-#sudden-death-banner.show{
-  animation:timesUpBannerFade 1.25s ease-in-out forwards;
-}
+/* v0.75.0 — via lo stile di #sudden-death-banner: il banner del colpo finale
+   non esiste piu' (vedi dannoDiFineTurno). Le bolle .sd-bubble qui sopra
+   restano, perche' l'ondata e' rimasta e adesso gira a ogni turno. */
 
 /* v0.72.72 — qui stavano le animazioni delle tredici abilita' del prototipo:
    il lampo e l'uccello di fuoco di Rinascita, le due mezze targhe di scudo di
@@ -6549,7 +6540,6 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
   </div>
 </div>
 <div id="toast"></div>
-<img id="sudden-death-banner" src="https://thetrickmaster.github.io/hextale/player-ui/finalblow-banner.png" alt="" draggable="false">
 <!-- ── bottom timer bar (v0.31.0) ──────────────────────────────────
      Replaces the old #timer-wrap circular ring (removed along with
      #header). Lives here as a direct child of #game-root (not inside
@@ -6604,7 +6594,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.74.9</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.0</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -8208,7 +8198,7 @@ const PAGE_ELEMENT_IDS = {
     'p1-hand-expand-hint','p2-hand-expand-hint','hand-collapse-hint',
     'hand-expand-overlay','p1-info','p2-info',
     'banner-dim-overlay','turn-banner','turn-banner-text','timesup-banner',
-    'drag-ghost','hand-hover-preview','sudden-death-banner',
+    'drag-ghost','hand-hover-preview',
     'timer-bar-wrap','gameover','settings-btn',
   ],
   mainmenu: ['main-menu'],
@@ -13326,9 +13316,12 @@ function debugShowGameOver(variant){
   showPage('game'); // v0.72.31: monta la pagina partita e smonta tutte le altre
   document.getElementById('app').style.display='flex';
   document.getElementById('settings-btn').style.display='block';
+  // v0.75.0 — i due numeri sono DANNI SUBITI e vince chi ne ha meno: le due
+  // coppie sono scambiate rispetto a prima, quando erano punti vita. Vince
+  // sempre lo stesso giocatore di prima per ogni variante.
   if(variant==='draw'){ G.hp={1:15,2:15}; }
-  else if(variant==='light'){ G.hp={1:5,2:30}; }
-  else { G.hp={1:30,2:5}; } // 'dark'
+  else if(variant==='light'){ G.hp={1:30,2:5}; }
+  else { G.hp={1:5,2:30}; } // 'dark'
   G.gameOver=true;
   document.getElementById('gameover').classList.remove('board-view');
   finishGameWithResult();
@@ -13358,7 +13351,7 @@ function debugShowAiSpeechBubble(){
 // picks (or reopening the same one) never leaves a stale banner from a
 // PREVIOUS pick still pinned underneath/behind the new one.
 function debugClearPinnedBanners(){
-  ['turn-banner','turn-banner-text','timesup-banner','sudden-death-banner'].forEach(id=>{
+  ['turn-banner','turn-banner-text','timesup-banner'].forEach(id=>{
     const el=document.getElementById(id);
     if(el) el.classList.remove('show','debug-pinned');
   });
@@ -13410,25 +13403,9 @@ function debugShowDamageBubbles(){
   layer.appendChild(light);
   closeDebugModal();
 }
-// Debug shortcut: shows the "Final blow" (sudden-death) banner on demand,
-// via the exact same showSuddenDeathBanner() a real sudden-death sequence
-// uses — same reasoning as debugShowTimesUpBanner above. Left up until the
-// user starts/leaves a game (initGame() already clears #sudden-death-banner
-// and its dim overlay on every fresh game — see that function's own cleanup
-// block), same convention every other debug-shown banner here follows.
-function debugShowFinalBlowBanner(){
-  showPage('game'); // v0.72.31: monta la pagina partita e smonta tutte le altre
-  document.getElementById('app').style.display='flex';
-  document.getElementById('settings-btn').style.display='block';
-  debugClearPinnedBanners();
-  // Same reasoning as debugShowTimesUpBanner above — #sudden-death-banner's
-  // own .show class drives timesUpBannerFade too (see that rule's CSS
-  // comment), which fades back OUT on its own even though nothing in JS
-  // ever removes .show; .debug-pinned holds it statically instead.
-  document.getElementById('banner-dim-overlay')?.classList.add('show');
-  document.getElementById('sudden-death-banner').classList.add('debug-pinned');
-  closeDebugModal();
-}
+// v0.75.0 — qui stava debugShowFinalBlowBanner, la scorciatoia che mostrava
+// il banner del colpo finale. Il colpo finale non esiste piu' e il banner
+// nemmeno: non c'e' piu' niente da mostrare.
 // v0.71.67/v0.71.68 ("inserisci questi due banner in 'mostra asset'... tieni
 // fisso... adesso spariscono"): shows the "X's turn" banner (art + the
 // #turn-banner-text overlay, see that element's own comment) for each
@@ -13489,7 +13466,6 @@ const DEBUG_ASSET_OPTIONS = [
   { label:'AI speech bubble',       run:debugShowAiSpeechBubble },
   { label:'"Time\'s up" banner',    run:debugShowTimesUpBanner },
   { label:'Bolle danno',            run:debugShowDamageBubbles },
-  { label:'Final blow',             run:debugShowFinalBlowBanner },
   { label:"Turn banner — Dark",     run:debugShowTurnBannerDark },
   { label:"Turn banner — Light",    run:debugShowTurnBannerLight },
 ];
@@ -15834,13 +15810,10 @@ function initGame(vsAI){
   // Same cleanup for any sudden-death sequence left mid-flight by a
   // previous game (e.g. "Nuova partita" clicked while it was still playing).
   document.querySelectorAll('.sd-bubble').forEach(el=>el.remove());
-  const sdBanner=document.getElementById('sudden-death-banner');
-  if(sdBanner) sdBanner.classList.remove('show');
-  // v0.71.49: a sudden-death sequence interrupted mid-flight (e.g. "Nuova
-  // partita" clicked while its banner was showing) could otherwise leave
-  // #banner-dim-overlay stuck dimmed over the fresh game underneath —
-  // showSuddenDeathBanner()'s own hide path (hideSuddenDeathBanner) only
-  // ever runs at the NATURAL end of the sequence, never on an abrupt reset.
+  // v0.75.0 — il banner del colpo finale non c'e' piu'. Lo scuro invece si
+  // continua a spegnere: un'ondata interrotta a meta' (una partita nuova
+  // iniziata mentre era in corso) potrebbe averlo lasciato acceso sopra al
+  // tabellone appena nato.
   document.getElementById('banner-dim-overlay')?.classList.remove('show');
   // Increment game generation to invalidate stale card draw animations from previous game
   gameGeneration++;
@@ -19885,7 +19858,11 @@ function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLa
 
 
 
-function endTurn(player, animationsSettled){
+// v0.75.0 — `dannoFatto`: il danno di fine turno di QUESTO turno e' gia'
+// stato inflitto. endTurn rientra in se' stessa piu' volte (aspettando le
+// animazioni, aspettando la pausa, aspettando l'ondata) e senza questo flag
+// il tabellone verrebbe contato una volta per rientro.
+function endTurn(player, animationsSettled, dannoFatto){
   // v0.71.21: belt-and-suspenders stop for the AI-thinking fake-hover
   // (see startAiThinkingHover()'s own comment) — normally already stopped
   // right before aiPlay() fires (see maybeTriggerAiTurn()), but aiPlay()
@@ -19907,7 +19884,7 @@ function endTurn(player, animationsSettled){
   // of proceeding; this is cheap (a plain flag check) and self-limiting
   // (the queue always drains on its own in well under a second per hit).
   if(_hpCountdownState[1] || _hpCountdownState[2]){
-    setTimeout(()=>endTurn(player), 60);
+    setTimeout(()=>endTurn(player, animationsSettled, dannoFatto), 60);
     return;
   }
   // All of this turn's animations (attack lunge/flip, any Reazione a Catena
@@ -19928,15 +19905,24 @@ function endTurn(player, animationsSettled){
   if(!animationsSettled){
     const pausa = Math.max(PAUSA_FINE_TURNO_MS, _fineTurnoNonPrimaDi - performance.now());
     _fineTurnoNonPrimaDi = 0;
-    setTimeout(()=>endTurn(player, true), pausa);
+    setTimeout(()=>endTurn(player, true, dannoFatto), pausa);
+    return;
+  }
+  // ── v0.75.0 — IL TABELLONE PRESENTA IL CONTO ────────────────────────────
+  // Prima di ogni altra cosa, e prima del controllo di fine partita: ogni
+  // giocatore incassa tanti danni quante sono le carte avversarie in campo
+  // (vedi dannoDiFineTurno). Sta QUI e non dopo il controllo perche' anche il
+  // turno che riempie l'ultima casella deve pagare il suo conto — ed e'
+  // proprio quel conto a decidere chi vince.
+  if(!dannoFatto){
+    dannoDiFineTurno(()=>endTurn(player, true, true));
     return;
   }
   calcScores();
-  // v0.71.64 BUG FIX (reported: "a fine di ogni animazione abilità debug
-  // appare il final blow e il messaggio di fine partita... vorrei che le
-  // HP test variant: a KO (either player's HP hit 0 during this turn's
-  // attack/chain sequence) ends the game immediately, taking priority over
-  // the normal "board is full" win condition below.
+  // v0.75.0 — checkHpKO non fa piu' niente (non esiste piu' uno zero da
+  // toccare) ma la chiamata resta: e' il posto in cui la domanda "questo colpo
+  // ha chiuso la partita?" va fatta, e il giorno in cui una regola nuova dira'
+  // di si', dira' di si' da qui.
   if(checkHpKO()) return;
   const playable=G.cells.filter(c=>!isHole(c.q,c.r)).length;
   const placed=Object.keys(G.board).length;
@@ -21331,9 +21317,15 @@ function aiChooseMove(){
     for(const cell of freeCells){
       const {count:conquests, damage, autolesione}=aiEvaluateConquests(card,cell.q,cell.r);
       const power=SIDES.reduce((s,side)=>s+(card.values[side]||0),0);
-      // Lethal shortcut: a hit that would end the game right now is always
-      // the best possible move, full stop — no need to weigh anything else.
-      if(damage>=G.hp[1]){ return {card,cell}; }
+      // v0.75.0 — QUI C'ERA LA SCORCIATOIA DEL COLPO MORTALE.
+      // `if(damage>=G.hp[1]) return {card,cell}` — un colpo che chiudeva la
+      // partita valeva piu' di qualunque ragionamento, e si smetteva di
+      // cercare. Adesso G.hp[1] sono i DANNI SUBITI e partono da ZERO: quella
+      // riga sarebbe stata vera al primo confronto di ogni turno, e l'IA
+      // avrebbe giocato la prima carta sulla prima casella senza valutare
+      // nient'altro per tutta la partita.
+      // Non c'e' niente da rimpiazzare: non esiste piu' un colpo che chiude la
+      // partita, quindi non esiste piu' una mossa che valga a prescindere.
       const risk=aiEstimateCounterRisk(card,cell.q,cell.r);
       // v0.73.19 — al punteggio si aggiunge quello che l'abilita' porta:
       // i valori che sposta sul tavolo e, per le abilita' che sul tavolo non
@@ -21890,7 +21882,18 @@ function calcScores(){
 // Applies uniformly to every flip: a direct placement conquest, a chain
 // reaction link (Reazione a Catena), etc. — every owner change caused by a
 // card comparison winning routes through here.
-const HP_START=30;
+// ── v0.75.0 — IL CONTATORE E' IL DANNO SUBITO ─────────────────────────────
+// Prima erano punti vita: si partiva da 30, si scendeva, e chi toccava lo zero
+// perdeva. Adesso si parte da ZERO e si SALE, e a fine partita perde chi ha
+// accumulato piu' danni. Non c'e' piu' un fondo da toccare, quindi non c'e'
+// piu' nessun KO: la partita finisce quando finisce il tabellone.
+// Il nome HP_START resta perche' e' letto in una decina di punti e cambiarlo
+// non aggiungerebbe niente a cio' che questo commento gia' dice.
+const HP_START=0;
+// Solo per la barra dell'orbo, che oggi non e' disegnata da nessuno (vedi
+// updatePlayerHpOrb): a quanti danni si considera "pieno". Serve a non
+// dividere per zero il giorno in cui quella barra tornera'.
+const DANNI_RIFERIMENTO=30;
 // G.hp is updated IMMEDIATELY (synchronously) here so game logic — win/KO
 // checks, anything reading G.hp — is always correct the instant a flip
 // happens, exactly as before. What changed is the DISPLAY: instead of
@@ -21912,7 +21915,8 @@ function applyHpDamage(defenderPlayer, atkVal, defVal, sourceKey){
   // to silently throw away "how far below zero" a hit actually went, which
   // also fed into the sudden-death/end-of-board comparison and the
   // game-over splash both incorrectly floor-ing every loss to exactly 0.
-  G.hp[defenderPlayer]=hpBefore-dmg;
+  // v0.75.0 — si SOMMA: G.hp non e' piu' la vita che resta ma il danno accumulato.
+  G.hp[defenderPlayer]=hpBefore+dmg;
   const hpAfter=G.hp[defenderPlayer];
   // Reserve this hit's spot in the display queue RIGHT NOW, synchronously,
   // in the same tick G.hp changes — not later once the presentation layer
@@ -22027,7 +22031,7 @@ function flyArcedBounceBubble(el, from, to, durationMs, onDone, opts){
 
 // v0.71.49 NEW: shared builder for every damage/heal bubble in the game
 // (normal combat hit, Rinascita heal, and every leg of the sudden-death
-// sequence — see each call site below and runSuddenDeathWave/
+// sequence — see each call site below and ondataDanno/
 // createSuddenDeathCollector/flySuddenDeathBubble/launchSuddenDeathFinalBubble
 // further down). Builds the .dmg-bubble-visual DOM structure described in
 // that class's own big CSS comment: an outer positioned element (this is
@@ -22199,7 +22203,8 @@ function showHpDamagePopup(player, dmg){
   const isHeal=dmg<0;
   const popup=document.createElement('div');
   popup.className=isHeal?'hp-heal-popup':'hp-dmg-popup';
-  popup.textContent=isHeal?('+'+(-dmg)):('-'+dmg);
+  // v0.75.0 — niente segno meno: il numero e' quanto danno e' arrivato.
+  popup.textContent=isHeal?('+'+(-dmg)):String(dmg);
   avatar.appendChild(popup);
   popup.addEventListener('animationend',()=>popup.remove());
   setTimeout(()=>{ if(popup.parentNode) popup.remove(); },1000); // safety fallback
@@ -22225,8 +22230,9 @@ function showHpDamagePopup(player, dmg){
 // negative HP is allowed to persist).
 function applyHpHeal(player, amount, sourceKey){
   if(amount<=0) return;
+  // v0.75.0 — curare vuol dire TOGLIERE danno accumulato, non aggiungere vita.
   const hpBefore=G.hp[player];
-  G.hp[player]=hpBefore+amount;
+  G.hp[player]=hpBefore-amount;
   // Reserve this heal's spot in the display queue synchronously, same as
   // applyHpDamage does for a hit — see that function's own comment for why
   // this can't wait until the projectile's arc actually lands.
@@ -22295,7 +22301,7 @@ const _hpProcessing={1:false,2:false};   // true only while a hit's own popup-wa
 const _hpDisplayed={1:null,2:null};
 
 // Reserves this hit's place in the display queue. Called synchronously from
-// applyHpDamage/applySuddenDeathDamage the instant G.hp changes — see the
+// applyHpDamage/applyDannoOndata the instant G.hp changes — see the
 // big comment above for why this can't wait until the hit's visual is ready.
 function _hpQueueDamage(player, dmg){
   if(dmg===0) return null;
@@ -22372,7 +22378,12 @@ function _hpProcessQueue(player){
   // (shouldn't normally happen — initGame() sets it via updatePlayerHpOrb —
   // but keeps this safe as a defensive default).
   let current = _hpDisplayed[player]!==null ? _hpDisplayed[player] : G.hp[player];
-  const target=current-front.dmg;
+  // v0.75.0 — il contatore SALE. `front.dmg` positivo e' danno subito e va
+  // sommato; negativo e' una cura (applyHpHeal accoda -amount) e sottrae. La
+  // formula era `current-front.dmg` quando il numero erano i punti vita
+  // rimasti: ribaltando il verso, si ribalta il segno qui e basta, perche' il
+  // resto del ciclo era gia' scritto per muoversi in tutte e due le direzioni.
+  const target=current+front.dmg;
   const tick=()=>{
     if(current===target){
       _hpDisplayed[player]=current;
@@ -22380,7 +22391,7 @@ function _hpProcessQueue(player){
       _hpProcessQueue(player); // move on to the next queued hit (or release the busy flag if none left)
       return;
     }
-    current += current<target ? 1 : -1; // damage only decreases, but keep this symmetric/defensive
+    current += current<target ? 1 : -1; // il ciclo e' simmetrico: sale coi danni, scende con le cure
     _hpDisplayed[player]=current;
     writeHpNumber(player, current);
     setTimeout(tick, STEP_MS);
@@ -22412,19 +22423,26 @@ function updatePlayerHpOrb(player, value){
   const valueEl=document.getElementById(player===1?'p1-hp-value':'p2-hp-value');
   if(valueEl) valueEl.textContent=String(value);
   if(!orb) return;
-  const pct=Math.max(0, Math.min(100, (value/HP_START)*100));
+  // v0.75.0 — la barra si RIEMPIE coi danni invece di svuotarsi con la vita.
+  const pct=Math.max(0, Math.min(100, (value/DANNI_RIFERIMENTO)*100));
   orb.style.setProperty('--hp-fill', pct.toFixed(1));
-  // Low-HP red tint below 25% of HP_START (mirrors the timer bar's own
-  // <10s .urgent threshold-based tint elsewhere in this codebase).
-  orb.classList.toggle('low-hp', value <= HP_START*0.25);
+  // La tinta rossa da "vita agli sgoccioli" non ha piu' un significato: non
+  // esiste una soglia sotto la quale si sta per morire. Si accende invece
+  // quando i danni sono tanti, che e' la stessa idea letta al contrario.
+  orb.classList.toggle('low-hp', value >= DANNI_RIFERIMENTO*0.75);
 }
 
 // True as soon as either player's HP hits 0 — checked after every damage
 // instance so the game can end immediately mid-animation-sequence rather
 // than waiting for the current placement's full attack sequence to finish.
+// v0.75.0 — NON C'E' PIU' NESSUN KO.
+// Il contatore sale invece di scendere: non esiste piu' un fondo da toccare,
+// quindi nessun colpo puo' chiudere la partita da solo. La funzione resta,
+// vuota, perche' il punto che la chiama (dentro la risoluzione di uno scontro)
+// e' scritto per fermarsi se lei dice di si': toglierla vorrebbe dire toccare
+// quel punto senza guadagnarci niente, e lasciarla dice a chi legge che la
+// domanda e' stata posta e ha una risposta.
 function checkHpKO(){
-  if(G.gameOver) return false;
-  if(G.hp[1]<=0 || G.hp[2]<=0){ endGame(); return true; }
   return false;
 }
 
@@ -22444,11 +22462,13 @@ function surrenderGame(){
   collapseAllHandExpand();
   const loser=G.currentPlayer;
   const winner=loser===1?2:1;
-  // Force a decisive, unambiguous HP gap so finishGameWithResult()'s own
-  // hp1-vs-hp2 comparison always crowns the right winner and is never
-  // mistaken for a tie, independent of whatever the real HP values were.
-  G.hp[winner]=Math.max(G.hp[1],G.hp[2],1);
-  G.hp[loser]=G.hp[winner]-1;
+  // Uno scarto deciso e senza ambiguita', cosi' il confronto in
+  // finishGameWithResult incorona sempre chi deve e non lo scambia mai per un
+  // pareggio, qualunque fossero i numeri veri.
+  // v0.75.0 — ribaltato: adesso vince chi ha MENO danni, quindi e' chi si
+  // arrende a doverne avere di piu'.
+  G.hp[winner]=Math.min(G.hp[1],G.hp[2],0);
+  G.hp[loser]=G.hp[winner]+1;
   G.gameOver=true;
   render();
   const bgmEl=document.getElementById('bgm'); if(bgmEl) bgmEl.volume=getEffectiveMusicVolume()*0.44;
@@ -22471,25 +22491,22 @@ function endGame(){
   // EFFECTIVE music volume (master*music) keeps a mute a mute, while still
   // quieting the music proportionally for players who have it turned up.
   const bgmEl=document.getElementById('bgm'); if(bgmEl) bgmEl.volume=getEffectiveMusicVolume()*0.44;
-  // Win condition (HP test variant): whoever hits 0 HP first loses outright,
-  // regardless of board state — that path (checkHpKO) never reaches here with
-  // both HP > 0, so no sudden death is needed. If the board instead fills up
-  // (or both hands/decks run dry) with NEITHER player having hit 0 HP, run
-  // the "sudden death" card-count tiebreaker first (each player's remaining
-  // in-play cards deal 1 damage apiece to the opponent), and only then show
-  // the final result — see finishGameWithResult() below.
-  const{1:hp1,2:hp2}=G.hp;
-  if(hp1>0 && hp2>0){
-    runSuddenDeath();
-  } else {
-    finishGameWithResult();
-  }
+  // v0.75.0 — VIA IL COLPO FINALE.
+  // Qui partiva il pareggio a colpi di carte in campo: ogni carta rimasta
+  // faceva 1 danno all'avversario, in due ondate, col suo banner. Serviva
+  // perche' la partita poteva finire senza che nessuno fosse andato a zero, e
+  // qualcosa doveva pur decidere.
+  // Adesso quel conteggio non aspetta piu' la fine: succede alla fine di OGNI
+  // turno (vedi dannoDiFineTurno), quindi rifarlo un'ultima volta vorrebbe
+  // dire contare due volte lo stesso tabellone. Il risultato si legge e basta.
+  finishGameWithResult();
 }
 
 // Renders the final win/draw title + score breakdown and reveals the
-// game-over panel. Split out from endGame() so the sudden-death sequence
-// (see runSuddenDeath) can defer this until after its animation finishes,
-// while the KO path still shows the result immediately as before.
+// game-over panel. Era staccata da endGame perche' il colpo finale doveva
+// poterla rimandare a dopo la propria animazione; v0.75.0 — il colpo finale
+// non c'e' piu' e questa e' l'unica strada, ma resta una funzione a se'
+// perche' anche la resa la chiama direttamente.
 // v0.71.22 REWORK ("ricreiamo la schermata di fine partita con la nuova
 // UI... faction-coded. se il giocatore dark vince, la schermata sarà dark,
 // se il giocatore light vince, sarà light"): now drives the new .go-box
@@ -22504,15 +22521,9 @@ function finishGameWithResult(){
   const{1:hp1,2:hp2}=G.hp;
   const p1Label='Player 1';
   const p2Label=G.vsAI?'Computer':'Player 2';
-  // HP is no longer floored at 0 (see applyHpDamage/applySuddenDeathDamage),
-  // so a KO can leave the loser's HP at, say, -3 while the other player is
-  // still positive, or — after a sudden-death exchange — BOTH players can
-  // end up negative. Either way, whoever has the higher (less negative) HP
-  // is the winner; only an exact tie (including a negative-negative tie) is
-  // a draw. Comparing hp1 vs hp2 directly handles every case correctly
-  // without needing the old hp<=0 special-casing, which used to treat any
-  // double-KO/double-negative result as an automatic draw regardless of how
-  // far below zero each side actually was.
+  // v0.75.0 — hp1 e hp2 sono i DANNI SUBITI, e vince chi ne ha di meno.
+  // Il confronto e' quindi ribaltato rispetto a prima, quando erano punti vita
+  // e vinceva chi ne aveva di piu'. Un pareggio esatto resta un pareggio.
   const box=document.getElementById('gameover-box');
   const flag=document.getElementById('gameover-flag');
   const titleSpan=document.getElementById('gameover-title-text');
@@ -22532,7 +22543,7 @@ function finishGameWithResult(){
     viewBoardBtn.classList.add('sab-primary');
     backMainBtn.classList.add('sab-secondary');
   } else {
-    const p1Wins = hp1>hp2;
+    const p1Wins = hp1<hp2;   // v0.75.0 — meno danni, non piu' vita
     // v0.72.27 (fazioni dinamiche): il giocatore 1 NON è più per forza dark —
     // la bandiera/nome del vincitore deve mostrare la fazione realmente
     // giocata da chi ha vinto, quindi si passa da playerFactionIsDark()
@@ -22578,91 +22589,73 @@ function toggleBoardView(showBoard){
 // Cards are NOT removed from the board — see suddenDeathDamageBubble's
 // leg 2 for why the merge bubble carries the full count instead of firing
 // one small bubble per card individually.
-// v0.71.49: shows the finalblow-banner.png art (see #sudden-death-banner's
-// own HTML/CSS comment) centered on screen with the shared dim scrim behind
-// it — same show pattern as showTimesUpBanner(), just standalone (this
-// banner isn't followed by a turn banner the way Time's Up is, so it clears
-// the dim overlay itself in hideSuddenDeathBanner() instead of leaving that
-// to a later banner in a chain).
-// Durata di .show sul banner del colpo finale — deve combaciare con
-// timesUpBannerFade nel CSS (1.25s), perche' e' su questa che si decide quando
-// togliere lo scuro.
-const SUDDEN_DEATH_BANNER_MS = 1250;
-let _suddenDeathDimTimer = null;
-function showSuddenDeathBanner(){
-  const overlay=document.getElementById('sudden-death-banner');
-  if(!overlay) return;
-  document.getElementById('banner-dim-overlay')?.classList.add('show');
-  overlay.classList.remove('show');
-  void overlay.offsetWidth; // force reflow so the animation restarts every time
-  overlay.classList.add('show');
-  // v0.73.18 FIX ("una volta che il banner sparisce, rimane l'overlay scuro").
-  // Lo scuro veniva tolto solo da hideSuddenDeathBanner(), che pero' viene
-  // chiamata alla fine di TUTTA la sequenza del colpo finale — le due ondate
-  // di danno, le bolle che volano, i conteggi degli HP: parecchi secondi.
-  // Il banner invece dura 1,25s e se ne va da solo, con la sua animazione.
-  // Nel mezzo restava uno schermo scurito senza piu' niente sopra, proprio
-  // mentre c'era da guardare l'unica cosa che conta: chi vince.
-  // Adesso lo scuro accompagna il banner e sparisce con lui.
-  clearTimeout(_suddenDeathDimTimer);
-  _suddenDeathDimTimer = setTimeout(()=>{
-    _suddenDeathDimTimer = null;
-    // Se nel frattempo un altro banner ha acceso lo scuro per conto suo (un
-    // cambio turno, il tempo scaduto) non glielo si spegne sotto: si controlla
-    // che sia ancora il banner del colpo finale a essere in scena.
-    const b=document.getElementById('sudden-death-banner');
-    if(b && !b.classList.contains('debug-pinned')){
-      document.getElementById('banner-dim-overlay')?.classList.remove('show');
-    }
-  }, SUDDEN_DEATH_BANNER_MS);
-}
-function hideSuddenDeathBanner(){
-  clearTimeout(_suddenDeathDimTimer); _suddenDeathDimTimer = null;
-  const overlay=document.getElementById('sudden-death-banner');
-  if(overlay) overlay.classList.remove('show');
-  document.getElementById('banner-dim-overlay')?.classList.remove('show');
-}
-function runSuddenDeath(){
-  const redCells=[], blueCells=[];
+// v0.75.0 — VIA IL BANNER DEL COLPO FINALE.
+// Qui vivevano showSuddenDeathBanner/hideSuddenDeathBanner (finalblow-banner.png
+// col suo scuro) e runSuddenDeath, che a fine partita mandava due ondate una
+// dopo l'altra. Il conteggio delle carte in campo non e' piu' l'ultimo atto
+// della partita: succede alla fine di OGNI turno, e un annuncio a schermo
+// pieno due volte per giro sarebbe insopportabile.
+// Quello che resta e' l'ONDATA, che era gia' la parte buona: le carte che
+// lampeggiano, le bolle che convergono al centro contando, il colpo
+// sull'avversario. Vedi dannoDiFineTurno qui sotto.
+
+// ── v0.75.0 — IL DANNO DI FINE TURNO ──────────────────────────────────────
+// Alla fine di ogni turno ogni giocatore incassa tanti danni quante sono le
+// carte AVVERSARIE sul tabellone. Tre carte dark e due light vogliono dire
+// tre danni al light e due al dark.
+// Le due ondate partono INSIEME e non una dopo l'altra: succedendo a ogni
+// turno, in sequenza a tabellone pieno sarebbero diversi secondi di attesa per
+// turno. Restano leggibili perche' le due fazioni hanno bolle di colore
+// diverso e due punti di raccolta diversi, uno per lato.
+// Tutti i tempi sono dimezzati rispetto al vecchio colpo finale (vedi
+// ONDATA_VELOCITA): era un finale, adesso e' un ritornello.
+const ONDATA_VELOCITA = 2;      // 2 = tutto in meta' tempo
+function dannoDiFineTurno(onDone){
+  const fine = typeof onDone === 'function' ? onDone : ()=>{};
+  if(!G || G.gameOver){ fine(); return; }
+  const celle = {1:[], 2:[]};
   for(const k in G.board){
-    if(G.board[k].owner===1) redCells.push(k); else blueCells.push(k);
+    const c = G.board[k];
+    if(c) (celle[c.owner] || (celle[c.owner]=[])).push(k);
   }
-  showSuddenDeathBanner();
-  // Sequence: flash all of red's cards (staggered), then send red's merged
-  // damage bubble at blue's HP; only once that's fully resolved (including
-  // the 1-by-1 HP countdown), do the same for blue's cards against red's HP.
-  runSuddenDeathWave(1, redCells, ()=>{
-    runSuddenDeathWave(2, blueCells, ()=>{
-      hideSuddenDeathBanner();
-      finishGameWithResult();
-    });
-  });
+  // Nessuna carta in campo: niente da contare e niente da guardare.
+  if(!celle[1].length && !celle[2].length){ fine(); return; }
+  // Le carte del giocatore 1 colpiscono il 2 e viceversa. Le due ondate
+  // corrono insieme e `fine` scatta quando ha finito la piu' lenta: si aspetta
+  // che si siano fermati ENTRAMBI i conteggi, altrimenti il turno ripartirebbe
+  // con dei numeri ancora in movimento a schermo.
+  let restano = 2;
+  const unaMeno = ()=>{ if(--restano === 0) fine(); };
+  ondataDanno(1, celle[1], unaMeno);
+  ondataDanno(2, celle[2], unaMeno);
 }
 
-// Runs one player's sudden-death wave: flashes that player's board cards in
-// their color (staggered, so it reads as a ripple rather than one flat
-// flicker), then flies one damage bubble per card from that card's position
-// to a shared collection point at screen-center — accumulating into a
-// single bigger bubble there — and finally sends that combined bubble on to
-// strike the opponent's HP avatar for the total card count as damage.
-// Calls `onDone` once the opponent's HP popup + countdown have both settled.
-// If a player has zero cards in play, this is a no-op that calls onDone
-// immediately (skips straight past — nothing to animate, no damage to deal).
-function runSuddenDeathWave(owner, cellKeys, onDone){
-  if(!cellKeys.length){ onDone(); return; }
+// Un'ondata: le carte di UN giocatore lampeggiano a scalare (cosi' si legge
+// come un'onda e non come un lampo piatto), poi da ognuna parte una bollicina
+// verso un punto di raccolta, dove si sommano in una bolla sola che cresce e
+// conta; quella bolla vola infine sull'avversario e gli mette addosso tanti
+// danni quante erano le carte.
+// `onDone` scatta quando il numero dell'avversario ha finito di salire.
+// Zero carte in campo = niente da fare: si chiama subito onDone.
+//
+// v0.75.0 — due cose rispetto al vecchio colpo finale:
+//  - tutti i tempi divisi per ONDATA_VELOCITA, perche' questa scena adesso va
+//    in onda a ogni turno e non una volta a partita;
+//  - il punto di raccolta non e' piu' il centro dello schermo ma e' SPOSTATO
+//    verso il proprio lato, perche' le due ondate corrono insieme e due
+//    mucchi di bolle sullo stesso pixel sarebbero illeggibili.
+function ondataDanno(owner, cellKeys, onDone){
+  const fine = typeof onDone === 'function' ? onDone : ()=>{};
+  if(!cellKeys || !cellKeys.length){ fine(); return; }
   const opponent=owner===1?2:1;
-  // v0.71.49: 'colorClass' now holds the bubble ART variant key ('dark'/
-  // 'light' — see createDamageBubbleVisual) instead of a literal red/blue
-  // CSS color, since the bubbles are art-based now, not colored circles —
-  // kept the same variable name throughout this function/its helpers to
-  // minimize churn.
-  // v0.72.27: variante ART della bolla = FAZIONE del giocatore, non il suo
-  // numero — con le fazioni dinamiche il giocatore 1 può essere light.
+  // La variante ART della bolla e' la FAZIONE del giocatore, non il suo numero:
+  // con le fazioni dinamiche il giocatore 1 puo' essere light.
   const colorClass=playerFactionName(owner);
   const bsvg=document.getElementById('board-svg');
-  const FLASH_STAGGER_MS=90;
-  const FLASH_DUR_MS=520;
-  // 1) Flash every one of this player's cards, staggered.
+  const V=ONDATA_VELOCITA;
+  const FLASH_STAGGER_MS=90/V;
+  const FLASH_DUR_MS=520/V;
+  // 1) Lampeggiano tutte le carte di questo giocatore, una dopo l'altra.
   cellKeys.forEach((k,i)=>{
     setTimeout(()=>{
       if(!bsvg) return;
@@ -22670,47 +22663,39 @@ function runSuddenDeathWave(owner, cellKeys, onDone){
       if(!el) return;
       el.classList.remove('sd-flash-red','sd-flash-blue');
       void el.offsetWidth;
-      // Both classes now animate the identical shared sdFlashWhite keyframe
-      // (see that class's own v0.71.49 comment) — which literal class name
-      // gets applied no longer changes the visual, but colorClass now holds
-      // 'dark'/'light' (not the old 'red'/'blue'), so this check is updated
-      // to match instead of silently always falling through to one branch.
+      // Le due classi animano lo stesso identico fotogramma bianco condiviso:
+      // quale delle due si applichi non cambia piu' cio' che si vede, ma
+      // colorClass vale 'dark'/'light' e non piu' 'red'/'blue', quindi il
+      // controllo e' su quello.
       el.classList.add(colorClass==='dark'?'sd-flash-red':'sd-flash-blue');
     }, i*FLASH_STAGGER_MS);
   });
   const allFlashesDoneAt=cellKeys.length*FLASH_STAGGER_MS + FLASH_DUR_MS;
-  // 2) Once flashes have played out, launch one small bubble per card,
-  // staggered, from that card's screen position toward a shared collection
-  // point at screen-center. A persistent "collector" bubble lives at that
-  // center point for the whole convergence: it grows a little and its
-  // displayed number ticks up by 1 every time a feeder bubble merges into
-  // it, so the running total is visible building up in real time — not
-  // just a plain dot with nothing shown until the very end. The LAST feeder
-  // to arrive morphs that same collector bubble into the final "big bubble"
-  // leg toward the opponent's HP avatar (see growSuddenDeathCollector /
-  // launchSuddenDeathFinalBubble below), carrying the full card count as
-  // both its damage value and its displayed number the whole way there.
+  // 2) Finiti i lampi, da ogni carta parte una bollicina verso il punto di
+  // raccolta. Li' vive una bolla "collettrice" per tutta la convergenza: a
+  // ogni arrivo cresce un po' e il suo numero sale di uno, cosi' il totale si
+  // vede formarsi invece di comparire alla fine. L'ULTIMA bollicina che
+  // arriva trasforma quella stessa bolla nel colpo finale verso l'avversario,
+  // che porta il totale come numero e come danno.
   setTimeout(()=>{
-    // Fixed-canvas: the collector + feeder bubbles live inside #game-root and
-    // work in authored 1920×1080 coords, so the shared collection point is the
-    // authored canvas center, not the live window center.
-    const center={x:CANVAS_W/2, y:CANVAS_H/2};
+    // Le bolle vivono dentro #game-root e ragionano in coordinate 1920x1080,
+    // quindi il punto di raccolta si calcola li' dentro e non sulla finestra
+    // vera. Un quarto di schermo per parte: il giocatore 1 a sinistra, il 2 a
+    // destra, cosi' le due ondate simultanee non si accavallano.
+    const centro={x: owner===1 ? CANVAS_W*0.3 : CANVAS_W*0.7, y: CANVAS_H/2};
     let arrived=0;
     const total=cellKeys.length;
-    const collector=createSuddenDeathCollector(center, colorClass);
+    const collector=createSuddenDeathCollector(centro, colorClass);
     cellKeys.forEach((k,i)=>{
       setTimeout(()=>{
-        const from=getCellScreenCenter(k) || center;
-        flySuddenDeathBubble(from, center, colorClass, ()=>{
+        const from=getCellScreenCenter(k) || centro;
+        flySuddenDeathBubble(from, centro, colorClass, ()=>{
           arrived++;
           growSuddenDeathCollector(collector, arrived, total);
           if(arrived===total){
-            // All small bubbles have merged — launch the collector itself
-            // (now showing the full total) on to strike the opponent's HP
-            // avatar, along the same curved/bounce motion combat hits use.
-            const to=getAvatarScreenCenter(opponent) || center;
-            launchSuddenDeathFinalBubble(collector, center, to, total, ()=>{
-              applySuddenDeathDamage(opponent, total, onDone);
+            const to=getAvatarScreenCenter(opponent) || centro;
+            launchSuddenDeathFinalBubble(collector, centro, to, total, ()=>{
+              applyDannoOndata(opponent, total, fine);
             });
           }
         });
@@ -22758,7 +22743,7 @@ function growSuddenDeathCollector(collector, arrived, total){
 // and unchanged throughout this leg — it already shows the full total from
 // growSuddenDeathCollector's last call.
 function launchSuddenDeathFinalBubble(collector, from, to, total, onArrive){
-  const ARC_DUR_MS=650;
+  const ARC_DUR_MS=650/ONDATA_VELOCITA;   // v0.75.0 — dimezzato come tutta l'ondata
   flyArcedBounceBubble(collector, from, to, ARC_DUR_MS, ()=>{
     collector.remove();
     playHitSfx();
@@ -22766,31 +22751,28 @@ function launchSuddenDeathFinalBubble(collector, from, to, total, onArrive){
   }, {shrinkAmount:0.2});
 }
 
-// Deals sudden-death damage directly (bypassing applyHpDamage's normal
-// per-flip conquest framing, since this isn't a conquest) — HP is allowed
-// to go negative here (sudden death only exists to compare final totals,
-// not to trigger an extra KO), then reuses the existing "-N" popup + 1-by-1
-// countdown presentation so it reads identically to normal combat damage.
-// Calls `onDone` once that presentation has fully settled.
-function applySuddenDeathDamage(defenderPlayer, dmg, onDone){
-  if(dmg<=0){ onDone(); return; }
+// Mette a segno il danno di un'ondata, saltando l'inquadratura "conquista" di
+// applyHpDamage perche' qui non c'e' nessuna conquista: e' il tabellone che
+// pesa. Riusa la stessa presentazione dei colpi normali — il numero che
+// compare sull'avatar e il conteggio uno per uno — cosi' si legge uguale.
+// `onDone` scatta quando quel conteggio si e' fermato.
+function applyDannoOndata(defenderPlayer, dmg, onDone){
+  const fine = typeof onDone === 'function' ? onDone : ()=>{};
+  if(dmg<=0){ fine(); return; }
   const hpBefore=G.hp[defenderPlayer];
-  const hpAfter=hpBefore-dmg; // intentionally NOT clamped to 0 — see comment above
+  // v0.75.0 — si SOMMA, come ogni altro danno: il contatore sale.
+  const hpAfter=hpBefore+dmg;
   G.hp[defenderPlayer]=hpAfter;
-  const STEP_MS=110;
+  const STEP_MS=110/ONDATA_VELOCITA;
   const steps=Math.abs(hpAfter-hpBefore);
-  // Sudden death only ever runs once the board/combat is fully settled, so
-  // the display queue for this player is always empty/idle here — queue
-  // this hit and mark it ready in the same tick (no travel animation to
-  // wait on, unlike a normal combat hit's damage-bubble arc flight).
-  // _hpMarkReady shows the "-N" popup + shake immediately (see its own
-  // comment); the queue then only owns the numeric countdown.
+  // L'ondata parte a scontro finito, quindi la coda di questo giocatore e'
+  // sempre libera: si accoda il colpo e lo si dichiara pronto nello stesso
+  // istante, senza nessun volo da aspettare. _hpMarkReady mostra subito il
+  // numero e la scossa; alla coda resta solo il conteggio.
   _hpMarkReady(defenderPlayer, _hpQueueDamage(defenderPlayer, dmg));
-  // Wait for the full 1-by-1 countdown (steps * 110ms) before calling
-  // onDone, mirroring the queue processor's own timing (which now starts
-  // ticking immediately, with no popup-float delay — see _hpProcessQueue)
-  // so the sudden-death sequence never rushes past a still-ticking number.
-  setTimeout(onDone, steps*STEP_MS + 120);
+  // Si aspetta tutto il conteggio prima di chiamare onDone, altrimenti il
+  // turno ripartirebbe con dei numeri ancora in movimento a schermo.
+  setTimeout(fine, steps*STEP_MS + 120/ONDATA_VELOCITA);
 }
 
 // Flies a single small "feeder" bubble (one per card in play) from its
@@ -22806,7 +22788,7 @@ function applySuddenDeathDamage(defenderPlayer, dmg, onDone){
 function flySuddenDeathBubble(from, to, colorClass, onArrive){
   const bubble=createDamageBubbleVisual(colorClass, ['sd-bubble']);
   fxLayer().appendChild(bubble);
-  const DUR_MS=360;
+  const DUR_MS=360/ONDATA_VELOCITA;   // v0.75.0 — dimezzato come tutta l'ondata
   function easeOutCubic(t){ return 1-Math.pow(1-t,3); }
   let startTs=null;
   function step(ts){
