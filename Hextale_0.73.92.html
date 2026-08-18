@@ -6428,7 +6428,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.91</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.92</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -17672,6 +17672,11 @@ const TRASCINA_SOGLIA_PX = 3; // sotto questa soglia e' un tocco, non un trascin
 // Quanto "si alza" il tassello mentre lo si tiene. E' lo stesso mestiere che
 // fa l'ombra: dire che quella cosa non e' piu' appoggiata al tavolo.
 const TRASCINA_INGRANDIMENTO = 1.12;
+// Quanto pende, e quanto in fretta. Il massimo e' basso di proposito: oltre i
+// dieci gradi un esagono smette di sembrare inclinato e comincia a sembrare
+// storto.
+const TRASCINA_INCLINAZIONE_MAX = 10;      // gradi
+const TRASCINA_INCLINAZIONE_PER_PX = 0.06; // gradi per pixel di scostamento
 function preparaTrascinamentoTassello(svg, cella, bx, by, R, buildSvgIconBtn){
   const bsvg = document.getElementById('board-svg');
   const wrap = bsvg && bsvg.querySelector('[data-tile-wrap="'+cella+'h"]');
@@ -17722,6 +17727,15 @@ function preparaTrascinamentoTassello(svg, cella, bx, by, R, buildSvgIconBtn){
         let gruppoCella = wrap;
         while(gruppoCella.parentNode && gruppoCella.parentNode !== radice) gruppoCella = gruppoCella.parentNode;
         if(gruppoCella.parentNode === radice) radice.appendChild(gruppoCella);
+        // v0.73.92 FIX ("non si puo' piu' ridraggare quel tile") — LA MANO
+        // DEVE RESTARE SOPRA AL TASSELLO.
+        // Portando il tassello in cima alla pila lo si metteva anche sopra
+        // alla propria manina, e il tassello ha un poligono invisibile che
+        // intercetta i click: da quel momento premere sulla mano voleva dire
+        // premere sul tassello, e il gesto non ripartiva piu'. La mano si
+        // rimette in cima subito dopo — in SVG "sopra" vuol dire "piu' avanti
+        // nel documento", quindi basta ri-appenderla per ultima.
+        if(gruppoIcona.parentNode === radice) radice.appendChild(gruppoIcona);
       }
       // v0.73.91 — il bagliore SEGUE il gesto: da "questi puoi prenderli" a
       // "qui puoi posarlo". E' la parte dinamica della regola, e il momento in
@@ -17729,13 +17743,30 @@ function preparaTrascinamentoTassello(svg, cella, bx, by, R, buildSvgIconBtn){
       // non e' piu' quale prendere ma dove metterlo.
       aggiornaGlowAzione(celleLibereAttornoATassello(cella));
     }
-    // L'ingrandimento e' attorno al CENTRO del tassello, non all'origine del
-    // disegno: scalare e basta lo farebbe schizzare verso l'angolo in alto a
-    // sinistra. La forma "sposta, ingrandisci, rimetti" e' la scalatura
-    // attorno a un punto scritta per esteso.
+    // v0.73.92 — L'INCLINAZIONE, come quella della carta trascinata.
+    // La carta si inclina seguendo il movimento (vedi --foil-rx/--foil-ry e
+    // .card-db-foil-tilt): un oggetto tenuto in mano non resta mai dritto.
+    // Qui l'inclinazione non puo' essere una `transform` CSS in 3D — su questo
+    // elemento la `transform` e' un ATTRIBUTO SVG, e una regola CSS la
+    // sostituirebbe invece di sommarcisi, facendo sparire lo spostamento. Si
+    // usa quindi una rotazione piana, proporzionale a quanto il tassello si e'
+    // allontanato in orizzontale dal punto in cui e' stato afferrato: pende
+    // dalla parte verso cui lo si sta portando, come un peso appeso a un dito.
+    const inclinazione = Math.max(-TRASCINA_INCLINAZIONE_MAX,
+                          Math.min(TRASCINA_INCLINAZIONE_MAX, dx * TRASCINA_INCLINAZIONE_PER_PX));
+    // L'ingrandimento e la rotazione sono attorno al CENTRO del tassello, non
+    // all'origine del disegno: senza quel centro dichiarato, scalare e ruotare
+    // lo farebbero schizzare verso l'angolo in alto a sinistra. La forma
+    // "sposta, trasforma, rimetti" e' la trasformazione attorno a un punto
+    // scritta per esteso — e `rotate` in SVG il centro lo accetta come
+    // parametro, quindi li' basta dirglielo.
     const s = TRASCINA_INGRANDIMENTO;
-    const spostamento = 'translate('+(bx*(1-s)+dx).toFixed(2)+','+(by*(1-s)+dy).toFixed(2)+') scale('+s+')';
+    const spostamento = 'translate('+dx.toFixed(2)+','+dy.toFixed(2)+') '
+      + 'rotate('+inclinazione.toFixed(2)+','+bx.toFixed(2)+','+by.toFixed(2)+') '
+      + 'translate('+(bx*(1-s)).toFixed(2)+','+(by*(1-s)).toFixed(2)+') scale('+s+')';
     if(wrap) wrap.setAttribute('transform', spostamento);
+    // La mano riceve la STESSA trasformazione, quindi resta incollata al
+    // centro del tassello per tutto il viaggio, inclinazione compresa.
     gruppoIcona.setAttribute('transform', spostamento);
     // Si accende la casella sotto al dito, se e' una di quelle buone: il
     // giocatore deve sapere dove sta per posare PRIMA di lasciare.
@@ -26961,10 +26992,13 @@ function glowEsagonale(svg, x, y, R, cella){
   alone.setAttribute('points', ptStr(x, y, R - BOARD_GAP));
   alone.setAttribute('fill', 'none');
   alone.setAttribute('stroke', COLORE_GLOW_AZIONE);
-  alone.setAttribute('stroke-width', '9');
+  // v0.73.92 — tre pixel piu' spesso e due di sfocatura in piu' (era 9 e 6):
+  // il bagliore doveva vedersi meglio da lontano, e su un esagono grande un
+  // filo sottile si perde contro l'arte del tassello.
+  alone.setAttribute('stroke-width', '12');
   alone.setAttribute('stroke-linejoin', 'round');
   alone.setAttribute('opacity', '0.28');
-  alone.style.filter = 'blur(6px)';
+  alone.style.filter = 'blur(8px)';
   alone.style.mixBlendMode = 'plus-lighter';
   gruppo.appendChild(alone);
   const filo = svgEl('polygon');
@@ -28012,7 +28046,13 @@ function renderBoard(){
       // Vale per OGNI abilita' che chieda qualcosa sul tabellone, non solo per
       // questa: e' il posto in cui passano tutte (vedi glowEsagonale).
       glowEsagonale(svg, bx, by, R, cella);
-      evidenziaBersaglio(svg, bx, by, R);
+      // v0.73.92 — il velo chiaro NON si mette su cio' che si trascina.
+      // `evidenziaBersaglio` schiarisce il tassello del 30% per dire "questo
+      // si puo' scegliere": su una carta da cliccare va bene, ma su un pezzo
+      // che si prende in mano lo faceva sembrare sbiadito, quasi trasparente —
+      // e un oggetto che si solleva deve sembrare piu' solido, non meno. Qui
+      // quel compito lo fa gia' il bagliore, che sta INTORNO e non sopra.
+      if(scelta.modo !== 'trascina') evidenziaBersaglio(svg, bx, by, R);
       // v0.73.89 — due modi di scegliere, un disegno per ciascuno. Il mirino
       // dice "cliccami"; la mano dice "prendimi e portami". Il resto della
       // finestra (evidenziazione, X per rinunciare, IA, tempo scaduto) e'
