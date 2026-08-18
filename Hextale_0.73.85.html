@@ -6403,7 +6403,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.84</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.85</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -9968,7 +9968,14 @@ function _vociDiPersonaggio(slug){
 // e non doveva esserci: restava muta. Basta nominarla in questo elenco, che
 // esiste apposta per i suoni che vivono fra le voci pur essendo effetti — la
 // stessa strada gia' percorsa dal fumo del Brucaliffo.
-const SUONI_EXTRA = ['the-caterpillar-smoke.mp3', 'strigoi-laugh.mp3'];
+// v0.73.85 — si scrivono SENZA estensione. I file arrivano come capita, .mp3
+// o .wav a seconda di dove sono stati presi (la risata di Baba Yaga e' un
+// .wav, quella di Strigoi un .mp3), e far dipendere il funzionamento di
+// un'abilita' da quale delle due sia e' una trappola gratuita: si prova prima
+// .mp3 e poi .wav, e vince la prima che esiste. Chi li chiede li chiama per
+// nome e basta (vedi playSfxFile, che l'estensione la ignora comunque).
+const SUONI_EXTRA = ['the-caterpillar-smoke', 'strigoi-laugh', 'baba-yaga-laugh'];
+const ESTENSIONI_SUONO = ['mp3','wav'];
 // v0.73.28 — un whoosh per rarita' quando si scopre una carta dalla bustina.
 // Vengono cercati come tutti gli altri asset: prima accanto al file, poi sul
 // repository. Quelli che non esistono ancora non fanno danno — chi non trova
@@ -9991,8 +9998,25 @@ function registraSuoniExtra(){
         else console.info('[audio] "'+nome+'" non c\'e\' ancora: al suo posto si usera\' il whoosh piu\' vicino');
       })
       .catch(()=>{});
+  // v0.73.85 — un suono di voce si prova con tutte le estensioni ammesse e si
+  // tiene la prima che risponde; l'avviso arriva solo se non ne esiste
+  // NESSUNA, perche' e' quello il vero guasto.
+  const cercaConEstensioni = (base) => {
+    const passo = (i) => {
+      if(i >= ESTENSIONI_SUONO.length){
+        console.warn('[audio] non trovo "'+base+'" in '+VOCI_REL+' con nessuna estensione ('
+          + ESTENSIONI_SUONO.join(', ') + '): quel suono restera muto');
+        return Promise.resolve();
+      }
+      const nome = base + '.' + ESTENSIONI_SUONO[i];
+      return _primoCheEsiste(_candidati(VOCI_REL + nome, VOCI_BASE + nome), _provaAudio)
+        .then(url => { if(url){ registraVociSfx([url]); return; } return passo(i+1); })
+        .catch(()=> passo(i+1));
+    };
+    return passo(0);
+  };
   return Promise.all([
-    ...SUONI_EXTRA.map(n => cerca(n, VOCI_REL, VOCI_BASE, true)),
+    ...SUONI_EXTRA.map(cercaConEstensioni),
     // I whoosh per rarita' non sono obbligatori: se ne manca uno si ripiega.
     ...SUONI_SFX_EXTRA.map(n => cerca(n, SFX_REL, SFX_BASE, false)),
   ]);
@@ -10077,7 +10101,12 @@ function verificaArtCarte(){
 // esistono ancora quando quella funzione gira.
 function registraVociSfx(urls){
   for(const url of urls){
-    const chiave = url.split('/').pop().replace(/\.mp3$/i,'');
+    // v0.73.85 — si toglie anche l'estensione .wav, non solo .mp3.
+    // playSfxFile cerca la chiave togliendo ENTRAMBE (vedi li'), quindi un
+    // suono .wav finiva registrato come "nome.wav" e chiesto come "nome": due
+    // stringhe diverse, nessuna corrispondenza, silenzio. Non si era mai visto
+    // perche' finora fra le voci c'erano solo .mp3.
+    const chiave = url.split('/').pop().replace(/\.(mp3|wav)$/i,'');
     if(AUDIO_DATA_URLS[chiave]) continue;
     AUDIO_DATA_URLS[chiave] = url;
     if(!_sfxCtx) continue;
@@ -16343,10 +16372,14 @@ const _notteInCorso = new Map(); // id carta -> {da:istante, artPrima:url}
 // bisogno: se la chiave manca la si crea puntando al repository, che c'e'
 // sempre. Non toglie niente alla ricerca normale (che resta piu' veloce e
 // funziona anche senza rete): la copre soltanto.
-function assicuraSuonoDaVoce(nomeFile){
-  const chiave = nomeFile.replace(/\.(mp3|wav)$/i,'');
-  if(!AUDIO_DATA_URLS[chiave]) AUDIO_DATA_URLS[chiave] = VOCI_BASE + nomeFile;
-  return nomeFile;
+// v0.73.85 — prende il nome SENZA estensione e, se il censimento non ha
+// ancora registrato niente, punta al repository con l'estensione dichiarata
+// come quella vera oggi. Restituisce sempre la chiave, che e' cio' che
+// playSfxFile cerca.
+function assicuraSuonoDaVoce(base, estensione){
+  const chiave = String(base).replace(/\.(mp3|wav)$/i,'');
+  if(!AUDIO_DATA_URLS[chiave]) AUDIO_DATA_URLS[chiave] = VOCI_BASE + chiave + '.' + (estensione||'mp3');
+  return chiave;
 }
 function calaLaNotteSu(card){
   if(_simulazioneInCorso) return;
@@ -16360,7 +16393,7 @@ function calaLaNotteSu(card){
   // La regola generale, per la prossima volta: cio' che deve succedere sempre
   // va PRIMA di cio' che puo' fallire, non dopo.
   _lampiNotte.add(card.id);
-  try { playSfxFile(assicuraSuonoDaVoce('strigoi-laugh.mp3')); } catch(_){}
+  try { playSfxFile(assicuraSuonoDaVoce('strigoi-laugh','mp3')); } catch(_){}
   // Se manca l'arte notturna, il +2 e la risata restano: si rinuncia solo al
   // cambio d'abito, e lo si dice, invece di restare muti su tutto.
   if(!card.artNotteDark && !card.artNotteLight){
@@ -17947,6 +17980,12 @@ function applicaHexSeConquistata(attaccante, babaYaga, atkVal, defVal){
   const differenza = atkVal - defVal;
   if(differenza<=0) return false; // non dovrebbe mai capitare (e' cosi' che si e' conquistata)
   modificaValori(attaccante, SIDES, -differenza, 0);
+  // v0.73.85 — e Baba Yaga ride. Il suono sta fra le voci ed e' oggi un .wav:
+  // l'estensione la si dichiara qui solo come ripiego, perche' il censimento
+  // all'avvio le prova entrambe (vedi SUONI_EXTRA).
+  // Sta DOPO il danno e non prima per una ragione sola: se un domani la
+  // punizione venisse annullata da qualcosa, la risata non sara' gia' partita.
+  try { playSfxFile(assicuraSuonoDaVoce('baba-yaga-laugh','wav')); } catch(_){}
   return true;
 }
 // Copia di lavoro di una carta per la simulazione. Superficiale, tranne i tre
