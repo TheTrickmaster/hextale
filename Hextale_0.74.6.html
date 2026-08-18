@@ -6607,7 +6607,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.74.5</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.74.6</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -15054,7 +15054,11 @@ function makeDeck(owner,total){
 // ~13-17 cells, a placement lands on a magic tile ~65% of the time, so
 // E[value] ≈ 0.65 × 12 ≈ 7.8 for any card that has at least one gem (a flat
 // per-card bonus, not per-slot, since extra gems beyond the first add nothing).
-const GEM_POWER = 7.8;
+// v0.74.6 — e adesso vale ZERO. Quei 7.8 erano il valore atteso del bonus
+// delle caselle magiche, che non esistono piu': lasciarli avrebbe fatto
+// credere al bilanciamento dei mazzi che una carta con una gemma vale otto
+// punti in piu' di una identica senza, per un premio che non arriva mai.
+const GEM_POWER = 0;
 // Max allowed RELATIVE power gap between the two starting decks (20% richiesto).
 const BALANCE_MAX_GAP = 0.20;
 
@@ -15785,7 +15789,7 @@ function initGame(vsAI){
     currentPlayer:1,selected:null,gameOver:false,scores:{1:0,2:0},
     hp:{1:HP_START,2:HP_START},
     dragging:null,dragOver:null,
-    magicTiles:{}, // populated below, AFTER assignTileAbilities() runs — see that call site. Boolean map: magicTiles[cellKey]=true means that cell is a "magic tile" (no color, just on/off)
+    magicTiles:{}, // v0.74.6 — resta SEMPRE vuota: le caselle magiche non si generano piu' (vedi il punto in cui venivano accese, piu' sotto). Il tabellone ha solo caselle libere e bloccate.
     // no firstTurn flag needed; initial deal handled by drawInitialHands()
     tileAbilities:{},
     growthCards:[],
@@ -15865,14 +15869,16 @@ function initGame(vsAI){
   // dipping below it. (Formerly this also rolled a colored socket + a ~10%
   // chance of a second "dual-infusion" color; the whole color/dual concept is
   // gone — see isMagicTile()/cardHasAnyGem() for the new binary mechanic.)
-  const socketCands=cells.filter(c=>!holes.has(key(c.q,c.r)));
-  const socketCount=Math.min(socketCands.length, 8+Math.floor(Math.random()*5)); // 8-12
-  const shuffled=[...socketCands].sort(()=>Math.random()-0.5);
-  for(let i=0;i<socketCount;i++){
-    const c=shuffled[i];
-    const k=key(c.q,c.r);
-    G.magicTiles[k]=true;
-  }
+  // v0.74.6 — LE CASELLE MAGICHE NON SI GENERANO PIU'.
+  // Il tabellone ha due tipi di casella e basta: libera e bloccata. Qui prima
+  // se ne accendevano 8-12 a caso, che davano +2 su tutti i lati a chi ci
+  // posava sopra una carta con almeno una gemma.
+  // `G.magicTiles` resta una mappa VUOTA invece di sparire: isMagicTile() la
+  // interroga da sei punti diversi (bonus al piazzamento, anteprima del
+  // trascinamento, valutazione dell'IA, arte della casella, riepilogo del
+  // tooltip, menu di debug) e tutti e sei rispondono gia' correttamente a
+  // "nessuna casella magica" — cancellare la mappa vorrebbe dire toccare sei
+  // punti per ottenere lo stesso identico risultato.
   document.getElementById('gameover').classList.remove('show');
   toggleBoardView(false);
   // Randomize who goes first each game, instead of always starting with
