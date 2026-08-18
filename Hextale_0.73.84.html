@@ -6403,7 +6403,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.83</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.84</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -17143,6 +17143,27 @@ const EFFETTI_PIAZZAMENTO = {
 // il lampo verde sul gruppo premiato.
 const BONUS_SLEIGHT = 1;
 const BONUS_SLEIGHT_CON_PRINCIPESSA = 3;
+// v0.73.84 — A PARI MERITO VINCE CHI PARTIVA PIU' ALTO.
+// I valori che si vedono adesso non sono per forza quelli stampati: gemme,
+// caselle magiche, sinergie e furti li hanno gia' spostati. Due gruppi che
+// oggi segnano 7 possono essere un 7 vero e un 5 cresciuto di due, e fra i
+// due la carta non e' indifferente — il primo e' il suo lato forte, il
+// secondo un prestito. La parita' si scioglie quindi guardando i valori di
+// NASCITA, e solo se anche quelli pareggiano si ricorre al sorteggio.
+// I valori di nascita si ripescano dalla riga del foglio (la carta ricorda da
+// quale viene con `baseId`), che e' l'unica fonte davvero originale: le
+// istantanee sparse sulla carta sono "prima di QUESTA abilita'", non "prima
+// di tutto".
+function valoriOriginaliDi(card){
+  const baseId = card && (card.baseId || String(card.id||'').replace(/-\d+$/,''));
+  const entry = baseId && Array.isArray(FINAL_CARDS) && FINAL_CARDS.find(e=>e.id===baseId);
+  if(entry && entry.values) return entry.values;
+  // Ripieghi, dal piu' vecchio al piu' recente: meglio un'istantanea parziale
+  // che nessuna. L'ultimo ripiego sono i valori correnti, che a quel punto
+  // pareggiano e lasciano decidere al sorteggio.
+  return card.nightmareBaseValues || card.mischiefBaseValues || card.hoorayBaseValues
+      || card.tileAbilityBaseValues || card.values || {};
+}
 function cePrincipessaInCampo(){
   for(const k in G.board){
     const cella=G.board[k];
@@ -17155,7 +17176,16 @@ function attivaSleightOfHand(card){
   if(!gruppi.length) return;
   let massimo = -Infinity;
   for(const g of gruppi) if((g.val||0) > massimo) massimo = (g.val||0);
-  const candidati = gruppi.filter(g => (g.val||0) === massimo);
+  let candidati = gruppi.filter(g => (g.val||0) === massimo);
+  // v0.73.84 — primo spareggio: chi era piu' alto alla nascita (vedi
+  // valoriOriginaliDi). Il sorteggio resta, ma solo per chi pareggia anche li'.
+  if(candidati.length > 1){
+    const originali = valoriOriginaliDi(card);
+    const altezzaDiPartenza = g => Math.max(...g.sides.map(s => originali[s]||0));
+    let massimoOrigine = -Infinity;
+    for(const g of candidati) massimoOrigine = Math.max(massimoOrigine, altezzaDiPartenza(g));
+    candidati = candidati.filter(g => altezzaDiPartenza(g) === massimoOrigine);
+  }
   const scelto = candidati.length===1 ? candidati[0] : sorteggioStabile(candidati, card.id+':sleight');
   if(!scelto) return;
   const bonus = cePrincipessaInCampo() ? BONUS_SLEIGHT_CON_PRINCIPESSA : BONUS_SLEIGHT;
