@@ -2226,6 +2226,19 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
   animation:drawWiggle 0.6s ease-in-out infinite;
 }
 
+/* ── v0.73.90 — IL TASSELLO SOLLEVATO (Ali Baba) ──────────────────────────
+   Un tassello trascinato deve leggersi come TENUTO IN MANO, non come
+   trascinato sul tavolo: la stessa ombra lunga e morbida che #drag-ghost usa
+   per le carte, cosi' i due gesti parlano la stessa lingua. L'ingrandimento
+   non sta qui ma nella `transform` SVG (vedi preparaTrascinamentoTassello):
+   una `transform` CSS sullo stesso elemento sostituirebbe quella scritta
+   nell'attributo, e il tassello smetterebbe di seguire il dito.
+   Solo l'ombra, quindi — che e' anche cio' che da' l'altezza. */
+.tassello-sollevato{
+  filter:drop-shadow(0 46px 38px rgba(0,0,0,0.55));
+  pointer-events:none;
+}
+
 /* ── Card "landing" animation: newly placed card pops in ── */
 /* v0.72.19 REWORK ("deve sembrare che si abbassi e cali sul tile, invece
    adesso fa solo una specie di bounce delle dimensioni. voglio vedere che la
@@ -6403,7 +6416,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.89</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.90</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -17644,6 +17657,9 @@ function avviaAtterraggioTassello(cella){
 // browser con getScreenCTM().inverse(), che e' la sola cosa che sa di quanto
 // e' scalata la pagina in questo istante.
 const TRASCINA_SOGLIA_PX = 3; // sotto questa soglia e' un tocco, non un trascinamento
+// Quanto "si alza" il tassello mentre lo si tiene. E' lo stesso mestiere che
+// fa l'ombra: dire che quella cosa non e' piu' appoggiata al tavolo.
+const TRASCINA_INGRANDIMENTO = 1.12;
 function preparaTrascinamentoTassello(svg, cella, bx, by, R, buildSvgIconBtn){
   const bsvg = document.getElementById('board-svg');
   const wrap = bsvg && bsvg.querySelector('[data-tile-wrap="'+cella+'h"]');
@@ -17669,8 +17685,28 @@ function preparaTrascinamentoTassello(svg, cella, bx, by, R, buildSvgIconBtn){
     const p = puntoNelDisegno(e);
     const dx = p.x - preso.x0, dy = p.y - preso.y0;
     if(!preso.mosso && Math.hypot(dx,dy) < TRASCINA_SOGLIA_PX) return;
-    preso.mosso = true;
-    const spostamento = 'translate('+dx.toFixed(2)+','+dy.toFixed(2)+')';
+    if(!preso.mosso){
+      preso.mosso = true;
+      // v0.73.90 — da qui in poi il tassello e' IN MANO: prende l'ombra lunga
+      // delle carte trascinate (vedi .tassello-sollevato) e sale in cima alla
+      // pila. In SVG non esiste z-index, comanda l'ordine nel documento:
+      // spostare il gruppo-cella in fondo e' l'unico modo perche' il tassello
+      // passi SOPRA le celle che sorvola invece che sotto — stessa tecnica del
+      // salto e dell'atterraggio delle carte.
+      if(wrap){
+        wrap.classList.add('tassello-sollevato');
+        const radice = wrap.ownerSVGElement || document.getElementById('board-svg');
+        let cella = wrap;
+        while(cella.parentNode && cella.parentNode !== radice) cella = cella.parentNode;
+        if(cella.parentNode === radice) radice.appendChild(cella);
+      }
+    }
+    // L'ingrandimento e' attorno al CENTRO del tassello, non all'origine del
+    // disegno: scalare e basta lo farebbe schizzare verso l'angolo in alto a
+    // sinistra. La forma "sposta, ingrandisci, rimetti" e' la scalatura
+    // attorno a un punto scritta per esteso.
+    const s = TRASCINA_INGRANDIMENTO;
+    const spostamento = 'translate('+(bx*(1-s)+dx).toFixed(2)+','+(by*(1-s)+dy).toFixed(2)+') scale('+s+')';
     if(wrap) wrap.setAttribute('transform', spostamento);
     gruppoIcona.setAttribute('transform', spostamento);
     // Si accende la casella sotto al dito, se e' una di quelle buone: il
@@ -17701,7 +17737,8 @@ function preparaTrascinamentoTassello(svg, cella, bx, by, R, buildSvgIconBtn){
     }
     // Rilasciato fuori bersaglio: il tassello torna al suo posto e la finestra
     // resta aperta, cosi' si puo' riprovare senza aver sprecato l'abilita'.
-    if(wrap) wrap.removeAttribute('transform');
+    // Si posa anche davvero: via l'ombra, che e' cio' che lo teneva "in mano".
+    if(wrap){ wrap.removeAttribute('transform'); wrap.classList.remove('tassello-sollevato'); }
     gruppoIcona.removeAttribute('transform');
   };
   gruppoIcona.addEventListener('pointerdown', (e)=>{
