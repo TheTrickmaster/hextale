@@ -6464,7 +6464,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.99</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.74.0</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -15240,6 +15240,12 @@ const TILE_ABILITIES_DEF = {
   hunger_bites:      { name:'Hunger Bites',          desc:'*Gains* +1 RAND for each Power difference with the conquered card.' },
   // v0.73.98 — Cowardly Lion. Entrando in campo si spaventa da solo.
   scaredy_cat:       { name:'Scaredy cat',           desc:'When played, *Afflicts* -1 RAND to itself.' },
+  // v0.74.0 — Cenerentola. Se la Fata Madrina e' in campo, giocandola diventa
+  // The Crystal Princess (vedi attivaBellOfTheBall).
+  bell_of_the_ball:  { name:'Bell of the Ball',      desc:'If The Fairy Godmother is on the board, *Transforms* into The Crystal Princess.' },
+  // v0.74.0 — The Crystal Princess. Il gruppo piu' basso porta uno scudo al
+  // posto del numero e non si puo' conquistare (vedi latiProtettiDi).
+  crowned:           { name:'Crowned',               desc:'Lowest Power value cannot be *Conquered*.' },
 };
 // ── v0.73.49 — QUESTI `name` SONO IL LEGAME COL FOGLIO ─────────────────────
 // Il gioco aggancia l'abilita' di un personaggio confrontando la cella
@@ -17512,6 +17518,96 @@ function abilitaAConSorteAlPiazzamento(card){
   const chiave = abilitaAttivaDi(card);
   return !!chiave && ABILITA_A_SORTE_AL_PIAZZAMENTO.has(chiave);
 }
+// ═══════════════════════════════════════════════════════════════════════════
+// v0.74.0 — CENERENTOLA, "Bell of the Ball": la trasformazione
+// ═══════════════════════════════════════════════════════════════════════════
+// Se in campo c'e' la Fata Madrina, Cenerentola giocata diventa The Crystal
+// Princess: nome, illustrazione, valori e abilita' della carta nuova.
+//
+// LA CARTA SI TRASFORMA SUL POSTO, non viene sostituita con un'altra. E' la
+// scelta che conta: il gioco riconosce le carte sul tabellone dal loro `id`,
+// e mezza partita ne tiene traccia — l'ultima conquista di Morgana,
+// l'atterraggio in corso, la coda dei lampi, la carta che il turno sta
+// risolvendo in questo istante. Mettere un oggetto NUOVO al suo posto
+// vorrebbe dire che tutti quei riferimenti puntano di colpo a una carta che
+// non e' piu' sul tavolo. Cambiandole i connotati addosso, invece, chi la
+// stava guardando continua a guardare lei.
+// L'id e il proprietario non si toccano mai, per la stessa ragione.
+//
+// Sta fra gli EFFETTI REALI e non fra quelli in anteprima: trasformare una
+// carta durante la simulazione vorrebbe dire trasformarla a ogni passaggio
+// del puntatore.
+function laFataMadrinaEInCampo(){
+  for(const k in G.board){
+    const cella = G.board[k];
+    if(!cella || !cella.card) continue;
+    if(/fairy\s*godmother/i.test(String(cella.card.name||''))) return true;
+  }
+  return false;
+}
+function attivaBellOfTheBall(card){
+  if(!laFataMadrinaEInCampo()) return false;
+  const entry = cartaEvocabilePerNome('The Crystal Princess');
+  if(!entry){
+    // Stessa cortesia di King Arthur con Excalibur: se la riga non c'e' nel
+    // foglio non si finge una trasformazione, e si dice perche'.
+    console.info('[Bell of the Ball] "The Crystal Princess" non e\' nel foglio: la trasformazione non avviene.');
+    return false;
+  }
+  const nuova = _makeCardDbCard(entry, card.owner || G.currentPlayer);
+  card.name = nuova.name;
+  card.quote = nuova.quote || '';
+  card.values = {...nuova.values};
+  // I valori di nascita diventano quelli della carta NUOVA: da adesso e' lei,
+  // e il verde/rosso dei numeri va misurato su di lei (vedi valoriNascita).
+  card.valoriNascita = {...nuova.values};
+  card.groupSides = Array.isArray(nuova.groupSides) ? nuova.groupSides.map(g=>g.slice()) : card.groupSides;
+  card.archetypes = (nuova.archetypes||[]).slice();
+  card.rarity = nuova.rarity || card.rarity;
+  card.cardAbility = nuova.cardAbility || null;
+  card.activatedTileAbility = card.cardAbility;
+  card.abilityLocked = false;
+  card.abilityNameSheet = nuova.abilityNameSheet || '';
+  card.abilityDescSheet = nuova.abilityDescSheet || '';
+  card.abilityTrigger = nuova.abilityTrigger || '';
+  card.abilityNoScript = !!nuova.abilityNoScript;
+  card.baseId = entry.id;   // da qui in poi voci, battlecry e arte sono le sue
+  card.voci = (nuova.voci||[]).slice();
+  card.battlecry = nuova.battlecry || null;
+  card.artDark = nuova.artDark; card.artLight = nuova.artLight;
+  card.artLayersDark = nuova.artLayersDark; card.artLayersLight = nuova.artLayersLight;
+  card.artLayers = nuova.artLayers;
+  card.artSrc = nuova.artSrc;
+  // Le istantanee delle sinergie vive vanno buttate: erano di Cenerentola, e
+  // riferite a valori che questa carta non ha piu'. Rifarle da zero e' cio'
+  // che impedisce al ricalcolo di riportarla indietro.
+  card.tileAbilityBaseValues = {...nuova.values};
+  delete card.hoorayBaseValues; delete card.mischiefBaseValues;
+  delete card.nightmareBaseValues; delete card.balooBaseValues;
+  try { playCardBattlecry(card); } catch(_){}
+  return true;
+}
+// ── v0.74.0 — THE CRYSTAL PRINCESS, "Crowned": il lato piu' basso e' sacro ──
+// Il gruppo col valore piu' basso non si puo' conquistare, in nessun caso: al
+// posto del numero si vede uno scudo. Se piu' gruppi pareggiano al minimo,
+// sono protetti tutti — "il valore piu' basso" e' un valore, non un lato, e
+// tutti quelli che lo portano stanno sotto la stessa corona.
+// Si ricalcola dal vivo a ogni lettura invece di essere deciso una volta: i
+// valori cambiano di continuo in questo gioco (doni, furti, sinergie), e uno
+// scudo appiccicato al lato sbagliato sarebbe peggio di nessuno scudo.
+function latiProtettiDi(card){
+  if(!card || abilitaAttivaDi(card) !== 'crowned') return [];
+  const gruppi = gruppiDiCarta(card);
+  if(!gruppi.length) return [];
+  let minimo = Infinity;
+  for(const g of gruppi) minimo = Math.min(minimo, g.val||0);
+  const lati = [];
+  for(const g of gruppi) if((g.val||0) === minimo) lati.push(...g.sides);
+  return lati;
+}
+function latoInconquistabile(card, lato){
+  return latiProtettiDi(card).includes(lato);
+}
 function applicaAbilitaPiazzamento(card, q, r, chiave){
   const effetto = EFFETTI_PIAZZAMENTO[chiave];
   if(typeof effetto === 'function') effetto(card, q, r);
@@ -17537,6 +17633,9 @@ function applicaAbilitaPiazzamento(card, q, r, chiave){
 // valori, va in EFFETTI_PIAZZAMENTO e ottiene l'anteprima gratis; se cambia
 // altro, o tira un dado, va qui e non si vede in anticipo.
 const EFFETTI_PIAZZAMENTO_REALI = {
+  // v0.74.0 — la trasformazione di Cenerentola: cambia la carta, non i suoi
+  // numeri, quindi non ha niente da mostrare in anteprima e sta qui.
+  bell_of_the_ball: (card) => attivaBellOfTheBall(card),
   off_with_the_head: (card) => attivaOffWithTheHead(card),
   smoke_and_mirrors: (card) => attivaSmokeAndMirrors(card),
   // Exaketededly sta QUI e non fra gli effetti simulabili perche' tira un
@@ -19054,6 +19153,11 @@ function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLa
     // punta contro. Il controllo sta PRIMA del confronto e non dentro: cosi'
     // non esiste un valore, per quanto alto, che la porti via.
     if(cartaIntoccabile(nb.card)) continue;
+    // v0.74.0 — "Crowned": il lato piu' basso di The Crystal Princess non cade
+    // MAI, qualunque numero gli si punti contro. Il controllo sta PRIMA del
+    // confronto e non dentro, esattamente come per Excalibur: cosi' non esiste
+    // un valore, per quanto alto, che lo porti via.
+    if(latoInconquistabile(nb.card, dir.theirSide)) continue;
     const[nq,nr]=nk.split(',').map(Number);
     const theirEffective=getFactionBonus(nb.card,nq,nr,snap).values;
     const myAttackVal=getAttackValueForSide(card, myEffective, dir.mySide);
@@ -20438,6 +20542,10 @@ function aiEvaluateConquests(card, q, r){
     // e' un bersaglio, e contarla le farebbe scegliere celle per una conquista
     // che non avverra' mai.
     if(cartaIntoccabile(nb.card)) continue;
+    // v0.74.0 — e nemmeno il lato incoronato: contarlo fra le conquiste
+    // possibili farebbe scegliere all'IA una casella per un colpo che non
+    // andra' mai a segno.
+    if(latoInconquistabile(nb.card, dir.theirSide)) continue;
     // Merlin's "Hocus-pocus": attacks with its single strongest side instead
     // of the one actually facing this neighbor — see getAttackValueForSide's
     // own comment for why this stays centralized alongside the real
@@ -23613,7 +23721,33 @@ function drawHexCard(svg,cx,cy,R,card,fillColor,strokeColor,textColor,nameText,i
     // v0.72.72 — qui il numero del gruppo veniva sostituito da un'icona scudo
     // sui lati resi inconquistabili da Fortifica. Rimossa quell'abilita',
     // nessuna carta ha piu' lati fortificati e il numero si disegna sempre.
-    {
+    // v0.74.0 — E TORNA, per "Crowned" di The Crystal Princess. Il gruppo piu'
+    // basso non mostra un numero ma uno scudo: nasconderlo non e' un vezzo
+    // grafico, e' l'informazione giusta — quel lato non ha piu' un valore con
+    // cui confrontarsi, perche' nessun confronto lo riguarda piu'.
+    // Il parametro `displayFortifiedSides` esisteva gia' e serviva alle
+    // anteprime: era rimasto senza nessuno che lo disegnasse.
+    const protettoQuestoGruppo = (fortifiedSidesForDisplay.length
+        ? g.sides.some(s=>fortifiedSidesForDisplay.includes(s))
+        : latiProtettiDi(card).some(s=>g.sides.includes(s)));
+    if(protettoQuestoGruppo){
+      const scudo=document.createElementNS('http://www.w3.org/2000/svg','image');
+      const misura=circleSize*0.62;
+      scudo.setAttribute('href', CARD_PARTS_BASE+'shield-icon.png');
+      scudo.setAttribute('x',(lx-misura/2).toFixed(2));
+      scudo.setAttribute('y',(ly-misura/2).toFixed(2));
+      scudo.setAttribute('width',misura.toFixed(2));
+      scudo.setAttribute('height',misura.toFixed(2));
+      scudo.setAttribute('preserveAspectRatio','xMidYMid meet');
+      scudo.style.pointerEvents='none';
+      // Marcato come gli altri valori: chi cerca "il pezzo di questo lato" —
+      // l'animazione della rotazione, i lampi, l'evidenziazione del numero
+      // vincente — lo trova anche quando e' uno scudo invece di una cifra.
+      for(const gs of g.sides) scudo.setAttribute('data-value-side-'+gs,'1');
+      scudo.setAttribute('data-value-group', g.sides.join('|'));
+      scudo.setAttribute('data-hex-c', cx.toFixed(2)+','+cy.toFixed(2));
+      svg.appendChild(scudo);
+    } else {
       const t=svgEl('text');
       t.setAttribute('x',lx.toFixed(2)); t.setAttribute('y',ly.toFixed(2));
       t.setAttribute('text-anchor','middle'); t.setAttribute('dominant-baseline','central');
