@@ -6403,7 +6403,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.85</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.86</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -18396,9 +18396,12 @@ function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLa
       // Adesso la follia e' agganciata alla FINE del giro, insieme a tutto il
       // resto di cio' che si vede (vedi piu' sotto, nel blocco che schedula
       // lunge, flip e scambio dei colori).
-      // v0.73.69 — e qui Baba Yaga si vendica, se e' lei quella appena presa:
-      // vedi applicaHexSeConquistata. `card` e' l'attaccante, `nb.card` lei.
-      applicaHexSeConquistata(card, nb.card, myAttackVal, theirEffective[dir.theirSide]);
+      // v0.73.86 — e nemmeno Baba Yaga si vendica piu' QUI, per la ragione
+      // identica appena scritta sopra per il Hatter: la vendetta e' la
+      // reazione a una conquista che, in questo istante, a schermo non e'
+      // ancora avvenuta. Chi attaccava la vedeva calare sul tabellone coi
+      // valori gia' falcidiati, prima ancora di veder partire il colpo.
+      // Anche lei e' agganciata alla fine del giro, insieme al Hatter.
     }
   }
   // Neither placeCard() nor the drag-drop mouseup handler render the board
@@ -18602,13 +18605,26 @@ function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLa
       // Il ridisegno serve perche' i numeri nuovi esistono solo nel modello:
       // il giro ha scambiato i colori sul posto (vedi qui sopra) ma non ha
       // toccato le cifre.
+      // v0.73.86 — e con lui la vendetta di Baba Yaga, che e' la stessa scena
+      // vista dall'altra parte: la conquistata punisce il conquistatore.
+      // Le due stanno nello stesso momento perche' sono lo stesso momento —
+      // "la carta si e' appena girata" — e tenerle separate avrebbe voluto dire
+      // due orologi da tenere d'accordo.
       setTimeout(()=>{
+        let daRidisegnare = false;
         const posata = G.board[nk];
-        if(!posata || !posata.card) return;
-        const prima = {...posata.card.values};
-        if(!impazzisciSeConquistato(posata.card)) return;
-        lampeggiaDifferenzaValori(posata.card, prima);
-        try { renderBoard(); } catch(_){}
+        if(posata && posata.card){
+          const prima = {...posata.card.values};
+          if(impazzisciSeConquistato(posata.card)){
+            lampeggiaDifferenzaValori(posata.card, prima);
+            daRidisegnare = true;
+          }
+          // La vendetta colpisce l'ATTACCANTE (`card`), non la carta appena
+          // presa. Il lampo rosso non va chiesto: la punizione passa da
+          // modificaValori, che lo accende da sola (vedi li').
+          if(applicaHexSeConquistata(card, posata.card, atkVal, defVal)) daRidisegnare = true;
+        }
+        if(daRidisegnare) try { renderBoard(); } catch(_){}
       },stepStart+STRIKE_MS+FLIP_DUR_MS);
     });
 
