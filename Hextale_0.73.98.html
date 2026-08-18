@@ -6464,7 +6464,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.97</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.98</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -15222,6 +15222,13 @@ const TILE_ABILITIES_DEF = {
   // /Wild/ che gli stanno accanto, finche' gli stanno accanto (vedi
   // recalcBearNecessities).
   bear_necessities:  { name:'Bear Necessities',      desc:'Adjacent /Wild/ allies *Gain* +1 ALL.' },
+  // v0.73.98 — Captain Hook. Chi arriva nei primi due turni arriva forte.
+  tic_toc:           { name:'Tic Toc',               desc:'If *played* in the first two turns, +2 ALL.' },
+  // v0.73.98 — Big Bad Wolf. Dopo una conquista si sazia di tanti +1 quanta
+  // e' stata la differenza di potere (vedi attivaHungerBites).
+  hunger_bites:      { name:'Hunger Bites',          desc:'*Gains* +1 RAND for each Power difference with the conquered card.' },
+  // v0.73.98 — Cowardly Lion. Entrando in campo si spaventa da solo.
+  scaredy_cat:       { name:'Scaredy cat',           desc:'When played, *Afflicts* -1 RAND to itself.' },
 };
 // ── v0.73.49 — QUESTI `name` SONO IL LEGAME COL FOGLIO ─────────────────────
 // Il gioco aggancia l'abilita' di un personaggio confrontando la cella
@@ -17358,6 +17365,10 @@ const EFFETTI_PIAZZAMENTO = {
   // v0.73.83 — Aladdin. Al piazzamento si mette in tasca qualcosa: vedi
   // attivaSleightOfHand.
   sleight_of_hand: (card) => attivaSleightOfHand(card),
+  // v0.73.98 — due effetti al piazzamento che cambiano valori, quindi qui: da
+  // questo registro l'anteprima sotto il puntatore arriva gratis.
+  tic_toc: (card) => attivaTicToc(card),
+  scaredy_cat: (card) => attivaScaredyCat(card),
 };
 // ═══════════════════════════════════════════════════════════════════════════
 // v0.73.83 — ALADDIN, "Sleight of Hand": ruba un po' a se stesso
@@ -17429,6 +17440,35 @@ function attivaSleightOfHand(card){
   if(!scelto) return;
   const bonus = cePrincipessaInCampo() ? BONUS_SLEIGHT_CON_PRINCIPESSA : BONUS_SLEIGHT;
   modificaValori(card, scelto.sides, bonus);
+}
+// ── v0.73.98 — CAPTAIN HOOK, "Tic Toc": chi arriva presto arriva forte ─────
+// Se cala nei primi due turni della partita prende +2 su tutti i lati, e se li
+// tiene per sempre: il bonus e' pagato dal fatto di essere stato giocato
+// subito, non dal restare li'. Non e' quindi una sinergia viva come quelle di
+// Baloo o Biancaneve — succede una volta, al piazzamento, e non si ricalcola
+// piu'.
+// Il conto dei turni e' quello che il gioco annuncia col banner (vedi
+// G.numeroTurno): il turno 1 e' la prima giocata in assoluto, il 2 la
+// risposta dell'avversario. Ognuno dei due ha quindi esattamente una giocata
+// "presto", che e' la lettura che rende l'abilita' uguale per entrambi.
+const TURNI_TIC_TOC = 2;
+const BONUS_TIC_TOC = 2;
+function attivaTicToc(card){
+  if((G && G.numeroTurno || 1) > TURNI_TIC_TOC) return;
+  modificaValori(card, SIDES, BONUS_TIC_TOC);
+}
+// ── v0.73.98 — COWARDLY LION, "Scaredy cat": la paura si paga ─────────────
+// Entrando in campo si toglie 1 da un gruppo a sorte. Il sorteggio passa da
+// `sorteggioStabile` e non da Math.random per la ragione di sempre: questo
+// effetto viene eseguito DUE volte, una per l'anteprima sotto il puntatore e
+// una per davvero, e con un sorteggio vero l'anteprima indicherebbe un gruppo
+// e il piazzamento ne punirebbe un altro.
+// Il pavimento a 0 evita valori negativi, che in questo gioco non esistono.
+function attivaScaredyCat(card){
+  const gruppi = gruppiDiCarta(card);
+  if(!gruppi.length) return;
+  const scelto = sorteggioStabile(gruppi, card.id+':scaredy');
+  if(scelto) modificaValori(card, scelto.sides, -1, 0);
 }
 function applicaAbilitaPiazzamento(card, q, r, chiave){
   const effetto = EFFETTI_PIAZZAMENTO[chiave];
@@ -18553,6 +18593,31 @@ function applicaHexSeConquistata(attaccante, babaYaga, atkVal, defVal){
   try { playSfxFile(assicuraSuonoDaVoce('baba-yaga-laugh','mp3')); } catch(_){}
   return true;
 }
+// ── v0.73.98 — BIG BAD WOLF, "Hunger Bites": piu' e' facile, piu' si sazia ──
+// Dopo aver conquistato, guadagna tanti +1 quanta e' stata la differenza fra
+// il suo attacco e la difesa della carta presa, distribuiti su gruppi
+// sorteggiati uno per volta. E' il rovescio esatto di Baba Yaga: li' la
+// differenza e' la punizione di chi sfonda, qui e' il pasto.
+// Ogni punto va a un gruppo estratto per conto suo, quindi lo stesso gruppo
+// puo' uscire piu' volte: e' un morso disordinato, non una spartizione equa.
+//
+// PERCHE' QUI Math.random VA BENE, a differenza di Aladdin o del Leone.
+// Quelli sono effetti di PIAZZAMENTO, che il gioco esegue due volte — una per
+// l'anteprima e una per davvero — e un sorteggio vero le farebbe divergere.
+// Questo scatta a conquista avvenuta, una volta sola, e non ha nessuna
+// anteprima da rispettare.
+function attivaHungerBites(lupo, atkVal, defVal){
+  if(abilitaAttivaDi(lupo) !== 'hunger_bites') return false;
+  const differenza = atkVal - defVal;
+  if(differenza<=0) return false;
+  const gruppi = gruppiDiCarta(lupo);
+  if(!gruppi.length) return false;
+  for(let n=0; n<differenza; n++){
+    const scelto = gruppi[Math.floor(Math.random()*gruppi.length)];
+    modificaValori(lupo, scelto.sides, 1);
+  }
+  return true;
+}
 // Copia di lavoro di una carta per la simulazione. Superficiale, tranne i tre
 // campi che gli effetti riscrivono davvero: i valori e le due istantanee su cui
 // si calcolano le differenze colorate. Copiare la carta in profondita' sarebbe
@@ -19193,6 +19258,12 @@ function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLa
           // presa. Il lampo rosso non va chiesto: la punizione passa da
           // modificaValori, che lo accende da sola (vedi li').
           if(applicaHexSeConquistata(card, posata.card, atkVal, defVal)) daRidisegnare = true;
+          // v0.73.98 — e il Lupo si sazia, sempre in questo stesso istante:
+          // "dopo aver conquistato" e' il momento in cui la carta si e' appena
+          // girata, lo stesso della follia del Hatter e della vendetta di Baba
+          // Yaga. Il lampo verde sui gruppi che crescono arriva da
+          // modificaValori, come sempre.
+          if(attivaHungerBites(card, atkVal, defVal)) daRidisegnare = true;
         }
         if(daRidisegnare) try { renderBoard(); } catch(_){}
       },stepStart+STRIKE_MS+FLIP_DUR_MS);
