@@ -6594,7 +6594,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.74.3</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.74.4</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -10504,6 +10504,22 @@ function _makeCardDbCard(entry, owner){
 
 let _cardDbVariant=2; // 2=light (default, matches the reference screenshot), 1=dark
 
+// ── v0.74.4 — UNA SOLA VOCE SU "QUESTA CARTA E' SCURA?" ────────────────────
+// `_cardDbVariant` e' un NUMERO DI GIOCATORE (1 o 2), non una fazione: e'
+// quello che finisce in `card.owner`, ed e' da li' che drawHexCard ricava
+// cornice, angoli, cerchi dei valori e colore dei numeri, chiedendolo a
+// playerFactionIsDark().
+// E playerFactionIsDark NON e' una tabella fissa: dipende da window.__humanFaction,
+// cioe' da quale fazione ha scelto il giocatore. Con l'umano LIGHT, il
+// giocatore 1 e' chiaro, non scuro.
+// Meta' della Collezione lo sapeva (l'arte a livelli, il dorso, l'etichetta del
+// pulsante, le icone dei filtri chiedevano `_cardDbVariant===1`, cioe' davano
+// per scontato "1 = scuro"), l'altra meta' lo chiedeva a playerFactionIsDark.
+// Finche' l'umano era dark le due letture coincidevano; scegliendo light si
+// separavano, e usciva la carta con la cornice chiara e l'illustrazione scura.
+// Adesso c'e' una voce sola, e chiunque debba decidere passa di qui.
+function varianteCollezioneScura(){ return playerFactionIsDark(_cardDbVariant); }
+
 // v0.72.70 — IL TOTALE LO DECIDE IL FOGLIO.
 // Fino alla v0.72.69 il roster era fissato a 82 e ogni posto in piu' veniva
 // riempito con un dorso di carta, cosi' la griglia mostrava sempre 82 caselle.
@@ -11276,7 +11292,7 @@ function _costruisciCartaBustina(entry, dir, indice){
   const dorso = document.createElement('div');
   dorso.className = 'pack-card-face back';
   const imgDorso = document.createElement('img');
-  imgDorso.src = (_cardDbVariant===1) ? CARD_BACK_DARK : CARD_BACK_LIGHT;
+  imgDorso.src = varianteCollezioneScura() ? CARD_BACK_DARK : CARD_BACK_LIGHT;
   imgDorso.alt=''; imgDorso.draggable=false;
   dorso.appendChild(imgDorso);
 
@@ -11556,7 +11572,7 @@ function tornaAllaBustina(){
 function packUpdateToggleLabel(){
   const labelEl=document.getElementById('pack-toggle-variant-label');
   if(!labelEl) return;
-  labelEl.textContent = _cardDbVariant===1 ? 'Show light version' : 'Show dark version';
+  labelEl.textContent = varianteCollezioneScura() ? 'Show light version' : 'Show dark version';
 }
 function packToggleVariant(){
   _cardDbVariant = _cardDbVariant===1 ? 2 : 1;
@@ -11845,7 +11861,7 @@ function cardDbRenderRoster(){
     // v0.72.67 — i livelli si assegnano a QUALSIASI carta che li abbia, non
     // piu' solo a quelle di livello 4: sono l'unica illustrazione esistente.
     // Il livello 4 decide ora soltanto se quei livelli si MUOVONO.
-    const layersForVariant = _cardDbVariant===1 ? entry.artLayersDark : entry.artLayersLight;
+    const layersForVariant = varianteCollezioneScura() ? entry.artLayersDark : entry.artLayersLight;
     if(Array.isArray(layersForVariant) && layersForVariant.length){
       card.artLayers = layersForVariant;
       card.artParallax = cardDbParallaxEnabledFor(card);
@@ -12051,7 +12067,7 @@ function cardDbLayoutGrid(){
 function cardDbUpdateToggleLabel(){
   const labelEl=document.getElementById('card-db-toggle-variant-label');
   if(!labelEl) return;
-  labelEl.textContent = _cardDbVariant===1 ? 'Show light version' : 'Show dark version';
+  labelEl.textContent = varianteCollezioneScura() ? 'Show light version' : 'Show dark version';
 }
 // Toggle button (v0.71.76 REWORK): flips every card in the grid (a brief
 // rotateY through 90°, same .card-flip technique the real conquest
@@ -12514,7 +12530,7 @@ function cardDbBuildArchetypeFilter(){
     box.innerHTML = '<div class="card-db-filter-opt" style="opacity:0.55">Nessun archetipo nel foglio</div>';
     return;
   }
-  const isDark = _cardDbVariant===1;
+  const isDark = varianteCollezioneScura();
   for(const chiave of chiavi){
     const label = document.createElement('label');
     label.className = 'card-db-filter-opt';
