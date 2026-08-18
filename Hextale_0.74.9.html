@@ -6604,7 +6604,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.74.8</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.74.9</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -18192,25 +18192,44 @@ function cartaEvocabilePerNome(nome){
   const cercato = String(nome||'').trim().toLowerCase();
   return (FINAL_CARDS || []).find(e => e && String(e.name||'').trim().toLowerCase() === cercato) || null;
 }
-// Cala Excalibur sulla casella scelta. La carta e' del giocatore che ha giocato
-// King Arthur: e' una spada che risponde al suo re.
-function evocaExcalibur(cella, giocatore, entry){
-  if(!cella || G.board[cella]) return;   // occupata nel frattempo: non si sovrascrive niente
+// ── v0.74.9 — L'UNICA PORTA PER FAR COMPARIRE UNA CARTA DAL NULLA ─────────
+// Ogni carta che entra in campo senza essere stata giocata dalla mano — evocata
+// da un'altra carta, o messa li' da un'abilita' futura — deve passare di qui.
+// Dentro c'e' tutto quello che un'apparizione comporta, e in particolare il
+// GRIDO DI BATTAGLIA: una carta che appare e' una carta che entra in scena, e
+// deve urlare come se fosse stata giocata.
+// E' il motivo per cui questa funzione esiste invece di essere scritta in linea
+// dentro all'abilita' che evoca: scrivendola in linea, la prossima evocazione
+// la ricopierebbe dimenticandosi qualcosa — che e' esattamente com'e' nato il
+// caso di Excalibur, che chiamava le battute normali invece del grido.
+// (La trasformazione di una carta gia' in campo — Cenerentola in The Crystal
+// Princess — non passa di qui perche' non fa comparire nulla: la carta c'era
+// gia'. Il grido lo chiama da se', in fondo a trasformaCartaIn.)
+function evocaCartaSulTabellone(cella, giocatore, entry, prefissoId){
+  if(!cella || !entry || G.board[cella]) return null; // occupata nel frattempo: non si sovrascrive niente
   const carta = _makeCardDbCard(entry, giocatore);
   // Un id irripetibile: il gioco riconosce le carte sul tabellone da li', e due
-  // Excalibur evocate nella stessa partita sarebbero due carte diverse con lo
-  // stesso nome.
-  carta.id = 'excalibur-' + giocatore + '-' + Date.now() + '-' + Math.floor(Math.random()*1000);
+  // evocazioni della stessa carta nella stessa partita sarebbero due carte
+  // diverse con lo stesso nome.
+  carta.id = (prefissoId || entry.id || 'evocata') + '-' + giocatore + '-' + Date.now() + '-' + Math.floor(Math.random()*1000);
   carta.baseId = entry.id;
   G.board[cella] = { card: carta, owner: giocatore };
   renderBoard();
   // L'atterraggio e' quello dei piazzamenti normali. NON si risolve nessuno
-  // scontro: Excalibur ha tutti i lati a zero e non conquisterebbe niente
-  // comunque, ma soprattutto una conquista dentro alla risoluzione di
-  // un'altra carta aprirebbe una catena dentro una catena — e quella e' la
-  // classe di problemi che in questo gioco e' costata piu' tempo.
+  // scontro: una conquista dentro alla risoluzione di un'altra carta aprirebbe
+  // una catena dentro una catena — e quella e' la classe di problemi che in
+  // questo gioco e' costata piu' tempo.
   startCardLandAnim(cella);
-  try { playCardVoiceLine(carta); } catch(_){}
+  // playCardBattlecry ripiega da solo sulle battute normali se il grido non
+  // c'e' (vedi la sua definizione), quindi chi non ha un battlecry non perde
+  // niente rispetto a prima.
+  try { playCardBattlecry(carta); } catch(_){}
+  return carta;
+}
+// Cala Excalibur sulla casella scelta. La carta e' del giocatore che ha giocato
+// King Arthur: e' una spada che risponde al suo re.
+function evocaExcalibur(cella, giocatore, entry){
+  return evocaCartaSulTabellone(cella, giocatore, entry, 'excalibur');
 }
 
 // ── v0.73.89 — LO SPOSTAMENTO DI UN TASSELLO BLOCCATO (Ali Baba) ───────────
@@ -18622,6 +18641,21 @@ function copiaAbilitaDa(specchio, cellaBersaglio, q, r){
 // Apre la finestra, se questa abilita' ne ha una e se ci sono bersagli.
 // Restituisce true quando la partita e' stata messa in pausa: chi chiama deve
 // fermarsi li' e lasciare che sia la scelta a far proseguire il turno.
+// ── v0.74.9 — CHI E' UNA PERSONA ──────────────────────────────────────────
+// Mancava, e la sua mancanza e' costata un bug grosso: i due punti che
+// dovevano chiedersi "questa scelta e' di una persona?" si erano scritti la
+// risposta da soli, e tutti e due l'avevano scritta sbagliata.
+//   - renderBoard disegnava i comandi della scelta solo per `giocatore===1`,
+//     quindi in PvP il giocatore di destra non vedeva MAI il mirino ne' la X:
+//     nessuna delle sue abilita' che chiedono un'azione poteva partire.
+//   - e nel frattempo aiResolvePendingAbilityIfAny veniva chiamata per
+//     `player===2` senza guardare G.vsAI, quindi in PvP la scelta del secondo
+//     giocatore veniva chiusa d'ufficio dall'IA nello stesso istante in cui si
+//     apriva — cioe' anche se i comandi ci fossero stati, sarebbero spariti
+//     subito.
+// Il giocatore 2 e' l'IA soltanto in modalita' vsAI. In PvP e' una persona
+// come l'altra, e ha diritto alla stessa interfaccia.
+function giocatoreUmano(p){ return !(G.vsAI && p===2); }
 function apriSceltaBersaglio(card, player, q, r, k, chiaveAbilita){
   const costruisci = SCELTE_PIAZZAMENTO[chiaveAbilita];
   if(typeof costruisci !== 'function') return false;
@@ -21547,6 +21581,12 @@ VALUTAZIONI_IA.open_celery = (scelta) => {
 function aiResolvePendingAbilityIfAny(){
   const scelta = G.sceltaBersaglio;
   if(!scelta || scelta.giocatore !== 2) return;
+  // v0.74.9 — e soprattutto: solo se il giocatore 2 e' davvero l'IA. In PvP
+  // chi chiamava questa funzione guardava solo `player===2`, quindi la scelta
+  // del secondo giocatore veniva chiusa d'ufficio nell'istante in cui si
+  // apriva. La guardia sta QUI, all'ingresso, e non nei punti che chiamano:
+  // cosi' vale anche per il prossimo che la chiamera'.
+  if(giocatoreUmano(scelta.giocatore)) return;
   const valuta = VALUTAZIONI_IA[scelta.chiaveAbilita];
   let bersaglio = null;
   if(typeof valuta === 'function'){
@@ -28924,11 +28964,15 @@ function renderBoard(){
   // G.sceltaBersaglio: nessuna abilita' disegna comandi per conto proprio, e
   // quindi nessuna abilita' nuova puo' dimenticarsene.
   //
-  // La guardia su `giocatore===1` non e' un dettaglio: questa e' interfaccia
-  // per una persona. Se la finestra appartiene all'IA e per qualche motivo
-  // fosse ancora aperta, mostrarla farebbe decidere al giocatore al posto
-  // dell'avversario — e' un bug gia' successo, con Alice, in v0.72.28.
-  if(G.sceltaBersaglio && G.sceltaBersaglio.giocatore===1){
+  // La guardia non e' un dettaglio: questa e' interfaccia per una PERSONA. Se
+  // la finestra appartiene all'IA e per qualche motivo fosse ancora aperta,
+  // mostrarla farebbe decidere al giocatore al posto dell'avversario — e' un
+  // bug gia' successo, con Alice, in v0.72.28.
+  // v0.74.9 — ma la guardia era `giocatore===1`, e "persona" non vuol dire
+  // "giocatore 1": in PvP sono persone entrambi. Il giocatore di destra non
+  // vedeva mai il mirino, quindi nessuna delle sue abilita' che chiedono
+  // un'azione poteva partire. Adesso la domanda la fa giocatoreUmano().
+  if(G.sceltaBersaglio && giocatoreUmano(G.sceltaBersaglio.giocatore)){
     const scelta = G.sceltaBersaglio;
     for(const cella of scelta.bersagli){
       const c = G.cells.find(x=>key(x.q,x.r)===cella);
