@@ -6604,7 +6604,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.74.7</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.74.8</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -15065,22 +15065,110 @@ function soloEvocabile(entry){
 function carteGiocabili(){
   return (FINAL_CARDS || []).filter(e => e && !soloEvocabile(e));
 }
-function makeDeck(owner,total){
-  if(!Array.isArray(FINAL_CARDS) || !FINAL_CARDS.length) return [];
-  // Mescolata alla Fisher-Yates: ogni ordine e' ugualmente probabile, cosa che
+// ── v0.74.8 — IL COSTO DI UN MAZZO ────────────────────────────────────────
+// Ogni carta vale dei punti secondo la sua rarita', e un mazzo ne vale
+// ESATTAMENTE 24, con ESATTAMENTE 12 carte. Sempre: non e' un tetto da non
+// superare, e' un budget da spendere tutto.
+const COSTO_RARITA = { timeless:4, mythic:3, rare:2, common:1 };
+const MAZZO_CARTE  = 12;
+const MAZZO_PUNTI  = 24;
+function costoDiRarita(chiave){
+  const c = COSTO_RARITA[String(chiave||'').toLowerCase()];
+  // Una rarita' che il foglio non conosce vale come una common: cosi' una
+  // rarita' nuova non blocca la generazione, al massimo costa poco.
+  return typeof c === 'number' ? c : 1;
+}
+// Le composizioni ammesse si CALCOLANO, non si scrivono a mano: un elenco
+// battuto a macchina andrebbe rifatto al primo ritocco dei costi o del numero
+// di carte, e nessuno se ne ricorderebbe.
+// Con 12 carte che costano almeno 1 ciascuna, 12 punti sono gia' spesi in
+// partenza: restano 12 punti di sovrapprezzo, e ogni Timeless ne consuma 3,
+// ogni Mythic 2, ogni Rare 1. Sono 19 composizioni, e il massimo di Timeless
+// in un mazzo e' 4.
+function composizioniMazzo(){
+  const fuori = [];
+  for(let t=0; t<=MAZZO_CARTE; t++)
+    for(let m=0; m+t<=MAZZO_CARTE; m++)
+      for(let r=0; r+m+t<=MAZZO_CARTE; r++){
+        const c = MAZZO_CARTE - t - m - r;
+        if(4*t + 3*m + 2*r + c !== MAZZO_PUNTI) continue;
+        fuori.push({timeless:t, mythic:m, rare:r, common:c});
+      }
+  return fuori;
+}
+const _MAZZO_COMPOSIZIONI = composizioniMazzo();
+
+function _mescola(lista){
+  const a = lista.slice();
+  // Fisher-Yates: ogni ordine e' ugualmente probabile, cosa che
   // sort(()=>Math.random()-0.5) — usato altrove in questo file — non
   // garantisce affatto. Qui conta, perche' e' cio' che decide il mazzo.
-  const mescolate = carteGiocabili().slice();
-  for(let i=mescolate.length-1;i>0;i--){
+  for(let i=a.length-1;i>0;i--){
     const j = Math.floor(Math.random()*(i+1));
-    const t = mescolate[i]; mescolate[i] = mescolate[j]; mescolate[j] = t;
+    const t = a[i]; a[i] = a[j]; a[j] = t;
   }
+  return a;
+}
+let _avvisoComposizione = false;
+function makeDeck(owner,total){
+  if(!Array.isArray(FINAL_CARDS) || !FINAL_CARDS.length) return [];
+  const quante = (typeof total === 'number' && total > 0) ? total : MAZZO_CARTE;
+  const giocabili = carteGiocabili();
+  // Il roster diviso per rarita', gia' mescolato: pescare vuol dire prendere
+  // dalla cima.
+  const perRarita = {};
+  for(const chiave in COSTO_RARITA) perRarita[chiave] = [];
+  for(const e of giocabili){
+    const k = String(e.rarity||'common').toLowerCase();
+    (perRarita[k] || (perRarita[k] = [])).push(e);
+  }
+  for(const k in perRarita) perRarita[k] = _mescola(perRarita[k]);
+
+  // Fra le composizioni si tengono solo quelle che il roster puo' davvero
+  // servire senza ripetere una carta. Se nessuna lo puo', si accettano anche
+  // quelle con ripetizioni (meglio un doppione che un mazzo storto), e solo se
+  // manca del tutto una rarita' si torna alla pescata libera.
+  const sostenibile = comp => Object.keys(comp).every(k => (perRarita[k]||[]).length >= comp[k]);
+  const possibile   = comp => Object.keys(comp).every(k => comp[k] === 0 || (perRarita[k]||[]).length > 0);
+  let ammesse = _MAZZO_COMPOSIZIONI.filter(sostenibile);
+  if(!ammesse.length) ammesse = _MAZZO_COMPOSIZIONI.filter(possibile);
+  if(!ammesse.length || quante !== MAZZO_CARTE){
+    // Rete di sicurezza: il roster non ha le rarita' che servono (succede col
+    // foglio ancora quasi vuoto), oppure qualcuno ha chiesto un mazzo di
+    // misura diversa — il debug "Prova carta" lo fa. Si torna alla pescata
+    // libera di prima, e lo si dice una volta sola.
+    if(!_avvisoComposizione && quante === MAZZO_CARTE){
+      _avvisoComposizione = true;
+      console.warn('[mazzo] il roster non permette nessuna composizione da '+MAZZO_PUNTI
+        +' punti in '+MAZZO_CARTE+' carte: mazzo pescato senza vincolo di rarita\'.');
+    }
+    const mescolate = _mescola(giocabili);
+    const carte = [];
+    for(let i=0;i<quante;i++){
+      const entry = mescolate[i % mescolate.length];
+      const carta = _makeCardDbCard(entry, owner);
+      carta.id = `${entry.id}-${owner}-${i}`;
+      carta.baseId = entry.id;
+      carte.push(carta);
+    }
+    return carte;
+  }
+
+  const comp = ammesse[Math.floor(Math.random()*ammesse.length)];
+  const scelte = [];
+  for(const chiave in comp){
+    const mazzetto = perRarita[chiave] || [];
+    for(let n=0; n<comp[chiave]; n++){
+      // Il modulo copre il caso "questa rarita' ha meno carte di quante ne
+      // servono": si ricomincia dalla cima, quindi un doppione invece di un
+      // buco.
+      scelte.push(mazzetto[n % mazzetto.length]);
+    }
+  }
+  // Mescolate di nuovo: altrimenti il mazzo uscirebbe ordinato per rarita' e
+  // le prime mani sarebbero sempre dello stesso colore.
   const carte = [];
-  for(let i=0;i<total;i++){
-    // Se il roster e' piu' piccolo del mazzo si ricomincia da capo: meglio una
-    // carta doppia che un mazzo corto, e con le prime carte caricate dal
-    // foglio e' una situazione che capitera' davvero.
-    const entry = mescolate[i % mescolate.length];
+  _mescola(scelte).forEach((entry, i)=>{
     const carta = _makeCardDbCard(entry, owner);
     // Ogni copia ha un id suo (il gioco ci identifica le carte sul tabellone),
     // ma tutte conservano baseId: e' da li' che si risalgono le battute del
@@ -15088,8 +15176,14 @@ function makeDeck(owner,total){
     carta.id = `${entry.id}-${owner}-${i}`;
     carta.baseId = entry.id;
     carte.push(carta);
-  }
+  });
   return carte;
+}
+// Quanto costa un mazzo gia' costruito. Serve alle prove e al menu di debug:
+// una regola che non si puo' misurare da fuori e' una regola di cui ci si
+// accorge solo quando e' gia' rotta.
+function costoMazzo(carte){
+  return (carte||[]).reduce((n,c)=>n+costoDiRarita(c && c.rarity), 0);
 }
 
 // ── DECK POWER / BALANCING ──────────────────────────────────────
@@ -15649,7 +15743,10 @@ function getFactionBonus(card, q, r, boardState){
 }
 
 // ── BOARD ───────────────────────────────────────────────────────
-const HAND_SIZE=4, DECK_TOTAL=10, HOLE_COUNT=6;
+// v0.74.8 — il mazzo e' di 12 carte, non piu' di 10: e' la meta' della regola
+// dei 24 punti (vedi MAZZO_CARTE/MAZZO_PUNTI e makeDeck), e le due misure
+// devono restare la stessa cosa.
+const HAND_SIZE=4, DECK_TOTAL=MAZZO_CARTE, HOLE_COUNT=6;
 const TURN_SECS=60;
 // Board-tile "falling from above" intro animation (played once, on the very
 // first renderBoard() of a new game — see G.playBoardDropAnim). Each of the
