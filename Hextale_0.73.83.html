@@ -6403,7 +6403,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.82</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.83</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -15037,6 +15037,9 @@ const TILE_ABILITIES_DEF = {
   // partita. Dall'ottavo turno vale +2 ovunque e cambia illustrazione, anche
   // restando in mano (vedi recalcNightmare).
   nightmare:         { name:'Nightmare',             desc:'Becomes stronger at night (+2 ALL from turn 8).' },
+  // v0.73.83 — Aladdin. Al piazzamento alza il proprio gruppo piu' alto: +1,
+  // oppure +3 se in campo c'e' una Principessa (vedi attivaSleightOfHand).
+  sleight_of_hand:   { name:'Sleight of Hand',       desc:'*Gains* +1 on the highest Power, +3 if a /Princess/ character is present on the board.' },
 };
 // ── v0.73.49 — QUESTI `name` SONO IL LEGAME COL FOGLIO ─────────────────────
 // Il gioco aggancia l'abilita' di un personaggio confrontando la cella
@@ -17113,7 +17116,51 @@ const EFFETTI_PIAZZAMENTO = {
   // v0.73.78 — come sopra: Strigoi deve avere il suo +2 gia' addosso quando lo
   // scontro del piazzamento viene risolto, non solo quando viene ridisegnata.
   nightmare: (card) => recalcNightmare(card),
+  // v0.73.83 — Aladdin. Al piazzamento si mette in tasca qualcosa: vedi
+  // attivaSleightOfHand.
+  sleight_of_hand: (card) => attivaSleightOfHand(card),
 };
+// ═══════════════════════════════════════════════════════════════════════════
+// v0.73.83 — ALADDIN, "Sleight of Hand": ruba un po' a se stesso
+// ═══════════════════════════════════════════════════════════════════════════
+// Al piazzamento, il gruppo valori piu' alto di Aladdin sale di 1 — di 3 se
+// sul tabellone c'e' una Principessa. Il +3 SOSTITUISCE il +1, non ci si
+// somma: e' lo stesso furto, riuscito meglio perche' c'e' di meglio da rubare.
+//
+// PERCHE' UN SOLO GRUPPO ANCHE A PARI MERITO. Una carta puo' avere due o tre
+// gruppi tutti al massimo, e premiarli tutti trasformerebbe un +1 in un +3 (o
+// +9 col bonus) sulla stessa carta a seconda di come sono disposti i numeri:
+// la stessa abilita' varrebbe il triplo per motivi che il giocatore non ha
+// scelto. Ne prende uno solo, e a deciderlo e' `sorteggioStabile` e non
+// `Math.random`, per la ragione di sempre: questo effetto viene eseguito DUE
+// volte, una in prova per l'anteprima sotto il puntatore e una per davvero
+// (vedi EFFETTI_PIAZZAMENTO). Con un sorteggio vero l'anteprima indicherebbe
+// un gruppo e il piazzamento ne premierebbe un altro.
+//
+// Il bonus passa da `modificaValori` invece di scrivere in `values` a mano
+// anche se la carta e' la propria: e' quella funzione a sistemare le
+// istantanee da cui altre abilita' ricalcolano, e da li' arriva gratis anche
+// il lampo verde sul gruppo premiato.
+const BONUS_SLEIGHT = 1;
+const BONUS_SLEIGHT_CON_PRINCIPESSA = 3;
+function cePrincipessaInCampo(){
+  for(const k in G.board){
+    const cella=G.board[k];
+    if(cella && cella.card && cella.card.archetypes && cella.card.archetypes.includes('princess')) return true;
+  }
+  return false;
+}
+function attivaSleightOfHand(card){
+  const gruppi = gruppiDiCarta(card);
+  if(!gruppi.length) return;
+  let massimo = -Infinity;
+  for(const g of gruppi) if((g.val||0) > massimo) massimo = (g.val||0);
+  const candidati = gruppi.filter(g => (g.val||0) === massimo);
+  const scelto = candidati.length===1 ? candidati[0] : sorteggioStabile(candidati, card.id+':sleight');
+  if(!scelto) return;
+  const bonus = cePrincipessaInCampo() ? BONUS_SLEIGHT_CON_PRINCIPESSA : BONUS_SLEIGHT;
+  modificaValori(card, scelto.sides, bonus);
+}
 function applicaAbilitaPiazzamento(card, q, r, chiave){
   const effetto = EFFETTI_PIAZZAMENTO[chiave];
   if(typeof effetto === 'function') effetto(card, q, r);
