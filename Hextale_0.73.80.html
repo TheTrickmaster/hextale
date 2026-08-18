@@ -6403,7 +6403,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.79</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.80</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -7648,11 +7648,6 @@ function cardHasAnyGem(card){
 }
 
 const AUDIO_DATA_URLS = {
-  // v0.73.78 — la risata di Strigoi quando cala la notte (vedi calaLaNotteSu).
-  // ATTENZIONE: alla consegna di questa versione il file NON e' ancora in
-  // audio/sfx/ — l'indirizzo e' pronto e la trasformazione funziona lo stesso,
-  // ma resta muta finche' `strigoi-laugh.mp3` non viene caricato li'.
-  'strigoi-laugh': 'https://thetrickmaster.github.io/hextale/audio/sfx/strigoi-laugh.mp3',
   'hit': 'https://thetrickmaster.github.io/hextale/audio/sfx/hit.mp3',
   'hit2': 'https://thetrickmaster.github.io/hextale/audio/sfx/hit2.mp3',
   'hit3': 'https://thetrickmaster.github.io/hextale/audio/sfx/hit3.mp3',
@@ -9967,7 +9962,13 @@ function _vociDiPersonaggio(slug){
 // asset, provando prima la cartella accanto al file e poi il repository.
 // Cosi' un suono appena aggiunto si sente subito, senza aspettare di caricarlo
 // su GitHub — che e' il modo in cui questo gioco viene provato.
-const SUONI_EXTRA = ['the-caterpillar-smoke.mp3'];
+// v0.73.80 — la risata di Strigoi sta qui e non fra gli effetti: e' una VOCE
+// del personaggio, e infatti Lorenzo l'ha messa in audio/voices/ insieme alle
+// altre. Nella v0.73.78 l'avevo cablata a mano su audio/sfx/, dove non c'era
+// e non doveva esserci: restava muta. Basta nominarla in questo elenco, che
+// esiste apposta per i suoni che vivono fra le voci pur essendo effetti — la
+// stessa strada gia' percorsa dal fumo del Brucaliffo.
+const SUONI_EXTRA = ['the-caterpillar-smoke.mp3', 'strigoi-laugh.mp3'];
 // v0.73.28 — un whoosh per rarita' quando si scopre una carta dalla bustina.
 // Vengono cercati come tutti gli altri asset: prima accanto al file, poi sul
 // repository. Quelli che non esistono ancora non fanno danno — chi non trova
@@ -16334,6 +16335,24 @@ function calaLaNotteSu(card){
   card.artDark = nuovaDark;
   card.artLight = nuovaLight;
   card.artSrc = playerFactionIsDark(card.owner||1) ? nuovaDark : nuovaLight;
+  // v0.73.80 FIX ("non vedo cambiare l'art di strigoi") — E LA PILA DEI
+  // LIVELLI, che e' quella che il disegno usa DAVVERO.
+  // Le carte del roster non vengono disegnate da `artSrc`: portano
+  // `artLayers`, la pila di livelli separati per il parallax, e drawHexCard
+  // quando la trova ignora del tutto l'immagine piatta (vedi il suo ramo
+  // `if(Array.isArray(card.artLayers)...)`). Cambiare solo artSrc/artDark/
+  // artLight era quindi cambiare tre campi che nessuno guardava: i valori
+  // salivano, l'illustrazione no.
+  // L'arte notturna e' un'immagine sola, quindi la pila diventa una pila di
+  // UNO — forma che il caricatore gia' produce e che il disegno gia' gestisce
+  // (vedi _livelliDiVariante: "una carta con solo il livello 3 e' una pila di
+  // uno"). Si aggiornano anche le due pile per fazione, o il giro della
+  // conquista rimetterebbe l'arte diurna.
+  if(Array.isArray(card.artLayers) && card.artLayers.length){
+    card.artLayersDark = [nuovaDark];
+    card.artLayersLight = [nuovaLight];
+    card.artLayers = playerFactionIsDark(card.owner||1) ? card.artLayersDark : card.artLayersLight;
+  }
   // Niente da mostrare se l'illustrazione non cambia (file mancante): il +2
   // c'e' lo stesso, ma non si mette in scena una trasformazione che non si
   // vedrebbe.
