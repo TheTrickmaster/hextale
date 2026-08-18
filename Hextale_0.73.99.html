@@ -6464,7 +6464,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.98</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.99</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -10245,6 +10245,17 @@ function _makeCardDbCard(entry, owner){
     name:entry.name,
     quote:entry.quote||'',
     values:{NE:v.NE, E:v.E, SE:v.SE, SW:v.SW, W:v.W, NW:v.NW},
+    // v0.73.99 — I VALORI DI NASCITA, e da qui in poi non si toccano piu'.
+    // Sono il metro con cui il disegno decide se un numero e' verde (sopra a
+    // com'era) o rosso (sotto): qualunque cosa lo abbia mosso — un'abilita'
+    // propria, il dono di un alleato, una gemma, la vendetta di un nemico,
+    // una carta che ancora non esiste — la differenza si vede da sola, e chi
+    // scrive l'abilita' non deve ricordarsi di dichiarare niente.
+    // Prima il metro era `tileAbilityBaseValues`, un'istantanea presa al
+    // piazzamento e riscritta da chiunque ricalcolasse qualcosa: bastava che
+    // una funzione la aggiornasse per far tornare bianchi numeri che erano
+    // stati potenziati (e' successo con Captain Hook e col Lupo).
+    valoriNascita:{NE:v.NE, E:v.E, SE:v.SE, SW:v.SW, W:v.W, NW:v.NW},
     groupGems:entry.groupGems||{},
     activatedGroups:{},
     artSrc: playerFactionIsDark(owner)?entry.artDark:entry.artLight,
@@ -16558,7 +16569,19 @@ function recalcBearNecessities(card, cella){
   // sinergia che si conta per teste (vedi Smol Friends).
   if(quantiBaloo) for(const s of SIDES) nuovi[s]=(nuovi[s]||0)+BONUS_BALOO*quantiBaloo;
   card.values=nuovi;
-  card.tileAbilityBaseValues={...base};
+  // v0.73.99 FIX ("Captain Hook si buffa ma i valori restano bianchi") — QUESTA
+  // FUNZIONE GIRA SU OGNI CARTA IN CAMPO, non solo su quelle che ricevono il
+  // dono: e' l'unico modo perche' ognuna possa chiedersi "ho un Baloo
+  // accanto?". Scrivendo `tileAbilityBaseValues` senza condizioni, pero',
+  // cancellava l'istantanea che ogni carta si porta dietro dal proprio
+  // piazzamento — quella da cui il disegno calcola il verde e il rosso.
+  // Il +2 di Captain Hook risultava quindi uguale alla propria base, cioe'
+  // nessuna differenza, cioe' numeri bianchi. Valeva per QUALUNQUE carta con
+  // un'abilita' che si potenzia da sola.
+  // Adesso l'istantanea si scrive solo se non c'e' gia': chi ne ha una se la
+  // tiene (e il dono di Baloo si somma al suo bonus, restando verde), chi non
+  // ne aveva una la riceve adesso — cosi' anche il +1 da solo si vede verde.
+  if(!card.tileAbilityBaseValues) card.tileAbilityBaseValues={...base};
 }
 // Il cambio d'abito vero e proprio. L'illustrazione notturna PRENDE IL POSTO
 // della coppia dark/light: da qui in avanti la carta si comporta come se
@@ -17467,8 +17490,27 @@ function attivaTicToc(card){
 function attivaScaredyCat(card){
   const gruppi = gruppiDiCarta(card);
   if(!gruppi.length) return;
-  const scelto = sorteggioStabile(gruppi, card.id+':scaredy');
+  // v0.73.99 — sorteggio VERO, non piu' `sorteggioStabile`. Quello serviva a
+  // far combaciare anteprima e piazzamento, ma il prezzo era un caso finto:
+  // la stessa carta perdeva sempre sullo stesso gruppo, per tutta la partita.
+  // Adesso l'anteprima non promette piu' un gruppo — mostra un "?" — e il
+  // sorteggio puo' tornare a essere quello che dice di essere.
+  const scelto = gruppi[Math.floor(Math.random()*gruppi.length)];
   if(scelto) modificaValori(card, scelto.sides, -1, 0);
+}
+// ── v0.73.99 — CHI TIRA UN DADO AL PIAZZAMENTO ────────────────────────────
+// Elenco dichiarativo, non un controllo sparso: un'abilita' nuova che decida
+// qualcosa a sorte nel momento in cui la carta viene giocata si aggiunge qui,
+// e da quel momento la sua anteprima mostra il punto interrogativo invece di
+// un numero inventato. Senza questo elenco ognuno se ne ricorderebbe a modo
+// suo, e prima o poi qualcuno se ne dimenticherebbe.
+// NON ci vanno le abilita' il cui caso si risolve in un altro momento — la
+// follia del Hatter (quando lo conquistano), il pasto del Lupo (dopo aver
+// conquistato) — perche' li' non c'e' nessuna anteprima a cui mentire.
+const ABILITA_A_SORTE_AL_PIAZZAMENTO = new Set(['scaredy_cat']);
+function abilitaAConSorteAlPiazzamento(card){
+  const chiave = abilitaAttivaDi(card);
+  return !!chiave && ABILITA_A_SORTE_AL_PIAZZAMENTO.has(chiave);
 }
 function applicaAbilitaPiazzamento(card, q, r, chiave){
   const effetto = EFFETTI_PIAZZAMENTO[chiave];
@@ -20227,11 +20269,24 @@ function computeDragPreview(card, q, r){
   // valori compaiono nell'anteprima come tutto il resto, in verde o in rosso.
   // Vale per qualunque abilita' presente in EFFETTI_PIAZZAMENTO, senza una
   // riga dedicata a nessuna carta in particolare.
-  const dopoAbilita = valoriDopoAbilita(Object.assign({}, card, {values}), q, r);
-  if(dopoAbilita){
-    deltas = deltas || {};
-    for(const s of SIDES) deltas[s] = (deltas[s]||0) + ((dopoAbilita[s]||0) - (values[s]||0));
-    values = dopoAbilita;
+  // v0.73.99 — TRANNE QUANDO IL RISULTATO LO DECIDE IL CASO.
+  // Un'abilita' che al piazzamento tira un dado non puo' essere mostrata in
+  // anteprima: qualunque numero si disegni sarebbe una promessa che il gioco
+  // non e' tenuto a mantenere. Fino a ieri il problema era nascosto sotto al
+  // tappeto usando sorteggi "stabili", cioe' rendendo il caso finto pur di
+  // poterlo disegnare — che risolve l'anteprima e peggiora il gioco.
+  // Adesso il caso resta caso e l'anteprima lo DICHIARA: i numeri restano
+  // quelli veri e accanto a ciascuno compare un punto interrogativo (vedi
+  // drawHexCard, che quel disegno lo sa gia' fare).
+  if(abilitaAConSorteAlPiazzamento(card)){
+    uncertain = true;
+  } else {
+    const dopoAbilita = valoriDopoAbilita(Object.assign({}, card, {values}), q, r);
+    if(dopoAbilita){
+      deltas = deltas || {};
+      for(const s of SIDES) deltas[s] = (deltas[s]||0) + ((dopoAbilita[s]||0) - (values[s]||0));
+      values = dopoAbilita;
+    }
   }
 
   const hasDeltas = deltas && SIDES.some(s=>(deltas[s]||0)!==0);
@@ -27981,12 +28036,20 @@ function renderBoard(){
       const bonusInfo=getFactionBonus(placed.card,q,r,G.board);
       let factionDeltas={};
       for(const s of SIDES) factionDeltas[s]=bonusInfo.values[s]-placed.card.values[s];
-      // Tile-ability deltas: compare current values against the snapshot taken
-      // right before the ability mutated them, so boosted sides show in green
-      // just like gem/faction bonuses.
-      if(placed.card.tileAbilityBaseValues){
+      // v0.73.99 — IL VERDE E IL ROSSO SI CALCOLANO DALLA NASCITA.
+      // Il confronto e' con i valori che la carta aveva quando e' nata (vedi
+      // valoriNascita), non con un'istantanea presa al piazzamento: quella
+      // veniva riscritta da ogni ricalcolo di sinergia, e ogni volta che
+      // qualcuno la aggiornava i numeri gia' potenziati tornavano bianchi.
+      // Cosi' invece la regola vale per TUTTO e per sempre, senza che nessuna
+      // abilita' debba dichiararsi: se il numero non e' piu' quello di
+      // partenza, si colora. Una carta nuova che dia o tolga potere in un modo
+      // che oggi non esiste ancora sara' colorata correttamente il giorno in
+      // cui verra' scritta, senza toccare questa riga.
+      const baseColore = placed.card.valoriNascita || placed.card.tileAbilityBaseValues;
+      if(baseColore){
         for(const s of SIDES){
-          const abilityDelta = placed.card.values[s] - placed.card.tileAbilityBaseValues[s];
+          const abilityDelta = placed.card.values[s] - (baseColore[s]||0);
           if(abilityDelta!==0) factionDeltas[s]=(factionDeltas[s]||0)+abilityDelta;
         }
       }
