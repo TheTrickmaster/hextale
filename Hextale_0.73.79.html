@@ -6403,7 +6403,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.78</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.79</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -15033,9 +15033,9 @@ const TILE_ABILITIES_DEF = {
   // tabellone (vedi recalcMischief).
   mischief:          { name:'Mischief',              desc:'+3 Power RAND for every other /Trickster/ character on the board.' },
   // v0.73.78 — Strigoi. Non guarda il tabellone: guarda l'orologio della
-  // partita. Dal sesto turno vale +2 ovunque e cambia illustrazione, anche
+  // partita. Dall'ottavo turno vale +2 ovunque e cambia illustrazione, anche
   // restando in mano (vedi recalcNightmare).
-  nightmare:         { name:'Nightmare',             desc:'Becomes stronger at night (+2 ALL from turn 6).' },
+  nightmare:         { name:'Nightmare',             desc:'Becomes stronger at night (+2 ALL from turn 8).' },
 };
 // ── v0.73.49 — QUESTI `name` SONO IL LEGAME COL FOGLIO ─────────────────────
 // Il gioco aggancia l'abilita' di un personaggio confrontando la cella
@@ -15380,7 +15380,7 @@ function initGame(vsAI){
     ultimaConquista:{1:null,2:null},
     // v0.73.78 — che turno e'. Serve alle abilita' che scattano a un certo
     // punto della partita invece che a un evento (Nightmare di Strigoi, che
-    // cala col buio dal sesto turno). Si conta un turno per GIOCATA, cioe' la
+    // cala col buio dall'ottavo turno). Si conta un turno per GIOCATA, cioe' la
     // stessa cosa che annuncia il banner "Turno del Player X": il primo turno
     // e' l'1, e ogni passaggio di mano lo fa salire di uno.
     numeroTurno:1,
@@ -16281,11 +16281,12 @@ function recalcMischief(card){
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// v0.73.78 — STRIGOI, "Nightmare": dal sesto turno cala la notte
+// v0.73.78 — STRIGOI, "Nightmare": dall'ottavo turno cala la notte
 // ═══════════════════════════════════════════════════════════════════════════
 // Terza della famiglia delle sinergie vive (Smol Friends, Mischief), e la piu'
 // semplice: non guarda il tabellone, guarda l'OROLOGIO della partita. Dal
-// turno TURNO_NOTTE in poi Strigoi vale +2 su ogni gruppo e cambia
+// turno TURNO_NOTTE in poi (v0.73.79: l'ottavo, era il sesto) Strigoi vale
+// +2 su ogni gruppo e cambia
 // illustrazione, e questo vale anche mentre aspetta in mano — da qui la
 // chiamata sia in renderHand sia in renderBoard, come per le sorelle.
 //
@@ -16297,7 +16298,7 @@ function recalcMischief(card){
 // un evento, non uno stato, e deve succedere una volta sola nell'istante in
 // cui il sole tramonta: `notteGiaCalata` e' il fermo che lo garantisce, anche
 // se questa funzione gira decine di volte al secondo (e gira).
-const TURNO_NOTTE = 6;
+const TURNO_NOTTE = 8;   // v0.73.79 — era 6
 const BONUS_NOTTE = 2;
 function eNotte(){ return (G && G.numeroTurno || 1) >= TURNO_NOTTE; }
 function recalcNightmare(card){
@@ -17947,9 +17948,32 @@ function firmaAnteprimaMani(){
   return pezzi.join('|');
 }
 
+// v0.73.79 — UN'ABILITA' CHIUSA A CHIAVE ADESSO LO DICE.
+// Una carta il cui livello e' sotto "Ability unlocked at level" mostra la sua
+// abilita' ma non la esegue: `abilitaAttivaDi` restituisce null e OGNI effetto,
+// controllo e animazione che passa di qui si spegne in silenzio. Da fuori e'
+// indistinguibile da un'abilita' rotta — e' successo con Strigoi, la cui cella
+// "Level (Temp)" e' vuota nel foglio: il gioco gli assegnava il livello 2, la
+// sua Nightmare si sblocca al 3, e la notte non calava mai senza che una sola
+// riga da nessuna parte dicesse perche'.
+// Adesso lo scrive in console, UNA volta per carta: rumoroso quanto basta per
+// trovarlo, silenzioso abbastanza da non intasare (questa funzione gira
+// decine di volte al secondo, una per carta per disegno).
+const _abilitaBloccateSegnalate = new Set();
 function abilitaAttivaDi(card){
   if(!card || !card.cardAbility) return null;
-  if(card.abilityLocked) return null;
+  if(card.abilityLocked){
+    const marchio = (card.id||card.name||'?')+':'+card.cardAbility;
+    if(!_abilitaBloccateSegnalate.has(marchio)){
+      _abilitaBloccateSegnalate.add(marchio);
+      console.info('[abilita\' bloccata] "'+(card.name||card.id)+'" ha "'+card.cardAbility
+        +'" ma e\' di livello '+(card.level!=null?card.level:'?')
+        +' e quella si sblocca al livello '+(card.abilityUnlockLevel!=null?card.abilityUnlockLevel:'?')
+        +': non fara\' NIENTE. RIMEDIO: nel foglio, alza "Level (Temp)" di questa carta'
+        +' oppure abbassa "Ability unlocked at level".');
+    }
+    return null;
+  }
   return card.cardAbility;
 }
 // ── v0.73.63 — EXCALIBUR, "Immovable" ─────────────────────────────────────
@@ -18563,7 +18587,7 @@ function endTurn(player, animationsSettled){
   // v0.73.78 — il turno che comincia adesso. Il conto sale QUI, insieme al
   // cambio di giocatore, perche' e' esattamente lo stesso evento: chi conta i
   // turni e chi li annuncia devono essere d'accordo, o un'abilita' che scatta
-  // "dal sesto turno" scatterebbe mezza giocata prima o dopo del banner.
+  // "dall'ottavo turno" scatterebbe mezza giocata prima o dopo del banner.
   G.numeroTurno = (G.numeroTurno||1) + 1;
   render(); // show board update before draw anim
   // v0.71.35 ("sostituisci il banner del tempo scaduto con timesup-banner
