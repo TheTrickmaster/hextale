@@ -5304,10 +5304,14 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
   position:absolute; inset:0;
   border-radius:6.148% / 3.586%;
   pointer-events:none;
-  opacity:0;
+  /* v0.75.1 — visibile anche a riposo, tenue. Il centro di default di
+     --foil-mx/my e' 32/24 e non 50/50: una luce esattamente al centro della
+     carta non e' una luce, e' un alone. Messa in alto a sinistra sembra una
+     finestra fuori campo, che e' cio' che il riflesso deve raccontare. */
+  opacity:var(--glare-strength-riposo,0.3);
   transition:opacity 0.28s ease-out;
   mix-blend-mode:overlay;
-  background:radial-gradient(circle at calc(var(--foil-mx,50) * 1%) calc(var(--foil-my,50) * 1%),
+  background:radial-gradient(circle at calc(var(--foil-mx,32) * 1%) calc(var(--foil-my,24) * 1%),
     rgba(255,255,255,0.55) 0%,
     rgba(255,255,255,0.22) 24%,
     rgba(255,255,255,0) 56%);
@@ -5374,9 +5378,17 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
    collo di bottiglia non e' il blend ne' l'opacita': e' la SATURAZIONE della
    texture sorgente. Con una rainbow piu' satura, `overlay` da solo darebbe
    molto piu' di quanto qualsiasi blend riesca a estrarre da questa. */
+/* v0.75.1 — GLI EFFETTI SI VEDONO ANCHE A RIPOSO.
+   Prima ogni livello (lamina, riflesso, speculare) partiva da opacity:0 e si
+   accendeva solo sotto il puntatore: una carta ferma era una carta spenta, e
+   la maggior parte delle carte a schermo e' sempre ferma.
+   Adesso ognuno ha una forza a RIPOSO, piu' bassa di quella sotto il mouse:
+   la carta vive da sola, e passarci sopra la accende. La differenza fra le
+   due forze e' quello che rende il passaggio ancora una ricompensa. */
 .card-holo-layer{
-  opacity:0;
-  transition:opacity 0.28s ease-out;
+  opacity:var(--foil-strength-riposo,0.34);
+  filter:saturate(1.25);
+  transition:opacity 0.28s ease-out, filter 0.28s ease-out;
   mix-blend-mode:overlay;
 }
 [data-foil-active="1"] .card-holo-layer{
@@ -5389,6 +5401,8 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
 }
 .card-holo-layer[data-holo-variant="dark"]{
   mix-blend-mode:color-dodge;
+  opacity:var(--foil-strength-dark-riposo,0.14);
+  filter:none;
 }
 [data-foil-active="1"] .card-holo-layer[data-holo-variant="dark"]{
   opacity:var(--foil-strength-dark,0.30);
@@ -5443,7 +5457,11 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      contributo dove la banda passa, senza toccare il resto della carta —
      che il livello non contiene proprio. */
   filter:brightness(1.35);
-  opacity:0;
+  /* v0.75.1 — a riposo si vede, ma piu' tenue: il commento qui sopra diceva
+     che una banda di luce ferma a meta' carta sarebbe un artefatto, ed e'
+     vero a piena forza. A un terzo legge come il metallo che prende luce da
+     una finestra, che e' esattamente cio' che deve sembrare. */
+  opacity:var(--gloss-strength-riposo,0.34);
   transition:opacity 0.28s ease-out;
 }
 [data-foil-active="1"] .card-db-gloss-layer{
@@ -5619,6 +5637,29 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
   white-space:nowrap;
 }
 .settings-row-spacer{ flex:1 1 auto; min-width:16px; }
+/* v0.75.1 — l'interruttore. Disegnato a CSS e non con un asset: e' il primo
+   di questo tipo nel gioco, e finche' e' uno solo un'immagine da mantenere in
+   due varianti costerebbe piu' di quanto renda. I colori sono quelli gia' in
+   uso nella finestra (#B5C5C7 per il testo, #6B7A7C per lo spento). */
+.settings-toggle{
+  flex:0 0 auto; position:relative;
+  width:52px; height:28px; padding:0; border:none;
+  border-radius:14px; cursor:var(--cursore);
+  background:#2A3335; box-shadow:inset 0 0 0 1.5px rgba(255,255,255,0.18);
+  transition:background .18s ease-out;
+}
+.settings-toggle[aria-checked="true"]{ background:#6E8E72; }
+.settings-toggle .settings-toggle-pallino{
+  position:absolute; top:3px; left:3px;
+  width:22px; height:22px; border-radius:50%;
+  background:#6B7A7C;
+  box-shadow:0 1px 3px rgba(0,0,0,0.5);
+  transition:transform .18s ease-out, background .18s ease-out;
+}
+.settings-toggle[aria-checked="true"] .settings-toggle-pallino{
+  transform:translateX(24px); background:#F4E9D7;
+}
+.settings-toggle:hover{ box-shadow:inset 0 0 0 1.5px rgba(255,255,255,0.35); }
 /* Custom slider: 3 stacked art layers (bg/fill/cursor) inside one relative
    wrapper. v0.70.21 FIX ("le barre sono tutte schiacciate e alte... 160px
    larghezza, 8px altezza, cursore 16x16"): explicit spec sizes override
@@ -6594,7 +6635,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.0</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.1</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -6705,6 +6746,19 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
         <img class="settings-slider-cursor" id="sfx-volume-slider-cursor" src="https://thetrickmaster.github.io/hextale/player-ui/slider-bar-cursor.png" alt="" draggable="false">
       </div>
       <span class="settings-mute-icon" id="sfx-mute-btn" onclick="toggleSfxMute()"><img id="sfx-mute-icon-img" src="https://thetrickmaster.github.io/hextale/player-ui/sound-icon.png" alt=""></span>
+    </div>
+    <!-- v0.75.1 — l'esagono di aiuto in alto a sinistra sulla carta si puo'
+         spegnere. Sta in questa finestra e non in un'altra proprio perche' la
+         finestra e' una sola, aperta dalla partita o dal menu (vedi il
+         commento in cima): l'interruttore e' lo stesso da tutte e due le
+         parti, e non c'e' nessuna seconda copia da tenere allineata. -->
+    <div class="settings-row">
+      <label>Toggle hexagon helper on cards</label>
+      <div class="settings-row-spacer"></div>
+      <button type="button" class="settings-toggle" id="hex-helper-toggle"
+              role="switch" aria-checked="true" onclick="toggleAiutoEsagono()">
+        <span class="settings-toggle-pallino"></span>
+      </button>
     </div>
   </div>
 </div>
@@ -7716,8 +7770,9 @@ if(document.readyState==='loading'){
   }
 
   if(document.readyState==='loading'){
-    document.addEventListener('DOMContentLoaded', runPreload);
+    document.addEventListener('DOMContentLoaded', ()=>{ caricaAiutoEsagono(); runPreload(); });
   } else {
+    caricaAiutoEsagono();
     runPreload();
   }
 })();
@@ -9297,10 +9352,44 @@ function toggleSfxMute(){
 // Il valore di ripiego e' 'partita' perche' e' da li' che questa funzione e'
 // sempre stata chiamata, e un vecchio richiamo senza argomenti deve
 // continuare a comportarsi come prima.
+// ── v0.75.1 — L'ESAGONO DI AIUTO SULLA CARTA ──────────────────────────────
+// Il piccolo esagono in alto a sinistra ripete i gruppi di valori della carta:
+// serve in mano, dove le carte si sovrappongono e nascondono l'esagono vero.
+// Chi lo conosce a memoria puo' spegnerlo.
+// La scelta sopravvive alla partita e alla sessione, come ogni impostazione.
+const AIUTO_ESAGONO_CHIAVE = 'hextale.aiutoEsagono';
+let _aiutoEsagono = true;
+function aiutoEsagonoAcceso(){ return _aiutoEsagono; }
+function caricaAiutoEsagono(){
+  try {
+    const v = localStorage.getItem(AIUTO_ESAGONO_CHIAVE);
+    if(v !== null) _aiutoEsagono = (v === '1');
+  } catch(_){}
+  aggiornaInterruttoreEsagono();
+}
+function aggiornaInterruttoreEsagono(){
+  const b = document.getElementById('hex-helper-toggle');
+  if(b) b.setAttribute('aria-checked', _aiutoEsagono ? 'true' : 'false');
+}
+function toggleAiutoEsagono(){
+  _aiutoEsagono = !_aiutoEsagono;
+  try { localStorage.setItem(AIUTO_ESAGONO_CHIAVE, _aiutoEsagono ? '1' : '0'); } catch(_){}
+  aggiornaInterruttoreEsagono();
+  // Le carte si ridisegnano subito, cosi' l'effetto si vede mentre la
+  // finestra e' ancora aperta invece che al prossimo render qualunque.
+  // Le firme di renderBoard/renderHand saltano i disegni identici (vedi
+  // firmaTabellone/firmaMano): questa e' una modifica che quelle firme non
+  // vedono, quindi vanno azzerate o non succederebbe niente.
+  _firmaTabellonePrecedente = null;
+  for(const k in _firmaManoPrecedente) delete _firmaManoPrecedente[k];
+  try { if(typeof render === 'function') render(); } catch(_){}
+  try { if(typeof cardDbRenderRoster === 'function' && _activePage === 'collection') cardDbRenderRoster(); } catch(_){}
+}
 function openSettingsModal(quando){
   // I cursori del volume devono mostrare il valore vero anche se non si e'
   // mai giocato: vedi preparaImpostazioniAudio.
   preparaImpostazioniAudio();
+  aggiornaInterruttoreEsagono();
   const dove = (quando === 'menu') ? 'menu' : 'partita';
   document.querySelectorAll('#settings-modal .settings-voci').forEach(g=>{
     g.classList.toggle('mostra', g.getAttribute('data-quando') === dove);
@@ -11970,6 +12059,14 @@ function cardDbRenderRoster(){
     // function's own v0.71.96 comment for the full explanation).
     slot._cardDbCard = card;
     grid.appendChild(slot);
+    // v0.75.1 — stessa ragione della mano: gli effetti si vedono anche a
+    // riposo, quindi il livello speculare va costruito adesso e non alla
+    // prima passata del mouse. Dopo l'appendChild, perche' clona elementi
+    // dell'SVG e quello deve gia' essere nel documento.
+    // La Collezione ha decine di carte a schermo: e' l'unico punto dove
+    // questa costruzione anticipata si paga davvero, ma e' un lavoro fatto
+    // una volta per carta e non per fotogramma.
+    try { cardDbBuildGlossLayer(slot); } catch(_){}
   }
   const countEl=document.getElementById('card-db-count');
   // v0.73.64 — si contano le carte MOSTRATE, non tutte quelle che esistono:
@@ -21059,6 +21156,62 @@ function aiEstimateCounterRisk(card, q, r){
   return rischio;
 }
 
+// ── v0.75.1 — L'IA IMPARA IL PUNTEGGIO NUOVO ──────────────────────────────
+// Fino alla v0.74 il danno si faceva SOLO conquistando, e il margine di quella
+// singola conquista era tutto il guadagno. Adesso no: alla fine di ogni turno
+// ogni carta in campo fa 1 danno all'avversario (vedi dannoDiFineTurno). Il
+// tabellone non e' piu' il mezzo per fare danno, il tabellone E' il danno.
+//
+// Ne seguono tre cose, e l'IA deve saperle tutte e tre:
+//  1. Conquistare vale il DOPPIO di quanto sembra: una carta in piu' da una
+//     parte e una in meno dall'altra: la differenza fra i due conti si sposta
+//     di due, non di uno.
+//  2. Quella differenza si ripete a OGNI turno che resta. Conquistare al
+//     terzo turno vale molto piu' che conquistare al penultimo, e finora
+//     l'IA non aveva nessun motivo per avere fretta.
+//  3. Tenersela conta quanto prenderla. Una carta strappata e riperduta al
+//     turno dopo non ha spostato niente; peggio, ha regalato all'avversario
+//     lo stesso raddoppio.
+// Quanto si crede al fatto che una carta presa resti presa. Non 1: il
+// tabellone cambia, e un conto sui turni futuri e' una previsione, non un
+// fatto. Non troppo basso: sarebbe tornare a giocare per il margine.
+const PESO_CONTROLLO = 0.45;
+// Quanti turni restano ancora da giocare, cioe' quante volte il tabellone
+// presentera' ancora il conto. Una casella libera = un turno; le carte
+// disponibili sono il tetto vero quando i mazzi si stanno esaurendo.
+function aiTurniRimasti(){
+  let libere = 0;
+  for(const c of G.cells){
+    const k = key(c.q, c.r);
+    if(!G.holes.has(k) && !G.board[k]) libere++;
+  }
+  const carte = (G.p1Hand||[]).length + (G.p1Deck||[]).length
+              + (G.p2Hand||[]).length + (G.p2Deck||[]).length;
+  return Math.max(1, Math.min(libere, carte));
+}
+// Quanto e' probabile che questa carta, messa qui, venga ripresa.
+// Guarda con la stessa lente di aiEstimateCounterRisk ma conta una cosa
+// diversa: non QUANTO la batterebbero, ma se la batterebbero. Per il controllo
+// del tabellone perdere una carta di un punto o di otto e' la stessa perdita —
+// una carta — e quella perdita vale il doppio, come ogni conquista.
+function aiRischioDiPerderla(card, q, r){
+  if(!(G.p1Hand||[]).length) return 0;
+  const cellSet = new Set(G.cells.map(c=>key(c.q,c.r)));
+  const miei = aiEffectiveValuesAt(card, q, r);
+  const minaccia = minacciaStimataDallIA();
+  let attaccabili = 0, deboli = 0;
+  for(const dir of DIRS){
+    const nk = key(q+dir.dq, r+dir.dr);
+    if(!cellSet.has(nk) || G.holes.has(nk) || G.board[nk]) continue;
+    attaccabili++;
+    if(minaccia > (miei[dir.mySide]||0)) deboli++;
+  }
+  if(!attaccabili || !deboli) return 0;
+  // Piu' lati deboli scoperti, piu' e' facile che l'avversario ne trovi uno
+  // e abbia in mano la carta per approfittarne.
+  return Math.min(1, deboli/attaccabili);
+}
+
 // Picks the best (card, cell) combination for the AI. The win condition is
 // HP-based (reduce the human's HP to 0, or end the board with more HP left
 // than the opponent), so every candidate is scored on NET HP swing: the
@@ -21333,7 +21486,18 @@ function aiChooseMove(){
       // v0.73.69 — e si sottrae quanto Hex si riprenderebbe indietro (vedi
       // aiEvaluateConquests): stessa logica del rischio, un costo che questa
       // mossa specifica porta con se'.
-      const net=damage-risk-autolesione+bonusAbilitaPerIA(card,cell.q,cell.r,2);
+      // v0.75.1 — IL CONTROLLO DEL TABELLONE, che adesso E' il punteggio.
+      // Ogni conquista sposta di DUE la differenza fra i due conti di carte
+      // (una in piu' di qua, una in meno di la'), e quella differenza si
+      // ripete a ogni fine turno che resta. Da qui si sottrae la probabilita'
+      // di riperderla subito, che varrebbe altrettanto al contrario: prendere
+      // una carta e restituirla al turno dopo non ha spostato niente.
+      // Il posare la carta vale +1 di suo, ma vale +1 ovunque la si posi:
+      // essendo uguale per tutte le candidate non le distingue, e sommarlo
+      // sarebbe solo rumore.
+      const controllo = 2 * (conquests - aiRischioDiPerderla(card,cell.q,cell.r))
+                      * aiTurniRimasti() * PESO_CONTROLLO;
+      const net=damage-risk-autolesione+bonusAbilitaPerIA(card,cell.q,cell.r,2)+controllo;
       // v0.73.19 — la centralita' come ultimo criterio, al posto del sorteggio.
       // A parita' di tutto il resto una cella con piu' vicini vale di piu':
       // da li' si attacca in piu' direzioni nei turni successivi. Prima si
@@ -24194,6 +24358,16 @@ function drawHexCard(svg,cx,cy,R,card,fillColor,strokeColor,textColor,nameText,i
         qMark.setAttribute('font-size',(R*0.20).toFixed(1)); qMark.setAttribute('font-weight','700');
         qMark.setAttribute('font-family',"'Marcellus SC','Marcellus',serif");
         qMark.setAttribute('fill', V.valText);
+        // v0.75.1 — un bordo scuro attorno al punto interrogativo. Sta sopra
+        // all'illustrazione, che puo' essere di qualunque colore, e senza un
+        // contorno spariva sui fondali chiari.
+        // `paint-order: stroke fill` disegna il bordo PRIMA del riempimento:
+        // senza, lo stroke sarebbe centrato sul contorno della lettera e ne
+        // mangerebbe meta' verso l'interno, assottigliando il segno.
+        qMark.setAttribute('stroke', '#1D2D2F');
+        qMark.setAttribute('stroke-width', '3');
+        qMark.setAttribute('paint-order', 'stroke fill');
+        qMark.setAttribute('stroke-linejoin', 'round');
         qMark.textContent='?';
         svg.appendChild(qMark);
       }
@@ -25205,6 +25379,13 @@ function buildFullHandCardSVG(card, boxW, boxH, preview){
   // at its own separate inward-nudged inset. Now anchored to hexLeftX
   // (left edge) / hexTopY (top vertex) computed above, and actually shows
   // this card's real value groups.
+  // v0.75.1 — tutto questo strato si puo' spegnere dalle impostazioni
+  // ("Toggle hexagon helper on cards", vedi toggleAiutoEsagono). Il taglio e'
+  // qui e non nel CSS perche' non c'e' niente da nascondere: se e' spento
+  // questi elementi non vengono proprio disegnati, e una carta in meno da
+  // costruire e' una carta in meno da costruire — in mano ce ne sono quattro
+  // per parte, ridisegnate a ogni turno.
+  if(typeof aiutoEsagonoAcceso !== 'function' || aiutoEsagonoAcceso()){
   const vvW = CARD_VALUE_VISUAL_HINT_NATIVE_W*scale;
   const vvH = CARD_VALUE_VISUAL_HINT_NATIVE_H*scale;
   const vvX = hexLeftX;
@@ -25322,6 +25503,7 @@ function buildFullHandCardSVG(card, boxW, boxH, preview){
     vvT.textContent=g.val;
     chromeGroup.appendChild(vvT);
   }
+  } // fine dell'esagono di aiuto
 
   // Layer: the REAL drawHexCard() hexagon, with the card's true values —
   // same one used on the board/drag ghost (see buildHandCardSVG) — placed
@@ -26560,6 +26742,14 @@ function renderHand(containerId,hand,playerIdx){
       });
     }
     container.appendChild(wrap);
+    // v0.75.1 — il livello speculare si costruisce SUBITO e non piu' alla
+    // prima passata del mouse. Adesso si vede anche a riposo (vedi
+    // .card-db-gloss-layer nel CSS), quindi costruirlo pigramente vorrebbe
+    // dire che la carta si accende la prima volta che ci passi sopra e poi
+    // resta accesa: un effetto che compare per magia invece di esserci.
+    // Va fatto dopo l'appendChild: il livello si costruisce clonando elementi
+    // dell'SVG, che deve gia' essere nel documento.
+    try { cardDbBuildGlossLayer(wrap, card); } catch(_){}
   });
   // v0.73.74 — a ventaglio ridisegnato, i lampi in sospeso di Mischief: stessa
   // ragione della gemella in fondo a renderBoard (prima di qui gli elementi da
@@ -29519,15 +29709,31 @@ function initCardModalTilt(){
   const overlay=document.getElementById('card-modal-overlay');
   const host=document.getElementById('card-modal-card');
   if(!overlay || !host) return;
+  // v0.75.1 — LA CARTA SI INCLINA SOLO SE IL MOUSE E' SU DI LEI.
+  // L'ascoltatore stava sull'OVERLAY, che e' grande quanto lo schermo: la
+  // carta seguiva il puntatore da qualunque punto della finestra, e restava
+  // inclinata anche quando il mouse era finito sulla scheda a destra o nel
+  // vuoto attorno. L'inclinazione fuori dai bordi veniva saturata a forza,
+  // il che teneva la carta ferma nell'angolo estremo invece di riportarla in
+  // piano — che e' proprio il difetto segnalato.
+  // Adesso il movimento si legge sull'overlay (serve, perche' il puntatore
+  // deve poter uscire dalla carta di un pixel senza che il gesto scatti), ma
+  // si INCLINA solo mentre il puntatore e' davvero dentro al riquadro della
+  // carta. Appena esce, la carta torna al suo posto.
   overlay.addEventListener('pointermove', (e)=>{
     if(!_cardModalCard) return;
     const r=host.getBoundingClientRect();
     if(!r.width || !r.height) return;
-    // Fuori dalla carta l'inclinazione si satura invece di crescere senza
-    // limite: il puntatore puo' essere ovunque sull'overlay, che e' grande
-    // quanto lo schermo.
-    const px=Math.max(0, Math.min(1, (e.clientX-r.left)/r.width));
-    const py=Math.max(0, Math.min(1, (e.clientY-r.top)/r.height));
+    const dentro = e.clientX>=r.left && e.clientX<=r.right
+                && e.clientY>=r.top  && e.clientY<=r.bottom;
+    if(!dentro){
+      // cardFoilReset azzera le custom property, e senza [data-foil-active]
+      // la transition CSS torna attiva: il rientro e' morbido, non uno scatto.
+      if(host.hasAttribute('data-foil-active')) cardFoilReset(host);
+      return;
+    }
+    const px=(e.clientX-r.left)/r.width;
+    const py=(e.clientY-r.top)/r.height;
     host.setAttribute('data-foil-active','1');
     cardFoilApply(host, px*2-1, py*2-1, px, py);
   });
