@@ -6403,7 +6403,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.81</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.82</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -16347,6 +16347,25 @@ function assicuraSuonoDaVoce(nomeFile){
 }
 function calaLaNotteSu(card){
   if(_simulazioneInCorso) return;
+  // ── v0.73.82 FIX ("la evil laugh non viene triggerata") ──────────────────
+  // La risata e il lampo si fanno SUBITO e SEMPRE, prima di qualunque
+  // ragionamento sulle immagini. Fino alla v0.73.81 stavano in fondo, dopo il
+  // controllo "l'illustrazione cambia davvero?": se l'arte notturna non si
+  // risolveva — file non ancora censito, copia degli asset vecchia nel guscio,
+  // qualunque motivo — quel controllo usciva dalla funzione e portava via con
+  // se' anche il suono, che con le immagini non c'entra niente.
+  // La regola generale, per la prossima volta: cio' che deve succedere sempre
+  // va PRIMA di cio' che puo' fallire, non dopo.
+  _lampiNotte.add(card.id);
+  try { playSfxFile(assicuraSuonoDaVoce('strigoi-laugh.mp3')); } catch(_){}
+  // Se manca l'arte notturna, il +2 e la risata restano: si rinuncia solo al
+  // cambio d'abito, e lo si dice, invece di restare muti su tutto.
+  if(!card.artNotteDark && !card.artNotteLight){
+    console.warn('[Nightmare] "'+(card.name||card.id)+'" non ha l\'arte notturna:'
+      + ' servono cards/art/<slug>/<slug>-night-dark.png e -night-light.png.'
+      + ' Il +2 e la risata ci sono lo stesso, il cambio d\'illustrazione no.');
+    return;
+  }
   const nuovaDark = card.artNotteDark || card.artDark;
   const nuovaLight = card.artNotteLight || card.artLight;
   const artPrima = card.artSrc;
@@ -16375,17 +16394,14 @@ function calaLaNotteSu(card){
   // c'e' lo stesso, ma non si mette in scena una trasformazione che non si
   // vedrebbe.
   if(!artPrima || artPrima===card.artSrc) return;
+  // Da qui in giu' c'e' solo la messa in scena della dissolvenza. Il lampo e
+  // la risata sono gia' partiti in cima alla funzione (vedi li' il perche'):
+  // il lampo non si accende sul posto perche' questa funzione gira DENTRO al
+  // disegno — la chiama recalcNightmare, che renderBoard/renderHand invocano su
+  // ogni carta — e l'elemento a cui attaccarlo o non esiste ancora o sta per
+  // essere buttato via e rifatto. Si mette in coda e si accende a disegno
+  // finito, esattamente come i lampi sui valori.
   _notteInCorso.set(card.id, {da:performance.now(), artPrima});
-  // L'ordine e' quello chiesto: prima il lampo bianco, e mentre l'arte si
-  // dissolve la risata. Il suono parte insieme alla dissolvenza e non insieme
-  // al lampo, perche' e' la trasformazione che ride, non il colpo di luce.
-  // Il lampo NON si accende qui: questa funzione gira DENTRO al disegno (la
-  // chiama recalcNightmare, che renderBoard/renderHand invocano su ogni carta),
-  // e l'elemento a cui attaccarlo o non esiste ancora o sta per essere buttato
-  // via e rifatto. Si mette in coda e si accende a disegno finito, esattamente
-  // come i lampi sui valori.
-  _lampiNotte.add(card.id);
-  try { playSfxFile(assicuraSuonoDaVoce('strigoi-laugh.mp3')); } catch(_){}
   // A dissolvenza conclusa serve un ultimo disegno che tolga di mezzo l'arte
   // vecchia: nessun altro lo farebbe, perche' lo stato della dissolvenza vive
   // fuori dalla carta e quindi non entra nella firma del tabellone — senza
