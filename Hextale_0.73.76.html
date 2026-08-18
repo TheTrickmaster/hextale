@@ -1918,7 +1918,14 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
   /* v0.73.41 — grande quanto la carta piu' due pixel per lato, non piu'
      diciotto: quel margine lasciava vedere un vuoto fra il filo di luce e il
      bordo della carta, e il bagliore sembrava staccato invece che suo. */
-  width:calc(100% + 4px); height:calc(100% + 4px);
+  /* v0.73.76 — due pixel in piu' per lato (da 2 a 4) e tre pixel di sfocatura
+     in piu' sopra a quella che il filo ha gia' di suo: il bagliore deborda un
+     soffio oltre la carta e ha il bordo piu' morbido. La sfocatura sta QUI e
+     non dentro .hand-card-rim-ring perche' li' si somma a un `mask` e a un
+     `mix-blend-mode`, e sfocare dopo il ritaglio e' cio' che tiene morbido
+     anche il taglio della maschera invece di lasciarlo netto. */
+  width:calc(100% + 8px); height:calc(100% + 8px);
+  filter:blur(3px);
   transform:translate(-50%,-50%);
   opacity:0; transition:opacity .3s ease;
   pointer-events:none; z-index:-1;
@@ -2719,6 +2726,33 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
   animation:valoreInViaggio var(--asdur,0.52s) linear forwards;
   transform-box:fill-box;
   transform-origin:center center;
+}
+
+/* ── v0.73.76 — LINEE E ANGOLI GIRANO INSIEME AI VALORI ────────────────────
+   Quando un'abilita' fa scorrere i gruppi di un lato (Alice in mano, il
+   Cheshire in campo), fino a ieri si muovevano solo i cerchi coi numeri: le
+   linee che separano i gruppi e gli ornamenti d'angolo restavano fermi e
+   saltavano nella posizione nuova al ridisegno. Da fuori si leggeva come uno
+   scatto, perche' meta' del disegno viaggiava e meta' no.
+   Qui la rotazione e' una ROTAZIONE VERA di 60 gradi attorno al centro
+   dell'esagono, non un tragitto calcolato punto per punto come per i numeri:
+   linee e angoli sono radiali e devono ruotare anche su se stessi (l'ornamento
+   d'angolo ha una punta, e deve continuare a guardare in fuori), mentre i
+   numeri devono restare dritti e per questo viaggiano lungo un arco senza mai
+   girare. Due esigenze diverse, due animazioni diverse, stessa durata e stessa
+   easing lineare: il moto circolare a velocita' costante e' identico, ed e'
+   per questo che i due pezzi restano incollati per tutto il viaggio. */
+@keyframes ornamentiInRotazione{
+  from{ transform:rotate(0deg); }
+  to  { transform:rotate(60deg); }
+}
+.ornamenti-in-rotazione{
+  animation:ornamentiInRotazione var(--asdur,0.52s) linear forwards;
+  /* L'origine e' il centro dell'esagono, passata in pixel dal codice: senza
+     `view-box` un elemento SVG prenderebbe come riferimento il proprio
+     riquadro invece del sistema di coordinate del disegno, e la rotazione
+     partirebbe dal punto sbagliato. */
+  transform-box:view-box;
 }
 
 
@@ -6347,7 +6381,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.75</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.73.76</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -8730,14 +8764,21 @@ function startGame(vsAI){
   musicaMenuFerma();
   if(bgm){
     bgm.volume=getEffectiveMusicVolume();
-    // First call picks and plays a random track and wires the 'ended'
-    // listener that keeps rotating; later calls (e.g. "Nuova partita") are
-    // no-ops for the wiring but do NOT restart the currently playing track
-    // — the music just keeps going across games, same as before.
+    // v0.73.76 — OGNI PARTITA RICOMINCIA DA CAPO.
+    // Prima la musica proseguiva da dov'era: cominciando una partita nuova si
+    // ereditava il brano della precedente a meta', o anche a tre secondi dalla
+    // fine. Adesso una partita nuova apre sempre un brano dall'inizio, come il
+    // sipario che si rialza.
+    // Il brano viene ripescato dalla rotazione (playRandomBgmTrack), che e'
+    // gia' il modo in cui questo gioco sceglie la musica di partita ed evita
+    // di ripetere due volte di fila lo stesso pezzo. Il primo avvio passa
+    // ancora da initBgmRotation perche' li' oltre a suonare si aggancia
+    // l'ascoltatore che fa proseguire la rotazione a brano finito.
     if(!bgm.dataset.rotationWired){
       initBgmRotation();
-    } else if(bgm.paused){
-      bgm.play().catch(()=>{});
+    } else {
+      bgm.currentTime=0; // se la rotazione ripescasse lo stesso brano, riparte comunque dall'inizio
+      playRandomBgmTrack();
     }
   }
   document.querySelectorAll('audio[id^="sfx-"]').forEach(el=>{ el.volume=getGlobalVolume(); });
@@ -16264,12 +16305,48 @@ function ruotaValoriInMano(card){
 // invece di tagliarla.
 const ROTAZIONE_PASSO_RAD = Math.PI/3;              // 60 gradi, un lato
 const ROTAZIONE_SAGITTA = 1 - Math.cos(Math.PI/6);  // freccia dell'arco
+// v0.73.76 — Le linee separatrici e gli ornamenti d'angolo, che finora
+// restavano fermi mentre i numeri viaggiavano (vedi il CSS di
+// .ornamenti-in-rotazione per il perche' siano due animazioni diverse).
+// Sono tutti radiali rispetto al centro dell'esagono, quindi non serve
+// calcolare un tragitto per ciascuno: basta ruotarli insieme, e per ruotarli
+// insieme si mettono dentro a un <g> creato al volo. Il gruppo e' anche cio'
+// che evita l'unico scoglio vero: l'ornamento d'angolo porta gia' una propria
+// `transform` di rotazione nell'attributo, e una `transform` CSS messa sullo
+// stesso elemento la sostituirebbe invece di sommarsi — l'angolo perderebbe
+// il proprio orientamento e si vedrebbe scattare. Ruotando il contenitore,
+// l'attributo di chi sta dentro resta intatto.
+// Il <g> e' usa e getta: subito dopo l'animazione la carta viene ridisegnata
+// da capo (vedi chi chiama questa funzione), quindi non c'e' niente da
+// smontare.
+function animaRotazioneOrnamenti(cardEl, centro){
+  if(!cardEl || !centro) return false;
+  const pezzi=[...cardEl.querySelectorAll('.hex-card-group-sep, .hex-card-group-sep-flat, [data-role="owner-corner"]')];
+  if(!pezzi.length) return false; // carta a gruppo unico: non ha ne' linee ne' angoli
+  const contenitore=document.createElementNS('http://www.w3.org/2000/svg','g');
+  contenitore.setAttribute('class','ornamenti-in-rotazione');
+  contenitore.style.setProperty('--asdur', ROTAZIONE_VALORI_MS+'ms');
+  contenitore.style.transformOrigin = centro[0].toFixed(2)+'px '+centro[1].toFixed(2)+'px';
+  // Il gruppo prende il posto del primo pezzo, cosi' l'ordine di disegno —
+  // che in SVG e' l'ordine nel documento, cioe' chi sta sopra a chi — resta
+  // quello di prima.
+  pezzi[0].parentNode.insertBefore(contenitore, pezzi[0]);
+  for(const p of pezzi) contenitore.appendChild(p);
+  return true;
+}
 function animaRotazioneValori(cardEl){
   if(!cardEl) return false;
   // Un elemento per GRUPPO: sono i testi a portare data-value-group, e ogni
   // testo ha accanto il proprio cerchio.
   const testi=[...cardEl.querySelectorAll('[data-value-group]')];
   if(!testi.length) return false;
+  // Il centro dell'esagono lo dichiara gia' ogni valore (data-hex-c): e' lo
+  // stesso per tutti, quindi il primo che lo porta basta e avanza. Serve anche
+  // agli ornamenti, che ruotano attorno a quel punto.
+  const centroCarta=(testi[0].getAttribute('data-hex-c')||'').split(',').map(parseFloat);
+  if(centroCarta.length===2 && isFinite(centroCarta[0]) && isFinite(centroCarta[1])){
+    animaRotazioneOrnamenti(cardEl, centroCarta);
+  }
   let mosso=false;
   for(const testo of testi){
     // Un gruppo che copre tutti e sei i lati e' identico a se stesso dopo la
