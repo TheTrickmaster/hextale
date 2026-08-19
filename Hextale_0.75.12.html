@@ -4118,10 +4118,26 @@ body.prova-senza-willchange #mm-book-rot{
 #pack-overlay.show{ display:flex; }
 #pack-bg{
   position:absolute; inset:0;
-  background-image:url('https://thetrickmaster.github.io/hextale/generic-bg.png');
+  /* v0.75.12 — fondale suo invece del generic-bg condiviso. */
+  background-image:url('https://thetrickmaster.github.io/hextale/unpack-screen/unpack-bg.png');
   background-size:cover; background-position:center; background-repeat:no-repeat;
   z-index:0;
 }
+/* ── v0.75.12 — LA POLVERE AI LATI DELLA SCHERMATA BUSTINE ─────────────────
+   Stesse tre tele dello start screen, stessa arte, stesso colore: qui pero'
+   i granelli non salgono, restano sospesi e vagano.
+   Le tele stanno DIETRO alle carte (z-index 0, come lo sfondo) ma sopra al
+   fondale: la polvere e' parte dell'ambiente, non un velo davanti a cio' che
+   si sta scartando — e le bustine sono proprio la cosa da guardare. */
+.pack-particelle{
+  position:absolute; inset:0;
+  pointer-events:none; user-select:none;
+  z-index:0;
+  mix-blend-mode:plus-lighter;
+}
+#pack-particles-far { filter:blur(2px); }
+#pack-particles-mid { filter:none; }
+#pack-particles-near{ filter:blur(7px); }
 #pack-main{
   position:relative; z-index:1;
   flex:1 1 auto;
@@ -6770,7 +6786,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.11</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.12</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -7059,6 +7075,13 @@ body.prova-senza-willchange #mm-book-rot{
      nello script per il ragionamento completo. -->
 <div id="pack-overlay">
   <div id="pack-bg"></div>
+  <!-- v0.75.12 — la polvere sospesa ai due lati. Tre tele come sullo start
+       screen, per la stessa ragione: la profondita' si legge dalla sfocatura,
+       e sfocare ogni granello a mano costerebbe un filtro per granello.
+       Vedi PolvereBustineAvvia. -->
+  <canvas id="pack-particles-far"  class="pack-particelle" aria-hidden="true"></canvas>
+  <canvas id="pack-particles-mid"  class="pack-particelle" aria-hidden="true"></canvas>
+  <canvas id="pack-particles-near" class="pack-particelle" aria-hidden="true"></canvas>
   <!-- v0.73.31 — il lampo dell'apertura del libro: vedi #pack-flash nel CSS. -->
   <div id="pack-flash"></div>
   <div id="pack-main">
@@ -8518,6 +8541,15 @@ const PAGE_ENTER_HOOKS = {
     if(typeof montaMenuPrincipale === 'function') montaMenuPrincipale();
     if(typeof musicaMenuAvvia === 'function') musicaMenuAvvia();
   },
+  // v0.75.12 — la polvere sospesa ai lati parte con la pagina bustine e si
+  // ferma uscendone. Va (ri)avviata a ogni entrata e non solo alla prima:
+  // unmountPage stacca gli elementi dal documento, e una tela staccata perde
+  // il proprio contenuto. PolvereBustineAvvia ferma sempre il giro precedente
+  // prima di aprirne uno nuovo, quindi chiamarla due volte non lascia mai due
+  // animazioni in corsa.
+  packs(){
+    if(typeof PolvereBustineAvvia === 'function') PolvereBustineAvvia();
+  },
   // game: la ricostruzione la fa gia' startGame(), che e' l'unico percorso
   // che porta a questa pagina — un hook qui sarebbe un secondo punto di
   // verita' sullo stesso lavoro.
@@ -8651,8 +8683,119 @@ function ParticelleFerma(){
 function loopParticelle(){ ParticelleAvvia(); }
 function fermaLoopParticelle(){ ParticelleFerma(); }
 
+// ── v0.75.12 — LA POLVERE SOSPESA DELLA SCHERMATA BUSTINE ─────────────────
+// Stessa arte della polvere dello start screen — tre piani, stesso colore,
+// stessa sfocatura per piano — ma due differenze che vengono dalla richiesta:
+//
+//  1. NON SALE. Non c'e' una corrente verso l'alto: ogni granello vaga per
+//     conto suo. Il moto e' la somma di due oscillazioni lente e sfasate, una
+//     per asse, con periodi diversi: due seni di periodo diverso non tornano
+//     mai in fase per un bel po', quindi il percorso non si ripete in modo
+//     riconoscibile. Un vero moto casuale a passi ubriachi sarebbe stato
+//     peggio: accumula deriva, e prima o poi tutti i granelli finiscono
+//     ammucchiati da una parte.
+//  2. NON ESCE MAI. Non salendo, non c'e' un bordo da superare e quindi non
+//     c'e' nessuna rinascita da gestire: ogni granello oscilla attorno al
+//     punto in cui e' nato, e l'ampiezza e' abbastanza piccola da tenerlo
+//     dentro la sua fascia.
+//
+// I granelli stanno solo nelle due fasce laterali, il centro resta libero:
+// li' ci sono le bustine, ed e' cio' che si deve guardare.
+const POLVERE_BUSTINE_QUANTE = 30;
+// Quanto e' larga ciascuna fascia, in frazione di schermo. 0.28 lascia libero
+// il 44% centrale, che e' abbondantemente piu' largo delle due carte affiancate.
+const POLVERE_BUSTINE_FASCIA = 0.28;
+// Come si spartiscono i 30 granelli fra i tre piani. Il piano vicino e' poco
+// popolato per la stessa ragione dello start screen: sono macchie di luce
+// larghe, e troppe farebbero velo.
+const POLVERE_BUSTINE_PIANI = [
+  { id:'pack-particles-far',  quota:14, rMin:0.6, rMax:1.4,  alfaMin:0.25, alfaMax:0.55, vagoMin:6,  vagoMax:16 },
+  { id:'pack-particles-mid',  quota:11, rMin:1.4, rMax:3.0,  alfaMin:0.45, alfaMax:0.90, vagoMin:10, vagoMax:26 },
+  { id:'pack-particles-near', quota:5,  rMin:5.0, rMax:11.0, alfaMin:0.18, alfaMax:0.40, vagoMin:16, vagoMax:40 },
+];
+let _polvereBustineRAF = null;
+let _polvereBustineStrati = null;
+let _polvereBustineResize = null;
+
+function _pbNuovoGranello(piano, w, h){
+  // Da che lato: mezzi a sinistra e mezzi a destra, tirati a sorte.
+  const aDestra = Math.random() < 0.5;
+  const fascia = w * POLVERE_BUSTINE_FASCIA;
+  const x0 = aDestra ? (w - fascia + Math.random()*fascia) : (Math.random()*fascia);
+  return {
+    x0, y0: Math.random()*h,
+    r: _pCaso(piano.rMin, piano.rMax),
+    // Ampiezza del vagare, diversa sui due assi: uguali darebbero un
+    // cerchio, e un cerchio si riconosce.
+    ax: _pCaso(piano.vagoMin, piano.vagoMax),
+    ay: _pCaso(piano.vagoMin, piano.vagoMax) * 0.7,
+    // Periodi lenti e SCELTI DIVERSI fra loro: e' questo che rende il
+    // percorso una figura aperta invece di un'orbita chiusa.
+    fx: _pCaso(0.03, 0.09),
+    fy: _pCaso(0.04, 0.11),
+    px: Math.random()*Math.PI*2,
+    py: Math.random()*Math.PI*2,
+    alfa: _pCaso(piano.alfaMin, piano.alfaMax),
+  };
+}
+
+function PolvereBustineAvvia(){
+  PolvereBustineFerma();
+  const strati = [];
+  for(const piano of POLVERE_BUSTINE_PIANI){
+    const tela = document.getElementById(piano.id);
+    if(!tela || !tela.getContext) continue;
+    const ctx = tela.getContext('2d');
+    if(!ctx) continue;
+    const strato = { piano, tela, ctx, granelli:[], w:0, h:0, dpr:1 };
+    _pDimensiona(strato);
+    for(let i=0;i<piano.quota;i++) strato.granelli.push(_pNuovoGranello2(piano, strato));
+    strati.push(strato);
+  }
+  if(!strati.length) return;
+  _polvereBustineStrati = strati;
+  // Al ridimensionamento i granelli vanno rifatti e non solo riposizionati:
+  // il loro punto d'origine e' in pixel, e una finestra piu' stretta
+  // lascerebbe fuori dalle fasce quelli nati quando era piu' larga.
+  _polvereBustineResize = ()=>{
+    for(const s of _polvereBustineStrati||[]){
+      _pDimensiona(s);
+      s.granelli = s.granelli.map(()=>_pNuovoGranello2(s.piano, s));
+    }
+  };
+  window.addEventListener('resize', _polvereBustineResize);
+  const passo = (ora)=>{
+    _polvereBustineRAF = requestAnimationFrame(passo);
+    const t = ora/1000;
+    for(const s of _polvereBustineStrati){
+      const {ctx, w, h} = s;
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = PARTICELLE_COLORE;
+      for(const g of s.granelli){
+        const x = g.x0 + Math.sin(t*g.fx*Math.PI*2 + g.px) * g.ax;
+        const y = g.y0 + Math.sin(t*g.fy*Math.PI*2 + g.py) * g.ay;
+        ctx.globalAlpha = g.alfa;
+        ctx.beginPath();
+        ctx.arc(x, y, g.r, 0, Math.PI*2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+  };
+  _polvereBustineRAF = requestAnimationFrame(passo);
+}
+function _pNuovoGranello2(piano, strato){ return _pbNuovoGranello(piano, strato.w, strato.h); }
+function PolvereBustineFerma(){
+  if(_polvereBustineRAF){ cancelAnimationFrame(_polvereBustineRAF); _polvereBustineRAF = null; }
+  if(_polvereBustineResize){ window.removeEventListener('resize', _polvereBustineResize); _polvereBustineResize = null; }
+  _polvereBustineStrati = null;
+}
+
 function showPage(name){
   if(name !== 'start' && typeof fermaLoopParticelle === 'function') fermaLoopParticelle();
+  // v0.75.12 — stessa regola per la polvere delle bustine: lasciarla girare
+  // sotto una pagina che non si vede terrebbe vivo un rAF per niente.
+  if(name !== 'packs' && typeof PolvereBustineFerma === 'function') PolvereBustineFerma();
   for(const other in PAGE_ELEMENT_IDS){ if(other!==name) unmountPage(other); }
   mountPage(name);
   _activePage = name;
