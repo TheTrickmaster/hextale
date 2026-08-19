@@ -7247,7 +7247,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.47</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.48</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -10012,6 +10012,12 @@ function musicaMenuFerma(){
         lp.volume=getEffectiveMusicVolume();
         try{ lp.currentTime=coda.time||0; }catch(_){}
         lp.play().catch(()=>{});
+        // v0.75.48 — e si riarma il rientro anticipato, se quel brano ce l'ha:
+        // riprendendo la coda senza, tornare dai menu avrebbe rimesso il loop
+        // nativo del browser — cioe' proprio il respiro che il rientro esiste
+        // per togliere, ricomparso solo per chi passa dalla Collezione.
+        const cfgRipresa = MUSIC_INTRO_LOOPS[bgm._preMenuTrack];
+        if(cfgRipresa && cfgRipresa.rientro) avviaRientroCoda(lp, cfgRipresa.rientro);
         return;
       }
     }
@@ -11888,6 +11894,22 @@ const MUSIC_INTRO_LOOPS = {
   [BATTLE_MUSIC_TRACK]: {
     loop: 'https://thetrickmaster.github.io/hextale/audio/music/moonlit-card-court-loop.mp3',
     // niente `at`: si attacca alla fine della prima parte.
+    // v0.75.48 — `rientro`: la coda NON si ripete col loop del browser, ma
+    // torna da sola all'inizio questo tanto PRIMA della fine del file.
+    // Perche' serve: un mp3 non finisce dove finisce la musica. Il
+    // codificatore aggiunge in coda qualche decina di millisecondi di silenzio
+    // (e altrettanti in testa) che fanno parte del file ma non del brano. Il
+    // loop nativo di <audio> riparte a fine FILE, quindi a ogni giro infila
+    // quel silenzio: si sente come un respiro, o come una coda che si spegne
+    // un attimo prima di ricominciare. Non e' una dissolvenza — i due file non
+    // ne hanno, misurati: restano a pieno livello fino all'ultimo
+    // cinquantesimo di secondo — ma da ascoltare produce la stessa
+    // impressione, ed e' quella che rompe l'illusione.
+    // Rientrando appena prima, quel silenzio non viene mai raggiunto.
+    // Sta solo su questo brano: la coda dei menu gira col loop nativo da
+    // v0.72.39 senza che nessuno l'abbia mai notato, e cambiarla vorrebbe dire
+    // rimettere in gioco una cosa che funziona.
+    rientro: 0.05,
   },
 };
 // Quanto si anticipa la giunzione quando `at` non e' dichiarato. Non e' un
@@ -11960,8 +11982,52 @@ function staSuonandoMusicaDeiMenu(){
   const bgm=document.getElementById('bgm');
   return !!(bgm && bgm.src && typeof MENU_MUSIC_TRACK==='string' && bgm.src.indexOf(MENU_MUSIC_TRACK)!==-1);
 }
+// v0.75.48 — il rientro anticipato della coda (vedi `rientro` in
+// MUSIC_INTRO_LOOPS). Stessa impalcatura della giunzione: si sorveglia da
+// lontano con un intervallo e si centra l'istante con un unico setTimeout
+// calcolato sul currentTime REALE, perche' un intervallo, per quanto fitto,
+// sbaglierebbe in media di mezzo periodo — e mezzo periodo, qui, e' dieci
+// volte il silenzio che si sta cercando di saltare.
+let _codaRientroWatch = null;
+let _codaRientroTimer = null;
+function fermaRientroCoda(){
+  if(_codaRientroWatch){ clearInterval(_codaRientroWatch); _codaRientroWatch=null; }
+  if(_codaRientroTimer){ clearTimeout(_codaRientroTimer); _codaRientroTimer=null; }
+}
+function avviaRientroCoda(lp, rientro){
+  fermaRientroCoda();
+  if(!lp || !(rientro > 0)) return;
+  // Il loop del browser va spento: se restasse acceso, i due meccanismi si
+  // contenderebbero la fine del file e il rientro anticipato non servirebbe a
+  // niente le volte in cui arriva secondo.
+  lp.loop = false;
+  const riparti = ()=>{
+    _codaRientroTimer = null;
+    try { lp.currentTime = 0; } catch(_){}
+    if(lp.paused) lp.play().catch(()=>{});
+    avviaRientroCoda(lp, rientro);   // e si riarma per il giro dopo
+  };
+  _codaRientroWatch = setInterval(()=>{
+    const d = lp.duration;
+    if(!isFinite(d) || d <= 0) return;          // durata non ancora nota
+    if(!lp.src){ fermaRientroCoda(); return; }  // la coda e' stata smontata
+    const restano = (d - rientro) - lp.currentTime - MUSIC_LOOP_START_LATENCY_S;
+    if(restano <= MUSIC_LOOP_HANDOFF_LEAD_S){
+      clearInterval(_codaRientroWatch); _codaRientroWatch = null;
+      _codaRientroTimer = setTimeout(riparti, Math.max(0, restano*1000));
+    }
+  }, 200);
+  // Rete di sicurezza: se il file finisse comunque (rientro troppo piccolo,
+  // sorveglianza saltata da una scheda in background), si riparte lo stesso.
+  lp.addEventListener('ended', function onEnd(){
+    lp.removeEventListener('ended', onEnd);
+    if(_codaRientroTimer) return; // gia' programmato
+    riparti();
+  });
+}
 function stopMusicLoopChain(){
   _musicIntroLoopActive = false;
+  fermaRientroCoda();
   if(_musicLoopWatch){ clearInterval(_musicLoopWatch); _musicLoopWatch=null; }
   if(_musicLoopTimer){ clearTimeout(_musicLoopTimer); _musicLoopTimer=null; }
   const lp=document.getElementById('bgm-loop');
@@ -11996,6 +12062,9 @@ function playMusicWithIntroLoop(introUrl){
     lp.currentTime=0;
     lp.volume=getEffectiveMusicVolume();
     lp.play().catch(()=>{});
+    // v0.75.48 — chi ha un rientro dichiarato si ripete da solo, un soffio
+    // prima della fine del file (vedi avviaRientroCoda).
+    if(cfg.rientro) avviaRientroCoda(lp, cfg.rientro);
     // La intro NON viene fermata qui: se ha una coda di riverbero oltre il
     // punto di giunzione, tagliarla creerebbe proprio lo stacco che si vuole
     // evitare. Finisce da sola.
@@ -31060,7 +31129,16 @@ function trascinaCarta(daCella, aCella, poi){
   // partenza non e' piu' li' da misurare.
   const bsvg = document.getElementById('board-svg');
   const elDa = bsvg && bsvg.querySelector(`[data-conquered="${daCella}"]`);
-  const elA  = bsvg && bsvg.querySelector('[data-tile-wrap="'+aCella+'h"]');
+  // v0.75.48 — IL TASSELLO D'ARRIVO SI CHIAMA "f", NON "h".
+  // Qui cercavo `[data-tile-wrap="<cella>h"]`, copiato dallo spostamento dei
+  // tasselli di Ali Baba — ma quello muove tasselli BLOCCATI, e "h" sta per
+  // hole. Una casella VUOTA, che e' l'unica dove Rapunzel possa tirare
+  // qualcosa, e' taggata "f". Il selettore non trovava mai niente, quindi la
+  // misura era null e l'animazione veniva saltata in silenzio: la carta
+  // compariva nella casella nuova senza transizione. Non era il calcolo a
+  // essere sbagliato — era che non veniva mai fatto.
+  const elA  = bsvg && (bsvg.querySelector('[data-tile-wrap="'+aCella+'f"]')
+                     || bsvg.querySelector('[data-tile-wrap="'+aCella+'h"]'));
   const salto = (elDa && elA) ? _spostamentoDisegnato(elDa, elA) : null;
   // v0.75.47 — PRIMA IL LAMPO, POI IL MOVIMENTO. La carta indicata si accende
   // un istante prima di partire: e' il momento in cui la treccia la afferra, e
