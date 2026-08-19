@@ -5284,11 +5284,20 @@ body.prova-senza-willchange #mm-book-rot{
    attenuato anche "Keep for 200", che invece deve restare pienamente
    leggibile — e' l'offerta, non la carta messa da parte.
    Si esclude quindi il pulsante e si attenua tutto il resto. */
-.pack-card.scartata > *:not(.pack-scelta-btn){
-  opacity:0.4;
-  transition:opacity .28s ease-out;
-}
-.pack-card > *:not(.pack-scelta-btn){ transition:opacity .28s ease-out; }
+/* v0.75.26 — si NOMINA cio' che deve sbiadire, invece di sbiadire tutto e
+   fare la lista delle eccezioni. La lista si e' gia' rotta una volta: un
+   `> *:not(.pack-scelta-btn)` prendeva anche .pack-card-lampo-scelta — il velo
+   bianco del battito finale, che sta a opacity:0 e in plus-lighter — e lo
+   forzava a 0.4, cioe' accendeva un bianco fortissimo proprio sulla carta che
+   doveva farsi da parte.
+   Con tre nomi espliciti, un velo nuovo aggiunto domani resta fuori per
+   difetto, che e' il verso giusto in cui sbagliare. */
+.pack-card.scartata > .pack-card-pop,
+.pack-card.scartata > .pack-card-glow,
+.pack-card.scartata > .pack-card-rim{ opacity:0.4; }
+.pack-card > .pack-card-pop,
+.pack-card > .pack-card-glow,
+.pack-card > .pack-card-rim{ transition:opacity .28s ease-out; }
 
 /* ── v0.75.25 — L'USCITA DELLE CARTE, DOPO LA SCELTA ──────────────────────
    Tre momenti, tre classi. Tutte lavorano su --da-x/--da-y, cioe' la posizione
@@ -5343,37 +5352,22 @@ body.prova-senza-willchange #mm-book-rot{
 }
 .pack-card.vola-su{ animation:packVolaSu .78s cubic-bezier(.5,0,.75,0) forwards; z-index:6; }
 
-/* ── LA CARTA SCARTATA: BRUCIA ─────────────────────────────────────────────
-   Diventa nera e si accende sui bordi, poi si spegne. Il nero lo fa
-   `brightness(0)` sul contenuto, il fuoco e' un alone che pulsa attorno.
-   Il contenuto e l'alone stanno su due elementi diversi proprio perche' il
-   primo deve andare a zero e il secondo no. */
-.pack-card.brucia > .pack-card-pop{
-  animation:packAnnerisci .55s ease-in forwards;
-}
-@keyframes packAnnerisci{
-  from{ filter:brightness(1); }
-  to  { filter:brightness(0); }
-}
-.pack-card.brucia::after{
-  content:''; position:absolute; inset:-6px;
-  border-radius:20px;
-  box-shadow:0 0 0 2px #FF7A18, 0 0 26px 6px rgba(255,122,24,0.75), inset 0 0 30px rgba(255,90,0,0.6);
-  opacity:0; pointer-events:none; z-index:7;
-  animation:packBordoFuoco 1.05s ease-out forwards;
-}
-@keyframes packBordoFuoco{
-  0%  { opacity:0; }
-  22% { opacity:1; }
-  62% { opacity:0.9; }
-  100%{ opacity:0; }
-}
-/* La dissolvenza della carta bruciata: sparisce mentre il pulviscolo prende
-   il suo posto, non prima — altrimenti si vedrebbe un buco e poi la cenere. */
-.pack-card.brucia{ animation:packCenere 1.05s ease-in forwards; }
-@keyframes packCenere{
-  0%,55%{ opacity:1; }
-  100%  { opacity:0; }
+/* ── v0.75.26 — LA CARTA SCARTATA SI SGRETOLA ─────────────────────────────
+   Prima era tutta CSS: annerimento, bordo di fuoco e dissolvenza, tre
+   animazioni a tempo che non sapevano nulla l'una dell'altra. Adesso la
+   guida il codice (vedi incenerisciCarta), per una ragione precisa: le
+   particelle devono nascere ESATTAMENTE sul bordo che sta mangiando la carta,
+   e quel bordo si muove. Un'animazione CSS non puo' dire a nessuno dove e'
+   arrivata; un ciclo di disegno si'.
+   Qui resta solo il velo che tinge la carta d'arancione prima che anneriscá:
+   `color` prende la tinta e lascia la luminosita' del disegno sotto, quindi
+   la carta diventa arancione senza diventare una macchia arancione. */
+.pack-card-brace{
+  position:absolute; inset:0; border-radius:18px;
+  background:#F6BA15;
+  mix-blend-mode:color;
+  opacity:0; pointer-events:none;
+  z-index:4;
 }
 /* La tela del pulviscolo: copre tutta la scena, perche' i granelli si
    allontanano dalla carta e non devono trovare un bordo. */
@@ -7071,7 +7065,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.25</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.26</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -7367,7 +7361,7 @@ body.prova-senza-willchange #mm-book-rot{
       <div id="pack-reveal"></div>
       <!-- v0.75.25 — il pulviscolo della carta bruciata. Una tela sola per
            tutta la scena: i granelli si allontanano dalla carta e non devono
-           trovare un bordo. Vedi cenereDaCarta. -->
+           trovare un bordo. Vedi incenerisciCarta. -->
       <canvas id="pack-cenere" aria-hidden="true"></canvas>
     </div>
     <!-- v0.75.21 — i due riquadri delle valute, gli stessi del menu: stesse
@@ -12580,6 +12574,12 @@ function _costruisciCartaBustina(entry, dir, indice){
   lampoScelta.className = 'pack-card-lampo-scelta';
   carta.appendChild(lampoScelta);
 
+  // v0.75.26 — il velo che tinge d'arancione prima dell'incenerimento.
+  const brace = document.createElement('div');
+  brace.className = 'pack-card-brace';
+  carta.appendChild(brace);
+  carta.__brace = brace;
+
   carta.__entry = entry;   // serve a packToggleVariant per ricostruirla
   carta.__carta = cardObj; // v0.74.2 — per aprirla a schermo intero da girata
   // v0.74.2 — il primo click gira la carta, i successivi la aprono a schermo
@@ -12792,93 +12792,181 @@ function raccogliCarte(){
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// v0.75.25 — IL PULVISCOLO DELLA CARTA SCARTATA
+// v0.75.26 — LA CARTA SCARTATA SI SGRETOLA
 // ═══════════════════════════════════════════════════════════════════════════
-// La carta annerisce, si accende sui bordi e si sfarina. Il pulviscolo e' su
-// TELA e non fatto di elementi: sono trecento granelli, e trecento nodi che
-// nascono e muoiono in un secondo si sentono. Le scintille dell'apertura sono
-// fatte a elementi perche' sono trentina e vivono di animazioni CSS; queste
-// hanno bisogno di gravita' e attrito, che a mano su un nodo per granello
-// costerebbero molto di piu' di un ciclo di disegno.
+// Tre momenti dentro a un ciclo solo:
+//   1. si tinge d'arancione   (un velo in `color`: prende la tinta e lascia
+//      la luminosita' del disegno, quindi arancione e non macchia)
+//   2. annerisce              (brightness a zero)
+//   3. viene MANGIATA dall'alto verso il basso da un bordo frastagliato, e
+//      proprio da quel bordo nascono le particelle.
 //
-// I COLORI vengono dalla richiesta e la proporzione conta: molte nere, meno
-// grigie, poche arancioni. Le arancioni sono le braci — se fossero tante non
-// sarebbe cenere che vola via, sarebbe un fuoco d'artificio.
-const CENERE_QUANTE = 300;
-const CENERE_COLORI = [
-  { colore:'#141210', peso:62 },   // nero: il grosso
-  { colore:'#5A554E', peso:27 },   // grigio
-  { colore:'#FF7A18', peso:8  },   // arancione acceso
-  { colore:'#FFC14D', peso:3  },   // qualche bracia piu' chiara
-];
-const CENERE_DURATA_MS = 1250;
+// Perche' un ciclo solo e non tre animazioni CSS: le particelle devono nascere
+// ESATTAMENTE sul bordo che sta mangiando la carta, e quel bordo si muove.
+// Un'animazione CSS non puo' dire a nessuno dove e' arrivata; un ciclo di
+// disegno si'. Le tre fasi diventano tre tratti dello stesso avanzamento, e
+// non tre orologi separati che possono sfasarsi.
+const CENERE_QUANTE = 340;      // quante particelle in tutto, sparse lungo la mangiata
+const INCENERISCI_MS = 1750;
+const FASE_ARANCIO = 0.20;      // fino a qui: si tinge
+const FASE_NERO    = 0.34;      // fino a qui: annerisce
+// I due colori del pulviscolo: nasce brace e muore cenere.
+const CENERE_DA = { r:0xF6, g:0xBA, b:0x15 };
+const CENERE_A  = { r:0x0E, g:0x0C, b:0x0A };
+// Il bordo che mangia la carta: quanti denti e quanto sono profondi (in
+// frazione dell'altezza della carta).
+const DENTI_QUANTI = 14;
+const DENTI_PROFONDITA = 0.055;
+
 let _cenereRAF = null;
-function _cenereColore(){
-  let n = Math.random()*100;
-  for(const c of CENERE_COLORI){ n -= c.peso; if(n <= 0) return c.colore; }
-  return CENERE_COLORI[0].colore;
+
+// Un poligono frastagliato che copre la carta DA `q` in giu' (q va da 0 a 1).
+// I denti sono fissi per carta — sorteggiati una volta e riusati a ogni
+// fotogramma — altrimenti il bordo tremolerebbe invece di scendere.
+function _clipMangiata(q, denti){
+  const punti = [];
+  const y = q*100;
+  for(let i=0;i<denti.length;i++){
+    const x = (i/(denti.length-1))*100;
+    punti.push(x.toFixed(2)+'% '+Math.max(0, y + denti[i]).toFixed(2)+'%');
+  }
+  punti.push('100% 100%', '0% 100%');
+  return 'polygon(' + punti.join(', ') + ')';
 }
-// Fa sfarinare la carta `carta` in un pulviscolo. Il rettangolo da cui nascono
-// i granelli e' quello VERO della carta a schermo, convertito in coordinate
-// della scena: cosi' la cenere parte esattamente da dov'e' lei, comunque si
-// stia muovendo in quel momento.
-function cenereDaCarta(carta){
+
+// Una particella frastagliata: un poligono di pochi lati con raggi diversi.
+function _disegnaScheggia(ctx, x, y, r, rot, forma){
+  ctx.beginPath();
+  for(let i=0;i<forma.length;i++){
+    const a = rot + (i/forma.length)*Math.PI*2;
+    const rr = r*forma[i];
+    const px = x + Math.cos(a)*rr, py = y + Math.sin(a)*rr;
+    if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+  }
+  ctx.closePath();
+  ctx.fill();
+}
+
+// Incenerisce `carta`. `poi` viene chiamata a cose finite: chi chiama deve
+// poter aspettare, perche' e' solo a quel punto che l'altra carta entra in
+// scena.
+function incenerisciCarta(carta, poi){
+  const fine = ()=>{ if(typeof poi === 'function') poi(); };
   const tela = document.getElementById('pack-cenere');
   const scena = document.getElementById('pack-stage');
-  if(!tela || !scena || !carta || !tela.getContext) return;
+  if(!carta || !tela || !scena || !tela.getContext){ fine(); return; }
   const ctx = tela.getContext('2d');
-  if(!ctx) return;
+  if(!ctx){ fine(); return; }
+
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   const W = tela.clientWidth || CANVAS_W, H = tela.clientHeight || CANVAS_H;
   tela.width = Math.max(1, Math.round(W*dpr));
   tela.height = Math.max(1, Math.round(H*dpr));
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-  const rc = carta.getBoundingClientRect();
-  const rs = scena.getBoundingClientRect();
-  // Dai pixel veri alle coordinate della tela: le due misure sono diverse
-  // perche' la scena vive dentro #game-root, che e' scalato.
-  const kx = rs.width ? (W / rs.width) : 1;
-  const ky = rs.height ? (H / rs.height) : 1;
-  const x0 = (rc.left - rs.left) * kx, y0 = (rc.top - rs.top) * ky;
-  const larg = rc.width * kx, alt = rc.height * ky;
+  // DOVE STA LA CARTA, in coordinate della tela. Non si usa
+  // getBoundingClientRect: la scena vive dentro #game-root, che e' scalato, e
+  // servirebbe una conversione da pixel veri a coordinate autoriali che e'
+  // facile sbagliare — ed era sbagliata, con la cenere che compariva in un
+  // angolo. La carta e' larga 242 e alta 414, centrata sul 50%/50% della
+  // scena e spostata dalla propria transform: da qui il conto e' esatto e non
+  // dipende da nessuna misura letta a schermo.
+  const t = _trasformazioneAttuale(carta);
+  const larg = 242, alt = 414;
+  const cx = W/2 + t.x, cy = H/2 + t.y;
+  const x0 = cx - larg/2, y0 = cy - alt/2;
 
-  const granelli = [];
+  // I denti del bordo, sorteggiati UNA volta.
+  const denti = [];
+  for(let i=0;i<DENTI_QUANTI;i++) denti.push((Math.random()*2-1) * DENTI_PROFONDITA * 100);
+
+  // Le particelle nascono man mano che il bordo scende, non tutte all'inizio:
+  // ognuna ha la quota alla quale comparira'. Sorteggiando anche la x, la
+  // cenere esce da tutta la larghezza della carta invece che da un punto.
+  const parti = [];
   for(let i=0;i<CENERE_QUANTE;i++){
-    granelli.push({
-      x: x0 + Math.random()*larg,
-      y: y0 + Math.random()*alt,
-      // Si aprono verso l'alto e di lato: la cenere sale prima di ricadere.
-      vx: (Math.random()-0.5) * 190,
-      vy: -Math.random()*210 - 40,
-      r: 0.8 + Math.random()*2.4,
-      colore: _cenereColore(),
-      // Ognuno muore per conto suo: tutti insieme sarebbero un fotogramma che
-      // si spegne, non una cenere che si dirada.
-      vita: 0.55 + Math.random()*0.45,
+    const forma = [];
+    const lati = 5 + Math.floor(Math.random()*3);
+    for(let k=0;k<lati;k++) forma.push(0.45 + Math.random()*0.75);
+    parti.push({
+      // quota di nascita: dentro la fase di mangiata, non prima
+      nasce: FASE_NERO + Math.random()*(1-FASE_NERO)*0.92,
+      dx: Math.random()*larg,
+      x:0, y:0,
+      // Salgono LENTAMENTE e si allargano appena: e' cenere che si stacca,
+      // non una scintilla che schizza via.
+      vx: (Math.random()-0.5)*26,
+      vy: -(16 + Math.random()*34),
+      r: 1.4 + Math.random()*3.2,
+      rot: Math.random()*Math.PI*2,
+      giro: (Math.random()-0.5)*1.4,
+      forma,
+      vissuto: 0,
+      vita: 0.55 + Math.random()*0.5,   // in secondi... di avanzamento normalizzato
     });
   }
+
+  const brace = carta.__brace;
+  const pop = carta.querySelector('.pack-card-pop');
   if(_cenereRAF) cancelAnimationFrame(_cenereRAF);
   const inizio = performance.now();
+  let ultimo = inizio;
+
   const passo = (ora)=>{
-    const t = (ora - inizio) / CENERE_DURATA_MS;
+    const q = Math.min(1, (ora - inizio) / INCENERISCI_MS);
+    const dt = Math.min(0.05, (ora - ultimo)/1000);
+    ultimo = ora;
     ctx.clearRect(0,0,W,H);
-    if(t >= 1){ _cenereRAF = null; return; }
-    const dt = 1/60;
-    for(const g of granelli){
-      const suo = t / g.vita;              // 0..1 sulla SUA vita
-      if(suo >= 1) continue;
-      g.vy += 260*dt;                      // gravita': la cenere ricade
-      g.vx *= 0.985; g.vy *= 0.992;        // attrito dell'aria
+
+    // 1) la tinta arancione
+    if(brace) brace.style.opacity = String(Math.min(1, q/FASE_ARANCIO));
+    // 2) l'annerimento
+    if(pop){
+      const n = q <= FASE_ARANCIO ? 1
+        : Math.max(0, 1 - (q-FASE_ARANCIO)/(FASE_NERO-FASE_ARANCIO));
+      pop.style.filter = 'brightness('+n.toFixed(3)+')';
+    }
+    // 3) la mangiata: il bordo scende dall'alto, e la carta sparisce con lui
+    if(q > FASE_NERO){
+      const avanti = (q - FASE_NERO)/(1 - FASE_NERO);
+      carta.style.clipPath = _clipMangiata(avanti, denti);
+      carta.style.webkitClipPath = _clipMangiata(avanti, denti);
+    }
+
+    // le particelle
+    ctx.globalAlpha = 1;
+    for(const g of parti){
+      if(q < g.nasce) continue;
+      if(g.vissuto === 0){
+        // Nasce sul BORDO che sta mangiando, non a caso: e' quello il punto
+        // in cui la carta si sta disfacendo.
+        const avanti = (g.nasce - FASE_NERO)/(1 - FASE_NERO);
+        g.x = x0 + g.dx;
+        g.y = y0 + avanti*alt;
+      }
+      g.vissuto += dt;
+      const v = Math.min(1, g.vissuto/g.vita);
+      if(v >= 1) continue;
+      g.vy += 6*dt;              // pochissima gravita': la cenere sale e si ferma
+      g.vx *= 0.99;
       g.x += g.vx*dt; g.y += g.vy*dt;
-      ctx.globalAlpha = 1 - suo*suo;       // svanisce piano e poi in fretta
-      ctx.fillStyle = g.colore;
-      ctx.beginPath();
-      ctx.arc(g.x, g.y, g.r*(1-suo*0.35), 0, Math.PI*2);
-      ctx.fill();
+      g.rot += g.giro*dt;
+      // Da brace a cenere: il colore si spegne mentre sale.
+      const r = Math.round(CENERE_DA.r + (CENERE_A.r-CENERE_DA.r)*v);
+      const gg = Math.round(CENERE_DA.g + (CENERE_A.g-CENERE_DA.g)*v);
+      const b = Math.round(CENERE_DA.b + (CENERE_A.b-CENERE_DA.b)*v);
+      ctx.fillStyle = 'rgb('+r+','+gg+','+b+')';
+      ctx.globalAlpha = v < 0.75 ? 1 : (1-v)/0.25;
+      _disegnaScheggia(ctx, g.x, g.y, g.r*(1-v*0.3), g.rot, g.forma);
     }
     ctx.globalAlpha = 1;
-    _cenereRAF = requestAnimationFrame(passo);
+
+    if(q < 1){ _cenereRAF = requestAnimationFrame(passo); return; }
+    // Finito: la carta non c'e' piu' e la tela si pulisce.
+    _cenereRAF = null;
+    carta.style.opacity = '0';
+    ctx.clearRect(0,0,W,H);
+    fine();
   };
   _cenereRAF = requestAnimationFrame(passo);
 }
@@ -12894,66 +12982,65 @@ function fermaCenere(){
 // ── L'USCITA, DOPO LA SCELTA ──────────────────────────────────────────────
 // Tempi in un posto solo. Ognuno e' il momento in cui comincia il pezzo
 // successivo, quindi leggerli in fila racconta la scena.
-const USCITA_BRUCIA_MS   = 560;   // quanto la carta scartata impiega ad annerire
-const USCITA_CENERE_MS   = 900;   // quando si sfarina (a nero raggiunto)
 const USCITA_CENTRO_MS   = 520;   // il viaggio verso il centro
 const USCITA_BATTITO_MS  = 420;   // il battito, sincronizzato col ding
+const USCITA_VOLO_MS     = 780;   // la salita, fino a fuori campo
+function _preparaUscita(c, versoIlCentro){
+  const da = _trasformazioneAttuale(c);
+  c.style.setProperty('--da-x', da.x.toFixed(1)+'px');
+  c.style.setProperty('--da-y', da.y.toFixed(1)+'px');
+  c.style.setProperty('--fin-x', versoIlCentro ? '0px' : da.x.toFixed(1)+'px');
+  // Il galleggiamento va tolto adesso: e' un'animazione infinita sullo stesso
+  // elemento, e resterebbe a contendersi la transform con le nostre.
+  c.classList.remove('floating','tenuta','scartata');
+}
 function uscitaDopoLaScelta(tenute, scartate){
-  // v0.75.25 — da qui alla fine la pagina e' occupata. Non era cosi': fra il
-  // click su Collect e il ritorno alla bustina passano piu' di due secondi, e
-  // in mezzo nulla impediva a un altro gesto di intromettersi. Il flag lo
-  // azzera tornaAllaBustina, che e' l'unica strada per uscire di qui.
+  // v0.75.25 — da qui alla fine la pagina e' occupata. Fra il click su Collect
+  // e il ritorno alla bustina passano diversi secondi, e in mezzo nulla
+  // impediva a un altro gesto di intromettersi. Il flag lo azzera
+  // tornaAllaBustina, che e' l'unica strada per uscire di qui.
   _bustinaInCorso = true;
-  const scena = document.getElementById('pack-stage');
-  // Il punto d'arrivo di ogni carta: al centro se e' rimasta sola, dov'e' se
-  // sono due. Si fissa PRIMA di ogni animazione, perche' tutte e tre le fasi
-  // lo leggono da --fin-x e devono leggere lo stesso numero.
-  const soloUna = tenute.length === 1;
-  for(const c of tenute){
-    const da = _trasformazioneAttuale(c);
-    c.style.setProperty('--da-x', da.x.toFixed(1)+'px');
-    c.style.setProperty('--da-y', da.y.toFixed(1)+'px');
-    c.style.setProperty('--fin-x', soloUna ? '0px' : da.x.toFixed(1)+'px');
-    // Il galleggiamento va tolto adesso: e' un'animazione infinita sullo
-    // stesso elemento, e resterebbe a contendersi la transform con le nostre.
-    c.classList.remove('floating','tenuta','scartata');
-  }
 
-  // 1) La scartata brucia e si sfarina.
-  for(const c of scartate){
-    c.classList.remove('floating','tenuta','scartata');
-    c.classList.add('brucia');
-    _bustinaDopo(USCITA_CENERE_MS, ()=>cenereDaCarta(c));
-  }
+  // v0.75.26 — LA SCENA E' UNA SOLA, E SI FA UN TURNO PER UNO.
+  // Quando si scarta una carta, il centro se lo prende PRIMA lei: ci va,
+  // brucia, si sgretola. Solo a cenere finita entra la carta tenuta.
+  // Prima le due cose si sovrapponevano e il centro se lo contendevano.
+  const soloUna = tenute.length === 1 && scartate.length > 0;
 
-  // 2) La tenuta va al centro, ma solo se e' rimasta sola.
-  const primaDelBattito = soloUna ? (USCITA_BRUCIA_MS + USCITA_CENTRO_MS) : 120;
-  if(soloUna){
-    _bustinaDopo(USCITA_BRUCIA_MS, ()=>{
-      for(const c of tenute) c.classList.add('al-centro');
-    });
-  }
-
-  // 3) Il battito, col "ding" nello stesso istante.
-  _bustinaDopo(primaDelBattito, ()=>{
+  // Il finale e' lo stesso in tutti i casi: battito, suono, volo.
+  const finale = ()=>{
     for(const c of tenute){ c.classList.remove('al-centro'); c.classList.add('batte'); }
     try { playSfxFile('card-ding.mp3'); } catch(_){}
-  });
+    _bustinaDopo(USCITA_BATTITO_MS, ()=>{
+      for(const c of tenute){ c.classList.remove('batte'); c.classList.add('vola-su'); }
+      try { playSfxFile('card-fly.mp3'); } catch(_){}
+      _bustinaDopo(USCITA_VOLO_MS + 120, ()=>{ fermaCenere(); tornaAllaBustina(); });
+    });
+  };
 
-  // 4) E via verso l'alto, col volo.
-  _bustinaDopo(primaDelBattito + USCITA_BATTITO_MS, ()=>{
-    for(const c of tenute){ c.classList.remove('batte'); c.classList.add('vola-su'); }
-    try { playSfxFile('card-fly.mp3'); } catch(_){}
-  });
+  if(!soloUna){
+    // Due carte tenute (o nessuna scartata): restano dove sono e volano via
+    // insieme. Niente centro: sono due, e il centro e' uno.
+    for(const c of tenute) _preparaUscita(c, false);
+    _bustinaDopo(120, finale);
+    return;
+  }
 
-  // 5) A scena vuota si ricomincia. Si aspetta il piu' lungo dei due rami:
-  //    la cenere finisce dopo il volo quando le carte sono due, prima quando
-  //    e' una sola — quindi si prende il massimo invece di scegliere a mano.
-  const fineVolo = primaDelBattito + USCITA_BATTITO_MS + 780;
-  const fineCenere = scartate.length ? (USCITA_CENERE_MS + CENERE_DURATA_MS) : 0;
-  _bustinaDopo(Math.max(fineVolo, fineCenere) + 120, ()=>{
-    fermaCenere();
-    tornaAllaBustina();
+  // Una sola tenuta: prima tocca a quella che se ne va.
+  const daBruciare = scartate[0];
+  for(const c of scartate) _preparaUscita(c, true);
+  for(const c of tenute)   _preparaUscita(c, true);
+  // Le carte da scartare oltre la prima (oggi non capita, ma la regola deve
+  // reggere anche a tre) si spengono e basta: il centro e' per una sola.
+  for(let k=1;k<scartate.length;k++) scartate[k].style.opacity = '0';
+
+  scartate[0].classList.add('al-centro');
+  _bustinaDopo(USCITA_CENTRO_MS, ()=>{
+    incenerisciCarta(daBruciare, ()=>{
+      // Cenere finita: adesso il centro e' libero.
+      for(const c of tenute) c.classList.add('al-centro');
+      _bustinaDopo(USCITA_CENTRO_MS, finale);
+    });
   });
 }
 
