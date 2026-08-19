@@ -3851,6 +3851,25 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
    restare insieme nella stessa cella, altrimenti il pannello si aprirebbe
    sotto la voce sbagliata. */
 .debug-item{ display:flex; flex-direction:column; min-width:0; }
+/* ── v0.75.3 — PROVA A/B SULLA SFOCATURA ───────────────────────────────────
+   Acceso dal menu di debug (vedi provaWillChange). Rimette la promozione a
+   livello di composizione sulle carte, nei punti da cui era stata tolta.
+   Perche' sfochi, in una riga: un elemento promosso viene disegnato UNA volta
+   alla risoluzione che ha in quel momento e poi RICAMPIONATO per ogni scala
+   applicata sopra — e sopra c'e' sempre quella di #game-root, che adatta la
+   pagina allo schermo e su un monitor grande e' ben oltre 1x.
+   Se accendendolo la sfocatura PEGGIORA, la causa e' questa e la cura e'
+   tenerlo spento. Se non cambia niente, la causa e' altrove: il primo
+   sospetto sono i livelli con `filter` (lo speculare porta un
+   brightness(1.35)), che dalla v0.75.1 sono accesi su ogni carta invece che
+   su una sola alla volta. */
+body.prova-willchange .card-db-foil-tilt,
+body.prova-willchange .card-db-card-slot,
+body.prova-willchange .hand-card-wrap,
+body.prova-willchange #card-modal-card,
+body.prova-willchange .pack-card{
+  will-change:transform;
+}
 /* I pannelli a tendina erano dimensionati sui 460px di prima; dentro una
    colonna da un terzo devono stare nella cella e non sbordare. */
 .debug-item > div[id]{ min-width:0; }
@@ -6640,7 +6659,7 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.2</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.3</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -6781,7 +6800,18 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
 <div id="debug-modal-overlay" onclick="if(event.target===this) closeDebugModal();">
   <div id="debug-modal"><button id="debug-modal-close" aria-label="Chiudi" onclick="closeDebugModal()"><img src="https://thetrickmaster.github.io/hextale/player-ui/close-icon.png" alt="" draggable="false"></button><h2>Debug menu</h2><div id="debug-grid"><div class="debug-item"><button class="start-art-btn sab-primary" onclick="closeDebugModal();requestNewGame(true)">
       <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Start match vs AI</span>
-    </button></div><div class="debug-item"><!-- v0.71.58 REWORK ("raggruppiamo tutto sotto un unico pulsante: Mostra
+    </button></div><div class="debug-item"><!-- v0.75.3 — PROVA A/B SULLA SFOCATURA.
+         Rimette `will-change:transform` sulle carte, che e' esattamente cio'
+         che e' stato tolto due volte da questo file (v0.72.30 in Collezione,
+         v0.73.32 sulle bustine) proprio PERCHE' sfocava. Sta qui e non nel
+         CSS vero perche' la domanda e' "cambia qualcosa?", e a quella
+         domanda si risponde solo potendo accendere e spegnere a schermo,
+         sulla stessa carta, senza cambiare versione.
+         L'etichetta dice cosa e' acceso: leggerlo dal pulsante evita di
+         doversi ricordare in che stato si e' lasciato il gioco. -->
+      <button class="start-art-btn sab-secondary" id="btn-prova-willchange" onclick="provaWillChange()">
+        <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label" id="prova-willchange-label">Blur test: will-change OFF</span>
+      </button></div><div class="debug-item"><!-- v0.71.58 REWORK ("raggruppiamo tutto sotto un unico pulsante: Mostra
          asset... apre un menu a tendina con listati tutti gli asset collegati
          ai pulsanti esistenti"): the 5 separate "show this specific
          asset/banner on demand" debug shortcuts (3 game-over variants + AI
@@ -13565,6 +13595,20 @@ function debugShowTurnBannerLight(){
 // list — each entry's `run` is just a thin reference to the EXACT SAME
 // function its old standalone button used to call directly, so the actual
 // show-this-asset behavior is completely unchanged, only how it's reached.
+// ── v0.75.3 — PROVA A/B SULLA SFOCATURA ───────────────────────────────────
+// Accende e spegne `will-change:transform` sulle carte (vedi il blocco CSS
+// .prova-willchange). Non chiude il menu: il senso e' accendere, guardare,
+// spegnere, riguardare — e chiudere la finestra a ogni giro renderebbe il
+// confronto piu' difficile proprio nel momento in cui serve essere precisi.
+// Non viene ricordato fra una sessione e l'altra di proposito: e' una prova,
+// non un'impostazione, e ritrovarla accesa domani senza saperlo sarebbe il
+// modo migliore per dare la colpa della sfocatura a qualcos'altro.
+function provaWillChange(){
+  const acceso = document.body.classList.toggle('prova-willchange');
+  const et = document.getElementById('prova-willchange-label');
+  if(et) et.textContent = 'Blur test: will-change ' + (acceso ? 'ON' : 'OFF');
+  console.info('[prova sfocatura] will-change:transform sulle carte: ' + (acceso ? 'ACCESO' : 'spento'));
+}
 const DEBUG_ASSET_OPTIONS = [
   { label:'Game over — Dark wins',  run:()=>debugShowGameOver('dark') },
   { label:'Game over — Light wins', run:()=>debugShowGameOver('light') },
