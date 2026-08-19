@@ -7191,7 +7191,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.39</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.40</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -17394,6 +17394,12 @@ const TILE_ABILITIES_DEF = {
   // rinuncia. A differenza dello scarto della Sirenetta questo e' un premio,
   // non un costo, e nessuno va costretto a incassarlo.
   kingslayer: { name:'Kingslayer', desc:'When *Played*, can *Destroy* an adjacent /Sovereign/ or /Noble/.' },
+  // v0.75.40 — NOTTINGHAM SHERIFF. Parente stretta di "Spitting Image", e la
+  // differenza sta in una parola: lo specchio COPIA, lo sceriffo RUBA. Dopo il
+  // suo passaggio il derubato non ha piu' l'abilita' — e' quello che rende
+  // questa carta un furto e non un'imitazione, ed e' l'unico punto del gioco in
+  // cui una carta gia' in campo PERDE cio' che sa fare.
+  new_tax: { name:'New Tax', desc:'When *Played*, *Steals* the ability of an adjacent card.' },
   // v0.73.5 — Hatter. Non fa niente finche' resta suo; se lo conquista
   // l'avversario impazzisce (vedi impazzisciSeConquistato).
   have_i_gone_mad:   { name:'Have I Gone Mad?',   desc:'On conquer: goes mad, its power becomes a random value (1-3).' },
@@ -20033,6 +20039,22 @@ const SCELTE_PIAZZAMENTO = {
     };
     return stato;
   },
+  // ── v0.75.40 — NOTTINGHAM SHERIFF, "New Tax" ────────────────────────────
+  // Stessa finestra dello specchio, stesso mirino, stessa X per rinunciare.
+  // Cambia cosa succede scegliendo: l'abilita' passa di mano invece di essere
+  // duplicata.
+  new_tax: (card, q, r, giocatore) => {
+    const bersagli = bersagliNewTax(q, r);
+    if(!bersagli.length) return null; // niente da rubare: si tira dritto
+    return {
+      chiave: 'new_tax',
+      giocatore,
+      cellaOrigine: key(q,r),
+      bersagli,
+      applica: (cella) => rubaAbilitaDa(card, cella, q, r),
+      rinuncia: () => {},
+    };
+  },
   // ── v0.75.39 — MORDRED, "Kingslayer" ────────────────────────────────────
   // Chiede quale /Sovereign/ o /Noble/ adiacente distruggere. E' la piu'
   // semplice delle scelte sul tabellone — bersagli, un click, fatto — e non ha
@@ -20725,10 +20747,21 @@ function copiaAbilitaDa(specchio, cellaBersaglio, q, r){
   if(bersaglio.card.eSpecchio || bersaglio.card.cardAbility === 'magic_mirror') return;
   const copiata = abilitaAttivaDi(bersaglio.card);
   if(!copiata || copiata === 'magic_mirror' || SCELTE_PIAZZAMENTO[copiata]) return;
-  specchio.cardAbility = copiata;
-  specchio.activatedTileAbility = copiata;
-  specchio.abilityLocked = false;
   specchio.abilitaCopiataDa = bersaglio.card.name || cellaBersaglio;
+  _prendiAbilita(bersaglio.card, specchio, copiata);
+  applicaAbilitaPiazzamento(specchio, q, r, copiata);
+  applicaEffettiRealiPiazzamento(specchio, q, r, copiata);
+}
+// v0.75.40 — IL PASSAGGIO DI UN'ABILITA' DA UNA CARTA A UN'ALTRA.
+// Estratto da copiaAbilitaDa quando e' arrivato lo sceriffo, che fa la stessa
+// identica cosa piu' una: toglierla al derubato. Le due carte devono restare
+// d'accordo su COSA vuol dire prendere un'abilita' — sono sette campi, e
+// sette campi ricopiati a mano in due posti sono sette occasioni di
+// dimenticarne uno nel posto nuovo.
+function _prendiAbilita(donatore, ricevente, chiave){
+  ricevente.cardAbility = chiave;
+  ricevente.activatedTileAbility = chiave;
+  ricevente.abilityLocked = false;
   // v0.73.18 — insieme all'abilita' si prende anche il suo TESTO.
   // Chi disegna una carta preferisce sempre il nome e la descrizione scritti
   // nel foglio (vedi testiAbilitaDi: e' li' che il testo viene curato), e
@@ -20740,13 +20773,95 @@ function copiaAbilitaDa(specchio, cellaBersaglio, q, r){
   // disponibile. Se quella carta non ne aveva, le stringhe restano vuote e
   // subentra il testo del registro, che e' comunque quello dell'abilita'
   // giusta.
-  specchio.abilityNameSheet = bersaglio.card.abilityNameSheet || '';
-  specchio.abilityDescSheet = bersaglio.card.abilityDescSheet || '';
-  specchio.abilityTrigger   = bersaglio.card.abilityTrigger   || '';
-  specchio.abilityNoScript  = false;
-  if(!specchio.tileAbilityBaseValues) specchio.tileAbilityBaseValues = {...specchio.values};
-  applicaAbilitaPiazzamento(specchio, q, r, copiata);
-  applicaEffettiRealiPiazzamento(specchio, q, r, copiata);
+  ricevente.abilityNameSheet = donatore.abilityNameSheet || '';
+  ricevente.abilityDescSheet = donatore.abilityDescSheet || '';
+  ricevente.abilityTrigger   = donatore.abilityTrigger   || '';
+  ricevente.abilityNoScript  = false;
+  if(!ricevente.tileAbilityBaseValues) ricevente.tileAbilityBaseValues = {...ricevente.values};
+}
+// ── v0.75.40 — NOTTINGHAM SHERIFF, "New Tax" ──────────────────────────────
+// Chi si puo' derubare: i vicini che hanno un'abilita' che lo sceriffo possa
+// davvero usare.
+// I bersagli non guardano di CHI e' la carta. Uno sceriffo che tassa i propri
+// e' perfettamente in personaggio, e la scelta resta comunque di chi gioca.
+function bersagliNewTax(q, r){
+  const trovati = [];
+  const scartati = [];
+  for(const dir of DIRS){
+    const nk = key(q+dir.dq, r+dir.dr);
+    const vicino = G.board[nk];
+    if(!vicino || !vicino.card) continue;
+    const nome = vicino.card.name || nk;
+    const sua = abilitaAttivaDi(vicino.card);
+    if(!sua){
+      scartati.push(nome + (vicino.card.cardAbility ? ': abilita\' non ancora sbloccata dal livello' : ': non ha abilita\''));
+      continue;
+    }
+    if(vicino.card.abilityNoScript || !TILE_ABILITIES_DEF[sua]){
+      scartati.push(nome + ': l\'abilita\' "' + sua + '" non e\' ancora programmata');
+      continue;
+    }
+    // Le abilita' che aprono una finestra loro non si rubano. Rubarne una
+    // vorrebbe dire aprire una seconda scelta DENTRO a quella ancora in
+    // chiusura, e le scelte annidate sono la classe di problemi che in questo
+    // gioco e' costata piu' tempo. E' la stessa guardia che lo specchio ha
+    // dalla v0.73.11 (vedi copiaAbilitaDa), qui pero' applicata all'ELENCO e
+    // non al momento della copia: cosi' un bersaglio che non darebbe niente
+    // non viene nemmeno offerto, invece di essere offerto e non fare nulla.
+    // Ha un effetto collaterale utile: `new_tax` sta in quel registro, quindi
+    // uno sceriffo non deruba un altro sceriffo senza bisogno di dirlo.
+    if(SCELTE_PIAZZAMENTO[sua]){
+      scartati.push(nome + ': "' + sua + '" chiede un bersaglio a sua volta');
+      continue;
+    }
+    // Excalibur non si tassa. La sua abilita' e' proprio cio' che la protegge —
+    // "Cannot be Conquered, Moved, or Destroyed" — e portargliela via sarebbe
+    // il modo piu' rapido per ottenere le tre cose che vieta.
+    if(cartaIntoccabile(vicino.card)){
+      scartati.push(nome + ': e\' intoccabile');
+      continue;
+    }
+    trovati.push(nk);
+  }
+  if(!trovati.length){
+    console.info('[New Tax] nessuna abilita\' da rubare in ' + key(q,r) + '. Vicini esaminati: '
+      + (scartati.length ? scartati.join(' | ') : 'nessuna carta adiacente'));
+  }
+  return trovati;
+}
+// Il furto. Identico alla copia dello specchio tranne per la riga che conta:
+// al derubato l'abilita' viene TOLTA.
+function rubaAbilitaDa(sceriffo, cellaBersaglio, q, r){
+  const bersaglio = G.board[cellaBersaglio];
+  if(!bersaglio || !bersaglio.card) return;
+  const rubata = abilitaAttivaDi(bersaglio.card);
+  if(!rubata || SCELTE_PIAZZAMENTO[rubata]) return;
+  if(cartaIntoccabile(bersaglio.card)) return;
+  sceriffo.abilitaRubataA = bersaglio.card.name || cellaBersaglio;
+  _prendiAbilita(bersaglio.card, sceriffo, rubata);
+  _togliAbilita(bersaglio.card);
+  // Si usa subito, come fa lo specchio: le abilita' che agiscono al
+  // piazzamento devono agire ORA, o lo sceriffo si ritroverebbe in mano una
+  // cosa che non fara' mai niente.
+  applicaAbilitaPiazzamento(sceriffo, q, r, rubata);
+  applicaEffettiRealiPiazzamento(sceriffo, q, r, rubata);
+  renderBoard();
+}
+// La carta derubata resta in campo, coi suoi valori, ma senza piu' niente da
+// fare. Si azzerano anche i TESTI e non solo la chiave: lasciandoli, la carta
+// continuerebbe a raccontare al passaggio del mouse un'abilita' che non ha
+// piu' — lo stesso difetto che v0.73.18 aveva corretto sullo specchio, visto
+// dall'altra parte.
+function _togliAbilita(card){
+  if(!card) return;
+  card.cardAbility = '';
+  card.activatedTileAbility = null;
+  card.abilityNameSheet = '';
+  card.abilityDescSheet = '';
+  card.abilityTrigger = '';
+  card.abilityNoScript = false;
+  card.abilityLocked = false;
+  card.abilitaRubataVia = true;
 }
 
 // Apre la finestra, se questa abilita' ne ha una e se ci sono bersagli.
@@ -23792,6 +23907,23 @@ VALUTAZIONI_IA.open_celery = (scelta) => {
 // sembrerebbe soltanto un errore.
 // Se accanto ci sono solo carte sue, restituisce null — che qui vuol dire
 // "rinuncio", ed e' una scelta legittima perche' l'abilita' e' facoltativa.
+// v0.75.40 — a chi ruba l'abilita' l'IA: al vicino AVVERSARIO piu' forte.
+// Stesso ragionamento di Mordred: derubare un proprio alleato sposta
+// l'abilita' da una sua carta all'altra e in cambio scopre il fianco che
+// quell'alleato copriva — un pareggio nella migliore delle ipotesi. Se accanto
+// ci sono solo carte sue, lascia perdere.
+VALUTAZIONI_IA.new_tax = (scelta) => {
+  let migliore = null, massimo = -Infinity;
+  for(const cella of scelta.bersagli){
+    const posto = G.board[cella];
+    if(!posto || !posto.card) continue;
+    if(posto.owner === scelta.giocatore) continue;
+    let forza = 0;
+    try { forza = cardPower(posto.card); } catch(_){ forza = 0; }
+    if(forza > massimo){ massimo = forza; migliore = cella; }
+  }
+  return migliore;
+};
 VALUTAZIONI_IA.kingslayer = (scelta) => {
   let migliore = null, massimo = -Infinity;
   for(const cella of scelta.bersagli){
