@@ -1865,6 +1865,23 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
    coordinate da tenere allineato.
    pointer-events:auto perche' il wrap e' pointer-events:none di base (vedi la
    sua regola): senza, la croce si vedrebbe e non si potrebbe cliccare. */
+/* v0.75.38 — la carta scartata che se ne va dal basso. `position:fixed` la
+   toglie dal ventaglio, che viene svuotato e ricostruito subito dopo: qui
+   nessuno la tocca piu' e il volo puo' finire con calma mentre il turno
+   prosegue. Dentro a #game-root un elemento fisso si posiziona nel mondo
+   disegnato 1920x1080, quindi left/top sono gia' nelle unita' giuste.
+   La distanza la decide chi la fa partire (--giu), perche' dipende da quanto
+   in alto si trovava la carta. */
+.carta-scarto-volo{
+  position:fixed;
+  z-index:520;
+  pointer-events:none;
+  animation:scartoVia var(--durata,620ms) cubic-bezier(.35,0,.85,.45) forwards;
+}
+@keyframes scartoVia{
+  0%   { transform:translateY(0); }
+  100% { transform:translateY(var(--giu,700px)); }
+}
 .scarta-croce{
   position:absolute; left:50%; top:50%;
   width:74px; height:74px; margin:-37px 0 0 -37px;
@@ -7151,7 +7168,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.37</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.38</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -20057,12 +20074,89 @@ function manoDi(giocatore){
 // riassegna: G.p1Hand e G.p2Hand sono referenziati altrove (l'anteprima, la
 // firma del ventaglio, le abilita' che ruotano i valori delle carte in mano),
 // e sostituire l'array lascerebbe quei riferimenti puntati a quello vecchio.
+// v0.75.38 — LA CARTA SCARTATA ESCE DALLO SCHERMO DAL BASSO.
+// Prima spariva e basta, nell'istante in cui il ventaglio si ridisegnava.
+//
+// PERCHE' UNA COPIA E NON LA CARTA VERA. Quella vera vive dentro al ventaglio,
+// che renderHand svuota e ricostruisce da capo a ogni disegno — e un disegno
+// arriva subito, perche' la mano e' cambiata. Animare l'originale vorrebbe
+// dire vedere il volo interrotto dopo due fotogrammi. La copia invece e'
+// `position:fixed` fuori dal ventaglio: nessuno la ricostruisce, e il turno
+// puo' proseguire mentre lei scende.
+// Si copia il nodo COSI' COM'E' invece di ridisegnare la carta: dentro al wrap
+// convivono il fronte e il dorso, accesi a vicenda da `display` (vedi
+// renderHand), quindi copiare quel che c'e' fa volare via esattamente cio' che
+// si stava guardando. Vale per la mano coperta dell'IA senza una sola riga in
+// piu': se a schermo c'era un dorso, vola via un dorso — e senza questo la
+// copia avrebbe scoperto le carte dell'avversario.
+const SCARTO_VOLO_MS = 620;
+function _volaViaDallaMano(carta){
+  if(!carta || typeof document === 'undefined') return;
+  let wrap = null;
+  for(const el of document.querySelectorAll('.hand-card-wrap')){
+    if(el.dataset && el.dataset.carta === carta.id){ wrap = el; break; }
+  }
+  if(!wrap) return; // non era a schermo: non c'e' niente da far volare
+  let r = null;
+  try { r = authoredRect(wrap); } catch(_){ return; }
+  if(!r || !r.width) return;
+  // La misura del volo e' quella NON trasformata (offsetWidth), non quella del
+  // riquadro a schermo: il riquadro di una carta inclinata e' piu' grande della
+  // carta, e usarlo la farebbe partire leggermente ingrandita.
+  const w = wrap.offsetWidth || r.width;
+  const h = wrap.offsetHeight || r.height;
+  const radice = document.getElementById('game-root') || document.body;
+  const volo = document.createElement('div');
+  volo.className = 'carta-scarto-volo';
+  volo.style.left = (r.left + r.width/2 - w/2) + 'px';
+  volo.style.top  = (r.top  + r.height/2 - h/2) + 'px';
+  volo.style.width = w + 'px';
+  volo.style.height = h + 'px';
+  // Quanto scendere: fino a superare il bordo basso del mondo disegnato (1080)
+  // partendo da dove si trova adesso, piu' un margine. Calcolato e non fisso
+  // perche' le due mani stanno ad altezze diverse e una distanza sola le
+  // servirebbe entrambe male.
+  volo.style.setProperty('--giu', (1080 - r.top + 120) + 'px');
+  // La durata e' scritta una volta sola in JS e passata al CSS: e' lo stesso
+  // numero che decide quando la copia viene tolta dal documento, e due numeri
+  // separati vorrebbero dire una copia rimossa a volo ancora in corso.
+  volo.style.setProperty('--durata', SCARTO_VOLO_MS + 'ms');
+  const copia = wrap.cloneNode(true);
+  const croce = copia.querySelector('.scarta-croce');
+  if(croce) croce.remove();
+  // Della trasformazione del wrap si tiene SOLO la rotazione. Dentro c'e'
+  // anche lo scostamento che mette la carta al suo posto nel ventaglio, e
+  // riapplicarlo qui la sposterebbe una seconda volta: il posto glielo sta
+  // gia' dando il riquadro qui sopra.
+  let angolo = 0;
+  try {
+    const t = getComputedStyle(wrap).transform;
+    if(t && t !== 'none'){
+      const m = new DOMMatrixReadOnly(t);
+      angolo = Math.atan2(m.b, m.a) * 180 / Math.PI;
+    }
+  } catch(_){}
+  copia.style.cssText = '';
+  copia.style.position = 'absolute';
+  copia.style.left = '0'; copia.style.top = '0';
+  copia.style.width = w + 'px'; copia.style.height = h + 'px';
+  copia.style.margin = '0';
+  copia.style.transform = 'rotate(' + angolo.toFixed(2) + 'deg)';
+  copia.style.transition = 'none';
+  copia.style.animation = 'none';
+  volo.appendChild(copia);
+  radice.appendChild(volo);
+  setTimeout(()=>{ try { volo.remove(); } catch(_){} }, SCARTO_VOLO_MS + 200);
+}
 function scartaCartaDallaMano(giocatore, id){
   if(!id) return null;
   const mano = manoDi(giocatore);
   const i = mano.findIndex(c => c && c.id === id);
   if(i < 0) return null;
   const [tolta] = mano.splice(i, 1);
+  // Il volo si prepara PRIMA del disegno, finche' la carta e' ancora nel
+  // ventaglio: e' da li' che si leggono la sua posizione e il suo aspetto.
+  try { _volaViaDallaMano(tolta); } catch(_){}
   // Il ventaglio si ridisegna da solo alla prossima firma diversa, e la firma
   // cambia perche' la mano ha una carta in meno.
   try { render(); } catch(_){}
@@ -28067,6 +28161,10 @@ function renderHand(containerId,hand,playerIdx){
     // yet marked settled (i.e. still legitimately mid-cascade, or the very
     // first render of a new turn) goes through the deferred-rAF path below.
     const alreadySettled = glowOnNow && cardsGlowSettled.has(card.id);
+    // v0.75.38 — l'id della carta scritto sull'elemento: e' cosi' che lo
+    // scarto ritrova a schermo la carta che sta togliendo dalla mano, senza
+    // dover contare gli indici del ventaglio (che cambiano mentre si trascina).
+    wrap.dataset.carta = card.id || '';
     wrap.className='hand-card-wrap'
       +(isSelected?' selected':'')
       +(isBeingDragged?' dragging':'')
@@ -28509,7 +28607,17 @@ function renderHand(containerId,hand,playerIdx){
     // all — it keeps the tap-to-pin showHandHoverPreview() clone path,
     // wired separately via openPersistentHandPreview()/pointerdown below,
     // completely unchanged).
-    if(!isCovered && !isBeingDragged && !isTouchDevice){
+    // v0.75.38 — e nemmeno il sollevamento all'hover, mentre si sceglie cosa
+    // scartare. Non e' una rifinitura: era un RIMBALZO infinito. La croce sta
+    // sopra alla zona sensibile, quindi passandoci sopra il puntatore ESCE
+    // dalla zona, la carta si riabbassa, la croce scende con lei, il puntatore
+    // si ritrova di nuovo sulla zona, la carta si rialza — decine di volte al
+    // secondo, e la croce diventa quasi impossibile da cliccare.
+    // Si poteva allargare la zona sensibile fino a coprire la croce, ma
+    // sarebbe rimasta una rincorsa fra due elementi che si spostano a vicenda.
+    // Ferma la carta, il problema non esiste: e mentre si sceglie cosa buttare
+    // il ventaglio deve stare fermo comunque.
+    if(!isCovered && !isBeingDragged && !isTouchDevice && !sceltaScarto){
       hitzone.addEventListener('mouseenter',()=>{
         // v0.72.17: nella mano ESPANSA la carta non si alza piu' (richiesta
         // esplicita) ma si comporta come in Collezione — si ingrandisce e si
