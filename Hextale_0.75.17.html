@@ -4142,17 +4142,30 @@ body.prova-senza-willchange #mm-book-rot{
   transform-origin:center center;
   mix-blend-mode:plus-lighter;
   pointer-events:none; user-select:none; -webkit-user-drag:none;
-  opacity:0.85;
   z-index:0;
   /* Lo spegnimento quando escono le carte: vedi .raggiere-via. Un secondo e
      mezzo, perche' deve accompagnare l'uscita delle carte e non tagliarla. */
   transition:opacity 1.5s ease-out;
+  /* v0.75.17 — di partenza NON CI SONO. La luce e' quello che promette una
+     bustina da aprire: accesa mentre il conto alla rovescia scorre direbbe una
+     cosa falsa. `display:none` e non solo opacity:0, cosi' non restano nemmeno
+     due immagini a girare a vuoto per ore. */
+  display:none;
+  opacity:0;
 }
 #pack-radial-a{ animation:mmRuotaOraria 140s linear infinite; }
 #pack-radial-b{ animation:mmRuotaAntioraria 190s linear infinite; }
+/* Ci sono solo quando c'e' davvero una bustina da aprire. La classe la mette
+   _aggiornaStatoBustina, cioe' lo stesso punto che decide se la busta e'
+   "ready" o "locked": una fonte sola per un fatto solo. */
+#pack-overlay.bustina-pronta .pack-radial{ display:block; opacity:0.85; }
 /* Quando le carte escono dal raggio, la scena e' loro: le raggiere si
    spengono e lasciano il campo. La classe la mette la sequenza di apertura
-   (vedi apriBustina) e la toglie chi rimette la bustina a posto. */
+   (vedi apriBustina) e la toglie chi rimette la bustina a posto.
+   Sta DOPO la regola qui sopra di proposito: stessa forza, quindi decide
+   l'ordine, e in questa scena "escono le carte" deve battere "c'e' una
+   bustina pronta". `display` resta block, altrimenti non ci sarebbe niente da
+   dissolvere. */
 #pack-overlay.raggiere-via .pack-radial{ opacity:0; }
 
 /* ── v0.75.12 — LA POLVERE AI LATI DELLA SCHERMATA BUSTINE ─────────────────
@@ -6821,7 +6834,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.16</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.17</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -11508,17 +11521,25 @@ function _aggiornaStatoBustina(){
   const img = document.getElementById('pack-closed-img');
   if(img && !img.getAttribute('src')) impostaImmagineBustina('closed');
   if(_bustinaInCorso || _bustinaDaGirare > 0 || document.querySelector('.pack-card')) return;
+  // v0.75.17 — le raggiere seguono lo stesso stato della busta, deciso qui e
+  // in nessun altro posto: sono la promessa di una bustina da aprire, e senza
+  // bustina non hanno niente da promettere.
+  const scena = document.getElementById('pack-overlay');
+  const raggiere = (pronta)=>{ if(scena) scena.classList.toggle('bustina-pronta', !!pronta); };
   if(!(FINAL_CARDS||[]).length){
     stato.textContent = 'No cards loaded from the sheet: there is nothing to put in a pack.';
     chiusa.classList.remove('ready'); chiusa.classList.add('locked');
+    raggiere(false);
     return;
   }
   if(bustinaDisponibile()){
     stato.textContent = 'You have a pack ready. Tap it to open.';
     chiusa.classList.add('ready'); chiusa.classList.remove('locked');
+    raggiere(true);
   } else {
     stato.textContent = 'Next pack in ' + _bustinaTempoRimasto() + '.';
     chiusa.classList.remove('ready'); chiusa.classList.add('locked');
+    raggiere(false);
   }
 }
 
