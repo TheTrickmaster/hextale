@@ -1898,6 +1898,21 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
 .hand-card-full-svg{
   position:absolute; inset:0; width:100%; height:100%;
   display:block; pointer-events:none; user-select:none;
+  /* v0.75.9 — vedi la regola di accensione qui sotto. */
+  transition:filter .18s ease-out;
+}
+/* ── v0.75.9 — LA CARTA IN MANO SI ACCENDE AL PASSAGGIO DEL MOUSE ──────────
+   Vale in tutte e due le visuali, ventaglio e mano espansa. L'aggancio e'
+   [data-foil-active], che il gestore di hover mette sul wrap in ENTRAMBI i
+   casi (cambia cosa fa la carta — salire o restare ferma — non se reagisce
+   alla luce), quindi non serve una seconda regola per la mano espansa.
+   Il filtro sta sull'SVG e non sul wrap di proposito: sul wrap avrebbe
+   schiarito anche l'alone che le sta dietro, e un alone che si accende
+   insieme alla carta legge come un cambio di illuminazione della scena
+   invece che come "questa carta e' quella che stai indicando".
+   Leggera per davvero: e' un segnale di puntamento, non un effetto. */
+.hand-card-wrap[data-foil-active="1"] .hand-card-full-svg{
+  filter:brightness(1.12);
 }
 /* ── v0.75.7 — VIA IL SUPERCAMPIONAMENTO, E PERCHE' NON POTEVA FUNZIONARE ──
    Qui la v0.75.5 rendeva la carta grande il doppio in pixel CSS per poi
@@ -6745,7 +6760,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.8</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.9</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -25584,7 +25599,8 @@ function buildFullHandCardSVG(card, boxW, boxH, preview){
   // boxW/210 restano 2px veri anche sulla carta ingrandita: senza, le linee
   // si assottiglierebbero man mano che la carta cresce, perche' lo spessore
   // e' in unita' del viewBox e il viewBox cresce con lei.
-  const VV_LINE_WIDTH = Math.max(0.5, 0.6*vvHexScale) + 2*(boxW/210);
+  // v0.75.9 — un pixel in meno: i due erano troppi una volta viste a schermo.
+  const VV_LINE_WIDTH = Math.max(0.5, 0.6*vvHexScale) + 1*(boxW/210);
   if(vvGroups.length>1){
     for(const g of vvGroups){
       const lastSide=g.sides[g.sides.length-1];
@@ -26811,8 +26827,13 @@ function renderHand(containerId,hand,playerIdx){
         // sollevamento resta: li' serve a portare in vista una carta che
         // sporge sotto il bordo della viewport, problema che nella mano
         // espansa non esiste perche' le carte sono gia' tutte visibili.
+        // v0.75.9 — nella mano espansa la carta NON si ingrandisce piu': si
+        // inclina e basta. L'ingrandimento era l'ultimo punto in cui una carta
+        // gia' portata a 1.5x veniva tirata ancora, ed e' proprio il tirare
+        // che la sgranava. Lo z-index resta: serve a portarla davanti alle
+        // vicine, e non costa nessun ricampionamento.
         if(handExpandState[player]){
-          wrap.style.transform = `${restTransform} scale(${CARD_DB_HOVER_SCALE})`;
+          wrap.style.transform = restTransform;
           wrap.style.zIndex = '100';
         } else {
           liftHandCardIntoView(wrap, restTransform);
