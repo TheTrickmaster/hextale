@@ -6789,7 +6789,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.14</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.15</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -7864,9 +7864,42 @@ if(document.readyState==='loading'){
       ? caricaCarteDalFoglio() : Promise.resolve(false);
     carteProntePer
       .then(()=> (typeof registraSuoniExtra === 'function') ? registraSuoniExtra() : null)
-      .then(()=> (typeof verificaArtCarte === 'function') ? verificaArtCarte() : null)
+      // v0.75.15 — la verifica dell'arte adesso RIFERISCE quanto e' avanti, e
+      // la barra la mostra (vedi PESO_SONDE). Prima questa fase era muta: la
+      // barra restava ferma per tutta la sua durata e poi si riempiva di colpo
+      // nella fase dopo, che e' corta. Con la coda della v0.75.11 la fase muta
+      // e' diventata la piu' lunga delle due, e il difetto si e' visto.
+      .then(()=> (typeof verificaArtCarte === 'function')
+        ? verificaArtCarte(_avanzamentoSonde) : null)
       .then(()=> (typeof verificaIconeArchetipi === 'function') ? verificaIconeArchetipi() : null)
       .then(_proseguiCaricamento, _proseguiCaricamento);
+  }
+
+  // ── v0.75.15 — LA BARRA COPRE TUTTE E DUE LE FASI ─────────────────────────
+  // Il caricamento e' fatto di due parti: prima si scopre QUALI illustrazioni
+  // esistono (verificaArtCarte), poi si scaricano gli asset veri
+  // (_proseguiCaricamento). La barra raccontava solo la seconda.
+  // Le due parti non si possono contare insieme in un totale unico, perche' il
+  // numero di asset della seconda si sa solo quando la prima ha finito — sono
+  // le sue risposte a decidere quali URL esistono. Si spartisce quindi la
+  // barra in due tratti a peso fisso: la verifica riempie il primo, il
+  // caricamento il secondo.
+  // Meta' e meta'. Non e' una misura, e' una scelta: le due fasi non sono
+  // confrontabili in anticipo (la seconda non sa quanti asset avra' finche' la
+  // prima non ha risposto), quindi un peso esatto non esiste. Cio' che conta
+  // e' che NESSUNA delle due sia muta — era quello il difetto — e mezza barra
+  // a ciascuna non fa strisciare ne' schizzare nessuna delle due ora che le
+  // sonde sono tornate rapide (vedi _livelliDiVariante e _sondaConRitentativo).
+  const PESO_SONDE = 0.5;
+  // La barra lavora in (fatti, totale): qui si passa una frazione, quindi si
+  // usa un totale finto in millesimi. Cosi' non serve toccare
+  // updateStartLoadingBar, che e' anche animata e va bene com'e'.
+  function _barraAFrazione(f){
+    const q = Math.max(0, Math.min(1, f));
+    if(typeof updateStartLoadingBar === 'function') updateStartLoadingBar(Math.round(q*1000), 1000);
+  }
+  function _avanzamentoSonde(fatte, totale){
+    _barraAFrazione(totale>0 ? (fatte/totale)*PESO_SONDE : PESO_SONDE);
   }
   function _proseguiCaricamento(){
     const urls = discoverAssetUrls();
@@ -7877,13 +7910,17 @@ if(document.readyState==='loading'){
       if(hiddenImagesDecoded && fetchesDone) hideLoadingBarThenRevealRest();
     }
     decodeHiddenGameImages().then(()=>{ hiddenImagesDecoded=true; maybeReveal(); });
-    if(total===0){ updateStartLoadingBar(0,0); fetchesDone=true; maybeReveal(); return; }
+    // v0.75.15 — questa e' la SECONDA meta' della barra: parte da dove la
+    // verifica dell'arte l'ha lasciata (PESO_SONDE) e arriva a uno, invece di
+    // ricominciare da zero e far tornare indietro il riempimento.
+    const _barraAsset = (f)=> _barraAFrazione(PESO_SONDE + (1-PESO_SONDE)*f);
+    if(total===0){ _barraAsset(1); fetchesDone=true; maybeReveal(); return; }
     let done = 0;
-    updateStartLoadingBar(0, total);
+    _barraAsset(0);
     urls.forEach(url=>{
       preloadOne(url).then(()=>{
         done++;
-        updateStartLoadingBar(done, total);
+        _barraAsset(done/total);
         if(done>=total){ fetchesDone=true; maybeReveal(); }
       });
     });
@@ -10699,10 +10736,19 @@ function _accodaSonda(lavoro){
 // disegnava il segnaposto.
 // Un fallimento vero costa una richiesta in piu' e mezzo secondo; un
 // fallimento finto viene recuperato. Lo scambio conviene.
-const SONDA_PAUSA_MS = 400;
+// v0.75.15 — IL RITENTATIVO NON DEVE COSTARE TEMPO A CHI NON C'E'.
+// La prima versione aspettava 400ms fra i due colpi, TENENDO OCCUPATO il posto
+// in coda. Sembrava prudente e invece era rovinoso: quasi tutte le sonde
+// riguardano file che davvero non esistono, e pagare 400ms per ognuno voleva
+// dire decine di secondi di sole pause — abbastanza da far scadere l'intera
+// verifica e lasciare le carte senza illustrazione, cioe' esattamente il
+// difetto che quel ritentativo doveva togliere.
+// Adesso il secondo colpo parte subito e il posto si libera comunque: a
+// distanziare le richieste ci pensa gia' la coda, che ne lascia passare sei
+// per volta. Un intoppo vero si risolve lo stesso, perche' fra i due colpi
+// passano comunque i millisecondi della prima risposta.
 function _sondaConRitentativo(fai){
-  return fai().then(ok => ok ? true
-    : new Promise(r=>setTimeout(r, SONDA_PAUSA_MS)).then(fai));
+  return fai().then(ok => ok ? true : fai());
 }
 function _provaImmagineUnaVolta(url){
   return new Promise(risolvi=>{
@@ -10742,10 +10788,20 @@ function _provaAudio(url){
 function _livelliDiVariante(slug, fazione){
   const url = artUrlVariante(slug, fazione);
   return _primoCheEsiste(url.per[ART_LIVELLO_PERSONAGGIO], _provaImmagine).then(trovato=>{
-    if(trovato) return trovato;
-    return _primoCheEsiste(url.senzaNumero, _provaImmagine);
-  }).then(ancora=>{
-    if(!ancora) return null;
+    if(trovato) return {url:trovato, aLivelli:true};
+    // v0.75.15 — se a rispondere e' la forma SENZA NUMERO, questa carta ha
+    // un'illustrazione piatta: i livelli 1, 2 e 4 non esistono per
+    // definizione, perche' chi disegna a livelli numera anche il terzo.
+    // Cercarli lo stesso erano SEI richieste a vuoto per carta — e oggi 64
+    // carte su 65 sono piatte, quindi ~380 richieste inutili a ogni avvio.
+    // Erano il grosso della valanga, ed erano anche il grosso del tempo:
+    // dalla v0.75.11 ogni fallimento costa un secondo tentativo.
+    return _primoCheEsiste(url.senzaNumero, _provaImmagine)
+      .then(u => u ? {url:u, aLivelli:false} : null);
+  }).then(esito=>{
+    if(!esito) return null;
+    const ancora = esito.url;
+    if(!esito.aLivelli) return [ancora];   // pila di uno: e' gia' tutto
     const altri = ART_LIVELLI.filter(n=>n!==ART_LIVELLO_PERSONAGGIO);
     return Promise.all(altri.map(n=>_primoCheEsiste(url.per[n], _provaImmagine))).then(esiti=>{
       const trovati = {};
@@ -10868,7 +10924,13 @@ function whooshDiRarita(rarita){
   return WHOOSH_PER_RARITA.common;
 }
 
-function verificaArtCarte(){
+// v0.75.15 — `avanzamento(fatti, totale)` viene chiamato ogni volta che un
+// pezzo di verifica si conclude, cosi' la barra di caricamento puo' mostrare
+// anche questa fase invece di restare ferma per tutta la sua durata.
+// Il totale si sa solo alla fine del ciclo qui sotto (dipende da quante carte
+// e quali abilita' hanno), quindi si riferisce a conteggio finito: prima di
+// allora non ci sarebbe niente di onesto da dire.
+function verificaArtCarte(avanzamento){
   if(!Array.isArray(FINAL_CARDS) || !FINAL_CARDS.length) return Promise.resolve();
   const lavori = [];
   const senzArte = [];
@@ -10919,6 +10981,22 @@ function verificaArtCarte(){
       entry.battlecry = u || null;
       if(u) registraVociSfx([u]);
     }));
+  }
+  // v0.75.15 — da qui in poi il totale e' noto: si aggancia il conteggio a
+  // ogni pezzo e si riferisce a chi guarda la barra. `lavori` viene
+  // RIMPIAZZATO da promesse avvolte, non affiancato: le originali servono
+  // ancora a sapere quando tutto e' finito, e contarle due volte
+  // raddoppierebbe il totale.
+  if(typeof avanzamento === 'function'){
+    const totale = lavori.length;
+    let fatti = 0;
+    avanzamento(0, totale);
+    for(let i=0;i<lavori.length;i++){
+      lavori[i] = lavori[i].then(
+        v=>{ avanzamento(++fatti, totale); return v; },
+        e=>{ avanzamento(++fatti, totale); throw e; }
+      );
+    }
   }
   // Un limite complessivo: se la rete e' lenta o assente il gioco deve
   // partire lo stesso — rane al posto delle illustrazioni e carte mute —
