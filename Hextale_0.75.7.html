@@ -1899,29 +1899,31 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
   position:absolute; inset:0; width:100%; height:100%;
   display:block; pointer-events:none; user-select:none;
 }
-/* ── v0.75.5 — LA CARTA IN MANO SI DISEGNA GRANDE IL DOPPIO ────────────────
-   IL PROBLEMA. Con `will-change:transform` la carta diventa un livello di
-   composizione: il browser la rasterizza UNA volta alla misura che ha, e da
-   li' in poi ricampiona quella immagine per ogni ingrandimento. In mano la
-   misura e' quella piccola del ventaglio, e la mano espansa la porta a
-   scale(1.5): si sta ingrandendo un'immagine gia' fissata, e si vede.
-   Non e' un problema dell'SVG in se' — un vettore si ridisegna a qualunque
-   scala — ma delle ILLUSTRAZIONI, che sono PNG, e del livello promosso, che
-   congela tutto insieme.
-   LA CURA. Si separa la risoluzione dalla dimensione. L'elemento viene reso
-   grande il doppio in pixel CSS (quindi rasterizzato al doppio) e poi
-   riportato alla misura giusta con una scala che RIMPICCIOLISCE. Da li',
-   allargarlo a 1.5x resta comunque un ingrandimento sotto la risoluzione
-   vera (0.5 x 1.5 = 0.75), cioe' non si tira mai piu' di quanto ci sia.
-   Percentuali e non pixel: la larghezza della carta e' una variabile
-   (--card-w) che cambia con la disposizione, e 200% la segue da sola.
-   transform-origin all'angolo alto-sinistro perche' il riquadro parte da li':
-   col centro, meta' carta finirebbe fuori posto. */
-.hand-card-wrap .carta-supercampionata{
-  width:calc(100% * var(--supercampione, 2));
-  height:calc(100% * var(--supercampione, 2));
-  transform:scale(calc(1 / var(--supercampione, 2)));
-  transform-origin:0 0;
+/* ── v0.75.7 — VIA IL SUPERCAMPIONAMENTO, E PERCHE' NON POTEVA FUNZIONARE ──
+   Qui la v0.75.5 rendeva la carta grande il doppio in pixel CSS per poi
+   rimpicciolirla con scale(0.5), nell'idea di avere risoluzione in avanzo
+   quando la mano espansa la porta a 1.5x. A schermo il risultato era
+   PEGGIORE di prima, ed e' istruttivo capire perche'.
+   Il ragionamento dava per scontato che rendere l'elemento piu' grande
+   ottenesse un livello di composizione piu' grande. Non e' cosi': il livello
+   promosso e' il WRAP (.hand-card-wrap), non l'SVG, e il wrap ha sempre la
+   sua misura. L'SVG piu' grande veniva quindi disegnato dentro a quel livello
+   gia' rimpicciolito da scale(0.5) — cioe' si aggiungeva un passaggio di
+   riduzione, che butta via meta' dei pixel, e SUBITO DOPO il livello veniva
+   allargato a 1.5x. Due ricampionamenti invece di uno, e il secondo che tira
+   quello che il primo aveva gia' scartato.
+   La cura vera e' l'opposto ed e' qui sotto: non promuovere l'elemento
+   PROPRIO mentre lo si sta ingrandendo. */
+/* La promozione conviene quando la carta sta ferma alla sua misura: evita che
+   l'inclinazione ricampioni ogni pixel a ogni fotogramma. Non conviene
+   quando la carta VIENE INGRANDITA, perche' e' proprio la promozione a
+   congelare il disegno alla misura piccola, che poi viene tirata.
+   La mano espansa e' esattamente quel caso — l'unico, in tutto il gioco, in
+   cui una carta promossa viene portata a una misura maggiore della propria —
+   quindi li' e solo li' la promozione si spegne, e il browser torna a
+   ridisegnare alla scala finale. */
+.mano-espansa .hand-card-wrap{
+  will-change:auto;
 }
 /* v0.71.4 ("in quel momento tutti gli elementi della carta spariscono in
    fade, tranne drawhextile"): every non-hex layer of the full card lives in
@@ -6743,7 +6745,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.6</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.7</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -26228,6 +26230,12 @@ function renderHand(containerId,hand,playerIdx){
   // just player-info's 20, so the actual expanded cards still render in
   // front of their own dim backdrop instead of underneath it.
   container.style.zIndex = handExpandState[player] ? '801' : '';
+  // v0.75.7 — la mano espansa e' l'unico posto in tutto il gioco dove una
+  // carta promessa a livello di composizione viene poi INGRANDITA, ed e'
+  // proprio la promozione a congelarla alla misura piccola. La classe accende
+  // la regola che li' spegne will-change (vedi .mano-espansa nel CSS), cosi'
+  // il browser torna a ridisegnare la carta alla scala finale.
+  container.classList.toggle('mano-espansa', !!handExpandState[player]);
   const isActive=G.currentPlayer===player&&!G.gameOver;
   // v0.62.0: colors/R (card sizing/tinting) are no longer needed for the
   // hand's own visuals (every hand card is now the same plain
@@ -26694,14 +26702,10 @@ function renderHand(containerId,hand,playerIdx){
       if(cambia) anteprimaMano = { values: arrivo, deltas: scarti };
     }
     const cardSvg = buildFullHandCardSVG(cardFoilVisualCard(card), 210, 360, anteprimaMano);
-    // v0.75.5 — la carta in mano si rasterizza al doppio e viene poi
-    // rimpicciolita (vedi .carta-supercampionata nel CSS). Serve alla mano
-    // espansa, che la ingrandisce a 1.5x: senza, si allargherebbe
-    // un'immagine gia' fissata alla misura piccola del ventaglio.
-    // Il viewBox non cambia — un vettore e' un vettore — quindi qui non c'e'
-    // niente da ricalcolare: cambia solo quanti pixel veri il browser decide
-    // di dedicargli.
-    cardSvg.classList.add('carta-supercampionata');
+    // v0.75.7 — qui c'era `cardSvg.classList.add('carta-supercampionata')`,
+    // che rendeva la carta al doppio per poi rimpicciolirla. L'idea era di
+    // avere risoluzione in avanzo per la mano espansa; a schermo il risultato
+    // era PEGGIORE di prima. Vedi il commento sul CSS rimosso per il perche'.
     const cardFoilHost = cardFoilWrap(cardSvg);
     cardFoilHost.style.display = isCovered ? 'none' : '';
     flipWrap.appendChild(cardFoilHost);
