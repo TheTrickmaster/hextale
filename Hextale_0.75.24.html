@@ -4248,11 +4248,11 @@ body.prova-senza-willchange #mm-book-rot{
    girava, e il pulsante sembrava non funzionare.
    Il conto non e' a occhio: la carta e' alta 414px ed e' centrata sul 50%,
    quindi il suo bordo alto sta a 50% - 207px. Ancorando il BASSO del pulsante
-   a 50% + 233px (207 di mezza carta piu' 26 di aria) resta appena sopra di
-   lei, e ci resta anche se un domani la scena cambia altezza — perche' il
-   riferimento e' il centro, che e' anche il centro delle carte. */
+   a 50% + 280px resta sopra di lei con dell'aria in mezzo, e ci resta anche
+   se un domani la scena cambia altezza — perche' il riferimento e' il centro,
+   che e' anche il centro delle carte. */
 #pack-toggle-variant{
-  position:absolute; left:50%; bottom:calc(50% + 233px);
+  position:absolute; left:50%; bottom:calc(50% + 280px);
   transform:translateX(-50%) scale(0.9);
   transform-origin:bottom center;
   z-index:4;
@@ -6979,7 +6979,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.23</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.24</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -12100,7 +12100,26 @@ function _bustinaDurataCarica(){
 // E' la stessa scelta fatta per le sinergie sul tabellone, e per la stessa
 // ragione: due depositi della stessa verita' prima o poi discordano, e a
 // discordare sarebbe proprio quello che decide se far pagare.
-const BUSTINA_COSTO_SECONDA = 200;
+// ── v0.75.24 — QUANTO COSTA TENERLE ENTRAMBE ──────────────────────────────
+// Ogni rarita' ha il suo prezzo in polvere, e il conto e' uno solo: si paga
+// SEMPRE la carta che vale MENO delle due.
+// Timeless + Common costa 50, Timeless + Mythic costa 500, due Timeless 1000.
+// Scritto cosi' il prezzo non dipende da quale carta si e' scelta per prima:
+// la coppia vale quello che vale, e l'ordine dei clic non cambia il conto —
+// che sarebbe la prima cosa che qualcuno proverebbe a sfruttare.
+const COSTO_TENERE_PER_RARITA = { common:50, rare:200, mythic:500, timeless:1000 };
+function costoTenereRarita(chiave){
+  const v = COSTO_TENERE_PER_RARITA[String(chiave||'').toLowerCase()];
+  // Una rarita' che il foglio non conosce si paga come la piu' economica:
+  // meglio far pagare poco che far pagare "NaN".
+  return typeof v === 'number' ? v : COSTO_TENERE_PER_RARITA.common;
+}
+// Il prezzo della coppia attualmente in scena.
+function costoSecondaCarta(){
+  const carte = _carteBustina();
+  if(carte.length < 2) return 0;
+  return Math.min(...carte.map(c=>costoTenereRarita(c.__entry && c.__entry.rarity)));
+}
 function _carteBustina(){ return [...document.querySelectorAll('#pack-reveal .pack-card')]; }
 function _carteTenute(){ return _carteBustina().filter(c=>c.classList.contains('tenuta')); }
 
@@ -12111,7 +12130,7 @@ function scegliCartaBustina(carta){
   if(!carta) return;
   const tenute = _carteTenute();
   const eraTenuta = carta.classList.contains('tenuta');
-  if(!eraTenuta && tenute.length >= 1 && fairyDust() < BUSTINA_COSTO_SECONDA) return;
+  if(!eraTenuta && tenute.length >= 1 && fairyDust() < costoSecondaCarta()) return;
   carta.classList.toggle('tenuta', !eraTenuta);
   aggiornaSceltaBustina();
 }
@@ -12124,7 +12143,12 @@ function aggiornaSceltaBustina(){
   if(!carte.length) return;
   const tenute = _carteTenute();
   const quante = tenute.length;
-  const puoPagare = fairyDust() >= BUSTINA_COSTO_SECONDA;
+  // Il prezzo si calcola UNA volta e si usa in tutti e due i posti che lo
+  // mostrano: chiedendolo due volte, un domani basterebbe un ritocco a una
+  // sola delle due chiamate per far dire al pulsante della carta un numero e
+  // a quello finale un altro.
+  const costo = costoSecondaCarta();
+  const puoPagare = fairyDust() >= costo;
   const iconaPolvere = menuFileCandidati('fairy-dust-icon.png')[0];
 
   for(const c of carte){
@@ -12143,7 +12167,7 @@ function aggiornaSceltaBustina(){
     } else {
       // La seconda si paga. L'icona sta DENTRO l'etichetta, cosi' il prezzo si
       // legge come un prezzo e non come un numero qualsiasi.
-      testo = 'Keep for <img src="' + iconaPolvere + '" alt="fairy dust"> ' + BUSTINA_COSTO_SECONDA;
+      testo = 'Keep for <img src="' + iconaPolvere + '" alt="fairy dust"> ' + costo;
       spento = !puoPagare;
     }
     if(et) et.innerHTML = testo;
@@ -12163,7 +12187,7 @@ function aggiornaSceltaBustina(){
     // carta: e' l'ultimo momento prima di pagare, ed e' il posto in cui una
     // cifra non detta diventa una sorpresa.
     if(et) et.innerHTML = (quante >= 2)
-      ? ('Pay <img src="' + iconaPolvere + '" alt="fairy dust"> ' + BUSTINA_COSTO_SECONDA + ' and collect')
+      ? ('Pay <img src="' + iconaPolvere + '" alt="fairy dust"> ' + costo + ' and collect')
       : 'Collect';
     mostraPulsanteBustina('pack-collect', quante > 0);
   }
@@ -12287,10 +12311,6 @@ function apriBustina(){
       // .pack-radial), quindi le accompagna invece di tagliarle.
       const scena = document.getElementById('pack-overlay');
       if(scena) scena.classList.add('raggiere-via');
-      // v0.75.22 — da adesso le carte ci sono, e sono di dorso: e' l'unico
-      // momento in cui ha senso poter cambiare versione. Sparisce appena sono
-      // girate tutte e due (vedi giraCartaBustina).
-      mostraPulsanteBustina('pack-toggle-variant', true);
       uscite.forEach((entry, i)=>{
         const dir = (i === 0) ? -1 : 1;
         rivelate.appendChild(_costruisciCartaBustina(entry, dir, i));
@@ -12321,6 +12341,14 @@ function apriBustina(){
       _bustinaDopo(BUSTINA_SPINTA_MS + (carte.length-1)*BUSTINA_SFALSAMENTO_MS + BUSTINA_RIENTRO_MS, ()=>{
         _bustinaInCorso = false;
         stato.textContent = 'Tap the cards to reveal them.';
+        // v0.75.24 — e SOLO adesso compare il pulsante della variante, in
+        // dissolvenza. Prima appariva nell'istante in cui le carte nascevano,
+        // cioe' mentre stavano ancora volando al loro posto: si vedeva un
+        // pulsante fermo in mezzo a due carte in movimento, e sembrava
+        // arrivato per sbaglio. E' agganciato allo STESSO tempo che sblocca la
+        // pagina, non a un ritardo copiato: quando le carte si sono posate,
+        // sono posate per tutti.
+        mostraPulsanteBustina('pack-toggle-variant', true);
       });
     });
   });
@@ -12483,9 +12511,12 @@ function giraCartaBustina(carta){
         // lo fa aggiornaSceltaBustina appena una carta viene scelta, perche'
         // prima non c'e' ancora niente da raccogliere.
         mostraSceltaBustina();
-        // Girate tutte e due, non c'e' piu' un dorso da cambiare: adesso si
-        // sceglie, e il pulsante lascia il centro della scena alle carte.
-        mostraPulsanteBustina('pack-toggle-variant', false);
+        // v0.75.24 — il pulsante della variante RESTA anche a carte girate.
+        // Qui veniva tolto pensando che servisse solo a cambiare il dorso; ma
+        // cambia la versione della carta, e una volta scoperte e' proprio
+        // quello il momento in cui si vuole guardarle nell'altra veste prima
+        // di decidere quale tenere. Se ne va con loro, quando si raccoglie
+        // (vedi mettiViaCarte).
         if(stato) stato.textContent = '';
       });
     }
@@ -12630,7 +12661,8 @@ function raccogliCarte(){
     // spendiFairyDust controlla il saldo da solo e non lo manda sotto zero.
     // Se dicesse di no ci si fermerebbe qui, senza raccogliere niente: meglio
     // un pulsante che non fa nulla di due carte prese senza pagarle.
-    if(!spendiFairyDust(BUSTINA_COSTO_SECONDA)) return;
+    const costo = costoSecondaCarta();
+    if(!spendiFairyDust(costo)) return;
     // v0.75.22 — il suono della transazione. Va DOPO spendiFairyDust e non
     // prima: se il pagamento non andasse a buon fine si sentirebbe il registratore
     // di cassa senza che sia uscito un soldo, ed e' il genere di dettaglio che
@@ -12656,6 +12688,9 @@ function mettiViaCarte(){
   document.querySelectorAll('.pack-scelta-btn').forEach(b=>{
     b.classList.add('pack-nascosto');
   });
+  // v0.75.24 — e con loro se ne va il pulsante della variante: le carte stanno
+  // uscendo di scena, e non c'e' piu' niente di cui cambiare versione.
+  mostraPulsanteBustina('pack-toggle-variant', false);
   const carte = [...document.querySelectorAll('.pack-card')];
   carte.forEach((c, i)=>{
     const dir = parseFloat(c.style.getPropertyValue('--dir')) || (i===0?-1:1);
