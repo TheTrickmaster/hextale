@@ -4123,6 +4123,38 @@ body.prova-senza-willchange #mm-book-rot{
   background-size:cover; background-position:center; background-repeat:no-repeat;
   z-index:0;
 }
+/* ── v0.75.16 — LE RAGGIERE DIETRO ALLA BUSTINA ───────────────────────────
+   Le stesse due del menu principale: stessa arte, stessi due versi opposti,
+   stesse due durate diverse e non multiple fra loro — due cicli che non
+   tornano mai in fase non mostrano mai due volte la stessa sovrapposizione.
+   Riusano anche i keyframes del menu invece di averne di propri: sono
+   letteralmente lo stesso movimento, e duplicarli vorrebbe dire ritoccarne
+   due il giorno in cui uno cambia.
+   Piu' piccole di quelle del menu (140% invece di 250%): li' devono
+   illuminare un libro aperto che occupa mezza pagina, qui una bustina sola al
+   centro, e alla stessa misura sarebbero un velo su tutto lo schermo.
+   Stanno sopra al fondale ma sotto a tutto il resto (z-index 0, come la
+   polvere): sono luce d'ambiente, non un livello davanti alle carte. */
+.pack-radial{
+  position:absolute; left:50%; top:50%;
+  width:140%; height:140%;
+  object-fit:contain;
+  transform-origin:center center;
+  mix-blend-mode:plus-lighter;
+  pointer-events:none; user-select:none; -webkit-user-drag:none;
+  opacity:0.85;
+  z-index:0;
+  /* Lo spegnimento quando escono le carte: vedi .raggiere-via. Un secondo e
+     mezzo, perche' deve accompagnare l'uscita delle carte e non tagliarla. */
+  transition:opacity 1.5s ease-out;
+}
+#pack-radial-a{ animation:mmRuotaOraria 140s linear infinite; }
+#pack-radial-b{ animation:mmRuotaAntioraria 190s linear infinite; }
+/* Quando le carte escono dal raggio, la scena e' loro: le raggiere si
+   spengono e lasciano il campo. La classe la mette la sequenza di apertura
+   (vedi apriBustina) e la toglie chi rimette la bustina a posto. */
+#pack-overlay.raggiere-via .pack-radial{ opacity:0; }
+
 /* ── v0.75.12 — LA POLVERE AI LATI DELLA SCHERMATA BUSTINE ─────────────────
    Stesse tre tele dello start screen, stessa arte, stesso colore: qui pero'
    i granelli non salgono, restano sospesi e vagano.
@@ -6789,7 +6821,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.15</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.16</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -7078,6 +7110,11 @@ body.prova-senza-willchange #mm-book-rot{
      nello script per il ragionamento completo. -->
 <div id="pack-overlay">
   <div id="pack-bg"></div>
+  <!-- v0.75.16 — le due raggiere, come dietro al libro del menu. L'immagine
+       la mette montaRaggiereBustine(): scriverne l'indirizzo qui vorrebbe dire
+       perdere il ripiego locale che tutti gli altri asset hanno. -->
+  <img class="pack-radial" id="pack-radial-a" alt="" draggable="false">
+  <img class="pack-radial" id="pack-radial-b" alt="" draggable="false">
   <!-- v0.75.12 — la polvere sospesa ai due lati. Tre tele come sullo start
        screen, per la stessa ragione: la profondita' si legge dalla sfocatura,
        e sfocare ogni granello a mano costerebbe un filtro per granello.
@@ -8591,6 +8628,7 @@ const PAGE_ENTER_HOOKS = {
   // animazioni in corsa.
   packs(){
     if(typeof PolvereBustineAvvia === 'function') PolvereBustineAvvia();
+    if(typeof montaRaggiereBustine === 'function') montaRaggiereBustine();
   },
   // game: la ricostruzione la fa gia' startGame(), che e' l'unico percorso
   // che porta a questa pagina — un hook qui sarebbe un secondo punto di
@@ -8743,17 +8781,18 @@ function fermaLoopParticelle(){ ParticelleFerma(); }
 //
 // I granelli stanno solo nelle due fasce laterali, il centro resta libero:
 // li' ci sono le bustine, ed e' cio' che si deve guardare.
-const POLVERE_BUSTINE_QUANTE = 30;
+const POLVERE_BUSTINE_QUANTE = 50;
 // Quanto e' larga ciascuna fascia, in frazione di schermo. 0.28 lascia libero
 // il 44% centrale, che e' abbondantemente piu' largo delle due carte affiancate.
 const POLVERE_BUSTINE_FASCIA = 0.28;
 // Come si spartiscono i 30 granelli fra i tre piani. Il piano vicino e' poco
 // popolato per la stessa ragione dello start screen: sono macchie di luce
 // larghe, e troppe farebbero velo.
+// v0.75.16 — da 30 a 50, spartiti con le stesse proporzioni di prima.
 const POLVERE_BUSTINE_PIANI = [
-  { id:'pack-particles-far',  quota:14, rMin:0.6, rMax:1.4,  alfaMin:0.25, alfaMax:0.55, vagoMin:6,  vagoMax:16 },
-  { id:'pack-particles-mid',  quota:11, rMin:1.4, rMax:3.0,  alfaMin:0.45, alfaMax:0.90, vagoMin:10, vagoMax:26 },
-  { id:'pack-particles-near', quota:5,  rMin:5.0, rMax:11.0, alfaMin:0.18, alfaMax:0.40, vagoMin:16, vagoMax:40 },
+  { id:'pack-particles-far',  quota:24, rMin:0.6, rMax:1.4,  alfaMin:0.25, alfaMax:0.55, vagoMin:6,  vagoMax:16 },
+  { id:'pack-particles-mid',  quota:18, rMin:1.4, rMax:3.0,  alfaMin:0.45, alfaMax:0.90, vagoMin:10, vagoMax:26 },
+  { id:'pack-particles-near', quota:8,  rMin:5.0, rMax:11.0, alfaMin:0.18, alfaMax:0.40, vagoMin:16, vagoMax:40 },
 ];
 let _polvereBustineRAF = null;
 let _polvereBustineStrati = null;
@@ -8770,6 +8809,29 @@ let _polvereBustineResize = null;
 // uno per piano: cosi' il bilancio e' esatto sul totale (15 e 15) invece che
 // arrotondato tre volte. Resta casuale tutto il resto — dove esattamente
 // dentro la fascia, quanto e' grande, come vaga.
+// ── v0.75.16 — LE TELE MISURANO SE STESSE, NON LA FINESTRA ────────────────
+// _pDimensiona (quella dello start screen) prende le misure da
+// window.innerWidth/innerHeight. Per lo start screen va bene; QUI no.
+// Queste tele vivono dentro #game-root, che e' un mondo di 1920x1080
+// "autoriali" ridotto o ingrandito da una transform per stare nella finestra.
+// Il riquadro CSS della tela e' quindi in coordinate autoriali, mentre io
+// disegnavo in pixel di finestra: il contenuto veniva stirato dall'una
+// all'altra misura, e a schermo la polvere non stava dove il conto diceva —
+// da cui l'impressione che sbordasse a sinistra.
+// Misurando la TELA (clientWidth/clientHeight) il piano del disegno e il
+// riquadro coincidono, quindi non c'e' nessuno stiramento: cio' che si
+// calcola e' cio' che si vede. E funziona anche il giorno in cui la transform
+// di #game-root cambia, perche' non si sa niente di lei — si guarda solo il
+// proprio riquadro.
+function _pbDimensiona(strato){
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const w = strato.tela.clientWidth  || CANVAS_W;
+  const h = strato.tela.clientHeight || CANVAS_H;
+  strato.w = w; strato.h = h; strato.dpr = dpr;
+  strato.tela.width  = Math.max(1, Math.round(w*dpr));
+  strato.tela.height = Math.max(1, Math.round(h*dpr));
+  strato.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
 function _pbNuovoGranello(piano, w, h, indice){
   const aDestra = (indice % 2) === 1;
   const fascia = w * POLVERE_BUSTINE_FASCIA;
@@ -8791,6 +8853,22 @@ function _pbNuovoGranello(piano, w, h, indice){
   };
 }
 
+// v0.75.16 — le immagini delle due raggiere. Sono le STESSE del menu
+// principale (radial-glow.png e la sua specchiata): stesso disegno, stessa
+// cartella, stesso ripiego locale-poi-GitHub di menuFileCandidati.
+// Si montano una volta sola: rifarlo a ogni entrata farebbe ripartire il
+// caricamento e sfarfallare l'immagine, che e' il motivo per cui il menu fa
+// gia' cosi' con le sue.
+let _raggiereBustineMontate = false;
+function montaRaggiereBustine(){
+  if(_raggiereBustineMontate) return;
+  const a = document.getElementById('pack-radial-a');
+  const b = document.getElementById('pack-radial-b');
+  if(!a || !b || typeof impostaImgDaCandidati !== 'function') return;
+  _raggiereBustineMontate = true;
+  impostaImgDaCandidati(a, menuFileCandidati('radial-glow.png'));
+  impostaImgDaCandidati(b, menuFileCandidati('radial-glow-flipped.png'));
+}
 function PolvereBustineAvvia(){
   PolvereBustineFerma();
   const strati = [];
@@ -8800,7 +8878,7 @@ function PolvereBustineAvvia(){
     const ctx = tela.getContext('2d');
     if(!ctx) continue;
     const strato = { piano, tela, ctx, granelli:[], w:0, h:0, dpr:1 };
-    _pDimensiona(strato);
+    _pbDimensiona(strato);
     strati.push(strato);
   }
   if(!strati.length) return;
@@ -8811,7 +8889,7 @@ function PolvereBustineAvvia(){
   // lascerebbe fuori dalle fasce quelli nati quando era piu' larga.
   _polvereBustineResize = ()=>{
     if(!_polvereBustineStrati) return;
-    for(const s of _polvereBustineStrati) _pDimensiona(s);
+    for(const s of _polvereBustineStrati) _pbDimensiona(s);
     _pbRiempi(_polvereBustineStrati);
   };
   window.addEventListener('resize', _polvereBustineResize);
@@ -11857,6 +11935,12 @@ function apriBustina(){
     });
 
     _bustinaDopo(BUSTINA_RITARDO_CARTE + 50, ()=>{
+      // v0.75.16 — le raggiere si spengono ADESSO, nello stesso istante in cui
+      // le carte escono dal raggio: da qui in poi la scena e' loro. Lo
+      // spegnimento e' una transizione da un secondo e mezzo (vedi
+      // .pack-radial), quindi le accompagna invece di tagliarle.
+      const scena = document.getElementById('pack-overlay');
+      if(scena) scena.classList.add('raggiere-via');
       uscite.forEach((entry, i)=>{
         const dir = (i === 0) ? -1 : 1;
         rivelate.appendChild(_costruisciCartaBustina(entry, dir, i));
@@ -12212,6 +12296,11 @@ function tornaAllaBustina(){
     const velo=document.getElementById('pack-white');
     if(velo) velo.style.opacity='';
   }
+  // v0.75.16 — la bustina torna in scena, e con lei le raggiere: si riaccendono
+  // con la stessa dissolvenza con cui si erano spente, quindi accompagnano il
+  // suo rientro invece di apparire di colpo.
+  const scena = document.getElementById('pack-overlay');
+  if(scena) scena.classList.remove('raggiere-via');
   _aggiornaStatoBustina();
 }
 
