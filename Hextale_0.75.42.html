@@ -1865,6 +1865,25 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
    coordinate da tenere allineato.
    pointer-events:auto perche' il wrap e' pointer-events:none di base (vedi la
    sua regola): senza, la croce si vedrebbe e non si potrebbe cliccare. */
+/* v0.75.42 — IL LAMPO BIANCO DELLO SCUDO (Pinocchio).
+   Va su due <image> dentro all'SVG — l'icona dello scudo e il cerchio che le
+   sta sotto — quindi il bianco non si puo' dipingere con un `background`:
+   quelle sono immagini, e l'unico modo di renderle bianche senza avere una
+   seconda versione bianca dei due file e' un filtro.
+   `brightness(0) invert(1)` e' la coppia che lo fa in due passaggi: il primo
+   porta OGNI pixel a nero conservando la trasparenza, il secondo lo ribalta a
+   bianco. Il risultato e' la sagoma esatta dell'icona, tutta bianca — cosa che
+   una semplice `brightness(3)` non da', perche' schiarisce ma tiene i colori.
+   Due battiti e non uno: uno solo, a questa durata, si legge come uno sfarfallio
+   dovuto a un ridisegno invece che come un annuncio. */
+.scudo-lampo{
+  animation:scudoLampo 380ms ease-out 2;
+}
+@keyframes scudoLampo{
+  0%   { filter:none; }
+  30%  { filter:brightness(0) invert(1) drop-shadow(0 0 5px rgba(255,255,255,0.9)); }
+  100% { filter:none; }
+}
 /* v0.75.39 — la carta distrutta (Mordred). Stessa idea della carta scartata
    qui sotto: vola una copia, fuori dal disegno che verra' ricostruito.
    Il velo e' un <svg> con lo stesso viewBox del tabellone, quindi la copia si
@@ -7191,7 +7210,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.41</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.42</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -11426,7 +11445,7 @@ const WHOOSH_PER_RARITA = {
 // verrebbero cercati nell'istante in cui devono suonare e arriverebbero tardi
 // — e un suono in ritardo su un'animazione breve si sente come un errore.
 const SUONI_SFX_EXTRA = Object.values(WHOOSH_PER_RARITA)
-  .concat(['kaching.wav', 'card-ding.mp3', 'card-fly.mp3', 'card-burn.wav']);
+  .concat(['kaching.wav', 'card-ding.mp3', 'card-fly.mp3', 'card-burn.wav', 'shield.mp3']);
 const SFX_REL = 'audio/sfx/';
 const SFX_BASE = 'https://thetrickmaster.github.io/hextale/audio/sfx/';
 function registraSuoniExtra(){
@@ -19877,12 +19896,37 @@ function latoInconquistabile(card, lato){
 // riuniti in gruppi che condividono un numero, e proteggerne uno solo lasciando
 // scoperti i gemelli protegge un numero a meta'. Lo scudo copre il gruppo,
 // esattamente come fa la corona della Crystal Princess.
+// v0.75.42 — quanto dura il lampo bianco sullo scudo e sul suo cerchio.
+const SCUDO_LAMPO_MS = 760;
 function giraScudoTrueStory(card){
   const gruppi = gruppiDiCarta(card);
   if(!gruppi.length){ card.latiInvulnerabili = []; return null; }
   const scelto = gruppi[Math.floor(Math.random()*gruppi.length)];
   card.latiInvulnerabili = [...(scelto.sides||[])];
+  // v0.75.42 — IL LAMPO NON SI APPICCICA ALL'ELEMENTO, SI SCRIVE SULLA CARTA.
+  // Il tabellone viene ridisegnato di continuo — un passaggio del mouse, una
+  // pescata, un'anteprima — e ogni ridisegno butta via lo scudo di prima e ne
+  // costruisce uno nuovo. Una classe messa a mano sull'elemento sopravvivrebbe
+  // fino al primo di quei ridisegni, cioe' spesso a meno di un lampo intero.
+  // Scritta invece come SCADENZA sulla carta, e' chi disegna a rimetterla ogni
+  // volta finche' vale (vedi drawHexCard): il lampo dura quanto deve durare,
+  // qualunque cosa succeda nel frattempo.
+  card.scudoLampoFino = (typeof performance !== 'undefined' ? performance.now() : Date.now()) + SCUDO_LAMPO_MS;
+  // Il suono SOLO LA PRIMA VOLTA che questa carta alza lo scudo. Dopo, lo scudo
+  // continua a cambiare posto a ogni fine turno e lo si vede lampeggiare, ma
+  // sentirlo ogni turno per tutta la partita lo trasformerebbe da annuncio in
+  // rumore di fondo.
+  if(!card.scudoGiaAnnunciato){
+    card.scudoGiaAnnunciato = true;
+    try { playSfxFile('shield.mp3'); } catch(_){}
+  }
   return card.latiInvulnerabili;
+}
+// Il lampo e' ancora acceso su questa carta?
+function scudoStaLampeggiando(card){
+  if(!card || !card.scudoLampoFino) return false;
+  const ora = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+  return ora < card.scudoLampoFino;
 }
 function giraScudiDiFineTurno(){
   if(!G || !G.board) return 0;
@@ -22219,12 +22263,6 @@ function endTurn(player, animationsSettled, dannoFatto){
     dannoDiFineTurno(()=>endTurn(player, true, true));
     return;
   }
-  // v0.75.41 — Pinocchio sposta il suo scudo. Qui e non altrove: e' passato il
-  // danno di fine turno, non e' ancora cambiato il giocatore, e il render piu'
-  // sotto ridisegnera' il tabellone — quindi lo scudo nuovo si vede nello
-  // stesso istante in cui comincia il turno in cui varra'. Spostato dopo il
-  // cambio giocatore si vedrebbe saltare a banner gia' in scena.
-  giraScudiDiFineTurno();
   calcScores();
   // v0.75.0 — checkHpKO non fa piu' niente (non esiste piu' uno zero da
   // toccare) ma la chiamata resta: e' il posto in cui la domanda "questo colpo
@@ -22254,6 +22292,13 @@ function endTurn(player, animationsSettled, dannoFatto){
   // turni e chi li annuncia devono essere d'accordo, o un'abilita' che scatta
   // "dall'ottavo turno" scatterebbe mezza giocata prima o dopo del banner.
   G.numeroTurno = (G.numeroTurno||1) + 1;
+  // v0.75.41 — Pinocchio sposta il suo scudo, e lo fa QUI: nella riga prima del
+  // disegno. Cosi' il lampo e il suono cadono nello stesso istante in cui lo
+  // scudo compare a schermo — che e' cio' che vuol dire "sincronizzato".
+  // v0.75.42 — dopo il controllo di fine partita, non piu' prima: la partita
+  // che finisce esce da endTurn con un `return`, e sorteggiando prima si
+  // sentiva lo scudo suonare mentre la partita si chiudeva.
+  giraScudiDiFineTurno();
   render(); // show board update before draw anim
   // v0.71.35 ("sostituisci il banner del tempo scaduto con timesup-banner
   // ... deve apparire a fine turno... prima che appaia il banner del turno
@@ -26565,6 +26610,18 @@ function drawHexCard(svg,cx,cy,R,card,fillColor,strokeColor,textColor,nameText,i
       for(const gs of g.sides) scudo.setAttribute('data-value-side-'+gs,'1');
       scudo.setAttribute('data-value-group', g.sides.join('|'));
       scudo.setAttribute('data-hex-c', cx.toFixed(2)+','+cy.toFixed(2));
+      // v0.75.42 — il lampo bianco di quando lo scudo si sposta (Pinocchio).
+      // Prende lo scudo E il cerchio che gli sta sotto: e' quella coppia a
+      // cambiare significato in quel momento, e accendere solo l'icona
+      // lascerebbe il cerchio spento in mezzo al lampo.
+      // La domanda si fa alla CARTA e non a un elenco di elementi da accendere,
+      // perche' questi elementi nascono e muoiono a ogni ridisegno: chiedendolo
+      // qui, ogni scudo ridisegnato mentre il lampo e' ancora valido nasce gia'
+      // acceso.
+      if(scudoStaLampeggiando(card)){
+        scudo.classList.add('scudo-lampo');
+        circImg.classList.add('scudo-lampo');
+      }
       svg.appendChild(scudo);
     } else {
       const t=svgEl('text');
