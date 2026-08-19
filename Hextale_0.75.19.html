@@ -3717,19 +3717,20 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
   transition:transform .08s ease-out, filter .15s ease-out;
 }
 #card-modal-info .cm-freccia img{ width:100%; height:100%; object-fit:contain; display:block; }
-#card-modal-info .cm-freccia::after{
-  content:''; position:absolute; inset:0; background:#fff; opacity:0;
-  mix-blend-mode:overlay; transition:opacity .15s ease-out; pointer-events:none;
-}
 /* v0.74.2 — al passaggio del mouse la freccia si accende, e alla pressione
    scende di un pixel: e' il solo modo che ha un tappo PNG di sembrare un
-   pulsante vero. */
-#card-modal-info .cm-freccia:hover{ filter:brightness(1.22) drop-shadow(0 0 7px rgba(255,233,145,0.75)); }
-#card-modal-info .cm-freccia:hover::after{ opacity:0.25; }
+   pulsante vero.
+   v0.75.19 — VIA IL VELO BIANCO. Era uno pseudo-elemento con `inset:0`, cioe'
+   un RETTANGOLO grande quanto il pulsante: sull'icona a freccia, che rettangolo
+   non e', si vedeva accendersi l'aria attorno invece della freccia.
+   Non serve nessuna maschera per rimediare: `filter:brightness` agisce sui
+   pixel gia' disegnati, quindi rispetta la trasparenza del PNG per
+   costruzione — si accende la freccia e nient'altro. Alzato da 1.22 a 1.35,
+   perche' adesso e' l'unico effetto e prima i due si sommavano. */
+#card-modal-info .cm-freccia:hover{ filter:brightness(1.35) drop-shadow(0 0 7px rgba(255,233,145,0.75)); }
 #card-modal-info .cm-freccia:active{ transform:translateY(1px); }
 #card-modal-info .cm-freccia[disabled]{ opacity:0.35; cursor:default; }
 #card-modal-info .cm-freccia[disabled]:hover{ filter:none; }
-#card-modal-info .cm-freccia[disabled]:hover::after{ opacity:0; }
 #card-modal-info .cm-freccia[disabled]:active{ transform:none; }
 /* v0.73.2 — il pulsante di chiusura della carta ingrandita usa l'ASSET vero e
    lo stesso comportamento di quello del menu di debug (velo bianco al
@@ -4123,8 +4124,16 @@ body.prova-senza-willchange #mm-book-rot{
      si dimentica.
      Portandole sull'antenato comune, entrambi le leggono e il fascio si
      ricalcola da solo (vedi --libro-mezza-altezza).
-     v0.75.18 — e sono cresciute del 30%: 451 -> 586. */
-  --altezza-libro:586px;
+     v0.75.18 — e sono cresciute del 30%: 451 -> 586.
+     v0.75.19 — e di un altro 15%: 586 -> 674, cioe' +49% sull'originale. */
+  --altezza-libro:674px;
+  /* Il riquadro cliccabile, che deve crescere insieme al libro. I margini si
+     CALCOLANO da queste due misure invece di essere scritti a mano: servono a
+     centrare il riquadro sul proprio punto, quindi sono per definizione meta'
+     delle misure col segno meno, e ricopiarli a mano vuol dire poterli
+     sbagliare a ogni ritocco. E' successo due volte in due versioni. */
+  --riquadro-libro-w:389px;
+  --riquadro-libro-h:667px;
   /* 1/1.28: il libro cresce fino a scale(1.28) durante la carica, quindi lo si
      disegna alla misura MASSIMA e lo si rimpicciolisce a riposo. Il browser
      non ingrandisce mai niente, e rimpicciolire e' nitido. Vedi #pack-closed. */
@@ -4268,8 +4277,8 @@ body.prova-senza-willchange #mm-book-rot{
      lasciarla alla misura vecchia avrebbe voluto dire un libro grande con un
      bersaglio piccolo. */
   position:absolute; left:50%; top:50%;
-  width:338px; height:580px;
-  margin:-290px 0 0 -169px;
+  width:var(--riquadro-libro-w,389px); height:var(--riquadro-libro-h,667px);
+  margin:calc(var(--riquadro-libro-h,667px) / -2) 0 0 calc(var(--riquadro-libro-w,389px) / -2);
   /* Il libro aperto e' piu' largo del riquadro: deve poter sbordare. */
   overflow:visible;
   /* v0.72.93 — la bustina ricompare in dissolvenza a fine sequenza (vedi
@@ -4294,7 +4303,7 @@ body.prova-senza-willchange #mm-book-rot{
 #pack-closed > #pack-shake > #pack-closed-img{
   position:absolute; left:50%; top:50%;
   transform:translate(-50%,-50%) scale(var(--riposo-libro,1));
-  height:var(--altezza-libro,586px); width:auto; max-width:none; display:block;
+  height:var(--altezza-libro,674px); width:auto; max-width:none; display:block;
   filter:drop-shadow(0 26px 30px rgba(0,0,0,0.6));
 }
 /* v0.72.86 — IL BAGLIORE E' UNA COPIA DELLA BUSTINA, RESA BIANCA.
@@ -4318,7 +4327,7 @@ body.prova-senza-willchange #mm-book-rot{
      di riposo, o i due si scollerebbero durante la carica. */
   position:absolute; left:50%; top:50%;
   transform:translate(-50%,-50%) scale(var(--riposo-libro,1));
-  height:var(--altezza-libro,586px); width:auto; max-width:none; display:block;
+  height:var(--altezza-libro,674px); width:auto; max-width:none; display:block;
   filter:brightness(0) invert(1);
   mix-blend-mode:plus-lighter;
   opacity:0;
@@ -4349,6 +4358,16 @@ body.prova-senza-willchange #mm-book-rot{
    sequenza (.charging, .tearing) lo sostituiscono con la propria animazione,
    esattamente come prima. */
 #pack-closed.ready:hover{ transform:scale(1.045); transition:transform .18s cubic-bezier(.22,1,.36,1); }
+/* v0.75.19 — e si ACCENDE. Il filtro sta sull'immagine e non su #pack-closed
+   perche' li' dentro ci sono anche il velo bianco e l'alone: schiarirli
+   insieme al libro avrebbe illuminato la scena invece dell'oggetto.
+   Si somma alla drop-shadow che l'immagine ha gia' — un filter non sostituisce
+   l'altro, li elenca — quindi va ripetuta, altrimenti l'ombra sparirebbe
+   proprio mentre ci si passa sopra. */
+#pack-closed.ready:hover > #pack-shake > #pack-closed-img{
+  filter:brightness(1.18) drop-shadow(0 26px 30px rgba(0,0,0,0.6));
+  transition:filter .18s ease-out;
+}
 /* v0.72.87 — bustina non ancora disponibile: trasparente al 20% invece che
    desaturata. La desaturazione diceva "guasto"; la trasparenza dice "non
    ancora", che e' il messaggio giusto per qualcosa che tornera' da solo. */
@@ -6854,7 +6873,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.18</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.19</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -6993,47 +7012,10 @@ body.prova-senza-willchange #mm-book-rot{
      "always starts a vs-AI game" onclick (see build-version-badge's own
      updated onclick below). -->
 <div id="debug-modal-overlay" onclick="if(event.target===this) closeDebugModal();">
-  <div id="debug-modal"><button id="debug-modal-close" aria-label="Chiudi" onclick="closeDebugModal()"><img src="https://thetrickmaster.github.io/hextale/player-ui/close-icon.png" alt="" draggable="false"></button><h2>Debug menu</h2><div id="debug-grid"><div class="debug-item"><button class="start-art-btn sab-primary" onclick="closeDebugModal();requestNewGame(true)">
-      <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Start match vs AI</span>
-    </button></div><div class="debug-item"><!-- v0.75.3 — PROVA A/B SULLA SFOCATURA.
-         Rimette `will-change:transform` sulle carte, che e' esattamente cio'
-         che e' stato tolto due volte da questo file (v0.72.30 in Collezione,
-         v0.73.32 sulle bustine) proprio PERCHE' sfocava. Sta qui e non nel
-         CSS vero perche' la domanda e' "cambia qualcosa?", e a quella
-         domanda si risponde solo potendo accendere e spegnere a schermo,
-         sulla stessa carta, senza cambiare versione.
-         L'etichetta dice cosa e' acceso: leggerlo dal pulsante evita di
-         doversi ricordare in che stato si e' lasciato il gioco. -->
-      <button class="start-art-btn sab-secondary" id="btn-prova-willchange" onclick="provaWillChange()">
-        <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label" id="prova-willchange-label">Blur test: will-change ON</span>
-      </button></div><div class="debug-item"><!-- v0.71.58 REWORK ("raggruppiamo tutto sotto un unico pulsante: Mostra
-         asset... apre un menu a tendina con listati tutti gli asset collegati
-         ai pulsanti esistenti"): the 5 separate "show this specific
-         asset/banner on demand" debug shortcuts (3 game-over variants + AI
-         speech bubble + Time's up banner) used to each be their own
-         standalone button, which made this menu grow one button per new
-         debug-only visual added over time and pushed the genuinely different
-         "start a real match" actions further down/mixed in among them. Now a
-         single "Mostra asset" button reveals one dropdown listing all 5 (see
-         debugToggleAssetDropdown()/debugShowSelectedAsset() in the script),
-         same reveal-a-picker-inline pattern other debug pickers in this menu
-         also use — picking an option and confirming calls the EXACT SAME
-         debugShowGameOver/debugShowAiSpeechBubble/debugShowTimesUpBanner
-         functions as before, just dispatched from one shared confirm button
-         instead of one button per asset. "Start match vs AI" is deliberately
-         NOT in this list — per explicit direction, it actually starts a real
-         match rather than just displaying something, so it keeps its own
-         dedicated button. (v0.71.97: the "Start match with cards with
-         ability..." tool that used to be mentioned here alongside it was
-         removed per explicit request.) --><button class="start-art-btn sab-secondary" onclick="debugToggleAssetDropdown()">
-      <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Mostra asset...</span>
-    </button><div id="debug-asset-picker" style="display:none;margin-top:10px;">
-      <select id="debug-asset-select" style="width:100%;padding:8px;font-size:15px;border-radius:6px;background:#222;color:#fff;border:1px solid #555;">
-      </select>
-      <button class="start-art-btn sab-secondary" style="margin-top:8px;" onclick="debugShowSelectedAsset()">
-        <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Mostra</span>
-      </button>
-    </div></div><div class="debug-item"><!-- v0.72.43 NEW ("mi crei un pulsante nel debug menu per calibrare da
+  <div id="debug-modal"><button id="debug-modal-close" aria-label="Chiudi" onclick="closeDebugModal()"><img src="https://thetrickmaster.github.io/hextale/player-ui/close-icon.png" alt="" draggable="false"></button><h2>Debug menu</h2><div id="debug-grid"><div class="debug-item" style="display:none"><!-- v0.75.19 — "Calibra foil"
+         e' NASCOSTA, non rimossa: il pannello di calibrazione serve ancora il
+         giorno in cui la lamina va ritoccata, e cancellarlo vorrebbe dire
+         riscriverlo. Tolto dalla vista, resta nel file. --><!-- v0.72.43 NEW ("mi crei un pulsante nel debug menu per calibrare da
          solo questi quattro numeri in tempo reale?"): apre la Collezione e ci
          appoggia sopra un pannello flottante coi cursori del foil. Deve stare
          SOPRA la Collezione e non dentro questo menu, perche' i valori vanno
@@ -7097,10 +7079,7 @@ body.prova-senza-willchange #mm-book-rot{
       <button class="start-art-btn sab-primary" style="margin-top:8px;" onclick="debugStartMatchWithCard()">
         <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Conferma</span>
       </button>
-    </div></div><div class="debug-item"><!-- v0.72.79 NEW: pagina delle bustine. Vive nel menu di debug perche' il
-         possesso delle carte non esiste ancora — vedi openPackOverlay. --><button class="start-art-btn sab-secondary" onclick="closeDebugModal();openPackOverlay()">
-      <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Apri Book Pack</span>
-    </button></div><div class="debug-item"><button class="start-art-btn sab-secondary" style="margin-top:8px;" onclick="debugAzzeraTimerBustine()">
+    </div></div><div class="debug-item"><button class="start-art-btn sab-secondary" style="margin-top:8px;" onclick="debugAzzeraTimerBustine()">
       <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Azzera timer Book Pack</span>
     </button></div><div class="debug-item"><!-- v0.72.76 NEW: cerca su GitHub il file Hextale_*.html con il numero di
          versione piu' alto e offre due cose: scaricarlo, oppure eseguirlo
@@ -11553,7 +11532,10 @@ function _aggiornaStatoBustina(){
     return;
   }
   if(bustinaDisponibile()){
-    stato.textContent = 'You have a pack ready. Tap it to open.';
+    // v0.75.19 — niente scritta quando la bustina e' pronta: si vede da sola
+    // che e' li' e che si accende al passaggio del mouse. La riga di stato
+    // serve a dire cio' che NON si vede — quanto manca, o che manca il foglio.
+    stato.textContent = '';
     chiusa.classList.add('ready'); chiusa.classList.remove('locked');
     raggiere(true);
   } else {
