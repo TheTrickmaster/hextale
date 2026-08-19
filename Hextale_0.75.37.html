@@ -7151,7 +7151,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.36</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.37</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -10716,9 +10716,25 @@ function _cardaDaRiga(col, get, haColonna){
   if(abGrezza && abGrezza!=='/'){
     const cercato=norm(abGrezza);
     let reg=null; try{ reg=TILE_ABILITIES_DEF; }catch(_){ reg=null; }
+    // v0.75.36 — UN NOME PUO' ESSERE FATTO DI SOLA PUNTEGGIATURA.
+    // L'abilita' della Little Mermaid si chiama "...", e `norm` cancella
+    // tutto cio' che non e' lettera o cifra: "..." si riduce a stringa vuota,
+    // e con lei "-", "!!!", "?". Confrontando le forme normalizzate sarebbero
+    // tutti LO STESSO nome, e la prima abilita' trovata se li prenderebbe
+    // tutti — una cella con un trattino avrebbe agganciato lo scarto della
+    // Sirenetta senza che nulla lo facesse sospettare.
+    // Quando la forma normalizzata e' vuota si confronta quindi la stringa
+    // cosi' com'e': "..." aggancia solo "...". Fuori da quel caso non cambia
+    // niente, e la normalizzazione continua a perdonare maiuscole, spazi e
+    // punteggiatura come ha sempre fatto.
+    const grezzoCercato = abGrezza.toLowerCase();
     if(reg){
       for(const k in reg){
-        if(norm(reg[k].name)===cercato){ abilita=k; break; }
+        const n = norm(reg[k].name);
+        const combacia = n
+          ? (n === cercato)
+          : (String(reg[k].name||'').trim().toLowerCase() === grezzoCercato);
+        if(combacia){ abilita=k; break; }
       }
     }
     // Nessuna corrispondenza: si tiene comunque una chiave segnaposto ricavata
@@ -17317,12 +17333,18 @@ const TILE_ABILITIES_DEF = {
   // MANO invece che al tabellone: giocandola, il suo proprietario deve
   // scartare una carta. E' un costo, non un vantaggio — la Sirenetta ha valori
   // altissimi e li paga cosi'.
-  // ATTENZIONE AL NOME. Sul foglio la cella "Ability name" di questa carta
-  // conteneva "...", che non e' un nome: il legame fra foglio e codice passa
-  // solo di li' (vedi _cardaDaRiga), e tre punti non possono agganciare
-  // niente. Perche' l'abilita' scatti, nella cella va scritto ESATTAMENTE il
-  // nome qui sotto.
-  a_voice_for_legs: { name:'A Voice for Legs', desc:'When *Played*, *Discard* a card of your choice.' },
+  // IL NOME E' "...", E CI VUOLE VOLUTAMENTE. La Sirenetta ha barattato la
+  // voce: l'abilita' che porta il suo prezzo non ha un nome da leggere, ha tre
+  // puntini. Perche' funzioni ha pero' richiesto una correzione al modo in cui
+  // foglio e codice si agganciano — `norm` cancella la punteggiatura, quindi
+  // "..." si riduceva a stringa vuota e sarebbe stato lo stesso nome di "-" o
+  // di "!!!". Vedi _cardaDaRiga: per i nomi di sola punteggiatura il confronto
+  // avviene ora sulla stringa cosi' com'e'.
+  // La chiave non puo' somigliare al nome come fanno tutte le altre
+  // (open_celery, different_reality): tre puntini non si traducono in un
+  // identificatore. Dice quindi CHI e COSA, che e' il massimo di leggibilita'
+  // che qui si puo' avere.
+  mermaid_discard: { name:'...', desc:'When *Played*, *Discard* a card of your choice.' },
   // v0.73.5 — Hatter. Non fa niente finche' resta suo; se lo conquista
   // l'avversario impazzisce (vedi impazzisciSeConquistato).
   have_i_gone_mad:   { name:'Have I Gone Mad?',   desc:'On conquer: goes mad, its power becomes a random value (1-3).' },
@@ -19962,7 +19984,7 @@ const SCELTE_PIAZZAMENTO = {
     };
     return stato;
   },
-  // ── v0.75.36 — LITTLE MERMAID, "A Voice for Legs" ───────────────────────
+  // ── v0.75.36 — LITTLE MERMAID, "..." ────────────────────────────────────
   // La prima scelta che non si fa sul TABELLONE ma sulla MANO. Riusa tutta
   // l'impalcatura delle altre — la pausa del turno, il timer, l'IA che chiude
   // sempre, chiudiSceltaBersaglio come unica uscita — e ne cambia due cose:
@@ -19975,7 +19997,7 @@ const SCELTE_PIAZZAMENTO = {
   //
   // La carta appena giocata e' gia' uscita dalla mano quando questa funzione
   // gira, quindi non serve escluderla: la mano contiene solo le altre.
-  a_voice_for_legs: (card, q, r, giocatore) => {
+  mermaid_discard: (card, q, r, giocatore) => {
     const mano = manoDi(giocatore);
     const ids = mano.map(c => c && c.id).filter(Boolean);
     // Mano vuota: nessuna finestra e nessuna pausa. Aprirla vorrebbe dire
@@ -19988,7 +20010,7 @@ const SCELTE_PIAZZAMENTO = {
     // stesso modo: lo scarto e' obbligatorio, non evitabile.
     const aCaso = () => ids[Math.floor(Math.random()*ids.length)];
     return {
-      chiave: 'a_voice_for_legs',
+      chiave: 'mermaid_discard',
       giocatore,
       modo: 'mano',
       cellaOrigine: key(q,r),
@@ -23536,7 +23558,7 @@ VALUTAZIONI_IA.open_celery = (scelta) => {
 // Non restituisce MAI null: lo scarto e' obbligatorio, e un null qui verrebbe
 // letto come "ho deciso di non scegliere" (vedi aiResolvePendingAbilityIfAny),
 // che per questa abilita' non e' un'opzione.
-VALUTAZIONI_IA.a_voice_for_legs = (scelta) => {
+VALUTAZIONI_IA.mermaid_discard = (scelta) => {
   const mano = manoDi(scelta.giocatore);
   let peggiore = null, minimo = Infinity;
   for(const c of mano){
@@ -31053,7 +31075,7 @@ function renderBoard(){
   // loro bersagli sono carte del ventaglio, non caselle, e i loro comandi sono
   // le croci messe da renderHand. Nemmeno la X per rinunciare, e non e' una
   // dimenticanza: lo scarto e' obbligatorio (vedi SCELTE_PIAZZAMENTO
-  // .a_voice_for_legs), quindi una X che sembra offrire di annullarlo direbbe
+  // .mermaid_discard), quindi una X che sembra offrire di annullarlo direbbe
   // una cosa falsa. Se il giocatore non sceglie, il timer sceglie per lui.
   if(G.sceltaBersaglio && G.sceltaBersaglio.modo === 'mano'){ /* niente sulla plancia */ }
   else if(G.sceltaBersaglio && giocatoreUmano(G.sceltaBersaglio.giocatore)){
