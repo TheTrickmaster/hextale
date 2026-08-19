@@ -5292,12 +5292,19 @@ body.prova-senza-willchange #mm-book-rot{
    doveva farsi da parte.
    Con tre nomi espliciti, un velo nuovo aggiunto domani resta fuori per
    difetto, che e' il verso giusto in cui sbagliare. */
-.pack-card.scartata > .pack-card-pop,
-.pack-card.scartata > .pack-card-glow,
-.pack-card.scartata > .pack-card-rim{ opacity:0.4; }
-.pack-card > .pack-card-pop,
-.pack-card > .pack-card-glow,
-.pack-card > .pack-card-rim{ transition:opacity .28s ease-out; }
+/* v0.75.28 — la carta messa da parte perde OGNI luce, non la attenua: niente
+   alone di rarita', niente bordo. Una carta che si sta scartando non deve
+   continuare a farsi notare, e a meta' intensita' sembrava solo un difetto di
+   resa. Se la si riprende tornano tutti e due, perche' e' solo una classe.
+   L'alone e il bordo adesso vivono dentro al piano inclinato (vedi
+   _costruisciCartaBustina), quindi non sono piu' figli diretti della carta:
+   il selettore non ha piu' il `>`. */
+.pack-card.scartata .pack-card-glow,
+.pack-card.scartata .pack-card-rim{ opacity:0 !important; }
+.pack-card.scartata > .pack-card-pop{ opacity:0.4; }
+.pack-card > .pack-card-pop{ transition:opacity .28s ease-out; }
+.pack-card .pack-card-glow,
+.pack-card .pack-card-rim{ transition:opacity .28s ease-out; }
 
 /* ── v0.75.25 — L'USCITA DELLE CARTE, DOPO LA SCELTA ──────────────────────
    Tre momenti, tre classi. Tutte lavorano su --da-x/--da-y, cioe' la posizione
@@ -7065,7 +7072,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.27</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.28</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -12471,7 +12478,6 @@ function _costruisciCartaBustina(entry, dir, indice){
   const blob = document.createElement('div');
   blob.className = 'pack-card-glow-blob';
   alone.appendChild(blob);
-  carta.appendChild(alone);
 
   // Il bordo luminoso: presente nel DOM anche per le comuni, ma spento dalla
   // regola .rarita-common. Costruirlo sempre tiene la struttura uguale per
@@ -12481,7 +12487,6 @@ function _costruisciCartaBustina(entry, dir, indice){
   const anello = document.createElement('div');
   anello.className = 'pack-card-rim-ring';
   bordo.appendChild(anello);
-  carta.appendChild(bordo);
 
   // Il livello dell'ingrandimento: dentro ci stanno il piano che gira e il
   // velo del lampo, cosi' crescono insieme e restano sovrapposti (v0.72.84).
@@ -12515,6 +12520,16 @@ function _costruisciCartaBustina(entry, dir, indice){
 
   piano.appendChild(dorso);
   piano.appendChild(fronte);
+  // v0.75.28 — L'ALONE E IL BORDO STANNO DENTRO AL PIANO CHE SI INCLINA.
+  // Erano figli della CARTA, cioe' fuori dal piano: la carta ruotava e loro
+  // restavano piatti, e a schermo si vedeva un alone rettangolare fermo dietro
+  // a una carta inclinata. E' lo stesso rimedio gia' applicato alle carte in
+  // mano in v0.72.18, che qui era rimasto da fare.
+  // Vanno PRIMA del piano che gira: cosi' restano dietro per ordine nel
+  // documento, senza bisogno di z-index negativi, che dentro un contesto 3D si
+  // comportano in modo poco prevedibile.
+  tilt.appendChild(alone);
+  tilt.appendChild(bordo);
   tilt.appendChild(piano);
 
   const riflesso = document.createElement('div');
@@ -12807,7 +12822,7 @@ function raccogliCarte(){
 // disegno si'. Le tre fasi diventano tre tratti dello stesso avanzamento, e
 // non tre orologi separati che possono sfasarsi.
 const CENERE_QUANTE = 340;      // quante particelle in tutto, sparse lungo la mangiata
-const INCENERISCI_MS = 1750;
+const INCENERISCI_MS = 3200;   // v0.75.28 — piu' lento: la carta si consuma, non si strappa
 const FASE_ARANCIO = 0.20;      // fino a qui: si tinge
 const FASE_NERO    = 0.34;      // fino a qui: annerisce
 // I due colori del pulviscolo: nasce brace e muore cenere.
@@ -12878,33 +12893,24 @@ function incenerisciCarta(carta, poi){
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
   // ── DOVE STA LA CARTA, in coordinate della tela ────────────────────────
-  // Si misura la carta CONTRO LA TELA STESSA, non contro la scena e non con
-  // una formula geometrica.
-  // Le due strade provate prima sbagliavano per lo stesso motivo, da due lati
-  // opposti: la scena vive dentro #game-root, che e' scalato, quindi i pixel
-  // veri e le coordinate della tela non coincidono — e ogni conversione che
-  // passa da un terzo elemento (la scena) eredita anche il suo scostamento.
-  // Misurando la tela contro se stessa il rapporto e' esatto per costruzione:
-  // qualunque cosa stia in mezzo, il suo riquadro vero e il suo riquadro di
-  // disegno sono lo stesso riquadro.
-  let x0, y0, larg, alt;
-  const rc = carta.getBoundingClientRect();
-  const rt = tela.getBoundingClientRect();
-  if(rc.width > 0 && rt.width > 0){
-    const kx = W / rt.width, ky = H / rt.height;
-    x0 = (rc.left - rt.left) * kx;
-    y0 = (rc.top  - rt.top ) * ky;
-    larg = rc.width * kx;
-    alt  = rc.height * ky;
-  } else {
-    // Ripiego per quando non c'e' impaginazione da misurare (i banchi di
-    // prova): la carta e' 242x414, centrata sul 50%/50% e spostata dalla
-    // propria transform.
-    const t = _trasformazioneAttuale(carta);
-    larg = 242; alt = 414;
-    x0 = W/2 + t.x - larg/2;
-    y0 = H/2 + t.y - alt/2;
-  }
+  // Si usano le coordinate di IMPAGINAZIONE (offsetLeft/offsetTop/offsetWidth),
+  // non i riquadri veri a schermo. E' l'unico modo che non ha bisogno di
+  // nessuna conversione, ed e' il motivo per cui i due tentativi precedenti
+  // sbagliavano: la scena vive dentro #game-root, che e' SCALATO, quindi
+  // qualunque misura letta a schermo va riportata indietro — e ogni riporto e'
+  // un'occasione per sbagliare (le particelle sono finite prima in un angolo,
+  // poi fuori campo).
+  // offsetLeft e offsetTop sono gia' nelle stesse unita' in cui e' disegnata
+  // la tela, perche' la scala di #game-root e' una trasformazione e non tocca
+  // l'impaginazione. L'unico pezzo che l'impaginazione non conosce e' la
+  // transform della carta, che si somma a parte.
+  // Contano dal contenitore posizionato piu' vicino, che per la carta e per la
+  // tela e' lo stesso: #pack-stage.
+  const t = _trasformazioneAttuale(carta);
+  const larg = carta.offsetWidth  || 242;
+  const alt  = carta.offsetHeight || 414;
+  const x0 = (carta.offsetLeft || (W/2 - larg/2)) + t.x;
+  const y0 = (carta.offsetTop  || (H/2 - alt/2))  + t.y;
 
   // I denti del bordo, sorteggiati UNA volta: profondita', fase e velocita'.
   const denti = [];
@@ -13045,10 +13051,13 @@ function uscitaDopoLaScelta(tenute, scartate){
   // tornaAllaBustina, che e' l'unica strada per uscire di qui.
   _bustinaInCorso = true;
 
-  // v0.75.26 — LA SCENA E' UNA SOLA, E SI FA UN TURNO PER UNO.
-  // Quando si scarta una carta, il centro se lo prende PRIMA lei: ci va,
-  // brucia, si sgretola. Solo a cenere finita entra la carta tenuta.
-  // Prima le due cose si sovrapponevano e il centro se lo contendevano.
+  // v0.75.28 — LA CARTA CHE BRUCIA NON SI MUOVE.
+  // Bruciava al centro, ma spostarla li' voleva dire farla passare DAVANTI o
+  // ACCANTO all'altra mentre sta gia' annerendo: due cose in movimento nello
+  // stesso istante, e nessuna delle due si legge.
+  // Adesso brucia dov'e'. Il centro se lo prende la carta tenuta, e solo dopo
+  // che dell'altra non e' rimasto niente: cosi' lo spazio che occupa e'
+  // davvero libero quando ci arriva.
   const soloUna = tenute.length === 1 && scartate.length > 0;
 
   // Il finale e' lo stesso in tutti i casi: battito, suono, volo.
@@ -13070,21 +13079,18 @@ function uscitaDopoLaScelta(tenute, scartate){
     return;
   }
 
-  // Una sola tenuta: prima tocca a quella che se ne va.
+  // Una sola tenuta: prima brucia l'altra, dove sta.
   const daBruciare = scartate[0];
-  for(const c of scartate) _preparaUscita(c, true);
+  for(const c of scartate) _preparaUscita(c, false);   // false: resta dov'e'
   for(const c of tenute)   _preparaUscita(c, true);
   // Le carte da scartare oltre la prima (oggi non capita, ma la regola deve
-  // reggere anche a tre) si spengono e basta: il centro e' per una sola.
+  // reggere anche a tre) si spengono e basta: se ne brucia una per volta.
   for(let k=1;k<scartate.length;k++) scartate[k].style.opacity = '0';
 
-  scartate[0].classList.add('al-centro');
-  _bustinaDopo(USCITA_CENTRO_MS, ()=>{
-    incenerisciCarta(daBruciare, ()=>{
-      // Cenere finita: adesso il centro e' libero.
-      for(const c of tenute) c.classList.add('al-centro');
-      _bustinaDopo(USCITA_CENTRO_MS, finale);
-    });
+  incenerisciCarta(daBruciare, ()=>{
+    // Della scartata non e' rimasto niente: adesso il centro e' libero.
+    for(const c of tenute) c.classList.add('al-centro');
+    _bustinaDopo(USCITA_CENTRO_MS, finale);
   });
 }
 
