@@ -7247,7 +7247,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.45</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.46</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -8712,12 +8712,17 @@ function playHitSfx(){
 // Background music now rotates randomly across every track here instead of
 // always looping the same single file — see initBgm()/playRandomTrack()
 // below, wired up from startGame().
+// v0.75.46 — IN BATTAGLIA SUONA UN BRANO SOLO, e si ripete all'infinito.
+// La rotazione fra cinque brani non e' stata "tolta": e' rimasta tutta —
+// l'elenco, il precaricamento a catena, lo shuffle che evita il bis — e ha
+// semplicemente un elemento solo. Il giorno in cui la partita tornera' ad
+// avere piu' brani basta rimettere le righe qui sotto, e tutto il resto
+// funziona gia'.
+// Il brano ha una coda dedicata (moonlit-card-court-loop) che si attacca alla
+// fine della prima parte: vedi MUSIC_INTRO_LOOPS, dove sta scritto il legame.
+const BATTLE_MUSIC_TRACK = 'https://thetrickmaster.github.io/hextale/audio/music/moonlit-card-court.mp3';
 const MUSIC_TRACKS = [
-  'https://thetrickmaster.github.io/hextale/audio/music/moonlit-card-court.mp3',
-  'https://thetrickmaster.github.io/hextale/audio/music/moonlit-card-court-2.mp3',
-  'https://thetrickmaster.github.io/hextale/audio/music/glasswood-duel.mp3',
-  'https://thetrickmaster.github.io/hextale/audio/music/jesters-card-march.mp3',
-  'https://thetrickmaster.github.io/hextale/audio/music/light-vs-darkness.mp3',
+  BATTLE_MUSIC_TRACK,
 ];
 
 // Separate small pool used ONLY on the start screen (before any game has
@@ -9518,6 +9523,16 @@ function playRandomBgmTrack(){
     }
   }
   bgm.dataset.currentTrack=next;
+  // v0.75.46 — se il brano scelto ha una coda registrata, se ne occupa
+  // playMusicWithIntroLoop: mette lui il src, avvia e programma la giunzione.
+  // La deviazione sta QUI, dentro al rotatore, e non nei punti che lo chiamano:
+  // cosi' vale per tutti — l'avvio di una partita, la fine del brano
+  // precedente, il ritorno dai menu — senza doverli censire.
+  if(MUSIC_INTRO_LOOPS[next]){
+    playMusicWithIntroLoop(next);
+    preloadNextMusicTrack();
+    return;
+  }
   bgm.src=next;
   bgm.play().catch(()=>{});
   // Chain step: a track just started — quietly fetch one more not-yet-cached
@@ -9939,6 +9954,16 @@ function musicaMenuAvvia(){
   bgm._preMenuTrack=bgm.dataset.currentTrack||'';
   bgm._preMenuTime=bgm.currentTime||0;
   bgm._preMenuPaused=bgm.paused;
+  // v0.75.46 — e se sotto stava suonando la CODA di un brano, si segna anche
+  // quella. Da quando la musica di battaglia ha una coda in loop, entrare in
+  // Collezione a meta' partita e tornare indietro trovava #bgm fermo sulla
+  // fine della prima parte: si riprendeva quella, e finita quella calava il
+  // silenzio, perche' la catena della giunzione era stata smontata uscendo.
+  // La coda vive su un elemento suo, quindi va ricordata a parte.
+  const lpPrima=document.getElementById('bgm-loop');
+  bgm._preMenuLoop=(lpPrima && lpPrima.src && !lpPrima.paused)
+    ? { src: lpPrima.src, time: lpPrima.currentTime||0 }
+    : null;
   playMusicWithIntroLoop(MENU_MUSIC_TRACK);
   attendiIlPrimoGestoPerLaMusica();
 }
@@ -9972,6 +9997,24 @@ function musicaMenuFerma(){
   if(!bgm) return;
   bgm.loop=false;
   if(bgm._preMenuTrack && bgm.src.indexOf('menu-music')!==-1){
+    // v0.75.46 — se sotto stava suonando la CODA, si riprende quella e non la
+    // prima parte: era gia' finita, e rimetterla vorrebbe dire far ricominciare
+    // il brano da un punto che il giocatore ha gia' superato.
+    const coda=bgm._preMenuLoop;
+    bgm._preMenuLoop=null;
+    if(coda && coda.src){
+      const lp=document.getElementById('bgm-loop');
+      if(lp){
+        bgm.dataset.currentTrack=bgm._preMenuTrack;
+        _musicIntroLoopActive=true;   // la coppia e' di nuovo in corso: i rotatori restino zitti
+        lp.src=coda.src;
+        lp.loop=true;
+        lp.volume=getEffectiveMusicVolume();
+        try{ lp.currentTime=coda.time||0; }catch(_){}
+        lp.play().catch(()=>{});
+        return;
+      }
+    }
     bgm.dataset.currentTrack=bgm._preMenuTrack;
     bgm.src=bgm._preMenuTrack;
     bgm.currentTime=bgm._preMenuTime||0;
@@ -10089,6 +10132,13 @@ function startGame(vsAI){
   // in riproduzione SOTTO al brano nuovo — sono due elementi audio diversi, e
   // nessuno dei due sa dell'altro.
   musicaMenuFerma();
+  // v0.75.46 — e qualunque coppia intro+coda viene chiusa comunque, anche
+  // quella che musicaMenuFerma ha appena ripreso. Uscendo dai menu quella
+  // ripresa e' giusta (si torna alla partita che c'era sotto), ma qui si sta
+  // COMINCIANDO una partita nuova, e una partita nuova apre il brano da capo
+  // (v0.73.76). Senza questa riga la coda ripresa terrebbe alzato il flag che
+  // zittisce il rotatore, e la musica nuova non partirebbe affatto.
+  stopMusicLoopChain();
   if(bgm){
     bgm.volume=getEffectiveMusicVolume();
     // v0.73.76 — OGNI PARTITA RICOMINCIA DA CAPO.
@@ -11822,12 +11872,32 @@ const MENU_MUSIC_TRACK = 'https://thetrickmaster.github.io/hextale/audio/music/m
 //
 // Per aggiungerne altri basta una riga qui: chiave = URL della intro,
 // `loop` = URL della coda, `at` = secondi dall'avvio della intro.
+// v0.75.46 — `at` e' ora FACOLTATIVO. Ometterlo significa "alla fine della
+// intro", letta a runtime dal lettore invece che scritta qui: il brano della
+// battaglia e' gia' tagliato al punto giusto, quindi il numero da scrivere
+// sarebbe la sua durata — e un numero copiato a mano che deve combaciare con
+// un file va rifatto ogni volta che il file viene riesportato, di solito
+// accorgendosene dal buco che si sente.
 const MUSIC_INTRO_LOOPS = {
   [MENU_MUSIC_TRACK]: {
     loop: 'https://thetrickmaster.github.io/hextale/audio/music/menu-music-loop.mp3',
-    at: 3*60 + 18, // 3m18s
+    at: 3*60 + 18, // 3m18s — qui il punto NON e' la fine: la intro ha una coda
+                   // di riverbero che continua oltre la giunzione, ed e'
+                   // proprio quella sovrapposizione a nasconderla.
+  },
+  [BATTLE_MUSIC_TRACK]: {
+    loop: 'https://thetrickmaster.github.io/hextale/audio/music/moonlit-card-court-loop.mp3',
+    // niente `at`: si attacca alla fine della prima parte.
   },
 };
+// Quanto si anticipa la giunzione quando `at` non e' dichiarato. Non e' un
+// margine di sicurezza a caso: un mp3 porta in coda qualche decina di
+// millisecondi di silenzio aggiunti dal codificatore, che non fanno parte
+// della musica ma rientrano nella durata dichiarata. Partendo esattamente a
+// `duration` quel silenzio si sentirebbe come un buco; partendo 60ms prima, la
+// coda entra mentre suona l'ultimo istante vero. Un pelo di sovrapposizione su
+// un taglio pulito non si sente, un buco si'.
+const MUSIC_LOOP_PADDING_S = 0.06;
 
 // Quanto prima del punto di giunzione si smette di sorvegliare con
 // l'intervallo e si passa a un singolo setTimeout mirato. Un setInterval, per
@@ -11905,9 +11975,21 @@ function playMusicWithIntroLoop(introUrl){
     // punto di giunzione, tagliarla creerebbe proprio lo stacco che si vuole
     // evitare. Finisce da sola.
   };
+  // Il punto di giunzione, ricalcolato a ogni giro di sorveglianza: quando non
+  // e' dichiarato dipende da `duration`, che all'avvio puo' non essere ancora
+  // nota. Chiedendolo ogni volta, appena i metadati arrivano il punto compare
+  // da solo — senza aspettare l'arrivo dei metadati con un listener in piu'.
+  // Finche' resta ignoto vale Infinity: la sorveglianza non scatta mai e a
+  // far partire la coda e' la rete di sicurezza sull'evento 'ended', cioe'
+  // esattamente alla fine. Un fotogramma peggio, mai un errore.
+  const giunzione=()=>{
+    if(typeof cfg.at === 'number') return cfg.at;
+    const d=bgm.duration;
+    return (isFinite(d) && d>0) ? (d - MUSIC_LOOP_PADDING_S) : Infinity;
+  };
   _musicLoopWatch=setInterval(()=>{
     if(!bgm.src || bgm.src.indexOf(introUrl)===-1){ stopMusicLoopChain(); return; } // il brano e' cambiato
-    const restano=cfg.at-bgm.currentTime-MUSIC_LOOP_START_LATENCY_S;
+    const restano=giunzione()-bgm.currentTime-MUSIC_LOOP_START_LATENCY_S;
     if(restano<=MUSIC_LOOP_HANDOFF_LEAD_S){
       clearInterval(_musicLoopWatch); _musicLoopWatch=null;
       _musicLoopTimer=setTimeout(avvia, Math.max(0, restano*1000));
