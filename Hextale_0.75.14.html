@@ -6091,12 +6091,15 @@ body.prova-senza-willchange #mm-book-rot{
 #mm-store{    left:var(--segna-store-x);    top:var(--segna-store-y);    width:calc(var(--nativa, 344px) * var(--segnalibro-scala)); }
 #mm-missions{ left:var(--segna-missioni-x); top:var(--segna-missioni-y); width:calc(var(--nativa, 357px) * var(--segnalibro-scala)); }
 #mm-packs{    left:var(--segna-packs-x);    top:var(--segna-packs-y);    width:calc(var(--nativa, 330px) * var(--segnalibro-scala)); }
-/* Lo Store non e' ancora aperto: si vede che c'e', ma sbiadito, e non
-   risponde. Niente hover, perche' un oggetto che reagisce promette di
-   funzionare. */
-#mm-store{ opacity:0.4; }
-#mm-store:hover{ filter:drop-shadow(0 6px 14px rgba(0,0,0,0.45)); }
-#mm-store:hover img{ transform:none; }
+/* v0.75.14 — Store e Missioni non sono ancora aperti: si vede che ci sono, ma
+   sbiaditi, e non rispondono. Niente hover, perche' un oggetto che reagisce
+   promette di funzionare.
+   Le due voci stanno insieme in una regola sola: sono lo stesso stato, e
+   tenerle separate vorrebbe dire ricordarsi di ritoccarle tutte e due il
+   giorno in cui l'aspetto del "non ancora disponibile" cambia. */
+#mm-store, #mm-missions{ opacity:0.4; }
+#mm-store:hover, #mm-missions:hover{ filter:drop-shadow(0 6px 14px rgba(0,0,0,0.45)); }
+#mm-store:hover img, #mm-missions:hover img{ transform:none; }
 
 /* ── PAGINA SINISTRA: il giocatore ────────────────────────────────────────
    Stesso impianto del banner in partita (sfondo, targa col nome, avatar
@@ -6451,8 +6454,8 @@ body.prova-senza-willchange #mm-book-rot{
 
       <!-- I segnalibri che escono dal taglio delle pagine -->
       <button class="mm-clic mm-nudo mm-bookmark" id="mm-store" aria-label="Store" disabled><span class="mm-bookmark-scorri"><img alt="" draggable="false"><span class="mm-bookmark-testi"><span class="mm-bookmark-titolo">Store</span><span class="mm-bookmark-sotto">Summer Sales!</span></span></span></button>
-      <button class="mm-clic mm-nudo mm-bookmark" id="mm-missions" onclick="mmApriMissioni()" aria-label="Missions"><span class="mm-bookmark-scorri"><img alt="" draggable="false"><span class="mm-bookmark-testi"><span class="mm-bookmark-titolo">Missions</span><span class="mm-bookmark-sotto">2 rewards ready</span></span></span></button>
-      <button class="mm-clic mm-nudo mm-bookmark" id="mm-packs" onclick="openPackOverlay()" aria-label="Book Packs"><span class="mm-bookmark-scorri"><img alt="" draggable="false"><span class="mm-bookmark-testi"><span class="mm-bookmark-titolo">Book Packs</span><span class="mm-bookmark-sotto">1 available!</span></span></span></button>
+      <button class="mm-clic mm-nudo mm-bookmark" id="mm-missions" aria-label="Missions" disabled><span class="mm-bookmark-scorri"><img alt="" draggable="false"><span class="mm-bookmark-testi"><span class="mm-bookmark-titolo">Missions</span><span class="mm-bookmark-sotto">2 rewards ready</span></span></span></button>
+      <button class="mm-clic mm-nudo mm-bookmark" id="mm-packs" onclick="openPackOverlay()" aria-label="Book Packs"><span class="mm-bookmark-scorri"><img alt="" draggable="false"><span class="mm-bookmark-testi"><span class="mm-bookmark-titolo">Book Packs</span><span class="mm-bookmark-sotto"><!-- lo riscrive aggiornaSottotitoloBustine --></span></span></span></button>
 
       <!-- Pagina sinistra: il giocatore -->
       <div id="mm-player">
@@ -6786,7 +6789,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.13</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.14</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -8540,6 +8543,8 @@ const PAGE_ENTER_HOOKS = {
   mainmenu(){
     if(typeof montaMenuPrincipale === 'function') montaMenuPrincipale();
     if(typeof musicaMenuAvvia === 'function') musicaMenuAvvia();
+    // v0.75.14 — il conto alla rovescia del segnalibro bustine.
+    if(typeof avviaOrologioSegnalibroBustine === 'function') avviaOrologioSegnalibroBustine();
   },
   // v0.75.12 — la polvere sospesa ai lati parte con la pagina bustine e si
   // ferma uscendone. Va (ri)avviata a ogni entrata e non solo alla prima:
@@ -8816,6 +8821,9 @@ function showPage(name){
   // v0.75.12 — stessa regola per la polvere delle bustine: lasciarla girare
   // sotto una pagina che non si vede terrebbe vivo un rAF per niente.
   if(name !== 'packs' && typeof PolvereBustineFerma === 'function') PolvereBustineFerma();
+  // v0.75.14 — e per il conto alla rovescia del segnalibro: fuori dal menu
+  // non c'e' nessun segnalibro da aggiornare.
+  if(name !== 'mainmenu' && typeof fermaOrologioSegnalibroBustine === 'function') fermaOrologioSegnalibroBustine();
   for(const other in PAGE_ELEMENT_IDS){ if(other!==name) unmountPage(other); }
   mountPage(name);
   _activePage = name;
@@ -9189,6 +9197,36 @@ function aggiornaDatiMenu(){
   const targhetta = document.getElementById('build-version-badge');
   const etichetta = document.getElementById('mm-patch-label');
   if(etichetta) etichetta.textContent = 'Patch Notes ' + ((targhetta && targhetta.textContent.trim()) || '');
+  aggiornaSottotitoloBustine();
+}
+
+// ── v0.75.14 — IL SEGNALIBRO DELLE BUSTINE DICE LA VERITA' ────────────────
+// Sotto al titolo c'era scritto "1 available!", fisso nel markup: lo diceva
+// anche quando la bustina era stata appena aperta e mancavano otto ore.
+// Adesso legge lo stesso stato che legge la schermata bustine — bustinaDisponibile()
+// e _bustinaTempoRimasto() — invece di avere una sua idea: due fonti sullo
+// stesso fatto prima o poi si contraddicono, e qui si contraddicevano subito.
+function aggiornaSottotitoloBustine(){
+  const el = document.querySelector('#mm-packs .mm-bookmark-sotto');
+  if(!el) return;
+  if(typeof bustinaDisponibile !== 'function') return;
+  el.textContent = bustinaDisponibile()
+    ? '1 available!'
+    : ('Next in: ' + _bustinaTempoRimasto());
+}
+// Il conto alla rovescia va aggiornato mentre si guarda: entrando col tempo
+// scaduto fra un minuto, il segnalibro deve arrivare da solo a "1 available!"
+// invece di restare sull'ultimo numero letto.
+// Il battito e' di un secondo perche' _bustinaTempoRimasto scende al secondo
+// nell'ultimo minuto; piu' lento e si vedrebbe saltare.
+let _bustineSegnalibroTimer = null;
+function avviaOrologioSegnalibroBustine(){
+  fermaOrologioSegnalibroBustine();
+  aggiornaSottotitoloBustine();
+  _bustineSegnalibroTimer = setInterval(aggiornaSottotitoloBustine, 1000);
+}
+function fermaOrologioSegnalibroBustine(){
+  if(_bustineSegnalibroTimer){ clearInterval(_bustineSegnalibroTimer); _bustineSegnalibroTimer = null; }
 }
 // v0.73.60 — lo sfondo della Collezione e' quello del menu. Si monta una
 // volta sola, alla prima apertura: rifarlo a ogni entrata farebbe ripartire
