@@ -5379,7 +5379,7 @@ body.prova-senza-willchange #mm-book-rot{
    la carta diventa arancione senza diventare una macchia arancione. */
 .pack-card-brace{
   position:absolute; inset:0; border-radius:18px;
-  background:#F6BA15;
+  background:#E56213;
   mix-blend-mode:color;
   opacity:0; pointer-events:none;
   z-index:4;
@@ -7108,7 +7108,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.32</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.33</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -12874,8 +12874,23 @@ const INCENERISCI_MS = 1600;   // v0.75.30 — meta' di quanto durava
 const FASE_ARANCIO = 0.20;      // fino a qui: si tinge
 const FASE_NERO    = 0.34;      // fino a qui: annerisce
 // I due colori del pulviscolo: nasce brace e muore cenere.
-const CENERE_DA = { r:0xF6, g:0xBA, b:0x15 };
+const CENERE_DA = { r:0xE5, g:0x62, b:0x13 };
 const CENERE_A  = { r:0x0E, g:0x0C, b:0x0A };
+// v0.75.33 — QUANTA CARTA dev'essere stata mangiata perche' non se ne veda
+// piu' niente. Si misura sul mangiato e non sul tempo: legandola al tempo, e
+// col bordo che adesso accelera, la carta sparirebbe quando il bordo e' sceso
+// di un settimo — cioe' prima che la bruciatura si veda, e a quel punto non
+// sarebbe piu' una carta che brucia ma una carta che sbiadisce.
+// A 0.42 l'ultimo lembo se ne va a poco meno di meta' carta consumata, e il
+// resto della bruciatura lo porta a termine la sola cenere.
+const FINE_DISSOLVENZA = 0.42;
+// E di quanto accelera il bordo. Sopra 1 la curva parte piano e stringe alla
+// fine; 2.4 fa scendere il bordo a un quinto dell'altezza a meta' tempo e
+// coprire i restanti quattro quinti nella meta' che resta.
+const MANGIATA_ACCEL = 2.4;
+function _mangiataAccelerata(a){
+  return Math.pow(Math.max(0, Math.min(1, a)), MANGIATA_ACCEL);
+}
 // Il bordo che mangia la carta: quanti denti e quanto sono profondi (in
 // frazione dell'altezza della carta).
 // v0.75.30 — il bordo e' molto piu' fitto e molto meno spigoloso. Con
@@ -13042,7 +13057,12 @@ function incenerisciCarta(carta, poi){
     // 3) la mangiata: il bordo scende dall'alto, e la carta sparisce con lui
     if(q > FASE_NERO){
       const avanti = (q - FASE_NERO)/(1 - FASE_NERO);
-      const forma = _clipMangiata(avanti, denti, (ora - inizio)/1000);
+      // v0.75.33 — il bordo non scende a velocita' costante: parte piano e
+      // accelera. E' come brucia la carta vera — piu' bordo acceso c'e', piu'
+      // in fretta si consuma quel che resta — e togliere di mezzo la coda
+      // finale, che alla stessa velocita' dell'inizio sembra una pausa.
+      const mangiato = _mangiataAccelerata(avanti);
+      const forma = _clipMangiata(mangiato, denti, (ora - inizio)/1000);
       carta.style.clipPath = forma;
       carta.style.webkitClipPath = forma;
       // v0.75.31 — e mentre viene mangiata, quel che resta SVANISCE.
@@ -13055,7 +13075,13 @@ function incenerisciCarta(carta, poi){
       // alta all'inizio (la carta e' ancora una carta) e precipita verso la
       // fine (ormai e' un residuo). Con una discesa lineare la carta sarebbe
       // gia' meta' trasparente a meta' mangiata, che e' troppo presto.
-      carta.style.opacity = Math.max(0, 1 - Math.pow(avanti, 2.2)).toFixed(3);
+      // v0.75.33 — e la dissolvenza finisce MOLTO prima della bruciatura: si
+      // misura su FINE_DISSOLVENZA, non su tutta la mangiata. Da li' in poi la
+      // carta e' gia' invisibile e restano solo il bordo e la cenere a
+      // consumare quel che non si vede piu'. Prima l'ultimo lembo restava
+      // debolmente visibile fino all'ultimo fotogramma.
+      const sbiadire = Math.min(1, mangiato / FINE_DISSOLVENZA);
+      carta.style.opacity = Math.max(0, 1 - Math.pow(sbiadire, 2.2)).toFixed(3);
     }
 
     // le particelle
@@ -13065,7 +13091,11 @@ function incenerisciCarta(carta, poi){
       if(g.vissuto === 0){
         // Nasce sul BORDO che sta mangiando, non a caso: e' quello il punto
         // in cui la carta si sta disfacendo.
-        const avanti = (g.nasce - FASE_NERO)/(1 - FASE_NERO);
+        // La quota passa per la STESSA accelerazione del bordo: e' l'unico
+        // modo perche' la cenere continui a uscire da dove la carta si
+        // consuma. Con la mappatura lineare di prima il bordo accelererebbe e
+        // le particelle no, e verso la fine nascerebbero sopra il vuoto.
+        const avanti = _mangiataAccelerata((g.nasce - FASE_NERO)/(1 - FASE_NERO));
         g.x = x0 + g.dx;
         g.y = y0 + avanti*alt;
       }
