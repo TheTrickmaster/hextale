@@ -6972,7 +6972,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.21</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.22</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -11178,7 +11178,11 @@ const WHOOSH_PER_RARITA = {
   mythic:   'unpack-whoosh-mythic.mp3',
   timeless: 'unpack-whoosh-timeless.mp3',
 };
-const SUONI_SFX_EXTRA = Object.values(WHOOSH_PER_RARITA);
+// v0.75.22 — 'kaching.wav' e' il suono del pagamento (vedi raccogliCarte).
+// Sta in questo elenco perche' e' cosi' che un suono viene registrato e reso
+// disponibile: senza, playSfxFile lo cercherebbe al primo utilizzo — cioe'
+// proprio nell'istante in cui deve suonare, e arriverebbe in ritardo.
+const SUONI_SFX_EXTRA = Object.values(WHOOSH_PER_RARITA).concat(['kaching.wav']);
 const SFX_REL = 'audio/sfx/';
 const SFX_BASE = 'https://thetrickmaster.github.io/hextale/audio/sfx/';
 function registraSuoniExtra(){
@@ -12620,6 +12624,11 @@ function raccogliCarte(){
     // Se dicesse di no ci si fermerebbe qui, senza raccogliere niente: meglio
     // un pulsante che non fa nulla di due carte prese senza pagarle.
     if(!spendiFairyDust(BUSTINA_COSTO_SECONDA)) return;
+    // v0.75.22 — il suono della transazione. Va DOPO spendiFairyDust e non
+    // prima: se il pagamento non andasse a buon fine si sentirebbe il registratore
+    // di cassa senza che sia uscito un soldo, ed e' il genere di dettaglio che
+    // fa dubitare di tutto il resto.
+    try { playSfxFile('kaching.wav'); } catch(_){}
     lampeggiaValuta('dust');
     contaValutaAllIndietro('dust', prima, fairyDust());
   }
