@@ -7065,7 +7065,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.26</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.27</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -12821,14 +12821,27 @@ const DENTI_PROFONDITA = 0.055;
 let _cenereRAF = null;
 
 // Un poligono frastagliato che copre la carta DA `q` in giu' (q va da 0 a 1).
-// I denti sono fissi per carta — sorteggiati una volta e riusati a ogni
-// fotogramma — altrimenti il bordo tremolerebbe invece di scendere.
-function _clipMangiata(q, denti){
+// v0.75.27 — IL BORDO SI MUOVE MENTRE SCENDE.
+// Prima i denti erano numeri fissi: il bordo era frastagliato ma rigido, e
+// scendeva come una riga di forbici. Adesso ogni dente ha una sua profondita'
+// di base, una sua fase e una sua velocita', e ondeggia mentre il bordo
+// avanza: il profilo cambia continuamente e sembra che stia MANGIANDO la
+// carta invece di tagliarla.
+// Le tre cose (base, fase, velocita') si sorteggiano UNA volta per carta: se
+// si risorteggiassero a ogni fotogramma il bordo tremerebbe a caso invece di
+// ondeggiare, che e' molto diverso — il primo e' rumore, il secondo e' un
+// movimento.
+// L'ampiezza cresce col tempo: all'inizio il morso e' appena accennato, verso
+// la fine la carta si sta sbriciolando e il bordo e' molto piu' irregolare.
+function _clipMangiata(q, denti, t){
   const punti = [];
   const y = q*100;
+  const ampiezza = 1 + q*2.2;
   for(let i=0;i<denti.length;i++){
+    const d = denti[i];
     const x = (i/(denti.length-1))*100;
-    punti.push(x.toFixed(2)+'% '+Math.max(0, y + denti[i]).toFixed(2)+'%');
+    const onda = Math.sin(t*d.vel + d.fase) * d.base * ampiezza * 0.45;
+    punti.push(x.toFixed(2)+'% '+Math.max(0, y + d.base + onda).toFixed(2)+'%');
   }
   punti.push('100% 100%', '0% 100%');
   return 'polygon(' + punti.join(', ') + ')';
@@ -12864,21 +12877,42 @@ function incenerisciCarta(carta, poi){
   tela.height = Math.max(1, Math.round(H*dpr));
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-  // DOVE STA LA CARTA, in coordinate della tela. Non si usa
-  // getBoundingClientRect: la scena vive dentro #game-root, che e' scalato, e
-  // servirebbe una conversione da pixel veri a coordinate autoriali che e'
-  // facile sbagliare — ed era sbagliata, con la cenere che compariva in un
-  // angolo. La carta e' larga 242 e alta 414, centrata sul 50%/50% della
-  // scena e spostata dalla propria transform: da qui il conto e' esatto e non
-  // dipende da nessuna misura letta a schermo.
-  const t = _trasformazioneAttuale(carta);
-  const larg = 242, alt = 414;
-  const cx = W/2 + t.x, cy = H/2 + t.y;
-  const x0 = cx - larg/2, y0 = cy - alt/2;
+  // ── DOVE STA LA CARTA, in coordinate della tela ────────────────────────
+  // Si misura la carta CONTRO LA TELA STESSA, non contro la scena e non con
+  // una formula geometrica.
+  // Le due strade provate prima sbagliavano per lo stesso motivo, da due lati
+  // opposti: la scena vive dentro #game-root, che e' scalato, quindi i pixel
+  // veri e le coordinate della tela non coincidono — e ogni conversione che
+  // passa da un terzo elemento (la scena) eredita anche il suo scostamento.
+  // Misurando la tela contro se stessa il rapporto e' esatto per costruzione:
+  // qualunque cosa stia in mezzo, il suo riquadro vero e il suo riquadro di
+  // disegno sono lo stesso riquadro.
+  let x0, y0, larg, alt;
+  const rc = carta.getBoundingClientRect();
+  const rt = tela.getBoundingClientRect();
+  if(rc.width > 0 && rt.width > 0){
+    const kx = W / rt.width, ky = H / rt.height;
+    x0 = (rc.left - rt.left) * kx;
+    y0 = (rc.top  - rt.top ) * ky;
+    larg = rc.width * kx;
+    alt  = rc.height * ky;
+  } else {
+    // Ripiego per quando non c'e' impaginazione da misurare (i banchi di
+    // prova): la carta e' 242x414, centrata sul 50%/50% e spostata dalla
+    // propria transform.
+    const t = _trasformazioneAttuale(carta);
+    larg = 242; alt = 414;
+    x0 = W/2 + t.x - larg/2;
+    y0 = H/2 + t.y - alt/2;
+  }
 
-  // I denti del bordo, sorteggiati UNA volta.
+  // I denti del bordo, sorteggiati UNA volta: profondita', fase e velocita'.
   const denti = [];
-  for(let i=0;i<DENTI_QUANTI;i++) denti.push((Math.random()*2-1) * DENTI_PROFONDITA * 100);
+  for(let i=0;i<DENTI_QUANTI;i++) denti.push({
+    base: (Math.random()*2-1) * DENTI_PROFONDITA * 100,
+    fase: Math.random()*Math.PI*2,
+    vel:  2.2 + Math.random()*3.4,
+  });
 
   // Le particelle nascono man mano che il bordo scende, non tutte all'inizio:
   // ognuna ha la quota alla quale comparira'. Sorteggiando anche la x, la
@@ -12929,8 +12963,9 @@ function incenerisciCarta(carta, poi){
     // 3) la mangiata: il bordo scende dall'alto, e la carta sparisce con lui
     if(q > FASE_NERO){
       const avanti = (q - FASE_NERO)/(1 - FASE_NERO);
-      carta.style.clipPath = _clipMangiata(avanti, denti);
-      carta.style.webkitClipPath = _clipMangiata(avanti, denti);
+      const forma = _clipMangiata(avanti, denti, (ora - inizio)/1000);
+      carta.style.clipPath = forma;
+      carta.style.webkitClipPath = forma;
     }
 
     // le particelle
@@ -12993,6 +13028,15 @@ function _preparaUscita(c, versoIlCentro){
   // Il galleggiamento va tolto adesso: e' un'animazione infinita sullo stesso
   // elemento, e resterebbe a contendersi la transform con le nostre.
   c.classList.remove('floating','tenuta','scartata');
+  // v0.75.27 — E SUBITO SI INCHIODA DOV'ERA.
+  // .pack-card non ha nessuna transform propria: la sua posizione a riposo
+  // gliela dava packFloat, cioe' proprio l'animazione appena tolta. Senza
+  // questa riga la carta torna alla posizione di base — il centro esatto della
+  // scena — e ci arriva ISTANTANEAMENTE, tutte e due insieme. Era quello il
+  // "merge" che si vedeva prima ancora che l'incenerimento cominciasse.
+  // Un'animazione in corso vince comunque sullo stile in linea, quindi
+  // inchiodarla qui non impedisce ai passaggi successivi di muoverla.
+  c.style.transform = 'translate(' + da.x.toFixed(1) + 'px, ' + da.y.toFixed(1) + 'px)';
 }
 function uscitaDopoLaScelta(tenute, scartate){
   // v0.75.25 — da qui alla fine la pagina e' occupata. Fra il click su Collect
