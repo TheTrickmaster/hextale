@@ -7191,7 +7191,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.40</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.41</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -17475,6 +17475,13 @@ const TILE_ABILITIES_DEF = {
   // posto del numero e non si puo' conquistare (vedi latiProtettiDi).
   // v0.74.3 — la corona e' passata dal valore piu' basso al piu' alto.
   crowned:           { name:'Crowned',               desc:'Highest Power value cannot be *Conquered*.' },
+  // v0.75.41 — PINOCCHIO. Parente della corona qui sopra: un gruppo di valori
+  // che non si puo' conquistare e che al posto del numero mostra uno scudo.
+  // La differenza e' che il suo non e' dedotto dai valori ma SORTEGGIATO, e
+  // cambia posto alla fine di ogni turno — quindi il fianco scoperto di
+  // Pinocchio non e' mai lo stesso due volte di fila, e chi lo attacca non puo'
+  // preparare il colpo con un turno di anticipo.
+  true_story:        { name:'True Story',            desc:'At the *End of Turn*, a random Power group becomes *Invulnerable*.' },
 };
 // ── v0.73.49 — QUESTI `name` SONO IL LEGAME COL FOGLIO ─────────────────────
 // Il gioco aggancia l'abilita' di un personaggio confrontando la cella
@@ -19836,7 +19843,21 @@ function attivaBellOfTheBall(card){
 // valori cambiano di continuo in questo gioco (doni, furti, sinergie), e uno
 // scudo appiccicato al lato sbagliato sarebbe peggio di nessuno scudo.
 function latiProtettiDi(card){
-  if(!card || abilitaAttivaDi(card) !== 'crowned') return [];
+  if(!card) return [];
+  const abilita = abilitaAttivaDi(card);
+  // ── v0.75.41 — PINOCCHIO, "True Story" ──────────────────────────────────
+  // Anche lui ha un gruppo inconquistabile, ma sorteggiato invece che dedotto
+  // dai valori, e ri-sorteggiato alla fine di ogni turno (vedi
+  // giraScudiDiFineTurno). Per questo il suo si LEGGE da un campo e non si
+  // ricalcola: un valore che cambia da solo a ogni lettura non e' una
+  // protezione, e' un dado tirato di continuo.
+  // Passa comunque da qui e non da un controllo suo: questa funzione e' l'unico
+  // posto che risponde a "quali lati non si possono conquistare?", e sia il
+  // disegno dello scudo sia le due verifiche di conquista (quella vera e quella
+  // dell'IA) chiedono a lei. Aggiungendo la carta qui, l'IA impara la regola
+  // senza che le si debba insegnare niente.
+  if(abilita === 'true_story') return card.latiInvulnerabili || [];
+  if(abilita !== 'crowned') return [];
   const gruppi = gruppiDiCarta(card);
   if(!gruppi.length) return [];
   let massimo = -Infinity;
@@ -19847,6 +19868,33 @@ function latiProtettiDi(card){
 }
 function latoInconquistabile(card, lato){
   return latiProtettiDi(card).includes(lato);
+}
+// ── v0.75.41 — LO SCUDO DI PINOCCHIO CAMBIA POSTO ─────────────────────────
+// A ogni fine turno — di CHIUNQUE, non solo del suo proprietario: "every end
+// of turn" — ogni Pinocchio in campo sorteggia di nuovo quale suo gruppo di
+// valori diventa inconquistabile.
+// Si sorteggia fra i GRUPPI e non fra i lati: su questa carta i lati sono
+// riuniti in gruppi che condividono un numero, e proteggerne uno solo lasciando
+// scoperti i gemelli protegge un numero a meta'. Lo scudo copre il gruppo,
+// esattamente come fa la corona della Crystal Princess.
+function giraScudoTrueStory(card){
+  const gruppi = gruppiDiCarta(card);
+  if(!gruppi.length){ card.latiInvulnerabili = []; return null; }
+  const scelto = gruppi[Math.floor(Math.random()*gruppi.length)];
+  card.latiInvulnerabili = [...(scelto.sides||[])];
+  return card.latiInvulnerabili;
+}
+function giraScudiDiFineTurno(){
+  if(!G || !G.board) return 0;
+  let quanti = 0;
+  for(const k in G.board){
+    const posto = G.board[k];
+    if(!posto || !posto.card) continue;
+    if(abilitaAttivaDi(posto.card) !== 'true_story') continue;
+    giraScudoTrueStory(posto.card);
+    quanti++;
+  }
+  return quanti;
 }
 function applicaAbilitaPiazzamento(card, q, r, chiave){
   const effetto = EFFETTI_PIAZZAMENTO[chiave];
@@ -22171,6 +22219,12 @@ function endTurn(player, animationsSettled, dannoFatto){
     dannoDiFineTurno(()=>endTurn(player, true, true));
     return;
   }
+  // v0.75.41 — Pinocchio sposta il suo scudo. Qui e non altrove: e' passato il
+  // danno di fine turno, non e' ancora cambiato il giocatore, e il render piu'
+  // sotto ridisegnera' il tabellone — quindi lo scudo nuovo si vede nello
+  // stesso istante in cui comincia il turno in cui varra'. Spostato dopo il
+  // cambio giocatore si vedrebbe saltare a banner gia' in scena.
+  giraScudiDiFineTurno();
   calcScores();
   // v0.75.0 — checkHpKO non fa piu' niente (non esiste piu' uno zero da
   // toccare) ma la chiamata resta: e' il posto in cui la domanda "questo colpo
