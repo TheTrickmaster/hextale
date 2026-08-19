@@ -5290,6 +5290,98 @@ body.prova-senza-willchange #mm-book-rot{
 }
 .pack-card > *:not(.pack-scelta-btn){ transition:opacity .28s ease-out; }
 
+/* ── v0.75.25 — L'USCITA DELLE CARTE, DOPO LA SCELTA ──────────────────────
+   Tre momenti, tre classi. Tutte lavorano su --da-x/--da-y, cioe' la posizione
+   VERA della carta nell'istante in cui il gesto comincia: le carte galleggiano
+   di continuo, e un'animazione che partisse dal loro punto di riposo teorico
+   le farebbe scattare li' prima di muoversi. La posizione la legge
+   _trasformazioneAttuale e la scrive chi fa partire l'animazione. */
+
+/* 1. AL CENTRO. Solo per la carta tenuta quando l'altra viene scartata: si
+   prende la scena tutta per se'. Se sono tenute entrambe questo passaggio non
+   c'e' — restano dove sono, affiancate. */
+@keyframes packAlCentro{
+  from{ transform:translate(var(--da-x,0px), var(--da-y,0px)); }
+  to  { transform:translate(0px, var(--da-y,0px)); }
+}
+.pack-card.al-centro{
+  animation:packAlCentro .52s cubic-bezier(.22,1,.36,1) forwards;
+  z-index:6;
+}
+
+/* 2. IL BATTITO. Un colpo solo, secco: cresce in fretta, rientra piano. E'
+   sincronizzato col "ding" — se durasse di piu' il suono finirebbe prima
+   dell'immagine, e un suono che finisce prima si sente come staccato. */
+@keyframes packBattito{
+  0%  { transform:translate(var(--fin-x,0px), var(--da-y,0px)) scale(1); }
+  38% { transform:translate(var(--fin-x,0px), var(--da-y,0px)) scale(1.16); }
+  100%{ transform:translate(var(--fin-x,0px), var(--da-y,0px)) scale(1.06); }
+}
+.pack-card.batte{ animation:packBattito .42s cubic-bezier(.2,1.5,.4,1) forwards; z-index:6; }
+/* Il lampo bianco del battito: un velo sopra alla carta, non un filtro sulla
+   carta. Un filtro avrebbe schiarito anche l'alone e il bordo di rarita', e la
+   carta sarebbe sembrata sbiadita invece che illuminata. */
+.pack-card-lampo-scelta{
+  position:absolute; inset:0; border-radius:18px;
+  background:#fff; opacity:0; pointer-events:none;
+  z-index:5;
+  mix-blend-mode:plus-lighter;
+}
+.pack-card.batte .pack-card-lampo-scelta{ animation:packLampoScelta .42s ease-out forwards; }
+@keyframes packLampoScelta{
+  0%  { opacity:0; }
+  22% { opacity:0.85; }
+  100%{ opacity:0; }
+}
+
+/* 3. VIA, DRITTE VERSO L'ALTO. Niente arco e niente rotazione: salgono e
+   basta. 1600px bastano a portarle fuori da qualunque schermo partendo dal
+   centro di una scena alta 1080. */
+@keyframes packVolaSu{
+  from{ transform:translate(var(--fin-x,0px), var(--da-y,0px)) scale(1.06); opacity:1; }
+  to  { transform:translate(var(--fin-x,0px), calc(var(--da-y,0px) - 1600px)) scale(1.06); opacity:1; }
+}
+.pack-card.vola-su{ animation:packVolaSu .78s cubic-bezier(.5,0,.75,0) forwards; z-index:6; }
+
+/* ── LA CARTA SCARTATA: BRUCIA ─────────────────────────────────────────────
+   Diventa nera e si accende sui bordi, poi si spegne. Il nero lo fa
+   `brightness(0)` sul contenuto, il fuoco e' un alone che pulsa attorno.
+   Il contenuto e l'alone stanno su due elementi diversi proprio perche' il
+   primo deve andare a zero e il secondo no. */
+.pack-card.brucia > .pack-card-pop{
+  animation:packAnnerisci .55s ease-in forwards;
+}
+@keyframes packAnnerisci{
+  from{ filter:brightness(1); }
+  to  { filter:brightness(0); }
+}
+.pack-card.brucia::after{
+  content:''; position:absolute; inset:-6px;
+  border-radius:20px;
+  box-shadow:0 0 0 2px #FF7A18, 0 0 26px 6px rgba(255,122,24,0.75), inset 0 0 30px rgba(255,90,0,0.6);
+  opacity:0; pointer-events:none; z-index:7;
+  animation:packBordoFuoco 1.05s ease-out forwards;
+}
+@keyframes packBordoFuoco{
+  0%  { opacity:0; }
+  22% { opacity:1; }
+  62% { opacity:0.9; }
+  100%{ opacity:0; }
+}
+/* La dissolvenza della carta bruciata: sparisce mentre il pulviscolo prende
+   il suo posto, non prima — altrimenti si vedrebbe un buco e poi la cenere. */
+.pack-card.brucia{ animation:packCenere 1.05s ease-in forwards; }
+@keyframes packCenere{
+  0%,55%{ opacity:1; }
+  100%  { opacity:0; }
+}
+/* La tela del pulviscolo: copre tutta la scena, perche' i granelli si
+   allontanano dalla carta e non devono trovare un bordo. */
+#pack-cenere{
+  position:absolute; inset:0;
+  pointer-events:none; z-index:7;
+}
+
 #pack-actions{ display:flex; gap:14px; align-items:center; justify-content:center; min-height:56px; }
 #pack-actions .start-art-btn{ min-width:220px; }
 /* v0.73.31 — i pulsanti della pagina compaiono e spariscono in dissolvenza.
@@ -6979,7 +7071,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.24</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.25</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -7273,6 +7365,10 @@ body.prova-senza-willchange #mm-book-rot{
         </div>
       </div>
       <div id="pack-reveal"></div>
+      <!-- v0.75.25 — il pulviscolo della carta bruciata. Una tela sola per
+           tutta la scena: i granelli si allontanano dalla carta e non devono
+           trovare un bordo. Vedi cenereDaCarta. -->
+      <canvas id="pack-cenere" aria-hidden="true"></canvas>
     </div>
     <!-- v0.75.21 — i due riquadri delle valute, gli stessi del menu: stesse
          classi, stesso stile, stessi disegni. Non e' una copia "che assomiglia
@@ -11189,7 +11285,12 @@ const WHOOSH_PER_RARITA = {
 // Sta in questo elenco perche' e' cosi' che un suono viene registrato e reso
 // disponibile: senza, playSfxFile lo cercherebbe al primo utilizzo — cioe'
 // proprio nell'istante in cui deve suonare, e arriverebbe in ritardo.
-const SUONI_SFX_EXTRA = Object.values(WHOOSH_PER_RARITA).concat(['kaching.wav']);
+// v0.75.25 — card-ding e card-fly accompagnano l'uscita delle carte scelte.
+// Stessa ragione di kaching: qui vengono registrati all'avvio, altrimenti
+// verrebbero cercati nell'istante in cui devono suonare e arriverebbero tardi
+// — e un suono in ritardo su un'animazione breve si sente come un errore.
+const SUONI_SFX_EXTRA = Object.values(WHOOSH_PER_RARITA)
+  .concat(['kaching.wav', 'card-ding.mp3', 'card-fly.mp3']);
 const SFX_REL = 'audio/sfx/';
 const SFX_BASE = 'https://thetrickmaster.github.io/hextale/audio/sfx/';
 function registraSuoniExtra(){
@@ -12473,6 +12574,12 @@ function _costruisciCartaBustina(entry, dir, indice){
   carta.appendChild(sceltaBtn);
   carta.__sceltaBtn = sceltaBtn;
 
+  // v0.75.25 — il velo bianco del battito finale (vedi .pack-card.batte).
+  // Nasce con la carta e resta trasparente: e' l'animazione ad accenderlo.
+  const lampoScelta = document.createElement('div');
+  lampoScelta.className = 'pack-card-lampo-scelta';
+  carta.appendChild(lampoScelta);
+
   carta.__entry = entry;   // serve a packToggleVariant per ricostruirla
   carta.__carta = cardObj; // v0.74.2 — per aprirla a schermo intero da girata
   // v0.74.2 — il primo click gira la carta, i successivi la aprono a schermo
@@ -12674,9 +12781,180 @@ function raccogliCarte(){
   // v0.75.21 — qui, un domani, le carte tenute entreranno davvero nella
   // collezione del giocatore: il possesso non esiste ancora (vedi il commento
   // di openPackOverlay), quindi per adesso "raccogliere" e' solo il gesto.
-  // Le carte lasciate escono di scena insieme alle altre: la bustina si
-  // chiude comunque su tutte e due.
-  mettiViaCarte();
+  // v0.75.25 — l'uscita non e' piu' l'arco di prima uguale per tutte: chi si
+  // tiene sale dritta verso il cielo, chi si scarta brucia. Vedi
+  // uscitaDopoLaScelta.
+  const scartate = _carteBustina().filter(c=>!c.classList.contains('tenuta'));
+  mostraPulsanteBustina('pack-collect', false);
+  mostraPulsanteBustina('pack-toggle-variant', false);
+  document.querySelectorAll('.pack-scelta-btn').forEach(b=>b.classList.add('pack-nascosto'));
+  uscitaDopoLaScelta(tenute, scartate);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// v0.75.25 — IL PULVISCOLO DELLA CARTA SCARTATA
+// ═══════════════════════════════════════════════════════════════════════════
+// La carta annerisce, si accende sui bordi e si sfarina. Il pulviscolo e' su
+// TELA e non fatto di elementi: sono trecento granelli, e trecento nodi che
+// nascono e muoiono in un secondo si sentono. Le scintille dell'apertura sono
+// fatte a elementi perche' sono trentina e vivono di animazioni CSS; queste
+// hanno bisogno di gravita' e attrito, che a mano su un nodo per granello
+// costerebbero molto di piu' di un ciclo di disegno.
+//
+// I COLORI vengono dalla richiesta e la proporzione conta: molte nere, meno
+// grigie, poche arancioni. Le arancioni sono le braci — se fossero tante non
+// sarebbe cenere che vola via, sarebbe un fuoco d'artificio.
+const CENERE_QUANTE = 300;
+const CENERE_COLORI = [
+  { colore:'#141210', peso:62 },   // nero: il grosso
+  { colore:'#5A554E', peso:27 },   // grigio
+  { colore:'#FF7A18', peso:8  },   // arancione acceso
+  { colore:'#FFC14D', peso:3  },   // qualche bracia piu' chiara
+];
+const CENERE_DURATA_MS = 1250;
+let _cenereRAF = null;
+function _cenereColore(){
+  let n = Math.random()*100;
+  for(const c of CENERE_COLORI){ n -= c.peso; if(n <= 0) return c.colore; }
+  return CENERE_COLORI[0].colore;
+}
+// Fa sfarinare la carta `carta` in un pulviscolo. Il rettangolo da cui nascono
+// i granelli e' quello VERO della carta a schermo, convertito in coordinate
+// della scena: cosi' la cenere parte esattamente da dov'e' lei, comunque si
+// stia muovendo in quel momento.
+function cenereDaCarta(carta){
+  const tela = document.getElementById('pack-cenere');
+  const scena = document.getElementById('pack-stage');
+  if(!tela || !scena || !carta || !tela.getContext) return;
+  const ctx = tela.getContext('2d');
+  if(!ctx) return;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const W = tela.clientWidth || CANVAS_W, H = tela.clientHeight || CANVAS_H;
+  tela.width = Math.max(1, Math.round(W*dpr));
+  tela.height = Math.max(1, Math.round(H*dpr));
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  const rc = carta.getBoundingClientRect();
+  const rs = scena.getBoundingClientRect();
+  // Dai pixel veri alle coordinate della tela: le due misure sono diverse
+  // perche' la scena vive dentro #game-root, che e' scalato.
+  const kx = rs.width ? (W / rs.width) : 1;
+  const ky = rs.height ? (H / rs.height) : 1;
+  const x0 = (rc.left - rs.left) * kx, y0 = (rc.top - rs.top) * ky;
+  const larg = rc.width * kx, alt = rc.height * ky;
+
+  const granelli = [];
+  for(let i=0;i<CENERE_QUANTE;i++){
+    granelli.push({
+      x: x0 + Math.random()*larg,
+      y: y0 + Math.random()*alt,
+      // Si aprono verso l'alto e di lato: la cenere sale prima di ricadere.
+      vx: (Math.random()-0.5) * 190,
+      vy: -Math.random()*210 - 40,
+      r: 0.8 + Math.random()*2.4,
+      colore: _cenereColore(),
+      // Ognuno muore per conto suo: tutti insieme sarebbero un fotogramma che
+      // si spegne, non una cenere che si dirada.
+      vita: 0.55 + Math.random()*0.45,
+    });
+  }
+  if(_cenereRAF) cancelAnimationFrame(_cenereRAF);
+  const inizio = performance.now();
+  const passo = (ora)=>{
+    const t = (ora - inizio) / CENERE_DURATA_MS;
+    ctx.clearRect(0,0,W,H);
+    if(t >= 1){ _cenereRAF = null; return; }
+    const dt = 1/60;
+    for(const g of granelli){
+      const suo = t / g.vita;              // 0..1 sulla SUA vita
+      if(suo >= 1) continue;
+      g.vy += 260*dt;                      // gravita': la cenere ricade
+      g.vx *= 0.985; g.vy *= 0.992;        // attrito dell'aria
+      g.x += g.vx*dt; g.y += g.vy*dt;
+      ctx.globalAlpha = 1 - suo*suo;       // svanisce piano e poi in fretta
+      ctx.fillStyle = g.colore;
+      ctx.beginPath();
+      ctx.arc(g.x, g.y, g.r*(1-suo*0.35), 0, Math.PI*2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    _cenereRAF = requestAnimationFrame(passo);
+  };
+  _cenereRAF = requestAnimationFrame(passo);
+}
+function fermaCenere(){
+  if(_cenereRAF){ cancelAnimationFrame(_cenereRAF); _cenereRAF = null; }
+  const tela = document.getElementById('pack-cenere');
+  if(tela && tela.getContext){
+    const ctx = tela.getContext('2d');
+    if(ctx) ctx.clearRect(0,0,tela.width,tela.height);
+  }
+}
+
+// ── L'USCITA, DOPO LA SCELTA ──────────────────────────────────────────────
+// Tempi in un posto solo. Ognuno e' il momento in cui comincia il pezzo
+// successivo, quindi leggerli in fila racconta la scena.
+const USCITA_BRUCIA_MS   = 560;   // quanto la carta scartata impiega ad annerire
+const USCITA_CENERE_MS   = 900;   // quando si sfarina (a nero raggiunto)
+const USCITA_CENTRO_MS   = 520;   // il viaggio verso il centro
+const USCITA_BATTITO_MS  = 420;   // il battito, sincronizzato col ding
+function uscitaDopoLaScelta(tenute, scartate){
+  // v0.75.25 — da qui alla fine la pagina e' occupata. Non era cosi': fra il
+  // click su Collect e il ritorno alla bustina passano piu' di due secondi, e
+  // in mezzo nulla impediva a un altro gesto di intromettersi. Il flag lo
+  // azzera tornaAllaBustina, che e' l'unica strada per uscire di qui.
+  _bustinaInCorso = true;
+  const scena = document.getElementById('pack-stage');
+  // Il punto d'arrivo di ogni carta: al centro se e' rimasta sola, dov'e' se
+  // sono due. Si fissa PRIMA di ogni animazione, perche' tutte e tre le fasi
+  // lo leggono da --fin-x e devono leggere lo stesso numero.
+  const soloUna = tenute.length === 1;
+  for(const c of tenute){
+    const da = _trasformazioneAttuale(c);
+    c.style.setProperty('--da-x', da.x.toFixed(1)+'px');
+    c.style.setProperty('--da-y', da.y.toFixed(1)+'px');
+    c.style.setProperty('--fin-x', soloUna ? '0px' : da.x.toFixed(1)+'px');
+    // Il galleggiamento va tolto adesso: e' un'animazione infinita sullo
+    // stesso elemento, e resterebbe a contendersi la transform con le nostre.
+    c.classList.remove('floating','tenuta','scartata');
+  }
+
+  // 1) La scartata brucia e si sfarina.
+  for(const c of scartate){
+    c.classList.remove('floating','tenuta','scartata');
+    c.classList.add('brucia');
+    _bustinaDopo(USCITA_CENERE_MS, ()=>cenereDaCarta(c));
+  }
+
+  // 2) La tenuta va al centro, ma solo se e' rimasta sola.
+  const primaDelBattito = soloUna ? (USCITA_BRUCIA_MS + USCITA_CENTRO_MS) : 120;
+  if(soloUna){
+    _bustinaDopo(USCITA_BRUCIA_MS, ()=>{
+      for(const c of tenute) c.classList.add('al-centro');
+    });
+  }
+
+  // 3) Il battito, col "ding" nello stesso istante.
+  _bustinaDopo(primaDelBattito, ()=>{
+    for(const c of tenute){ c.classList.remove('al-centro'); c.classList.add('batte'); }
+    try { playSfxFile('card-ding.mp3'); } catch(_){}
+  });
+
+  // 4) E via verso l'alto, col volo.
+  _bustinaDopo(primaDelBattito + USCITA_BATTITO_MS, ()=>{
+    for(const c of tenute){ c.classList.remove('batte'); c.classList.add('vola-su'); }
+    try { playSfxFile('card-fly.mp3'); } catch(_){}
+  });
+
+  // 5) A scena vuota si ricomincia. Si aspetta il piu' lungo dei due rami:
+  //    la cenere finisce dopo il volo quando le carte sono due, prima quando
+  //    e' una sola — quindi si prende il massimo invece di scegliere a mano.
+  const fineVolo = primaDelBattito + USCITA_BATTITO_MS + 780;
+  const fineCenere = scartate.length ? (USCITA_CENERE_MS + CENERE_DURATA_MS) : 0;
+  _bustinaDopo(Math.max(fineVolo, fineCenere) + 120, ()=>{
+    fermaCenere();
+    tornaAllaBustina();
+  });
 }
 
 function mettiViaCarte(){
@@ -12730,6 +13008,10 @@ function mettiViaCarte(){
 // modo di tornare indietro dopo aver messo via le carte.
 function tornaAllaBustina(){
   _bustinaAnnullaTempi();
+  // v0.75.25 — e si spegne anche il pulviscolo: e' l'unica animazione della
+  // pagina che vive su una tela invece che su un elemento, quindi non se ne va
+  // da sola quando #pack-reveal viene svuotato.
+  if(typeof fermaCenere === 'function') fermaCenere();
   _bustinaInCorso = false;
   _bustinaDaGirare = 0;
   const chiusa = document.getElementById('pack-closed');
