@@ -4234,13 +4234,24 @@ body.prova-senza-willchange #mm-book-rot{
   padding:0 20px; box-sizing:border-box;
 }
 #pack-header h1{ flex:1 1 auto; text-align:center; }
-#pack-header::before{ content:''; flex:0 0 240px; }
-#pack-toggle-variant{ flex:0 0 240px; }
+/* v0.75.22 — l'intestazione non ha piu' un pulsante a destra da bilanciare,
+   quindi il titolo si centra da solo e il riempitivo non serve. */
 #pack-status{ font-size:15px; color:#C9C2B0; min-height:22px; text-align:center; }
 
 /* Il palcoscenico. Tutto quello che si muove qui dentro e' posizionato in
    assoluto rispetto a questo riquadro, cosi' le traiettorie si scrivono in
    percentuale e restano giuste a qualunque dimensione di finestra. */
+/* v0.75.22 — il pulsante della variante sta al CENTRO della scena, cioe' fra
+   le due carte: e' li' che si guarda mentre si decide quale girare per prima.
+   z-index 4 lo tiene sopra alle carte (che sono a 3), altrimenti finirebbe
+   sotto a quella di sinistra nel momento in cui si affiancano. */
+#pack-toggle-variant{
+  position:absolute; left:50%; top:50%;
+  transform:translate(-50%,-50%) scale(0.9);
+  z-index:4;
+  transition:opacity .22s ease, visibility .22s;
+}
+#pack-toggle-variant.pack-nascosto{ opacity:0; visibility:hidden; pointer-events:none; }
 #pack-stage{
   position:relative;
   flex:1 1 auto;
@@ -5224,7 +5235,8 @@ body.prova-senza-willchange #mm-book-rot{
 }
 .pack-scelta-btn.pack-nascosto{ opacity:0; visibility:hidden; pointer-events:none; }
 /* L'icona della polvere dentro all'etichetta "Keep for 200". */
-.pack-scelta-btn .sab-label img{
+.pack-scelta-btn .sab-label img,
+#pack-collect .sab-label img{
   height:1.15em; width:auto; vertical-align:-0.18em; margin:0 .18em 0 .1em;
 }
 /* LA CARTA TENUTA. L'ingrandimento sta su .pack-card-pop e non sulla carta
@@ -5260,7 +5272,16 @@ body.prova-senza-willchange #mm-book-rot{
 }
 /* La carta lasciata da parte: non sparisce, si fa da parte. Resta leggibile,
    perche' la si puo' sempre riprendere. */
-.pack-card.scartata{ opacity:0.4; transition:opacity .28s ease-out; }
+/* v0.75.22 — sbiadisce la CARTA, non il suo pulsante. L'opacita' di un
+   genitore non si puo' annullare da un figlio: messa su .pack-card avrebbe
+   attenuato anche "Keep for 200", che invece deve restare pienamente
+   leggibile — e' l'offerta, non la carta messa da parte.
+   Si esclude quindi il pulsante e si attenua tutto il resto. */
+.pack-card.scartata > *:not(.pack-scelta-btn){
+  opacity:0.4;
+  transition:opacity .28s ease-out;
+}
+.pack-card > *:not(.pack-scelta-btn){ transition:opacity .28s ease-out; }
 
 #pack-actions{ display:flex; gap:14px; align-items:center; justify-content:center; min-height:56px; }
 #pack-actions .start-art-btn{ min-width:220px; }
@@ -6389,8 +6410,14 @@ body.prova-senza-willchange #mm-book-rot{
   pointer-events:none; user-select:none; -webkit-user-drag:none;
   filter:drop-shadow(0 4px 10px rgba(0,0,0,0.45));
 }
-#mm-ink .mm-cur-icon{  left:-55px; }
-#mm-dust .mm-cur-icon{ left:-5px; top:54%; }
+/* v0.75.22 — la posizione dell'icona segue il TIPO di valuta, non il singolo
+   riquadro. Erano legate agli id #mm-ink/#mm-dust, cioe' ai due riquadri del
+   menu: i due nuovi della schermata bustine hanno id diversi (un id e' unico
+   in una pagina) e restavano senza, con le icone tutte fuori posto.
+   Con una classe la regola vale per qualunque riquadro di quella valuta,
+   compreso il terzo che un domani finira' da qualche altra parte. */
+.mm-cur-ink .mm-cur-icon{  left:-55px; }
+.mm-cur-dust .mm-cur-icon{ left:-5px; top:54%; }
 .mm-cur-value{
   /* Ancorato SOLO a destra: il numero cresce verso sinistra man mano che le
      cifre aumentano, e la sua ultima cifra resta sempre alla stessa distanza
@@ -6651,13 +6678,13 @@ body.prova-senza-willchange #mm-book-rot{
     <img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false">
   </button>
   <div id="mm-currencies">
-    <div class="mm-cur" id="mm-ink">
+    <div class="mm-cur mm-cur-ink" id="mm-ink">
       <img class="mm-cur-bg" alt="" draggable="false">
       <img class="mm-cur-icon" alt="" draggable="false">
       <div class="mm-cur-value" id="mm-ink-value" data-valuta="ink">0</div>
       <button class="mm-cur-plus" aria-label="Compra magic ink"><img alt="" draggable="false"></button>
     </div>
-    <div class="mm-cur mm-cur-premium" id="mm-dust">
+    <div class="mm-cur mm-cur-premium mm-cur-dust" id="mm-dust">
       <img class="mm-cur-bg" alt="" draggable="false">
       <img class="mm-cur-icon" alt="" draggable="false">
       <div class="mm-cur-value" id="mm-dust-value" data-valuta="dust">0</div>
@@ -7215,12 +7242,17 @@ body.prova-senza-willchange #mm-book-rot{
   <div id="pack-main">
     <div id="pack-header">
       <h1>Book Packs</h1>
-      <button class="start-art-btn sab-secondary" id="pack-toggle-variant" onclick="packToggleVariant()">
-        <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label" id="pack-toggle-variant-label">Show dark version</span>
-      </button>
     </div>
     <div id="pack-status"></div>
     <div id="pack-stage">
+      <!-- v0.75.22 — il pulsante della variante e' sceso dall'intestazione al
+           centro della scena, fra le due carte. Serve solo li' e solo in un
+           momento: quando le carte sono uscite ma ancora di dorso. Prima stava
+           in alto ed era sempre acceso, anche davanti a una bustina chiusa,
+           dove non c'e' nessuna carta di cui cambiare versione. -->
+      <button class="start-art-btn sab-secondary" id="pack-toggle-variant" style="display:none;" onclick="packToggleVariant()">
+        <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label" id="pack-toggle-variant-label">Show dark version</span>
+      </button>
       <div id="pack-beam"><div id="pack-beam-shape"></div></div>
       <!-- v0.73.46 — le scintille dell'apertura: il contenitore e' un punto
            senza dimensioni piantato al centro della plancia, cioe' al centro
@@ -7243,13 +7275,13 @@ body.prova-senza-willchange #mm-book-rot{
          per riempirli e' data-valuta, che infatti e' identico: vedi
          aggiornaValuteAVideo. -->
     <div id="pack-currencies">
-      <div class="mm-cur" id="pack-ink">
+      <div class="mm-cur mm-cur-ink" id="pack-ink">
         <img class="mm-cur-bg" alt="" draggable="false">
         <img class="mm-cur-icon" alt="" draggable="false">
         <div class="mm-cur-value" data-valuta="ink">0</div>
         <button class="mm-cur-plus" aria-label="Compra magic ink"><img alt="" draggable="false"></button>
       </div>
-      <div class="mm-cur mm-cur-premium" id="pack-dust">
+      <div class="mm-cur mm-cur-premium mm-cur-dust" id="pack-dust">
         <img class="mm-cur-bg" alt="" draggable="false">
         <img class="mm-cur-icon" alt="" draggable="false">
         <div class="mm-cur-value" data-valuta="dust">0</div>
@@ -12116,7 +12148,12 @@ function aggiornaSceltaBustina(){
   const raccogli = document.getElementById('pack-collect');
   if(raccogli){
     const et = raccogli.querySelector('.sab-label');
-    if(et) et.textContent = (quante >= 2) ? 'Pay and collect' : 'Collect';
+    // v0.75.22 — il prezzo si legge anche QUI, non solo sul pulsante della
+    // carta: e' l'ultimo momento prima di pagare, ed e' il posto in cui una
+    // cifra non detta diventa una sorpresa.
+    if(et) et.innerHTML = (quante >= 2)
+      ? ('Pay <img src="' + iconaPolvere + '" alt="fairy dust"> ' + BUSTINA_COSTO_SECONDA + ' and collect')
+      : 'Collect';
     mostraPulsanteBustina('pack-collect', quante > 0);
   }
 }
@@ -12180,6 +12217,8 @@ function apriBustina(){
     if(e) uscite.push(e);
   }
   mostraPulsanteBustina('pack-collect', false, true);
+  // v0.75.22 — e nemmeno la variante: le carte non sono ancora uscite.
+  mostraPulsanteBustina('pack-toggle-variant', false, true);
   // Da qui in poi non si esce dalla pagina: si sta aprendo un Book Pack.
   mostraPulsanteBustina('pack-back', false);
   rivelate.innerHTML = '';
@@ -12237,6 +12276,10 @@ function apriBustina(){
       // .pack-radial), quindi le accompagna invece di tagliarle.
       const scena = document.getElementById('pack-overlay');
       if(scena) scena.classList.add('raggiere-via');
+      // v0.75.22 — da adesso le carte ci sono, e sono di dorso: e' l'unico
+      // momento in cui ha senso poter cambiare versione. Sparisce appena sono
+      // girate tutte e due (vedi giraCartaBustina).
+      mostraPulsanteBustina('pack-toggle-variant', true);
       uscite.forEach((entry, i)=>{
         const dir = (i === 0) ? -1 : 1;
         rivelate.appendChild(_costruisciCartaBustina(entry, dir, i));
@@ -12429,6 +12472,9 @@ function giraCartaBustina(carta){
         // lo fa aggiornaSceltaBustina appena una carta viene scelta, perche'
         // prima non c'e' ancora niente da raccogliere.
         mostraSceltaBustina();
+        // Girate tutte e due, non c'e' piu' un dorso da cambiare: adesso si
+        // sceglie, e il pulsante lascia il centro della scena alle carte.
+        mostraPulsanteBustina('pack-toggle-variant', false);
         if(stato) stato.textContent = '';
       });
     }
@@ -12646,6 +12692,7 @@ function tornaAllaBustina(){
   // Si ricomincia dal principio: niente piu' carte da mettere via, e si puo'
   // di nuovo uscire dalla pagina.
   mostraPulsanteBustina('pack-collect', false, true);
+  mostraPulsanteBustina('pack-toggle-variant', false, true);
   mostraPulsanteBustina('pack-back', true);
   if(chiusa){
     chiusa.classList.remove('charging','tearing','dissolving');
