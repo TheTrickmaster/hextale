@@ -1859,6 +1859,33 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
    the hand area (see renderHand()'s own v0.70.1 comment); the floating
    #drag-ghost is the ONLY thing that should be visible representing this
    card while it's held, not a see-through copy sitting in the hand too. */
+/* v0.75.36 — la croce dello scarto (Little Mermaid). Vive dentro al wrap della
+   carta, quindi segue da sola il ventaglio, la rotazione dello slot e la mano
+   espansa: nessuna posizione da ricalcolare, nessun secondo sistema di
+   coordinate da tenere allineato.
+   pointer-events:auto perche' il wrap e' pointer-events:none di base (vedi la
+   sua regola): senza, la croce si vedrebbe e non si potrebbe cliccare. */
+.scarta-croce{
+  position:absolute; left:50%; top:50%;
+  width:74px; height:74px; margin:-37px 0 0 -37px;
+  z-index:60;
+  pointer-events:auto;
+  cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  animation:scartaCroceIn .22s ease-out both;
+}
+.scarta-croce img{
+  width:100%; height:100%; object-fit:contain;
+  display:block;
+  filter:drop-shadow(0 2px 6px rgba(0,0,0,0.55));
+  transition:transform .12s ease-out, filter .12s ease-out;
+}
+.scarta-croce:hover img{
+  transform:scale(1.12);
+  filter:drop-shadow(0 2px 6px rgba(0,0,0,0.55)) brightness(1.25);
+}
+.scarta-croce:active img{ transform:scale(1.02) translateY(1px); }
+@keyframes scartaCroceIn{ from{ opacity:0; transform:scale(0.7); } to{ opacity:1; transform:scale(1); } }
 .hand-card-wrap.dragging{ opacity:0; pointer-events:none; }
 /* Belt-and-suspenders: renderHand() already skips attaching any tooltip/
    hover/drag listeners to this card's hitzone while isBeingDragged (see its
@@ -7124,7 +7151,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.35</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.36</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -17286,6 +17313,16 @@ const TILE_ABILITIES_DEF = {
   // diversi, e chi domani cambiera' una delle due non deve rischiare di
   // toccare l'altra.
   different_reality: { name:'Different Reality', desc:'*Moves* and *rotates* its power clockwise each turn while on the board.' },
+  // v0.75.36 — LITTLE MERMAID. La prima abilita' che chiede qualcosa alla
+  // MANO invece che al tabellone: giocandola, il suo proprietario deve
+  // scartare una carta. E' un costo, non un vantaggio — la Sirenetta ha valori
+  // altissimi e li paga cosi'.
+  // ATTENZIONE AL NOME. Sul foglio la cella "Ability name" di questa carta
+  // conteneva "...", che non e' un nome: il legame fra foglio e codice passa
+  // solo di li' (vedi _cardaDaRiga), e tre punti non possono agganciare
+  // niente. Perche' l'abilita' scatti, nella cella va scritto ESATTAMENTE il
+  // nome qui sotto.
+  a_voice_for_legs: { name:'A Voice for Legs', desc:'When *Played*, *Discard* a card of your choice.' },
   // v0.73.5 — Hatter. Non fa niente finche' resta suo; se lo conquista
   // l'avversario impazzisce (vedi impazzisciSeConquistato).
   have_i_gone_mad:   { name:'Have I Gone Mad?',   desc:'On conquer: goes mad, its power becomes a random value (1-3).' },
@@ -19372,7 +19409,12 @@ function doPlace(card,playerIdx,q,r){
     // scaduto non si apre nessuna finestra nuova: si risolve come una rinuncia,
     // altrimenti si aprirebbe una decisione che nessuno puo' piu' prendere.
     if(!timeAlreadyExpired && apriSceltaBersaglio(card, player, q, r, k, cellAbilityKey)){
-      renderBoard();
+      // v0.75.36 — una scelta che si fa sulla MANO ha i comandi nel ventaglio,
+      // e il ventaglio renderBoard non lo tocca. Senza questo ramo la finestra
+      // si aprirebbe davvero ma non comparirebbe nessuna croce da cliccare, e
+      // il turno resterebbe fermo fino allo scadere del timer.
+      if(G.sceltaBersaglio && G.sceltaBersaglio.modo === 'mano') render();
+      else renderBoard();
       // Il timer va rifatto partire: doPlace l'aveva fermato, e senza di lui la
       // finestra resterebbe aperta all'infinito se il giocatore si distrae.
       startTimer();
@@ -19920,6 +19962,45 @@ const SCELTE_PIAZZAMENTO = {
     };
     return stato;
   },
+  // ── v0.75.36 — LITTLE MERMAID, "A Voice for Legs" ───────────────────────
+  // La prima scelta che non si fa sul TABELLONE ma sulla MANO. Riusa tutta
+  // l'impalcatura delle altre — la pausa del turno, il timer, l'IA che chiude
+  // sempre, chiudiSceltaBersaglio come unica uscita — e ne cambia due cose:
+  // `modo:'mano'`, che dice al ventaglio di disegnare le croci e alla plancia
+  // di non disegnare niente, e il fatto che i bersagli siano ID DI CARTE
+  // invece che chiavi di cella.
+  // Che siano id e non celle non richiede nessuna eccezione altrove:
+  // chiudiSceltaBersaglio controlla solo che il bersaglio scelto sia
+  // nell'elenco, e non gli importa cosa rappresenti.
+  //
+  // La carta appena giocata e' gia' uscita dalla mano quando questa funzione
+  // gira, quindi non serve escluderla: la mano contiene solo le altre.
+  a_voice_for_legs: (card, q, r, giocatore) => {
+    const mano = manoDi(giocatore);
+    const ids = mano.map(c => c && c.id).filter(Boolean);
+    // Mano vuota: nessuna finestra e nessuna pausa. Aprirla vorrebbe dire
+    // chiedere di scegliere fra niente, e la X per uscire da una finestra che
+    // non ha bersagli e' esattamente il genere di vicolo cieco che questo
+    // registro esiste per evitare.
+    if(!ids.length) return null;
+    // Il sorteggio sta in una funzione sola perche' lo usano DUE uscite
+    // diverse — il tempo scaduto e la rinuncia — e devono comportarsi allo
+    // stesso modo: lo scarto e' obbligatorio, non evitabile.
+    const aCaso = () => ids[Math.floor(Math.random()*ids.length)];
+    return {
+      chiave: 'a_voice_for_legs',
+      giocatore,
+      modo: 'mano',
+      cellaOrigine: key(q,r),
+      bersagli: ids,
+      applica: (id) => scartaCartaDallaMano(giocatore, id),
+      // Rinunciare NON annulla il costo: scarta a caso, come il tempo scaduto.
+      // L'abilita' e' gia' scattata e la carta e' gia' in campo con i suoi
+      // valori altissimi; poterla evitare con un click la renderebbe gratis.
+      rinuncia: () => scartaCartaDallaMano(giocatore, aCaso()),
+      seScade: aCaso,
+    };
+  },
   magic_mirror: (card, q, r, giocatore) => {
     // Da qui in poi questa carta e' uno specchio per sempre, qualunque
     // abilita' finisca per portare addosso: e' il marchio che impedisce a un
@@ -19938,6 +20019,33 @@ const SCELTE_PIAZZAMENTO = {
     };
   }
 };
+
+// ── v0.75.36 — LA MANO DI UN GIOCATORE, E LO SCARTO ───────────────────────
+// `G.p1Hand`/`G.p2Hand` erano scelte a mano con un ternario in una dozzina di
+// punti. Con l'arrivo di un'abilita' che TOGLIE carte dalla mano vale la pena
+// avere un nome solo: chi scarta non deve sapere quale delle due variabili sia
+// la sua, e soprattutto deve modificare l'array VERO e non una copia.
+function manoDi(giocatore){
+  return (giocatore===1 ? G.p1Hand : G.p2Hand) || [];
+}
+// Toglie dalla mano la carta con quell'id. Restituisce la carta tolta, o null
+// se non c'era: chi chiama puo' cosi' distinguere uno scarto avvenuto da uno
+// andato a vuoto senza dover riguardare la mano.
+// La rimozione e' `splice` sull'array originale e non un `filter` che lo
+// riassegna: G.p1Hand e G.p2Hand sono referenziati altrove (l'anteprima, la
+// firma del ventaglio, le abilita' che ruotano i valori delle carte in mano),
+// e sostituire l'array lascerebbe quei riferimenti puntati a quello vecchio.
+function scartaCartaDallaMano(giocatore, id){
+  if(!id) return null;
+  const mano = manoDi(giocatore);
+  const i = mano.findIndex(c => c && c.id === id);
+  if(i < 0) return null;
+  const [tolta] = mano.splice(i, 1);
+  // Il ventaglio si ridisegna da solo alla prossima firma diversa, e la firma
+  // cambia perche' la mano ha una carta in meno.
+  try { render(); } catch(_){}
+  return tolta;
+}
 
 // La riga del foglio di una carta evocabile, cercata per nome. Si guarda fra
 // TUTTE le carte e non fra quelle giocabili: le evocabili sono proprio quelle
@@ -23418,6 +23526,26 @@ VALUTAZIONI_IA.open_celery = (scelta) => {
   // muro a caso e' peggio che non muoverlo — puo' scoprire un proprio fianco
   // o riparare quello di un avversario.
   return migliore;
+};
+// v0.75.36 — quale carta scarta l'IA: la piu' debole che ha in mano, misurata
+// con cardPower. Si riusa quella e non una somma scritta qui perche' cardPower
+// e' gia' l'idea di forza che questo gioco ha — pesa i lati alti piu' di quanto
+// dica la loro somma, che e' esattamente cio' che conta in uno scontro — e una
+// seconda misura inventata solo per questo scarto vorrebbe dire due idee
+// diverse di "carta forte" che convivono nello stesso avversario.
+// Non restituisce MAI null: lo scarto e' obbligatorio, e un null qui verrebbe
+// letto come "ho deciso di non scegliere" (vedi aiResolvePendingAbilityIfAny),
+// che per questa abilita' non e' un'opzione.
+VALUTAZIONI_IA.a_voice_for_legs = (scelta) => {
+  const mano = manoDi(scelta.giocatore);
+  let peggiore = null, minimo = Infinity;
+  for(const c of mano){
+    if(!c || !c.id || scelta.bersagli.indexOf(c.id) < 0) continue;
+    let forza = 0;
+    try { forza = cardPower(c); } catch(_){ forza = 0; }
+    if(forza < minimo){ minimo = forza; peggiore = c.id; }
+  }
+  return peggiore || scelta.bersagli[0];
 };
 function aiResolvePendingAbilityIfAny(){
   const scelta = G.sceltaBersaglio;
@@ -27797,6 +27925,10 @@ function renderHand(containerId,hand,playerIdx){
   // il browser torna a ridisegnare la carta alla scala finale.
   container.classList.toggle('mano-espansa', !!handExpandState[player]);
   const isActive=G.currentPlayer===player&&!G.gameOver;
+  // v0.75.36 — c'e' una scelta di scarto aperta su QUESTA mano? Si chiede una
+  // volta sola, qui, e la risposta serve due volte piu' sotto: per spegnere il
+  // trascinamento e per disegnare le croci.
+  const sceltaScarto = _sceltaScartoDi(player);
   // v0.62.0: colors/R (card sizing/tinting) are no longer needed for the
   // hand's own visuals (every hand card is now the same plain
   // HAND_CARD_TEMPLATE image, no SVG tinting/sizing math) — kept as
@@ -28434,7 +28566,14 @@ function renderHand(containerId,hand,playerIdx){
     // v0.74.2 — l'ascoltatore non e' piu' legato al proprio turno (isActive):
     // basta che la carta sia scoperta. Fuori dal turno armDragOrClick arma una
     // pressione di sola visione, che apre la finestra ma non alza la carta.
-    if(!isCovered && !isBeingDragged){
+    // v0.75.36 — mentre si sta scegliendo quale carta scartare, dalla mano non
+    // si gioca. Senza questa guardia il giocatore potrebbe trascinare in campo
+    // una seconda carta con la finestra ancora aperta: due carte calate nello
+    // stesso turno, e una scelta rimasta appesa a una mano che nel frattempo e'
+    // cambiata sotto. Si toglie l'ascoltatore invece di controllare dentro
+    // doPlace perche' cosi' la carta non si alza nemmeno: il gesto non parte,
+    // invece di partire e venire rifiutato a meta'.
+    if(!isCovered && !isBeingDragged && !sceltaScarto){
       // A plain click (mousedown+mouseup with no real movement) opens the
       // detail modal. Dragging (movement past a small pixel threshold before
       // release) still plays the card exactly as before — see armDragOrClick.
@@ -28458,6 +28597,30 @@ function renderHand(containerId,hand,playerIdx){
         e.target.setPointerCapture?.(e.pointerId);
         armDragOrClick(e,card,playerIdx,210,360,fillColor,strokeColor,textColor,glowColor,R,wrap);
       });
+    }
+    // ── v0.75.36 — LA CROCE ROSSA DELLO SCARTO ──────────────────────────────
+    // Stessa icona e stesso mestiere della X che sulla plancia chiude una
+    // scelta (close-icon-red.png): qui pero' non e' una rinuncia, e' il
+    // bersaglio — "questa e' la carta che butto". Una per carta, al centro.
+    // Sta sopra alla zona sensibile e non dentro di essa: quella e' la porta
+    // del trascinamento, che durante lo scarto e' chiusa (vedi la guardia qui
+    // sopra), e appenderci un click vorrebbe dire riaprirla per meta'.
+    if(sceltaScarto && !isCovered && sceltaScarto.bersagli.indexOf(card.id) >= 0){
+      const croce = document.createElement('div');
+      croce.className = 'scarta-croce';
+      const img = document.createElement('img');
+      img.src = CARD_PARTS_BASE + 'close-icon-red.png';
+      img.alt = '';
+      img.draggable = false;
+      croce.appendChild(img);
+      croce.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        // Si passa dalla porta di sempre: chiudiSceltaBersaglio e' l'unica
+        // uscita, e da li' il turno riprende da solo.
+        scegliBersaglio(card.id);
+      });
+      wrap.appendChild(croce);
     }
     container.appendChild(wrap);
     // v0.75.1 — il livello speculare si costruisce SUBITO e non piu' alla
@@ -30234,6 +30397,20 @@ let _firmaTabellonePrecedente = null;
 // Tutto cio' che un ventaglio disegna. Vale la stessa regola della plancia: lo
 // stato delle carte si prende intero, cosi' un campo nuovo entra da solo;
 // quello che vive fuori dalle carte e' elencato qui, con il perche' accanto.
+// v0.75.36 — la scelta di scarto aperta su QUELLA mano, o null. Sta in una
+// funzione sola perche' la stessa domanda se la fanno tre punti diversi (la
+// firma del ventaglio, il disegno delle croci e la disattivazione del
+// trascinamento) e devono rispondersi allo stesso modo: tre condizioni scritte
+// a mano in tre posti sono tre occasioni di scriverne una sbagliata, ed e'
+// esattamente cosi' che era nato il bug del giocatore di destra in v0.74.9.
+function _sceltaScartoDi(giocatore){
+  const s = G && G.sceltaBersaglio;
+  if(!s || s.modo !== 'mano' || s.giocatore !== giocatore) return null;
+  // Le croci sono interfaccia per una PERSONA: se la finestra e' dell'IA non
+  // si disegna niente, o si finirebbe per scartare al posto suo.
+  if(!giocatoreUmano(giocatore)) return null;
+  return s;
+}
 function firmaMano(hand, playerIdx){
   const giocatore = playerIdx + 1;
   const anteprima = (typeof anteprimaTavolo === 'function') ? anteprimaTavolo() : null;
@@ -30269,6 +30446,12 @@ function firmaMano(hand, playerIdx){
     // Regola generale (handoff.md): qualunque stato che cambi COME si disegna
     // deve comparire qui, altrimenti la cache lo nasconde.
     espansa: !!handExpandState[giocatore],
+    // v0.75.36 — e la scelta di quale carta scartare, che disegna una croce
+    // rossa su ogni carta di QUESTA mano e spegne il trascinamento. Vale la
+    // regola scritta qui sopra: e' uno stato che cambia COME si disegna il
+    // ventaglio, quindi senza questa riga la cache lo nasconderebbe e le croci
+    // non comparirebbero mai. E' lo stesso identico inciampo del v0.73.42.
+    scarto: _sceltaScartoDi(giocatore) ? _sceltaScartoDi(giocatore).bersagli.join(',') : null,
     // Anche il flag "questo e' il render in cui la geometria cambia, animalo"
     // conta: senza, due render consecutivi con la stessa geometria ma uno solo
     // da animare verrebbero considerati uguali.
@@ -30312,6 +30495,10 @@ function renderBoard(){
           _pendingOverlayRender = setTimeout(riprovaOverlay, 120);
           return;
         }
+        // v0.75.36 — se la scelta si fa sulla mano, la rete di sicurezza deve
+        // ridisegnare il VENTAGLIO: e' li' che stanno i suoi comandi, e un
+        // renderBoard non li farebbe comparire mai.
+        if(G.sceltaBersaglio.modo === 'mano'){ render(); return; }
         renderBoard();
       }, 120);
     }
@@ -30862,7 +31049,14 @@ function renderBoard(){
   // "giocatore 1": in PvP sono persone entrambi. Il giocatore di destra non
   // vedeva mai il mirino, quindi nessuna delle sue abilita' che chiedono
   // un'azione poteva partire. Adesso la domanda la fa giocatoreUmano().
-  if(G.sceltaBersaglio && giocatoreUmano(G.sceltaBersaglio.giocatore)){
+  // v0.75.36 — le scelte che si fanno sulla MANO non disegnano niente qui: i
+  // loro bersagli sono carte del ventaglio, non caselle, e i loro comandi sono
+  // le croci messe da renderHand. Nemmeno la X per rinunciare, e non e' una
+  // dimenticanza: lo scarto e' obbligatorio (vedi SCELTE_PIAZZAMENTO
+  // .a_voice_for_legs), quindi una X che sembra offrire di annullarlo direbbe
+  // una cosa falsa. Se il giocatore non sceglie, il timer sceglie per lui.
+  if(G.sceltaBersaglio && G.sceltaBersaglio.modo === 'mano'){ /* niente sulla plancia */ }
+  else if(G.sceltaBersaglio && giocatoreUmano(G.sceltaBersaglio.giocatore)){
     const scelta = G.sceltaBersaglio;
     for(const cella of scelta.bersagli){
       const c = G.cells.find(x=>key(x.q,x.r)===cella);
