@@ -4493,8 +4493,13 @@ body.prova-senza-willchange #mm-book-rot{
    fotogramma — un taglio netto proprio nel momento piu' visibile.
    La durata combacia con quella del fascio, cosi' la bustina smette di
    brillare mentre la luce si spegne, non prima. */
+/* v0.75.35 — la durata non e' piu' quella del fascio ma quella del LIBRO.
+   Da v0.75.30 il libro se ne va un secondo prima (a 150ms comincia a
+   dissolversi, a 610 non c'e' piu'), mentre questo bagliore continuava a
+   spegnersi sui tempi vecchi: restava un alone acceso per mezzo secondo
+   attaccato a un libro che non c'era piu'. 0.6s lo fa finire con lui. */
 #pack-closed.tearing #pack-white,
-#pack-closed.tearing #pack-glow{ animation:packWhiteFade 1.15s ease-out forwards; }
+#pack-closed.tearing #pack-glow{ animation:packWhiteFade .6s ease-out forwards; }
 @keyframes packWhiteFade{
   0%   { opacity:1; }
   55%  { opacity:0.55; }
@@ -4943,6 +4948,20 @@ body.prova-senza-willchange #mm-book-rot{
 .pack-card-swap.swap-in{  animation:packSwapIn  .22s ease-out forwards; }
 @keyframes packSwapOut{ from{ transform:rotateY(0deg); }   to{ transform:rotateY(90deg); } }
 @keyframes packSwapIn{  from{ transform:rotateY(-90deg); } to{ transform:rotateY(0deg); } }
+/* v0.75.35 — il piano PIATTO dell'alone e del bordo. Stessa inclinazione del
+   tilt vero, stesse variabili, ma nessun preserve-3d: qui la rotazione viene
+   appiattita in una proiezione, e non apre un piano nello spazio che il giro
+   della carta possa attraversare. E' quell'attraversamento — non uno z-index —
+   a tagliare in due la carta a meta' giro. Sta fuori da .pack-card-pop per la
+   stessa ragione, ed e' figlio diretto della carta, aggiunto prima di `pop`
+   cosi' resta dietro per ordine nel documento. */
+.pack-card-alone-tilt{
+  position:absolute; inset:0;
+  transform:rotateX(calc(var(--foil-ry,0) * -10deg)) rotateY(calc(var(--foil-rx,0) * 10deg));
+  transition:transform 0.28s ease-out;
+  pointer-events:none;
+}
+.pack-card[data-tilt="1"] .pack-card-alone-tilt{ transition:none; }
 .pack-card-tilt{
   position:absolute; inset:0;
   transform-style:preserve-3d;
@@ -5376,23 +5395,18 @@ body.prova-senza-willchange #mm-book-rot{
    particelle devono nascere ESATTAMENTE sul bordo che sta mangiando la carta,
    e quel bordo si muove. Un'animazione CSS non puo' dire a nessuno dove e'
    arrivata; un ciclo di disegno si'.
-   Qui resta solo il velo che tinge la carta d'arancione prima che anneriscá:
-   `color` prende la tinta e lascia la luminosita' del disegno sotto, quindi
-   la carta diventa arancione senza diventare una macchia arancione. */
-.pack-card-brace{
-  position:absolute; inset:0; border-radius:18px;
-  background:#E56213;
-  mix-blend-mode:color;
-  opacity:0; pointer-events:none;
-  z-index:4;
-}
+   v0.75.35 — il velo che tingeva la carta d'arancione prima di annerire non
+   c'e' piu'. La bruciatura vera e' la texture qui sotto, che ha gia' il suo
+   colore e il suo disegno; la tinta uniforme sopra non aggiungeva niente e le
+   copriva le sfumature. L'arancione resta dov'e' ancora luce vera: sulle
+   braci del pulviscolo. */
 /* v0.75.30 — LA BRUCIATURA E' UNA TEXTURE, non piu' un annerimento uniforme.
    `color-burn` scurisce dove la texture e' scura e lascia stare dove e'
    chiara: la carta si annerisce A CHIAZZE, seguendo il disegno della
    bruciatura, invece di spegnersi tutta insieme come sotto un interruttore.
    E' la differenza fra una carta bruciata e una carta al buio.
-   La texture sta SOPRA al contenuto ma sotto al velo arancione, cosi' la
-   brace resta l'ultima cosa che si vede accendersi. */
+   La texture sta SOPRA al contenuto. Dalla v0.75.35 e' anche l'unica cosa che
+   scurisce la carta: il velo arancione che le stava sopra non c'e' piu'. */
 .pack-card-bruciata{
   position:absolute; inset:0; border-radius:18px;
   background-image:url('https://thetrickmaster.github.io/hextale/unpack-screen/card-burnt-texture.png');
@@ -7110,7 +7124,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.34</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.35</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -12563,14 +12577,26 @@ function _costruisciCartaBustina(entry, dir, indice){
 
   piano.appendChild(dorso);
   piano.appendChild(fronte);
-  // v0.75.28 — L'ALONE E IL BORDO STANNO DENTRO AL PIANO CHE SI INCLINA.
-  // Erano figli della CARTA, cioe' fuori dal piano: la carta ruotava e loro
-  // restavano piatti, e a schermo si vedeva un alone rettangolare fermo dietro
-  // a una carta inclinata. E' lo stesso rimedio gia' applicato alle carte in
-  // mano in v0.72.18, che qui era rimasto da fare.
-  // Vanno PRIMA del piano che gira: cosi' restano dietro per ordine nel
-  // documento, senza bisogno di z-index negativi, che dentro un contesto 3D si
-  // comportano in modo poco prevedibile.
+  // v0.75.35 — L'ALONE E IL BORDO TORNANO FUORI DALLO SPAZIO 3D, ma con una
+  // inclinazione loro.
+  // In v0.75.28 li avevo messi dentro .pack-card-tilt per farli inclinare con
+  // la carta, e cosi' facendo ho rimesso in piedi il guasto che v0.72.88 aveva
+  // corretto: .pack-card-tilt e' preserve-3d, il piano che gira vive nel suo
+  // stesso spazio, e UN PIANO CHE RUOTA ATTRAVERSA GLI ALTRI. A meta' giro il
+  // piano della carta e quello dell'alone si compenetrano davvero, e il taglio
+  // netto che si vedeva a meta' carta era la loro intersezione. Non e' un
+  // problema di z-index: sono due superfici che si incrociano nello spazio.
+  // Qui vivono in un contenitore PIATTO, figlio della carta: fuori da ogni
+  // spazio 3D non c'e' niente da attraversare. L'inclinazione ce l'hanno lo
+  // stesso, applicata a loro con le stesse variabili del tilt vero
+  // (--foil-rx/--foil-ry), quindi seguono la carta come chiedeva v0.75.28 —
+  // solo, in un contesto dove la rotazione viene appiattita invece di aprire
+  // un piano nello spazio.
+  const aloneTilt = document.createElement('div');
+  aloneTilt.className = 'pack-card-alone-tilt';
+  aloneTilt.appendChild(alone);
+  aloneTilt.appendChild(bordo);
+  carta.appendChild(aloneTilt);
   tilt.appendChild(piano);
 
   const riflesso = document.createElement('div');
@@ -12630,13 +12656,7 @@ function _costruisciCartaBustina(entry, dir, indice){
   lampoScelta.className = 'pack-card-lampo-scelta';
   carta.appendChild(lampoScelta);
 
-  // v0.75.26 — il velo che tinge d'arancione prima dell'incenerimento.
-  const brace = document.createElement('div');
-  brace.className = 'pack-card-brace';
-  carta.appendChild(brace);
-  carta.__brace = brace;
-
-  // v0.75.30 — e la texture della bruciatura, che prende il posto
+  // v0.75.30 — la texture della bruciatura, che prende il posto
   // dell'annerimento uniforme di prima.
   const bruciata = document.createElement('div');
   bruciata.className = 'pack-card-bruciata';
@@ -12871,7 +12891,9 @@ function raccogliCarte(){
 // non tre orologi separati che possono sfasarsi.
 const CENERE_QUANTE = 1360;     // v0.75.30 — quattro volte quante erano
 const INCENERISCI_MS = 1600;   // v0.75.30 — meta' di quanto durava
-const FASE_ARANCIO = 0.20;      // fino a qui: si tinge
+// v0.75.35 — la fase della tinta arancione non esiste piu' (vedi
+// .pack-card-brace, rimosso): la texture della bruciatura entra da subito e
+// riempie da sola tutto il tratto fino a FASE_NERO.
 const FASE_NERO    = 0.34;      // fino a qui: annerisce
 // I due colori del pulviscolo: nasce brace e muore cenere.
 const CENERE_DA = { r:0xE5, g:0x62, b:0x13 };
@@ -12888,6 +12910,10 @@ const FINE_DISSOLVENZA = 0.42;
 // fine; 2.4 fa scendere il bordo a un quinto dell'altezza a meta' tempo e
 // coprire i restanti quattro quinti nella meta' che resta.
 const MANGIATA_ACCEL = 2.4;
+// v0.75.35 — da qui in poi anche il pulviscolo comincia a spegnersi, per
+// arrivare a zero insieme alla fine della bruciatura. E' all'incirca il punto
+// in cui la carta comincia a sbiadire: le due cose se ne vanno insieme.
+const CENERE_TRAMONTO = 0.60;
 function _mangiataAccelerata(a){
   return Math.pow(Math.max(0, Math.min(1, a)), MANGIATA_ACCEL);
 }
@@ -13027,7 +13053,6 @@ function incenerisciCarta(carta, poi){
     });
   }
 
-  const brace = carta.__brace;
   const bruciata = carta.__bruciata;
   const pop = carta.querySelector('.pack-card-pop');
   // v0.75.30 — il suono della bruciatura, all'inizio: e' l'unico momento in cui
@@ -13043,17 +13068,17 @@ function incenerisciCarta(carta, poi){
     ultimo = ora;
     ctx.clearRect(0,0,W,H);
 
-    // 1) la tinta arancione
-    if(brace) brace.style.opacity = String(Math.min(1, q/FASE_ARANCIO));
-    // 2) la bruciatura: la texture entra in dissolvenza e scurisce a chiazze.
+    // 1) la bruciatura: la texture entra in dissolvenza e scurisce a chiazze.
     // Niente piu' `brightness(0)` su tutto: quello spegneva la carta, questo la
     // BRUCIA — resta leggibile dove la texture e' chiara, e sparisce dove e'
     // scura, che e' come si comporta la carta vera sotto una fiamma.
-    if(bruciata){
-      const b = q <= FASE_ARANCIO ? 0
-        : Math.min(1, (q-FASE_ARANCIO)/(FASE_NERO-FASE_ARANCIO));
-      bruciata.style.opacity = b.toFixed(3);
-    }
+    // v0.75.35 — ed e' rimasta LEI SOLA. Prima c'era anche un velo arancione
+    // che tingeva la carta nella prima fase; toglierlo lascia parlare la
+    // texture, che e' il disegno vero della bruciatura. Di conseguenza la
+    // texture non aspetta piu' la fine della tinta: comincia subito, e
+    // FASE_ARANCIO smette di essere un'attesa per diventare solo il punto in
+    // cui la bruciatura e' a meta'.
+    if(bruciata) bruciata.style.opacity = Math.min(1, q/FASE_NERO).toFixed(3);
     // 3) la mangiata: il bordo scende dall'alto, e la carta sparisce con lui
     if(q > FASE_NERO){
       const avanti = (q - FASE_NERO)/(1 - FASE_NERO);
@@ -13085,6 +13110,16 @@ function incenerisciCarta(carta, poi){
     }
 
     // le particelle
+    // v0.75.35 — anche la cenere svanisce insieme alla carta. Ogni particella
+    // aveva gia' la propria dissolvenza a fine vita, ma il PULVISCOLO nel suo
+    // insieme restava acceso fino all'ultimo fotogramma e spariva con la
+    // pulizia della tela: un taglio netto, lo stesso difetto che la carta aveva
+    // prima della v0.75.31.
+    // Il velo comincia quando comincia a sbiadire la carta e arriva a zero alla
+    // fine della bruciatura: cosi' se ne vanno insieme, con la cenere che le
+    // sopravvive giusto il tempo di posarsi invece di essere spenta di colpo.
+    const veloCenere = q < CENERE_TRAMONTO ? 1
+      : Math.max(0, 1 - Math.pow((q-CENERE_TRAMONTO)/(1-CENERE_TRAMONTO), 1.5));
     ctx.globalAlpha = 1;
     for(const g of parti){
       if(q < g.nasce) continue;
@@ -13111,7 +13146,7 @@ function incenerisciCarta(carta, poi){
       const gg = Math.round(CENERE_DA.g + (CENERE_A.g-CENERE_DA.g)*v);
       const b = Math.round(CENERE_DA.b + (CENERE_A.b-CENERE_DA.b)*v);
       ctx.fillStyle = 'rgb('+r+','+gg+','+b+')';
-      ctx.globalAlpha = v < 0.75 ? 1 : (1-v)/0.25;
+      ctx.globalAlpha = (v < 0.75 ? 1 : (1-v)/0.25) * veloCenere;
       _disegnaScheggia(ctx, g.x, g.y, g.r*(1-v*0.3), g.rot, g.forma);
     }
     ctx.globalAlpha = 1;
