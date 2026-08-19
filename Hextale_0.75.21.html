@@ -5206,6 +5206,62 @@ body.prova-senza-willchange #mm-book-rot{
    ogni modifica fatta sulla prima non aveva effetto. Rimossa.
    Con essa se ne va l'etichetta col nome della rarita' sotto la carta: il
    colore dell'alone e del bordo la dicono gia'. */
+/* ── v0.75.21 — LA SCELTA FRA LE DUE CARTE ────────────────────────────────
+   Sotto ogni carta c'e' il suo pulsante. E' figlio della CARTA e non della
+   pagina, cosi' la segue dovunque vada: le carte galleggiano di continuo (vedi
+   .pack-card.floating), e un pulsante ancorato alla pagina sarebbe rimasto
+   fermo mentre la sua carta gli si muoveva sopra.
+   Rimpicciolito del 10%: il pulsante di serie e' 258px, la carta 242, e uno
+   che sborda dalla carta a cui appartiene non sembra suo. */
+.pack-scelta-btn{
+  position:absolute; left:50%; top:100%;
+  margin-top:18px;
+  transform:translateX(-50%) scale(0.9);
+  transform-origin:top center;
+  white-space:nowrap;
+  z-index:4;
+  transition:opacity .22s ease, visibility .22s;
+}
+.pack-scelta-btn.pack-nascosto{ opacity:0; visibility:hidden; pointer-events:none; }
+/* L'icona della polvere dentro all'etichetta "Keep for 200". */
+.pack-scelta-btn .sab-label img{
+  height:1.15em; width:auto; vertical-align:-0.18em; margin:0 .18em 0 .1em;
+}
+/* LA CARTA TENUTA. L'ingrandimento sta su .pack-card-pop e non sulla carta
+   intera, perche' il pulsante e' figlio della carta e crescerebbe con lei —
+   e un pulsante che si ingrandisce quando lo premi sembra un errore, non una
+   scelta. .pack-card-pop non ha una transform propria, quindi qui non si
+   sovrascrive niente. */
+.pack-card.tenuta > .pack-card-pop{
+  transform:scale(1.06);
+  transition:transform .22s cubic-bezier(.22,1,.36,1);
+}
+/* L'alone che pulsa dietro alla carta tenuta. Uno pseudo-elemento e non un
+   div: non c'e' niente da manovrare da codice, quindi non serve un nodo.
+   z-index 0 lo tiene dietro a .pack-card-pop (che e' a 2) senza bisogno di
+   valori negativi, che dentro un contesto 3D si comportano male. */
+.pack-card::before{
+  content:''; position:absolute; inset:-38px;
+  border-radius:40px;
+  background:radial-gradient(closest-side, #FFECB7 0%, rgba(255,236,183,0.55) 45%, rgba(255,236,183,0) 100%);
+  filter:blur(26px);
+  mix-blend-mode:plus-lighter;
+  opacity:0; pointer-events:none;
+  z-index:0;
+  transition:opacity .28s ease-out;
+}
+.pack-card.tenuta::before{
+  opacity:1;
+  animation:packTenutaPulsa 2.1s ease-in-out infinite;
+}
+@keyframes packTenutaPulsa{
+  0%,100%{ opacity:0.55; transform:scale(0.97); }
+  50%    { opacity:1;    transform:scale(1.04); }
+}
+/* La carta lasciata da parte: non sparisce, si fa da parte. Resta leggibile,
+   perche' la si puo' sempre riprendere. */
+.pack-card.scartata{ opacity:0.4; transition:opacity .28s ease-out; }
+
 #pack-actions{ display:flex; gap:14px; align-items:center; justify-content:center; min-height:56px; }
 #pack-actions .start-art-btn{ min-width:220px; }
 /* v0.73.31 — i pulsanti della pagina compaiono e spariscono in dissolvenza.
@@ -6295,10 +6351,24 @@ body.prova-senza-willchange #mm-book-rot{
 /* Le due valute. Stessa struttura per entrambe — sfondo, icona, numero,
    pulsante piu' — cosi' l'unica differenza dichiarata e' quella vera: il
    colore del numero. */
-#mm-currencies{
+#mm-currencies, #pack-currencies{
   position:absolute; right:40px; bottom:40px;
   display:flex; align-items:center; gap:26px;
 }
+/* v0.75.21 — nella schermata bustine i riquadri stanno sopra al fondale e
+   alla polvere, ma sotto alle carte che escono: sono un'indicazione, non
+   parte della scena. */
+#pack-currencies{ z-index:3; }
+/* v0.75.21 — il lampo sull'icona quando si paga: vedi lampeggiaFairyDust.
+   Due impulsi brevi invece di uno lungo, cosi' si legge come uno scatto e non
+   come una dissolvenza. */
+@keyframes valutaLampo{
+  0%,100%{ filter:none; }
+  25%    { filter:brightness(2.2) drop-shadow(0 0 12px #FFECB7); }
+  50%    { filter:none; }
+  75%    { filter:brightness(2.2) drop-shadow(0 0 12px #FFECB7); }
+}
+.mm-cur.valuta-lampo .mm-cur-icon{ animation:valutaLampo .62s ease-in-out; }
 .mm-cur{
   position:relative;
   width:270px; height:62px;
@@ -6584,13 +6654,13 @@ body.prova-senza-willchange #mm-book-rot{
     <div class="mm-cur" id="mm-ink">
       <img class="mm-cur-bg" alt="" draggable="false">
       <img class="mm-cur-icon" alt="" draggable="false">
-      <div class="mm-cur-value" id="mm-ink-value">0</div>
+      <div class="mm-cur-value" id="mm-ink-value" data-valuta="ink">0</div>
       <button class="mm-cur-plus" aria-label="Compra magic ink"><img alt="" draggable="false"></button>
     </div>
     <div class="mm-cur mm-cur-premium" id="mm-dust">
       <img class="mm-cur-bg" alt="" draggable="false">
       <img class="mm-cur-icon" alt="" draggable="false">
-      <div class="mm-cur-value" id="mm-dust-value">0</div>
+      <div class="mm-cur-value" id="mm-dust-value" data-valuta="dust">0</div>
       <button class="mm-cur-plus" aria-label="Compra fairy dust"><img alt="" draggable="false"></button>
     </div>
   </div>
@@ -6875,7 +6945,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.20</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.21</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -7024,7 +7094,7 @@ body.prova-senza-willchange #mm-book-rot{
          giudicati guardando una carta vera mentre la si inclina — un
          pannello che si chiude per mostrare la carta non servirebbe a
          niente. --><button class="start-art-btn sab-secondary" onclick="debugOpenFoilLab()">
-      <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Calibra foil...</span>
+      <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Foil calibration...</span>
     </button></div><div class="debug-item"><!-- v0.72.40 NEW ("ho bisogno di un modo per testare questo crossfade"):
          il punto di giunzione della musica del menu cade a 3m18s dall'inizio
          della traccia, quindi ascoltarlo in condizioni normali vuol dire
@@ -7036,21 +7106,21 @@ body.prova-senza-willchange #mm-book-rot{
          Il secondo campo permette di provare anche gli altri brani man mano
          che verranno aggiunti a MUSIC_INTRO_LOOPS: la tendina si popola da
          sola da quella tabella. --><button class="start-art-btn sab-secondary" onclick="debugToggleMusicLoopPicker()">
-      <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Prova giunzione musica...</span>
+      <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Music loop test...</span>
     </button><div id="debug-music-loop-picker" style="display:none;margin-top:10px;">
       <select id="debug-music-loop-select" style="width:100%;padding:8px;font-size:15px;border-radius:6px;background:#222;color:#fff;border:1px solid #555;">
       </select>
       <div style="display:flex;align-items:center;gap:10px;margin-top:8px;">
-        <label style="font-size:15px;white-space:nowrap;">Parti da</label>
+        <label style="font-size:15px;white-space:nowrap;">Start</label>
         <input id="debug-music-loop-lead" type="number" min="1" max="60" step="1" value="8" style="width:70px;padding:6px;font-size:15px;border-radius:6px;background:#222;color:#fff;border:1px solid #555;">
-        <span style="font-size:15px;">s prima della giunzione</span>
+        <span style="font-size:15px;">s before the loop point</span>
       </div>
       <div id="debug-music-loop-status" style="margin-top:8px;font-size:15px;color:#95A7A9;min-height:22px;"></div>
       <button class="start-art-btn sab-secondary" style="margin-top:8px;" onclick="debugPlayMusicLoopJoin()">
-        <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Ascolta la giunzione</span>
+        <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Play the loop</span>
       </button>
       <button class="start-art-btn sab-secondary" style="margin-top:8px;" onclick="debugStopMusicLoopJoin()">
-        <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Ferma</span>
+        <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Stop</span>
       </button>
     </div></div><div class="debug-item"><!-- v0.71.70 NEW ("iniziamo ad implementare le carte finali... abbiamo
          bisogno di una pagina (anche placeholder)... che ci mostri un db di
@@ -7058,7 +7128,7 @@ body.prova-senza-willchange #mm-book-rot{
          full-screen page for browsing the final (hand-authored, not
          randomly-generated) card roster — see that overlay's own HTML/CSS/JS
          comments for the full layout breakdown. --><button class="start-art-btn sab-secondary" onclick="closeDebugModal();openCardDbOverlay()">
-      <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Mostra DB carte</span>
+      <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Show card DB</span>
     </button></div><div class="debug-item"><!-- v0.71.96 NEW ("Prova carta..."): a searchable picker over every
          FINAL_CARDS roster entry (the only cards with fixed, individually
          testable values/abilities — procedurally generated cards get random
@@ -7072,27 +7142,31 @@ body.prova-senza-willchange #mm-book-rot{
          in the script) is entirely replaced with 10 copies of the chosen
          card, so it keeps reappearing in hand every single draw instead of
          needing to be dealt into a normal mixed deck by chance. --><button class="start-art-btn sab-secondary" onclick="debugToggleCardSearchDropdown()">
-      <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Prova carta...</span>
+      <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Test a card...</span>
     </button><div id="debug-card-picker" style="display:none;margin-top:10px;">
       <div style="position:relative;">
         <input type="text" id="debug-card-search-input" placeholder="Cerca una carta..." autocomplete="off" style="width:100%;box-sizing:border-box;padding:8px;font-size:15px;border-radius:6px;background:#222;color:#fff;border:1px solid #555;" oninput="debugFilterCardSearchList()" onfocus="debugFilterCardSearchList()">
         <div id="debug-card-search-list" style="display:none;position:absolute;left:0;right:0;top:100%;margin-top:2px;max-height:220px;overflow-y:auto;background:#222;border:1px solid #555;border-radius:6px;z-index:10;"></div>
       </div>
       <button class="start-art-btn sab-primary" style="margin-top:8px;" onclick="debugStartMatchWithCard()">
-        <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Conferma</span>
+        <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Confirm</span>
       </button>
-    </div></div><div class="debug-item"><button class="start-art-btn sab-secondary" style="margin-top:8px;" onclick="debugAzzeraTimerBustine()">
-      <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Azzera timer Book Pack</span>
+    </div></div><div class="debug-item"><!-- v0.75.21 — cento polveri in tasca, per provare il
+         pagamento della seconda carta senza dover aspettare di guadagnarle. -->
+      <button class="start-art-btn sab-secondary" onclick="debugAggiungiFairyDust()">
+        <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Add 100 Fairy dust</span>
+      </button></div><div class="debug-item"><button class="start-art-btn sab-secondary" onclick="debugAzzeraTimerBustine()">
+      <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Reset Book Pack timer</span>
     </button></div><div class="debug-item"><!-- v0.72.76 NEW: cerca su GitHub il file Hextale_*.html con il numero di
          versione piu' alto e offre due cose: scaricarlo, oppure eseguirlo
          subito al posto di questa pagina. Vedi debugCercaUltimaVersione nello
          script per il perche' le due cose NON sono la stessa. --><button class="start-art-btn sab-secondary" onclick="debugCercaUltimaVersione()">
-      <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Scarica ultima versione</span>
+      <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Download latest version</span>
     </button><div id="debug-update-box" style="display:none;margin-top:10px;font-family:var(--font-body);font-size:14px;color:#C9C2B0;">
       <div id="debug-update-msg" style="margin-bottom:8px;"></div>
       <div id="debug-update-actions" style="display:none;">
         <button id="debug-update-download" class="start-art-btn sab-primary" onclick="debugScaricaUltimaVersione()">
-          <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Scarica il file</span>
+          <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Download the file</span>
         </button>
         <a id="debug-update-fallback" href="#" target="_blank" rel="noopener" style="display:none;margin-top:8px;text-align:center;padding:9px;border-radius:6px;background:#2b2b2b;border:1px solid #666;color:#fff;text-decoration:none;">Aprilo su GitHub e salvalo a mano</a>
         <button id="debug-update-run" class="start-art-btn sab-secondary" style="margin-top:8px;" onclick="debugEseguiUltimaVersione()">
@@ -7161,9 +7235,34 @@ body.prova-senza-willchange #mm-book-rot{
       </div>
       <div id="pack-reveal"></div>
     </div>
+    <!-- v0.75.21 — i due riquadri delle valute, gli stessi del menu: stesse
+         classi, stesso stile, stessi disegni. Non e' una copia "che assomiglia
+         a", e' la STESSA cosa messa in un secondo posto — cosi' il giorno in
+         cui il riquadro cambia aspetto cambia in tutti e due.
+         Gli id sono diversi (un id e' unico in una pagina), ma cio' che conta
+         per riempirli e' data-valuta, che infatti e' identico: vedi
+         aggiornaValuteAVideo. -->
+    <div id="pack-currencies">
+      <div class="mm-cur" id="pack-ink">
+        <img class="mm-cur-bg" alt="" draggable="false">
+        <img class="mm-cur-icon" alt="" draggable="false">
+        <div class="mm-cur-value" data-valuta="ink">0</div>
+        <button class="mm-cur-plus" aria-label="Compra magic ink"><img alt="" draggable="false"></button>
+      </div>
+      <div class="mm-cur mm-cur-premium" id="pack-dust">
+        <img class="mm-cur-bg" alt="" draggable="false">
+        <img class="mm-cur-icon" alt="" draggable="false">
+        <div class="mm-cur-value" data-valuta="dust">0</div>
+        <button class="mm-cur-plus" aria-label="Compra fairy dust"><img alt="" draggable="false"></button>
+      </div>
+    </div>
     <div id="pack-actions">
-      <button class="start-art-btn sab-secondary" id="pack-putaway" style="display:none;" onclick="mettiViaCarte()">
-        <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Put away</span>
+      <!-- v0.75.21 — "Put away" e' diventato "Collect": non si mettono piu' via
+           due carte, se ne raccoglie una (o due, pagando). Stesso posto, stesso
+           stile, stessa dissolvenza; cambia l'etichetta, che la riscrive
+           aggiornaSceltaBustina. -->
+      <button class="start-art-btn sab-secondary" id="pack-collect" style="display:none;" onclick="raccogliCarte()">
+        <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Collect</span>
       </button>
       <button class="start-art-btn sab-primary" id="pack-back" onclick="closePackOverlay()">
         <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Back</span>
@@ -8030,9 +8129,10 @@ if(document.readyState==='loading'){
   }
 
   if(document.readyState==='loading'){
-    document.addEventListener('DOMContentLoaded', ()=>{ caricaAiutoEsagono(); runPreload(); });
+    document.addEventListener('DOMContentLoaded', ()=>{ caricaAiutoEsagono(); caricaValute(); runPreload(); });
   } else {
     caricaAiutoEsagono();
+    caricaValute();
     runPreload();
   }
 })();
@@ -8643,6 +8743,7 @@ const PAGE_ENTER_HOOKS = {
   packs(){
     if(typeof PolvereBustineAvvia === 'function') PolvereBustineAvvia();
     if(typeof montaRaggiereBustine === 'function') montaRaggiereBustine();
+    if(typeof montaValuteBustine === 'function') montaValuteBustine();
   },
   // game: la ricostruzione la fa gia' startGame(), che e' l'unico percorso
   // che porta a questa pagina — un hook qui sarebbe un secondo punto di
@@ -8873,6 +8974,40 @@ function _pbNuovoGranello(piano, w, h, indice){
 // Si montano una volta sola: rifarlo a ogni entrata farebbe ripartire il
 // caricamento e sfarfallare l'immagine, che e' il motivo per cui il menu fa
 // gia' cosi' con le sue.
+// v0.75.21 — i disegni dei due riquadri delle valute della pagina bustine.
+// Sono gli stessi file del menu, montati con la stessa funzione: se un domani
+// cambia il disegno, cambia in tutti e due i posti da solo.
+// Una volta sola, come per le raggiere: rifarlo a ogni entrata farebbe
+// ripartire il caricamento e sfarfallare le immagini.
+let _valuteBustineMontate = false;
+function montaValuteBustine(){
+  const dentro = document.getElementById('pack-currencies');
+  if(!dentro || typeof impostaImgDaCandidati !== 'function') return;
+  if(!_valuteBustineMontate){
+    _valuteBustineMontate = true;
+    impostaImgDaCandidati(dentro.querySelector('#pack-ink .mm-cur-bg'),    menuFileCandidati('magic-ink-wrapper.png'));
+    impostaImgDaCandidati(dentro.querySelector('#pack-ink .mm-cur-icon'),  menuFileCandidati('magic-ink-icon.png'));
+    impostaImgDaCandidati(dentro.querySelector('#pack-dust .mm-cur-bg'),   menuFileCandidati('fairy-dust-wrapper.png'));
+    impostaImgDaCandidati(dentro.querySelector('#pack-dust .mm-cur-icon'), menuFileCandidati('fairy-dust-icon.png'));
+    dentro.querySelectorAll('.mm-cur-plus img').forEach(el=>{
+      impostaImgDaCandidati(el, menuFileCandidati('plus-icon.png'));
+    });
+  }
+  // I numeri invece si riscrivono a OGNI entrata: possono essere cambiati
+  // altrove (una bustina pagata, e domani una partita vinta).
+  aggiornaValuteAVideo();
+}
+// Il lampo sull'icona di una valuta, quando viene spesa. Si toglie e si
+// rimette la classe con un reflow in mezzo, altrimenti due pagamenti
+// ravvicinati non farebbero ripartire l'animazione.
+function lampeggiaValuta(quale){
+  document.querySelectorAll('#pack-'+quale+', #mm-'+quale).forEach(el=>{
+    el.classList.remove('valuta-lampo');
+    void el.offsetWidth;
+    el.classList.add('valuta-lampo');
+    setTimeout(()=>el.classList.remove('valuta-lampo'), 700);
+  });
+}
 let _raggiereBustineMontate = false;
 function montaRaggiereBustine(){
   if(_raggiereBustineMontate) return;
@@ -9240,10 +9375,56 @@ function adattaSegnalibroAlDisegno(id, file){
   });
   impostaImgDaCandidati(img, menuFileCandidati(file));
 }
-// Valute e nome: numeri finti, in un posto solo. Quando ci sara' un'economia
-// vera bastera' cambiare questi tre valori con quelli del giocatore, e il
-// menu non se ne accorgera'.
-const MENU_GIOCATORE = { nome:'Player name', magicInk:14000, fairyDust:300 };
+// ── v0.75.21 — LE VALUTE SONO VIVE ────────────────────────────────────────
+// Erano due numeri fissi che il menu si limitava a stampare. Adesso si
+// spendono davvero (vedi il pagamento delle bustine) e sopravvivono alla
+// chiusura del gioco, come la scadenza della prossima bustina.
+// `MENU_GIOCATORE` resta il posto unico da cui si leggono: chi disegna non
+// deve sapere che dietro c'e' un salvataggio.
+const VALUTE_CHIAVE = 'hextale.valute';
+const VALUTE_INIZIALI = { magicInk:14000, fairyDust:300 };
+const MENU_GIOCATORE = { nome:'Player name', magicInk:VALUTE_INIZIALI.magicInk, fairyDust:VALUTE_INIZIALI.fairyDust };
+function caricaValute(){
+  try{
+    const v = JSON.parse(localStorage.getItem(VALUTE_CHIAVE) || 'null');
+    // Si accetta solo cio' che e' un numero vero: un salvataggio rovinato non
+    // deve poter mettere "undefined" al posto di una valuta e trascinarselo
+    // dietro per tutte le partite successive.
+    if(v && typeof v.magicInk === 'number' && isFinite(v.magicInk)) MENU_GIOCATORE.magicInk = v.magicInk;
+    if(v && typeof v.fairyDust === 'number' && isFinite(v.fairyDust)) MENU_GIOCATORE.fairyDust = v.fairyDust;
+  }catch(_){}
+}
+function salvaValute(){
+  try{ localStorage.setItem(VALUTE_CHIAVE, JSON.stringify({
+    magicInk: MENU_GIOCATORE.magicInk, fairyDust: MENU_GIOCATORE.fairyDust
+  })); }catch(_){}
+}
+function fairyDust(){ return MENU_GIOCATORE.fairyDust; }
+// Toglie polvere e restituisce true se c'era davvero. Il controllo sta QUI e
+// non in chi chiama: e' l'unico modo per essere certi che nessuna strada porti
+// a un saldo negativo, oggi o fra dieci abilita'.
+function spendiFairyDust(quanta){
+  if(!(quanta > 0)) return true;
+  if(MENU_GIOCATORE.fairyDust < quanta) return false;
+  MENU_GIOCATORE.fairyDust -= quanta;
+  salvaValute();
+  aggiornaValuteAVideo();
+  return true;
+}
+function aggiungiFairyDust(quanta){
+  MENU_GIOCATORE.fairyDust += quanta;
+  salvaValute();
+  aggiornaValuteAVideo();
+}
+// Riscrive TUTTI i riquadri delle valute, ovunque siano: il menu ne ha due, la
+// schermata bustine altri due, e domani potrebbero essercene altri. Si cercano
+// per classe invece che per id proprio per non doverli elencare.
+function aggiornaValuteAVideo(){
+  const ink = MENU_GIOCATORE.magicInk.toLocaleString('en-US');
+  const dust = MENU_GIOCATORE.fairyDust.toLocaleString('en-US');
+  document.querySelectorAll('[data-valuta="ink"]').forEach(el=>{ el.textContent = ink; });
+  document.querySelectorAll('[data-valuta="dust"]').forEach(el=>{ el.textContent = dust; });
+}
 // I riquadri dei mazzi rapidi: sei, tutti vuoti, tutti inerti. I mazzi non
 // esistono ancora — quando esisteranno, questo e' il punto in cui riempirli.
 const MENU_QUICK_SLOT = 6;
@@ -9316,10 +9497,10 @@ function montaMenuPrincipale(){
 function aggiornaDatiMenu(){
   const nome = document.getElementById('mm-player-name-label');
   if(nome) nome.textContent = MENU_GIOCATORE.nome;
-  const ink = document.getElementById('mm-ink-value');
-  if(ink) ink.textContent = MENU_GIOCATORE.magicInk.toLocaleString('en-US');
-  const dust = document.getElementById('mm-dust-value');
-  if(dust) dust.textContent = MENU_GIOCATORE.fairyDust.toLocaleString('en-US');
+  // v0.75.21 — i numeri li scrive aggiornaValuteAVideo, che li scrive in TUTTI
+  // i riquadri esistenti invece che nei due del menu: da qui in poi ce ne sono
+  // anche nella schermata bustine.
+  aggiornaValuteAVideo();
   // La versione si legge dalla targhetta in basso, che e' l'unico posto in cui
   // il numero e' scritto: due posti vorrebbero dire, prima o poi, due numeri
   // diversi.
@@ -11863,6 +12044,96 @@ function _bustinaDurataCarica(){
 // il passaggio da display:none a visibile ha bisogno di un fotogramma in
 // mezzo: senza, il browser vedrebbe comparsa e dissolvenza nello stesso
 // istante e non animerebbe niente.
+// ═══════════════════════════════════════════════════════════════════════════
+// v0.75.21 — LA SCELTA: QUALE CARTA TENERE
+// ═══════════════════════════════════════════════════════════════════════════
+// Da una bustina escono due carte ma se ne tiene UNA. L'altra si puo' tenere
+// pagando, e allora si tengono entrambe.
+//
+// Non c'e' nessuna variabile di stato: lo stato E' la classe .tenuta sulle
+// carte, e tutto il resto — le etichette dei due pulsanti, la trasparenza di
+// quella lasciata, il pulsante in fondo alla pagina — si RICALCOLA da li' a
+// ogni tocco (vedi aggiornaSceltaBustina).
+// E' la stessa scelta fatta per le sinergie sul tabellone, e per la stessa
+// ragione: due depositi della stessa verita' prima o poi discordano, e a
+// discordare sarebbe proprio quello che decide se far pagare.
+const BUSTINA_COSTO_SECONDA = 200;
+function _carteBustina(){ return [...document.querySelectorAll('#pack-reveal .pack-card')]; }
+function _carteTenute(){ return _carteBustina().filter(c=>c.classList.contains('tenuta')); }
+
+// Il tocco su un pulsante: se la carta e' gia' tenuta la si lascia, altrimenti
+// la si prende. Prendere la SECONDA costa, e se la polvere non basta il
+// pulsante e' gia' spento — qui non ci si arriva nemmeno.
+function scegliCartaBustina(carta){
+  if(!carta) return;
+  const tenute = _carteTenute();
+  const eraTenuta = carta.classList.contains('tenuta');
+  if(!eraTenuta && tenute.length >= 1 && fairyDust() < BUSTINA_COSTO_SECONDA) return;
+  carta.classList.toggle('tenuta', !eraTenuta);
+  aggiornaSceltaBustina();
+}
+
+// Ridisegna TUTTO cio' che dipende dalla scelta. Chiamata dopo ogni tocco e
+// una volta all'apertura: un solo posto che sa come si legge lo stato, invece
+// di ogni gesto che aggiorna la sua fetta e dimentica le altre.
+function aggiornaSceltaBustina(){
+  const carte = _carteBustina();
+  if(!carte.length) return;
+  const tenute = _carteTenute();
+  const quante = tenute.length;
+  const puoPagare = fairyDust() >= BUSTINA_COSTO_SECONDA;
+  const iconaPolvere = menuFileCandidati('fairy-dust-icon.png')[0];
+
+  for(const c of carte){
+    const tenuta = c.classList.contains('tenuta');
+    // Sbiadita solo se qualcun'altra e' stata scelta e lei no: finche' non si
+    // sceglie niente sono pari.
+    c.classList.toggle('scartata', !tenuta && quante > 0);
+    const b = c.__sceltaBtn;
+    if(!b) continue;
+    const et = b.querySelector('.sab-label');
+    let testo, spento = false;
+    if(tenuta){
+      testo = 'Discard';
+    } else if(quante === 0){
+      testo = 'Keep (Free)';
+    } else {
+      // La seconda si paga. L'icona sta DENTRO l'etichetta, cosi' il prezzo si
+      // legge come un prezzo e non come un numero qualsiasi.
+      testo = 'Keep for <img src="' + iconaPolvere + '" alt="fairy dust"> ' + BUSTINA_COSTO_SECONDA;
+      spento = !puoPagare;
+    }
+    if(et) et.innerHTML = testo;
+    // Spento e non nascosto quando la polvere non basta: cosi' si vede che
+    // l'opzione esiste e quanto costa, invece di non scoprirla mai.
+    b.disabled = spento;
+    b.classList.toggle('mm-inerte', spento);
+    b.classList.toggle('sab-primary', !tenuta);
+    b.classList.toggle('sab-secondary', tenuta);
+  }
+
+  // Il pulsante in fondo compare appena c'e' qualcosa da raccogliere.
+  const raccogli = document.getElementById('pack-collect');
+  if(raccogli){
+    const et = raccogli.querySelector('.sab-label');
+    if(et) et.textContent = (quante >= 2) ? 'Pay and collect' : 'Collect';
+    mostraPulsanteBustina('pack-collect', quante > 0);
+  }
+}
+// Mostra i due pulsanti della scelta: succede quando ENTRAMBE le carte sono
+// girate, non prima — scegliere fra una carta vista e una coperta non sarebbe
+// una scelta.
+function mostraSceltaBustina(){
+  aggiornaSceltaBustina();
+  for(const c of _carteBustina()){
+    const b = c.__sceltaBtn;
+    if(!b) continue;
+    b.style.display = '';
+    b.classList.add('pack-nascosto');
+    requestAnimationFrame(()=>requestAnimationFrame(()=>b.classList.remove('pack-nascosto')));
+  }
+}
+
 function mostraPulsanteBustina(id, visibile, subito){
   const b = document.getElementById(id);
   if(!b) return;
@@ -11908,7 +12179,7 @@ function apriBustina(){
     const e = _pescaCartaBustina(uscite);
     if(e) uscite.push(e);
   }
-  mostraPulsanteBustina('pack-putaway', false, true);
+  mostraPulsanteBustina('pack-collect', false, true);
   // Da qui in poi non si esce dalla pagina: si sta aprendo un Book Pack.
   mostraPulsanteBustina('pack-back', false);
   rivelate.innerHTML = '';
@@ -12103,6 +12374,23 @@ function _costruisciCartaBustina(entry, dir, indice){
     carta.dataset.foilVariant = playerFactionName(_cardDbVariant);
     try { cardDbBuildGlossLayer(carta, cardObj, fronte.querySelector('svg')); } catch(_){}
   }, 0);
+  // ── v0.75.21 — IL PULSANTE DELLA SCELTA ─────────────────────────────────
+  // Nasce con la carta ma nascosto: compare solo quando ENTRAMBE sono girate
+  // (vedi giraCartaBustina). Figlio della carta, cosi' la segue mentre
+  // galleggia.
+  const sceltaBtn = document.createElement('button');
+  sceltaBtn.className = 'start-art-btn sab-primary pack-scelta-btn pack-nascosto';
+  sceltaBtn.style.display = 'none';
+  sceltaBtn.innerHTML = '<span class="sab-caps"></span><span class="sab-fill-l"></span>'
+    + '<span class="sab-center"></span><span class="sab-fill-r"></span>'
+    + '<span class="sab-noise"></span><span class="sab-label"></span>';
+  sceltaBtn.addEventListener('click', (ev)=>{
+    ev.stopPropagation();   // sotto c'e' la carta, che al click si girerebbe
+    scegliCartaBustina(carta);
+  });
+  carta.appendChild(sceltaBtn);
+  carta.__sceltaBtn = sceltaBtn;
+
   carta.__entry = entry;   // serve a packToggleVariant per ricostruirla
   carta.__carta = cardObj; // v0.74.2 — per aprirla a schermo intero da girata
   // v0.74.2 — il primo click gira la carta, i successivi la aprono a schermo
@@ -12131,16 +12419,16 @@ function giraCartaBustina(carta){
     carta.classList.remove('popping');
     _bustinaDaGirare = Math.max(0, _bustinaDaGirare-1);
     if(_bustinaDaGirare === 0){
-      const bottone = document.getElementById('pack-putaway');
       const stato = document.getElementById('pack-status');
-      // Il pulsante compare a giro FINITO, non a giro iniziato: la transizione
-      // del flip dura un secondo e vederlo apparire prima toglierebbe forza
-      // al momento della rivelazione.
+      // I pulsanti compaiono a giro FINITO, non a giro iniziato: la transizione
+      // del flip dura un secondo e vederli apparire prima toglierebbe forza al
+      // momento della rivelazione.
       _bustinaDopo(1050, ()=>{
-        // Girate entrambe le carte, l'unica cosa da fare e' metterle via: il
-        // pulsante compare da solo, in dissolvenza, e "Back" resta fuori
-        // scena finche' non si e' finito.
-        mostraPulsanteBustina('pack-putaway', true);
+        // v0.75.21 — girate entrambe, si sceglie: compaiono i due pulsanti
+        // sotto alle carte. Quello in fondo ("Collect") NON compare adesso —
+        // lo fa aggiornaSceltaBustina appena una carta viene scelta, perche'
+        // prima non c'e' ancora niente da raccogliere.
+        mostraSceltaBustina();
         if(stato) stato.textContent = '';
       });
     }
@@ -12252,8 +12540,60 @@ function impostaTraiettoriaUscita(carta, dir, da){
   });
 }
 
+// ── v0.75.21 — IL CONTEGGIO ALL'INDIETRO DELLE VALUTE ─────────────────────
+// Il numero non salta al nuovo valore: ci scende. Il passo si adatta alla
+// distanza invece di essere fisso, perche' con un passo fisso togliere 200
+// polveri richiederebbe duecento fotogrammi — quasi quattro secondi buoni di
+// numeri che scorrono per una cifra che nessuno legge mentre si muove.
+const VALUTA_CONTO_MS = 620;
+function contaValutaAllIndietro(quale, da, a){
+  const campi = [...document.querySelectorAll('[data-valuta="'+quale+'"]')];
+  if(!campi.length) return;
+  const inizio = performance.now();
+  const passo = (ora)=>{
+    const t = Math.min(1, (ora-inizio)/VALUTA_CONTO_MS);
+    // Rallenta verso la fine: e' li' che si legge il numero, ed e' li' che
+    // deve smettere di sembrare un'animazione.
+    const morbido = 1 - Math.pow(1-t, 3);
+    const v = Math.round(da + (a-da)*morbido);
+    const testo = v.toLocaleString('en-US');
+    for(const el of campi) el.textContent = testo;
+    if(t < 1) requestAnimationFrame(passo);
+  };
+  requestAnimationFrame(passo);
+}
+
+// Raccoglie le carte scelte. Se sono due si paga, e il pagamento avviene QUI
+// e non prima: finche' non si conferma, la polvere resta dov'e'.
+function raccogliCarte(){
+  const tenute = _carteTenute();
+  if(!tenute.length) return;              // niente scelto: non c'e' niente da raccogliere
+  if(tenute.length >= 2){
+    const prima = fairyDust();
+    // spendiFairyDust controlla il saldo da solo e non lo manda sotto zero.
+    // Se dicesse di no ci si fermerebbe qui, senza raccogliere niente: meglio
+    // un pulsante che non fa nulla di due carte prese senza pagarle.
+    if(!spendiFairyDust(BUSTINA_COSTO_SECONDA)) return;
+    lampeggiaValuta('dust');
+    contaValutaAllIndietro('dust', prima, fairyDust());
+  }
+  // v0.75.21 — qui, un domani, le carte tenute entreranno davvero nella
+  // collezione del giocatore: il possesso non esiste ancora (vedi il commento
+  // di openPackOverlay), quindi per adesso "raccogliere" e' solo il gesto.
+  // Le carte lasciate escono di scena insieme alle altre: la bustina si
+  // chiude comunque su tutte e due.
+  mettiViaCarte();
+}
+
 function mettiViaCarte(){
-  mostraPulsanteBustina('pack-putaway', false);
+  mostraPulsanteBustina('pack-collect', false);
+  // v0.75.21 — anche i due pulsanti sotto alle carte se ne vanno. Sono figli
+  // della carta, quindi uscirebbero comunque insieme a lei: si nascondono
+  // prima perche' l'uscita e' un arco largo, e un pulsante che vola via
+  // resterebbe cliccabile per tutto il volo.
+  document.querySelectorAll('.pack-scelta-btn').forEach(b=>{
+    b.classList.add('pack-nascosto');
+  });
   const carte = [...document.querySelectorAll('.pack-card')];
   carte.forEach((c, i)=>{
     const dir = parseFloat(c.style.getPropertyValue('--dir')) || (i===0?-1:1);
@@ -12305,7 +12645,7 @@ function tornaAllaBustina(){
   spegniScintille();
   // Si ricomincia dal principio: niente piu' carte da mettere via, e si puo'
   // di nuovo uscire dalla pagina.
-  mostraPulsanteBustina('pack-putaway', false, true);
+  mostraPulsanteBustina('pack-collect', false, true);
   mostraPulsanteBustina('pack-back', true);
   if(chiusa){
     chiusa.classList.remove('charging','tearing','dissolving');
@@ -12471,6 +12811,16 @@ function closePackOverlay(){
 }
 
 // Scorciatoia di sviluppo: rende la bustina di nuovo disponibile subito.
+// v0.75.21 — cento polveri, e i riquadri si riscrivono da soli (aggiungiFairyDust
+// chiama gia' aggiornaValuteAVideo). Non chiude il menu: se ne servono
+// trecento si clicca tre volte.
+function debugAggiungiFairyDust(){
+  aggiungiFairyDust(100);
+  // Se una bustina e' aperta e aspetta una scelta, adesso il pulsante "Keep
+  // for 200" potrebbe essere diventato accessibile: va ricalcolato, o
+  // resterebbe spento con la polvere in tasca.
+  if(typeof aggiornaSceltaBustina === 'function') aggiornaSceltaBustina();
+}
 function debugAzzeraTimerBustine(){
   try { localStorage.removeItem(BUSTINA_CHIAVE); } catch(_){}
   tornaAllaBustina();
