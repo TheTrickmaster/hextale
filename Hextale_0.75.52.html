@@ -7311,7 +7311,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.51</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.52</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -17708,6 +17708,10 @@ const TILE_ABILITIES_DEF = {
   // v0.75.49 — SEA WITCH. Ruba 1 ALL a ogni carta rimasta in mano e se lo
   // mette addosso: e' un costo pagato dalla propria mano, non dall'avversario.
   dark_pact: { carta:'Sea Witch', name:'Dark Pact', desc:'When *Played*, *Steals* 1 Power from every card in your hand.' },
+  // v0.75.52 — SLEEPING BEAUTY. Non cambia nessun numero: cambia CHI puo'
+  // toccarla. Solo /Princess/, /Noble/ e /Sovereign/ possono conquistarla —
+  // chi non ha sangue nobile la lascia dormire, per quanto forte sia.
+  power_nap: { carta:'Sleeping Beauty', name:'Power Nap', desc:'Can only be *Conquered* by /Princess/, /Noble/ or /Sovereign/ characters.' },
   // v0.75.43 — RAPUNZEL. La treccia arriva lontano ma in linea retta, e solo
   // se la strada e' sgombra: tira a se' una carta non adiacente lungo una delle
   // sei direzioni, purche' fra le due non ci siano ne' carte ne' tasselli
@@ -20311,6 +20315,25 @@ function latiProtettiDi(card){
 function latoInconquistabile(card, lato){
   return latiProtettiDi(card).includes(lato);
 }
+// ── v0.75.52 — SLEEPING BEAUTY, "Power Nap" ───────────────────────────────
+// La prima regola che guarda CHI ATTACCA e non solo chi difende. Le altre
+// protezioni riguardano la carta difesa e basta — Excalibur non si tocca, il
+// lato incoronato non cade — e per quelle bastava chiedere alla difensora.
+// Qui la stessa carta puo' essere conquistata o no a seconda di chi le si
+// presenta davanti, quindi la domanda ha bisogno di due carte.
+// Sta accanto alle altre e non dentro al confronto dei valori per la ragione di
+// sempre: e' una regola su COSA E' POSSIBILE, non su chi vince. Non esiste un
+// numero, per quanto alto, che svegli la Bella Addormentata.
+const ARCHETIPI_DI_SANGUE = ['princess','noble','sovereign'];
+function _diSangueNobile(card){
+  const a = card && card.archetypes;
+  return !!(a && ARCHETIPI_DI_SANGUE.some(x => a.includes(x)));
+}
+function puoConquistare(attaccante, difensore){
+  if(!difensore) return true;
+  if(abilitaAttivaDi(difensore) !== 'power_nap') return true;
+  return _diSangueNobile(attaccante);
+}
 // ── v0.75.41 — LO SCUDO DI PINOCCHIO CAMBIA POSTO ─────────────────────────
 // A ogni fine turno — di CHIUNQUE, non solo del suo proprietario: "every end
 // of turn" — ogni Pinocchio in campo sorteggia di nuovo quale suo gruppo di
@@ -22409,6 +22432,8 @@ function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLa
     // confronto e non dentro, esattamente come per Excalibur: cosi' non esiste
     // un valore, per quanto alto, che lo porti via.
     if(latoInconquistabile(nb.card, dir.theirSide)) continue;
+    // v0.75.52 — e chi non ha sangue nobile non sveglia la Bella Addormentata.
+    if(!puoConquistare(card, nb.card)) continue;
     const[nq,nr]=nk.split(',').map(Number);
     const theirEffective=getFactionBonus(nb.card,nq,nr,snap).values;
     const myAttackVal=getAttackValueForSide(card, myEffective, dir.mySide);
@@ -23817,6 +23842,10 @@ function aiEvaluateConquests(card, q, r){
     // possibili farebbe scegliere all'IA una casella per un colpo che non
     // andra' mai a segno.
     if(latoInconquistabile(nb.card, dir.theirSide)) continue;
+    // v0.75.52 — e l'IA non conta fra le conquiste possibili una carta che non
+    // potrebbe comunque prendere: sceglierebbe la casella per un colpo che non
+    // andra' mai a segno.
+    if(!puoConquistare(card, nb.card)) continue;
     // Merlin's "Hocus-pocus": attacks with its single strongest side instead
     // of the one actually facing this neighbor — see getAttackValueForSide's
     // own comment for why this stays centralized alongside the real
