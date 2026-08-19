@@ -5379,6 +5379,21 @@ body.prova-senza-willchange #mm-book-rot{
   opacity:0; pointer-events:none;
   z-index:4;
 }
+/* v0.75.30 — LA BRUCIATURA E' UNA TEXTURE, non piu' un annerimento uniforme.
+   `color-burn` scurisce dove la texture e' scura e lascia stare dove e'
+   chiara: la carta si annerisce A CHIAZZE, seguendo il disegno della
+   bruciatura, invece di spegnersi tutta insieme come sotto un interruttore.
+   E' la differenza fra una carta bruciata e una carta al buio.
+   La texture sta SOPRA al contenuto ma sotto al velo arancione, cosi' la
+   brace resta l'ultima cosa che si vede accendersi. */
+.pack-card-bruciata{
+  position:absolute; inset:0; border-radius:18px;
+  background-image:url('https://thetrickmaster.github.io/hextale/unpack-screen/card-burnt-texture.png');
+  background-size:cover; background-position:center;
+  mix-blend-mode:color-burn;
+  opacity:0; pointer-events:none;
+  z-index:3;
+}
 /* La tela del pulviscolo: copre tutta la scena, perche' i granelli si
    allontanano dalla carta e non devono trovare un bordo. */
 /* v0.75.29 — width e height ESPLICITI, e non e' un di piu'.
@@ -7088,7 +7103,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.29</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.30</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -11307,7 +11322,7 @@ const WHOOSH_PER_RARITA = {
 // verrebbero cercati nell'istante in cui devono suonare e arriverebbero tardi
 // — e un suono in ritardo su un'animazione breve si sente come un errore.
 const SUONI_SFX_EXTRA = Object.values(WHOOSH_PER_RARITA)
-  .concat(['kaching.wav', 'card-ding.mp3', 'card-fly.mp3']);
+  .concat(['kaching.wav', 'card-ding.mp3', 'card-fly.mp3', 'card-burn.wav']);
 const SFX_REL = 'audio/sfx/';
 const SFX_BASE = 'https://thetrickmaster.github.io/hextale/audio/sfx/';
 function registraSuoniExtra(){
@@ -12413,11 +12428,16 @@ function apriBustina(){
     // fascio parte, e la magia schizza fuori.
     accendiScintille();
 
-    // La bustina resta in scena per tutta la durata del fascio: e' la sorgente
-    // della luce, e vederla sparire prima toglierebbe il nesso. Svanisce
-    // quando il fascio si e' spento.
-    _bustinaDopo(BUSTINA_FASCIO_MS, ()=>{ chiusa.classList.add('dissolving'); });
-    _bustinaDopo(BUSTINA_FASCIO_MS + 460, ()=>{
+    // La bustina resta in scena mentre il fascio la illumina: e' la sorgente
+    // della luce, e vederla sparire subito toglierebbe il nesso.
+    // v0.75.30 — se ne va pero' un secondo PRIMA di quando se ne andava, cioe'
+    // mentre il fascio e' ancora acceso invece che a fascio spento: la luce le
+    // sopravvive un momento, e il libro sembra consumato da lei invece che
+    // spento insieme a lei. Il numero e' scritto una volta sola qui sotto,
+    // perche' i due tempi devono restare agganciati.
+    const VIA_IL_LIBRO_MS = Math.max(0, BUSTINA_FASCIO_MS - 1000);
+    _bustinaDopo(VIA_IL_LIBRO_MS, ()=>{ chiusa.classList.add('dissolving'); });
+    _bustinaDopo(VIA_IL_LIBRO_MS + 460, ()=>{
       chiusa.style.display='none';
       chiusa.classList.remove('tearing','dissolving');
     });
@@ -12610,6 +12630,13 @@ function _costruisciCartaBustina(entry, dir, indice){
   brace.className = 'pack-card-brace';
   carta.appendChild(brace);
   carta.__brace = brace;
+
+  // v0.75.30 — e la texture della bruciatura, che prende il posto
+  // dell'annerimento uniforme di prima.
+  const bruciata = document.createElement('div');
+  bruciata.className = 'pack-card-bruciata';
+  carta.appendChild(bruciata);
+  carta.__bruciata = bruciata;
 
   carta.__entry = entry;   // serve a packToggleVariant per ricostruirla
   carta.__carta = cardObj; // v0.74.2 — per aprirla a schermo intero da girata
@@ -12837,8 +12864,8 @@ function raccogliCarte(){
 // Un'animazione CSS non puo' dire a nessuno dove e' arrivata; un ciclo di
 // disegno si'. Le tre fasi diventano tre tratti dello stesso avanzamento, e
 // non tre orologi separati che possono sfasarsi.
-const CENERE_QUANTE = 340;      // quante particelle in tutto, sparse lungo la mangiata
-const INCENERISCI_MS = 3200;   // v0.75.28 — piu' lento: la carta si consuma, non si strappa
+const CENERE_QUANTE = 1360;     // v0.75.30 — quattro volte quante erano
+const INCENERISCI_MS = 1600;   // v0.75.30 — meta' di quanto durava
 const FASE_ARANCIO = 0.20;      // fino a qui: si tinge
 const FASE_NERO    = 0.34;      // fino a qui: annerisce
 // I due colori del pulviscolo: nasce brace e muore cenere.
@@ -12846,8 +12873,16 @@ const CENERE_DA = { r:0xF6, g:0xBA, b:0x15 };
 const CENERE_A  = { r:0x0E, g:0x0C, b:0x0A };
 // Il bordo che mangia la carta: quanti denti e quanto sono profondi (in
 // frazione dell'altezza della carta).
-const DENTI_QUANTI = 14;
-const DENTI_PROFONDITA = 0.055;
+// v0.75.30 — il bordo e' molto piu' fitto e molto meno spigoloso. Con
+// quattordici denti si vedevano i segmenti dritti che li univano; con
+// cinquantasei il profilo si legge come un contorno irregolare e non come una
+// spezzata. La profondita' e' scesa di conseguenza: denti fitti e profondi
+// darebbero un pettine, non uno strappo.
+// Sopra alla base c'e' un secondo disturbo piu' lento e piu' ampio (vedi
+// _clipMangiata): due frequenze diverse sono cio' che distingue un bordo
+// mangiato da un bordo seghettato.
+const DENTI_QUANTI = 56;
+const DENTI_PROFONDITA = 0.028;
 
 let _cenereRAF = null;
 
@@ -12871,8 +12906,14 @@ function _clipMangiata(q, denti, t){
   for(let i=0;i<denti.length;i++){
     const d = denti[i];
     const x = (i/(denti.length-1))*100;
-    const onda = Math.sin(t*d.vel + d.fase) * d.base * ampiezza * 0.45;
-    punti.push(x.toFixed(2)+'% '+Math.max(0, y + d.base + onda).toFixed(2)+'%');
+    // v0.75.30 — DUE FREQUENZE, non una. `base` e' il dente fitto e piccolo;
+    // `largo` e' un'onda lenta che attraversa tutto il bordo e lo fa salire e
+    // scendere in tratti lunghi. Sommate, il profilo ha dettaglio fine E
+    // andamento generale — che e' cio' che distingue un bordo mangiato da un
+    // bordo seghettato, dove tutti i denti sono uguali e alla stessa quota.
+    const onda  = Math.sin(t*d.vel + d.fase) * d.base * ampiezza * 0.45;
+    const lento = Math.sin(x*0.06 + t*0.9 + d.faseLarga) * 2.4 * ampiezza;
+    punti.push(x.toFixed(2)+'% '+Math.max(0, y + d.base + onda + lento).toFixed(2)+'%');
   }
   punti.push('100% 100%', '0% 100%');
   return 'polygon(' + punti.join(', ') + ')';
@@ -12930,10 +12971,14 @@ function incenerisciCarta(carta, poi){
 
   // I denti del bordo, sorteggiati UNA volta: profondita', fase e velocita'.
   const denti = [];
+  // Una fase sola per l'onda lenta, condivisa da tutti i punti: e' UNA onda che
+  // attraversa il bordo, non cinquantasei onde scoordinate.
+  const faseLarga = Math.random()*Math.PI*2;
   for(let i=0;i<DENTI_QUANTI;i++) denti.push({
     base: (Math.random()*2-1) * DENTI_PROFONDITA * 100,
     fase: Math.random()*Math.PI*2,
     vel:  2.2 + Math.random()*3.4,
+    faseLarga,
   });
 
   // Le particelle nascono man mano che il bordo scende, non tutte all'inizio:
@@ -12963,7 +13008,11 @@ function incenerisciCarta(carta, poi){
   }
 
   const brace = carta.__brace;
+  const bruciata = carta.__bruciata;
   const pop = carta.querySelector('.pack-card-pop');
+  // v0.75.30 — il suono della bruciatura, all'inizio: e' l'unico momento in cui
+  // ha senso, perche' e' da qui che la carta comincia a consumarsi.
+  try { playSfxFile('card-burn.wav'); } catch(_){}
   if(_cenereRAF) cancelAnimationFrame(_cenereRAF);
   const inizio = performance.now();
   let ultimo = inizio;
@@ -12976,11 +13025,14 @@ function incenerisciCarta(carta, poi){
 
     // 1) la tinta arancione
     if(brace) brace.style.opacity = String(Math.min(1, q/FASE_ARANCIO));
-    // 2) l'annerimento
-    if(pop){
-      const n = q <= FASE_ARANCIO ? 1
-        : Math.max(0, 1 - (q-FASE_ARANCIO)/(FASE_NERO-FASE_ARANCIO));
-      pop.style.filter = 'brightness('+n.toFixed(3)+')';
+    // 2) la bruciatura: la texture entra in dissolvenza e scurisce a chiazze.
+    // Niente piu' `brightness(0)` su tutto: quello spegneva la carta, questo la
+    // BRUCIA — resta leggibile dove la texture e' chiara, e sparisce dove e'
+    // scura, che e' come si comporta la carta vera sotto una fiamma.
+    if(bruciata){
+      const b = q <= FASE_ARANCIO ? 0
+        : Math.min(1, (q-FASE_ARANCIO)/(FASE_NERO-FASE_ARANCIO));
+      bruciata.style.opacity = b.toFixed(3);
     }
     // 3) la mangiata: il bordo scende dall'alto, e la carta sparisce con lui
     if(q > FASE_NERO){
