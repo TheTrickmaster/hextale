@@ -7247,7 +7247,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.46</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.47</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -11898,6 +11898,31 @@ const MUSIC_INTRO_LOOPS = {
 // coda entra mentre suona l'ultimo istante vero. Un pelo di sovrapposizione su
 // un taglio pulito non si sente, un buco si'.
 const MUSIC_LOOP_PADDING_S = 0.06;
+// v0.75.47 — IL PUNTO DI GIUNZIONE, CHIESTO IN UN POSTO SOLO.
+// Lo usano il motore vero (playMusicWithIntroLoop) e la prova del menu di
+// debug, che deve saltare poco prima di quel punto per farlo sentire. Finche'
+// era un semplice `cfg.at` le due cose lo leggevano da se'; ora che puo'
+// dipendere dalla durata del file, due letture separate vorrebbero dire due
+// idee diverse di dove cade la giunzione — e la prova smetterebbe di provare
+// la cosa vera, che e' tutto il suo scopo.
+// Restituisce NaN quando il punto non e' ancora conoscibile (durata non
+// arrivata): chi chiama decide cosa farne.
+function puntoDiGiunzioneDi(introUrl, media){
+  const cfg = MUSIC_INTRO_LOOPS[introUrl];
+  if(!cfg) return NaN;
+  if(typeof cfg.at === 'number') return cfg.at;
+  const d = media && media.duration;
+  return (isFinite(d) && d > 0) ? (d - MUSIC_LOOP_PADDING_S) : NaN;
+}
+// Come si legge quel punto a schermo. "alla fine" non e' un ripiego: e'
+// l'informazione giusta per un brano la cui coda si attacca dove la prima
+// parte finisce, e un numero al suo posto direbbe meno.
+function giunzioneLeggibile(introUrl, media){
+  const at = puntoDiGiunzioneDi(introUrl, media);
+  if(!isFinite(at)) return 'alla fine';
+  const mm = Math.floor(at/60), ss = String(Math.round(at%60)).padStart(2,'0');
+  return mm+'m'+ss+'s';
+}
 
 // Quanto prima del punto di giunzione si smette di sorvegliare con
 // l'intervallo e si passa a un singolo setTimeout mirato. Un setInterval, per
@@ -11982,14 +12007,10 @@ function playMusicWithIntroLoop(introUrl){
   // Finche' resta ignoto vale Infinity: la sorveglianza non scatta mai e a
   // far partire la coda e' la rete di sicurezza sull'evento 'ended', cioe'
   // esattamente alla fine. Un fotogramma peggio, mai un errore.
-  const giunzione=()=>{
-    if(typeof cfg.at === 'number') return cfg.at;
-    const d=bgm.duration;
-    return (isFinite(d) && d>0) ? (d - MUSIC_LOOP_PADDING_S) : Infinity;
-  };
   _musicLoopWatch=setInterval(()=>{
     if(!bgm.src || bgm.src.indexOf(introUrl)===-1){ stopMusicLoopChain(); return; } // il brano e' cambiato
-    const restano=giunzione()-bgm.currentTime-MUSIC_LOOP_START_LATENCY_S;
+    const at=puntoDiGiunzioneDi(introUrl, bgm);
+    const restano=(isFinite(at)?at:Infinity)-bgm.currentTime-MUSIC_LOOP_START_LATENCY_S;
     if(restano<=MUSIC_LOOP_HANDOFF_LEAD_S){
       clearInterval(_musicLoopWatch); _musicLoopWatch=null;
       _musicLoopTimer=setTimeout(avvia, Math.max(0, restano*1000));
@@ -16544,9 +16565,10 @@ function debugToggleMusicLoopPicker(){
     sel.innerHTML = voci.length
       ? voci.map(u=>{
           const nome=u.split('/').pop();
-          const at=MUSIC_INTRO_LOOPS[u].at;
-          const mm=Math.floor(at/60), ss=String(Math.round(at%60)).padStart(2,'0');
-          return `<option value="${u}">${nome} — giunzione a ${mm}m${ss}s</option>`;
+          // v0.75.47 — la durata del file qui non e' ancora nota (il brano non
+          // e' caricato), quindi per chi non dichiara `at` si legge "alla
+          // fine": che e' poi cio' che quel brano fa davvero.
+          return `<option value="${u}">${nome} — giunzione ${giunzioneLeggibile(u, null)}</option>`;
         }).join('')
       : '<option value="">nessun brano con coda in loop</option>';
     const st=document.getElementById('debug-music-loop-status');
@@ -16573,7 +16595,6 @@ function debugPlayMusicLoopJoin(){
   if(!cfg){ if(st) st.textContent='Nessun brano selezionato.'; return; }
   const leadEl=document.getElementById('debug-music-loop-lead');
   const lead=Math.max(1, Math.min(60, parseFloat(leadEl && leadEl.value) || 8));
-  const partenza=Math.max(0, cfg.at-lead);
 
   debugStopMusicLoopJoin();
   const bgm=document.getElementById('bgm');
@@ -16584,17 +16605,24 @@ function debugPlayMusicLoopJoin(){
   // accettare un seek: farlo subito dopo play() su un media ancora in
   // caricamento viene ignorato in silenzio, e si finirebbe per ascoltare la
   // intro dall'inizio credendo di essere vicini alla giunzione.
+  // v0.75.47 — il punto da cui saltare si calcola QUI DENTRO e non prima.
+  // Per un brano la cui coda si attacca alla fine, quel punto dipende dalla
+  // durata del file, che prima di `loadedmetadata` non esiste ancora: leggerla
+  // in cima alla funzione dava NaN, e il salto veniva ignorato in silenzio.
+  // Dentro `salta` la durata c'e' sempre, perche' e' il momento in cui i
+  // metadati sono appena arrivati.
   const salta=()=>{
+    const at=puntoDiGiunzioneDi(introUrl, bgm);
+    if(!isFinite(at)) return;   // nemmeno ora si sa: si ascolta dall'inizio
+    const partenza=Math.max(0, at-lead);
     try{ bgm.currentTime=partenza; }catch(e){}
+    if(st) st.textContent=`Parto da ${partenza.toFixed(0)}s — giunzione ${giunzioneLeggibile(introUrl, bgm)}...`;
   };
   if(bgm.readyState>=1) salta();
   else bgm.addEventListener('loadedmetadata', salta, {once:true});
 
   const lp=document.getElementById('bgm-loop');
-  if(st){
-    const mm=Math.floor(cfg.at/60), ss=String(Math.round(cfg.at%60)).padStart(2,'0');
-    st.textContent=`Parto da ${partenza.toFixed(0)}s — giunzione a ${mm}m${ss}s...`;
-  }
+  if(st) st.textContent=`Carico — giunzione ${giunzioneLeggibile(introUrl, bgm)}...`;
   // Racconta a schermo cosa sta succedendo: senza un riscontro visivo, un
   // passaggio ben riuscito e un passaggio mai avvenuto suonano uguali finche'
   // non ci si accorge che la musica e' finita.
@@ -16604,7 +16632,9 @@ function debugPlayMusicLoopJoin(){
       st.textContent=`Coda in riproduzione (loop) — ${lp.currentTime.toFixed(1)}s`;
       return;
     }
-    const restano=cfg.at-bgm.currentTime;
+    const at=puntoDiGiunzioneDi(introUrl, bgm);
+    if(!isFinite(at)){ st.textContent=`Intro a ${bgm.currentTime.toFixed(1)}s — giunzione alla fine`; return; }
+    const restano=at-bgm.currentTime;
     st.textContent = restano>0
       ? `Intro a ${bgm.currentTime.toFixed(1)}s — giunzione fra ${restano.toFixed(1)}s`
       : 'Giunzione superata, coda in avvio...';
@@ -30994,12 +31024,31 @@ function cardSlideReattach(){
   const el=bsvg && bsvg.querySelector(`[data-conquered="${_cardSlide.k}"]`);
   if(el) cardSlideApplyTo(el);
 }
-// Il centro di un pezzo del tabellone in unita' del disegno. getBBox le
-// restituisce gia' cosi', ed e' il motivo per cui non serve nessuna conversione:
-// sono le stesse unita' in cui una translate CSS sposta un elemento SVG.
-function _centroDisegnato(el){
-  try{ const b = el.getBBox(); return { x: b.x + b.width/2, y: b.y + b.height/2 }; }
-  catch(_){ return null; }
+// v0.75.47 — DA UN PEZZO DEL TABELLONE A UN ALTRO, in unita' del disegno.
+// La prima versione usava getBBox() sui due elementi e ne sottraeva i centri.
+// Sbagliato, e in un modo che non si vede: getBBox restituisce le coordinate
+// nello spazio LOCALE dell'elemento, cioe' prima delle transform dei gruppi che
+// lo contengono. Ogni cella del tabellone e' dentro al proprio gruppo, quindi i
+// due riquadri erano misurati in due sistemi di riferimento diversi e la loro
+// differenza veniva quasi zero: la carta si spostava di un pelo e sembrava
+// semplicemente comparire nella casella nuova, senza transizione.
+// I riquadri a schermo, invece, sono confrontabili perche' sono nello stesso
+// sistema per costruzione. Si converte poi in unita' del disegno dividendo per
+// la scala della matrice del root — l'unica cosa che sa di quanto e' scalata la
+// pagina in questo istante, com'era gia' per il trascinamento dei tasselli.
+function _spostamentoDisegnato(elDa, elA){
+  try{
+    const bsvg = elA.ownerSVGElement || document.getElementById('board-svg');
+    const m = bsvg && bsvg.getScreenCTM && bsvg.getScreenCTM();
+    if(!m || !m.a || !m.d) return null;
+    const a = elDa.getBoundingClientRect();
+    const b = elA.getBoundingClientRect();
+    if(!a.width || !b.width) return null;
+    return {
+      dx: ((a.left + a.width/2) - (b.left + b.width/2)) / m.a,
+      dy: ((a.top  + a.height/2) - (b.top  + b.height/2)) / m.d,
+    };
+  }catch(_){ return null; }
 }
 function trascinaCarta(daCella, aCella, poi){
   const finito=()=>{ if(typeof poi==='function') poi(); };
@@ -31007,24 +31056,35 @@ function trascinaCarta(daCella, aCella, poi){
   if(G.board[aCella]){ finito(); return; }   // occupata nel frattempo
   const contenuto = G.board[daCella];
   if(!contenuto){ finito(); return; }        // sparita nel frattempo
-  // Le due posizioni si misurano PRIMA di toccare G.board: dopo, la carta di
+  // Lo spostamento si misura PRIMA di toccare G.board: dopo, la carta di
   // partenza non e' piu' li' da misurare.
   const bsvg = document.getElementById('board-svg');
   const elDa = bsvg && bsvg.querySelector(`[data-conquered="${daCella}"]`);
   const elA  = bsvg && bsvg.querySelector('[data-tile-wrap="'+aCella+'h"]');
-  const pDa = elDa && _centroDisegnato(elDa);
-  const pA  = elA  && _centroDisegnato(elA);
-  delete G.board[daCella];
-  G.board[aCella] = contenuto;
-  // Senza le due misure si sposta e basta: un'animazione mancante e' molto
-  // meglio di una carta che parte da un punto a caso.
-  if(pDa && pA) _cardSlide = { k: aCella, t0: performance.now(), dx: pDa.x - pA.x, dy: pDa.y - pA.y };
-  renderBoard();
-  setTimeout(()=>{
-    _cardSlide = null;
-    renderBoard();   // toglie la classe, che altrimenti resterebbe addosso
-    finito();
-  }, CARD_SLIDE_MS);
+  const salto = (elDa && elA) ? _spostamentoDisegnato(elDa, elA) : null;
+  // v0.75.47 — PRIMA IL LAMPO, POI IL MOVIMENTO. La carta indicata si accende
+  // un istante prima di partire: e' il momento in cui la treccia la afferra, e
+  // senza, il primo segno che qualcosa sta succedendo e' la carta gia' in
+  // movimento — si vede il risultato e ci si perde l'aggancio.
+  // Stesso lampo delle altre carte colpite (vedi lampeggiaCarta), quindi la
+  // durata e' quella di sempre e non un tempo nuovo da ricordare.
+  const parti = ()=>{
+    if(!G || G.gameOver){ finito(); return; }
+    if(!G.board[daCella] || G.board[aCella]){ finito(); return; } // cambiato tutto nel frattempo
+    delete G.board[daCella];
+    G.board[aCella] = contenuto;
+    // Senza la misura si sposta e basta: un'animazione mancante e' molto meglio
+    // di una carta che parte da un punto a caso.
+    if(salto) _cardSlide = { k: aCella, t0: performance.now(), dx: salto.dx, dy: salto.dy };
+    renderBoard();
+    setTimeout(()=>{
+      _cardSlide = null;
+      renderBoard();   // toglie la classe, che altrimenti resterebbe addosso
+      finito();
+    }, CARD_SLIDE_MS);
+  };
+  if(elDa && lampeggiaCarta(elDa)) setTimeout(parti, LAMPO_PRIMA_DI_RUOTARE_MS);
+  else parti();
 }
 function cardJumpReattach(){
   if(!_cardJump) return;
