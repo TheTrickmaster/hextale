@@ -4114,6 +4114,21 @@ body.prova-senza-willchange #mm-book-rot{
   position:fixed; inset:0;
   z-index:4000;
   font-family:var(--font-body);
+  /* ── v0.75.18 — LA MISURA DEL LIBRO VIVE QUI ────────────────────────────
+     Stava su #pack-closed, ma serve anche al fascio di luce, che e' un suo
+     FRATELLO e non un discendente: da li' non poteva leggerla, e il conto era
+     ricopiato a mano con un commento che diceva "se il libro cambia misura,
+     si cambia questo". Un promemoria e' meglio di niente, ma e' comunque un
+     numero da ricordarsi — e questa modifica e' esattamente il caso in cui ci
+     si dimentica.
+     Portandole sull'antenato comune, entrambi le leggono e il fascio si
+     ricalcola da solo (vedi --libro-mezza-altezza).
+     v0.75.18 — e sono cresciute del 30%: 451 -> 586. */
+  --altezza-libro:586px;
+  /* 1/1.28: il libro cresce fino a scale(1.28) durante la carica, quindi lo si
+     disegna alla misura MASSIMA e lo si rimpicciolisce a riposo. Il browser
+     non ingrandisce mai niente, e rimpicciolire e' nitido. Vedi #pack-closed. */
+  --riposo-libro:0.781;
 }
 #pack-overlay.show{ display:flex; }
 #pack-bg{
@@ -4247,11 +4262,14 @@ body.prova-senza-willchange #mm-book-rot{
      nitido.
      E' il "reverse scale": si progetta alla misura piu' grande e si parte
      rimpiccioliti, invece di partire piccoli e ingrandire. */
-  --altezza-libro:451px;
-  --riposo-libro:0.781;
+  /* v0.75.18 — --altezza-libro e --riposo-libro sono salite su #pack-overlay,
+     perche' servono anche al fascio: vedi li'. Qui si ereditano.
+     Il riquadro cresce insieme al libro (+30%): e' l'area che si clicca, e
+     lasciarla alla misura vecchia avrebbe voluto dire un libro grande con un
+     bersaglio piccolo. */
   position:absolute; left:50%; top:50%;
-  width:260px; height:446px;
-  margin:-223px 0 0 -130px;
+  width:338px; height:580px;
+  margin:-290px 0 0 -169px;
   /* Il libro aperto e' piu' largo del riquadro: deve poter sbordare. */
   overflow:visible;
   /* v0.72.93 — la bustina ricompare in dissolvenza a fine sequenza (vedi
@@ -4276,7 +4294,7 @@ body.prova-senza-willchange #mm-book-rot{
 #pack-closed > #pack-shake > #pack-closed-img{
   position:absolute; left:50%; top:50%;
   transform:translate(-50%,-50%) scale(var(--riposo-libro,1));
-  height:var(--altezza-libro,451px); width:auto; max-width:none; display:block;
+  height:var(--altezza-libro,586px); width:auto; max-width:none; display:block;
   filter:drop-shadow(0 26px 30px rgba(0,0,0,0.6));
 }
 /* v0.72.86 — IL BAGLIORE E' UNA COPIA DELLA BUSTINA, RESA BIANCA.
@@ -4300,7 +4318,7 @@ body.prova-senza-willchange #mm-book-rot{
      di riposo, o i due si scollerebbero durante la carica. */
   position:absolute; left:50%; top:50%;
   transform:translate(-50%,-50%) scale(var(--riposo-libro,1));
-  height:var(--altezza-libro,451px); width:auto; max-width:none; display:block;
+  height:var(--altezza-libro,586px); width:auto; max-width:none; display:block;
   filter:brightness(0) invert(1);
   mix-blend-mode:plus-lighter;
   opacity:0;
@@ -4490,14 +4508,16 @@ body.prova-senza-willchange #mm-book-rot{
   --fascio-larghezza:980px;
   --fascio-altezza:1150px;
   /* META' DELL'ALTEZZA DEL LIBRO A SCHERMO.
-     Non e' un numero a occhio: il libro viene disegnato alto --altezza-libro
-     (451px) e rimpicciolito di --riposo-libro (0.781), cioe' 352px a schermo,
-     ed e' centrato sul centro della plancia. Meta' di 352 e' 176: da qui si
-     ricavano sia il suo bordo ALTO (176px sopra il centro) sia quello BASSO
-     (176px sotto). (Le due variabili vivono su #pack-closed, che e' un
-     fratello e non un antenato: da qui non si possono leggere, e il conto va
-     rifatto a mano. Se il libro cambia misura, si cambia questo.) */
-  --libro-mezza-altezza:176px;
+     Il libro viene disegnato alto --altezza-libro e rimpicciolito di
+     --riposo-libro: la sua altezza vera a schermo e' il prodotto dei due, e
+     questa ne e' la meta'. Da qui si ricavano il suo bordo ALTO (tanto sopra
+     il centro) e quello BASSO (altrettanto sotto).
+     v0.75.18 — SI CALCOLA, non si ricopia. Le due variabili sono salite su
+     #pack-overlay proprio per poter essere lette anche da qui: prima erano su
+     #pack-closed, che e' un fratello, quindi il conto era scritto a mano con
+     un promemoria a fianco. Adesso il fascio segue il libro da solo, e
+     cambiare la misura del libro resta un numero solo da toccare. */
+  --libro-mezza-altezza:calc(var(--altezza-libro) * var(--riposo-libro) / 2);
   /* v0.73.44 FIX ("pack beam e' posizionato male, la parte inferiore
      dell'immagine deve combaciare con la parte inferiore del libro aperto;
      adesso e' molto in alto").
@@ -6834,7 +6854,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.17</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.18</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
