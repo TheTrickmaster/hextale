@@ -1937,7 +1937,17 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
    cui una carta promossa viene portata a una misura maggiore della propria —
    quindi li' e solo li' la promozione si spegne, e il browser torna a
    ridisegnare alla scala finale. */
-.mano-espansa .hand-card-wrap{
+/* v0.75.10 — e ANCHE il piano di tilt che sta dentro al wrap.
+   Spegnere la promozione sul solo wrap non bastava, ed e' il motivo per cui
+   la mano espansa era ancora morbida dopo la v0.75.7: .card-db-foil-tilt e'
+   un DISCENDENTE del wrap e ha una sua riga nell'elenco dei promossi, quindi
+   restava un livello per conto proprio. Veniva rasterizzato alla misura
+   piccola — 210x360, la sua — e subito dopo il genitore lo stirava a 1.5x.
+   Il wrap non era piu' il colpevole: lo era suo figlio.
+   Regola: non basta togliere la promozione all'elemento che si ingrandisce,
+   va tolta a TUTTO cio' che sta dentro di lui e che ce l'ha per conto suo. */
+.mano-espansa .hand-card-wrap,
+.mano-espansa .card-db-foil-tilt{
   will-change:auto;
 }
 /* v0.71.4 ("in quel momento tutti gli elementi della carta spariscono in
@@ -6760,7 +6770,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.9</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.10</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -25600,7 +25610,16 @@ function buildFullHandCardSVG(card, boxW, boxH, preview){
   // si assottiglierebbero man mano che la carta cresce, perche' lo spessore
   // e' in unita' del viewBox e il viewBox cresce con lei.
   // v0.75.9 — un pixel in meno: i due erano troppi una volta viste a schermo.
-  const VV_LINE_WIDTH = Math.max(0.5, 0.6*vvHexScale) + 1*(boxW/210);
+  // v0.75.10 — e un altro ancora: l'aggiunta e' scesa a zero, cioe' si torna
+  // allo spessore che avevano prima della v0.75.8. Quello che resta di quel
+  // giro e' il COLORE, che e' poi la cosa che serviva davvero.
+  // Il numero e' isolato perche' e' stato ritoccato tre volte in tre versioni:
+  // averlo con un nome rende il prossimo ritocco una riga sola, e dice a chi
+  // legge che e' una manopola e non una costante ricavata da qualcosa.
+  // E' misurato sulla carta a riposo (larga 210): il fattore boxW/210 lo tiene
+  // costante in pixel veri anche sulla carta ingrandita.
+  const VV_LINE_EXTRA_PX = 0;
+  const VV_LINE_WIDTH = Math.max(0.5, 0.6*vvHexScale) + VV_LINE_EXTRA_PX*(boxW/210);
   if(vvGroups.length>1){
     for(const g of vvGroups){
       const lastSide=g.sides[g.sides.length-1];
@@ -25610,7 +25629,7 @@ function buildFullHandCardSVG(card, boxW, boxH, preview){
       const vvLine=svgEl('line');
       vvLine.setAttribute('x1',vvHexCx.toFixed(2)); vvLine.setAttribute('y1',vvHexCy.toFixed(2));
       vvLine.setAttribute('x2',bx.toFixed(2)); vvLine.setAttribute('y2',by.toFixed(2));
-      vvLine.setAttribute('stroke','#B6A46B'); // v0.75.8 — era #433618
+      vvLine.setAttribute('stroke','#9B824B'); // v0.75.8 da #433618, v0.75.10 da #B6A46B
       vvLine.setAttribute('stroke-width', VV_LINE_WIDTH.toFixed(2));
       vvLine.setAttribute('stroke-linecap','round');
       vvLine.style.pointerEvents='none';
