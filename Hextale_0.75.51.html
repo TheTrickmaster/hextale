@@ -3248,6 +3248,27 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
   font-size:15px; color:#B5C5C7; text-align:right;
   display:flex; align-items:center; justify-content:flex-end; gap:6px; flex-wrap:wrap;
 }
+/* v0.75.51 — e nel tooltip delle carte IN CAMPO, che ha una scatola sua e i
+   suoi margini. Il filo sopra separa le righe dal resto del tooltip, come nella
+   scheda: senza, si appoggerebbero alla citazione. */
+#card-tooltip.ctb-board .cm-riga{
+  display:flex; align-items:flex-start; justify-content:space-between; gap:14px;
+  margin:8px 14px 2px;
+  padding-top:8px;
+  border-top:1px solid rgba(255,255,255,0.12);
+}
+#card-tooltip.ctb-board .cm-et{
+  font-family:'Rosarivo',serif;
+  font-size:15px; color:#6B7A7C; white-space:nowrap;
+}
+#card-tooltip.ctb-board .cm-val{
+  font-family:'Rosarivo',serif;
+  font-size:15px; text-align:right;
+  display:flex; align-items:center; justify-content:flex-end; gap:6px; flex-wrap:wrap;
+}
+/* Sul tooltip chiaro il filo scuro, o su fondo chiaro non si vedrebbe. */
+#card-tooltip.ctb-board.ctb-light .cm-riga{ border-top-color:rgba(0,0,0,0.16); }
+#card-tooltip.ctb-board.ctb-light .cm-et{ color:#7A6A52; }
 
 /* ── STRUCTURED CARD TOOLTIP ── */
 #card-tooltip{
@@ -7290,7 +7311,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.50</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.51</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -18629,13 +18650,22 @@ function previewGemMagicEffect(card, q, r){
 //     alla stessa carta si leggono come un -2 solo e non come due righe uguali.
 // La chiave di un effetto una tantum contiene l'id della carta che lo causa,
 // non solo il nome dell'abilita': due Baba Yaga diverse sono due fonti diverse.
+// L'ANTEPRIMA NON SCRIVE QUI. Gli effetti girano due volte — una per finta,
+// sotto il puntatore, e una per davvero — e la copia di lavoro della
+// simulazione e' SUPERFICIALE (vedi clonaPerSimulazione): l'oggetto dei
+// modificatori era lo stesso della carta vera, quindi ogni fotogramma di
+// anteprima ci sommava sopra un altro colpo. Da qui il "-16 from Robin Hood"
+// dopo qualche passaggio del mouse: sedici anteprime, non sedici furti.
+// Il registro racconta cosa e' SUCCESSO, e un'anteprima non e' successa.
 function annotaModificatore(card, chiave, da, delta, ambito){
+  if(_simulazioneInCorso) return;
   if(!card || !chiave) return;
   if(!card.modificatori) card.modificatori = {};
   if(!delta){ delete card.modificatori[chiave]; return; } // un bonus a zero non e' un bonus
   card.modificatori[chiave] = { da: da||'', delta: delta, ambito: ambito||'' };
 }
 function sommaModificatore(card, chiave, da, delta, ambito){
+  if(_simulazioneInCorso) return;
   if(!card || !chiave || !delta) return;
   if(!card.modificatori) card.modificatori = {};
   const gia = card.modificatori[chiave];
@@ -21985,6 +22015,13 @@ function clonaPerSimulazione(card){
   if(card.nightmareBaseValues) c.nightmareBaseValues = Object.assign({}, card.nightmareBaseValues);
   if(card.balooBaseValues) c.balooBaseValues = Object.assign({}, card.balooBaseValues);
   if(card.tileAbilityBaseValues) c.tileAbilityBaseValues = Object.assign({}, card.tileAbilityBaseValues);
+  // v0.75.51 — e il registro dei modificatori, per la stessa ragione dei
+  // valori: e' un oggetto, e una copia superficiale lo condivide invece di
+  // duplicarlo. La guardia in annotaModificatore basterebbe gia' a proteggerlo,
+  // ma quella dice "non scrivere durante l'anteprima" mentre questa dice "la
+  // carta simulata e' una carta a parte" — ed e' la seconda a reggere anche il
+  // giorno in cui qualcuno scrivera' nel registro da un punto nuovo.
+  if(card.modificatori) c.modificatori = Object.assign({}, card.modificatori);
   return c;
 }
 
@@ -32576,6 +32613,16 @@ function buildBoardCardTooltipHTML(card){
   }
   html += `<div class="ctb-level-sockets">${levelSocketsHtml}</div>`;
 
+  // v0.75.51 — E QUI I BONUS E I MALUS. Il tooltip delle carte IN CAMPO ha un
+  // costruttore tutto suo (fillCardTooltip sceglie fra i due in base a
+  // `onBoard`), e la v0.75.49 aveva aggiunto le righe solo all'altro: da fuori
+  // sembrava che non funzionassero, mentre semplicemente nessuno le disegnava
+  // proprio li' — che e' il posto in cui servono di piu', perche' e' la carta
+  // in campo quella che i vicini continuano a modificare.
+  // Le righe sono le stesse, prodotte dalla stessa funzione; cambia solo il
+  // contenitore, che qui ha i colori del tooltip di plancia.
+  html += bloccoModificatoriHTML(card);
+
   // v0.71.16: returns {html, isDark} instead of a bare string now, so
   // fillCardTooltip can toggle .ctb-light on the tooltip element itself
   // without re-deriving the card's owner a second time.
@@ -32762,7 +32809,6 @@ function costruisciSchedaCarta(card, livello, conSelettore){
   // Le righe si costruiscono con la stessa funzione del tooltip: sono la stessa
   // informazione, e due elenchi scritti a mano finirebbero per raccontare due
   // storie diverse sulla stessa carta.
-  html += bloccoModificatoriHTML(card);
   html += '<div class="cm-riga"><span class="cm-et">Rarity:</span><span class="cm-val">'
         + escapeHtml(_cmEtichettaRarita(rarita))
         + ' <img src="'+gemmaRaritaSrc(rarita)+'" alt=""></span></div>';
@@ -32802,6 +32848,12 @@ function costruisciSchedaCarta(card, livello, conSelettore){
     html += '<div class="cm-riga"><span class="cm-et">Ability:</span>'
           + '<span class="cm-val cm-abilita">'+dentro+'</span></div>';
   }
+  // v0.75.51 — bonus e malus in ULTIMA riga. Stavano subito sotto al nome, e
+  // li' erano la prima cosa che si leggeva di una carta: ma sono uno stato
+  // temporaneo, non una sua caratteristica. Rarita', archetipi, gemme e
+  // abilita' dicono cosa QUELLA CARTA E'; questa riga dice cosa le sta
+  // succedendo adesso, ed e' giusto che venga dopo.
+  html += bloccoModificatoriHTML(card);
   html += '<div class="cm-livello">';
   if(conSelettore){
     html += '<button class="cm-freccia" data-cm-passo="-1"'+(livello<=1?' disabled':'')+'>'
