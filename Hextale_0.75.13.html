@@ -6786,7 +6786,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.12</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.13</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -8717,9 +8717,19 @@ let _polvereBustineRAF = null;
 let _polvereBustineStrati = null;
 let _polvereBustineResize = null;
 
-function _pbNuovoGranello(piano, w, h){
-  // Da che lato: mezzi a sinistra e mezzi a destra, tirati a sorte.
-  const aDestra = Math.random() < 0.5;
+// v0.75.13 — IL LATO NON SI TIRA A SORTE, SI ALTERNA.
+// Prima ogni granello sceglieva da che parte stare con Math.random()<0.5. La
+// formula e' simmetrica, ma trenta lanci di moneta NON danno quindici e
+// quindici: la deviazione tipica e' di quasi tre granelli, quindi 18-12 o
+// 19-11 escono continuamente — e su trenta granelli grossi come questi la
+// differenza si vede benissimo. Peggio ancora piano per piano: quello vicino
+// ne ha cinque, e 4 contro 1 capita spesso.
+// L'indice viene da un contatore che attraversa TUTTI E TRE i piani, non da
+// uno per piano: cosi' il bilancio e' esatto sul totale (15 e 15) invece che
+// arrotondato tre volte. Resta casuale tutto il resto — dove esattamente
+// dentro la fascia, quanto e' grande, come vaga.
+function _pbNuovoGranello(piano, w, h, indice){
+  const aDestra = (indice % 2) === 1;
   const fascia = w * POLVERE_BUSTINE_FASCIA;
   const x0 = aDestra ? (w - fascia + Math.random()*fascia) : (Math.random()*fascia);
   return {
@@ -8749,19 +8759,18 @@ function PolvereBustineAvvia(){
     if(!ctx) continue;
     const strato = { piano, tela, ctx, granelli:[], w:0, h:0, dpr:1 };
     _pDimensiona(strato);
-    for(let i=0;i<piano.quota;i++) strato.granelli.push(_pNuovoGranello2(piano, strato));
     strati.push(strato);
   }
   if(!strati.length) return;
+  _pbRiempi(strati);
   _polvereBustineStrati = strati;
   // Al ridimensionamento i granelli vanno rifatti e non solo riposizionati:
   // il loro punto d'origine e' in pixel, e una finestra piu' stretta
   // lascerebbe fuori dalle fasce quelli nati quando era piu' larga.
   _polvereBustineResize = ()=>{
-    for(const s of _polvereBustineStrati||[]){
-      _pDimensiona(s);
-      s.granelli = s.granelli.map(()=>_pNuovoGranello2(s.piano, s));
-    }
+    if(!_polvereBustineStrati) return;
+    for(const s of _polvereBustineStrati) _pDimensiona(s);
+    _pbRiempi(_polvereBustineStrati);
   };
   window.addEventListener('resize', _polvereBustineResize);
   const passo = (ora)=>{
@@ -8784,7 +8793,18 @@ function PolvereBustineAvvia(){
   };
   _polvereBustineRAF = requestAnimationFrame(passo);
 }
-function _pNuovoGranello2(piano, strato){ return _pbNuovoGranello(piano, strato.w, strato.h); }
+// Riempie TUTTI i piani con un contatore solo che li attraversa: e' quello a
+// garantire che il totale sia spartito in parti esatte fra i due lati.
+// Chiamata anche al ridimensionamento, dove i granelli si rifanno da capo:
+// il loro punto d'origine e' in pixel, e una finestra piu' stretta lascerebbe
+// fuori fascia quelli nati quando era piu' larga.
+function _pbRiempi(strati){
+  let indice = 0;
+  for(const s of strati){
+    s.granelli = [];
+    for(let i=0;i<s.piano.quota;i++) s.granelli.push(_pbNuovoGranello(s.piano, s.w, s.h, indice++));
+  }
+}
 function PolvereBustineFerma(){
   if(_polvereBustineRAF){ cancelAnimationFrame(_polvereBustineRAF); _polvereBustineRAF = null; }
   if(_polvereBustineResize){ window.removeEventListener('resize', _polvereBustineResize); _polvereBustineResize = null; }
