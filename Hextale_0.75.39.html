@@ -1865,6 +1865,29 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
    coordinate da tenere allineato.
    pointer-events:auto perche' il wrap e' pointer-events:none di base (vedi la
    sua regola): senza, la croce si vedrebbe e non si potrebbe cliccare. */
+/* v0.75.39 — la carta distrutta (Mordred). Stessa idea della carta scartata
+   qui sotto: vola una copia, fuori dal disegno che verra' ricostruito.
+   Il velo e' un <svg> con lo stesso viewBox del tabellone, quindi la copia si
+   ritrova esattamente dove stava senza nessuna conversione di coordinate.
+   `transform-box:fill-box` serve perche' dentro a un SVG l'origine di una
+   trasformazione e' l'origine del sistema di coordinate, non il centro
+   dell'elemento: senza, la carta non si accartoccerebbe su se' stessa ma
+   scivolerebbe verso l'angolo in alto a sinistra del tabellone. */
+.carta-distrutta-volo{
+  position:fixed;
+  z-index:520;
+  pointer-events:none;
+}
+.carta-distrutta{
+  transform-box:fill-box;
+  transform-origin:center;
+  animation:cartaDistrutta var(--durata,520ms) cubic-bezier(.5,0,.75,0) forwards;
+}
+@keyframes cartaDistrutta{
+  0%   { transform:scale(1)    rotate(0deg);  opacity:1; filter:brightness(1); }
+  18%  { transform:scale(1.10) rotate(-2deg); opacity:1; filter:brightness(2.4); }
+  100% { transform:scale(0.12) rotate(14deg); opacity:0; filter:brightness(1); }
+}
 /* v0.75.38 — la carta scartata che se ne va dal basso. `position:fixed` la
    toglie dal ventaglio, che viene svuotato e ricostruito subito dopo: qui
    nessuno la tocca piu' e il volo puo' finire con calma mentre il turno
@@ -7168,7 +7191,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.38</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.39</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -17362,6 +17385,15 @@ const TILE_ABILITIES_DEF = {
   // identificatore. Dice quindi CHI e COSA, che e' il massimo di leggibilita'
   // che qui si puo' avere.
   mermaid_discard: { name:'...', desc:'When *Played*, *Discard* a card of your choice.' },
+  // v0.75.39 — MORDRED. Giocato accanto a un /Sovereign/ o a un /Noble/, puo'
+  // sceglierne uno e distruggerlo: la carta esce dal tabellone e la casella
+  // torna libera. E' la prima abilita' che TOGLIE una carta dal tavolo — le
+  // altre spostano, copiano, cambiano valori — quindi la distruzione e' scritta
+  // in una funzione sua (vedi distruggiCarta) invece che qui dentro.
+  // "Puoi scegliere": rinunciare e' lecito, e il tempo scaduto vale come
+  // rinuncia. A differenza dello scarto della Sirenetta questo e' un premio,
+  // non un costo, e nessuno va costretto a incassarlo.
+  kingslayer: { name:'Kingslayer', desc:'When *Played*, can *Destroy* an adjacent /Sovereign/ or /Noble/.' },
   // v0.73.5 — Hatter. Non fa niente finche' resta suo; se lo conquista
   // l'avversario impazzisce (vedi impazzisciSeConquistato).
   have_i_gone_mad:   { name:'Have I Gone Mad?',   desc:'On conquer: goes mad, its power becomes a random value (1-3).' },
@@ -20001,6 +20033,27 @@ const SCELTE_PIAZZAMENTO = {
     };
     return stato;
   },
+  // ── v0.75.39 — MORDRED, "Kingslayer" ────────────────────────────────────
+  // Chiede quale /Sovereign/ o /Noble/ adiacente distruggere. E' la piu'
+  // semplice delle scelte sul tabellone — bersagli, un click, fatto — e non ha
+  // richiesto una riga di disegno: il mirino su cui cliccare lo mette gia'
+  // renderBoard per ogni scelta che non sia un trascinamento.
+  // Nessun `seScade`: se il tempo finisce non si distrugge niente. E' cio' che
+  // vuol dire "puoi scegliere", e la differenza con lo scarto della Sirenetta
+  // e' tutta qui — quello e' un costo gia' pagato e va riscosso comunque,
+  // questo e' un vantaggio offerto e si puo' lasciare sul tavolo.
+  kingslayer: (card, q, r, giocatore) => {
+    const bersagli = bersagliKingslayer(q, r);
+    if(!bersagli.length) return null; // nessun re accanto: nessuna pausa
+    return {
+      chiave: 'kingslayer',
+      giocatore,
+      cellaOrigine: key(q,r),
+      bersagli,
+      applica: (cella) => distruggiCarta(cella),
+      rinuncia: () => {},
+    };
+  },
   // ── v0.75.36 — LITTLE MERMAID, "..." ────────────────────────────────────
   // La prima scelta che non si fa sul TABELLONE ma sulla MANO. Riusa tutta
   // l'impalcatura delle altre — la pausa del turno, il timer, l'IA che chiude
@@ -20058,6 +20111,85 @@ const SCELTE_PIAZZAMENTO = {
     };
   }
 };
+
+// ── v0.75.39 — I RE CHE MORDRED PUO' UCCIDERE ─────────────────────────────
+// Le carte adiacenti che sono /Sovereign/ o /Noble/. L'archetipo si legge da
+// `archetypes`, che tiene sia il ruolo sia il tratto in minuscolo: chiedere
+// "contiene sovereign?" copre quindi entrambe le colonne del foglio senza
+// doverle distinguere.
+// Non si guarda di CHI e' la carta: Mordred tradisce, e un re alleato accanto a
+// lui e' un re in pericolo quanto un altro. La scelta resta comunque del
+// giocatore, che puo' rinunciare.
+const ARCHETIPI_REGALI = ['sovereign','noble'];
+function eRegale(card){
+  const a = card && card.archetypes;
+  return !!(a && ARCHETIPI_REGALI.some(x => a.includes(x)));
+}
+function bersagliKingslayer(q, r){
+  const trovati = [];
+  for(const dir of DIRS){
+    const nk = key(q+dir.dq, r+dir.dr);
+    const vicino = G.board[nk];
+    if(!vicino || !vicino.card) continue;
+    if(!eRegale(vicino.card)) continue;
+    // v0.75.39 — chi e' intoccabile non si distrugge (oggi solo Excalibur:
+    // "Cannot be Conquered, Moved, or Destroyed"). La domanda si fa a
+    // cartaIntoccabile e non confrontando la chiave a mano, che e' esattamente
+    // cio' che quella funzione esiste per evitare — e "Destroyed" e' scritto
+    // nella sua descrizione, quindi questo e' il primo punto del gioco in cui
+    // quella parola aveva davvero qualcosa da vietare.
+    if(cartaIntoccabile(vicino.card)) continue;
+    trovati.push(nk);
+  }
+  return trovati;
+}
+// ── LA DISTRUZIONE ─────────────────────────────────────────────────────────
+// La carta lascia il tabellone e la casella torna libera — libera davvero, non
+// bloccata: non e' un muro che si alza, e' un personaggio che sparisce.
+//
+// Come per la carta scartata (v0.75.38), a volare via e' una COPIA. L'originale
+// vive dentro a #board-svg, che renderBoard ricostruisce da capo, e il ridisegno
+// arriva subito perche' il tabellone e' cambiato. La copia va in un <svg> con lo
+// STESSO viewBox dell'originale, ed e' quello che le fa mantenere posizione e
+// misura senza un solo calcolo: le coordinate che aveva continuano a valere.
+const DISTRUZIONE_MS = 520;
+function _volaViaDalTabellone(cella){
+  if(typeof document === 'undefined') return;
+  const bsvg = document.getElementById('board-svg');
+  const el = elementoCarta(cella);
+  if(!bsvg || !el) return;
+  let r = null;
+  try { r = authoredRect(bsvg); } catch(_){ return; }
+  if(!r || !r.width) return;
+  const velo = document.createElement('div');
+  velo.className = 'carta-distrutta-volo';
+  velo.style.left = r.left+'px'; velo.style.top = r.top+'px';
+  velo.style.width = r.width+'px'; velo.style.height = r.height+'px';
+  const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
+  svg.setAttribute('viewBox', bsvg.getAttribute('viewBox') || '');
+  svg.setAttribute('preserveAspectRatio', bsvg.getAttribute('preserveAspectRatio') || 'xMidYMid meet');
+  svg.style.cssText = 'width:100%;height:100%;display:block;overflow:visible;';
+  const copia = el.cloneNode(true);
+  copia.classList.add('carta-distrutta');
+  copia.style.setProperty('--durata', DISTRUZIONE_MS + 'ms');
+  svg.appendChild(copia);
+  velo.appendChild(svg);
+  (document.getElementById('game-root') || document.body).appendChild(velo);
+  setTimeout(()=>{ try { velo.remove(); } catch(_){} }, DISTRUZIONE_MS + 200);
+}
+function distruggiCarta(cella){
+  if(!cella || !G.board[cella]) return null;
+  const tolta = G.board[cella];
+  // Niente lampeggiaCarta qui: quel lampo si toglie da solo ascoltando la fine
+  // della propria animazione SULL'ORIGINALE, e l'originale sparisce un istante
+  // dopo. Copiato, resterebbe acceso per tutto il volo — un poligono bianco
+  // sopra alla carta. Il colpo di luce lo fa la copia, in CSS (vedi
+  // .carta-distrutta), dove nessuno deve venire a spegnerlo.
+  try { _volaViaDalTabellone(cella); } catch(_){}
+  delete G.board[cella];
+  try { renderBoard(); } catch(_){}
+  return tolta;
+}
 
 // ── v0.75.36 — LA MANO DI UN GIOCATORE, E LO SCARTO ───────────────────────
 // `G.p1Hand`/`G.p2Hand` erano scelte a mano con un ternario in una dozzina di
@@ -23652,6 +23784,26 @@ VALUTAZIONI_IA.open_celery = (scelta) => {
 // Non restituisce MAI null: lo scarto e' obbligatorio, e un null qui verrebbe
 // letto come "ho deciso di non scegliere" (vedi aiResolvePendingAbilityIfAny),
 // che per questa abilita' non e' un'opzione.
+// v0.75.39 — Mordred, quale re uccide l'IA: il piu' forte fra quelli AVVERSARI.
+// I propri li lascia stare, e questa e' la differenza fra l'abilita' e la sua
+// versione automatica: al giocatore i bersagli si offrono tutti, perche' un
+// motivo per sacrificare un proprio pezzo puo' esistere ed e' lui a saperlo;
+// l'IA quel motivo non lo avrebbe mai e distruggersi una carta da sola
+// sembrerebbe soltanto un errore.
+// Se accanto ci sono solo carte sue, restituisce null — che qui vuol dire
+// "rinuncio", ed e' una scelta legittima perche' l'abilita' e' facoltativa.
+VALUTAZIONI_IA.kingslayer = (scelta) => {
+  let migliore = null, massimo = -Infinity;
+  for(const cella of scelta.bersagli){
+    const posto = G.board[cella];
+    if(!posto || !posto.card) continue;
+    if(posto.owner === scelta.giocatore) continue; // non si uccide da sola
+    let forza = 0;
+    try { forza = cardPower(posto.card); } catch(_){ forza = 0; }
+    if(forza > massimo){ massimo = forza; migliore = cella; }
+  }
+  return migliore;
+};
 VALUTAZIONI_IA.mermaid_discard = (scelta) => {
   const mano = manoDi(scelta.giocatore);
   let peggiore = null, minimo = Infinity;
