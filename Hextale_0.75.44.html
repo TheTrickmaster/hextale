@@ -7210,7 +7210,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.43</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.44</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -17424,7 +17424,12 @@ const TILE_ABILITIES_DEF = {
   // sei direzioni, purche' fra le due non ci siano ne' carte ne' tasselli
   // bloccati. La carta tirata si ferma nella casella accanto a Rapunzel, che e'
   // per forza vuota — se non lo fosse, la traiettoria non sarebbe libera.
-  braids: { name:'Braaaaaaaaaaaids', desc:'When *Played*, can *Pull* a non-adjacent character in a clear straight line.' },
+  // ATTENZIONE ALLE "a". Sono SETTE, e vanno contate: `norm` perdona maiuscole,
+  // spazi e punteggiatura ma NON le lettere, quindi "Braaaaaaaids" e
+  // "Braaaaaaaaaaaids" sono due nomi diversi e la carta finisce NO_SCRIPT senza
+  // che si veda perche' — a occhio i due nomi sono identici. E' successo:
+  // v0.75.43 ne aveva undici.
+  braids: { name:'Braaaaaaaids', desc:'When *Played*, can *Pull* any non-adjacent character along a straight line.' },
   // v0.73.5 — Hatter. Non fa niente finche' resta suo; se lo conquista
   // l'avversario impazzisce (vedi impazzisciSeConquistato).
   have_i_gone_mad:   { name:'Have I Gone Mad?',   desc:'On conquer: goes mad, its power becomes a random value (1-3).' },
@@ -20193,7 +20198,7 @@ const SCELTE_PIAZZAMENTO = {
   // e' tutta qui — quello e' un costo gia' pagato e va riscosso comunque,
   // questo e' un vantaggio offerto e si puo' lasciare sul tavolo.
   kingslayer: (card, q, r, giocatore) => {
-    const bersagli = bersagliKingslayer(q, r);
+    const bersagli = bersagliKingslayer(q, r, giocatore);
     if(!bersagli.length) return null; // nessun re accanto: nessuna pausa
     return {
       chiave: 'kingslayer',
@@ -20305,20 +20310,22 @@ function tirateRapunzel(q, r){
 // `archetypes`, che tiene sia il ruolo sia il tratto in minuscolo: chiedere
 // "contiene sovereign?" copre quindi entrambe le colonne del foglio senza
 // doverle distinguere.
-// Non si guarda di CHI e' la carta: Mordred tradisce, e un re alleato accanto a
-// lui e' un re in pericolo quanto un altro. La scelta resta comunque del
-// giocatore, che puo' rinunciare.
+// v0.75.44 — SOLO I RE AVVERSARI. La v0.75.39 offriva anche i propri, ragionando
+// che un traditore tradisce chiunque; il foglio ha poi precisato "adjacent ENEMY
+// character", e il foglio e' la fonte. La differenza non e' solo di regola: un
+// mirino su una propria carta e' un invito a un errore che non si puo' annullare.
 const ARCHETIPI_REGALI = ['sovereign','noble'];
 function eRegale(card){
   const a = card && card.archetypes;
   return !!(a && ARCHETIPI_REGALI.some(x => a.includes(x)));
 }
-function bersagliKingslayer(q, r){
+function bersagliKingslayer(q, r, giocatore){
   const trovati = [];
   for(const dir of DIRS){
     const nk = key(q+dir.dq, r+dir.dr);
     const vicino = G.board[nk];
     if(!vicino || !vicino.card) continue;
+    if(vicino.owner === giocatore) continue; // i propri re non si toccano
     if(!eRegale(vicino.card)) continue;
     // v0.75.39 — chi e' intoccabile non si distrugge (oggi solo Excalibur:
     // "Cannot be Conquered, Moved, or Destroyed"). La domanda si fa a
@@ -24097,14 +24104,12 @@ VALUTAZIONI_IA.open_celery = (scelta) => {
 // Non restituisce MAI null: lo scarto e' obbligatorio, e un null qui verrebbe
 // letto come "ho deciso di non scegliere" (vedi aiResolvePendingAbilityIfAny),
 // che per questa abilita' non e' un'opzione.
-// v0.75.39 — Mordred, quale re uccide l'IA: il piu' forte fra quelli AVVERSARI.
-// I propri li lascia stare, e questa e' la differenza fra l'abilita' e la sua
-// versione automatica: al giocatore i bersagli si offrono tutti, perche' un
-// motivo per sacrificare un proprio pezzo puo' esistere ed e' lui a saperlo;
-// l'IA quel motivo non lo avrebbe mai e distruggersi una carta da sola
-// sembrerebbe soltanto un errore.
-// Se accanto ci sono solo carte sue, restituisce null — che qui vuol dire
-// "rinuncio", ed e' una scelta legittima perche' l'abilita' e' facoltativa.
+// v0.75.39 — Mordred, quale re uccide l'IA: il piu' forte.
+// v0.75.44 — il filtro sul proprietario resta anche se ora i bersagli sono gia'
+// tutti avversari (vedi bersagliKingslayer). Costa niente, e se un domani
+// l'abilita' tornasse a comprendere i propri, l'IA non comincerebbe da sola a
+// distruggersi le carte: e' una guardia che protegge una decisione futura, non
+// una ripetizione di quella di oggi.
 // v0.75.43 — chi tira a se' l'IA con la treccia: la carta AVVERSARIA piu'
 // debole. Da quando lo scontro si risolve DOPO l'abilita', tirare una carta
 // accanto a Rapunzel vuol dire poterla conquistare subito — quindi il bersaglio
