@@ -3206,6 +3206,34 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
 /* ── toast ── */
 #toast{position:fixed;top:70px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.75);border:1px solid var(--gold);color:var(--gold);padding:8px 20px;border-radius:20px;font-size:10px;font-weight:600;opacity:0;transition:opacity .3s;pointer-events:none;z-index:100;white-space:nowrap;backdrop-filter:blur(6px);} /* v0.71.89: -2px; v0.71.90: -3px more */
 
+/* ── v0.75.49 — DA DOVE VIENE OGNI BONUS E OGNI MALUS ──────────────────────
+   Una riga per fonte, una sopra l'altra: verde chi da', rosso chi toglie.
+   I due colori sono quelli che il gioco usa gia' per i numeri saliti e scesi
+   sulle carte, non due verdi nuovi: chi vede un numero verde sulla carta e una
+   riga verde qui deve capire al primo colpo che parlano della stessa cosa.
+   Le cifre in tabular-nums perche' le righe stiano incolonnate anche quando i
+   numeri hanno larghezze diverse — un elenco che balla si legge peggio. */
+.ct-mods{
+  list-style:none;
+  margin:6px 0 2px;
+  padding:0;
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+}
+.ct-mod{
+  font-family:var(--font-body);
+  font-size:15px;
+  line-height:1.25;
+  font-variant-numeric:tabular-nums;
+  text-shadow:0 1px 2px rgba(0,0,0,0.6);
+}
+.ct-mod.su{ color:#7BD88F; }
+.ct-mod.giu{ color:#E2686B; }
+.cm-mods{ display:block; }
+.cm-mods .ct-mods{ margin:0; }
+.cm-mods .ct-mod{ font-size:19px; }
+
 /* ── STRUCTURED CARD TOOLTIP ── */
 #card-tooltip{
   display:none;position:fixed;z-index:600;max-width:280px;
@@ -7247,7 +7275,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.48</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.49</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -17641,6 +17669,9 @@ const TILE_ABILITIES_DEF = {
   // questa carta un furto e non un'imitazione, ed e' l'unico punto del gioco in
   // cui una carta gia' in campo PERDE cio' che sa fare.
   new_tax: { carta:'Nottingham Sheriff', name:'New Tax', desc:'When *Played*, *Steals* the ability of an adjacent card.' },
+  // v0.75.49 — SEA WITCH. Ruba 1 ALL a ogni carta rimasta in mano e se lo
+  // mette addosso: e' un costo pagato dalla propria mano, non dall'avversario.
+  dark_pact: { carta:'Sea Witch', name:'Dark Pact', desc:'When *Played*, *Steals* 1 Power from every card in your hand.' },
   // v0.75.43 — RAPUNZEL. La treccia arriva lontano ma in linea retta, e solo
   // se la strada e' sgombra: tira a se' una carta non adiacente lungo una delle
   // sei direzioni, purche' fra le due non ci siano ne' carte ne' tasselli
@@ -18564,7 +18595,69 @@ function previewGemMagicEffect(card, q, r){
 // ricalcolo riparte da un punto piu' alto e il regalo sopravvive. Ogni
 // abilita' presente e futura che modifichi i valori altrui deve usare questa
 // funzione invece di scrivere in `values` a mano.
-function modificaValori(card, lati, delta, pavimento){
+// ═══════════════════════════════════════════════════════════════════════════
+// v0.75.49 — DA DOVE VIENE OGNI BONUS E OGNI MALUS
+// ═══════════════════════════════════════════════════════════════════════════
+// Fino a qui i valori di una carta erano un numero e basta: si vedeva che era
+// salito o sceso (verde o rosso), non PERCHE'. Con una dozzina di carte che si
+// toccano i valori a vicenda, e piu' effetti sulla stessa carta, quel perche'
+// diventa la domanda principale — e l'unica risposta era ricostruirla a mente.
+//
+// Ogni carta porta ora un elenco: `card.modificatori`, un oggetto con una voce
+// per fonte. La CHIAVE e' cio' che decide se una voce si somma o si sostituisce,
+// ed e' la differenza fra i due tipi di effetto che questo gioco ha:
+//   - le sinergie VIVE (Biancaneve, Baloo, Pixies, Strigoi) si ricalcolano a
+//     ogni disegno: usano una chiave fissa e SOSTITUISCONO, o dopo dieci
+//     ridisegni si leggerebbe dieci volte lo stesso +1;
+//   - gli effetti UNA TANTUM (un furto, un dono, una penalita') succedono e
+//     restano: si SOMMANO sulla loro chiave, cosi' due Robin Hood che rubano
+//     alla stessa carta si leggono come un -2 solo e non come due righe uguali.
+// La chiave di un effetto una tantum contiene l'id della carta che lo causa,
+// non solo il nome dell'abilita': due Baba Yaga diverse sono due fonti diverse.
+function annotaModificatore(card, chiave, da, delta, ambito){
+  if(!card || !chiave) return;
+  if(!card.modificatori) card.modificatori = {};
+  if(!delta){ delete card.modificatori[chiave]; return; } // un bonus a zero non e' un bonus
+  card.modificatori[chiave] = { da: da||'', delta: delta, ambito: ambito||'' };
+}
+function sommaModificatore(card, chiave, da, delta, ambito){
+  if(!card || !chiave || !delta) return;
+  if(!card.modificatori) card.modificatori = {};
+  const gia = card.modificatori[chiave];
+  const totale = (gia ? gia.delta : 0) + delta;
+  if(!totale){ delete card.modificatori[chiave]; return; }
+  // L'ambito si allarga: chi ha ricevuto prima un colpo su un gruppo e poi uno
+  // su tutti, dalla stessa fonte, ha subito qualcosa che riguarda tutti i lati.
+  const ambitoNuovo = (gia && gia.ambito === 'ALL') ? 'ALL' : (ambito||'');
+  card.modificatori[chiave] = { da: da || (gia && gia.da) || '', delta: totale, ambito: ambitoNuovo };
+}
+// L'elenco pronto da mostrare: una riga per fonte, il segno gia' scritto.
+// Ordinate come sono arrivate: e' l'ordine in cui le cose sono successe, che e'
+// anche il modo in cui chi gioca se le ricorda.
+function elencoModificatori(card){
+  const reg = card && card.modificatori;
+  if(!reg) return [];
+  const righe = [];
+  for(const chiave in reg){
+    const m = reg[chiave];
+    if(!m || !m.delta) continue;
+    const segno = m.delta > 0 ? '+' : '−';
+    righe.push({
+      testo: segno + Math.abs(m.delta) + (m.ambito ? ' '+m.ambito : '') + (m.da ? ' da '+m.da : ''),
+      positivo: m.delta > 0,
+    });
+  }
+  return righe;
+}
+// "ALL" solo se l'effetto tocca davvero tutti i lati; altrimenti niente, e la
+// riga si legge come un semplice +1 o -1.
+function _ambitoDiLati(lati){
+  return (lati && lati.length >= SIDES.length) ? 'ALL' : '';
+}
+// `fonte`, quando c'e', e' {chiave, da}: chi ha causato la modifica. Chi non la
+// passa non compare nell'elenco — un effetto senza un nome da mostrare e'
+// peggio di nessuna riga, perche' fa cercare una causa che non si trova.
+function modificaValori(card, lati, delta, pavimento, fonte){
   if(!card || !lati || !lati.length || !delta) return;
   const minimo = (typeof pavimento === 'number') ? pavimento : -Infinity;
   // v0.73.77 — l'istantanea di partenza serve al lampo: passando TUTTI da qui,
@@ -18586,6 +18679,15 @@ function modificaValori(card, lati, delta, pavimento){
     if(card.mischiefBaseValues) card.mischiefBaseValues[s] = (card.mischiefBaseValues[s]||0) + applicato;
     if(card.nightmareBaseValues) card.nightmareBaseValues[s] = (card.nightmareBaseValues[s]||0) + applicato;
     if(card.balooBaseValues) card.balooBaseValues[s] = (card.balooBaseValues[s]||0) + applicato;
+  }
+  // Quanto e' stato applicato DAVVERO, non quanto era stato chiesto: col
+  // pavimento a 0 un -1 su un lato che vale gia' 0 non toglie niente, e
+  // scrivere "-1" sarebbe una riga che non corrisponde a nessun numero
+  // cambiato sulla carta.
+  if(fonte && fonte.chiave){
+    let applicatoDavvero = 0;
+    for(const s of lati) applicatoDavvero = Math.max(applicatoDavvero, Math.abs((card.values[s]||0) - (prima[s]||0)));
+    if(applicatoDavvero) sommaModificatore(card, fonte.chiave, fonte.da, Math.sign(delta)*applicatoDavvero, _ambitoDiLati(lati));
   }
   lampeggiaDifferenzaValori(card, prima);
 }
@@ -18684,7 +18786,7 @@ function activateEatTheRich(card, q, r){
     // Istantanea dei valori prima del furto, cosi' chi disegna puo'
     // confrontare e mostrare il -1 in rosso, come per ogni altro effetto.
     if(!nb.card.tileAbilityBaseValues) nb.card.tileAbilityBaseValues={...nb.card.values};
-    modificaValori(nb.card, lati, -1, 0);
+    modificaValori(nb.card, lati, -1, 0, {chiave:'eat_the_rich:'+card.id, da:card.name||'Robin Hood'});
     bottino++;
   }
 
@@ -18731,7 +18833,7 @@ function activateEatTheRich(card, q, r){
   }
   if(!gruppoDebole) return;
   if(!scelto.card.tileAbilityBaseValues) scelto.card.tileAbilityBaseValues={...scelto.card.values};
-  modificaValori(scelto.card, gruppoDebole.sides, bottino);
+  modificaValori(scelto.card, gruppoDebole.sides, bottino, undefined, {chiave:'eat_the_rich:'+card.id, da:card.name||'Robin Hood'});
   card.eatTheRichBeneficiario = scelto.k;
   // Una traccia in console: il bottino e' +1 su un gruppo di una carta sola, e
   // in mezzo a una plancia piena e' facile non accorgersene. Invisibile
@@ -18790,6 +18892,9 @@ function recalcHoorayShesStays(card){
   const newValues={};
   for(const s of SIDES) newValues[s]=(base[s]||0)+smallCount;
   card.values=newValues;
+  // v0.75.49 — sinergia VIVA: si sostituisce a ogni ricalcolo (vedi
+  // annotaModificatore), o dopo dieci ridisegni si leggerebbero dieci righe.
+  annotaModificatore(card, 'smol_friends', card.name||'Smol Friends', smallCount, 'ALL');
   // Same base-snapshot convention as every other tile ability (see
   // activateEatTheRich's own tileAbilityBaseValues comment) — lets the
   // render diff against this baseline and show the +N synergy bonus
@@ -18976,6 +19081,10 @@ function recalcMischief(card){
   }
   card.mischiefCount=quanti;
   card.values=nuovi;
+  // Il totale e' la somma dei bonus assegnati, non "quanti Trickster": i
+  // gruppi sorteggiati possono ripetersi, e cio' che conta e' il potere
+  // aggiunto.
+  annotaModificatore(card, 'mischief', card.name||'Mischief', quanti*BONUS_MISCHIEF, '');
   // Stessa convenzione di ogni altra abilita': l'istantanea da cui il disegno
   // calcola il verde/rosso della differenza.
   card.tileAbilityBaseValues={...base};
@@ -19010,6 +19119,7 @@ function recalcNightmare(card){
   const nuovi={...base};
   if(notte) for(const s of SIDES) nuovi[s]=(nuovi[s]||0)+BONUS_NOTTE;
   card.values=nuovi;
+  annotaModificatore(card, 'nightmare', card.name||'Nightmare', notte?BONUS_NOTTE:0, 'ALL');
   card.tileAbilityBaseValues={...base};
   if(notte && !card.notteGiaCalata){
     card.notteGiaCalata=true;
@@ -19065,6 +19175,11 @@ function recalcBearNecessities(card, cella){
   // sinergia che si conta per teste (vedi Smol Friends).
   if(quantiBaloo) for(const s of SIDES) nuovi[s]=(nuovi[s]||0)+BONUS_BALOO*quantiBaloo;
   card.values=nuovi;
+  // Questa gira su OGNI carta in campo, anche su chi non ha nessun Baloo
+  // accanto: passando zero, annotaModificatore cancella la voce invece di
+  // scriverne una a zero — cosi' la riga sparisce da sola nel momento in cui
+  // Baloo viene conquistato o si sposta.
+  annotaModificatore(card, 'bear_necessities', 'Baloo', BONUS_BALOO*quantiBaloo, 'ALL');
   // v0.73.99 FIX ("Captain Hook si buffa ma i valori restano bianchi") — QUESTA
   // FUNZIONE GIRA SU OGNI CARTA IN CAMPO, non solo su quelle che ricevono il
   // dono: e' l'unico modo perche' ognuna possa chiedersi "ho un Baloo
@@ -19963,7 +20078,7 @@ function attivaSleightOfHand(card){
   const scelto = candidati.length===1 ? candidati[0] : sorteggioStabile(candidati, card.id+':sleight');
   if(!scelto) return;
   const bonus = cePrincipessaInCampo() ? BONUS_SLEIGHT_CON_PRINCIPESSA : BONUS_SLEIGHT;
-  modificaValori(card, scelto.sides, bonus);
+  modificaValori(card, scelto.sides, bonus, undefined, {chiave:'sleight_of_hand', da:card.name||'Sleight of Hand'});
 }
 // ── v0.73.98 — CAPTAIN HOOK, "Tic Toc": chi arriva presto arriva forte ─────
 // Se cala nei primi due turni della partita prende +2 su tutti i lati, e se li
@@ -19975,11 +20090,37 @@ function attivaSleightOfHand(card){
 // G.numeroTurno): il turno 1 e' la prima giocata in assoluto, il 2 la
 // risposta dell'avversario. Ognuno dei due ha quindi esattamente una giocata
 // "presto", che e' la lettura che rende l'abilita' uguale per entrambi.
+// ── v0.75.49 — SEA WITCH, "Dark Pact": il prezzo lo pagano gli altri ──────
+// Giocandola, toglie 1 su tutti i lati a OGNI carta rimasta in mano al suo
+// proprietario, e si mette addosso un +1 per ciascuna carta derubata: tre
+// carte in mano, +3 ALL.
+// Il conto e' delle carte DERUBATE, non di quelle in mano. Una carta gia' a
+// zero su tutti i lati non ha piu' niente da dare (il pavimento a 0 impedisce i
+// negativi, che in questo gioco non esistono), e contarla lo stesso vorrebbe
+// dire pagare la strega con potere che nessuno ha perso — un +1 creato dal
+// nulla, che e' l'opposto di un patto.
+// Il furto passa da modificaValori come ogni altro: le carte in mano hanno le
+// stesse istantanee da spostare di quelle in campo, e il -1 in rosso arriva
+// incluso.
+function attivaDarkPact(card){
+  const proprietario = (card && card.owner) || G.currentPlayer;
+  const mano = manoDi(proprietario).filter(c => c && c !== card && c.id !== card.id);
+  let derubate = 0;
+  for(const c of mano){
+    const prima = SIDES.reduce((t,s)=>t+(c.values[s]||0), 0);
+    modificaValori(c, SIDES, -1, 0, {chiave:'dark_pact:'+card.id, da:card.name||'Sea Witch'});
+    const dopo = SIDES.reduce((t,s)=>t+(c.values[s]||0), 0);
+    if(dopo < prima) derubate++;
+  }
+  if(!derubate) return;
+  modificaValori(card, SIDES, derubate, undefined, {chiave:'dark_pact', da:card.name||'Dark Pact'});
+  console.info('[Dark Pact] rubato 1 ALL a '+derubate+' carte in mano: +'+derubate+' ALL alla strega.');
+}
 const TURNI_TIC_TOC = 2;
 const BONUS_TIC_TOC = 2;
 function attivaTicToc(card){
   if((G && G.numeroTurno || 1) > TURNI_TIC_TOC) return;
-  modificaValori(card, SIDES, BONUS_TIC_TOC);
+  modificaValori(card, SIDES, BONUS_TIC_TOC, undefined, {chiave:'tic_toc', da:card.name||'Tic Toc'});
 }
 // ── v0.73.98 — COWARDLY LION, "Scaredy cat": la paura si paga ─────────────
 // Entrando in campo si toglie 1 da un gruppo a sorte. Il sorteggio passa da
@@ -19997,7 +20138,7 @@ function attivaScaredyCat(card){
   // Adesso l'anteprima non promette piu' un gruppo — mostra un "?" — e il
   // sorteggio puo' tornare a essere quello che dice di essere.
   const scelto = gruppi[Math.floor(Math.random()*gruppi.length)];
-  if(scelto) modificaValori(card, scelto.sides, -1, 0);
+  if(scelto) modificaValori(card, scelto.sides, -1, 0, {chiave:'scaredy_cat', da:card.name||'Scaredy cat'});
 }
 // ── v0.73.99 — CHI TIRA UN DADO AL PIAZZAMENTO ────────────────────────────
 // Elenco dichiarativo, non un controllo sparso: un'abilita' nuova che decida
@@ -20209,6 +20350,11 @@ const EFFETTI_PIAZZAMENTO_REALI = {
   // non puo' avere un'anteprima fedele, e mostrarne una falsa sarebbe peggio
   // che non mostrarne nessuna.
   exaketededly:      (card, q, r) => attivaExaketededly(card, q, r),
+  // v0.75.49 — Dark Pact sta QUI e non fra gli effetti simulabili: tocca le
+  // carte in MANO, e l'anteprima gira sul tabellone clonato ma sulla mano
+  // vera. Simularla vorrebbe dire derubare la propria mano a ogni passaggio
+  // del puntatore, senza aver giocato niente.
+  dark_pact:         (card) => attivaDarkPact(card),
 };
 function applicaEffettiRealiPiazzamento(card, q, r, chiave){
   const effetto = EFFETTI_PIAZZAMENTO_REALI[chiave];
@@ -21773,7 +21919,7 @@ function applicaHexSeConquistata(attaccante, babaYaga, atkVal, defVal){
   if(abilitaAttivaDi(babaYaga) !== 'hex') return false;
   const differenza = atkVal - defVal;
   if(differenza<=0) return false; // non dovrebbe mai capitare (e' cosi' che si e' conquistata)
-  modificaValori(attaccante, SIDES, -differenza, 0);
+  modificaValori(attaccante, SIDES, -differenza, 0, {chiave:'hex:'+(babaYaga&&babaYaga.id||'?'), da:(babaYaga&&babaYaga.name)||'Baba Yaga'});
   // v0.73.85 — e Baba Yaga ride. Il suono sta fra le voci; l'estensione qui
   // e' solo il ripiego per il caso in cui il censimento all'avvio non abbia
   // registrato niente, perche' quello le prova entrambe da solo (vedi
@@ -21804,7 +21950,7 @@ function attivaHungerBites(lupo, atkVal, defVal){
   if(!gruppi.length) return false;
   for(let n=0; n<differenza; n++){
     const scelto = gruppi[Math.floor(Math.random()*gruppi.length)];
-    modificaValori(lupo, scelto.sides, 1);
+    modificaValori(lupo, scelto.sides, 1, undefined, {chiave:'hunger_bites', da:lupo.name||'Hunger Bites'});
   }
   return true;
 }
@@ -24484,6 +24630,10 @@ function drawAndAnimate(player,fast,callback){
     if(newCard.hoorayBaseValues){
       for(const s of SIDES) newCard.hoorayBaseValues[s]=(newCard.hoorayBaseValues[s]||0)+taglia;
     }
+    // v0.75.49 — e la carta si porta dietro da CHI viene quel +2, che qui e'
+    // l'unico modo per saperlo: la Regina di Cuori l'ha lasciato prima di
+    // questa pescata, e sulla carta non resterebbe nessuna traccia.
+    sommaModificatore(newCard, 'off_with_the_head', 'Queen of Hearts', taglia, 'ALL');
     G.bonusProssimaPescata[player]=0;
   }
   playSfx('sfx-draw');
@@ -32124,8 +32274,20 @@ function toast(msg){
 // Builds and shows a rich HTML tooltip with: name, faction, faction bonus
 // description (+ "attivato" pill if active and on board), socketed gems list
 // (+ activated bonus values if on board), and a flavor quote.
+// v0.75.49 — le righe "da dove viene" pronte da incollare, per chi mostra
+// HTML. Una funzione sola per il tooltip e per la scheda a schermo intero: due
+// elenchi costruiti a mano sarebbero due occasioni di mostrarne uno diverso
+// dall'altro sulla stessa carta.
+function bloccoModificatoriHTML(card){
+  const righe = elencoModificatori(card);
+  if(!righe.length) return '';
+  return '<ul class="ct-mods">'
+    + righe.map(r=>'<li class="ct-mod '+(r.positivo?'su':'giu')+'">'+escapeHtml(r.testo)+'</li>').join('')
+    + '</ul>';
+}
 function buildCardTooltipHTML(card, onBoard, bonusInfo){
   let html = `<div class="ct-name">${escapeHtml(card.name)}</div>`;
+  html += bloccoModificatoriHTML(card);
 
   // v0.72.73 — si scorrono gli SLOT, non i gruppi di valori: sono due cose
   // diverse (vedi slotGemmeDaConteggio). Prima questo ciclo girava sui gruppi
@@ -32542,6 +32704,13 @@ function costruisciSchedaCarta(card, livello, conSelettore){
   html += '<div class="cm-titolo">'
         + '<img src="'+CARD_PARTS_BASE+'name-wrapper-'+rarita+'.png" alt="">'
         + '<span>'+escapeHtml(card.name||'')+'</span></div>';
+  // v0.75.49 — subito sotto al nome, prima di ogni altra cosa: se questa carta
+  // sta giocando con dei numeri diversi dai suoi, e' la prima cosa da sapere.
+  // Le righe si costruiscono con la stessa funzione del tooltip: sono la stessa
+  // informazione, e due elenchi scritti a mano finirebbero per raccontare due
+  // storie diverse sulla stessa carta.
+  const mods = bloccoModificatoriHTML(card);
+  if(mods) html += '<div class="cm-riga cm-mods">'+mods+'</div>';
   html += '<div class="cm-riga"><span class="cm-et">Rarity:</span><span class="cm-val">'
         + escapeHtml(_cmEtichettaRarita(rarita))
         + ' <img src="'+gemmaRaritaSrc(rarita)+'" alt=""></span></div>';
