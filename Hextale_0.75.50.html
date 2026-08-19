@@ -3211,28 +3211,43 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
    I due colori sono quelli che il gioco usa gia' per i numeri saliti e scesi
    sulle carte, non due verdi nuovi: chi vede un numero verde sulla carta e una
    riga verde qui deve capire al primo colpo che parlano della stessa cosa.
-   Le cifre in tabular-nums perche' le righe stiano incolonnate anche quando i
-   numeri hanno larghezze diverse — un elenco che balla si legge peggio. */
+   Le righe stanno una sotto l'altra dentro alla colonna di destra, quindi il
+   contenitore torna a incolonnare: la riga della scheda dispone in orizzontale
+   (etichetta a sinistra, contenuti a destra) e questo dispone in verticale
+   dentro a quei contenuti. Sono due direzioni diverse per due livelli diversi,
+   non una che combatte l'altra.
+   Le cifre in tabular-nums perche' le righe restino incolonnate anche con
+   numeri di larghezza diversa: un elenco che balla si legge peggio. */
 .ct-mods{
-  list-style:none;
-  margin:6px 0 2px;
-  padding:0;
   display:flex;
   flex-direction:column;
+  align-items:flex-end;
   gap:2px;
 }
 .ct-mod{
-  font-family:var(--font-body);
-  font-size:15px;
-  line-height:1.25;
   font-variant-numeric:tabular-nums;
-  text-shadow:0 1px 2px rgba(0,0,0,0.6);
+  white-space:nowrap;
 }
 .ct-mod.su{ color:#7BD88F; }
 .ct-mod.giu{ color:#E2686B; }
-.cm-mods{ display:block; }
-.cm-mods .ct-mods{ margin:0; }
-.cm-mods .ct-mod{ font-size:19px; }
+/* Il tooltip non e' dentro a #card-modal-info, quindi le regole della scheda
+   non lo raggiungono: qui le stesse righe ricevono gli stessi font e gli
+   stessi colori, in piccolo. Ripetute e non condivise perche' i due
+   contenitori hanno misure diverse — cio' che deve coincidere e' l'aspetto,
+   non il foglio di stile. */
+#card-tooltip .cm-riga{
+  display:flex; align-items:flex-start; justify-content:space-between; gap:14px;
+  padding:6px 0 2px;
+}
+#card-tooltip .cm-et{
+  font-family:'Rosarivo',serif;
+  font-size:15px; color:#6B7A7C; white-space:nowrap;
+}
+#card-tooltip .cm-val{
+  font-family:'Rosarivo',serif;
+  font-size:15px; color:#B5C5C7; text-align:right;
+  display:flex; align-items:center; justify-content:flex-end; gap:6px; flex-wrap:wrap;
+}
 
 /* ── STRUCTURED CARD TOOLTIP ── */
 #card-tooltip{
@@ -7275,7 +7290,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.49</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.50</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -18642,8 +18657,12 @@ function elencoModificatori(card){
     const m = reg[chiave];
     if(!m || !m.delta) continue;
     const segno = m.delta > 0 ? '+' : '−';
+    // v0.75.50 — in inglese come tutto il resto della scheda: "+3 ALL from
+    // Sea Witch". Il segno meno e' quello tipografico (U+2212) e non il
+    // trattino della tastiera: ha la stessa larghezza del piu', quindi le
+    // righe restano incolonnate una sotto l'altra.
     righe.push({
-      testo: segno + Math.abs(m.delta) + (m.ambito ? ' '+m.ambito : '') + (m.da ? ' da '+m.da : ''),
+      testo: segno + Math.abs(m.delta) + (m.ambito ? ' '+m.ambito : '') + (m.da ? ' from '+m.da : ''),
       positivo: m.delta > 0,
     });
   }
@@ -26314,6 +26333,31 @@ function swapCardOwnerVariant(containerEl, newOwner, card){
 
 function drawHexCard(svg,cx,cy,R,card,fillColor,strokeColor,textColor,nameText,isSelected,glowColor,onClick,onBoard,displayValues,factionDeltas,uncertainBonus,displayFortifiedSides){
   const cardValues = displayValues || card.values || card;
+  // ── v0.75.50 — IL VERDE E IL ROSSO SE LI CALCOLA LA CARTA ────────────────
+  // Chi disegna una carta poteva passare i delta gia' pronti, e il tabellone lo
+  // faceva; chi NON li passava — la mano, la scheda a schermo intero, il
+  // fantasma del trascinamento — otteneva numeri bianchi qualunque cosa fosse
+  // successo a quella carta. E' per questo che le carte derubate dalla Sea
+  // Witch restavano bianche: il furto era avvenuto, il -1 c'era, ma nessuno
+  // aveva calcolato la differenza da mostrare, perche' in mano non la calcola
+  // nessuno.
+  // Adesso, quando i delta non arrivano da fuori, se li ricava da qui
+  // confrontando i valori mostrati con `valoriNascita` — i valori con cui la
+  // carta e' nata, al suo livello. E' la stessa base che il tabellone usa gia'
+  // (vedi il suo baseColore), quindi le due strade non possono dire cose
+  // diverse, e vale per QUALUNQUE effetto: chi ne aggiungera' uno nuovo avra'
+  // i colori senza doverli chiedere. Che era la richiesta.
+  if(!factionDeltas && card && card.valoriNascita){
+    const nati = card.valoriNascita;
+    const automatici = {};
+    let qualcosa = false;
+    for(const s of SIDES){
+      const d = (cardValues[s]||0) - (nati[s]||0);
+      automatici[s] = d;
+      if(d) qualcosa = true;
+    }
+    if(qualcosa) factionDeltas = automatici;
+  }
   // Fortifica preview: when hovering a card over a Fortifica tile, the shield
   // icon should already show on the group that WOULD become fortified (the
   // card isn't actually placed yet, so card.isFortificaActive isn't set).
@@ -32278,12 +32322,21 @@ function toast(msg){
 // HTML. Una funzione sola per il tooltip e per la scheda a schermo intero: due
 // elenchi costruiti a mano sarebbero due occasioni di mostrarne uno diverso
 // dall'altro sulla stessa carta.
+// v0.75.50 — la stessa forma di ogni altro dato della scheda: etichetta a
+// sinistra, contenuti a destra, uno sopra l'altro. Prima era un elenco a se',
+// con un suo carattere e una sua spaziatura: leggeva come una nota aggiunta
+// invece che come una delle informazioni della carta.
+// Le classi sono quelle della scheda (cm-riga/cm-et/cm-val), quindi font,
+// colori, allineamento e filo separatore arrivano gia' giusti e non c'e' un
+// secondo aspetto da tenere allineato al primo. Il tooltip ripete le stesse
+// regole sotto il proprio contenitore, per lo stesso motivo.
 function bloccoModificatoriHTML(card){
   const righe = elencoModificatori(card);
   if(!righe.length) return '';
-  return '<ul class="ct-mods">'
-    + righe.map(r=>'<li class="ct-mod '+(r.positivo?'su':'giu')+'">'+escapeHtml(r.testo)+'</li>').join('')
-    + '</ul>';
+  return '<div class="cm-riga cm-mods"><span class="cm-et">Bonus/Malus:</span>'
+    + '<span class="cm-val"><span class="ct-mods">'
+    + righe.map(r=>'<span class="ct-mod '+(r.positivo?'su':'giu')+'">'+escapeHtml(r.testo)+'</span>').join('')
+    + '</span></span></div>';
 }
 function buildCardTooltipHTML(card, onBoard, bonusInfo){
   let html = `<div class="ct-name">${escapeHtml(card.name)}</div>`;
@@ -32709,8 +32762,7 @@ function costruisciSchedaCarta(card, livello, conSelettore){
   // Le righe si costruiscono con la stessa funzione del tooltip: sono la stessa
   // informazione, e due elenchi scritti a mano finirebbero per raccontare due
   // storie diverse sulla stessa carta.
-  const mods = bloccoModificatoriHTML(card);
-  if(mods) html += '<div class="cm-riga cm-mods">'+mods+'</div>';
+  html += bloccoModificatoriHTML(card);
   html += '<div class="cm-riga"><span class="cm-et">Rarity:</span><span class="cm-val">'
         + escapeHtml(_cmEtichettaRarita(rarita))
         + ' <img src="'+gemmaRaritaSrc(rarita)+'" alt=""></span></div>';
