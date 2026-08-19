@@ -6770,7 +6770,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.10</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.11</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -10449,7 +10449,61 @@ function artUrlVariante(slug, fazione){
 // Un file esiste? Provare a caricarlo e' l'unico modo. Cio' che risponde
 // resta nella cache del browser, quindi la verifica fa anche da
 // precaricamento.
-function _provaImmagine(url){
+// ── v0.75.11 — LE VERIFICHE IN CODA, E CON UN SECONDO TENTATIVO ───────────
+// IL PROBLEMA. Queste sonde partivano TUTTE INSIEME: verificaArtCarte riempie
+// un array di promesse in un ciclo, e su 60 carte sono fra 500 e 1000
+// richieste sparate nello stesso istante (da file locale anche il doppio, vedi
+// _candidati). Il browser ne lascia passare sei per volta verso lo stesso
+// host: tutte le altre restano in coda, e sotto quel carico qualcuna viene
+// resettata o scade.
+// A cache calda non si nota, perche' le risposte arrivano dal disco in
+// millisecondi. Appena la si svuota, diventa una valanga vera.
+// E la valanga non danneggia solo le carte: le sonde continuano a occupare i
+// sei canali mentre _proseguiCaricamento scarica pulsanti, font, sfondo e
+// barra di caricamento — che quindi arrivano tardi o non arrivano.
+//
+// PRIMO RIMEDIO: una coda condivisa. Sei sonde alla volta, le altre aspettano
+// il loro turno invece di accalcarsi. Il totale non cambia, cambia che non
+// soffocano piu' tutto il resto.
+const SONDE_IN_PARALLELO = 6;
+let _sondeAttive = 0;
+const _sondeInAttesa = [];
+function _accodaSonda(lavoro){
+  return new Promise(risolvi=>{
+    const avvia = ()=>{
+      _sondeAttive++;
+      // Il posto va liberato SEMPRE, anche se la sonda esplode invece di
+      // rispondere. Senza il ramo d'errore, una sola eccezione lascerebbe il
+      // posto occupato per sempre: sei eccezioni e la coda si ferma del tutto,
+      // in silenzio, e il gioco resterebbe senza illustrazioni senza che
+      // nessuna riga di console lo dica. Un guasto che si nasconde e' peggio
+      // di un guasto che grida.
+      const libera = (esito)=>{
+        _sondeAttive--;
+        risolvi(esito);
+        const prossima = _sondeInAttesa.shift();
+        if(prossima) prossima();
+      };
+      lavoro().then(libera, ()=>libera(false));
+    };
+    if(_sondeAttive < SONDE_IN_PARALLELO) avvia();
+    else _sondeInAttesa.push(avvia);
+  });
+}
+// SECONDO RIMEDIO: un secondo tentativo prima di dichiarare che un file non
+// esiste. `onerror` non sa distinguere un 404 vero da una richiesta annegata
+// nella coda, e finora le trattava uguale — cioe' un intoppo di rete diventava
+// una sentenza, scritta in entry.artLayersDark/Light e valida per tutta la
+// sessione. Da li' la carta si convinceva di non avere illustrazione e
+// disegnava il segnaposto.
+// Un fallimento vero costa una richiesta in piu' e mezzo secondo; un
+// fallimento finto viene recuperato. Lo scambio conviene.
+const SONDA_PAUSA_MS = 400;
+function _sondaConRitentativo(fai){
+  return fai().then(ok => ok ? true
+    : new Promise(r=>setTimeout(r, SONDA_PAUSA_MS)).then(fai));
+}
+function _provaImmagineUnaVolta(url){
   return new Promise(risolvi=>{
     const img = new Image();
     img.onload  = ()=>risolvi(true);
@@ -10457,9 +10511,12 @@ function _provaImmagine(url){
     img.src = url;
   });
 }
+function _provaImmagine(url){
+  return _accodaSonda(()=>_sondaConRitentativo(()=>_provaImmagineUnaVolta(url)));
+}
 // Stessa cosa per l'audio. `loadedmetadata` basta e avanza: dice che il file
 // esiste ed e' leggibile senza aspettare che si scarichi tutto.
-function _provaAudio(url){
+function _provaAudioUnaVolta(url){
   return new Promise(risolvi=>{
     const a = new Audio();
     a.preload = 'metadata';
@@ -10467,6 +10524,11 @@ function _provaAudio(url){
     a.onerror = ()=>risolvi(false);
     a.src = url;
   });
+}
+// v0.75.11 — stessa coda e stesso secondo tentativo delle immagini: le sonde
+// audio partono dallo stesso ciclo e affollano gli stessi sei canali.
+function _provaAudio(url){
+  return _accodaSonda(()=>_sondaConRitentativo(()=>_provaAudioUnaVolta(url)));
 }
 
 // I livelli d'arte di UNA variante, in ordine dal fondo alla superficie.
@@ -10618,27 +10680,34 @@ function verificaArtCarte(){
       if(!l) senzArte.push(entry.name || slug);
     }));
     lavori.push(_livelliDiVariante(slug,'light').then(l=>{ entry.artLayersLight = l; }));
-    // v0.73.21 — la variante "fumo", per le carte che si nascondono
-    // (Exaketededly del Caterpillar). E' un'immagine piatta e non una pila di
-    // livelli: nel fumo non c'e' niente da separare in profondita'.
-    // Si cerca come tutto il resto — se il file non c'e' resta null e la carta
-    // semplicemente non si offusca, invece di mostrare un'immagine rotta.
-    lavori.push(_primoCheEsiste(_candidati(ART_REL+slug+'/'+slug+'-smoke-dark.png',
-                                           ART_BASE+slug+'/'+slug+'-smoke-dark.png'), _provaImmagine)
-      .then(u=>{ entry.artFumoDark = u || null; }));
-    lavori.push(_primoCheEsiste(_candidati(ART_REL+slug+'/'+slug+'-smoke-light.png',
-                                           ART_BASE+slug+'/'+slug+'-smoke-light.png'), _provaImmagine)
-      .then(u=>{ entry.artFumoLight = u || null; }));
-    // v0.73.78 — la variante NOTTURNA, per chi cambia pelle a partita
-    // inoltrata (Nightmare di Strigoi). Cercata come tutte le altre: se il
-    // file non c'e' resta null e la carta si limita a non cambiare
-    // illustrazione, invece di mostrarne una rotta.
-    lavori.push(_primoCheEsiste(_candidati(ART_REL+slug+'/'+slug+'-night-dark.png',
-                                           ART_BASE+slug+'/'+slug+'-night-dark.png'), _provaImmagine)
-      .then(u=>{ entry.artNotteDark = u || null; }));
-    lavori.push(_primoCheEsiste(_candidati(ART_REL+slug+'/'+slug+'-night-light.png',
-                                           ART_BASE+slug+'/'+slug+'-night-light.png'), _provaImmagine)
-      .then(u=>{ entry.artNotteLight = u || null; }));
+    // ── v0.75.11 — SI BUSSA SOLO ALLE PORTE CHE POSSONO APRIRSI ────────────
+    // Le varianti "fumo" e "notte" servono a UNA abilita' ciascuna: il fumo a
+    // Exaketededly del Caterpillar (la carta si nasconde), la notte a
+    // Nightmare di Strigoi (cambia pelle a partita inoltrata). Nessun'altra
+    // carta puo' mostrarle, in nessuna circostanza.
+    // Fino a ieri si cercavano per TUTTE e 60 le carte: quattro richieste a
+    // testa, 240 in tutto, di cui quattro utili. Erano un quarto abbondante
+    // della valanga che soffocava il caricamento di pulsanti, font e sfondo.
+    // Adesso la domanda la fa l'abilita': se la carta non ha quella, il file
+    // non le servirebbe comunque, e non si bussa.
+    // Se un domani un'abilita' nuova usera' una di queste varianti, va aggiunta
+    // qui accanto — ed e' il motivo per cui la chiave e' scritta una volta
+    // sola invece che ripetuta nei due rami.
+    const abilitaDellaCarta = entry.cardAbility || null;
+    if(abilitaDellaCarta === 'exaketededly'){
+      for(const fazione of ['dark','light']){
+        lavori.push(_primoCheEsiste(_candidati(ART_REL+slug+'/'+slug+'-smoke-'+fazione+'.png',
+                                               ART_BASE+slug+'/'+slug+'-smoke-'+fazione+'.png'), _provaImmagine)
+          .then(u=>{ entry[fazione==='dark'?'artFumoDark':'artFumoLight'] = u || null; }));
+      }
+    }
+    if(abilitaDellaCarta === 'nightmare'){
+      for(const fazione of ['dark','light']){
+        lavori.push(_primoCheEsiste(_candidati(ART_REL+slug+'/'+slug+'-night-'+fazione+'.png',
+                                               ART_BASE+slug+'/'+slug+'-night-'+fazione+'.png'), _provaImmagine)
+          .then(u=>{ entry[fazione==='dark'?'artNotteDark':'artNotteLight'] = u || null; }));
+      }
+    }
     lavori.push(_vociDiPersonaggio(slug).then(v=>{
       entry.voci = v;
       if(v.length) registraVociSfx(v);
@@ -10653,10 +10722,30 @@ function verificaArtCarte(){
   // Un limite complessivo: se la rete e' lenta o assente il gioco deve
   // partire lo stesso — rane al posto delle illustrazioni e carte mute —
   // invece di restare bloccato sulla barra di caricamento.
-  const scaduto = new Promise(res=>setTimeout(()=>res('__SCADUTO__'), 10000));
+  // v0.75.11 — alzato da 10 a 30 secondi. Il tetto vecchio era tarato su
+  // sonde che partivano tutte insieme: adesso passano sei alla volta (vedi
+  // _accodaSonda) e la stessa quantita' di lavoro richiede piu' tempo di
+  // orologio, pur pesando molto meno sulla rete. Lasciarlo a 10 avrebbe fatto
+  // scadere la verifica proprio nelle sessioni a cache fredda — cioe' avrebbe
+  // ricreato con le sue mani il difetto che questa versione va a togliere.
+  // Il tetto NON blocca il gioco: e' una rete di sicurezza, e le sonde che
+  // arrivano dopo continuano comunque a riempire il roster.
+  const ATTESA_MAX_MS = 30000;
+  const scaduto = new Promise(res=>setTimeout(()=>res('__SCADUTO__'), ATTESA_MAX_MS));
+  // v0.75.11 — e quando le ritardatarie arrivano, la Collezione si ridisegna.
+  // Prima il loro esito restava scritto nel roster ma non lo vedeva nessuno
+  // fino al render successivo: se eri fermo sulla Collezione, le carte
+  // restavano col segnaposto anche dopo che l'arte era stata trovata.
+  Promise.all(lavori).then(()=>{
+    try{
+      if(typeof _activePage !== 'undefined' && _activePage === 'collection'
+         && typeof cardDbRenderRoster === 'function') cardDbRenderRoster();
+    }catch(_){}
+  });
   return Promise.race([Promise.all(lavori), scaduto]).then(esito=>{
     if(esito==='__SCADUTO__'){
-      console.warn('[arte] verifica non conclusa entro 10s: le carte non ancora risolte useranno il segnaposto e resteranno mute');
+      console.warn('[arte] verifica non conclusa entro '+(ATTESA_MAX_MS/1000)+'s:'
+        + ' le carte non ancora risolte useranno il segnaposto finche\' non arrivano.');
       return;
     }
     const conArte = FINAL_CARDS.filter(e=>e.artLayersDark || e.artLayersLight).length;
