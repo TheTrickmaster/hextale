@@ -518,7 +518,25 @@ body.mouse-down{
      already makes the button tappable/clickable identically on touch and
      mouse once it's actually visible. */
 }
-.start-art-btn:hover{transform:scale(1.01);} /* "si ingrandiscono, ease 200ms, 1%" */
+/* v0.75.5 — al passaggio del mouse il pulsante si ILLUMINA invece di
+   ingrandirsi. Lo scale(1.01) c'era da sempre ("si ingrandiscono, ease 200ms,
+   1%") ma su un pulsante fatto di tappi e riempimenti PNG affiancati un
+   ingrandimento dell'1% cade a meta' pixel e lascia intravedere le
+   giunture fra un pezzo e l'altro; e con la promozione a livello di
+   composizione (vedi will-change piu' sotto) e' anche un ricampionamento in
+   piu' per niente.
+   `filter:brightness` non tocca la geometria: nessuna giuntura si muove,
+   nessun pixel viene ricampionato, e la risposta al mouse resta immediata.
+   La transizione NON si ridichiara qui: la regola base qui sopra ha gia'
+   `transition:transform .2s ease, filter .2s ease, opacity .5s ease`, quindi
+   il filter e' gia' animato con lo stesso ritmo di prima. Riscriverla qui
+   avrebbe sostituito l'intera lista, spegnendo la dissolvenza dell'opacita'
+   su cui si regge il fade-in di .start-fade (vedi il suo commento sopra). */
+.start-art-btn:hover{ filter:brightness(1.14); }
+.start-art-btn:active{ filter:brightness(1.02); }
+/* Un pulsante disattivato non risponde: non si illumina e non finge di
+   poterlo fare. */
+.start-art-btn[disabled]:hover, .start-art-btn.mm-inerte:hover{ filter:none; }
 .start-art-btn .sab-caps, .start-art-btn .sab-fill-l, .start-art-btn .sab-fill-r, .start-art-btn .sab-center, .start-art-btn .sab-noise{
   position:absolute; top:0; height:100%;
   pointer-events:none; user-select:none; z-index:0;
@@ -1880,6 +1898,30 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
 .hand-card-full-svg{
   position:absolute; inset:0; width:100%; height:100%;
   display:block; pointer-events:none; user-select:none;
+}
+/* ── v0.75.5 — LA CARTA IN MANO SI DISEGNA GRANDE IL DOPPIO ────────────────
+   IL PROBLEMA. Con `will-change:transform` la carta diventa un livello di
+   composizione: il browser la rasterizza UNA volta alla misura che ha, e da
+   li' in poi ricampiona quella immagine per ogni ingrandimento. In mano la
+   misura e' quella piccola del ventaglio, e la mano espansa la porta a
+   scale(1.5): si sta ingrandendo un'immagine gia' fissata, e si vede.
+   Non e' un problema dell'SVG in se' — un vettore si ridisegna a qualunque
+   scala — ma delle ILLUSTRAZIONI, che sono PNG, e del livello promosso, che
+   congela tutto insieme.
+   LA CURA. Si separa la risoluzione dalla dimensione. L'elemento viene reso
+   grande il doppio in pixel CSS (quindi rasterizzato al doppio) e poi
+   riportato alla misura giusta con una scala che RIMPICCIOLISCE. Da li',
+   allargarlo a 1.5x resta comunque un ingrandimento sotto la risoluzione
+   vera (0.5 x 1.5 = 0.75), cioe' non si tira mai piu' di quanto ci sia.
+   Percentuali e non pixel: la larghezza della carta e' una variabile
+   (--card-w) che cambia con la disposizione, e 200% la segue da sola.
+   transform-origin all'angolo alto-sinistro perche' il riquadro parte da li':
+   col centro, meta' carta finirebbe fuori posto. */
+.hand-card-wrap .carta-supercampionata{
+  width:calc(100% * var(--supercampione, 2));
+  height:calc(100% * var(--supercampione, 2));
+  transform:scale(calc(1 / var(--supercampione, 2)));
+  transform-origin:0 0;
 }
 /* v0.71.4 ("in quel momento tutti gli elementi della carta spariscono in
    fade, tranne drawhextile"): every non-hex layer of the full card lives in
@@ -3870,15 +3912,34 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
    che il wrap si porta uno scale(1.28) inline. Essendo il wrap l'elemento che
    viene ingrandito, ed essendo il wrap gia' in elenco, e' coperta.
    Mancavano invece davvero due superfici, e sono le due che si ingrandiscono
-   di piu': l'anteprima grande al passaggio del mouse e la carta trascinata. */
-body.prova-willchange .card-db-foil-tilt,
-body.prova-willchange .card-db-card-slot,
-body.prova-willchange .hand-card-wrap,
-body.prova-willchange #card-modal-card,
-body.prova-willchange .pack-card,
-body.prova-willchange #hand-hover-preview,
-body.prova-willchange #drag-ghost{
+   di piu': l'anteprima grande al passaggio del mouse e la carta trascinata.
+
+   v0.75.5 — E' DIVENTATO PERMANENTE, e l'interruttore si e' INVERTITO.
+   La prova ha risposto: con la promozione le carte si vedono nettamente
+   meglio, non peggio. Le due diagnosi del passato non erano sbagliate,
+   erano vere per il browser di allora — la rasterizzazione dei livelli
+   promossi e' migliorata parecchio nel frattempo. Ma restano scritte, e
+   questo commento serve a spiegare perche' oggi la conclusione e' opposta,
+   cosi' fra sei mesi nessuno lo toglie di nuovo citandole.
+   Il pulsante di debug adesso SPEGNE invece di accendere: il confronto
+   resta possibile, ma il gioco parte dallo stato buono. */
+.card-db-foil-tilt,
+.card-db-card-slot,
+.hand-card-wrap,
+#card-modal-card,
+.pack-card,
+#hand-hover-preview,
+#drag-ghost{
   will-change:transform;
+}
+body.prova-senza-willchange .card-db-foil-tilt,
+body.prova-senza-willchange .card-db-card-slot,
+body.prova-senza-willchange .hand-card-wrap,
+body.prova-senza-willchange #card-modal-card,
+body.prova-senza-willchange .pack-card,
+body.prova-senza-willchange #hand-hover-preview,
+body.prova-senza-willchange #drag-ghost{
+  will-change:auto;
 }
 /* I pannelli a tendina erano dimensionati sui 460px di prima; dentro una
    colonna da un terzo devono stare nella cella e non sbordare. */
@@ -6669,7 +6730,7 @@ body.prova-willchange #drag-ghost{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.4</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.5</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -6820,7 +6881,7 @@ body.prova-willchange #drag-ghost{
          L'etichetta dice cosa e' acceso: leggerlo dal pulsante evita di
          doversi ricordare in che stato si e' lasciato il gioco. -->
       <button class="start-art-btn sab-secondary" id="btn-prova-willchange" onclick="provaWillChange()">
-        <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label" id="prova-willchange-label">Blur test: will-change OFF</span>
+        <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label" id="prova-willchange-label">Blur test: will-change ON</span>
       </button></div><div class="debug-item"><!-- v0.71.58 REWORK ("raggruppiamo tutto sotto un unico pulsante: Mostra
          asset... apre un menu a tendina con listati tutti gli asset collegati
          ai pulsanti esistenti"): the 5 separate "show this specific
@@ -13614,10 +13675,14 @@ function debugShowTurnBannerLight(){
 // non un'impostazione, e ritrovarla accesa domani senza saperlo sarebbe il
 // modo migliore per dare la colpa della sfocatura a qualcos'altro.
 function provaWillChange(){
-  const acceso = document.body.classList.toggle('prova-willchange');
+  // v0.75.5 — invertito: la promozione ora e' l'impostazione normale, quindi
+  // questo pulsante la TOGLIE. Serve ancora, ed e' il motivo per cui non l'ho
+  // cancellato: e' l'unico modo di rifare il confronto se un domani un
+  // browser dovesse tornare a comportarsi come quelli di due anni fa.
+  const spento = document.body.classList.toggle('prova-senza-willchange');
   const et = document.getElementById('prova-willchange-label');
-  if(et) et.textContent = 'Blur test: will-change ' + (acceso ? 'ON' : 'OFF');
-  console.info('[prova sfocatura] will-change:transform sulle carte: ' + (acceso ? 'ACCESO' : 'spento'));
+  if(et) et.textContent = 'Blur test: will-change ' + (spento ? 'OFF' : 'ON');
+  console.info('[prova sfocatura] will-change:transform sulle carte: ' + (spento ? 'spento' : 'ACCESO'));
 }
 const DEBUG_ASSET_OPTIONS = [
   { label:'Game over — Dark wins',  run:()=>debugShowGameOver('dark') },
@@ -26616,6 +26681,14 @@ function renderHand(containerId,hand,playerIdx){
       if(cambia) anteprimaMano = { values: arrivo, deltas: scarti };
     }
     const cardSvg = buildFullHandCardSVG(cardFoilVisualCard(card), 210, 360, anteprimaMano);
+    // v0.75.5 — la carta in mano si rasterizza al doppio e viene poi
+    // rimpicciolita (vedi .carta-supercampionata nel CSS). Serve alla mano
+    // espansa, che la ingrandisce a 1.5x: senza, si allargherebbe
+    // un'immagine gia' fissata alla misura piccola del ventaglio.
+    // Il viewBox non cambia — un vettore e' un vettore — quindi qui non c'e'
+    // niente da ricalcolare: cambia solo quanti pixel veri il browser decide
+    // di dedicargli.
+    cardSvg.classList.add('carta-supercampionata');
     const cardFoilHost = cardFoilWrap(cardSvg);
     cardFoilHost.style.display = isCovered ? 'none' : '';
     flipWrap.appendChild(cardFoilHost);
