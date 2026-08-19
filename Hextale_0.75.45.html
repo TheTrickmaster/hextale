@@ -2526,6 +2526,22 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
     filter:drop-shadow(0 46px 30px rgba(0,0,0,0.18));
   }
 }
+/* v0.75.45 — LO STRASCICO (Rapunzel). La carta parte dallo scostamento
+   "dov'era" e torna a zero: e' l'unico verso che tiene il tabellone coerente
+   dal primo fotogramma (vedi trascinaCarta).
+   0.48s sta fra il salto (0.46) e l'atterraggio (0.52): appartiene alla stessa
+   famiglia di tempi, quindi non si nota come un movimento estraneo.
+   La curva parte decisa e si posa piano — e' uno strattone, non un rimbalzo:
+   con un ease-out puro sembrerebbe che la carta si stacchi da sola, con un
+   ease-in-out simmetrico sembrerebbe spinta invece che tirata. */
+.card-slide{
+  animation:cardSlide 0.48s cubic-bezier(.45,0,.25,1) both;
+  transform-box:fill-box;
+}
+@keyframes cardSlide{
+  from{ transform:translate(var(--strascico-x,0px), var(--strascico-y,0px)); }
+  to  { transform:translate(0,0); }
+}
 .card-jump{
   animation:cardJump 0.46s linear;
   transform-box:fill-box;
@@ -5852,7 +5868,7 @@ body.prova-senza-willchange #mm-book-rot{
      --foil-mx/my e' 32/24 e non 50/50: una luce esattamente al centro della
      carta non e' una luce, e' un alone. Messa in alto a sinistra sembra una
      finestra fuori campo, che e' cio' che il riflesso deve raccontare. */
-  opacity:1;
+  opacity:0;
   transition:opacity 0.28s ease-out;
   mix-blend-mode:overlay;
   background:radial-gradient(circle at calc(var(--foil-mx,32) * 1%) calc(var(--foil-my,24) * 1%),
@@ -5934,7 +5950,7 @@ body.prova-senza-willchange #mm-book-rot{
    il puntatore, i livelli che si sfalsano. Una lamina ferma e' comunque una
    lamina; una lamina che non si vede non e' niente. */
 .card-holo-layer{
-  opacity:var(--foil-strength,0.78);
+  opacity:0;
   filter:saturate(1.5);
   transition:opacity 0.28s ease-out, filter 0.28s ease-out;
   mix-blend-mode:overlay;
@@ -5948,11 +5964,11 @@ body.prova-senza-willchange #mm-book-rot{
 }
 .card-holo-layer[data-holo-variant="dark"]{
   mix-blend-mode:color-dodge;
-  opacity:var(--foil-strength-dark,0.30);
+  opacity:0;
   filter:none; /* su color-dodge gia' saturo spingerebbe i colori fuori scala */
 }
 [data-foil-variant="dark"] .card-db-foil-glare{
-  opacity:0.65;
+  opacity:0;
 }
 /* v0.72.30 FIX ("a volte vedo le carte estremamente blurrate/sgranate", sia
    in partita che in Collezione): qui c'era `will-change:transform`, che
@@ -6005,7 +6021,7 @@ body.prova-senza-willchange #mm-book-rot{
      visto che il rischio vero era l'opposto, cioe' non vederla. La banda
      resta dov'e' finche' non ci passi sopra il mouse, ed e' esattamente cio'
      che fa la luce su un oggetto fermo. */
-  opacity:var(--gloss-strength,1);
+  opacity:0;
   transition:opacity 0.28s ease-out;
 }
 [data-foil-active="1"] .card-db-gloss-layer{
@@ -6016,11 +6032,32 @@ body.prova-senza-willchange #mm-book-rot{
    stesso guadagno che sulla scura legge come riflesso lì tende al bruciato.
    1 -> 0.8, esattamente il 20% richiesto. */
 [data-foil-variant="light"] .card-db-gloss-layer{
-  opacity:var(--gloss-strength-light,0.8);
+  opacity:0;
 }
 [data-foil-active="1"] .card-db-foil-glare{
   transition:none;
 }
+/* ── v0.75.45 — GLI EFFETTI TORNANO A VEDERSI SOLO SOTTO IL PUNTATORE ──────
+   La v0.75.1 li aveva accesi anche a riposo e la v0.75.2 li aveva portati a
+   piena forza. Il ragionamento di allora — "una lamina che non si vede non e'
+   niente" — vale per UNA carta guardata da sola; a schermo pero' le carte sono
+   sempre molte, e con tutti i livelli accesi in permanenza la scena diventa
+   rumorosa e nessuna carta risalta piu' sulle altre. Accendendoli solo dove
+   passa il mouse, l'effetto torna a essere una risposta a un gesto — che e'
+   anche il solo momento in cui i livelli si MUOVONO, ed e' il movimento a
+   raccontare il materiale.
+   I valori di quando sono accesi sono gli stessi di prima, spostati qui: a
+   riposo ogni livello sta a zero. Le regole hanno una specificita' piu' alta
+   di quelle di riposo, comprese le varianti dark/light, che altrimenti si
+   riprenderebbero il proprio valore anche da ferme.
+   Il parallax non compare qui perche' non ha niente da spegnere: a riposo i
+   suoi livelli sono gia' sovrapposti, e a separarli e' solo il puntatore. */
+[data-foil-active="1"] .card-db-foil-glare{ opacity:1; }
+[data-foil-variant="dark"][data-foil-active="1"] .card-db-foil-glare{ opacity:0.65; }
+[data-foil-active="1"] .card-holo-layer{ opacity:var(--foil-strength,0.78); }
+[data-foil-active="1"] .card-holo-layer[data-holo-variant="dark"]{ opacity:var(--foil-strength-dark,0.30); }
+[data-foil-active="1"] .card-db-gloss-layer{ opacity:var(--gloss-strength,1); }
+[data-foil-variant="light"][data-foil-active="1"] .card-db-gloss-layer{ opacity:var(--gloss-strength-light,0.8); }
 /* v0.71.76 ("rendi le carte girate di dorso trasparenti al 50%"): every
    face-down placeholder (a card not yet drawn) renders at half opacity, so
    the collection visually reads as "drawn vs. still-missing" at a glance. */
@@ -7210,7 +7247,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.44</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.45</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -10756,60 +10793,52 @@ function _cardaDaRiga(col, get, haColonna){
   // che non sorprende nessuno.
   const sbloccoGrezzo=parseInt(getAlt(get,['Ability unlocked at level','Ability unlock level']),10);
   const abilityUnlockLevel=isFinite(sbloccoGrezzo)?Math.max(1,Math.min(4,sbloccoGrezzo)):1;
-  // ── v0.73.49 — IL LEGAME E' IL NOME, E SOLO IL NOME ──────────────────────
-  // Si legge SOLO la colonna "Ability name" e si confronta SOLO col `name`
-  // del registro. Non si guarda piu' nessuna colonna "Ability key", nessuna
-  // chiave tecnica scritta al posto del nome, nessun nome vecchio.
-  // Perche' e' meglio, pur essendo piu' fragile: le abilita' si scambiano fra
-  // personaggi. Scambiarle per NOME e' un'operazione che si legge — due celle
-  // che si scambiano di posto, e cio' che si legge nel foglio e' cio' che
-  // succede nel gioco. Scambiarle per chiave tecnica voleva dire tenere a
-  // mente due nomi per ogni abilita' e ricordarsi quale dei due comanda: piu'
-  // robusto sulla carta, ma nei fatti una fonte continua di confusione.
-  // Il prezzo, dichiarato: cambiare il nome di un'abilita' nel foglio senza
-  // cambiarlo anche qui nel registro la scollega. La carta non si rompe — si
-  // vede NO_SCRIPT in rosso sotto al nome e la console dice esattamente quali
-  // nomi sono accettati — ma va rimessa in pari a mano. E' voluto.
+  // ── v0.75.45 — IL LEGAME E' IL NOME DEL PERSONAGGIO ──────────────────────
+  // Prima era il nome dell'ABILITA' (v0.73.49). Il cambio ha una ragione sola,
+  // ed e' il numero di volte che quelle due celle vengono toccate: il nome di
+  // un'abilita' cambia spesso — si limano, si riscrivono, si spostano da una
+  // carta all'altra — mentre il nome di un personaggio, una volta scelto, non
+  // si tocca quasi mai. Agganciarsi alla cella che cambia significa scollegare
+  // l'abilita' ogni volta che la si rinomina, e succede in silenzio: la carta
+  // non si rompe, mostra NO_SCRIPT, e ci si accorge del guasto solo giocando.
+  // v0.75.44 e' costata proprio questo — "Braaaaaaaids" contro
+  // "Braaaaaaaaaaaids", quattro "a" di differenza invisibili a occhio.
+  // Adesso il nome dell'abilita' e la sua descrizione sono SOLO testo da
+  // mostrare: si possono riscrivere liberamente nel foglio senza toccare
+  // niente, ed e' il comportamento che ci si aspetta da una colonna di testo.
+  // Cio' che comanda e' il campo `carta` di ogni voce del registro.
+  //
+  // Il confronto passa da `norm`, quindi maiuscole, spazi e punteggiatura non
+  // contano: "Nottingham Sheriff", "nottingham sheriff" e "NottinghamSheriff"
+  // agganciano la stessa voce.
+  //
+  // COME SI SPEGNE UN'ABILITA' adesso: Trigger = "None", che e' la parola che
+  // il foglio usa gia' per dire "questa carta non ne ha". Svuotare "Ability
+  // name" non basta piu' — ed e' esattamente il punto, visto che quella cella
+  // deve poter essere modificata senza conseguenze.
+  const triggerGrezzo=(get('Trigger')||'').trim().toLowerCase();
+  const abilitaSpenta = triggerGrezzo === 'none';
   const abGrezza=(get('Ability name')||'').trim();
+  const nomePersonaggio=norm(nome);
   let abilita='';
-  if(abGrezza && abGrezza!=='/'){
-    const cercato=norm(abGrezza);
+  if(nomePersonaggio && !abilitaSpenta){
     let reg=null; try{ reg=TILE_ABILITIES_DEF; }catch(_){ reg=null; }
-    // v0.75.36 — UN NOME PUO' ESSERE FATTO DI SOLA PUNTEGGIATURA.
-    // L'abilita' della Little Mermaid si chiama "...", e `norm` cancella
-    // tutto cio' che non e' lettera o cifra: "..." si riduce a stringa vuota,
-    // e con lei "-", "!!!", "?". Confrontando le forme normalizzate sarebbero
-    // tutti LO STESSO nome, e la prima abilita' trovata se li prenderebbe
-    // tutti — una cella con un trattino avrebbe agganciato lo scarto della
-    // Sirenetta senza che nulla lo facesse sospettare.
-    // Quando la forma normalizzata e' vuota si confronta quindi la stringa
-    // cosi' com'e': "..." aggancia solo "...". Fuori da quel caso non cambia
-    // niente, e la normalizzazione continua a perdonare maiuscole, spazi e
-    // punteggiatura come ha sempre fatto.
-    const grezzoCercato = abGrezza.toLowerCase();
     if(reg){
       for(const k in reg){
-        const n = norm(reg[k].name);
-        const combacia = n
-          ? (n === cercato)
-          : (String(reg[k].name||'').trim().toLowerCase() === grezzoCercato);
-        if(combacia){ abilita=k; break; }
+        if(reg[k].carta && norm(reg[k].carta) === nomePersonaggio){ abilita=k; break; }
       }
     }
-    // Nessuna corrispondenza: si tiene comunque una chiave segnaposto ricavata
-    // dal nome. NON e' un secondo modo di agganciarsi — nel registro non
-    // esiste e nessun effetto verra' mai eseguito. Serve solo a far arrivare
-    // la carta al controllo piu' sotto, che e' quello che la marca NO_SCRIPT e
-    // scrive in console i nomi giusti. Senza, una carta con un nome sbagliato
-    // uscirebbe muta, senza abilita' e senza che nessuno lo dica.
-    // Il punto esclamativo davanti non e' un vezzo. Senza, il segnaposto
-    // ricavato da "Magic Mirror" sarebbe stato `magic_mirror` — che nel
-    // registro ESISTE: il nome vecchio avrebbe continuato ad agganciare
-    // l'abilita' per la porta di servizio, e quel legame che dovevo togliere
-    // sarebbe rimasto vivo senza che si vedesse da nessuna parte. Un carattere
-    // che nessuna chiave puo' contenere rende la collisione impossibile per
-    // costruzione invece che per fortuna.
-    if(!abilita) abilita='!'+abGrezza.toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'');
+    // Nessuna voce per questo personaggio. Se il foglio dichiara comunque
+    // un'abilita' — un nome, o anche solo una descrizione — si tiene una chiave
+    // segnaposto: non aggancia niente (nel registro non esiste) e serve solo a
+    // far arrivare la carta al controllo piu' sotto, quello che la marca
+    // NO_SCRIPT. Senza, una carta con un'abilita' scritta ma non programmata
+    // uscirebbe muta, senza che nessuno lo dica.
+    // Il punto esclamativo davanti rende impossibile che un segnaposto
+    // coincida per caso con una chiave vera del registro.
+    if(!abilita && (abGrezza && abGrezza!=='/')){
+      abilita='!'+nomePersonaggio;
+    }
   }
   // Il drop rate accetta sia "3" sia "3%" sia "3,5", perche' in un foglio
   // compilato a mano compaiono tutte e tre.
@@ -11095,14 +11124,26 @@ function _applicaRigheFoglio(righe){
       // l'unico legame (vedi il commento in _cardaDaRiga). L'avviso elenca
       // quindi i nomi esatti che il registro conosce: incollarne uno nella
       // cella "Ability name" e' tutto quello che serve.
-      const accettati = Object.keys(registro).map(k=>registro[k].name);
-      console.warn('[carte] "'+c.name+'" dichiara l\'abilita\' "'+(c.abilityNameSheet||c.cardAbility)
-        + '", che non corrisponde a nessuna abilita\' programmata: la carta non ne avra\' nessuna.'
-        + '\n\nRIMEDIO: nella colonna "Ability name" del foglio deve esserci ESATTAMENTE uno'
-        + '\ndi questi nomi (maiuscole, spazi e punteggiatura non contano):\n  '
-        + accettati.join('\n  ')
-        + '\n\nSe invece l\'abilita\' e\' stata rinominata di proposito, il nome va cambiato'
-        + '\nanche nel registro TILE_ABILITIES_DEF, nel codice.');
+      // v0.75.45 — l'avviso segue il legame nuovo: non serve piu' elencare i
+      // nomi delle abilita' accettate, perche' non e' piu' quella cella a
+      // decidere. Serve dire che PER QUESTO PERSONAGGIO non c'e' codice, e
+      // mostrare i personaggi che ce l'hanno — cosi' un refuso nel nome della
+      // carta (l'unico modo rimasto di scollegare un'abilita' per sbaglio) si
+      // vede subito confrontando le due liste.
+      const accettati = Object.keys(registro)
+        .map(k => registro[k].carta)
+        .filter(Boolean)
+        .sort();
+      console.warn('[carte] "'+c.name+'" dichiara l\'abilita\' "'+(c.abilityNameSheet||'(senza nome)')
+        + '", ma per questo PERSONAGGIO non c\'e\' nessuna abilita\' programmata:'
+        + '\nla carta non ne avra\' nessuna.'
+        + '\n\nDalla v0.75.45 il legame fra foglio e codice e\' il NOME DEL PERSONAGGIO,'
+        + '\nnon piu\' il nome dell\'abilita\' (che ora e\' solo testo da mostrare e si puo\''
+        + '\nriscrivere liberamente).'
+        + '\n\nRIMEDIO: o il nome nella colonna "Name" non combacia con nessuno di questi'
+        + '\n(maiuscole, spazi e punteggiatura non contano), oppure l\'abilita\' e\' ancora'
+        + '\nda programmare:\n  '
+        + accettati.join('\n  '));
     }
   }
   FINAL_CARDS.length=0;
@@ -17347,7 +17388,7 @@ const TILE_ABILITIES_DEF = {
   // v0.73.5 — riscritta: Robin non trattiene piu' niente per se'. Ruba 1 al
   // gruppo di ogni nemico che tocca e consegna tutto il bottino all'alleato in
   // campo che ne ha piu' bisogno (vedi activateEatTheRich).
-  eat_the_rich:      { name:'Eat the Rich',       desc:"*Steals* 1 Power from every adjacent enemy and gives it to an ally in need." },
+  eat_the_rich:      { carta:'Robin Hood', name:'Eat the Rich',       desc:"*Steals* 1 Power from every adjacent enemy and gives it to an ally in need." },
   // Snow White, "Hooray! She stays!": a live SYNERGY (not an on-play
   // trigger like Robin Hood above) — see activateSnowWhiteSynergy for the
   // actual mechanic. Registered here purely for the quote-box name/desc
@@ -17356,7 +17397,7 @@ const TILE_ABILITIES_DEF = {
   // re-dictation ("Synergy: +1 power on all sides for every small card on
   // the board and in your hand.") — left in English verbatim per the
   // standing rule that user-dictated ability text is never auto-translated.
-  smol_friends:  { name:'Smol Friends', desc:'+1 Power ALL for every /Small/ character on the board.' },
+  smol_friends:  { carta:'Snow White', name:'Smol Friends', desc:'+1 Power ALL for every /Small/ character on the board.' },
   // Merlin, display name "A Kind of Magic" (v0.72.0 rename — internal key
   // stays a_kind_of_magic, unchanged everywhere else in the file, since it's
   // never shown to the player): no value mutation at all (unlike every
@@ -17365,7 +17406,7 @@ const TILE_ABILITIES_DEF = {
   // getAttackValueForSide, used by both resolveConquestAndEndTurn and the
   // AI's aiEvaluateConquests). Registered here purely for the quote-box
   // name/desc lookup, same as eat_the_rich/smol_friends above.
-  a_kind_of_magic:       { name:'A Kind of Magic',    desc:"Always attacks with its highest Power value, regardless its position." },
+  a_kind_of_magic:       { carta:'Merlin', name:'A Kind of Magic',    desc:"Always attacks with its highest Power value, regardless its position." },
   // v0.73.5 — non e' piu' una scelta al piazzamento: finche' la carta resta in
   // mano, a ogni turno del suo proprietario i valori le girano intorno di una
   // posizione in senso orario (vedi ruotaValoriInMano).
@@ -17374,7 +17415,7 @@ const TILE_ABILITIES_DEF = {
   // "Different Reality" (v0.73.50). Adesso il Cheshire ha la sua, che e' una
   // cosa diversa (vedi `different_reality` qui sotto), e questa torna a
   // chiamarsi come si e' sempre chiamata.
-  eat_me_drink_me:   { name:'Eat me, Drink me',   desc:'*Rotates* its power clockwise each turn while in hand.' },
+  eat_me_drink_me:   { carta:'Alice', name:'Eat me, Drink me',   desc:'*Rotates* its power clockwise each turn while in hand.' },
   // v0.73.52 — CHESHIRE CAT. Parente stretta di "Eat me, Drink me", ma di
   // scena opposta: quella agisce sulla carta che ASPETTA in mano, questa sulla
   // carta che e' gia' IN CAMPO. A ogni turno del suo proprietario i valori
@@ -17387,7 +17428,7 @@ const TILE_ABILITIES_DEF = {
   // legge il registro deve poter vedere che sono due carte con due tempi
   // diversi, e chi domani cambiera' una delle due non deve rischiare di
   // toccare l'altra.
-  different_reality: { name:'Different Reality', desc:'*Moves* and *rotates* its power clockwise each turn while on the board.' },
+  different_reality: { carta:'Cheshire Cat', name:'Different Reality', desc:'*Moves* and *rotates* its power clockwise each turn while on the board.' },
   // v0.75.36 — LITTLE MERMAID. La prima abilita' che chiede qualcosa alla
   // MANO invece che al tabellone: giocandola, il suo proprietario deve
   // scartare una carta. E' un costo, non un vantaggio — la Sirenetta ha valori
@@ -17403,7 +17444,7 @@ const TILE_ABILITIES_DEF = {
   // (open_celery, different_reality): tre puntini non si traducono in un
   // identificatore. Dice quindi CHI e COSA, che e' il massimo di leggibilita'
   // che qui si puo' avere.
-  mermaid_discard: { name:'...', desc:'When *Played*, *Discard* a card of your choice.' },
+  mermaid_discard: { carta:'Little Mermaid', name:'...', desc:'When *Played*, *Discard* a card of your choice.' },
   // v0.75.39 — MORDRED. Giocato accanto a un /Sovereign/ o a un /Noble/, puo'
   // sceglierne uno e distruggerlo: la carta esce dal tabellone e la casella
   // torna libera. E' la prima abilita' che TOGLIE una carta dal tavolo — le
@@ -17412,13 +17453,13 @@ const TILE_ABILITIES_DEF = {
   // "Puoi scegliere": rinunciare e' lecito, e il tempo scaduto vale come
   // rinuncia. A differenza dello scarto della Sirenetta questo e' un premio,
   // non un costo, e nessuno va costretto a incassarlo.
-  kingslayer: { name:'Kingslayer', desc:'When *Played*, can *Destroy* an adjacent /Sovereign/ or /Noble/.' },
+  kingslayer: { carta:'Mordred', name:'Kingslayer', desc:'When *Played*, can *Destroy* an adjacent /Sovereign/ or /Noble/.' },
   // v0.75.40 — NOTTINGHAM SHERIFF. Parente stretta di "Spitting Image", e la
   // differenza sta in una parola: lo specchio COPIA, lo sceriffo RUBA. Dopo il
   // suo passaggio il derubato non ha piu' l'abilita' — e' quello che rende
   // questa carta un furto e non un'imitazione, ed e' l'unico punto del gioco in
   // cui una carta gia' in campo PERDE cio' che sa fare.
-  new_tax: { name:'New Tax', desc:'When *Played*, *Steals* the ability of an adjacent card.' },
+  new_tax: { carta:'Nottingham Sheriff', name:'New Tax', desc:'When *Played*, *Steals* the ability of an adjacent card.' },
   // v0.75.43 — RAPUNZEL. La treccia arriva lontano ma in linea retta, e solo
   // se la strada e' sgombra: tira a se' una carta non adiacente lungo una delle
   // sei direzioni, purche' fra le due non ci siano ne' carte ne' tasselli
@@ -17429,38 +17470,38 @@ const TILE_ABILITIES_DEF = {
   // "Braaaaaaaaaaaids" sono due nomi diversi e la carta finisce NO_SCRIPT senza
   // che si veda perche' — a occhio i due nomi sono identici. E' successo:
   // v0.75.43 ne aveva undici.
-  braids: { name:'Braaaaaaaids', desc:'When *Played*, can *Pull* any non-adjacent character along a straight line.' },
+  braids: { carta:'Rapunzel', name:'Braaaaaaaids', desc:'When *Played*, can *Pull* any non-adjacent character along a straight line.' },
   // v0.73.5 — Hatter. Non fa niente finche' resta suo; se lo conquista
   // l'avversario impazzisce (vedi impazzisciSeConquistato).
-  have_i_gone_mad:   { name:'Have I Gone Mad?',   desc:'On conquer: goes mad, its power becomes a random value (1-3).' },
+  have_i_gone_mad:   { carta:'Mad Hatter', name:'Have I Gone Mad?',   desc:'On conquer: goes mad, its power becomes a random value (1-3).' },
   // v0.73.5 — Morgana. Al piazzamento, meta' delle volte annulla l'ultima
   // conquista avversaria (vedi attivaSmokeAndMirrors).
-  smoke_and_mirrors: { name:'Smoke and Mirrors',  desc:"Chance of *canceling* the last opponent's conquest." },
+  smoke_and_mirrors: { carta:'Morgana', name:'Smoke and Mirrors',  desc:"Chance of *canceling* the last opponent's conquest." },
   // v0.73.5 — Regina di Cuori. Non tocca niente in campo: mette una taglia
   // sulla prossima pescata di chi la gioca (vedi G.bonusProssimaPescata).
-  off_with_the_head: { name:'Off With the Head!',  desc:'The next card you *draw* earns +2 ALL.' },
+  off_with_the_head: { carta:'Queen of Hearts', name:'Off With the Head!',  desc:'The next card you *draw* earns +2 ALL.' },
   // v0.73.11 — Magic Mirror. L'unica abilita' che ferma il turno per chiedere
   // qualcosa al giocatore: vedi SCELTE_PIAZZAMENTO e bersagliMagicMirror.
   // v0.73.50 — "Spitting Image", che e' quello che c'e' scritto nel foglio.
   // Era "Spitted Image" e la carta risultava scollegata: finche' un elenco di
   // nomi vecchi teneva insieme i pezzi non si vedeva, adesso si.
-  magic_mirror:      { name:'Spitting Image',      desc:'*Copies* a selected adjacent character ability.' },
+  magic_mirror:      { carta:'Magic Mirror', name:'Spitting Image',      desc:'*Copies* a selected adjacent character ability.' },
   // v0.73.21 — The Caterpillar. Mescola i propri gruppi e si nasconde nel fumo
   // finche' l'avversario non le mette una carta accanto (vedi
   // attivaExaketededly e diradaFumoIntorno).
-  exaketededly:      { name:'Exaketededly',        desc:'Power *changes* and hides in smoke until an enemy card is adjacent.' },
+  exaketededly:      { carta:'The Caterpillar', name:'Exaketededly',        desc:'Power *changes* and hides in smoke until an enemy card is adjacent.' },
   // v0.73.63 — King Arthur. Ferma il turno e chiede DOVE mettere Excalibur:
   // vedi SCELTE_PIAZZAMENTO ed evocaExcalibur.
-  excalibur:         { name:'Excalibur!',         desc:'*Summons* Excalibur on the board.' },
+  excalibur:         { carta:'King Arthur', name:'Excalibur!',         desc:'*Summons* Excalibur on the board.' },
   // v0.73.63 — Excalibur. Non fa niente: SUBISCE di meno. E' un'abilita' che
   // vive interamente nei controlli degli altri (vedi cartaIntoccabile), non in
   // un effetto proprio — e' il primo caso del genere nel gioco.
-  immovable:         { name:'Immovable',          desc:'Cannot be *Conquered*, *Moved*, or *Destroyed*.' },
+  immovable:         { carta:'Excalibur', name:'Immovable',          desc:'Cannot be *Conquered*, *Moved*, or *Destroyed*.' },
   // v0.73.67 — 12 Dancing Princesses. Non cambia niente al piazzamento: dopo
   // aver conquistato una carta, ferma il turno e chiede su quale casella
   // libera adiacente spostare SE STESSA — a ballare via dallo scontro (vedi
   // SCELTE_DOPO_CONQUISTA).
-  dancing_around:    { name:'Dancing Around',      desc:'On conquer: *moves* itself to an adjacent empty tile.' },
+  dancing_around:    { carta:'12 Dancing Princesses', name:'Dancing Around',      desc:'On conquer: *moves* itself to an adjacent empty tile.' },
   // v0.73.69 — Baba Yaga. Non fa niente finche' resta sua; se la conquistano,
   // si vendica: -1 a OGNI gruppo dell'attaccante per ogni punto di differenza
   // di potere sul lato toccato (vedi applicaHexSeConquistata).
@@ -17470,48 +17511,48 @@ const TILE_ABILITIES_DEF = {
   // punteggiatura ma NON toglie parole: 'hexpunintended' e 'hex' sono due nomi
   // diversi. Quando un'abilita' nuova non fa niente, questa e' la prima cosa
   // da guardare: il nome qui e quello nel foglio devono coincidere.
-  hex:               { name:'Hex',                  desc:'When *Conquered*, *Inflicts* -1 ALL per Power difference with the attacker.' },
+  hex:               { carta:'Baba Yaga', name:'Hex',                  desc:'When *Conquered*, *Inflicts* -1 ALL per Power difference with the attacker.' },
   // v0.73.74 — Pixies. Sinergia viva, parente stretta di Smol Friends: +3 a un
   // gruppo valori sorteggiato per ogni ALTRO Trickster in campo (v0.73.75: se
   // stessa non si conta), ricalcolata a ogni disegno sia in mano sia sul
   // tabellone (vedi recalcMischief).
-  mischief:          { name:'Mischief',              desc:'+3 Power RAND for every other /Trickster/ character on the board.' },
+  mischief:          { carta:'Pixies', name:'Mischief',              desc:'+3 Power RAND for every other /Trickster/ character on the board.' },
   // v0.73.78 — Strigoi. Non guarda il tabellone: guarda l'orologio della
   // partita. Dall'ottavo turno vale +2 ovunque e cambia illustrazione, anche
   // restando in mano (vedi recalcNightmare).
-  nightmare:         { name:'Nightmare',             desc:'Becomes stronger at night (+2 ALL from turn 8).' },
+  nightmare:         { carta:'Strigoi', name:'Nightmare',             desc:'Becomes stronger at night (+2 ALL from turn 8).' },
   // v0.73.83 — Aladdin. Al piazzamento alza il proprio gruppo piu' alto: +1,
   // oppure +3 se in campo c'e' una Principessa (vedi attivaSleightOfHand).
-  sleight_of_hand:   { name:'Sleight of Hand',       desc:'*Gains* +1 on the highest Power, +3 if a /Princess/ character is present on the board.' },
+  sleight_of_hand:   { carta:'Aladdin', name:'Sleight of Hand',       desc:'*Gains* +1 on the highest Power, +3 if a /Princess/ character is present on the board.' },
   // v0.73.89 — Ali Baba. Ferma il turno e lascia SPOSTARE un tassello bloccato
   // trascinandolo su una casella adiacente: vedi SCELTE_PIAZZAMENTO.open_celery
   // e il blocco del trascinamento in renderBoard.
-  open_celery:       { name:'Open, Celery!',         desc:'*Move* a blocked tile to an adjacent free space.' },
+  open_celery:       { carta:'Ali Baba', name:'Open, Celery!',         desc:'*Move* a blocked tile to an adjacent free space.' },
   // v0.73.97 — Baloo. Non guadagna niente lui: regala +1 ALL agli alleati
   // /Wild/ che gli stanno accanto, finche' gli stanno accanto (vedi
   // recalcBearNecessities).
-  bear_necessities:  { name:'Bear Necessities',      desc:'Adjacent /Wild/ allies *Gain* +1 ALL.' },
+  bear_necessities:  { carta:'Baloo', name:'Bear Necessities',      desc:'Adjacent /Wild/ allies *Gain* +1 ALL.' },
   // v0.73.98 — Captain Hook. Chi arriva nei primi due turni arriva forte.
-  tic_toc:           { name:'Tic Toc',               desc:'If *played* in the first two turns, +2 ALL.' },
+  tic_toc:           { carta:'Captain Hook', name:'Tic Toc',               desc:'If *played* in the first two turns, +2 ALL.' },
   // v0.73.98 — Big Bad Wolf. Dopo una conquista si sazia di tanti +1 quanta
   // e' stata la differenza di potere (vedi attivaHungerBites).
-  hunger_bites:      { name:'Hunger Bites',          desc:'*Gains* +1 RAND for each Power difference with the conquered card.' },
+  hunger_bites:      { carta:'Big Bad Wolf', name:'Hunger Bites',          desc:'*Gains* +1 RAND for each Power difference with the conquered card.' },
   // v0.73.98 — Cowardly Lion. Entrando in campo si spaventa da solo.
-  scaredy_cat:       { name:'Scaredy cat',           desc:'When played, *Afflicts* -1 RAND to itself.' },
+  scaredy_cat:       { carta:'Cowardly Lion', name:'Scaredy cat',           desc:'When played, *Afflicts* -1 RAND to itself.' },
   // v0.74.0 — Cenerentola. Se la Fata Madrina e' in campo, giocandola diventa
   // The Crystal Princess (vedi attivaBellOfTheBall).
-  bell_of_the_ball:  { name:'Bell of the Ball',      desc:'If The Fairy Godmother is on the board, *Transforms* into The Crystal Princess.' },
+  bell_of_the_ball:  { carta:'Cinderella', name:'Bell of the Ball',      desc:'If The Fairy Godmother is on the board, *Transforms* into The Crystal Princess.' },
   // v0.74.0 — The Crystal Princess. Il gruppo protetto porta uno scudo al
   // posto del numero e non si puo' conquistare (vedi latiProtettiDi).
   // v0.74.3 — la corona e' passata dal valore piu' basso al piu' alto.
-  crowned:           { name:'Crowned',               desc:'Highest Power value cannot be *Conquered*.' },
+  crowned:           { carta:'The Crystal Princess', name:'Crowned',               desc:'Highest Power value cannot be *Conquered*.' },
   // v0.75.41 — PINOCCHIO. Parente della corona qui sopra: un gruppo di valori
   // che non si puo' conquistare e che al posto del numero mostra uno scudo.
   // La differenza e' che il suo non e' dedotto dai valori ma SORTEGGIATO, e
   // cambia posto alla fine di ogni turno — quindi il fianco scoperto di
   // Pinocchio non e' mai lo stesso due volte di fila, e chi lo attacca non puo'
   // preparare il colpo con un turno di anticipo.
-  true_story:        { name:'True Story',            desc:'At the *End of Turn*, a random Power group becomes *Invulnerable*.' },
+  true_story:        { carta:'Pinocchio', name:'True Story',            desc:'At the *End of Turn*, a random Power group becomes *Invulnerable*.' },
 };
 // ── v0.73.49 — QUESTI `name` SONO IL LEGAME COL FOGLIO ─────────────────────
 // Il gioco aggancia l'abilita' di un personaggio confrontando la cella
@@ -20167,7 +20208,10 @@ const SCELTE_PIAZZAMENTO = {
       applicaEAspetta: (cella, poi) => {
         const a = dove[cella];
         if(!a){ poi(); return; }
-        spostaCartaConSalto(cella, a, poi);
+        // v0.75.45 — trascinata, non saltata: la treccia TIRA, e una carta
+        // tirata resta attaccata al tavolo. Il salto racconta una carta che si
+        // sposta da sola (il Cheshire), che e' un'altra storia.
+        trascinaCarta(cella, a, poi);
       },
       rinuncia: () => {},
     };
@@ -30826,6 +30870,80 @@ function cardJumpApplyTo(el){
   el.style.animationDelay = (-passato).toFixed(0)+'ms';
   el.classList.add('card-jump');
 }
+// ── v0.75.45 — LO STRASCICO (Rapunzel) ─────────────────────────────────────
+// La treccia TIRA: la carta non salta fuori campo e non ricade, scivola sul
+// tabellone da dove stava fino a dove viene portata. Il salto racconta una
+// carta che si sposta da sola (il Cheshire che sparisce e riappare); qui a
+// muoverla e' qualcun altro, e il movimento deve restare attaccato al tavolo.
+//
+// Costruito come il salto e l'atterraggio, e per la stessa ragione: lo stato
+// vive FUORI dal DOM, cosi' una ricostruzione del tabellone a meta' corsa non
+// lo interrompe, e il ritardo negativo rimette l'animazione esattamente dov'era.
+//
+// Il verso e' quello che sembra sbagliato ed e' l'unico giusto: la carta viene
+// messa SUBITO nella casella d'arrivo, e l'animazione la fa partire da uno
+// scostamento pari a "dov'era prima" per tornare a zero. Cosi' il tabellone e'
+// gia' coerente dal primo fotogramma — chiunque lo legga nel frattempo trova la
+// carta al suo posto nuovo — e a muoversi e' solo il disegno.
+const CARD_SLIDE_MS = 480;  // deve combaciare con la durata di .card-slide
+let _cardSlide = null;      // {k, t0, dx, dy}
+function cardSlideApplyTo(el){
+  if(!el || !_cardSlide) return;
+  const passato = performance.now() - _cardSlide.t0;
+  if(passato >= CARD_SLIDE_MS){ _cardSlide = null; return; }
+  // Stessa trappola del salto: in SVG comanda l'ordine nel documento, e la
+  // carta trascinata deve passare sopra a quelle che attraversa. Va spostata
+  // la CELLA intera, non la carta dentro la cella.
+  const radice = el.ownerSVGElement || document.getElementById('board-svg');
+  let cella = el;
+  while(cella.parentNode && cella.parentNode !== radice) cella = cella.parentNode;
+  if(cella.parentNode === radice) radice.appendChild(cella);
+  el.style.setProperty('--strascico-x', _cardSlide.dx.toFixed(1)+'px');
+  el.style.setProperty('--strascico-y', _cardSlide.dy.toFixed(1)+'px');
+  el.classList.remove('card-slide');
+  void el.getBoundingClientRect(); // forza il reflow prima di riavviare
+  el.style.animationDelay = (-passato).toFixed(0)+'ms';
+  el.classList.add('card-slide');
+}
+function cardSlideReattach(){
+  if(!_cardSlide) return;
+  if(performance.now() - _cardSlide.t0 >= CARD_SLIDE_MS){ _cardSlide = null; return; }
+  const bsvg=document.getElementById('board-svg');
+  const el=bsvg && bsvg.querySelector(`[data-conquered="${_cardSlide.k}"]`);
+  if(el) cardSlideApplyTo(el);
+}
+// Il centro di un pezzo del tabellone in unita' del disegno. getBBox le
+// restituisce gia' cosi', ed e' il motivo per cui non serve nessuna conversione:
+// sono le stesse unita' in cui una translate CSS sposta un elemento SVG.
+function _centroDisegnato(el){
+  try{ const b = el.getBBox(); return { x: b.x + b.width/2, y: b.y + b.height/2 }; }
+  catch(_){ return null; }
+}
+function trascinaCarta(daCella, aCella, poi){
+  const finito=()=>{ if(typeof poi==='function') poi(); };
+  if(G.holes.has(aCella)){ finito(); return; }
+  if(G.board[aCella]){ finito(); return; }   // occupata nel frattempo
+  const contenuto = G.board[daCella];
+  if(!contenuto){ finito(); return; }        // sparita nel frattempo
+  // Le due posizioni si misurano PRIMA di toccare G.board: dopo, la carta di
+  // partenza non e' piu' li' da misurare.
+  const bsvg = document.getElementById('board-svg');
+  const elDa = bsvg && bsvg.querySelector(`[data-conquered="${daCella}"]`);
+  const elA  = bsvg && bsvg.querySelector('[data-tile-wrap="'+aCella+'h"]');
+  const pDa = elDa && _centroDisegnato(elDa);
+  const pA  = elA  && _centroDisegnato(elA);
+  delete G.board[daCella];
+  G.board[aCella] = contenuto;
+  // Senza le due misure si sposta e basta: un'animazione mancante e' molto
+  // meglio di una carta che parte da un punto a caso.
+  if(pDa && pA) _cardSlide = { k: aCella, t0: performance.now(), dx: pDa.x - pA.x, dy: pDa.y - pA.y };
+  renderBoard();
+  setTimeout(()=>{
+    _cardSlide = null;
+    renderBoard();   // toglie la classe, che altrimenti resterebbe addosso
+    finito();
+  }, CARD_SLIDE_MS);
+}
 function cardJumpReattach(){
   if(!_cardJump) return;
   if(performance.now() - _cardJump.t0 >= CARD_JUMP_MS){ _cardJump = null; return; }
@@ -31613,6 +31731,7 @@ function renderBoard(){
   // sopra ai tasselli e gli overlay restano sopra a tutto.
   cardLandReattach();
   cardJumpReattach(); // v0.73.52 — stessa ragione, e stesso posto: vedi sopra
+  cardSlideReattach(); // v0.75.45 — e lo strascico di Rapunzel, idem
   fumoReattach();
   // v0.73.74 — i lampi di Mischief si accendono a disegno FINITO: prima gli
   // elementi da illuminare non esistono ancora (l'SVG viene ricostruito da
