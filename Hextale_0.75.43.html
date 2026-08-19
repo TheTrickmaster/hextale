@@ -7210,7 +7210,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.42</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.43</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -17419,6 +17419,12 @@ const TILE_ABILITIES_DEF = {
   // questa carta un furto e non un'imitazione, ed e' l'unico punto del gioco in
   // cui una carta gia' in campo PERDE cio' che sa fare.
   new_tax: { name:'New Tax', desc:'When *Played*, *Steals* the ability of an adjacent card.' },
+  // v0.75.43 — RAPUNZEL. La treccia arriva lontano ma in linea retta, e solo
+  // se la strada e' sgombra: tira a se' una carta non adiacente lungo una delle
+  // sei direzioni, purche' fra le due non ci siano ne' carte ne' tasselli
+  // bloccati. La carta tirata si ferma nella casella accanto a Rapunzel, che e'
+  // per forza vuota — se non lo fosse, la traiettoria non sarebbe libera.
+  braids: { name:'Braaaaaaaaaaaids', desc:'When *Played*, can *Pull* a non-adjacent character in a clear straight line.' },
   // v0.73.5 — Hatter. Non fa niente finche' resta suo; se lo conquista
   // l'avversario impazzisce (vedi impazzisciSeConquistato).
   have_i_gone_mad:   { name:'Have I Gone Mad?',   desc:'On conquer: goes mad, its power becomes a random value (1-3).' },
@@ -20131,6 +20137,36 @@ const SCELTE_PIAZZAMENTO = {
     };
     return stato;
   },
+  // ── v0.75.43 — RAPUNZEL, "Braaaaaaaaaaaids" ─────────────────────────────
+  // Si tirano sia le carte nemiche sia le proprie: la treccia non chiede a chi
+  // appartiene quello che afferra.
+  // E' la prima scelta che si fa ASPETTARE: la carta tirata arriva con un
+  // salto, e lo scontro deve guardare il tabellone a salto finito (vedi
+  // applicaEAspetta in chiudiSceltaBersaglio). Prima si usa l'abilita', poi si
+  // controlla la conquista — quindi la carta appena tirata puo' essere
+  // conquistata da Rapunzel nello stesso turno.
+  braids: (card, q, r, giocatore) => {
+    const tirate = tirateRapunzel(q, r);
+    if(!tirate.length) return null; // niente in vista: nessuna pausa
+    // Dove va ciascun bersaglio si decide ADESSO e si tiene qui, non si
+    // ricalcola al momento del tiro: fra l'apertura della finestra e la scelta
+    // il tabellone non cambia, ma ricalcolare vorrebbe dire avere due volte la
+    // stessa regola e sperare che continuino a dire la stessa cosa.
+    const dove = {};
+    for(const t of tirate) dove[t.bersaglio] = t.destinazione;
+    return {
+      chiave: 'braids',
+      giocatore,
+      cellaOrigine: key(q,r),
+      bersagli: tirate.map(t => t.bersaglio),
+      applicaEAspetta: (cella, poi) => {
+        const a = dove[cella];
+        if(!a){ poi(); return; }
+        spostaCartaConSalto(cella, a, poi);
+      },
+      rinuncia: () => {},
+    };
+  },
   // ── v0.75.40 — NOTTINGHAM SHERIFF, "New Tax" ────────────────────────────
   // Stessa finestra dello specchio, stesso mirino, stessa X per rinunciare.
   // Cambia cosa succede scegliendo: l'abilita' passa di mano invece di essere
@@ -20225,6 +20261,44 @@ const SCELTE_PIAZZAMENTO = {
     };
   }
 };
+
+// ── v0.75.43 — LA TRECCIA DI RAPUNZEL ─────────────────────────────────────
+// Arriva lontano ma in LINEA RETTA, e solo se la strada e' sgombra.
+// Si cammina lungo ognuna delle sei direzioni, una casella alla volta:
+//   - fuori dal tabellone o tassello bloccato: la treccia si ferma li';
+//   - casella vuota: la treccia passa;
+//   - una carta: la treccia si ferma comunque, perche' non attraversa nessuno.
+//     Se e' a due o piu' caselle di distanza e' un bersaglio; se e' a una sola
+//     e' gia' adiacente, e Rapunzel non tira a se' chi ha gia' accanto.
+// Quest'ultima riga e' il punto della funzione: la stessa carta ferma la
+// treccia sia che venga tirata sia che no, quindi "prima carta incontrata" e
+// "bersaglio" non sono la stessa cosa e vanno tenute distinte.
+//
+// La DESTINAZIONE non si sceglie: e' la casella a una di distanza in quella
+// direzione. Non serve controllare che sia libera — se non lo fosse, la treccia
+// si sarebbe fermata li' e non ci sarebbe nessun bersaglio da tirare. E' la
+// stessa regola che fa da traiettoria a fare da destinazione, e per questo non
+// possono contraddirsi.
+const RAPUNZEL_PORTATA_MAX = 12; // piu' larga di qualunque tabellone: e' solo una rete
+function tirateRapunzel(q, r){
+  const tirate = [];
+  for(const dir of DIRS){
+    for(let k = 1; k <= RAPUNZEL_PORTATA_MAX; k++){
+      const nq = q + dir.dq*k, nr = r + dir.dr*k;
+      const nk = key(nq, nr);
+      if(!G.cells.some(c => c.q === nq && c.r === nr)) break; // fuori dal tabellone
+      if(G.holes.has(nk)) break;                              // un tassello bloccato la ferma
+      const posto = G.board[nk];
+      if(!posto || !posto.card) continue;                     // vuota: la treccia passa
+      // Excalibur non si tira: "Cannot be Conquered, Moved, or Destroyed".
+      if(k >= 2 && !cartaIntoccabile(posto.card)){
+        tirate.push({ bersaglio: nk, destinazione: key(q + dir.dq, r + dir.dr) });
+      }
+      break; // una carta ferma la treccia, che la si tiri o no
+    }
+  }
+  return tirate;
+}
 
 // ── v0.75.39 — I RE CHE MORDRED PUO' UCCIDERE ─────────────────────────────
 // Le carte adiacenti che sono /Sovereign/ o /Noble/. L'archetipo si legge da
@@ -20994,25 +21068,50 @@ function chiudiSceltaBersaglio(cella){
   const scelta = G.sceltaBersaglio;
   if(!scelta) return;
   G.sceltaBersaglio = null;
-  try {
-    if(cella && scelta.bersagli.indexOf(cella) >= 0) scelta.applica(cella);
-    else if(typeof scelta.rinuncia === 'function') scelta.rinuncia();
-  } catch(_){ /* un'abilita' che lancia non deve comunque bloccare il turno */ }
-  // v0.73.66 — le scelte aperte DOPO lo scontro (vedi SCELTE_DOPO_CONQUISTA)
-  // arrivano qui a conquista gia' risolta: richiamare resolveConquestAndEndTurn
-  // rifarebbe da capo il controllo di conquista sulla stessa carta. Per queste
-  // basta far proseguire il turno.
-  if(scelta.dopoConquista){
-    if(!G || G.gameOver) return;
-    const attesa = effettiDopoLoScontro(scelta.card, scelta.q, scelta.r);
-    if(attesa>0) rimandaFineTurnoFino(performance.now() + attesa);
-    endTurn(scelta.giocatore);
+  // v0.75.43 — UN'ABILITA' PUO' CHIEDERE DI ESSERE ASPETTATA.
+  // Fino a qui `applica` era per forza istantanea: si eseguiva e un istante
+  // dopo lo scontro veniva calcolato. Per Rapunzel non basta — la carta tirata
+  // arriva accanto a lei con un salto, e finche' non e' atterrata il tabellone
+  // non la vede ancora li': lo scontro guarderebbe una posizione che sta per
+  // cambiare, e la carta appena tirata non verrebbe mai conquistata. Che e'
+  // proprio la regola chiesta: prima si usa l'abilita', POI si controlla la
+  // conquista.
+  // Chi ha bisogno di tempo dichiara `applicaEAspetta(cella, poi)` e chiama
+  // `poi` quando ha finito davvero. Chi non ne ha bisogno resta com'era, e non
+  // c'e' nessun ritardo inventato: l'attesa la misura il movimento stesso.
+  const prosegui = () => {
+    // v0.73.66 — le scelte aperte DOPO lo scontro (vedi SCELTE_DOPO_CONQUISTA)
+    // arrivano qui a conquista gia' risolta: richiamare resolveConquestAndEndTurn
+    // rifarebbe da capo il controllo di conquista sulla stessa carta. Per queste
+    // basta far proseguire il turno.
+    if(scelta.dopoConquista){
+      if(!G || G.gameOver) return;
+      const attesa = effettiDopoLoScontro(scelta.card, scelta.q, scelta.r);
+      if(attesa>0) rimandaFineTurnoFino(performance.now() + attesa);
+      endTurn(scelta.giocatore);
+      return;
+    }
+    // skipLandAnim: la carta e' gia' stata dipinta su questa cella dal render
+    // che ha aperto la finestra, non si e' mossa, e rigiocarle l'atterraggio
+    // sarebbe un lampo senza motivo.
+    resolveConquestAndEndTurn(scelta.card, scelta.giocatore, scelta.q, scelta.r, scelta.k, scelta.chiaveAbilita, true);
+  };
+  const scelto = cella && scelta.bersagli.indexOf(cella) >= 0;
+  if(scelto && typeof scelta.applicaEAspetta === 'function'){
+    let proseguito = false;
+    // La rete: se l'abilita' non richiamasse mai, il turno resterebbe fermo per
+    // sempre. Il guscio garantisce che si vada avanti UNA volta sola, e che si
+    // vada avanti comunque.
+    const unaVoltaSola = () => { if(proseguito) return; proseguito = true; prosegui(); };
+    try { scelta.applicaEAspetta(cella, unaVoltaSola); }
+    catch(_){ unaVoltaSola(); }
     return;
   }
-  // skipLandAnim: la carta e' gia' stata dipinta su questa cella dal render
-  // che ha aperto la finestra, non si e' mossa, e rigiocarle l'atterraggio
-  // sarebbe un lampo senza motivo.
-  resolveConquestAndEndTurn(scelta.card, scelta.giocatore, scelta.q, scelta.r, scelta.k, scelta.chiaveAbilita, true);
+  try {
+    if(scelto) scelta.applica(cella);
+    else if(typeof scelta.rinuncia === 'function') scelta.rinuncia();
+  } catch(_){ /* un'abilita' che lancia non deve comunque bloccare il turno */ }
+  prosegui();
 }
 function scegliBersaglio(cella){ chiudiSceltaBersaglio(cella); }
 function rinunciaSceltaBersaglio(){ chiudiSceltaBersaglio(null); }
@@ -24006,6 +24105,26 @@ VALUTAZIONI_IA.open_celery = (scelta) => {
 // sembrerebbe soltanto un errore.
 // Se accanto ci sono solo carte sue, restituisce null — che qui vuol dire
 // "rinuncio", ed e' una scelta legittima perche' l'abilita' e' facoltativa.
+// v0.75.43 — chi tira a se' l'IA con la treccia: la carta AVVERSARIA piu'
+// debole. Da quando lo scontro si risolve DOPO l'abilita', tirare una carta
+// accanto a Rapunzel vuol dire poterla conquistare subito — quindi il bersaglio
+// giusto non e' il piu' pericoloso ma quello che si riesce davvero a prendere.
+// Le proprie carte le lascia dove sono: il giocatore un motivo per riavvicinarle
+// puo' averlo (una sinergia, un fianco da coprire), l'IA quel ragionamento oggi
+// non lo sa fare, e tirare a caso una carta propria e' solo un modo per
+// scompaginarsi il tabellone.
+VALUTAZIONI_IA.braids = (scelta) => {
+  let migliore = null, minimo = Infinity;
+  for(const cella of scelta.bersagli){
+    const posto = G.board[cella];
+    if(!posto || !posto.card) continue;
+    if(posto.owner === scelta.giocatore) continue;
+    let forza = 0;
+    try { forza = cardPower(posto.card); } catch(_){ forza = 0; }
+    if(forza < minimo){ minimo = forza; migliore = cella; }
+  }
+  return migliore;
+};
 // v0.75.40 — a chi ruba l'abilita' l'IA: al vicino AVVERSARIO piu' forte.
 // Stesso ragionamento di Mordred: derubare un proprio alleato sposta
 // l'abilita' da una sua carta all'altra e in cambio scopre il fianco che
