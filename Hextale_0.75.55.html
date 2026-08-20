@@ -7318,7 +7318,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.54</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.55</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -23174,6 +23174,13 @@ function showTurnBanner(player){
 // the turn banner that follows it are one continuous locked beat, not two
 // separately-interruptible moments.
 const TIMESUP_BANNER_DUR_MS=1250; // must match #timesup-banner.show's CSS animation-duration
+// v0.75.55 — QUANTO DURA IL VOLO DI UNA BOLLA DI DANNO. Era scritto tre volte:
+// nel colpo che parte da uno scontro, nella bolla di cura e — diviso a meta' —
+// nell'ondata di fine turno. Tre numeri uguali sono tre occasioni di
+// cambiarne uno solo, ed e' successo: l'ondata volava a meta' del tempo delle
+// altre, e la stessa cosa a schermo si muoveva a due velocita' diverse a
+// seconda di chi l'aveva mandata.
+const ARCO_BOLLA_MS = 728;
 function showTimesUpBanner(callback){
   const banner=document.getElementById('timesup-banner');
   const gameArea=document.getElementById('game-area');
@@ -25322,7 +25329,7 @@ function spawnDamageProjectile(player, dmg, hpBefore, hpAfter, sourceKey, queueE
     _hpMarkReady(player, queueEntry);
     return;
   }
-  const ARC_DUR_MS=728; // 520ms + 40% (requested slowdown)
+  const ARC_DUR_MS=ARCO_BOLLA_MS;
   // v0.71.49: the bubble's ART/shadow is keyed off the ATTACKER's color
   // (dark=P1, light=P2), not the defender receiving the hit — `player` here
   // is the DEFENDER (see applyHpDamage's own param name/comment), so the
@@ -25364,7 +25371,7 @@ function spawnHealProjectile(player, amount, sourceKey, queueEntry){
     _hpMarkReady(player, queueEntry);
     return;
   }
-  const ARC_DUR_MS=728; // matches spawnDamageProjectile's own arc duration exactly
+  const ARC_DUR_MS=ARCO_BOLLA_MS;
   const bubble=createDamageBubbleVisual('heal');
   bubble._setBubbleText('+'+amount);
   fxLayer().appendChild(bubble);
@@ -25792,9 +25799,13 @@ function toggleBoardView(showBoard){
 // turno, in sequenza a tabellone pieno sarebbero diversi secondi di attesa per
 // turno. Restano leggibili perche' le due fazioni hanno bolle di colore
 // diverso e due punti di raccolta diversi, uno per lato.
-// Tutti i tempi sono dimezzati rispetto al vecchio colpo finale (vedi
-// ONDATA_VELOCITA): era un finale, adesso e' un ritornello.
-const ONDATA_VELOCITA = 2;      // 2 = tutto in meta' tempo
+// v0.75.0 aveva dimezzato tutti i tempi di questa scena — era un finale,
+// diceva, adesso e' un ritornello. v0.75.55 li rimette a uno: le bolle di fine
+// turno sono le stesse bolle dei danni da scontro, e due velocita' diverse per
+// la stessa cosa si leggono come due cose diverse. La costante resta perche' la
+// domanda "questa scena va accelerata?" ha ancora senso e ha un posto solo dove
+// si risponde.
+const ONDATA_VELOCITA = 1;      // 1 = alla velocita' di tutte le altre bolle
 function dannoDiFineTurno(onDone){
   const fine = typeof onDone === 'function' ? onDone : ()=>{};
   if(!G || G.gameOver){ fine(); return; }
@@ -25928,7 +25939,10 @@ function growSuddenDeathCollector(collector, arrived, total){
 // and unchanged throughout this leg — it already shows the full total from
 // growSuddenDeathCollector's last call.
 function launchSuddenDeathFinalBubble(collector, from, to, total, onArrive){
-  const ARC_DUR_MS=650/ONDATA_VELOCITA;   // v0.75.0 — dimezzato come tutta l'ondata
+  // v0.75.55 — lo stesso arco delle bolle di scontro, non piu' un numero suo:
+  // e' la stessa bolla che vola dallo stesso tipo di partenza allo stesso
+  // arrivo, e prima ci metteva 650ms invece di 728 anche a velocita' piena.
+  const ARC_DUR_MS=ARCO_BOLLA_MS/ONDATA_VELOCITA;
   flyArcedBounceBubble(collector, from, to, ARC_DUR_MS, ()=>{
     collector.remove();
     playHitSfx();
