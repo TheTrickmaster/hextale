@@ -6365,6 +6365,36 @@ body.prova-senza-willchange #mm-book-rot{
 .settings-voci{ display:none; flex-direction:column; gap:14px; width:100%; }
 .settings-voci.mostra{ display:flex; }
 
+/* ── v0.75.79 — IL PULSANTE DELLA DONAZIONE ───────────────────────────────
+   Sta in fondo alla finestra e solo quando la si apre dal menu principale:
+   e' lo stesso meccanismo delle voci qui sopra (.settings-voci[data-quando]),
+   quindi non serve nessuna riga in piu' in openSettingsModal — un gruppo
+   nuovo con la stessa etichetta si accende insieme agli altri.
+   Chiedere un contributo IN MEZZO A UNA PARTITA sarebbe fuori posto: si
+   interrompe qualcuno che sta giocando per parlargli di soldi. Dal menu no:
+   li' si sta gia' guardando il gioco da fuori.
+   L'immagine arriva da PayPal e puo' non caricarsi (offline, o aprendo il
+   file in locale): per questo il contorno, il testo e l'area cliccabile sono
+   del riquadro e non dell'immagine — senza la grafica resta un pulsante che
+   si vede e si preme, invece di un buco. */
+.donate-box{ display:flex; flex-direction:column; align-items:center; gap:10px; width:100%; }
+.donate-testo{
+  font-family:'Rosarivo',serif; font-weight:400; font-size:13px; line-height:1.5;
+  text-align:center; color:#8E9EA0; max-width:34ch; margin:0;
+}
+.donate-form{ display:flex; justify-content:center; width:100%; margin:0; }
+.donate-btn{
+  display:inline-flex; align-items:center; justify-content:center;
+  min-width:180px; min-height:44px; padding:6px 14px;
+  background:rgba(255,255,255,0.04);
+  border:1px solid rgba(233,222,197,0.28); border-radius:8px;
+  cursor:pointer; transition:border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+  /* Se la gif non arriva, questo e' il testo che si legge al suo posto. */
+  font-family:'Cinzel',serif; font-size:0.9rem; color:#E9DEC5;
+}
+.donate-btn:hover{ background:rgba(255,255,255,0.09); border-color:rgba(233,222,197,0.55); transform:translateY(-1px); }
+.donate-btn:active{ transform:translateY(0); }
+
 /* ═══════════════════════════════════════════════════════════════════════════
    v0.73.53 — MENU PRINCIPALE
    ═══════════════════════════════════════════════════════════════════════════
@@ -7327,7 +7357,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.76</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.79</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -7451,6 +7481,35 @@ body.prova-senza-willchange #mm-book-rot{
               role="switch" aria-checked="true" onclick="toggleAiutoEsagono()">
         <span class="settings-toggle-pallino"></span>
       </button>
+    </div>
+    <!-- v0.75.79 — LA DONAZIONE, in fondo a tutto e solo dal menu principale.
+         Il gruppo porta la stessa etichetta data-quando="menu" delle voci in
+         cima: openSettingsModal accende TUTTI i gruppi che corrispondono, non
+         il primo, quindi questo si accende insieme a quelli senza una riga di
+         codice in piu'.
+         target="_blank" e non "_top" come nel frammento di PayPal: dentro
+         all'applicazione desktop "_top" porterebbe la finestra del gioco su
+         paypal.com — senza barra degli indirizzi e senza un pulsante indietro,
+         cioe' dentro a un vicolo cieco. Con "_blank" interviene invece il
+         gestore gia' scritto in desktop/main.js (setWindowOpenHandler), che
+         apre il browser vero e lascia il gioco dov'e'. Nel browser il
+         comportamento e' quello di sempre: una scheda nuova. -->
+    <div class="settings-voci" data-quando="menu">
+      <div class="settings-divider"></div>
+      <div class="donate-box">
+        <p class="donate-testo">We are developing a deck-building video game. Any kind of support is greatly appreciated. Thank you so much!</p>
+        <form class="donate-form" action="https://www.paypal.com/donate" method="post" target="_blank" rel="noopener">
+          <input type="hidden" name="business" value="4HZY4JGJ2A358">
+          <input type="hidden" name="no_recurring" value="0">
+          <input type="hidden" name="item_name" value="We are developing a deck-building video game, any kind of support is greatly appreciated. Thank you so much! The Hextale Team">
+          <input type="hidden" name="currency_code" value="EUR">
+          <button type="submit" class="donate-btn" title="PayPal - The safer, easier way to pay online!">
+            <img src="https://www.paypalobjects.com/en_US/IT/i/btn/btn_donateCC_LG.gif"
+                 alt="Donate with PayPal" draggable="false"
+                 onerror="this.remove(); this.parentNode.textContent='Donate with PayPal';">
+          </button>
+        </form>
+      </div>
     </div>
   </div>
 </div>
@@ -8532,9 +8591,31 @@ if(document.readyState==='loading'){
     });
   }
 
+  // ── v0.75.79 — LA TARGHETTA SI ALLINEA DA SOLA AL NOME DEL FILE ─────────
+  // Il numero di versione nel gioco stava scritto a mano nella targhetta in
+  // basso, ed e' rimasto indietro per due versioni di fila senza che niente lo
+  // segnalasse: il gioco si chiamava Hextale_0.75.78.html e dentro diceva
+  // v0.75.76. Da quella targhetta dipendono la scritta "Patch Notes vX" e
+  // l'evidenziazione della versione corrente nelle note, quindi sbagliata
+  // sbaglia anche loro.
+  // Il nome del file, invece, la versione ce l'ha per forza giusta: e' quello
+  // che si pubblica. Lo si legge da li' e si riscrive la targhetta. Quello che
+  // sta nel markup resta come ripiego per il caso in cui il file venga
+  // rinominato o aperto da un indirizzo che il numero non ce l'ha: meglio un
+  // numero vecchio che nessun numero.
+  function allineaTarghettaVersione(){
+    const targhetta = document.getElementById('build-version-badge');
+    if(!targhetta) return;
+    let nome = '';
+    try { nome = decodeURIComponent(String(location.pathname||'')); } catch(_){ nome = String(location.pathname||''); }
+    const m = nome.match(/Hextale[_-]v?(\d+\.\d+\.\d+)\.html?$/i);
+    if(m) targhetta.textContent = 'v' + m[1];
+  }
+
   if(document.readyState==='loading'){
-    document.addEventListener('DOMContentLoaded', ()=>{ caricaAiutoEsagono(); caricaValute(); runPreload(); });
+    document.addEventListener('DOMContentLoaded', ()=>{ allineaTarghettaVersione(); caricaAiutoEsagono(); caricaValute(); runPreload(); });
   } else {
+    allineaTarghettaVersione();
     caricaAiutoEsagono();
     caricaValute();
     runPreload();
