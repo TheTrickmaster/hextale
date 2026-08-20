@@ -7318,7 +7318,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.55</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.56</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -17742,6 +17742,13 @@ const TILE_ABILITIES_DEF = {
   // toccarla. Solo /Princess/, /Noble/ e /Sovereign/ possono conquistarla —
   // chi non ha sangue nobile la lascia dormire, per quanto forte sia.
   power_nap: { carta:'Sleeping Beauty', name:'Power Nap', desc:'Can only be *Conquered* by /Princess/, /Noble/ or /Sovereign/ characters.' },
+  // ── v0.75.56 — QUATTRO SINERGIE DI VICINATO E DUE REGOLE D'ATTACCO ──────
+  loyalty:      { carta:'Lancelot',             name:'Loyalty',        desc:'*Afflicts* -1 ALL to adjacent /Sovereign/, *Gains* +1 ALL for each adjacent /Princess/.' },
+  power_of_love:{ carta:'Maid Marian',          name:'Power of Love',  desc:'Adjacent /Wild/ allies *Gain* +2 ALL. Robin Hood *Gains* +3 ALL.' },
+  bothered:     { carta:'Princess and the Pea', name:'Bothered',       desc:'*Gains* +1 ALL for every free side.' },
+  apex_predator:{ carta:'Shere Khan',           name:'Apex Predator',  desc:'Can *Conquer* even if Power is equal.' },
+  fearless:     { carta:'Little Red Riding Hood', name:'Fearless',     desc:'*Gains* +2 ALL when attacking /Cruel/, /Wild/ or /Obscure/ characters.' },
+  everyone_gets_a_wish: { carta:'The Genie',    name:'Everyone gets a wish', desc:'When *Played*, every character in your hand *Gains* +2 RAND.' },
   // v0.75.43 — RAPUNZEL. La treccia arriva lontano ma in linea retta, e solo
   // se la strada e' sgombra: tira a se' una carta non adiacente lungo una delle
   // sei direzioni, purche' fra le due non ci siano ne' carte ne' tasselli
@@ -19234,6 +19241,48 @@ function recalcNightmare(card){
 //
 // In mano non succede niente: l'adiacenza esiste solo sul tabellone.
 const BONUS_BALOO = 1;
+// ═══════════════════════════════════════════════════════════════════════════
+// v0.75.56 — TUTTE LE SINERGIE DI VICINATO IN UN CONTO SOLO
+// ═══════════════════════════════════════════════════════════════════════════
+// Qui c'era il solo dono di Baloo. Arrivandone altri tre — Maid Marian, la
+// penalita' di Lancelot ai Sovereign e il suo dono dalle Princess — la strada
+// ovvia era una recalc per abilita', come per Biancaneve e le Pixies. E
+// sarebbe stato un guasto: ogni recalc riscrive `card.values` partendo dalla
+// PROPRIA istantanea, quindi due sinergie sulla stessa carta si
+// sovrascriverebbero a vicenda e vincerebbe l'ultima chiamata. Una carta Wild
+// accanto a Baloo E a Maid Marian avrebbe ricevuto +1 oppure +2, mai +3, e
+// quale dei due sarebbe dipeso dall'ordine delle righe qui sotto.
+// Un conto solo, una istantanea sola, tutte le voci sommate: e' l'unico modo
+// perche' sommarsi sia cio' che fanno davvero.
+//
+// CHI CALCOLA E' CHI RICEVE, non chi dona. Questa funzione gira su OGNI carta
+// in campo e le fa chiedere "chi ho intorno, e cosa mi danno?". Il verso
+// opposto — Baloo che va a scrivere sui vicini — obbligherebbe a disfare i
+// doni quando il donatore se ne va, ed e' proprio la classe di errori che le
+// istantanee esistono per evitare.
+const BONUS_MARIAN_WILD = 2;
+const BONUS_MARIAN_ROBIN = 3;
+const MALUS_LANCELOT_SOVEREIGN = -1;
+const BONUS_LANCELOT_PRINCESS = 1;
+const BONUS_PISELLO_LATO_LIBERO = 1;
+function _ha(card, archetipo){
+  return !!(card && card.archetypes && card.archetypes.includes(archetipo));
+}
+// Quanti lati di questa casella danno su una casella LIBERA: non il bordo del
+// tabellone, non un tassello bloccato, non una casella con sopra una carta.
+function latiLiberiDi(cella){
+  const [q,r] = String(cella).split(',').map(Number);
+  if(!isFinite(q) || !isFinite(r)) return 0;
+  let liberi = 0;
+  for(const dir of DIRS){
+    const nk = key(q+dir.dq, r+dir.dr);
+    if(!G.cells.some(c=>c.q===q+dir.dq && c.r===r+dir.dr)) continue; // fuori dal tabellone
+    if(G.holes.has(nk)) continue;                                    // bloccata
+    if(G.board[nk]) continue;                                        // occupata
+    liberi++;
+  }
+  return liberi;
+}
 function recalcBearNecessities(card, cella){
   if(!card || !cella) return;
   if(!card.balooBaseValues) card.balooBaseValues={...card.values};
@@ -19253,16 +19302,48 @@ function recalcBearNecessities(card, cella){
       quantiBaloo++;
     }
   }
+  // ── le altre voci del vicinato ──────────────────────────────────────────
+  // Si contano per TESTE, come Baloo: due Maid Marian accanto fanno +4, perche'
+  // il dono e' di ciascuna.
+  const mio = G.board[cella] && G.board[cella].owner;
+  let daMarian = 0, daLancelot = 0, princessAccanto = 0;
+  const [q0,r0] = String(cella).split(',').map(Number);
+  for(const dir of DIRS){
+    const vicino = G.board[key(q0+dir.dq, r0+dir.dr)];
+    if(!vicino || !vicino.card || vicino.card === card) continue;
+    const suaAbilita = abilitaAttivaDi(vicino.card);
+    // Maid Marian: come Baloo, solo agli ALLEATI. Robin Hood ha il suo numero,
+    // e non si somma a quello dei Wild: e' un dono a lui, non un dono in piu'.
+    if(suaAbilita === 'power_of_love' && vicino.owner === mio){
+      if((card.name||'').trim().toLowerCase() === 'robin hood') daMarian += BONUS_MARIAN_ROBIN;
+      else if(_ha(card,'wild')) daMarian += BONUS_MARIAN_WILD;
+    }
+    // Lancelot toglie ai Sovereign, di CHIUNQUE siano: e' un cavaliere che
+    // sminuisce i re, non un soldato che difende il proprio.
+    if(suaAbilita === 'loyalty' && _ha(card,'sovereign')) daLancelot += MALUS_LANCELOT_SOVEREIGN;
+    // E se la carta che sta contando e' Lancelot, guarda quante Princess ha
+    // intorno. Sempre di chiunque, per la stessa ragione.
+    if(abilitaAttivaDi(card) === 'loyalty' && _ha(vicino.card,'princess')) princessAccanto++;
+  }
+  const daPrincess = (abilitaAttivaDi(card) === 'loyalty') ? princessAccanto*BONUS_LANCELOT_PRINCESS : 0;
+  // La Principessa sul Pisello: un lato libero e' un lato da cui la disturbano.
+  const daLatiLiberi = (abilitaAttivaDi(card) === 'bothered')
+    ? latiLiberiDi(cella)*BONUS_PISELLO_LATO_LIBERO : 0;
+
   const nuovi={...base};
   // Due Baloo accanto fanno +2: il dono e' di ciascuno, come per ogni altra
   // sinergia che si conta per teste (vedi Smol Friends).
-  if(quantiBaloo) for(const s of SIDES) nuovi[s]=(nuovi[s]||0)+BONUS_BALOO*quantiBaloo;
+  const totale = BONUS_BALOO*quantiBaloo + daMarian + daLancelot + daPrincess + daLatiLiberi;
+  if(totale) for(const s of SIDES) nuovi[s]=Math.max(0,(nuovi[s]||0)+totale);
   card.values=nuovi;
-  // Questa gira su OGNI carta in campo, anche su chi non ha nessun Baloo
-  // accanto: passando zero, annotaModificatore cancella la voce invece di
-  // scriverne una a zero — cosi' la riga sparisce da sola nel momento in cui
-  // Baloo viene conquistato o si sposta.
+  // Ogni voce ha la sua riga nell'elenco "da dove viene": passando zero, la
+  // riga si cancella da sola quando il vicino se ne va (vedi
+  // annotaModificatore).
   annotaModificatore(card, 'bear_necessities', 'Baloo', BONUS_BALOO*quantiBaloo, 'ALL');
+  annotaModificatore(card, 'power_of_love', 'Maid Marian', daMarian, 'ALL');
+  annotaModificatore(card, 'loyalty', 'Lancelot', daLancelot, 'ALL');
+  annotaModificatore(card, 'loyalty_princess', 'adjacent Princesses', daPrincess, 'ALL');
+  annotaModificatore(card, 'bothered', 'free sides', daLatiLiberi, 'ALL');
   // v0.73.99 FIX ("Captain Hook si buffa ma i valori restano bianchi") — QUESTA
   // FUNZIONE GIRA SU OGNI CARTA IN CAMPO, non solo su quelle che ricevono il
   // dono: e' l'unico modo perche' ognuna possa chiedersi "ho un Baloo
@@ -20210,6 +20291,28 @@ function attivaDarkPact(card){
 // non e' quello che l'abilita' racconta. Con 4, ognuno dei due ne ha due — i
 // turni 1 e 3 per chi comincia, il 2 e il 4 per l'altro — e la finestra resta
 // identica per entrambi, che e' la lettura che rende l'abilita' onesta.
+// ── v0.75.56 — THE GENIE, "Everyone gets a wish" ──────────────────────────
+// Giocandolo, ogni carta rimasta in mano riceve +2 su UN gruppo a sorte. Un
+// gruppo e non un lato: su queste carte i lati sono riuniti in gruppi che
+// condividono un numero, e premiarne uno solo lasciando fuori i gemelli
+// darebbe mezzo desiderio.
+// Il sorteggio e' vero e non `sorteggioStabile`: questo effetto non ha
+// anteprima da far combaciare (tocca la mano, vedi Dark Pact), quindi il caso
+// puo' essere caso.
+const BONUS_GENIO = 2;
+function attivaEveryoneGetsAWish(card){
+  const proprietario = (card && card.owner) || G.currentPlayer;
+  const mano = manoDi(proprietario).filter(c => c && c !== card && c.id !== card.id);
+  let esauditi = 0;
+  for(const c of mano){
+    const gruppi = gruppiDiCarta(c);
+    if(!gruppi.length) continue;
+    const scelto = gruppi[Math.floor(Math.random()*gruppi.length)];
+    modificaValori(c, scelto.sides, BONUS_GENIO, undefined, {chiave:'the_genie:'+card.id, da:card.name||'The Genie'});
+    esauditi++;
+  }
+  if(esauditi) console.info('[Everyone gets a wish] +'+BONUS_GENIO+' a un gruppo di '+esauditi+' carte in mano.');
+}
 const TURNI_TIC_TOC = 4;
 const BONUS_TIC_TOC = 2;
 function attivaTicToc(card){
@@ -20370,6 +20473,36 @@ function _diSangueNobile(card){
   const a = card && card.archetypes;
   return !!(a && ARCHETIPI_DI_SANGUE.some(x => a.includes(x)));
 }
+// ── v0.75.56 — SHERE KHAN e CAPPUCCETTO ROSSO: due regole sull'ATTACCO ────
+// Non toccano i valori delle carte: cambiano il confronto, e solo per il colpo
+// in corso. Stanno quindi qui e non fra le sinergie, e passano da due funzioni
+// che i DUE punti di conquista — quello vero e quello dell'IA — chiamano
+// entrambi: una regola scritta una volta sola non puo' valere per uno dei due
+// e non per l'altro, che e' il modo in cui un'IA comincia a giocare a caso.
+//
+// "Apex Predator": conquista anche a parita'. Non e' un +1 mascherato — con un
+// +1 batterebbe anche chi ha uno in piu' — e' proprio il confronto che da'
+// vinto a lui il pareggio.
+function vinceIlConfronto(attaccante, valoreAttacco, valoreDifesa){
+  if(abilitaAttivaDi(attaccante) === 'apex_predator') return valoreAttacco >= valoreDifesa;
+  return valoreAttacco > valoreDifesa;
+}
+// "Fearless": +2 quando ATTACCA certe prede. Il bonus vale per quel colpo e
+// basta — non entra nei valori della carta, che restano quelli — quindi non
+// compare fra i bonus e i malus: non c'e' nessun numero cambiato da spiegare.
+// "Obscure" non e' un archetipo che esista oggi sul foglio; sta nell'elenco
+// perche' l'abilita' lo nomina, e il giorno in cui esistera' funzionera' senza
+// che nessuno si ricordi di tornare qui.
+const PREDE_DI_CAPPUCCETTO = ['cruel','wild','obscure'];
+const BONUS_FEARLESS = 2;
+function valoreAttaccoContro(attaccante, valoriEffettivi, mioLato, difensore){
+  let v = getAttackValueForSide(attaccante, valoriEffettivi, mioLato);
+  if(abilitaAttivaDi(attaccante) === 'fearless' && difensore && difensore.archetypes
+     && PREDE_DI_CAPPUCCETTO.some(a => difensore.archetypes.includes(a))){
+    v += BONUS_FEARLESS;
+  }
+  return v;
+}
 function puoConquistare(attaccante, difensore){
   if(!difensore) return true;
   if(abilitaAttivaDi(difensore) !== 'power_nap') return true;
@@ -20468,6 +20601,9 @@ const EFFETTI_PIAZZAMENTO_REALI = {
   // vera. Simularla vorrebbe dire derubare la propria mano a ogni passaggio
   // del puntatore, senza aver giocato niente.
   dark_pact:         (card) => attivaDarkPact(card),
+  // Stessa ragione di Dark Pact: tocca le carte in MANO, e l'anteprima gira sul
+  // tabellone clonato ma sulla mano vera.
+  everyone_gets_a_wish: (card) => attivaEveryoneGetsAWish(card),
 };
 function applicaEffettiRealiPiazzamento(card, q, r, chiave){
   const effetto = EFFETTI_PIAZZAMENTO_REALI[chiave];
@@ -22561,8 +22697,8 @@ function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLa
     if(!puoConquistare(card, nb.card)) continue;
     const[nq,nr]=nk.split(',').map(Number);
     const theirEffective=getFactionBonus(nb.card,nq,nr,snap).values;
-    const myAttackVal=getAttackValueForSide(card, myEffective, dir.mySide);
-    if(myAttackVal>theirEffective[dir.theirSide]){
+    const myAttackVal=valoreAttaccoContro(card, myEffective, dir.mySide, nb.card);
+    if(vinceIlConfronto(card, myAttackVal, theirEffective[dir.theirSide])){
       G.board[nk]={card:nb.card,owner:player};
       conquered.push(nk);
       conquestInfo.push({nk, dir, prevOwner:nb.owner, atkVal:myAttackVal, defVal:theirEffective[dir.theirSide]});
@@ -23982,12 +24118,12 @@ function aiEvaluateConquests(card, q, r){
     // of the one actually facing this neighbor — see getAttackValueForSide's
     // own comment for why this stays centralized alongside the real
     // resolveConquestAndEndTurn conquest check.
-    const myVal=getAttackValueForSide(card, effValues, dir.mySide);
+    const myVal=valoreAttaccoContro(card, effValues, dir.mySide, nb.card);
     // v0.73.22 — se la carta e' nel fumo, qui NON si guardano i suoi numeri:
     // si usa la stima (vedi valoriVistiDallIA).
     const difesa=valoriVistiDallIA(nb, simulato && simulato.tabellone[nk]);
     const theirVal=difesa[dir.theirSide]||0;
-    if(myVal>theirVal){
+    if(vinceIlConfronto(card, myVal, theirVal)){
       count++; damage+=(myVal-theirVal);
       // v0.73.69 — Baba Yaga, "Hex": conquistarla si ritorce contro
       // l'attaccante, che perde su OGNI suo gruppo tanto quanto ha sfondato
