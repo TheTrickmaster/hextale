@@ -7327,7 +7327,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.62</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.63</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -9523,6 +9523,58 @@ function setGameAudioMuted(muted){
 // partire. Serve ai suoni che hanno del silenzio all'inizio, dove il ritardo
 // percepito non e' del codice ma della registrazione (vedi
 // UNPACK_WHOOSH_OFFSET_S). Omesso, il comportamento e' identico a prima.
+// ═══════════════════════════════════════════════════════════════════════════
+// v0.75.63 — ZITTIRE TUTTO QUELLO CHE STA ANCORA SUONANDO
+// ═══════════════════════════════════════════════════════════════════════════
+// Un effetto sonoro, una volta partito, va per conto suo: nessuno lo tiene per
+// mano e nessuno sa piu' che esiste. Finche' i suoni sono brevi non si nota, ma
+// una partita che si chiude mentre una voce sta parlando — o mentre una carta
+// brucia, o un'aquila grida — lascia quel suono a finire da solo sul menu, che
+// e' il momento in cui e' piu' fuori posto.
+// Serve quindi un elenco di cio' che sta suonando ADESSO. I due percorsi di
+// playSfxFile restituiscono due cose diverse — un nodo Web Audio, che si ferma
+// con stop(), e un elemento <audio>, che si ferma con pause() — quindi l'elenco
+// tiene l'oggetto cosi' com'e' e chi lo spegne prova entrambe le strade: e'
+// l'unico modo di non doverli distinguere in ogni punto che li registra.
+// Le voci hanno gia' un loro riferimento (_cardVoicePlaying) perche' una voce
+// nuova interrompe la precedente; qui si aggiunge il caso in cui a interromperla
+// non e' un'altra voce ma la fine della partita.
+const _suoniVivi = new Set();
+function _registraSuono(h){
+  if(!h) return h;
+  _suoniVivi.add(h);
+  // Chi finisce da solo si toglie da solo: senza, l'elenco crescerebbe per
+  // tutta la partita e fermare i suoni vorrebbe dire ripassare su centinaia di
+  // oggetti gia' spenti.
+  try{
+    if(typeof h.addEventListener === 'function'){
+      h.addEventListener('ended', ()=>_suoniVivi.delete(h), {once:true});
+    }
+  }catch(_){}
+  return h;
+}
+function fermaTuttiISuoni(){
+  for(const h of Array.from(_suoniVivi)){
+    try{ if(typeof h.stop === 'function') h.stop(); }catch(_){}
+    try{ if(typeof h.pause === 'function'){ h.pause(); h.currentTime = 0; } }catch(_){}
+  }
+  _suoniVivi.clear();
+  // Gli <audio> montati nella pagina (i suoni di interfaccia) non passano da
+  // playSfxFile: hanno un elemento loro, e vanno fermati per nome.
+  try{
+    document.querySelectorAll('audio[id^="sfx-"]').forEach(el=>{
+      try{ el.pause(); el.currentTime = 0; }catch(_){}
+    });
+  }catch(_){}
+  // E la voce in corso, col suo timer: lasciarlo acceso farebbe credere ancora
+  // per qualche secondo che quella carta stia parlando, e la prossima verrebbe
+  // ignorata.
+  if(typeof _cardVoicePlaying !== 'undefined' && _cardVoicePlaying){
+    try{ clearTimeout(_cardVoicePlaying.timer); }catch(_){}
+    try{ if(_cardVoicePlaying.src && _cardVoicePlaying.src.stop) _cardVoicePlaying.src.stop(); }catch(_){}
+    _cardVoicePlaying = null;
+  }
+}
 function playSfxFile(filename, fixedVolume, offsetSec){
   // Cancello di isolamento — vedi setGameAudioMuted qui sopra.
   if(_gameAudioMuted && fixedVolume===undefined) return null;
@@ -9550,7 +9602,10 @@ function playSfxFile(filename, fixedVolume, offsetSec){
     src.start(0, Math.max(0, offsetSec||0));
     // Returning the source lets callers that need to stop playback early
     // (e.g. stopTictoc()) call .stop() on it directly.
-    return src;
+    // v0.75.63 — e intanto si annota fra i suoni vivi, cosi' la fine di una
+    // partita puo' spegnerlo anche se chi l'ha avviato non se ne occupa piu'.
+    try{ src.addEventListener('ended', ()=>_suoniVivi.delete(src), {once:true}); }catch(_){}
+    return _registraSuono(src);
   }
   // Fallback: buffer not decoded yet (first seconds of a cold load) or Web
   // Audio unavailable — the old per-play Audio element, latency and all.
@@ -9571,7 +9626,7 @@ function playSfxFile(filename, fixedVolume, offsetSec){
     if(audio.readyState >= 1) vai(); else audio.addEventListener('loadedmetadata', vai, {once:true});
   }
   audio.play().catch(()=>{});
-  return audio;
+  return _registraSuono(audio);
 }
 
 // ── Background music rotation ───────────────────────────────────────
@@ -10119,6 +10174,9 @@ function rigiocaSubito(){
   requestNewGame(controIA);
 }
 function requestNewGame(vsAI){
+  // v0.75.63 — e cominciandone una nuova: il "Play again" a fine partita parte
+  // mentre la scena precedente puo' avere ancora qualcosa in canna.
+  fermaTuttiISuoni();
   _pendingNewGameVsAI = !!vsAI;
   const ov=document.getElementById('faction-choice-overlay');
   if(!ov){ startGame(!!vsAI); return; } // fallback difensivo
@@ -17065,6 +17123,10 @@ function abandonCurrentGame(){
   setGameAudioMuted(false);
 }
 function backToMainMenu(){
+  // v0.75.63 — uscendo da una partita, idem: qui si esce anche a partita NON
+  // finita (dal menu di pausa), che e' proprio il caso in cui e' piu' probabile
+  // che qualcosa stia ancora suonando.
+  fermaTuttiISuoni();
   closeSettingsModal();
   // v0.72.31: prima si spengono i processi, POI si smonta la pagina — in
   // quest'ordine abandonCurrentGame() trova ancora gli elementi che deve
@@ -18159,6 +18221,11 @@ function initGame(vsAI){
   const holeCount=2+Math.floor(Math.random()*4); // 2-5 blocked cells
   const holes=new Set();
   while(holes.size<holeCount){const c=cands[Math.floor(Math.random()*cands.length)];holes.add(key(c.q,c.r));}
+  // v0.75.63 — a ogni muro la sua variante, e mai due uguali finche' ce ne sono
+  // di nuove (vedi assegnaMuriDellaPartita). Si decide QUI, una volta per
+  // partita, e non a ogni disegno: un muro che cambia faccia da solo fra un
+  // ridisegno e l'altro sarebbe la cosa piu' strana del tabellone.
+  const muriAssegnati = assegnaMuriDellaPartita([...holes]);
   // Generate the two starting decks so their overall power is within 20% of each
   // other (accounts for values, group sizes, factions and gems — see cardPower).
   const balanced=makeBalancedDecks();
@@ -18263,6 +18330,7 @@ function initGame(vsAI){
     // (vedi apriSceltaBersaglio). E' l'unico stato che mette la partita in
     // pausa: chi lo apre DEVE anche chiuderlo, per entrambi i giocatori.
     sceltaBersaglio:null,
+    muriAssegnati,   // v0.75.63 — quale tile-broken tocca a ogni casella bloccata
     destroyedHoles:new Set(), // cells whose blocked tile was removed via Distruggere — rendered with the special "free-tile-destroyed" art
     fortifiedCells:new Set(),
     // conqueredHistory teneva la lista delle carte che ognuna aveva conquistato,
@@ -26472,6 +26540,10 @@ function surrenderGame(){
 
 function endGame(){
   clearInterval(timerInterval);
+  // v0.75.63 — e si zittisce tutto cio' che era ancora per aria: una voce a
+  // meta' frase, una carta che brucia, un'aquila. La partita e' finita, e
+  // quei suoni parlano di una cosa che non c'e' piu'.
+  fermaTuttiISuoni();
   stopScreenEdgeFlash();
   stopAiThinkingHover();
   // v0.70.10: force-close any expanded hand the instant the game ends — the
@@ -31988,6 +32060,7 @@ const TILE_BLOCKED = [
   'https://thetrickmaster.github.io/hextale/tiles/tile-broken-2.png',
   'https://thetrickmaster.github.io/hextale/tiles/tile-broken-3.png',
   'https://thetrickmaster.github.io/hextale/tiles/tile-broken-4.png',
+  'https://thetrickmaster.github.io/hextale/tiles/tile-broken-5.png',
 ];
 const TILE_FIXED = [
   'https://thetrickmaster.github.io/hextale/tiles/tile-fixed-1.png',
@@ -32015,6 +32088,35 @@ const TILE_MAGIC = [
 // for a given cell (see v0.71.46 comment above).
 function tileVariant(arr, q, r){
   return arr[(Math.abs(q*7+r*13))%arr.length];
+}
+// ── v0.75.63 — I MURI NON SI RIPETONO ──────────────────────────────────────
+// tileVariant sceglie da una moltiplicazione sulle coordinate: e' stabile — la
+// stessa casella da' sempre lo stesso tassello, che e' cio' che serve — ma non
+// e' un giro completo. Su sei muri capitava benissimo di vedere due volte il
+// terzo e mai il quinto, perche' quel conto non sa niente degli altri muri.
+// Qui si distribuiscono invece a MAZZO: le varianti si mescolano e si danno una
+// per muro, quindi finche' i muri sono cinque o meno sono tutti diversi per
+// costruzione. Finito il mazzo se ne rimescola un altro, che e' il minimo
+// possibile di ripetizione; oggi non capita mai, perche' le caselle bloccate di
+// una partita sono da due a cinque (vedi holeCount in newGame) e le varianti
+// sono esattamente cinque.
+// L'assegnazione si fa UNA volta per partita e si conserva: rifarla a ogni
+// disegno vorrebbe dire muri che cambiano faccia da soli.
+function assegnaMuriDellaPartita(celle){
+  const assegnate = {};
+  let mazzo = [];
+  for(const k of celle){
+    if(!mazzo.length) mazzo = _mescola(TILE_BLOCKED.slice());
+    assegnate[k] = mazzo.pop();
+  }
+  return assegnate;
+}
+// Il muro di una casella: quello assegnato a inizio partita, o — per una
+// casella bloccata comparsa dopo, se un domani ne comparissero — il ripiego
+// stabile di sempre.
+function muroDellaCella(k, q, r){
+  if(G.muriAssegnati && G.muriAssegnati[k]) return G.muriAssegnati[k];
+  return tileVariant(TILE_BLOCKED, q, r);
 }
 
 // ── v0.73.11 — COME SI DICE "QUESTA SI PUO' SCEGLIERE" ─────────────────────
@@ -32855,7 +32957,7 @@ function renderBoard(){
       // Non costa niente a chi non usa l'abilita': e' un'immagine coperta al
       // 100% da quella sopra, che il browser non ridisegna mai da sola.
       drawTileCell(svg,x,y,R,tileVariant(TILE_FREE,q,r),k+'sotto',false);
-      const holePoly=drawTileCell(svg,x,y,R,tileVariant(TILE_BLOCKED,q,r),k+'h',false);
+      const holePoly=drawTileCell(svg,x,y,R,muroDellaCella(k,q,r),k+'h',false);
       // Il tassello bloccato viaggia come un pezzo unico quando lo si trascina:
       // gli si mette addosso un contrassegno per ritrovarlo (vedi
       // apriSceltaTassello e il trascinamento in renderBoard).
