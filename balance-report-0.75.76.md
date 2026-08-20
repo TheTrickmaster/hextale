@@ -84,13 +84,13 @@ The ordering you asked for holds, but the steps shrink to nothing at the top. Se
 | Rapunzel | 8.19 | 76 | .56 / .68 | ok |
 | Sleeping Beauty | 7.98 | 75 | .67 / **.92** | ok — the best pure defender that isn't Excalibur |
 | Merlin | 7.47 | 69 | **.75** / .74 | ok — *A Kind of Magic* is quietly one of the strongest attack abilities |
-| Cinderella | 7.33 | 68 | .67 / .80 | ok **but its ability is dead**: *Bell of the Ball* needs The Fairy Godmother, which is `Visible = No`. Right now it is a vanilla card |
+| **Cinderella** | ~~7.33~~ **10.33** | ~~68~~ **95** | .67 / .80 | **updated v0.75.77 — now too strong.** With *Bell of the Ball* fixed (adjacent /Guardian/ instead of the unplayable Fairy Godmother) the ability actually fires, and it turns a 28-sum card into the 36-sum Crystal Princess *with* an unconquerable group. There are 10 Guardians in the pool and adjacency counts allies **and** enemies, so the condition is easy to meet. She now scores above every Timeless except King Arthur and The Genie |
 | Pinocchio | 7.27 | 65 | .60 / .85 | ok |
 | Queen of Hearts | 6.14 | 56 | .53 / .70 | bottom of band, watch it |
 | **Mad Hatter** | 4.91 | 51 | .63 / .76 | **too weak** — the only card in the game whose ability is a *pure downside*: 27 points of statline collapse to a random 1–3 the moment it conquers. Its body is Mythic-grade; its ability actively punishes playing it well |
 
 **Too weak:** Mad Hatter. (Queen of Hearts is next in line.)
-**Too strong:** Nottingham Sheriff, Sea Witch, Snow White, Little Mermaid, Baloo — Mordred borderline.
+**Too strong:** Nottingham Sheriff, Sea Witch, Cinderella, Snow White, Little Mermaid, Baloo — Mordred borderline.
 
 ---
 
@@ -123,7 +123,7 @@ The ordering you asked for holds, but the steps shrink to nothing at the top. Se
 |---|---|---|---|---|
 | **Baba Yaga** | 5.66 | 53 | .27 / .46 | **too strong** — *Hex* retaliates −1 ALL per point of power difference, so the *stronger* the attacker the worse the punishment. Outscores two Rares |
 | **12 Dancing Princesses** | 4.87 | 49 | .29 / .48 | **too strong** — self-relocation on conquer is an evasion tool no other Common has |
-| **Pixies** | 4.59 | 45 | .15 / .37 | **too strong** — +3 RAND *per other Trickster*; the game has many Tricksters, so this scales far past Common |
+| Pixies | ~~4.59~~ **3.59** | ~~45~~ **28** | .15 / .37 | **fixed in v0.75.78** — *Mischief* cut from +3 to +2 RAND per other Trickster. Now sits mid-tier among Commons |
 | **Phoenix** | 4.53 | 44 | .16 / .35 | **too strong for a Common**, and lopsided: 1/1/7/1/1/1 is five dead sides plus a resurrection |
 | Unicorn | 4.34 | 43 | .33 / .54 | just over — but its ability is a meta effect (drop rate), no board impact. The body alone (18-sum, a 7) is what makes it a strong Common |
 | Oni | 4.26 | 41 | .32 / .53 | strongest vanilla Common; fine as the ceiling |
@@ -135,7 +135,7 @@ The ordering you asked for holds, but the steps shrink to nothing at the top. Se
 | **Tortoise** | 2.59 | 0 | .15 / .36 | **weakest card in the game** — 1/5/2/1/1/1, one usable side |
 
 **Too weak:** Tortoise, Ant, Mouse, Hare, Grasshopper.
-**Too strong:** Baba Yaga, 12 Dancing Princesses, Pixies, Phoenix — Unicorn borderline.
+**Too strong:** Baba Yaga, 12 Dancing Princesses, Phoenix — Unicorn borderline. *(Pixies fixed in v0.75.78.)*
 
 The Common tier spans 2.59 → 5.66, a 2.2× spread. That is wider than the gap between Common and Rare, which means "Common" currently predicts very little about how good a card is.
 
@@ -159,7 +159,13 @@ The Common tier spans 2.59 → 5.66, a 2.2× spread. That is wider than the gap 
 9. **Alice** — make *Eat Me Drink Me* keep rotating on the board (it is Cheshire Cat's ability minus the movement), or she is a vanilla Timeless.
 10. **Tortoise / Ant / Mouse / Hare / Grasshopper** — five bottom Commons, two of them literally the same card. Redistribute so the worst Common is around 13–14 sum with two usable sides.
 
-**Two bugs, not balance**
+**One bug left, not balance**
 
-- **Cinderella's ability cannot fire**: The Fairy Godmother is `Visible = No`.
 - **Grasshopper and Hare have identical values** (2/1/1/1/4/2).
+
+---
+
+## Changes applied since this report was written
+
+- **v0.75.77** — Cinderella's *Bell of the Ball* now triggers on an adjacent /Guardian/ instead of The Fairy Godmother (which was `Visible = No`, so the ability could never fire). This **fixed a bug and created a balance problem**: see her row above, she is now a 95th-percentile Mythic. Tightening the condition — an *allied* Guardian, or a Guardian you played yourself — would bring her back into band without undoing the fix.
+- **v0.75.78** — Pixies' *Mischief* cut from +3 to +2 RAND per other Trickster. Now in band.
