@@ -7311,7 +7311,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.52</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.53</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -13307,7 +13307,11 @@ function _mangiataAccelerata(a){
 // _clipMangiata): due frequenze diverse sono cio' che distingue un bordo
 // mangiato da un bordo seghettato.
 const DENTI_QUANTI = 56;
-const DENTI_PROFONDITA = 0.028;
+// v0.75.53 — profondita' dimezzata (0.028 -> 0.014): i punti del bordo stanno
+// piu' vicini fra loro in verticale, quindi il profilo si legge come una linea
+// consumata invece che come una sega. Non e' il NUMERO dei denti a fare la
+// differenza — sono gia' fitti — ma quanto si scostano l'uno dall'altro.
+const DENTI_PROFONDITA = 0.014;
 
 let _cenereRAF = null;
 
@@ -13336,8 +13340,16 @@ function _clipMangiata(q, denti, t){
     // scendere in tratti lunghi. Sommate, il profilo ha dettaglio fine E
     // andamento generale — che e' cio' che distingue un bordo mangiato da un
     // bordo seghettato, dove tutti i denti sono uguali e alla stessa quota.
-    const onda  = Math.sin(t*d.vel + d.fase) * d.base * ampiezza * 0.45;
-    const lento = Math.sin(x*0.06 + t*0.9 + d.faseLarga) * 2.4 * ampiezza;
+    // v0.75.53 — entrambe le frequenze si abbassano. L'ondeggiare del singolo
+    // dente scende da 0.45 a 0.25 della propria profondita': era la parte che
+    // faceva vibrare i punti uno rispetto all'altro, cioe' proprio quella che
+    // si leggeva come seghettatura.
+    // L'onda LENTA scende meno (2.4 -> 1.5) ed e' voluto: e' lei a dare
+    // l'andamento generale del bordo, e togliendola del tutto resterebbe una
+    // riga dritta che scende. Il rapporto fra le due si sposta quindi verso
+    // l'onda lunga — piu' forma, meno dentini.
+    const onda  = Math.sin(t*d.vel + d.fase) * d.base * ampiezza * 0.25;
+    const lento = Math.sin(x*0.06 + t*0.9 + d.faseLarga) * 1.5 * ampiezza;
     punti.push(x.toFixed(2)+'% '+Math.max(0, y + d.base + onda + lento).toFixed(2)+'%');
   }
   punti.push('100% 100%', '0% 100%');
@@ -20627,7 +20639,10 @@ const SCELTE_PIAZZAMENTO = {
       giocatore,
       cellaOrigine: key(q,r),
       bersagli,
-      applica: (cella) => rubaAbilitaDa(card, cella, q, r),
+      // v0.75.53 — si fa aspettare: l'abilita' rubata puo' chiedere a sua volta
+      // un bersaglio, e il turno non deve riprendere finche' quella seconda
+      // finestra non e' stata chiusa.
+      applicaEAspetta: (cella, poi) => rubaAbilitaDa(card, cella, q, r, giocatore, poi),
       rinuncia: () => {},
     };
   },
@@ -21392,7 +21407,13 @@ function _prendiAbilita(donatore, ricevente, chiave){
   ricevente.abilityNameSheet = donatore.abilityNameSheet || '';
   ricevente.abilityDescSheet = donatore.abilityDescSheet || '';
   ricevente.abilityTrigger   = donatore.abilityTrigger   || '';
-  ricevente.abilityNoScript  = false;
+  // v0.75.53 — il marchio NO_SCRIPT SEGUE l'abilita' invece di essere azzerato.
+  // Prima si dava per scontato che chi riceve un'abilita' ne ricevesse una
+  // programmata: da quando lo sceriffo puo' rubarne una che non lo e' (vedi
+  // bersagliNewTax), azzerarlo vorrebbe dire mostrargliela come funzionante.
+  // La carta direbbe di saper fare una cosa che non sa fare, ed e' esattamente
+  // cio' che il marchio rosso esiste per impedire.
+  ricevente.abilityNoScript  = !!donatore.abilityNoScript;
   if(!ricevente.tileAbilityBaseValues) ricevente.tileAbilityBaseValues = {...ricevente.values};
 }
 // ── v0.75.40 — NOTTINGHAM SHERIFF, "New Tax" ──────────────────────────────
@@ -21413,23 +21434,23 @@ function bersagliNewTax(q, r){
       scartati.push(nome + (vicino.card.cardAbility ? ': abilita\' non ancora sbloccata dal livello' : ': non ha abilita\''));
       continue;
     }
-    if(vicino.card.abilityNoScript || !TILE_ABILITIES_DEF[sua]){
-      scartati.push(nome + ': l\'abilita\' "' + sua + '" non e\' ancora programmata');
-      continue;
-    }
-    // Le abilita' che aprono una finestra loro non si rubano. Rubarne una
-    // vorrebbe dire aprire una seconda scelta DENTRO a quella ancora in
-    // chiusura, e le scelte annidate sono la classe di problemi che in questo
-    // gioco e' costata piu' tempo. E' la stessa guardia che lo specchio ha
-    // dalla v0.73.11 (vedi copiaAbilitaDa), qui pero' applicata all'ELENCO e
-    // non al momento della copia: cosi' un bersaglio che non darebbe niente
-    // non viene nemmeno offerto, invece di essere offerto e non fare nulla.
-    // Ha un effetto collaterale utile: `new_tax` sta in quel registro, quindi
-    // uno sceriffo non deruba un altro sceriffo senza bisogno di dirlo.
-    if(SCELTE_PIAZZAMENTO[sua]){
-      scartati.push(nome + ': "' + sua + '" chiede un bersaglio a sua volta');
-      continue;
-    }
+    // v0.75.53 — SI RUBA TUTTO. Qui c'erano due esclusioni, ed entrambe
+    // partivano dallo stesso ragionamento sbagliato: "questa abilita' non
+    // servirebbe allo sceriffo, quindi non offriamogliela".
+    //   - le abilita' che aprono una finestra loro (Open Celery!, Kingslayer,
+    //     lo scarto della Sirenetta): temevo una seconda scelta aperta dentro
+    //     a quella in chiusura, ma non succede — la finestra la apre doPlace
+    //     quando la carta viene GIOCATA, ed e' gia' passata da un pezzo. Il
+    //     trasferimento e' solo un trasferimento.
+    //   - quelle dichiarate nel foglio ma non ancora programmate (Heigh-ho):
+    //     non farebbero niente in mano allo sceriffo, e' vero.
+    // Il ragionamento e' sbagliato perche' guarda solo META' dell'abilita'.
+    // Lo sceriffo non copia: RUBA. Anche quando cio' che prende non gli serve,
+    // al derubato l'abilita' viene comunque tolta — ed e' un effetto vero, che
+    // per certe carte e' il migliore che questa abilita' possa produrre.
+    // In piu': il giorno in cui Heigh-ho verra' programmata, lo sceriffo la
+    // usera' senza che nessuno tocchi niente qui.
+    // Resta solo il caso in cui non c'e' NIENTE da prendere.
     // Excalibur non si tassa. La sua abilita' e' proprio cio' che la protegge —
     // "Cannot be Conquered, Moved, or Destroyed" — e portargliela via sarebbe
     // il modo piu' rapido per ottenere le tre cose che vieta.
@@ -21447,21 +21468,48 @@ function bersagliNewTax(q, r){
 }
 // Il furto. Identico alla copia dello specchio tranne per la riga che conta:
 // al derubato l'abilita' viene TOLTA.
-function rubaAbilitaDa(sceriffo, cellaBersaglio, q, r){
+// v0.75.53 — RUBARE E' COME GIOCARE QUELLA CARTA ADESSO. Presa l'abilita', lo
+// sceriffo la usa sul momento: se e' una di quelle che agiscono al piazzamento,
+// agisce ora; e se e' una di quelle che chiedono un bersaglio, si apre la sua
+// finestra — dentro alla chiusura di quella dello sceriffo.
+// La finestra nuova si apre solo DOPO che la vecchia si e' chiusa davvero
+// (chiudiSceltaBersaglio azzera G.sceltaBersaglio prima di chiamare `applica`,
+// vedi li'), quindi non e' una finestra dentro l'altra: e' la successiva. Cio'
+// che le lega e' `alTermine`, la continuazione che fa riprendere il turno una
+// volta sola, alla fine della catena.
+function rubaAbilitaDa(sceriffo, cellaBersaglio, q, r, giocatore, poi){
+  const finito = ()=>{ if(typeof poi === 'function') poi(); };
   const bersaglio = G.board[cellaBersaglio];
-  if(!bersaglio || !bersaglio.card) return;
+  if(!bersaglio || !bersaglio.card){ finito(); return; }
   const rubata = abilitaAttivaDi(bersaglio.card);
-  if(!rubata || SCELTE_PIAZZAMENTO[rubata]) return;
-  if(cartaIntoccabile(bersaglio.card)) return;
+  if(!rubata){ finito(); return; }
+  if(cartaIntoccabile(bersaglio.card)){ finito(); return; }
   sceriffo.abilitaRubataA = bersaglio.card.name || cellaBersaglio;
   _prendiAbilita(bersaglio.card, sceriffo, rubata);
   _togliAbilita(bersaglio.card);
-  // Si usa subito, come fa lo specchio: le abilita' che agiscono al
-  // piazzamento devono agire ORA, o lo sceriffo si ritroverebbe in mano una
-  // cosa che non fara' mai niente.
+  // Gli effetti che non chiedono niente a nessuno: agiscono subito.
   applicaAbilitaPiazzamento(sceriffo, q, r, rubata);
   applicaEffettiRealiPiazzamento(sceriffo, q, r, rubata);
   renderBoard();
+  // E quelli che un bersaglio lo chiedono. Se non ci sono bersagli leciti la
+  // finestra non si apre nemmeno (lo decide il registro) e si tira dritto:
+  // un'abilita' rubata che non trova dove agire non deve fermare il turno.
+  const chiPuoScegliere = (giocatore != null) ? giocatore : G.currentPlayer;
+  const k = key(q,r);
+  if(SCELTE_PIAZZAMENTO[rubata] && apriSceltaBersaglio(sceriffo, chiPuoScegliere, q, r, k, rubata)){
+    G.sceltaBersaglio.alTermine = finito;
+    // Le scelte che si fanno sulla MANO hanno i comandi nel ventaglio, quelle
+    // sul tabellone nella plancia: stessa distinzione di doPlace.
+    if(G.sceltaBersaglio.modo === 'mano') render(); else renderBoard();
+    // Il timer riparte, o la finestra nuova resterebbe aperta all'infinito.
+    startTimer();
+    // E se a giocare e' l'IA, la chiude lei: non ha un'interfaccia da cliccare,
+    // e questa finestra si apre troppo tardi perche' la risolva il richiamo che
+    // aiPlay fa dopo il piazzamento.
+    if(!giocatoreUmano(chiPuoScegliere)) aiResolvePendingAbilityIfAny();
+    return;
+  }
+  finito();
 }
 // La carta derubata resta in campo, coi suoi valori, ma senza piu' niente da
 // fare. Si azzerano anche i TESTI e non solo la chiave: lasciandoli, la carta
@@ -21530,6 +21578,13 @@ function chiudiSceltaBersaglio(cella){
   // `poi` quando ha finito davvero. Chi non ne ha bisogno resta com'era, e non
   // c'e' nessun ritardo inventato: l'attesa la misura il movimento stesso.
   const prosegui = () => {
+    // v0.75.53 — una scelta puo' dichiarare COSA FARE quando si chiude, invece
+    // di far riprendere il turno da qui. Serve alle finestre che si aprono
+    // DENTRO a un'altra: quella dello sceriffo che usa subito l'abilita' appena
+    // rubata (vedi rubaAbilitaDa). Senza, la seconda finestra chiuderebbe il
+    // turno per conto suo mentre la prima lo sta ancora aspettando, e lo
+    // scontro verrebbe risolto due volte sulla stessa carta.
+    if(typeof scelta.alTermine === 'function'){ scelta.alTermine(); return; }
     // v0.73.66 — le scelte aperte DOPO lo scontro (vedi SCELTE_DOPO_CONQUISTA)
     // arrivano qui a conquista gia' risolta: richiamare resolveConquestAndEndTurn
     // rifarebbe da capo il controllo di conquista sulla stessa carta. Per queste
