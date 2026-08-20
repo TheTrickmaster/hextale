@@ -7327,7 +7327,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.75</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.76</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -8669,20 +8669,20 @@ const AUDIO_DATA_URLS = {
   'wakeup': 'https://thetrickmaster.github.io/hextale/audio/sfx/wakeup.mp3',
   'eagle': 'https://thetrickmaster.github.io/hextale/audio/sfx/eagle.mp3',
   'heal': 'https://thetrickmaster.github.io/hextale/audio/sfx/heal.mp3',
-  'break-stone': 'https://thetrickmaster.github.io/hextale/audio/sfx/break-stone.wav',
+  'break-stone': 'https://thetrickmaster.github.io/hextale/audio/sfx/break-stone.mp3',
   'shield': 'https://thetrickmaster.github.io/hextale/audio/sfx/shield.mp3',
-  'arcane': 'https://thetrickmaster.github.io/hextale/audio/sfx/arcane.wav',
+  'arcane': 'https://thetrickmaster.github.io/hextale/audio/sfx/arcane.mp3',
   'bump': 'https://thetrickmaster.github.io/hextale/audio/sfx/bump.mp3', // plays each time a tile lands during the board's "falling from above" intro
   'howl': 'https://thetrickmaster.github.io/hextale/audio/sfx/howl.mp3', // Lupo Solitario placement VFX
-  'chain': 'https://thetrickmaster.github.io/hextale/audio/sfx/chain.wav', // Reazione a Catena's chained flips
-  'click': 'https://thetrickmaster.github.io/hextale/audio/sfx/click.wav', // start-screen button press feedback
+  'chain': 'https://thetrickmaster.github.io/hextale/audio/sfx/chain.mp3', // Reazione a Catena's chained flips
+  'click': 'https://thetrickmaster.github.io/hextale/audio/sfx/click.mp3', // start-screen button press feedback
   // v0.73.24 — il sibilo del fumo del Brucaliffo NON sta qui, e non e' una
   // dimenticanza: un indirizzo scritto a mano qui dentro punta sempre e solo a
   // GitHub, quindi un file che esiste sul disco ma non e' ancora stato caricato
   // sul repo non si sente. Viene registrato da registraSuoniExtra(), che prova
   // prima la cartella locale e poi il repo — le stesse due strade che l'arte e
   // le voci percorrono gia'.
-  'drain': 'https://thetrickmaster.github.io/hextale/audio/sfx/drain.wav',
+  'drain': 'https://thetrickmaster.github.io/hextale/audio/sfx/drain.mp3',
   // v0.72.83 — bustine: 'unpack-load' accompagna i due secondi di carica,
   // 'unpack-hit' scocca esattamente quando la carica finisce.
   'unpack-load': 'https://thetrickmaster.github.io/hextale/audio/sfx/unpack-load.mp3',
@@ -8986,7 +8986,7 @@ function abilitaSuonoClickGlobale(){
         // Volume fisso: e' un ritorno dell'interfaccia, non un suono di gioco,
         // e deve restare uguale anche prima che il giocatore abbia mai visto i
         // cursori del volume.
-        playSfxFile('click.wav', 0.3);
+        playSfxFile('click.mp3', 0.3);
         return;
       }
       if(nodo === document.body) return;
@@ -8998,7 +8998,7 @@ abilitaSuonoClickGlobale();
 // Per-sound gain adjustments, expressed in dB and converted to a linear
 // multiplier (10^(dB/20)) — lets individual sfx be louder/quieter than the
 // shared getGlobalVolume()*0.8 baseline without touching that baseline for
-// every other sound. arcane.wav (Cannone di Vetro's impact sound) was
+// every other sound. arcane (Cannone di Vetro's impact sound) was
 // reported as too quiet relative to its animation (+2dB); bump.mp3 (each
 // tile landing during the board's drop-in intro) was reported as too loud
 // with ~19 of them stacking up across the intro (-4dB).
@@ -9614,9 +9614,10 @@ function fermaTuttiISuoni(){
 function playSfxFile(filename, fixedVolume, offsetSec){
   // Cancello di isolamento — vedi setGameAudioMuted qui sopra.
   if(_gameAudioMuted && fixedVolume===undefined) return null;
-  // Strip whichever audio extension the caller passed — most sfx are .mp3,
-  // but break-stone/arcane ship as .wav (their AUDIO_DATA_URLS entries point
-  // at the real .wav files), so both must resolve to the same lookup key.
+  // Strip whichever audio extension the caller passed. v0.75.76 — oggi sono
+  // tutti .mp3, ma si continua a togliere anche .wav: chi chiama passa una
+  // stringa scritta a mano, e una vecchia scritta rimasta in giro deve
+  // continuare a trovare il proprio suono invece di cadere nel silenzio.
   const name=filename.replace(/\.(mp3|wav)$/i, '');
   // fixedVolume (optional, 0-1): plays at exactly this volume regardless of
   // the master/sfx sliders — used for UI feedback ticks (e.g. the start-
@@ -11825,12 +11826,14 @@ function _vociDiPersonaggio(slug){
 // e non doveva esserci: restava muta. Basta nominarla in questo elenco, che
 // esiste apposta per i suoni che vivono fra le voci pur essendo effetti — la
 // stessa strada gia' percorsa dal fumo del Brucaliffo.
-// v0.73.85 — si scrivono SENZA estensione. I file arrivano come capita, .mp3
-// o .wav a seconda di dove sono stati presi (la risata di Baba Yaga e' un
-// .wav, quella di Strigoi un .mp3), e far dipendere il funzionamento di
-// un'abilita' da quale delle due sia e' una trappola gratuita: si prova prima
-// .mp3 e poi .wav, e vince la prima che esiste. Chi li chiede li chiama per
-// nome e basta (vedi playSfxFile, che l'estensione la ignora comunque).
+// v0.73.85 — si scrivono SENZA estensione. I file arrivano come capita, e far
+// dipendere il funzionamento di un'abilita' da quale bottone ha premuto chi ha
+// esportato il suono e' una trappola gratuita: si provano le estensioni ammesse
+// e vince la prima che esiste. Chi li chiede li chiama per nome e basta (vedi
+// playSfxFile, che l'estensione la ignora comunque).
+// v0.75.76 — oggi la cartella e' tutta .mp3 e le estensioni ammesse sono una
+// sola, ma il meccanismo resta: e' scritto per non dover tornare qui il giorno
+// in cui arrivera' un file di un altro tipo.
 // v0.75.72 — 'the-green-prince-transform' entra qui e non fra le voci della
 // carta: le voci si cercano per SLUG del personaggio (vedi _vociDiPersonaggio),
 // e questo suono appartiene al MOMENTO della trasformazione, non al principe.
@@ -11838,7 +11841,13 @@ function _vociDiPersonaggio(slug){
 // sua durata, ed e' quella a decidere quando parte il grido di battaglia.
 const SUONI_EXTRA = ['the-caterpillar-smoke', 'strigoi-laugh', 'baba-yaga-laugh',
                      'the-green-prince-transform'];
-const ESTENSIONI_SUONO = ['mp3','wav'];
+// v0.75.76 — una sola estensione. Finche' fra i suoni convivevano .mp3 e .wav
+// si provavano entrambe e vinceva la prima che rispondeva; da quando la cartella
+// e' tutta .mp3, la seconda prova serve solo a raddoppiare le richieste FALLITE
+// per i suoni che ancora non esistono — sedici gridi di battaglia mancanti
+// diventavano trentadue errori all'avvio.
+// Rimetterne una e' una parola, se un domani tornera' un .wav.
+const ESTENSIONI_SUONO = ['mp3'];
 // v0.73.28 — un whoosh per rarita' quando si scopre una carta dalla bustina.
 // Vengono cercati come tutti gli altri asset: prima accanto al file, poi sul
 // repository. Quelli che non esistono ancora non fanno danno — chi non trova
@@ -11849,7 +11858,7 @@ const WHOOSH_PER_RARITA = {
   mythic:   'unpack-whoosh-mythic.mp3',
   timeless: 'unpack-whoosh-timeless.mp3',
 };
-// v0.75.22 — 'kaching.wav' e' il suono del pagamento (vedi raccogliCarte).
+// v0.75.22 — 'kaching.mp3' e' il suono del pagamento (vedi raccogliCarte).
 // Sta in questo elenco perche' e' cosi' che un suono viene registrato e reso
 // disponibile: senza, playSfxFile lo cercherebbe al primo utilizzo — cioe'
 // proprio nell'istante in cui deve suonare, e arriverebbe in ritardo.
@@ -11858,7 +11867,7 @@ const WHOOSH_PER_RARITA = {
 // verrebbero cercati nell'istante in cui devono suonare e arriverebbero tardi
 // — e un suono in ritardo su un'animazione breve si sente come un errore.
 const SUONI_SFX_EXTRA = Object.values(WHOOSH_PER_RARITA)
-  .concat(['kaching.wav', 'card-ding.mp3', 'card-fly.mp3', 'card-burn.wav', 'shield.mp3', 'eagle.mp3', 'break-stone.wav']);
+  .concat(['kaching.mp3', 'card-ding.mp3', 'card-fly.mp3', 'card-burn.mp3', 'shield.mp3', 'eagle.mp3', 'break-stone.mp3']);
 const SFX_REL = 'audio/sfx/';
 const SFX_BASE = 'https://thetrickmaster.github.io/hextale/audio/sfx/';
 function registraSuoniExtra(){
@@ -12031,8 +12040,7 @@ function registraVociSfx(urls){
     // v0.73.85 — si toglie anche l'estensione .wav, non solo .mp3.
     // playSfxFile cerca la chiave togliendo ENTRAMBE (vedi li'), quindi un
     // suono .wav finiva registrato come "nome.wav" e chiesto come "nome": due
-    // stringhe diverse, nessuna corrispondenza, silenzio. Non si era mai visto
-    // perche' finora fra le voci c'erano solo .mp3.
+    // stringhe diverse, nessuna corrispondenza, silenzio.
     const chiave = url.split('/').pop().replace(/\.(mp3|wav)$/i,'');
     if(AUDIO_DATA_URLS[chiave]) continue;
     AUDIO_DATA_URLS[chiave] = url;
@@ -13505,7 +13513,7 @@ function raccogliCarte(){
     // prima: se il pagamento non andasse a buon fine si sentirebbe il registratore
     // di cassa senza che sia uscito un soldo, ed e' il genere di dettaglio che
     // fa dubitare di tutto il resto.
-    try { playSfxFile('kaching.wav'); } catch(_){}
+    try { playSfxFile('kaching.mp3'); } catch(_){}
     lampeggiaValuta('dust');
     contaValutaAllIndietro('dust', prima, fairyDust());
   }
@@ -13717,7 +13725,7 @@ function incenerisciCarta(carta, poi){
   const pop = carta.querySelector('.pack-card-pop');
   // v0.75.30 — il suono della bruciatura, all'inizio: e' l'unico momento in cui
   // ha senso, perche' e' da qui che la carta comincia a consumarsi.
-  try { playSfxFile('card-burn.wav'); } catch(_){}
+  try { playSfxFile('card-burn.mp3'); } catch(_){}
   if(_cenereRAF) cancelAnimationFrame(_cenereRAF);
   const inizio = performance.now();
   let ultimo = inizio;
@@ -21682,7 +21690,7 @@ function sfondaConIlPiccone(cellaNano, cellaMuro, poi){
       // scontrano. Il file sta fra quelli precaricati, o la prima volta
       // arriverebbe in ritardo sul proprio impatto — che e' l'unica volta in
       // cui questo suono deve essere puntuale.
-      try { playSfxFile('break-stone.wav'); } catch(_){}
+      try { playSfxFile('break-stone.mp3'); } catch(_){}
     }catch(_){}
     // A meta' del lampo, quando il bianco copre tutto, il muro non c'e' piu'.
     setTimeout(()=>{
@@ -23167,7 +23175,7 @@ function applicaHexSeConquistata(attaccante, babaYaga, atkVal, defVal){
   // v0.73.85 — e Baba Yaga ride. Il suono sta fra le voci; l'estensione qui
   // e' solo il ripiego per il caso in cui il censimento all'avvio non abbia
   // registrato niente, perche' quello le prova entrambe da solo (vedi
-  // SUONI_EXTRA). v0.73.87: il file e' passato da .wav a .mp3.
+  // SUONI_EXTRA).
   // Sta DOPO il danno e non prima per una ragione sola: se un domani la
   // punizione venisse annullata da qualcosa, la risata non sara' gia' partita.
   try { playSfxFile(assicuraSuonoDaVoce('baba-yaga-laugh','mp3')); } catch(_){}
