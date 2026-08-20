@@ -7327,7 +7327,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.63</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.64</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -10792,15 +10792,49 @@ const GEMME_STANDARD = {
 // PROBABILITA' DI USCITA, in percentuale, per rarita'.
 const DROP_RATE_STANDARD = { common:65, rare:22, mythic:10, timeless:3 };
 
+const LIVELLI_MAX = 4;
+// Legge una cella di valore. Restituisce sempre quattro numeri — uno per
+// livello — o null se non c'e' niente di leggibile.
+// `esplicita` dice quale delle due forme era scritta: serve a non confondere
+// una scaletta scritta a mano con quella ricavata dalla regola, perche' solo la
+// prima va conservata.
+function _scalettaDiLivelli(cella){
+  const grezzo = String(cella==null ? '' : cella).trim();
+  if(!grezzo) return null;
+  // Il separatore accetta il trattino normale e quello lungo, che un foglio di
+  // calcolo inserisce da solo mentre si scrive.
+  const pezzi = grezzo.split(/\s*[-\u2013\u2014]\s*/).filter(x=>x!=='');
+  const numeri = pezzi.map(x=>parseInt(x,10)).filter(n=>isFinite(n));
+  if(!numeri.length) return null;
+  const esplicita = numeri.length > 1;
+  const fuori = [];
+  for(let i=0;i<LIVELLI_MAX;i++){
+    // Oltre l'ultimo numero scritto: se la scaletta e' esplicita l'ultimo
+    // valore continua, se era un numero solo riparte la regola del +1.
+    fuori.push(i < numeri.length ? numeri[i]
+             : (esplicita ? numeri[numeri.length-1] : numeri[0] + i));
+  }
+  fuori.esplicita = esplicita;
+  return fuori;
+}
 // Il bonus di livello: +1 a ogni lato per ogni livello oltre il primo.
 // Sta in una funzione sua e non sparso nel lettore del foglio perche' e' una
 // REGOLA di gioco, non un dettaglio di come si legge una riga: il giorno in cui
 // il bonus cambiera' (per rarita', o non piu' piatto) si tocca solo qui.
-function valoriAlLivello(values, livello){
-  const bonus = Math.max(0, (livello|0) - 1);
-  if(!bonus) return values;
+// v0.75.64 — `scalette` (facoltativo) sono i lati che nel foglio dichiarano un
+// valore per livello: per quelli la regola non si applica, perche' il foglio ha
+// gia' detto cosa vale a quel livello. Un lato per volta, non tutta la carta:
+// si possono scrivere due lati a scaletta e lasciare gli altri quattro col
+// numero solo, e ognuno segue la propria strada.
+function valoriAlLivello(values, livello, scalette){
+  const liv = Math.max(1, Math.min(LIVELLI_MAX, livello|0));
+  const bonus = liv - 1;
+  if(!bonus && !scalette) return values;
   const out = {};
-  for(const lato in values) out[lato] = (values[lato]||0) + bonus;
+  for(const lato in values){
+    const scala = scalette && scalette[lato];
+    out[lato] = scala ? scala[liv-1] : (values[lato]||0) + bonus;
+  }
   return out;
 }
 
@@ -10845,7 +10879,7 @@ function cartaAlLivello(card, livello){
   const baseId = card.baseId || String(card.id||'').replace(/-\d+$/,'');
   const entry = Array.isArray(FINAL_CARDS) ? FINAL_CARDS.find(e=>e.id===baseId) : null;
   const base = (entry && entry.valuesBase) ? entry.valuesBase : (card.valoriNascita || card.values);
-  copia.values = valoriAlLivello(base, liv);
+  copia.values = valoriAlLivello(base, liv, entry && entry.valuesPerLivello);
   copia.valoriNascita = Object.assign({}, copia.values); // in vetrina non c'e' nessun bonus da colorare
   copia.level = liv;
   // Gli slot: se il foglio ne ha imposto un numero, quello vale a ogni livello.
@@ -10925,13 +10959,24 @@ function _cardaDaRiga(col, get, haColonna){
     ? gemmeDaFoglio
     : ((GEMME_STANDARD[rarita] || GEMME_STANDARD.common)[livello-1] || 0);
 
+  // ── v0.75.64 — UN LATO PUO' AVERE UN VALORE PER LIVELLO ─────────────────
+  // Nella cella di un lato si puo' scrivere un numero solo — "4" — e allora
+  // vale la regola di sempre: quello e' il livello 1, e ogni livello oltre
+  // aggiunge +1. Oppure una scaletta — "4-6-7-7" — e allora quei numeri SONO i
+  // livelli, uno per uno: 4 al primo, 6 al secondo, 7 al terzo e al quarto.
+  // Se la scaletta e' piu' corta di quattro, l'ultimo numero vale anche per i
+  // livelli che restano: "4-6" e' quindi 4, 6, 6, 6. E' la lettura piu' vicina
+  // a cio' che si intende scrivendo meno numeri — "da qui in poi non cambia" —
+  // e rende "4-6-7-7" e "4-6-7" la stessa carta.
   const lati=['NW','NE','E','SE','SW','W'];
   let values={};
+  let scalette=null;   // {lato: [v1,v2,v3,v4]} solo per i lati scritti a scaletta
   let completa=true;
   for(const s of lati){
-    const n=parseInt(get(s),10);
-    if(!isFinite(n)){ completa=false; break; }
-    values[s]=n;
+    const scala=_scalettaDiLivelli(get(s));
+    if(!scala){ completa=false; break; }
+    values[s]=scala[0];
+    if(scala.esplicita){ (scalette || (scalette={}))[s]=scala; }
   }
   if(!completa){
     values = valoriProvvisori(nome);
@@ -11065,7 +11110,7 @@ function _cardaDaRiga(col, get, haColonna){
     // gioca quindi con +3 su tutti e sei. Il foglio resta la base e non va
     // ricalcolato a mano quando una carta sale: il numero scritto li' significa
     // sempre la stessa cosa, indipendentemente dal livello.
-    values: valoriAlLivello(values, livello),
+    values: valoriAlLivello(values, livello, scalette),
     // v0.73.1 — la divisione in gruppi, decisa qui una volta sola. Il bonus di
     // livello somma lo stesso numero a tutti i lati, quindi non cambia quali
     // lati stanno insieme: si puo' ricavare indifferentemente dai valori base.
@@ -11073,6 +11118,11 @@ function _cardaDaRiga(col, get, haColonna){
     // I valori come stanno nel foglio, prima del bonus. Servono a sapere da
     // dove si e' partiti senza doverlo ricavare per sottrazione.
     valuesBase: values,
+    // v0.75.64 — i lati che nel foglio hanno una scaletta di livelli. Viaggia
+    // con la riga perche' e' la riga a dichiararlo: chi ricostruisce la carta a
+    // un livello diverso (la vetrina della scheda) deve poterlo chiedere alla
+    // stessa fonte, non ricavarlo per sottrazione.
+    valuesPerLivello: scalette,
     // v0.72.73 — SLOT GEMME. Standard per rarita' e livello (vedi
     // GEMME_STANDARD), scavalcato dalla colonna "Gem slots" quando c'e' scritto
     // un numero. Le carte del foglio avevano groupGems sempre vuoto, ed e' per
