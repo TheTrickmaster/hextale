@@ -7327,7 +7327,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.67</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.68</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -10823,34 +10823,6 @@ const LIVELLI_MAX = 4;
 // `esplicita` dice quale delle due forme era scritta: serve a non confondere
 // una scaletta scritta a mano con quella ricavata dalla regola, perche' solo la
 // prima va conservata.
-// Legge la colonna "Levels": un elenco di "LATO:v-v-v-v" separati da punto e
-// virgola (o da virgola, o da un a capo — chi compila un foglio usa quello che
-// gli viene). I lati non nominati non compaiono nel risultato, e per loro vale
-// la colonna del valore singolo.
-function _scaletteDallaColonnaLevels(cella, nomeCarta){
-  const grezzo = String(cella==null ? '' : cella).trim();
-  if(!grezzo) return null;
-  let fuori = null;
-  for(const pezzo of grezzo.split(/[;,\n]+/)){
-    const t = pezzo.trim();
-    if(!t) continue;
-    const m = t.match(/^([A-Za-z]{1,2})\s*[:=]\s*(.+)$/);
-    if(!m){
-      console.warn('[carte] "'+(nomeCarta||'?')+'", colonna Levels: non capisco "'+t
-        + '". La forma e\' LATO:v-v-v-v, per esempio "NW:4-6-7-7".');
-      continue;
-    }
-    const lato = m[1].toUpperCase();
-    if(!SIDES.includes(lato)){
-      console.warn('[carte] "'+(nomeCarta||'?')+'", colonna Levels: "'+lato+'" non e\' un lato.'
-        + ' I lati sono '+SIDES.join(', ')+'.');
-      continue;
-    }
-    const scala = _scalettaDiLivelli(m[2], nomeCarta, lato);
-    if(scala) (fuori || (fuori={}))[lato] = scala;
-  }
-  return fuori;
-}
 function _scalettaDiLivelli(cella, nomeCarta, nomeLato){
   const grezzo = String(cella==null ? '' : cella).trim();
   if(!grezzo) return null;
@@ -11026,30 +10998,13 @@ function _cardaDaRiga(col, get, haColonna){
   // indovinare cosa volesse dire vorrebbe dire far giocare una carta diversa da
   // quella che il foglio dichiara. Si segnala in console e si torna alla regola
   // del +1 sul primo numero, che e' il comportamento di sempre.
-  // ── v0.75.66 — LA COLONNA "Levels", che funziona anche da file:// ───────
-  // Le scalette scritte dentro le colonne dei valori funzionano solo quando il
-  // foglio si legge come CSV. Da `file://` il gioco lo legge invece via gviz,
-  // che TIPIZZA ogni colonna: NW..W sono colonne di NUMERI, e una cella che
-  // contiene testo ("0-0-0-0") non arriva vuota — non arriva proprio, gviz la
-  // scarta. Da li' il codice conclude che la riga e' incompleta e inventa tutti
-  // e sei i valori: e' cosi' che Excalibur entrava in campo con 7 e 4.
-  // Questa colonna aggira il problema alla radice: contiene testo in OGNI riga
-  // in cui e' compilata, quindi gviz la tipizza come stringa e la consegna
-  // sempre. Ci si scrive solo cio' che cambia, lato per lato:
-  //     NW:4-6-7-7; SE:2-2-5-9
-  // I lati non nominati seguono la regola di sempre. Le sei colonne dei valori
-  // restano quelle che sono e continuano a dire il livello 1.
-  const scaletteDallaColonna = _scaletteDallaColonnaLevels(getAlt(get,['Levels','Values per level']), nome);
   const lati=['NW','NE','E','SE','SW','W'];
   let values={};
   let scalette=null;   // {lato: [v1,v2,v3,v4]} solo per i lati scritti a scaletta
   let completa=true;
   let latoMancante=null;
   for(const s of lati){
-    // La colonna Levels ha la precedenza: e' la piu' esplicita delle due, ed e'
-    // l'unica che sopravvive alla lettura da file://.
-    const dallaColonna = scaletteDallaColonna && scaletteDallaColonna[s];
-    const scala = dallaColonna || _scalettaDiLivelli(get(s), nome, s);
+    const scala=_scalettaDiLivelli(get(s), nome, s);
     if(!scala){ completa=false; latoMancante=s; break; }
     values[s]=scala[0];
     if(scala.esplicita){ (scalette || (scalette={}))[s]=scala; }
@@ -11065,7 +11020,15 @@ function _cardaDaRiga(col, get, haColonna){
     console.warn('[carte] "'+nome+'": la colonna '+latoMancante+' e\' vuota o illeggibile,'
       + '\nquindi TUTTI e sei i valori di questa carta sono INVENTATI dal codice'
       + '\n(valori provvisori, stabili per nome). Quelli scritti nel foglio negli altri'
-      + '\nlati vengono ignorati: bastano sei celle leggibili perche\' valgano i suoi.');
+      + '\nlati vengono ignorati: bastano sei celle leggibili perche\' valgano i suoi.'
+      + (_daFileLocale
+        ? '\n\nATTENZIONE: il gioco e\' aperto DAL DISCO, e da li\' il foglio si legge via'
+          + '\ngviz, che decide un tipo per ogni colonna e SCARTA le celle che non ci'
+          + '\nrientrano: se in questa hai scritto un valore per livello ("4-6-7-7"), in'
+          + '\nuna colonna di numeri quel testo non arriva affatto. Aprendo il gioco dal'
+          + '\nlink di GitHub Pages viene letta la copia pubblicata, che le celle le'
+          + '\nconsegna com\'e\' scritte, e il problema non si presenta.'
+        : ''));
   } else if(!valoriRispettanoLaRegola(values)){
     // I valori scritti a mano nel foglio NON vengono corretti: chi li ha messi
     // avra' avuto le sue ragioni, e riscriverli dal codice significherebbe far
