@@ -7327,7 +7327,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.68</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.69</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -21663,18 +21663,9 @@ function scambiaAltoEBasso(cella){
     if((g.val||0) < (basso.val||0)) basso = g;
   }
   if(alto === basso) return null;
-  const vAlto = alto.val||0, vBasso = basso.val||0;
-  for(const s of alto.sides) posto.card.values[s] = vBasso;
-  for(const s of basso.sides) posto.card.values[s] = vAlto;
-  // I valori non sono ne' saliti ne' scesi, sono altrove: stessa regola della
-  // rotazione (vedi ruotaGruppiDiUnPosto), quindi il metro del verde e del
-  // rosso si sposta con loro e i numeri restano del loro colore.
-  if(posto.card.valoriNascita){
-    const n = posto.card.valoriNascita;
-    const nAlto = n[alto.sides[0]], nBasso = n[basso.sides[0]];
-    for(const s of alto.sides) n[s] = nBasso;
-    for(const s of basso.sides) n[s] = nAlto;
-  }
+  // v0.75.69 — si scambiano i valori E TUTTE LE ISTANTANEE (vedi
+  // _scambiaLatiOvunque). Senza, lo scambio durava il tempo di un disegno.
+  _scambiaLatiOvunque(posto.card, alto.sides, basso.sides);
   return {alto, basso};
 }
 // ── v0.75.39 — I RE CHE MORDRED PUO' UCCIDERE ─────────────────────────────
@@ -22698,6 +22689,39 @@ function effettiDopoLoScontro(card, q, r){
 // Fa scorrere valori E gruppi di un posto in senso orario. E' il cuore che
 // Alice usa a ogni turno e che il Caterpillar usa piu' volte di fila: sta qui,
 // scritto una volta, invece che in due copie che possono divergere.
+// ═══════════════════════════════════════════════════════════════════════════
+// v0.75.69 — SPOSTARE DEI VALORI VUOL DIRE SPOSTARE ANCHE I METRI
+// ═══════════════════════════════════════════════════════════════════════════
+// Una carta in campo non tiene i propri valori in `values` come verita'
+// definitiva: le sinergie vive li RICALCOLANO a ogni disegno partendo da una
+// propria istantanea (Baloo, Biancaneve, Pixies, Strigoi), e i disegni sono
+// continui. Chi cambia `values` e basta viene quindi disfatto al fotogramma
+// successivo — ed e' esattamente quello che succedeva allo scambio di March
+// Hare: l'animazione andava, i numeri tornavano al loro posto.
+// La cosa vale in particolare per `balooBaseValues`, che NON e' solo di Baloo:
+// quella funzione gira su OGNI carta in campo per chiedersi "ho un Baloo
+// accanto?", e nel farlo lascia un'istantanea a tutte. Basta lei a riportare
+// indietro qualunque scambio.
+// E vale per `valoriNascita`, che e' il metro del verde e del rosso: se non si
+// sposta con i valori, uno scambio si legge come un bonus e un malus — che e'
+// il secondo difetto segnalato. Un valore scambiato e' altrove, non piu' alto.
+//
+// L'elenco delle istantanee sta scritto UNA volta: chi domani ne aggiungera'
+// una per una sinergia nuova la mette qui, e ogni spostamento di valori la
+// rispetta senza saperne niente.
+const METRI_DELLA_CARTA = ['valoriNascita','tileAbilityBaseValues','hoorayBaseValues',
+                           'mischiefBaseValues','nightmareBaseValues','balooBaseValues'];
+function _scambiaLatiOvunque(card, latiA, latiB){
+  if(!card || !latiA || !latiB || !latiA.length || !latiB.length) return;
+  const scambia = (tabella)=>{
+    if(!tabella) return;
+    const vA = tabella[latiA[0]], vB = tabella[latiB[0]];
+    for(const s of latiA) tabella[s] = vB;
+    for(const s of latiB) tabella[s] = vA;
+  };
+  scambia(card.values);
+  for(const nome of METRI_DELLA_CARTA) scambia(card[nome]);
+}
 function ruotaGruppiDiUnPosto(card){
   const prima = {...card.values};
   for(let i=0;i<SIDES.length;i++) card.values[SIDES[(i+1)%SIDES.length]] = prima[SIDES[i]];
@@ -22705,27 +22729,17 @@ function ruotaGruppiDiUnPosto(card){
     card.groupSides = card.groupSides.map(lati =>
       lati.map(s => SIDES[(SIDES.indexOf(s)+1)%SIDES.length]));
   }
-  if(card.hoorayBaseValues){
-    const base = {...card.hoorayBaseValues};
-    for(let i=0;i<SIDES.length;i++) card.hoorayBaseValues[SIDES[(i+1)%SIDES.length]] = base[SIDES[i]];
-  }
-  if(card.tileAbilityBaseValues){
-    const base = {...card.tileAbilityBaseValues};
-    for(let i=0;i<SIDES.length;i++) card.tileAbilityBaseValues[SIDES[(i+1)%SIDES.length]] = base[SIDES[i]];
-  }
-  // v0.75.54 — E I VALORI DI NASCITA RUOTANO CON GLI ALTRI. Da quando il verde
-  // e il rosso si calcolano confrontando i valori con quelli di nascita
-  // (v0.75.50), lasciarli fermi mentre i numeri girano faceva sembrare la
-  // rotazione un insieme di bonus e malus: il 7 finito dove prima c'era il 2
-  // risultava +5, e il 2 finito dove c'era il 7 risultava -5. Ma un valore
-  // spostato non e' ne' salito ne' sceso — e' altrove, ed e' esattamente cio'
-  // che dice il lampo bianco qui sotto.
-  // Ruotando anche il metro, la differenza resta zero e i numeri restano del
-  // loro colore. Vale per Alice in mano, per il Cheshire in campo e per il
-  // Brucaliffo, perche' passano tutti da qui.
-  if(card.valoriNascita){
-    const base = {...card.valoriNascita};
-    for(let i=0;i<SIDES.length;i++) card.valoriNascita[SIDES[(i+1)%SIDES.length]] = base[SIDES[i]];
+  // v0.75.69 — ruotano TUTTE le istantanee, non piu' solo due. Ne mancavano
+  // tre (mischief, nightmare, baloo), e in particolare quella di Baloo ce
+  // l'hanno tutte le carte in campo: bastava lei a riportare indietro la
+  // rotazione al primo ridisegno. Lo stesso guasto dello scambio di March
+  // Hare, che non era ancora stato notato solo perche' il Cheshire ruota e si
+  // sposta nello stesso momento, e da fuori il salto copre tutto.
+  for(const nome of METRI_DELLA_CARTA){
+    const tabella = card[nome];
+    if(!tabella) continue;
+    const base = {...tabella};
+    for(let i=0;i<SIDES.length;i++) tabella[SIDES[(i+1)%SIDES.length]] = base[SIDES[i]];
   }
   // v0.73.77 — i valori non sono ne' saliti ne' scesi: sono altrove. Lampo
   // BIANCO, che e' il colore riservato proprio a questo (vedi il blocco dei
