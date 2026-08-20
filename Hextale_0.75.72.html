@@ -7327,7 +7327,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.71</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.72</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -11820,7 +11820,13 @@ function _vociDiPersonaggio(slug){
 // un'abilita' da quale delle due sia e' una trappola gratuita: si prova prima
 // .mp3 e poi .wav, e vince la prima che esiste. Chi li chiede li chiama per
 // nome e basta (vedi playSfxFile, che l'estensione la ignora comunque).
-const SUONI_EXTRA = ['the-caterpillar-smoke', 'strigoi-laugh', 'baba-yaga-laugh'];
+// v0.75.72 — 'the-green-prince-transform' entra qui e non fra le voci della
+// carta: le voci si cercano per SLUG del personaggio (vedi _vociDiPersonaggio),
+// e questo suono appartiene al MOMENTO della trasformazione, non al principe.
+// Essere fra i precaricati serve anche a un'altra cosa: da qui si conosce la
+// sua durata, ed e' quella a decidere quando parte il grido di battaglia.
+const SUONI_EXTRA = ['the-caterpillar-smoke', 'strigoi-laugh', 'baba-yaga-laugh',
+                     'the-green-prince-transform'];
 const ESTENSIONI_SUONO = ['mp3','wav'];
 // v0.73.28 — un whoosh per rarita' quando si scopre una carta dalla bustina.
 // Vengono cercati come tutti gli altri asset: prima accanto al file, poi sul
@@ -20763,17 +20769,55 @@ function attivaKiss(card, q, r){
 // vede cosa c'e' sotto — stesso principio dei Sette Nani col muro, e del giro
 // delle carte, dove il contenuto si cambia a meta' rotazione.
 const BACIO_LAMPO_MS = 220;    // deve combaciare con .hit-flash
+// v0.75.72 — quanto si aspetta il grido quando la durata del suono della
+// trasformazione non e' nota (file non ancora decodificato al primo utilizzo).
+const TRASFORMAZIONE_DURATA_DI_RIPIEGO_MS = 2600;
+// Chiama `poi` quando il suono appena avviato e' finito davvero. I due percorsi
+// di playSfxFile restituiscono due cose diverse: un elemento <audio>, che sa
+// dire da solo quando ha finito, e un nodo Web Audio, che non lo dice — ma di
+// quello si conosce il buffer, e quindi la durata. Chi non sa rispondere in
+// nessuno dei due modi usa un tempo di ripiego: meglio un grido un po' presto
+// che un grido che non arriva.
+function dopoIlSuono(handle, chiave, poi){
+  const chiama = ()=>{ try{ poi(); }catch(_){} };
+  if(handle && typeof handle.addEventListener === 'function'){
+    let fatto = false;
+    const unaVolta = ()=>{ if(fatto) return; fatto = true; chiama(); };
+    handle.addEventListener('ended', unaVolta, {once:true});
+    // Rete: se l'elemento non emettesse mai 'ended' (file mancante, riproduzione
+    // rifiutata) il grido resterebbe in attesa per sempre.
+    setTimeout(unaVolta, TRASFORMAZIONE_DURATA_DI_RIPIEGO_MS);
+    return;
+  }
+  const buf = chiave && _sfxBuffers[chiave];
+  const durata = (buf && buf.duration) ? buf.duration*1000 : TRASFORMAZIONE_DURATA_DI_RIPIEGO_MS;
+  setTimeout(chiama, durata);
+}
 function trasformaConLampo(cella, card, q, r, poi){
   const finito = ()=>{ if(typeof poi==='function') poi(); };
   const bsvg = document.getElementById('board-svg');
   const el = bsvg && bsvg.querySelector('[data-conquered="'+cella+'"]');
   if(!el){ attivaKiss(card, q, r); try{ renderBoard(); }catch(_){} finito(); return; }
   try{ lampeggiaCarta(el); }catch(_){}
+  // v0.75.72 — LA VOCE DELLA TRASFORMAZIONE PARTE COL LAMPO, e il grido di
+  // battaglia aspetta che abbia finito. Sono due momenti diversi della stessa
+  // scena — prima la rana che diventa principe, poi il principe che si
+  // presenta — e sovrapporli li renderebbe una sola cosa confusa.
+  // Il grido lo farebbe partire trasformaCartaIn appena la carta cambia: qui lo
+  // si mette a tacere per quel momento e lo si rimanda a suono finito.
+  let voce = null;
+  const chiaveVoce = assicuraSuonoDaVoce('the-green-prince-transform','mp3');
+  try{ voce = playSfxFile(chiaveVoce+'.mp3'); }catch(_){}
   setTimeout(()=>{
+    card.gridoRimandato = true;
     attivaKiss(card, q, r);
+    card.gridoRimandato = false;
     try{ renderBoard(); }catch(_){}
+    dopoIlSuono(voce, chiaveVoce, ()=>{ try{ playCardBattlecry(card); }catch(_){} });
     // Il resto del lampo scorre sulla carta NUOVA, e solo dopo si combatte:
-    // "prima diventa principe, poi attacca".
+    // "prima diventa principe, poi attacca". Lo scontro non aspetta la voce —
+    // aspetterebbe due secondi e mezzo a carta ferma — ma la voce continua sopra
+    // di esso, che e' come si comportano tutti gli altri gridi.
     setTimeout(finito, BACIO_LAMPO_MS/2);
   }, BACIO_LAMPO_MS/2);
 }
@@ -20958,7 +21002,11 @@ function trasformaCartaIn(card, nomeCarta, etichetta){
   card.tileAbilityBaseValues = {...nuova.values};
   delete card.hoorayBaseValues; delete card.mischiefBaseValues;
   delete card.nightmareBaseValues; delete card.balooBaseValues;
-  try { playCardBattlecry(card); } catch(_){}
+  // v0.75.72 — chi ha rimandato il grido lo dice: la trasformazione del
+  // Ranocchio lo fa partire dopo la propria voce (vedi trasformaConLampo), e
+  // farlo partire anche qui vorrebbe dire sentirlo due volte, sovrapposto a se'
+  // stesso.
+  if(!card.gridoRimandato){ try { playCardBattlecry(card); } catch(_){} }
   return true;
 }
 // ── v0.74.0 — THE CRYSTAL PRINCESS, "Crowned": il lato piu' alto e' sacro ──
