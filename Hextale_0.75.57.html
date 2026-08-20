@@ -7318,7 +7318,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.56</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.57</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -17353,6 +17353,17 @@ function makeDeck(owner,total){
     carta.baseId = entry.id;
     carte.push(carta);
   });
+  // v0.75.57 — WHITE RABBIT, "Rush Hour": se e' nel mazzo, parte in mano.
+  // Non si tocca la pescata, che e' un meccanismo delicato (animazioni, conteggi,
+  // il ventaglio che si ricostruisce): si mette la carta in CIMA al mazzo, e la
+  // pescata iniziale — che prende le prime HAND_SIZE — se la ritrova in mano da
+  // sola. Il mazzo resta di dodici carte e la mano di quattro: l'abilita' non
+  // regala niente, decide solo QUALE delle dodici arriva subito.
+  const inFretta = carte.filter(c => abilitaAttivaDi(c) === 'rush_hour');
+  if(inFretta.length){
+    const altre = carte.filter(c => abilitaAttivaDi(c) !== 'rush_hour');
+    return inFretta.concat(altre);
+  }
   return carte;
 }
 // Quanto costa un mazzo gia' costruito. Serve alle prove e al menu di debug:
@@ -17748,6 +17759,10 @@ const TILE_ABILITIES_DEF = {
   bothered:     { carta:'Princess and the Pea', name:'Bothered',       desc:'*Gains* +1 ALL for every free side.' },
   apex_predator:{ carta:'Shere Khan',           name:'Apex Predator',  desc:'Can *Conquer* even if Power is equal.' },
   fearless:     { carta:'Little Red Riding Hood', name:'Fearless',     desc:'*Gains* +2 ALL when attacking /Cruel/, /Wild/ or /Obscure/ characters.' },
+  rush_hour:    { carta:'White Rabbit',        name:'Rush Hour',     desc:'Starts the game in hand. *Gains* +3 ALL if *Played* on the first turn.' },
+  heigh_ho:     { carta:'Seven Dwarves',       name:'Heigh-ho',      desc:'When *Played*, can *Destroy* an adjacent blocked tile.' },
+  give_me_that: { carta:'Rumpelstiltskin',     name:'Give me that',  desc:'When *Played*, *Steals* the Traits of an adjacent enemy character.' },
+  swap_values:  { carta:'March Hare',          name:'Mad Swap',      desc:'After *Conquering*, can *Swap* an adjacent enemy\'s highest and lowest Power values.' },
   everyone_gets_a_wish: { carta:'The Genie',    name:'Everyone gets a wish', desc:'When *Played*, every character in your hand *Gains* +2 RAND.' },
   // v0.75.43 — RAPUNZEL. La treccia arriva lontano ma in linea retta, e solo
   // se la strada e' sgombra: tira a se' una carta non adiacente lungo una delle
@@ -20020,6 +20035,8 @@ function doPlace(card,playerIdx,q,r){
     // (vedi EFFETTI_PIAZZAMENTO): quello che si vede trascinando e quello che
     // succede lasciando la carta sono per costruzione la stessa cosa.
     applicaAbilitaPiazzamento(card, q, r, cellAbilityKey);
+    // v0.75.57 — e chi le sta accanto reagisce, prima dello scontro.
+    reazioniAlPiazzamento(card, q, r, player);
     // v0.73.5 — e subito dopo quelli che esistono solo per davvero (una taglia
     // sulla pescata, una conquista annullata, un dado tirato): vedi
     // EFFETTI_PIAZZAMENTO_REALI per il perche' stiano in un registro a parte.
@@ -20176,6 +20193,7 @@ const EFFETTI_PIAZZAMENTO = {
   // v0.73.98 — due effetti al piazzamento che cambiano valori, quindi qui: da
   // questo registro l'anteprima sotto il puntatore arriva gratis.
   tic_toc: (card) => attivaTicToc(card),
+  rush_hour: (card) => attivaRushHour(card),
   scaredy_cat: (card) => attivaScaredyCat(card),
 };
 // ═══════════════════════════════════════════════════════════════════════════
@@ -20312,6 +20330,17 @@ function attivaEveryoneGetsAWish(card){
     esauditi++;
   }
   if(esauditi) console.info('[Everyone gets a wish] +'+BONUS_GENIO+' a un gruppo di '+esauditi+' carte in mano.');
+}
+// ── v0.75.57 — WHITE RABBIT, il +3 di chi arriva per primo ────────────────
+// "Primo turno" e' il primo turno DI CHI LA GIOCA, non il turno 1 della
+// partita: quello e' solo di chi comincia, e l'altro non potrebbe mai
+// riscuoterlo. E' la stessa lettura con cui Tic Toc e' stato corretto in
+// v0.75.54 — i turni 1 e 2 sono la prima giocata dell'uno e dell'altro.
+const TURNI_RUSH_HOUR = 2;
+const BONUS_RUSH_HOUR = 3;
+function attivaRushHour(card){
+  if((G && G.numeroTurno || 1) > TURNI_RUSH_HOUR) return;
+  modificaValori(card, SIDES, BONUS_RUSH_HOUR, undefined, {chiave:'rush_hour', da:card.name||'Rush Hour'});
 }
 const TURNI_TIC_TOC = 4;
 const BONUS_TIC_TOC = 2;
@@ -20487,22 +20516,15 @@ function vinceIlConfronto(attaccante, valoreAttacco, valoreDifesa){
   if(abilitaAttivaDi(attaccante) === 'apex_predator') return valoreAttacco >= valoreDifesa;
   return valoreAttacco > valoreDifesa;
 }
-// "Fearless": +2 quando ATTACCA certe prede. Il bonus vale per quel colpo e
-// basta — non entra nei valori della carta, che restano quelli — quindi non
-// compare fra i bonus e i malus: non c'e' nessun numero cambiato da spiegare.
-// "Obscure" non e' un archetipo che esista oggi sul foglio; sta nell'elenco
-// perche' l'abilita' lo nomina, e il giorno in cui esistera' funzionera' senza
-// che nessuno si ricordi di tornare qui.
-const PREDE_DI_CAPPUCCETTO = ['cruel','wild','obscure'];
+// v0.75.57 — "Fearless" NON e' un bonus d'attacco: e' una REAZIONE. Il +2 non
+// scatta quando Cappuccetto attacca, ma quando un nemico Cruel, Wild o
+// Trickster viene calato ACCANTO a lei — prima del confronto dei valori. E' una
+// differenza di chi agisce: li' era lei a muoversi, qui subisce e si prepara.
+// Vive quindi fra le reazioni al piazzamento (vedi reazioniAlPiazzamento) e non
+// nel confronto, e il +2 entra nei suoi valori per davvero — con la sua riga
+// fra i bonus, perche' un numero cambiato ha sempre una causa da mostrare.
+const PREDE_DI_CAPPUCCETTO = ['cruel','wild','trickster'];
 const BONUS_FEARLESS = 2;
-function valoreAttaccoContro(attaccante, valoriEffettivi, mioLato, difensore){
-  let v = getAttackValueForSide(attaccante, valoriEffettivi, mioLato);
-  if(abilitaAttivaDi(attaccante) === 'fearless' && difensore && difensore.archetypes
-     && PREDE_DI_CAPPUCCETTO.some(a => difensore.archetypes.includes(a))){
-    v += BONUS_FEARLESS;
-  }
-  return v;
-}
 function puoConquistare(attaccante, difensore){
   if(!difensore) return true;
   if(abilitaAttivaDi(difensore) !== 'power_nap') return true;
@@ -20559,6 +20581,34 @@ function giraScudiDiFineTurno(){
     quanti++;
   }
   return quanti;
+}
+// ═══════════════════════════════════════════════════════════════════════════
+// v0.75.57 — LE REAZIONI DEI VICINI A UNA CARTA APPENA CALATA
+// ═══════════════════════════════════════════════════════════════════════════
+// Tutti gli effetti di piazzamento visti finora partono dalla carta GIOCATA e
+// sono elencati per la SUA abilita'. Una reazione va nel verso opposto: e' un
+// vicino che si accorge di chi gli si e' messo accanto, e la carta giocata non
+// sa niente di lui. Non poteva quindi stare in EFFETTI_PIAZZAMENTO, che e'
+// indicizzato sull'abilita' di chi arriva.
+// Gira subito dopo gli effetti della carta giocata e PRIMA dello scontro, che
+// e' l'unico momento in cui una difesa preparata serve a qualcosa.
+// Sta accanto ad applicaAbilitaPiazzamento e viene chiamata dagli stessi punti,
+// simulazione compresa: cosi' l'anteprima sotto il puntatore mostra gia'
+// Cappuccetto che si irrigidisce, invece di farlo scoprire solo dopo aver
+// lasciato la carta.
+function reazioniAlPiazzamento(card, q, r, giocatore){
+  if(!card) return;
+  const chiArriva = (giocatore != null) ? giocatore : G.currentPlayer;
+  for(const dir of DIRS){
+    const vicino = G.board[key(q+dir.dq, r+dir.dr)];
+    if(!vicino || !vicino.card || vicino.card === card) continue;
+    if(vicino.owner === chiArriva) continue; // reagisce ai NEMICI, non ai propri
+    if(abilitaAttivaDi(vicino.card) !== 'fearless') continue;
+    const prede = card.archetypes || [];
+    if(!PREDE_DI_CAPPUCCETTO.some(a => prede.includes(a))) continue;
+    modificaValori(vicino.card, SIDES, BONUS_FEARLESS, undefined,
+      {chiave:'fearless', da:vicino.card.name||'Fearless'});
+  }
 }
 function applicaAbilitaPiazzamento(card, q, r, chiave){
   const effetto = EFFETTI_PIAZZAMENTO[chiave];
@@ -20811,6 +20861,37 @@ const SCELTE_PIAZZAMENTO = {
       rinuncia: () => {},
     };
   },
+  // ── v0.75.57 — SEVEN DWARVES, "Heigh-ho" ────────────────────────────────
+  // Un muro adiacente da sfondare. L'animazione e' quella di un attacco vero —
+  // la carta si lancia contro il tassello, il tassello lampeggia e trema — e al
+  // culmine del lampo il muro non c'e' piu': e' il momento in cui l'occhio non
+  // vede nulla, ed e' li' che si cambia cio' che c'e' sotto. Stesso trucco del
+  // giro delle carte, dove il contenuto si sostituisce a meta' rotazione.
+  heigh_ho: (card, q, r, giocatore) => {
+    const bersagli = bersagliHeighHo(q, r);
+    if(!bersagli.length) return null; // nessun muro accanto: si tira dritto
+    return {
+      chiave: 'heigh_ho',
+      giocatore,
+      cellaOrigine: key(q,r),
+      bersagli,
+      applicaEAspetta: (cella, poi) => sfondaConIlPiccone(key(q,r), cella, poi),
+      rinuncia: () => {},
+    };
+  },
+  // ── v0.75.57 — RUMPELSTILTSKIN, "Give me that" ──────────────────────────
+  give_me_that: (card, q, r, giocatore) => {
+    const bersagli = bersagliGiveMeThat(q, r, giocatore);
+    if(!bersagli.length) return null;
+    return {
+      chiave: 'give_me_that',
+      giocatore,
+      cellaOrigine: key(q,r),
+      bersagli,
+      applica: (cella) => { rubaITratti(card, cella); try{ renderBoard(); }catch(_){} },
+      rinuncia: () => {},
+    };
+  },
   // ── v0.75.39 — MORDRED, "Kingslayer" ────────────────────────────────────
   // Chiede quale /Sovereign/ o /Noble/ adiacente distruggere. E' la piu'
   // semplice delle scelte sul tabellone — bersagli, un click, fatto — e non ha
@@ -20928,6 +21009,190 @@ function tirateRapunzel(q, r){
   return tirate;
 }
 
+// ── v0.75.57 — LE DUE ANIMAZIONI DI QUESTE ABILITA' ───────────────────────
+// IL PICCONE. La carta si lancia contro il muro come in un attacco vero, il
+// muro lampeggia e trema, e AL CULMINE DEL LAMPO diventa una casella libera.
+// Il momento e' quello e non un altro: e' l'unico istante in cui l'occhio non
+// vede cosa c'e' sotto, ed e' li' che si puo' sostituire senza che il cambio si
+// veda — lo stesso trucco del giro delle carte, dove il contenuto si cambia a
+// meta' rotazione.
+const PICCONE_LUNGE_MS = 420;      // deve combaciare con .card-lunge
+const PICCONE_COLPO_MS = 193;      // il fotogramma in cui il colpo arriva (46%)
+const PICCONE_LAMPO_MS = 220;      // deve combaciare con .hit-flash
+function sfondaConIlPiccone(cellaNano, cellaMuro, poi){
+  const finito = ()=>{ if(typeof poi==='function') poi(); };
+  if(!G.holes.has(cellaMuro)){ finito(); return; }
+  const bsvg = document.getElementById('board-svg');
+  const nano = bsvg && bsvg.querySelector('[data-conquered="'+cellaNano+'"]');
+  const muro = bsvg && bsvg.querySelector('[data-tile-wrap="'+cellaMuro+'h"]');
+  // Senza il disegno si sfonda e basta: un'animazione mancante e' molto meglio
+  // di un turno fermo.
+  if(!nano || !muro){ sfondaTasselloBloccato(cellaMuro); try{ renderBoard(); }catch(_){} finito(); return; }
+  // Lo slancio, con la stessa geometria degli attacchi veri: direzione dal
+  // nano al muro, deformazione e scia comprese.
+  try{
+    const [aq,ar] = cellaNano.split(',').map(Number);
+    const [bq,br] = cellaMuro.split(',').map(Number);
+    const from = axialToPixel(aq,ar,0,0,1), to = axialToPixel(bq,br,0,0,1);
+    const dx = to.x-from.x, dy = to.y-from.y, len = Math.hypot(dx,dy)||1;
+    const ux = dx/len, uy = dy/len, LUNGE_PX = 26;
+    nano.style.setProperty('--lx', (ux*LUNGE_PX).toFixed(2));
+    nano.style.setProperty('--ly', (uy*LUNGE_PX).toFixed(2));
+    const st = attackStretchFactors(ux,uy);
+    nano.style.setProperty('--sx', st.sx.toFixed(3));
+    nano.style.setProperty('--sy', st.sy.toFixed(3));
+    spawnAttackStreak(nano, (ux*LUNGE_PX).toFixed(2), (uy*LUNGE_PX).toFixed(2), st.sx.toFixed(3), st.sy.toFixed(3));
+    nano.classList.remove('card-lunge-a','card-lunge-b');
+    void nano.getBoundingClientRect();
+    nano.classList.add('card-lunge-a');
+  }catch(_){}
+  // Al contatto: il muro lampeggia e trema.
+  setTimeout(()=>{
+    try{
+      lampeggiaCarta(muro);
+      muro.classList.remove('card-wobble-a','card-wobble-b');
+      void muro.getBoundingClientRect();
+      muro.classList.add('card-wobble-a');
+      playHitSfx();
+    }catch(_){}
+    // A meta' del lampo, quando il bianco copre tutto, il muro non c'e' piu'.
+    setTimeout(()=>{
+      sfondaTasselloBloccato(cellaMuro);
+      try{ renderBoard(); }catch(_){}
+      setTimeout(finito, PICCONE_LAMPO_MS/2);
+    }, PICCONE_LAMPO_MS/2);
+  }, PICCONE_COLPO_MS);
+}
+// LO SCAMBIO. I due cerchietti si scambiano di posto lungo un arco, ed e' la
+// stessa animazione con cui ruotano i valori di Alice e del Cheshire: uno
+// scambio e' un movimento, e mostrarlo come un numero che cambia di colpo
+// perderebbe proprio la cosa che l'abilita' racconta.
+function scambiaConAnimazione(cella, poi){
+  const finito = ()=>{ if(typeof poi==='function') poi(); };
+  const bsvg = document.getElementById('board-svg');
+  const el = bsvg && bsvg.querySelector('[data-conquered="'+cella+'"]');
+  const posto = G.board[cella];
+  if(!posto || !posto.card){ finito(); return; }
+  // I gruppi si leggono PRIMA dello scambio: dopo, il piu' alto e il piu' basso
+  // si sono gia' scambiati di posto e i cerchietti da animare sarebbero gli
+  // altri.
+  const gruppi = gruppiDiCarta(posto.card);
+  let alto = gruppi[0], basso = gruppi[0];
+  for(const g of gruppi){
+    if((g.val||0) > (alto.val||0)) alto = g;
+    if((g.val||0) < (basso.val||0)) basso = g;
+  }
+  const elsA = el && alto && elementiValoreDelLato(el, alto.sides[0]);
+  const elsB = el && basso && elementiValoreDelLato(el, basso.sides[0]);
+  const applica = ()=>{
+    scambiaAltoEBasso(cella);
+    try{ renderBoard(); }catch(_){}
+    finito();
+  };
+  if(elsA && elsB && alto !== basso){
+    try{ animaScambioCoppiaValori(elsA, elsB); }catch(_){}
+    // I numeri veri cambiano a viaggio finito, come per la rotazione: il
+    // numero non deve saltare al posto nuovo mentre lo sta ancora raggiungendo.
+    setTimeout(applica, ROTAZIONE_VALORI_MS);
+    return;
+  }
+  applica();
+}
+// ── v0.75.57 — SETTE NANI, "Heigh-ho": il piccone contro il muro ──────────
+// I tasselli bloccati adiacenti. Non c'e' altro da filtrare: un muro e' un muro.
+function bersagliHeighHo(q, r){
+  const trovati = [];
+  for(const dir of DIRS){
+    const nk = key(q+dir.dq, r+dir.dr);
+    if(G.holes.has(nk)) trovati.push(nk);
+  }
+  return trovati;
+}
+// La casella smette di essere bloccata e diventa libera. Il tassello non viene
+// "riparato": viene sfondato, e `destroyedHoles` e' proprio il segno che il
+// disegno legge per usare l'arte del muro abbattuto invece di quella di un
+// tassello qualunque (vedi renderBoard).
+function sfondaTasselloBloccato(cella){
+  if(!G.holes.has(cella)) return false;
+  G.holes.delete(cella);
+  if(G.destroyedHoles) G.destroyedHoles.add(cella);
+  return true;
+}
+// ── v0.75.57 — RUMPELSTILTSKIN, "Give me that": i tratti cambiano padrone ──
+// Ruba gli ARCHETIPI, che in questo gioco sono i tratti: sono loro a decidere
+// chi riceve i doni di Baloo, chi Maid Marian, chi Mordred puo' uccidere e chi
+// sveglia la Bella Addormentata. Spostarli sposta tutte quelle risposte
+// insieme, senza che nessuna di quelle abilita' sappia che e' successo — ed e'
+// il motivo per cui questa abilita' e' piu' grossa di quanto sembri.
+function bersagliGiveMeThat(q, r, giocatore){
+  const trovati = [];
+  for(const dir of DIRS){
+    const nk = key(q+dir.dq, r+dir.dr);
+    const vicino = G.board[nk];
+    if(!vicino || !vicino.card) continue;
+    if(vicino.owner === giocatore) continue;              // solo nemiche
+    if(!(vicino.card.archetypes||[]).length) continue;    // non ha tratti da dare
+    trovati.push(nk);
+  }
+  return trovati;
+}
+function rubaITratti(ladro, cellaBersaglio){
+  const bersaglio = G.board[cellaBersaglio];
+  if(!ladro || !bersaglio || !bersaglio.card) return;
+  const presi = (bersaglio.card.archetypes||[]).slice();
+  if(!presi.length) return;
+  // Si AGGIUNGONO ai suoi, non li sostituiscono: Rumpelstiltskin colleziona.
+  // E si tolgono all'altro, o sarebbe una copia e non un furto.
+  const gia = ladro.archetypes || [];
+  ladro.archetypes = gia.concat(presi.filter(a => !gia.includes(a)));
+  bersaglio.card.archetypes = [];
+  ladro.tratiRubatiA = bersaglio.card.name || cellaBersaglio;
+  console.info('[Give me that] rubati i tratti a "'+(bersaglio.card.name||cellaBersaglio)+'": '+presi.join(', '));
+}
+// ── v0.75.57 — MARCH HARE: il piu' alto e il piu' basso si scambiano ──────
+// Solo carte nemiche adiacenti, e solo quelle che hanno DUE gruppi diversi da
+// scambiare: su una carta con tutti i lati uguali lo scambio non cambierebbe
+// niente, e offrirla sarebbe promettere un gesto senza effetto.
+function bersagliMarchHare(q, r, giocatore){
+  const trovati = [];
+  for(const dir of DIRS){
+    const nk = key(q+dir.dq, r+dir.dr);
+    const vicino = G.board[nk];
+    if(!vicino || !vicino.card) continue;
+    if(vicino.owner === giocatore) continue;
+    const gruppi = gruppiDiCarta(vicino.card);
+    if(gruppi.length < 2) continue;
+    const valori = gruppi.map(g=>g.val||0);
+    if(Math.max(...valori) === Math.min(...valori)) continue;
+    trovati.push(nk);
+  }
+  return trovati;
+}
+function scambiaAltoEBasso(cella){
+  const posto = G.board[cella];
+  if(!posto || !posto.card) return null;
+  const gruppi = gruppiDiCarta(posto.card);
+  if(gruppi.length < 2) return null;
+  let alto = gruppi[0], basso = gruppi[0];
+  for(const g of gruppi){
+    if((g.val||0) > (alto.val||0)) alto = g;
+    if((g.val||0) < (basso.val||0)) basso = g;
+  }
+  if(alto === basso) return null;
+  const vAlto = alto.val||0, vBasso = basso.val||0;
+  for(const s of alto.sides) posto.card.values[s] = vBasso;
+  for(const s of basso.sides) posto.card.values[s] = vAlto;
+  // I valori non sono ne' saliti ne' scesi, sono altrove: stessa regola della
+  // rotazione (vedi ruotaGruppiDiUnPosto), quindi il metro del verde e del
+  // rosso si sposta con loro e i numeri restano del loro colore.
+  if(posto.card.valoriNascita){
+    const n = posto.card.valoriNascita;
+    const nAlto = n[alto.sides[0]], nBasso = n[basso.sides[0]];
+    for(const s of alto.sides) n[s] = nBasso;
+    for(const s of basso.sides) n[s] = nAlto;
+  }
+  return {alto, basso};
+}
 // ── v0.75.39 — I RE CHE MORDRED PUO' UCCIDERE ─────────────────────────────
 // Le carte adiacenti che sono /Sovereign/ o /Noble/. L'archetipo si legge da
 // `archetypes`, che tiene sia il ruolo sia il tratto in minuscolo: chiedere
@@ -21825,6 +22090,25 @@ function rinunciaSceltaBersaglio(){ chiudiSceltaBersaglio(null); }
 // solo QUANDO si apre e cosa succede chiudendola (vedi il ramo
 // `scelta.dopoConquista` in chiudiSceltaBersaglio, qui sopra).
 const SCELTE_DOPO_CONQUISTA = {
+  // ── v0.75.57 — MARCH HARE, lo scambio del piu' alto col piu' basso ──────
+  // Sta QUI e non fra le scelte al piazzamento perche' il foglio la dichiara
+  // Conquest: agisce dopo aver preso qualcosa, non appena arriva.
+  // L'icona e' quella dello scambio e non il mirino: il gesto non e' "colpisci
+  // questa", e' "girale i numeri".
+  swap_values: (card, q, r, giocatore, conquestInfo) => {
+    if(!conquestInfo || !conquestInfo.length) return null; // solo dopo aver conquistato
+    const bersagli = bersagliMarchHare(q, r, giocatore);
+    if(!bersagli.length) return null;
+    return {
+      chiave: 'swap_values',
+      giocatore,
+      icona: 'swap-icon.png',
+      cellaOrigine: key(q,r),
+      bersagli,
+      applicaEAspetta: (cella, poi) => scambiaConAnimazione(cella, poi),
+      rinuncia: () => {},
+    };
+  },
   // ── v0.73.67 — 12 DANCING PRINCESSES, "Dancing Around" ──────────────────
   // Chi si sposta e' LEI, la Principessa che ha appena conquistato — non la
   // carta che ha preso, che resta dov'e' finita. Le caselle fra cui scegliere
@@ -22352,6 +22636,9 @@ function simulaPiazzamento(card, q, r){
 
     const chiave = abilitaAttivaDi(card);
     if(chiave) applicaAbilitaPiazzamento(cartaClone, q, r, chiave);
+    // Nella simulazione il giocatore e' quello di turno: la carta trascinata e'
+    // sua per definizione.
+    reazioniAlPiazzamento(cartaClone, q, r, G.currentPlayer);
     // Le sinergie continue (quelle che si ricalcolano a ogni disegno invece di
     // scattare una volta sola) vanno rifatte girare sul tabellone simulato,
     // altrimenti l'anteprima mostrerebbe il mondo nuovo con i conti vecchi.
@@ -22697,7 +22984,7 @@ function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLa
     if(!puoConquistare(card, nb.card)) continue;
     const[nq,nr]=nk.split(',').map(Number);
     const theirEffective=getFactionBonus(nb.card,nq,nr,snap).values;
-    const myAttackVal=valoreAttaccoContro(card, myEffective, dir.mySide, nb.card);
+    const myAttackVal=getAttackValueForSide(card, myEffective, dir.mySide);
     if(vinceIlConfronto(card, myAttackVal, theirEffective[dir.theirSide])){
       G.board[nk]={card:nb.card,owner:player};
       conquered.push(nk);
@@ -24118,7 +24405,7 @@ function aiEvaluateConquests(card, q, r){
     // of the one actually facing this neighbor — see getAttackValueForSide's
     // own comment for why this stays centralized alongside the real
     // resolveConquestAndEndTurn conquest check.
-    const myVal=valoreAttaccoContro(card, effValues, dir.mySide, nb.card);
+    const myVal=getAttackValueForSide(card, effValues, dir.mySide);
     // v0.73.22 — se la carta e' nel fumo, qui NON si guardano i suoi numeri:
     // si usa la stima (vedi valoriVistiDallIA).
     const difesa=valoriVistiDallIA(nb, simulato && simulato.tabellone[nk]);
@@ -32604,7 +32891,11 @@ function renderBoard(){
       if(scelta.modo === 'trascina'){
         preparaTrascinamentoTassello(svg, cella, bx, by, R, buildSvgIconBtn);
       } else {
-        buildSvgIconBtn(CARD_PARTS_BASE+'crosshair-icon.png', bx, by, R*0.62, ()=>scegliBersaglio(cella));
+        // v0.75.57 — l'icona la puo' dire la scelta. Il mirino resta il default
+        // — vuol dire "indica un bersaglio" e vale per quasi tutte — ma chi fa
+        // un gesto diverso puo' mostrarlo: March Hare scambia due valori, e uno
+        // scambio ha un segno suo.
+        buildSvgIconBtn(CARD_PARTS_BASE+(scelta.icona||'crosshair-icon.png'), bx, by, R*0.62, ()=>scegliBersaglio(cella));
       }
     }
     const orig = G.cells.find(x=>key(x.q,x.r)===scelta.cellaOrigine);
