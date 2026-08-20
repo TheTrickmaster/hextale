@@ -7327,7 +7327,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.66</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.67</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -11382,9 +11382,39 @@ function _foglioViaCsv(){
   });
 }
 
+// v0.75.67 — QUANDO SI PUO', PRIMA LA COPIA PUBBLICATA. NON E' UNA PREFERENZA
+// DI VELOCITA': E' UNA DI FEDELTA'.
+// gviz non consegna le celle, consegna la sua INTERPRETAZIONE delle celle:
+// decide un tipo per ogni colonna guardando i dati, e cio' che non rientra in
+// quel tipo lo scarta. NW..W sono colonne di numeri, quindi una cella scritta
+// "0-0-0-0" non arriva vuota — non arriva proprio. Il gioco concludeva che la
+// riga fosse incompleta e inventava tutti e sei i valori: e' cosi' che Excalibur
+// entrava in campo con 7 e 4 anche aperto da GitHub Pages, dove la copia
+// pubblicata sarebbe stata leggibile ma veniva provata solo come ripiego.
+// Il CSV invece non interpreta niente: restituisce il testo delle celle com'e'.
+// Quando fetch e' permesso si parte quindi da li', e gviz resta la strada per
+// chi apre il file dal disco — dove fetch e' vietato e un'interpretazione
+// imperfetta e' comunque meglio di nessun dato.
+// La verifica non e' "sono arrivate delle righe" ma "sono arrivate le righe
+// GIUSTE": la copia pubblicata non permette di scegliere la scheda per nome, e
+// se qualcuno ne avesse pubblicata un'altra si tornerebbe a gviz invece di
+// costruire un roster su colonne che non esistono.
+function _sembraIlFoglioDelleCarte(righe){
+  if(!righe || righe.length < 2) return false;
+  const titoli = righe[0].map(x => String(x||'').toLowerCase().replace(/\s+/g,' ').trim());
+  return titoli.includes('name') && titoli.includes('nw');
+}
 function caricaCarteDalFoglio(){
-  return _foglioViaScript()
-    .then(righe => (righe && righe.length >= 2) ? righe : _foglioViaCsv())
+  const primaStrada = _daFileLocale ? _foglioViaScript() : _foglioViaCsv();
+  const secondaStrada = _daFileLocale ? _foglioViaCsv() : _foglioViaScript();
+  return primaStrada
+    .then(righe => {
+      if(_sembraIlFoglioDelleCarte(righe)) return righe;
+      if(righe && righe.length >= 2){
+        console.info('[carte] la prima strada ha risposto ma non sembra il foglio delle carte: provo l\'altra.');
+      }
+      return secondaStrada;
+    })
     .then(righe => _applicaRigheFoglio(righe))
     .catch(e => { console.warn('[carte] caricamento interrotto: ' + e); return false; });
 }
