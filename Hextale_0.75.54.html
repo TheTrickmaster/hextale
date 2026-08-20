@@ -7281,6 +7281,13 @@ body.prova-senza-willchange #mm-book-rot{
       <button id="btn-view-board" class="start-art-btn" onclick="toggleBoardView(true)">
         <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">View game board</span>
       </button>
+      <!-- v0.75.54 — rigiocare senza passare dal menu. La modalita' non si
+           chiede di nuovo: si ricomincia quella appena finita, che e' cio' che
+           "again" vuol dire. La scelta della fazione resta, perche' e' una
+           scelta della partita e non della modalita'. -->
+      <button id="btn-play-again" class="start-art-btn sab-primary" onclick="rigiocaSubito()">
+        <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Play again</span>
+      </button>
       <button id="btn-back-main" class="start-art-btn" onclick="backToMainMenu()">
         <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Back to main menu</span>
       </button>
@@ -7311,7 +7318,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.53</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.54</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -10090,6 +10097,17 @@ function musicaMenuFerma(){
     bgm.currentTime=bgm._preMenuTime||0;
     if(!bgm._preMenuPaused) bgm.play().catch(()=>{});
   }
+}
+// v0.75.54 — si rigioca la stessa modalita' appena finita. `G.vsAI` e' l'unica
+// fonte che la conosce ancora a partita conclusa: _pendingNewGameVsAI viene
+// azzerato appena la partita comincia, quindi leggere quello darebbe sempre
+// null. Il riquadro della fazione si riapre: e' una scelta della singola
+// partita, e ricominciare senza poterla rifare vorrebbe dire ereditarla.
+function rigiocaSubito(){
+  const controIA = !!(G && G.vsAI);
+  const ov=document.getElementById('gameover');
+  if(ov) ov.classList.remove('show');
+  requestNewGame(controIA);
 }
 function requestNewGame(vsAI){
   _pendingNewGameVsAI = !!vsAI;
@@ -19696,12 +19714,17 @@ function celleLibere(){
   return libere;
 }
 // Le carte del giocatore che in questo momento sono in campo con l'abilita'.
+// v0.75.54 — `player` null vuol dire "di chiunque". Il Cheshire si muove a ogni
+// inizio turno e non solo ai turni del suo proprietario: aspettando il proprio,
+// fra un salto e l'altro passavano DUE turni, e giocandolo se ne stava fermo
+// per tutto il turno dell'avversario — che da fuori si legge come un'abilita'
+// rotta, non come una che aspetta.
 function carteCheSiSpostano(player){
   const trovate=[];
   for(const k in G.board){
     const cella=G.board[k];
     if(!cella || !cella.card) continue;
-    if(cella.owner!==player) continue;
+    if(player != null && cella.owner!==player) continue;
     if(abilitaAttivaDi(cella.card)!=='different_reality') continue;
     // v0.73.63 — una carta intoccabile non si sposta, nemmeno da sola. Oggi il
     // caso non puo' capitare (chi salta e' il Cheshire, che non e' Excalibur),
@@ -20181,7 +20204,13 @@ function attivaDarkPact(card){
   modificaValori(card, SIDES, derubate, undefined, {chiave:'dark_pact', da:card.name||'Dark Pact'});
   console.info('[Dark Pact] rubato 1 ALL a '+derubate+' carte in mano: +'+derubate+' ALL alla strega.');
 }
-const TURNI_TIC_TOC = 2;
+// v0.75.54 — DUE GIOCATE A TESTA, non due turni in tutto. Il conto dei turni e'
+// globale: il turno 1 e' la prima giocata in assoluto, il 2 la risposta
+// dell'avversario. Fermandosi a 2 si dava a ciascuno UNA sola occasione, che
+// non e' quello che l'abilita' racconta. Con 4, ognuno dei due ne ha due — i
+// turni 1 e 3 per chi comincia, il 2 e il 4 per l'altro — e la finestra resta
+// identica per entrambi, che e' la lettura che rende l'abilita' onesta.
+const TURNI_TIC_TOC = 4;
 const BONUS_TIC_TOC = 2;
 function attivaTicToc(card){
   if((G && G.numeroTurno || 1) > TURNI_TIC_TOC) return;
@@ -20585,7 +20614,7 @@ const SCELTE_PIAZZAMENTO = {
       // fra quelle disponibili.
       applica: (cella) => {
         const chiesta = stato.destinazioneScelta;
-        const dove = (chiesta && celleLibereAttornoATassello(cella).includes(chiesta))
+        const dove = (chiesta && meteDelTassello(cella).includes(chiesta))
           ? chiesta
           : miglioreCasellaPerTassello(cella);
         spostaTasselloBloccato(cella, dove);
@@ -21001,6 +21030,18 @@ function evocaExcalibur(cella, giocatore, entry){
 // esistono sul tabellone, non sono a loro volta bloccate e non hanno una carta
 // sopra. Un tassello non passa MAI sopra a una carta — sarebbe l'unico modo,
 // in tutto il gioco, di far sparire un personaggio dal tavolo.
+// v0.75.54 — ALI BABA SPOSTA UN TASSELLO OVUNQUE, non piu' solo di una casella.
+// Le mete sono tutte le caselle libere del tabellone: `celleLibere()` e' gia'
+// la funzione, l'unica, che sa quali lo sono davvero — esclude i buchi, le
+// carte e il fuori-tabellone — ed e' la stessa da cui passano tutti gli altri
+// spostamenti del gioco.
+// La versione per adiacenza resta qui sotto: non la usa piu' nessuno per Ali
+// Baba, ma e' la risposta a una domanda ("cosa c'e' di libero INTORNO a questa
+// casella?") che tornera' utile, e cancellarla per riscriverla domani sarebbe
+// lavoro fatto due volte.
+function meteDelTassello(cella){
+  return (typeof celleLibere === 'function') ? celleLibere() : [];
+}
 function celleLibereAttornoATassello(cella){
   const [q,r] = String(cella).split(',').map(Number);
   if(!isFinite(q) || !isFinite(r)) return [];
@@ -21018,7 +21059,7 @@ function celleLibereAttornoATassello(cella){
 function tasselliBloccatiSpostabili(){
   const elenco = [];
   for(const k of G.holes){
-    if(celleLibereAttornoATassello(k).length) elenco.push(k);
+    if(meteDelTassello(k).length) elenco.push(k);
   }
   return elenco;
 }
@@ -21026,7 +21067,7 @@ function tasselliBloccatiSpostabili(){
 // casella piu' "in mezzo" fra quelle disponibili. Un muro al centro toglie
 // piu' spazio di uno sul bordo, quindi e' la mossa meno sprecata.
 function miglioreCasellaPerTassello(cella){
-  const libere = celleLibereAttornoATassello(cella);
+  const libere = meteDelTassello(cella);
   if(!libere.length) return null;
   let migliore = libere[0], punteggio = -1;
   for(const k of libere){
@@ -21042,7 +21083,7 @@ function miglioreCasellaPerTassello(cella){
 function spostaTasselloBloccato(da, a){
   if(!da || !a) return false;
   if(!G.holes.has(da)) return false;
-  if(!celleLibereAttornoATassello(da).includes(a)) return false;
+  if(!meteDelTassello(da).includes(a)) return false;
   G.holes.delete(da);
   G.holes.add(a);
   // v0.73.89 — una casella che era bloccata e non lo e' piu' NON e' una
@@ -21132,7 +21173,7 @@ function preparaTrascinamentoTassello(svg, cella, bx, by, R, buildSvgIconBtn){
       // "qui puoi posarlo". E' la parte dinamica della regola, e il momento in
       // cui serve davvero — con il tassello in mano, la domanda del giocatore
       // non e' piu' quale prendere ma dove metterlo.
-      aggiornaGlowAzione(celleLibereAttornoATassello(cella));
+      aggiornaGlowAzione(meteDelTassello(cella));
     }
     // La molla insegue questo punto; il disegno lo fa il passo della molla,
     // non questo gestore (vedi passoMolla).
@@ -21243,7 +21284,7 @@ function preparaTrascinamentoTassello(svg, cella, bx, by, R, buildSvgIconBtn){
     evidenziaApprodoTassello(cella, null);
     const p = puntoNelDisegno(e);
     const destinazione = eraMosso ? cellaSottoAlPunto(p) : null;
-    const buone = celleLibereAttornoATassello(cella);
+    const buone = meteDelTassello(cella);
     if(destinazione && buone.includes(destinazione)){
       // La destinazione viaggia sullo stato della scelta e non come parametro,
       // perche' la chiusura passa dall'UNICO punto di uscita gia' esistente
@@ -21304,7 +21345,7 @@ function evidenziaApprodoTassello(tassello, cella){
   if(!bsvg) return;
   const vecchia = bsvg.querySelector('[data-approdo-tassello]');
   if(vecchia) vecchia.remove();
-  if(!cella || !celleLibereAttornoATassello(tassello).includes(cella)) return;
+  if(!cella || !meteDelTassello(tassello).includes(cella)) return;
   const c = G.cells.find(x=>key(x.q,x.r)===cella);
   if(!c || !_ultimoCentroPlancia || !_ultimoRaggioCella) return;
   const {x,y} = axialToPixel(c.q,c.r,_ultimoCentroPlancia.x,_ultimoCentroPlancia.y,_ultimoRaggioCella);
@@ -21450,7 +21491,18 @@ function bersagliNewTax(q, r){
     // per certe carte e' il migliore che questa abilita' possa produrre.
     // In piu': il giorno in cui Heigh-ho verra' programmata, lo sceriffo la
     // usera' senza che nessuno tocchi niente qui.
-    // Resta solo il caso in cui non c'e' NIENTE da prendere.
+    // Resta un'esclusione sola, ed e' una regola di gioco e non una comodita':
+    // uno sceriffo non tassa un altro sceriffo. Prima veniva gratis dal fatto
+    // che `new_tax` sta in SCELTE_PIAZZAMENTO; tolta quella esclusione, va
+    // detta. La si scrive guardando cosa la carta E' — la chiave dell'abilita'
+    // — e non cosa sa fare in questo istante, per la stessa ragione per cui lo
+    // specchio guarda `eSpecchio`: uno sceriffo che ha gia' rubato porta
+    // addosso l'abilita' di qualcun altro, e chiedendo solo quella tornerebbe
+    // a essere un bersaglio buono.
+    if(sua === 'new_tax' || vicino.card.eSceriffo){
+      scartati.push(nome + ': e\' un altro sceriffo');
+      continue;
+    }
     // Excalibur non si tassa. La sua abilita' e' proprio cio' che la protegge —
     // "Cannot be Conquered, Moved, or Destroyed" — e portargliela via sarebbe
     // il modo piu' rapido per ottenere le tre cose che vieta.
@@ -21484,6 +21536,10 @@ function rubaAbilitaDa(sceriffo, cellaBersaglio, q, r, giocatore, poi){
   const rubata = abilitaAttivaDi(bersaglio.card);
   if(!rubata){ finito(); return; }
   if(cartaIntoccabile(bersaglio.card)){ finito(); return; }
+  // Da qui in poi questo sceriffo resta uno sceriffo per sempre, qualunque
+  // abilita' finisca per portare addosso: e' il marchio che impedisce a un
+  // altro sceriffo di tassarlo anche dopo che ha rubato (vedi bersagliNewTax).
+  sceriffo.eSceriffo = true;
   sceriffo.abilitaRubataA = bersaglio.card.name || cellaBersaglio;
   _prendiAbilita(bersaglio.card, sceriffo, rubata);
   _togliAbilita(bersaglio.card);
@@ -21771,6 +21827,20 @@ function ruotaGruppiDiUnPosto(card){
   if(card.tileAbilityBaseValues){
     const base = {...card.tileAbilityBaseValues};
     for(let i=0;i<SIDES.length;i++) card.tileAbilityBaseValues[SIDES[(i+1)%SIDES.length]] = base[SIDES[i]];
+  }
+  // v0.75.54 — E I VALORI DI NASCITA RUOTANO CON GLI ALTRI. Da quando il verde
+  // e il rosso si calcolano confrontando i valori con quelli di nascita
+  // (v0.75.50), lasciarli fermi mentre i numeri girano faceva sembrare la
+  // rotazione un insieme di bonus e malus: il 7 finito dove prima c'era il 2
+  // risultava +5, e il 2 finito dove c'era il 7 risultava -5. Ma un valore
+  // spostato non e' ne' salito ne' sceso — e' altrove, ed e' esattamente cio'
+  // che dice il lampo bianco qui sotto.
+  // Ruotando anche il metro, la differenza resta zero e i numeri restano del
+  // loro colore. Vale per Alice in mano, per il Cheshire in campo e per il
+  // Brucaliffo, perche' passano tutti da qui.
+  if(card.valoriNascita){
+    const base = {...card.valoriNascita};
+    for(let i=0;i<SIDES.length;i++) card.valoriNascita[SIDES[(i+1)%SIDES.length]] = base[SIDES[i]];
   }
   // v0.73.77 — i valori non sono ne' saliti ne' scesi: sono altrove. Lampo
   // BIANCO, che e' il colore riservato proprio a questo (vedi il blocco dei
@@ -23248,7 +23318,7 @@ function startTurn(){
   // qui sopra: chi ridisegna nel mezzo porta via gli elementi che si stanno
   // animando. Sono tre passaggi in catena e non tre chiamate di seguito
   // proprio perche' "di seguito" vorrebbe dire "tutte insieme".
-  ruotaCarteInMano(player, ()=> spostaCarteCheshire(player, ()=>{
+  ruotaCarteInMano(player, ()=> spostaCarteCheshire(null, ()=>{
     if(!G || G.gameOver) return;
     if(deck.length>0 && hand.length<HAND_SIZE){
       drawAndAnimate(player, false, ()=>{
@@ -24592,7 +24662,7 @@ function valoreSpostamentoTassello(daCella, aCella){
 VALUTAZIONI_IA.open_celery = (scelta) => {
   let migliore = null, doveMigliore = null, punteggioMigliore = 0;
   for(const tassello of scelta.bersagli){
-    for(const dove of celleLibereAttornoATassello(tassello)){
+    for(const dove of meteDelTassello(tassello)){
       const p = valoreSpostamentoTassello(tassello, dove);
       if(p > punteggioMigliore){ punteggioMigliore = p; migliore = tassello; doveMigliore = dove; }
     }
