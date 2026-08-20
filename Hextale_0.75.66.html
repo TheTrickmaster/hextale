@@ -7327,7 +7327,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.65</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.66</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -7815,6 +7815,12 @@ body.prova-senza-willchange #mm-book-rot{
 </div><!-- /#game-root -->
 
 <script>
+// ── v0.75.66 — LA PAGINA E' STATA APERTA DAL DISCO? ───────────────────────
+// Serve prestissimo — il motore dei suoni la chiede fra le prime cose — quindi
+// sta qui in cima e non a meta' file, dov'era prima: una costante letta prima
+// della propria riga non e' "vuota", e' un errore che ferma tutto lo script.
+const _daFileLocale = (typeof location!=='undefined' && location.protocol==='file:');
+
 // ── FIXED-CANVAS UNIFORM SCALING (v0.29.0) ───────────────────────
 // The whole game is authored inside #game-root at a fixed 1920×1080
 // reference resolution. We fit that root into the real window with a single
@@ -8045,6 +8051,13 @@ if(document.readyState==='loading'){
     // The browser's own HTTP cache will serve these instantly on a second
     // load (e.g. hitting "Nuova partita" or reloading the page), so this
     // full fetch cost is really only paid once per browser/session.
+    // v0.75.66 — da file:// il fetch e' vietato (vedi initSfxEngine): si va
+    // dritti al conteggio, perche' un asset locale non ha bisogno di essere
+    // scaricato — e' gia' li'. Senza, il caricamento stampava un errore rosso
+    // per ogni singolo file del gioco.
+    if(_daFileLocale){
+      return (IMAGE_EXT_PATTERN.test(url) ? decodeImage(url).catch(()=>null) : Promise.resolve(null));
+    }
     return fetch(url, {cache:'force-cache'}).then(r=>r.blob()).then(blob=>{
       // Chain the actual decode step (see this block's own v0.71.86 comment
       // above) for images only — audio/font/etc. URLs skip straight through.
@@ -8836,6 +8849,7 @@ const _musicPreloaded = new Set();
 const _musicPreloading = new Set();
 function preloadMusicTrack(url){
   if(!url || _musicPreloaded.has(url) || _musicPreloading.has(url)) return;
+  if(_daFileLocale) return;   // v0.75.66 — vedi initSfxEngine: da file:// fetch e' vietato
   _musicPreloading.add(url);
   fetch(url, {cache:'force-cache'})
     .then(r=>r.blob())
@@ -8908,6 +8922,17 @@ const _sfxBuffers={};
     if(!AC) return;
     _sfxCtx=new AC();
   }catch(e){ return; }
+  // v0.75.66 — APRENDO IL FILE DAL DISCO NON SI CHIEDE NIENTE CON fetch().
+  // Da `file://` il browser considera la pagina di origine "null" e rifiuta
+  // ogni fetch, compreso quello verso un file che sta nella stessa cartella:
+  // il tentativo non fallisce in silenzio, stampa un errore CORS rosso in
+  // console. Con una sessantina di suoni erano sessanta errori rossi a ogni
+  // avvio, che seppellivano gli avvisi veri — quelli sulle carte, che servono.
+  // Il ripiego c'era gia' ed e' ottimo: senza i buffer decodificati, ogni suono
+  // parte con un <audio> normale (vedi playSfxFile), che da file:// funziona.
+  // Si salta quindi direttamente a quello invece di bussare a una porta che si
+  // sa essere chiusa.
+  if(_daFileLocale) return;
   for(const name in AUDIO_DATA_URLS){
     fetch(AUDIO_DATA_URLS[name], {cache:'force-cache'})
       .then(r=>r.arrayBuffer())
@@ -10798,6 +10823,34 @@ const LIVELLI_MAX = 4;
 // `esplicita` dice quale delle due forme era scritta: serve a non confondere
 // una scaletta scritta a mano con quella ricavata dalla regola, perche' solo la
 // prima va conservata.
+// Legge la colonna "Levels": un elenco di "LATO:v-v-v-v" separati da punto e
+// virgola (o da virgola, o da un a capo — chi compila un foglio usa quello che
+// gli viene). I lati non nominati non compaiono nel risultato, e per loro vale
+// la colonna del valore singolo.
+function _scaletteDallaColonnaLevels(cella, nomeCarta){
+  const grezzo = String(cella==null ? '' : cella).trim();
+  if(!grezzo) return null;
+  let fuori = null;
+  for(const pezzo of grezzo.split(/[;,\n]+/)){
+    const t = pezzo.trim();
+    if(!t) continue;
+    const m = t.match(/^([A-Za-z]{1,2})\s*[:=]\s*(.+)$/);
+    if(!m){
+      console.warn('[carte] "'+(nomeCarta||'?')+'", colonna Levels: non capisco "'+t
+        + '". La forma e\' LATO:v-v-v-v, per esempio "NW:4-6-7-7".');
+      continue;
+    }
+    const lato = m[1].toUpperCase();
+    if(!SIDES.includes(lato)){
+      console.warn('[carte] "'+(nomeCarta||'?')+'", colonna Levels: "'+lato+'" non e\' un lato.'
+        + ' I lati sono '+SIDES.join(', ')+'.');
+      continue;
+    }
+    const scala = _scalettaDiLivelli(m[2], nomeCarta, lato);
+    if(scala) (fuori || (fuori={}))[lato] = scala;
+  }
+  return fuori;
+}
 function _scalettaDiLivelli(cella, nomeCarta, nomeLato){
   const grezzo = String(cella==null ? '' : cella).trim();
   if(!grezzo) return null;
@@ -10973,13 +11026,30 @@ function _cardaDaRiga(col, get, haColonna){
   // indovinare cosa volesse dire vorrebbe dire far giocare una carta diversa da
   // quella che il foglio dichiara. Si segnala in console e si torna alla regola
   // del +1 sul primo numero, che e' il comportamento di sempre.
+  // ── v0.75.66 — LA COLONNA "Levels", che funziona anche da file:// ───────
+  // Le scalette scritte dentro le colonne dei valori funzionano solo quando il
+  // foglio si legge come CSV. Da `file://` il gioco lo legge invece via gviz,
+  // che TIPIZZA ogni colonna: NW..W sono colonne di NUMERI, e una cella che
+  // contiene testo ("0-0-0-0") non arriva vuota — non arriva proprio, gviz la
+  // scarta. Da li' il codice conclude che la riga e' incompleta e inventa tutti
+  // e sei i valori: e' cosi' che Excalibur entrava in campo con 7 e 4.
+  // Questa colonna aggira il problema alla radice: contiene testo in OGNI riga
+  // in cui e' compilata, quindi gviz la tipizza come stringa e la consegna
+  // sempre. Ci si scrive solo cio' che cambia, lato per lato:
+  //     NW:4-6-7-7; SE:2-2-5-9
+  // I lati non nominati seguono la regola di sempre. Le sei colonne dei valori
+  // restano quelle che sono e continuano a dire il livello 1.
+  const scaletteDallaColonna = _scaletteDallaColonnaLevels(getAlt(get,['Levels','Values per level']), nome);
   const lati=['NW','NE','E','SE','SW','W'];
   let values={};
   let scalette=null;   // {lato: [v1,v2,v3,v4]} solo per i lati scritti a scaletta
   let completa=true;
   let latoMancante=null;
   for(const s of lati){
-    const scala=_scalettaDiLivelli(get(s), nome, s);
+    // La colonna Levels ha la precedenza: e' la piu' esplicita delle due, ed e'
+    // l'unica che sopravvive alla lettura da file://.
+    const dallaColonna = scaletteDallaColonna && scaletteDallaColonna[s];
+    const scala = dallaColonna || _scalettaDiLivelli(get(s), nome, s);
     if(!scala){ completa=false; latoMancante=s; break; }
     values[s]=scala[0];
     if(scala.esplicita){ (scalette || (scalette={}))[s]=scala; }
@@ -11497,7 +11567,8 @@ const VOCI_BASE = 'https://thetrickmaster.github.io/hextale/audio/voices/';
 // il ramo locale non viene nemmeno tentato.
 const ART_REL = 'cards/art/';
 const VOCI_REL = 'audio/voices/';
-const _daFileLocale = (typeof location!=='undefined' && location.protocol==='file:');
+// v0.75.66 — la dichiarazione e' salita in cima al file (vedi li'): serviva
+// anche al motore dei suoni, che parte molto prima di questo punto.
 function _candidati(relativo, remoto){
   return _daFileLocale ? [relativo, remoto] : [remoto];
 }
