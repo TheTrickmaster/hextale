@@ -7327,7 +7327,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.70</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.71</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -10646,11 +10646,6 @@ function closeDebugModal(){
 // above): Robin Hood = Trickster+Royal, Snow White = Princess+Royal,
 // Merlin = Wise+Enchanter. Replaces the earlier animal+royal placeholder
 // pair every card used before these icons were uploaded.
-// v0.75.70 — le righe che il foglio dichiara NON visibili. Stanno fuori da
-// FINAL_CARDS — cioe' fuori da Collezione, mazzi e bustine, che e' cio' per cui
-// la colonna Visible esiste — ma restano raggiungibili per nome: le evocazioni e
-// le trasformazioni cercano li' (vedi cartaEvocabilePerNome).
-const CARTE_NASCOSTE = [];
 const FINAL_CARDS = [
   {
     id:'final-robin-hood',
@@ -10968,13 +10963,22 @@ function _cardaDaRiga(col, get, haColonna){
   const haColonnaVisible = (typeof haColonna === 'function')
     ? haColonna('Visible')
     : (Array.isArray(col) && col.some(x=>String(x||'').toLowerCase().trim()==='visible'));
-  // v0.75.70 — una riga con Visible diverso da "Yes" non entra nel roster, ma
-  // non viene piu' buttata via del tutto: si costruisce lo stesso e si mette da
-  // parte (vedi CARTE_NASCOSTE). Serve alle carte che esistono SOLO perche'
-  // qualcun'altra le evoca o ci si trasforma: The Green Prince e' Visible=No,
-  // quindi il Ranocchio cercava una carta che il gioco non aveva mai caricato,
-  // e il bacio non trasformava niente in silenzio.
-  const nascosta = haColonnaVisible && !AFFERMATIVI.includes((get('Visible')||'').trim().toLowerCase());
+  // ── LE DUE COLONNE CHE DECIDONO DOVE UNA CARTA APPARE ───────────────────
+  // Sono due domande diverse e non vanno confuse:
+  //   "Visible"        — questa carta e' PRONTA per il gioco? Se non lo e', non
+  //                      viene proprio caricata: non e' una carta, e' una riga
+  //                      di lavoro.
+  //   "Drop rate (%)" a 0 — questa carta e' pronta, ma non si ottiene: fuori
+  //                      dalla Collezione, dai mazzi e dalle bustine (vedi
+  //                      soloEvocabile). E' il modo di dichiarare una carta che
+  //                      esiste solo perche' qualcun'altra la evoca o ci si
+  //                      trasforma — Excalibur, The Crystal Princess, The Green
+  //                      Prince.
+  // v0.75.71 — la v0.75.70 aveva provato a far fare a Visible il mestiere del
+  // drop rate, tenendo da parte le righe non visibili perche' le evocazioni le
+  // trovassero lo stesso. Sbagliato: due colonne che dicono la stessa cosa in
+  // due modi sono due posti in cui cercare quando qualcosa non appare.
+  if(haColonnaVisible && !AFFERMATIVI.includes((get('Visible')||'').trim().toLowerCase())) return null;
   // La rarita' resta necessaria a gemme, drop rate e colore della gemma di
   // livello: se manca si assume la piu' comune, che e' il default meno
   // sorprendente.
@@ -10984,7 +10988,6 @@ function _cardaDaRiga(col, get, haColonna){
     if(!haColonnaVisible) return null; // vecchio criterio: senza rarita' non e' una carta
     rarita='common';
   }
-  // Il marchio viaggia con la carta: chi la costruisce decide poi dove metterla.
   // I valori si prendono dal foglio quando ci sono TUTTI E SEI. Se ne manca
   // anche uno solo la carta non e' mezza compilata: e' da compilare, e mettere
   // in gioco tre lati veri e tre inventati sarebbe peggio che inventarli
@@ -11230,9 +11233,6 @@ function _cardaDaRiga(col, get, haColonna){
     // saperlo dalla console; e' anche l'aggancio pronto se un domani si
     // volesse marcarle visivamente in Collezione.
     valoriProvvisori: !completa,
-    // v0.75.70 — vera per le righe che il foglio dichiara non visibili. Chi
-    // costruisce il roster le mette da parte (vedi CARTE_NASCOSTE).
-    nonVisibile: nascosta,
     // v0.72.67 — livello mancante nel foglio: se ne assegna uno fra 1 e 3,
     // ricavato dal NOME della carta e non da Math.random(). Deve restare lo
     // stesso a ogni avvio: il livello governa gemme e tier degli effetti foil
@@ -11437,17 +11437,11 @@ function _applicaRigheFoglio(righe){
       + ' l\'abilita\' si aggancia SOLO tramite "Ability name". Si puo\' eliminare.');
   }
   const nuove = [];
-  const nascoste = [];
   for(let i=1;i<righe.length;i++){
     const r = righe[i];
     const get = k => { const j = indiceColonne[_chiaveColonna(k)]; return (j===undefined) ? '' : (r[j]||''); };
     const c = _cardaDaRiga(col, get, haColonna);
-    if(!c) continue;
-    // v0.75.70 — le nascoste in un elenco a parte. Non entrano in FINAL_CARDS,
-    // quindi Collezione, mazzi e bustine non le vedono nemmeno — e' il motivo
-    // per cui la colonna Visible esiste. Ma restano raggiungibili per nome, che
-    // e' l'unica cosa di cui hanno bisogno le evocazioni e le trasformazioni.
-    if(c.nonVisibile) nascoste.push(c); else nuove.push(c);
+    if(c) nuove.push(c);
   }
   if(!nuove.length){
     console.warn('[carte] foglio letto ma nessuna carta valida: uso la tabella interna. Colonne trovate: ' + col.join(' | '));
@@ -11508,11 +11502,6 @@ function _applicaRigheFoglio(righe){
   }
   FINAL_CARDS.length=0;
   FINAL_CARDS.push(...nuove);
-  CARTE_NASCOSTE.length=0;
-  CARTE_NASCOSTE.push(...nascoste);
-  if(nascoste.length) console.info('[carte] '+nascoste.length+' righe non visibili tenute da parte'
-    + ' (evocabili per nome, fuori da Collezione, mazzi e bustine): '
-    + nascoste.map(c=>c.name).join(', '));
   console.info('[carte] caricate '+nuove.length+' carte dal foglio');
   return true;
 }
@@ -17501,6 +17490,16 @@ function getSideCornerPairs(corners){
 // mano sarebbe una carta ingiocabile.
 // La regola guarda il drop rate e non un elenco di nomi, cosi' ogni carta
 // evocabile futura e' gia' a posto senza toccare niente qui.
+// ── DROP RATE A ZERO: LA CARTA C'E', MA NON SI OTTIENE ────────────────────
+// E' la dichiarazione di una carta che esiste solo perche' qualcun'altra la
+// evoca o ci si trasforma: Excalibur, The Crystal Princess, The Green Prince.
+// Resta caricata e raggiungibile per nome, ma sta fuori da tutti e tre i posti
+// in cui una carta si "ottiene": la Collezione, i mazzi e le bustine.
+// v0.75.71 — la Collezione la escludeva gia' (v0.73.64, quando il conteggio
+// diceva un numero piu' alto di quello che si vedeva); da oggi e' la REGOLA
+// dichiarata, non una conseguenza. L'altra colonna, "Visible", risponde a una
+// domanda diversa: quella dice se la carta e' pronta per il gioco, e una riga
+// non pronta non viene proprio caricata.
 function soloEvocabile(entry){
   return !!entry && typeof entry.dropRate === 'number' && entry.dropRate <= 0;
 }
@@ -21916,13 +21915,10 @@ function scartaCartaDallaMano(giocatore, id){
 // filtrato non le troverebbe mai.
 function cartaEvocabilePerNome(nome){
   const cercato = String(nome||'').trim().toLowerCase();
-  const fra = elenco => (elenco || []).find(e => e && String(e.name||'').trim().toLowerCase() === cercato);
-  // v0.75.70 — si cerca ANCHE fra le nascoste. Una carta che esiste solo per
-  // essere evocata o per farci diventare qualcun altro non ha motivo di stare
-  // in Collezione, nei mazzi o nelle bustine: la colonna Visible serve a
-  // tenerla fuori da quelli, non a farla sparire dal gioco. Prima invece
-  // spariva davvero, e chi la cercava per nome non la trovava — in silenzio.
-  return fra(FINAL_CARDS) || fra(CARTE_NASCOSTE) || null;
+  // Si cerca fra TUTTE le carte e non fra quelle giocabili: le evocabili sono
+  // proprio quelle escluse da mazzi e bustine dal drop rate a 0 (vedi
+  // soloEvocabile), quindi cercarle nell'elenco filtrato non le troverebbe mai.
+  return (FINAL_CARDS || []).find(e => e && String(e.name||'').trim().toLowerCase() === cercato) || null;
 }
 // ── v0.74.9 — L'UNICA PORTA PER FAR COMPARIRE UNA CARTA DAL NULLA ─────────
 // Ogni carta che entra in campo senza essere stata giocata dalla mano — evocata
