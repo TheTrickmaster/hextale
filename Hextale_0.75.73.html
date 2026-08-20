@@ -7327,7 +7327,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.72</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.73</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -8748,7 +8748,17 @@ function _sorgenteVoceGiocata(card){
   if(entry && entry.battlecry) return entry.battlecry;
   return null;
 }
+// ── v0.75.73 — UN'ANTEPRIMA NON PARLA ─────────────────────────────────────
+// Gli effetti di piazzamento girano DUE volte: una per finta sotto il puntatore
+// e una per davvero. Una carta che si trasforma grida — lo fa trasformaCartaIn,
+// per tutte — quindi il Principe Ranocchio gridava mentre lo si stava ancora
+// trascinando sopra alla casella, e poi di nuovo trasformandosi per davvero.
+// La guardia sta QUI e non dentro alla trasformazione perche' la regola non e'
+// del Ranocchio: e' che una simulazione non fa rumore. Vale per ogni voce e per
+// ogni carta che un domani parlera' durante un effetto simulato, senza che
+// nessuno debba ricordarsene.
 function playCardBattlecry(card){
+  if(_simulazioneInCorso) return;
   const grido = _sorgenteVoceGiocata(card);
   if(!grido){ playCardVoiceLine(card); return; } // nessun grido: le battute di sempre
   const voiceKey = card.baseId || String(card.id||'').replace(/-\d+$/,'');
@@ -8770,6 +8780,7 @@ function playCardBattlecry(card){
 }
 let _cardVoicePlaying = null; // {voiceKey, src, timer} | null
 function playCardVoiceLine(card){
+  if(_simulazioneInCorso) return;   // vedi playCardBattlecry
   if(!card || !card.id) return;
   const voci = _vociDellaCarta(card);
   if(!voci) return;
