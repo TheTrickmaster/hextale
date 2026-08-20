@@ -7327,7 +7327,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.58</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.59</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -10804,6 +10804,11 @@ function cartaAlLivello(card, livello){
   const sblocco = (entry && entry.abilityUnlockLevel) || card.abilityUnlockLevel || 1;
   copia.abilityUnlockLevel = sblocco;
   copia.abilityLocked = liv < sblocco;
+  // v0.75.59 — e il traguardo dell'Unicorno vale anche in vetrina: sfogliando i
+  // livelli nella scheda, al quarto si vede la frase dell'arrivo e l'abilita'
+  // che non c'e' piu'. E' proprio li' che si va a guardare "cosa succede se la
+  // porto a 4?", e una vetrina che non lo mostra non risponde alla domanda.
+  applicaProgressoUnicorno(copia);
   return copia;
 }
 
@@ -20557,12 +20562,22 @@ function attivaUnicornHunt(card){
 }
 // Il drop rate salvato ha la precedenza su quello del foglio, ovunque la carta
 // venga costruita: e' il senso stesso di un progresso che si accumula.
-// E al massimo la carta cambia faccia: niente abilita', e la frase dell'arrivo.
+//
+// v0.75.59 — E AL LIVELLO 4 LA CARTA CAMBIA FACCIA. Il traguardo e' il LIVELLO,
+// non il tetto del drop rate: sono due progressi diversi e indipendenti, ed e'
+// bene che restino tali. Il drop rate cresce giocandola e si ferma a 65;
+// il livello lo alza il giocatore potenziandola, e portarla a 4 e' il gesto che
+// chiude la storia — niente piu' abilita' (non ha piu' niente da fare) e la
+// frase dell'arrivo.
+// L'abilita' si toglie svuotando `cardAbility`: da li' abilitaAttivaDi
+// restituisce null e l'effetto non scatta piu' da solo, senza che serva un
+// secondo controllo dentro attivaUnicornHunt.
+const UNICORNO_LIVELLO_FINALE = 4;
 function applicaProgressoUnicorno(carta){
   if(!carta || String(carta.name||'').trim().toLowerCase() !== 'unicorn') return carta;
   const salvato = dropRateUnicorno();
   if(salvato != null) carta.dropRate = salvato;
-  if(unicornoAlMassimo()){
+  if((carta.level||1) >= UNICORNO_LIVELLO_FINALE){
     carta.cardAbility = '';
     carta.abilityNameSheet = ''; carta.abilityDescSheet = ''; carta.abilityTrigger = '';
     carta.abilityNoScript = false;
