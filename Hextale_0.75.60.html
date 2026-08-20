@@ -7327,7 +7327,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.59</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.60</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -24699,6 +24699,18 @@ function aiEvaluateConquests(card, q, r){
       if(abilitaAttivaDi(nb.card)==='hex'){
         autolesione += costoHexPerIA(myVal-theirVal);
       }
+      // v0.75.60 — LA FENICE VALE MENO. Prenderla non e' prenderla: fra un
+      // turno se ne torna da sola a chi l'aveva giocata (vedi
+      // rinasciteDiQuestoTurno). Contarla come una conquista qualunque farebbe
+      // scegliere all'IA la casella per un guadagno che ha gia' la scadenza
+      // scritta sopra, magari rinunciando a una conquista vera.
+      // Vale ancora qualcosa — un turno di possesso e' un turno di danno in
+      // meno — quindi si sconta invece di annullarla. E solo se non e' gia'
+      // rinata: la seconda volta e' una conquista come tutte le altre.
+      if(abilitaAttivaDi(nb.card)==='rise_from_the_ashes' && !nb.card.feniceGiaRinata){
+        count -= SCONTO_FENICE;
+        damage -= (myVal-theirVal) * SCONTO_FENICE;
+      }
     }
   }
   return {count, damage, autolesione};
@@ -25007,7 +25019,39 @@ function bonusValoreDaAbilita(card, q, r, giocatore){
 
 // Le abilita' il cui valore non si legge sui valori delle carte. Il numero
 // restituito e' in "punti danno", la stessa unita' del resto del punteggio.
+// v0.75.60 — quanto si sconta una conquista che dura un turno solo. Non zero:
+// un turno di possesso e' comunque un turno in cui quella carta non fa danno a
+// chi l'ha presa.
+const SCONTO_FENICE = 0.6;
 const BONUS_STRATEGICO_IA = {
+  // ── v0.75.60 — DUE EFFETTI CHE LA SIMULAZIONE NON PUO' MOSTRARE ─────────
+  // Quasi tutte le abilita' nuove l'IA le vede da sola: cambiano valori, e la
+  // simulazione le esegue insieme al resto. Queste due no — vivono in
+  // EFFETTI_PIAZZAMENTO_REALI perche' toccano la MANO, e la simulazione gira
+  // sul tabellone clonato ma sulla mano vera. Non potendole provare, l'IA le
+  // deve sentir dire: senza queste righe giocherebbe la Sirenetta e il Genio
+  // come carte senza abilita'.
+  //
+  // DARK PACT: la strega guadagna +1 su tutti e sei i lati per ogni carta
+  // derubata, e ogni carta derubata ne perde uno per lato. Il conto netto e'
+  // quindi zero punti di potere — ma NON e' un pareggio: il potere si sposta
+  // dalla mano al TABELLONE, dove decide le conquiste, e via dalla mano, dove
+  // aspetta soltanto. Vale la meta' del guadagno lordo, che e' il modo di dire
+  // "e' buono, ma non gratis".
+  dark_pact: (card, q, r, giocatore) => {
+    const derubabili = manoDi(giocatore).filter(c => c && c.id !== card.id
+      && SIDES.some(s => (c.values[s]||0) > 0));
+    return derubabili.length * SIDES.length * VALORE_PUNTO_POTERE * 0.5;
+  },
+  // IL GENIO: +2 a un gruppo per ogni carta in mano. Il gruppo e' a sorte,
+  // quindi si stima con la dimensione MEDIA di un gruppo su queste carte —
+  // due lati — invece di fingere di sapere quale uscira'. Resta in mano, e
+  // quindi vale meno di altrettanto potere gia' in campo.
+  everyone_gets_a_wish: (card, q, r, giocatore) => {
+    const inMano = manoDi(giocatore).filter(c => c && c.id !== card.id).length;
+    return inMano * BONUS_GENIO * 2 * VALORE_PUNTO_POTERE * 0.5;
+  },
+
   // La prossima carta pescata nasce con +2 su tutti e sei i lati: dodici punti
   // di potere. Vale solo se c'e' ancora qualcosa da pescare.
   off_with_the_head: (card, q, r, giocatore) => {
@@ -25445,6 +25489,59 @@ VALUTAZIONI_IA.kingslayer = (scelta) => {
     let forza = 0;
     try { forza = cardPower(posto.card); } catch(_){ forza = 0; }
     if(forza > massimo){ massimo = forza; migliore = cella; }
+  }
+  return migliore;
+};
+// v0.75.60 — SEVEN DWARWES: quale muro conviene sfondare. Un muro tolto
+// diventa una casella libera, e una casella libera vale quanto e' utile la sua
+// posizione: `aiVicinatoUtile` e' gia' il metro con cui l'IA giudica una
+// casella, ed e' lo stesso che usa per decidere dove spingere un tassello con
+// Ali Baba. Due domande simili, un metro solo.
+VALUTAZIONI_IA.heigh_ho = (scelta) => {
+  let migliore = null, punteggio = -Infinity;
+  for(const cella of scelta.bersagli){
+    const [q,r] = String(cella).split(',').map(Number);
+    let p = 0;
+    try { p = aiVicinatoUtile(q,r); } catch(_){ p = 0; }
+    if(p > punteggio){ punteggio = p; migliore = cella; }
+  }
+  return migliore;
+};
+// RUMPELSTILTSKIN: a chi rubare i tratti. Si sceglie la carta che ne ha di
+// piu', perche' i tratti fanno DUE cose in una — arrivano a lui e se ne vanno
+// dall'altro — e in entrambi i versi contano per numero: sono loro a decidere
+// chi riceve i doni di Baloo, chi Maid Marian, chi Mordred puo' uccidere e chi
+// sveglia la Bella Addormentata.
+// A parita' si prende la carta piu' forte: se il bottino e' uguale, tanto vale
+// spogliare chi pesa di piu'.
+VALUTAZIONI_IA.give_me_that = (scelta) => {
+  let migliore = null, quanti = -1, forzaMigliore = -1;
+  for(const cella of scelta.bersagli){
+    const posto = G.board[cella];
+    if(!posto || !posto.card) continue;
+    const n = (posto.card.archetypes||[]).length;
+    let forza = 0;
+    try { forza = cardPower(posto.card); } catch(_){ forza = 0; }
+    if(n > quanti || (n === quanti && forza > forzaMigliore)){
+      quanti = n; forzaMigliore = forza; migliore = cella;
+    }
+  }
+  return migliore;
+};
+// MARCH HARE: a chi girare i numeri. Lo scambio mette il valore piu' BASSO dove
+// c'era il piu' alto, quindi il danno che fa e' la DIFFERENZA fra i due: su una
+// carta che ha 8 e 2 vale sei, su una che ha 5 e 4 vale uno. Si sceglie il
+// divario piu' grande, che e' letteralmente la misura di quanto lo scambio
+// faccia male.
+VALUTAZIONI_IA.swap_values = (scelta) => {
+  let migliore = null, divario = 0;
+  for(const cella of scelta.bersagli){
+    const posto = G.board[cella];
+    if(!posto || !posto.card) continue;
+    const valori = gruppiDiCarta(posto.card).map(g=>g.val||0);
+    if(valori.length < 2) continue;
+    const d = Math.max(...valori) - Math.min(...valori);
+    if(d > divario){ divario = d; migliore = cella; }
   }
   return migliore;
 };
