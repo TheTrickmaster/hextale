@@ -3228,6 +3228,15 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
   font-variant-numeric:tabular-nums;
   white-space:nowrap;
 }
+/* v0.75.58 — la frase dell'Unicorno arrivato in fondo. In HTML il gradiente si
+   applica al testo ritagliando lo sfondo sulla forma dei glifi
+   (background-clip:text): il colore del testo diventa trasparente e si vede il
+   gradiente attraverso le lettere. */
+.frase-arcobaleno{
+  background-image:linear-gradient(90deg,#FF4E4E,#FFA23A,#FFE34E,#4ED66B,#4EC8FF,#9B6BFF,#FF6BD6);
+  -webkit-background-clip:text; background-clip:text;
+  -webkit-text-fill-color:transparent; color:transparent;
+}
 .ct-mod.su{ color:#7BD88F; }
 .ct-mod.giu{ color:#E2686B; }
 /* Il tooltip non e' dentro a #card-modal-info, quindi le regole della scheda
@@ -7318,7 +7327,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.57</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.58</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -11624,7 +11633,7 @@ const WHOOSH_PER_RARITA = {
 // verrebbero cercati nell'istante in cui devono suonare e arriverebbero tardi
 // — e un suono in ritardo su un'animazione breve si sente come un errore.
 const SUONI_SFX_EXTRA = Object.values(WHOOSH_PER_RARITA)
-  .concat(['kaching.wav', 'card-ding.mp3', 'card-fly.mp3', 'card-burn.wav', 'shield.mp3']);
+  .concat(['kaching.wav', 'card-ding.mp3', 'card-fly.mp3', 'card-burn.wav', 'shield.mp3', 'eagle.mp3']);
 const SFX_REL = 'audio/sfx/';
 const SFX_BASE = 'https://thetrickmaster.github.io/hextale/audio/sfx/';
 function registraSuoniExtra(){
@@ -11815,7 +11824,7 @@ function registraVociSfx(urls){
 // being previewed (1=dark, 2=light) — picks the matching dark/light art and
 // remaps the NW/NE/E/SE/SW/W spec values into SIDES order (see FINAL_CARDS'
 // own comment above for why the remap is needed).
-function _makeCardDbCard(entry, owner){
+function _makeCardDbCardBase(entry, owner){
   const v=entry.values;
   return {
     id:entry.id+'-'+owner,
@@ -11905,6 +11914,19 @@ function _makeCardDbCard(entry, owner){
     // Collezione (vedi cardDbCardLevel e le funzioni di gating lì accanto).
     level:entry.level||1,
   };
+}
+// v0.75.58 — ogni carta costruita passa da qui, quindi e' l'unico punto in cui
+// il progresso dell'Unicorno deve essere applicato perche' valga ovunque: in
+// partita, in Collezione, nelle bustine. Scritto FUORI dall'oggetto qui sopra e
+// non dentro, perche' non e' un campo del foglio: e' uno stato che il foglio
+// non conosce.
+// La costruzione vera si chiama ora _makeCardDbCardBase e questa le fa da
+// involucro. NON si poteva tenere lo stesso nome per entrambe: le dichiarazioni
+// di funzione vengono sollevate in cima allo scope, quindi la seconda avrebbe
+// sostituito la prima PRIMA che qualcuno potesse conservarne il riferimento, e
+// l'involucro avrebbe chiamato se' stesso all'infinito.
+function _makeCardDbCard(entry, owner){
+  return applicaProgressoUnicorno(_makeCardDbCardBase(entry, owner));
 }
 
 let _cardDbVariant=2; // 2=light (default, matches the reference screenshot), 1=dark
@@ -15299,9 +15321,30 @@ function cardFoilReset(host){
 // dark/light alla conquista non li troverebbe piu' (l'arte resterebbe della
 // fazione sbagliata per sempre). Copiando, mano e carta trascinata ottengono
 // il parallax e il gioco vero resta esattamente com'era.
+// v0.75.58 — L'ARTE DELLA CARTA IN CUI SI STA PER TRASFORMARE.
+// Chi disegna una carta passa sempre da qui, quindi e' l'unico punto in cui
+// mettere un'anteprima d'arte e vederla comparire ovunque: nel fantasma del
+// trascinamento, nell'esagono sotto il puntatore, nella mano.
+// Il flag lo mette e lo toglie l'anteprima del tavolo (vedi anteprimaTavolo):
+// vive quanto dura il sorvolo di UNA casella, e sparisce da solo appena il
+// puntatore si sposta.
+function _arteDellaTrasformazione(card, out){
+  const nome = card && card.__anteprimaTrasformazione;
+  if(!nome) return;
+  const entry = cartaEvocabilePerNome(nome);
+  if(!entry) return;
+  const scuro = playerFactionIsDark(card.owner||1);
+  out.artSrc = entry.artSrc;
+  out.artDark = entry.artDark; out.artLight = entry.artLight;
+  out.artLayersDark = entry.artLayersDark; out.artLayersLight = entry.artLayersLight;
+  out.artLayers = scuro ? entry.artLayersDark : entry.artLayersLight;
+  out.name = entry.name || out.name;
+  out.rarity = entry.rarity || out.rarity;
+}
 function cardFoilVisualCard(card){
   if(!card) return card;
   const out = Object.assign({}, card);
+  _arteDellaTrasformazione(card, out);
   out.foilHolo = cardDbHoloEnabledFor(card);
   // v0.72.67 — i livelli ormai viaggiano sulla carta stessa (_makeCardDbCard):
   // qui si aggiunge solo il permesso di MUOVERLI. Il recupero dal roster resta
@@ -17763,6 +17806,9 @@ const TILE_ABILITIES_DEF = {
   heigh_ho:     { carta:'Seven Dwarves',       name:'Heigh-ho',      desc:'When *Played*, can *Destroy* an adjacent blocked tile.' },
   give_me_that: { carta:'Rumpelstiltskin',     name:'Give me that',  desc:'When *Played*, *Steals* the Traits of an adjacent enemy character.' },
   swap_values:  { carta:'March Hare',          name:'Mad Swap',      desc:'After *Conquering*, can *Swap* an adjacent enemy\'s highest and lowest Power values.' },
+  kiss:         { carta:'Frog Prince',      name:'Kiss',      desc:'If *Played* adjacent to a /Princess/, *Transforms* into The Green Prince.' },
+  rise_from_the_ashes: { carta:'Phoenix', name:'Rise from the Ashes', desc:'If *Conquered*, returns to its original faction after 1 turn. Once per game.' },
+  unicorn_hunt: { carta:'Unicorn',         name:'Unicorn Hunt',  desc:'Every time it is *Played*, its drop rate increases by 0.1%.' },
   everyone_gets_a_wish: { carta:'The Genie',    name:'Everyone gets a wish', desc:'When *Played*, every character in your hand *Gains* +2 RAND.' },
   // v0.75.43 — RAPUNZEL. La treccia arriva lontano ma in linea retta, e solo
   // se la strada e' sgombra: tira a se' una carta non adiacente lungo una delle
@@ -20074,6 +20120,19 @@ function doPlace(card,playerIdx,q,r){
     }, FUMO_USCITA_MS);
     return;
   }
+  // v0.75.58 — IL BACIO, e lo scontro che lo aspetta. "Solo dopo essere
+  // diventato Green Prince passa alla fase di attacco": la trasformazione non
+  // e' una rifinitura da far scorrere sopra al combattimento, e' cio' che
+  // decide CON QUALI NUMERI si combatte. Risolvere lo scontro prima vorrebbe
+  // dire far attaccare il ranocchio e mostrare il principe un istante dopo.
+  if(cellAbilityKey === 'kiss' && cePrincipessaAccanto(q, r)){
+    renderBoard();
+    trasformaConLampo(k, card, q, r, ()=>{
+      if(!G || G.gameOver) return;
+      resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, true);
+    });
+    return;
+  }
   resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey);
 }
 
@@ -20194,6 +20253,14 @@ const EFFETTI_PIAZZAMENTO = {
   // questo registro l'anteprima sotto il puntatore arriva gratis.
   tic_toc: (card) => attivaTicToc(card),
   rush_hour: (card) => attivaRushHour(card),
+  // v0.75.58 — IL BACIO STA QUI, ma agisce SOLO nella simulazione. Sembra un
+  // controsenso e non lo e': questo registro e' l'unico che l'anteprima
+  // esegue, ed e' da qui che i valori del Principe compaiono sotto il puntatore
+  // prima ancora di lasciare la carta. Nella partita vera la trasformazione
+  // deve invece passare dal lampo e far aspettare lo scontro (vedi doPlace),
+  // quindi qui non deve succedere niente: farla due volte trasformerebbe la
+  // carta prima che il lampo abbia qualcosa da nascondere.
+  kiss: (card, q, r) => { if(_simulazioneInCorso) attivaKiss(card, q, r); },
   scaredy_cat: (card) => attivaScaredyCat(card),
 };
 // ═══════════════════════════════════════════════════════════════════════════
@@ -20336,6 +20403,174 @@ function attivaEveryoneGetsAWish(card){
 // partita: quello e' solo di chi comincia, e l'altro non potrebbe mai
 // riscuoterlo. E' la stessa lettura con cui Tic Toc e' stato corretto in
 // v0.75.54 — i turni 1 e 2 sono la prima giocata dell'uno e dell'altro.
+// ── v0.75.58 — PHOENIX, "Rise from the Ashes" ─────────────────────────────
+// Conquistata, torna alla propria fazione dopo UN turno, e una volta sola per
+// partita. Il ritorno e' segnato sulla carta e non in una lista a parte: una
+// carta puo' essere spostata, trasformata, rubata, e una lista di celle
+// invecchierebbe alla prima di quelle cose. La carta invece si porta dietro il
+// proprio impegno ovunque vada.
+// `fenicePronta` e' il turno in cui rinasce, non un contatore da decrementare:
+// un numero assoluto non puo' sfasarsi se un turno viene saltato o se la carta
+// cambia mano nel frattempo.
+function segnaRinascitaFenice(card, proprietarioOriginale){
+  if(!card || abilitaAttivaDi(card) !== 'rise_from_the_ashes') return;
+  if(card.feniceGiaRinata) return;          // una volta sola per partita
+  if(card.fenicePronta) return;             // gia' in attesa
+  card.fenicePronta = (G.numeroTurno||1) + 1;
+  card.feniceFazione = proprietarioOriginale;
+}
+// Il momento della rinascita: lampo, suono, e subito dopo il giro della carta.
+// Il giro e' quello standard delle conquiste — stessa classe, stessa mezza
+// rotazione a cui si cambia il proprietario — perche' tornare indietro e' la
+// stessa cosa che essere presi, vista dall'altra parte.
+const FENICE_LAMPO_MS = 220;   // deve combaciare con .hit-flash
+const FENICE_GIRO_MS = 315;    // deve combaciare con .card-flip
+function rinasciFenice(cella, onDone){
+  const posto = G.board[cella];
+  const finito = ()=>{ if(typeof onDone==='function') onDone(); };
+  if(!posto || !posto.card){ finito(); return; }
+  const card = posto.card;
+  const tornaA = card.feniceFazione;
+  card.fenicePronta = null;
+  card.feniceFazione = null;
+  card.feniceGiaRinata = true;
+  const bsvg = document.getElementById('board-svg');
+  const el = bsvg && bsvg.querySelector('[data-conquered="'+cella+'"]');
+  const cambia = ()=>{
+    posto.owner = tornaA;
+    try { swapCardOwnerVariant(el, tornaA, card); } catch(_){}
+    try { renderBoard(); } catch(_){}
+  };
+  if(!el){ cambia(); finito(); return; }
+  // Il lampo e il grido insieme: e' lo stesso evento.
+  try { lampeggiaCarta(el); } catch(_){}
+  try { playSfxFile('eagle.mp3'); } catch(_){}
+  setTimeout(()=>{
+    const elOra = bsvg.querySelector('[data-conquered="'+cella+'"]') || el;
+    try {
+      elOra.classList.remove('card-flip');
+      void elOra.getBoundingClientRect();
+      elOra.classList.add('card-flip');
+    } catch(_){}
+    // Il colore cambia a META' giro, quando la carta e' di taglio e non si
+    // vede: e' la stessa regola di ogni conquista.
+    setTimeout(()=>{ cambia(); setTimeout(finito, FENICE_GIRO_MS/2); }, FENICE_GIRO_MS/2);
+  }, FENICE_LAMPO_MS);
+}
+// Chi deve rinascere in questo turno. Gira a ogni inizio turno, come lo scudo
+// di Pinocchio: un impegno preso vale per il tabellone, non per il giocatore
+// che l'ha causato.
+function rinasciteDiQuestoTurno(onDone){
+  const finito = ()=>{ if(typeof onDone==='function') onDone(); };
+  if(!G || !G.board){ finito(); return; }
+  const pronte = [];
+  for(const k in G.board){
+    const posto = G.board[k];
+    if(!posto || !posto.card) continue;
+    if(!posto.card.fenicePronta) continue;
+    if((G.numeroTurno||1) < posto.card.fenicePronta) continue;
+    // Se nel frattempo e' gia' tornata a casa da sola (riconquistata), non c'e'
+    // niente da far rinascere: l'impegno si spegne e basta.
+    if(posto.owner === posto.card.feniceFazione){
+      posto.card.fenicePronta = null; posto.card.feniceFazione = null;
+      continue;
+    }
+    pronte.push(k);
+  }
+  if(!pronte.length){ finito(); return; }
+  let i = 0;
+  const prossima = ()=>{
+    if(i >= pronte.length){ finito(); return; }
+    rinasciFenice(pronte[i++], prossima);
+  };
+  prossima();
+}
+// ── v0.75.58 — FROG PRINCE, "Kiss" ────────────────────────────────────────
+// Giocato accanto a una Principessa diventa The Green Prince. La verifica e' su
+// CHIUNQUE sia adiacente, alleata o nemica: un bacio non chiede la fazione.
+function cePrincipessaAccanto(q, r){
+  for(const dir of DIRS){
+    const vicino = G.board[key(q+dir.dq, r+dir.dr)];
+    if(vicino && vicino.card && (vicino.card.archetypes||[]).includes('princess')) return true;
+  }
+  return false;
+}
+function attivaKiss(card, q, r){
+  if(!cePrincipessaAccanto(q, r)) return false;
+  return trasformaCartaIn(card, 'The Green Prince', 'Kiss');
+}
+// Quanto dura il lampo prima che la carta cambi. Il cambio avviene a META' del
+// lampo, quando il bianco copre tutto: e' l'unico istante in cui l'occhio non
+// vede cosa c'e' sotto — stesso principio dei Sette Nani col muro, e del giro
+// delle carte, dove il contenuto si cambia a meta' rotazione.
+const BACIO_LAMPO_MS = 220;    // deve combaciare con .hit-flash
+function trasformaConLampo(cella, card, q, r, poi){
+  const finito = ()=>{ if(typeof poi==='function') poi(); };
+  const bsvg = document.getElementById('board-svg');
+  const el = bsvg && bsvg.querySelector('[data-conquered="'+cella+'"]');
+  if(!el){ attivaKiss(card, q, r); try{ renderBoard(); }catch(_){} finito(); return; }
+  try{ lampeggiaCarta(el); }catch(_){}
+  setTimeout(()=>{
+    attivaKiss(card, q, r);
+    try{ renderBoard(); }catch(_){}
+    // Il resto del lampo scorre sulla carta NUOVA, e solo dopo si combatte:
+    // "prima diventa principe, poi attacca".
+    setTimeout(finito, BACIO_LAMPO_MS/2);
+  }, BACIO_LAMPO_MS/2);
+}
+// ── v0.75.58 — UNICORN, "Unicorn Hunt" ────────────────────────────────────
+// Ogni volta che viene giocato la sua probabilita' di uscire da una bustina
+// cresce di un decimo di punto, fino al 65% — quanto una comune. Partendo da
+// 0.3 servono seicentoquarantasette giocate: e' il senso della carta, non un
+// bilanciamento da rivedere. Per questo il conto si salva NEL BROWSER accanto
+// alle valute: un progresso che si azzera a ogni ricarica non sarebbe un
+// progresso, sarebbe uno scherzo.
+// Raggiunto il tetto l'abilita' sparisce dalla carta — non ha piu' niente da
+// fare — e il flavour text diventa quello della riga d'arrivo.
+const UNICORNO_CHIAVE = 'hextale.unicorno';
+const UNICORNO_PASSO = 0.1;
+const UNICORNO_TETTO = 65;
+const UNICORNO_FRASE_FINALE = 'Congratulations, you achieved the impossible.';
+function dropRateUnicorno(){
+  try{
+    const grezzo = localStorage.getItem(UNICORNO_CHIAVE);
+    const v = parseFloat(grezzo);
+    if(isFinite(v)) return Math.min(UNICORNO_TETTO, Math.max(0, v));
+  }catch(_){}
+  return null;   // mai giocato: vale quello del foglio
+}
+function salvaDropRateUnicorno(v){
+  try{ localStorage.setItem(UNICORNO_CHIAVE, String(v)); }catch(_){}
+}
+function unicornoAlMassimo(){
+  return dropRateUnicorno() >= UNICORNO_TETTO;
+}
+function attivaUnicornHunt(card){
+  if(unicornoAlMassimo()) return;
+  const partenza = dropRateUnicorno();
+  const base = (partenza != null) ? partenza : (card.dropRate || 0);
+  const nuovo = Math.min(UNICORNO_TETTO, Math.round((base + UNICORNO_PASSO)*10)/10);
+  salvaDropRateUnicorno(nuovo);
+  card.dropRate = nuovo;
+  console.info('[Unicorn Hunt] drop rate ora '+nuovo+'% (tetto '+UNICORNO_TETTO+'%)');
+  if(nuovo >= UNICORNO_TETTO) console.info('[Unicorn Hunt] tetto raggiunto: da qui in poi l\'abilita\' non serve piu\'.');
+}
+// Il drop rate salvato ha la precedenza su quello del foglio, ovunque la carta
+// venga costruita: e' il senso stesso di un progresso che si accumula.
+// E al massimo la carta cambia faccia: niente abilita', e la frase dell'arrivo.
+function applicaProgressoUnicorno(carta){
+  if(!carta || String(carta.name||'').trim().toLowerCase() !== 'unicorn') return carta;
+  const salvato = dropRateUnicorno();
+  if(salvato != null) carta.dropRate = salvato;
+  if(unicornoAlMassimo()){
+    carta.cardAbility = '';
+    carta.abilityNameSheet = ''; carta.abilityDescSheet = ''; carta.abilityTrigger = '';
+    carta.abilityNoScript = false;
+    carta.quote = UNICORNO_FRASE_FINALE;
+    carta.arcobaleno = true;   // vedi il testo con gradiente nella carta e nella scheda
+  }
+  return carta;
+}
 const TURNI_RUSH_HOUR = 2;
 const BONUS_RUSH_HOUR = 3;
 function attivaRushHour(card){
@@ -20409,11 +20644,19 @@ function laFataMadrinaEInCampo(){
 }
 function attivaBellOfTheBall(card){
   if(!laFataMadrinaEInCampo()) return false;
-  const entry = cartaEvocabilePerNome('The Crystal Princess');
+  return trasformaCartaIn(card, 'The Crystal Princess', 'Bell of the Ball');
+}
+// v0.75.58 — LA TRASFORMAZIONE, ESTRATTA. Era scritta dentro a Bell of the
+// Ball; il Principe Ranocchio fa la stessa identica cosa con un'altra carta, e
+// ricopiare quelle venti righe voleva dire venti occasioni di dimenticarne una
+// nella copia — di solito una delle istantanee da buttare, che e' il genere di
+// dimenticanza che si manifesta tre mosse dopo.
+function trasformaCartaIn(card, nomeCarta, etichetta){
+  const entry = cartaEvocabilePerNome(nomeCarta);
   if(!entry){
     // Stessa cortesia di King Arthur con Excalibur: se la riga non c'e' nel
     // foglio non si finge una trasformazione, e si dice perche'.
-    console.info('[Bell of the Ball] "The Crystal Princess" non e\' nel foglio: la trasformazione non avviene.');
+    console.info('['+(etichetta||'trasformazione')+'] "'+nomeCarta+'" non e\' nel foglio: la trasformazione non avviene.');
     return false;
   }
   const nuova = _makeCardDbCard(entry, card.owner || G.currentPlayer);
@@ -20638,6 +20881,7 @@ const EFFETTI_PIAZZAMENTO_REALI = {
   // v0.74.0 — la trasformazione di Cenerentola: cambia la carta, non i suoi
   // numeri, quindi non ha niente da mostrare in anteprima e sta qui.
   bell_of_the_ball: (card) => attivaBellOfTheBall(card),
+
   off_with_the_head: (card) => attivaOffWithTheHead(card),
   smoke_and_mirrors: (card) => attivaSmokeAndMirrors(card),
   // Exaketededly sta QUI e non fra gli effetti simulabili perche' tira un
@@ -20654,6 +20898,10 @@ const EFFETTI_PIAZZAMENTO_REALI = {
   // Stessa ragione di Dark Pact: tocca le carte in MANO, e l'anteprima gira sul
   // tabellone clonato ma sulla mano vera.
   everyone_gets_a_wish: (card) => attivaEveryoneGetsAWish(card),
+  // Non tocca nessun valore: scrive un dato che sopravvive alla partita. Sta
+  // quindi qui e non fra gli effetti simulabili, o ogni passaggio del puntatore
+  // farebbe salire il drop rate di un decimo.
+  unicorn_hunt: (card) => attivaUnicornHunt(card),
 };
 function applicaEffettiRealiPiazzamento(card, q, r, chiave){
   const effetto = EFFETTI_PIAZZAMENTO_REALI[chiave];
@@ -20858,6 +21106,24 @@ const SCELTE_PIAZZAMENTO = {
       // un bersaglio, e il turno non deve riprendere finche' quella seconda
       // finestra non e' stata chiusa.
       applicaEAspetta: (cella, poi) => rubaAbilitaDa(card, cella, q, r, giocatore, poi),
+      rinuncia: () => {},
+    };
+  },
+  // ── v0.75.58 — MARCH HARE, lo scambio del piu' alto col piu' basso ──────
+  // Al PIAZZAMENTO, come dice ora il foglio: agisce appena arriva, non dopo
+  // aver preso qualcosa.
+  // L'icona e' quella dello scambio e non il mirino: il gesto non e' "colpisci
+  // questa", e' "girale i numeri".
+  swap_values: (card, q, r, giocatore) => {
+    const bersagli = bersagliMarchHare(q, r, giocatore);
+    if(!bersagli.length) return null;
+    return {
+      chiave: 'swap_values',
+      giocatore,
+      icona: 'swap-icon.png',
+      cellaOrigine: key(q,r),
+      bersagli,
+      applicaEAspetta: (cella, poi) => scambiaConAnimazione(cella, poi),
       rinuncia: () => {},
     };
   },
@@ -22090,25 +22356,6 @@ function rinunciaSceltaBersaglio(){ chiudiSceltaBersaglio(null); }
 // solo QUANDO si apre e cosa succede chiudendola (vedi il ramo
 // `scelta.dopoConquista` in chiudiSceltaBersaglio, qui sopra).
 const SCELTE_DOPO_CONQUISTA = {
-  // ── v0.75.57 — MARCH HARE, lo scambio del piu' alto col piu' basso ──────
-  // Sta QUI e non fra le scelte al piazzamento perche' il foglio la dichiara
-  // Conquest: agisce dopo aver preso qualcosa, non appena arriva.
-  // L'icona e' quella dello scambio e non il mirino: il gesto non e' "colpisci
-  // questa", e' "girale i numeri".
-  swap_values: (card, q, r, giocatore, conquestInfo) => {
-    if(!conquestInfo || !conquestInfo.length) return null; // solo dopo aver conquistato
-    const bersagli = bersagliMarchHare(q, r, giocatore);
-    if(!bersagli.length) return null;
-    return {
-      chiave: 'swap_values',
-      giocatore,
-      icona: 'swap-icon.png',
-      cellaOrigine: key(q,r),
-      bersagli,
-      applicaEAspetta: (cella, poi) => scambiaConAnimazione(cella, poi),
-      rinuncia: () => {},
-    };
-  },
   // ── v0.73.67 — 12 DANCING PRINCESSES, "Dancing Around" ──────────────────
   // Chi si sposta e' LEI, la Principessa che ha appena conquistato — non la
   // carta che ha preso, che resta dov'e' finita. Le caselle fra cui scegliere
@@ -22695,6 +22942,13 @@ function anteprimaTavolo(){
   // Solo su una cella dove la carta puo' davvero finire: sorvolare un muro o
   // una casella occupata non deve muovere nessun numero.
   const esito = (!isNaN(q) && !isNaN(r) && canPlace(q,r)) ? simulaPiazzamento(carta, q, r) : null;
+  // v0.75.58 — se calandola qui si trasformerebbe, lo si segna sulla carta: da
+  // li' lo legge chi la disegna (vedi cardFoilVisualCard) e mostra l'arte della
+  // carta in cui sta per diventare. Si riscrive a ogni casella sorvolata e si
+  // spegne appena la condizione non c'e' piu', quindi non puo' restare appeso.
+  carta.__anteprimaTrasformazione =
+    (esito && abilitaAttivaDi(carta) === 'kiss' && !isNaN(q) && cePrincipessaAccanto(q, r))
+      ? 'The Green Prince' : null;
   _anteprimaTavolo = { chiave, esito };
   return esito;
 }
@@ -22989,6 +23243,10 @@ function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLa
       G.board[nk]={card:nb.card,owner:player};
       conquered.push(nk);
       conquestInfo.push({nk, dir, prevOwner:nb.owner, atkVal:myAttackVal, defVal:theirEffective[dir.theirSide]});
+      // v0.75.58 — la Fenice si segna il ritorno: fra un turno tornera' da chi
+      // l'aveva giocata. Si segna QUI, nel momento in cui viene presa, perche'
+      // e' l'unico punto che sa ancora di chi era.
+      segnaRinascitaFenice(nb.card, nb.owner);
       // v0.73.5 — l'ultima conquista di questo giocatore, per Morgana: e' la
       // casella che il suo avversario potra' provare a riprendersi.
       G.ultimaConquista[player] = {cella:nk, exProprietario:nb.owner};
@@ -23748,6 +24006,11 @@ function startTurn(){
   // qui sopra: chi ridisegna nel mezzo porta via gli elementi che si stanno
   // animando. Sono tre passaggi in catena e non tre chiamate di seguito
   // proprio perche' "di seguito" vorrebbe dire "tutte insieme".
+  // v0.75.58 — e le Fenici che devono tornare a casa. In fila con le altre
+  // cose che succedono a inizio turno, e prima della pescata per la stessa
+  // ragione gia' scritta li': chi ridisegna nel mezzo porta via gli elementi
+  // che si stanno animando.
+  rinasciteDiQuestoTurno(()=>
   ruotaCarteInMano(player, ()=> spostaCarteCheshire(null, ()=>{
     if(!G || G.gameOver) return;
     if(deck.length>0 && hand.length<HAND_SIZE){
@@ -23761,7 +24024,7 @@ function startTurn(){
       render();
       maybeTriggerAiTurn();
     }
-  }));
+  })));
 }
 
 // Starts the turn timer immediately, UNLESS the "Turno del Player X" banner
@@ -29448,6 +29711,33 @@ function buildFullHandCardSVG(card, boxW, boxH, preview){
     quoteEl.setAttribute('font-style','italic');
     quoteEl.setAttribute('font-size', bodySize.toFixed(2));
     quoteEl.setAttribute('fill', isDark?CARD_QUOTE_COLOR_DARK:CARD_QUOTE_COLOR_LIGHT);
+    // v0.75.58 — la frase dell'Unicorno arrivato in fondo si legge con un
+    // gradiente arcobaleno. In SVG un testo non si colora con un gradiente CSS:
+    // gli si punta il `fill` a un <linearGradient> definito nei <defs> del
+    // disegno. L'id porta un suffisso irripetibile perche' di carte a schermo
+    // ce ne sono molte, e due gradienti con lo stesso id si ruberebbero il
+    // riferimento a vicenda — l'ultimo definito vincerebbe su tutti.
+    if(card.arcobaleno){
+      try{
+        const uid = 'arcobaleno-'+Math.random().toString(36).slice(2,8);
+        const defs = svg.querySelector('defs') || (()=>{
+          const d = document.createElementNS('http://www.w3.org/2000/svg','defs');
+          svg.insertBefore(d, svg.firstChild); return d;
+        })();
+        const grad = document.createElementNS('http://www.w3.org/2000/svg','linearGradient');
+        grad.setAttribute('id', uid);
+        grad.setAttribute('x1','0%'); grad.setAttribute('y1','0%');
+        grad.setAttribute('x2','100%'); grad.setAttribute('y2','0%');
+        ['#FF4E4E','#FFA23A','#FFE34E','#4ED66B','#4EC8FF','#9B6BFF','#FF6BD6'].forEach((col,i,arr)=>{
+          const st = document.createElementNS('http://www.w3.org/2000/svg','stop');
+          st.setAttribute('offset', (i/(arr.length-1)*100).toFixed(1)+'%');
+          st.setAttribute('stop-color', col);
+          grad.appendChild(st);
+        });
+        defs.appendChild(grad);
+        quoteEl.setAttribute('fill', 'url(#'+uid+')');
+      }catch(_){}
+    }
     for(const line of quoteLines){
       const tspan=document.createElementNS('http://www.w3.org/2000/svg','tspan');
       tspan.setAttribute('x', (boxW/2).toFixed(2));
@@ -33073,7 +33363,7 @@ function buildCardTooltipHTML(card, onBoard, bonusInfo){
     }
   }
 
-  html += `<div class="ct-quote">"${escapeHtml(card.quote || 'Un racconto ancora da scrivere.')}"</div>`;
+  html += `<div class="ct-quote${card.arcobaleno?' frase-arcobaleno':''}">"${escapeHtml(card.quote || 'Un racconto ancora da scrivere.')}"</div>`;
   return html;
 }
 
@@ -33185,7 +33475,7 @@ function buildBoardCardTooltipHTML(card){
     }
   }
 
-  html += `<div class="ctb-quote">"${escapeHtml(card.quote || 'Un racconto ancora da scrivere.')}"</div>`;
+  html += `<div class="ctb-quote${card.arcobaleno?' frase-arcobaleno':''}">"${escapeHtml(card.quote || 'Un racconto ancora da scrivere.')}"</div>`;
 
   // v0.71.17 ("mettiamola in basso, dopo la citazione... con sotto, molto
   // attaccate, le 4 card-level-socket") + v0.71.18 FIX ("rimuoviamo la
