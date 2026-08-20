@@ -7327,7 +7327,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.73</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.74</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -20320,6 +20320,11 @@ function doPlace(card,playerIdx,q,r){
   // quindi trovava _cardLand ancora nullo: il ritardo risultava 0 e il lunge
   // d'attacco ripartiva sopra la caduta, cioe' il bug da risolvere.
   startCardLandAnim(k);
+  // v0.75.74 — la carta cade per quello che E', non per quello che diventera'.
+  // Il segno dell'anteprima va spento QUI e non piu' tardi: da questo istante
+  // la carta e' sul tabellone e chi la disegna deve vedere il ranocchio, che ha
+  // ancora mezzo secondo di vita davanti (vedi il bacio piu' sotto).
+  _spegniSegnoTrasformazione();
   if(player===1) G.p1Hand=G.p1Hand.filter(c=>c.id!==card.id);
   else           G.p2Hand=G.p2Hand.filter(c=>c.id!==card.id);
 
@@ -20403,10 +20408,28 @@ function doPlace(card,playerIdx,q,r){
   // dire far attaccare il ranocchio e mostrare il principe un istante dopo.
   if(cellAbilityKey === 'kiss' && cePrincipessaAccanto(q, r)){
     renderBoard();
-    trasformaConLampo(k, card, q, r, ()=>{
+    // v0.75.74 — PRIMA CADE LA RANA, POI SI TRASFORMA. La trasformazione
+    // partiva subito, cioe' mentre la carta stava ancora atterrando: da fuori
+    // non si vedeva nessun ranocchio, il principe c'era e basta — e una
+    // trasformazione che non mostra il "prima" non e' una trasformazione, e'
+    // una carta sbagliata.
+    // Si aspetta quindi la fine dell'atterraggio e poi mezzo secondo di
+    // respiro. Il tempo che resta si calcola da `_cardLand` invece di usare
+    // CARD_LAND_MS secco, esattamente come fa lo scontro col suo lunge (vedi
+    // landDelayMs in resolveConquestAndEndTurn): fra la partenza della caduta e
+    // questa riga passa gia' del lavoro, e sommare la durata piena
+    // aggiungerebbe un'attesa a caduta gia' finita.
+    let restaDaCadere = CARD_LAND_MS;
+    if(_cardLand && _cardLand.k === k){
+      restaDaCadere = Math.max(0, Math.round(CARD_LAND_MS - (performance.now() - _cardLand.t0)));
+    }
+    setTimeout(()=>{
       if(!G || G.gameOver) return;
-      resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, true);
-    });
+      trasformaConLampo(k, card, q, r, ()=>{
+        if(!G || G.gameOver) return;
+        resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, true);
+      });
+    }, restaDaCadere + BACIO_RESPIRO_MS);
     return;
   }
   resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey);
@@ -20780,6 +20803,9 @@ function attivaKiss(card, q, r){
 // vede cosa c'e' sotto — stesso principio dei Sette Nani col muro, e del giro
 // delle carte, dove il contenuto si cambia a meta' rotazione.
 const BACIO_LAMPO_MS = 220;    // deve combaciare con .hit-flash
+// v0.75.74 — quanto si aspetta, a caduta finita, prima che il bacio faccia
+// effetto. Mezzo secondo: il tempo di vedere che quella e' una rana.
+const BACIO_RESPIRO_MS = 500;
 // v0.75.72 — quanto si aspetta il grido quando la durata del suono della
 // trasformazione non e' nota (file non ancora decodificato al primo utilizzo).
 const TRASFORMAZIONE_DURATA_DI_RIPIEGO_MS = 2600;
@@ -23280,8 +23306,23 @@ function valoriDopoAbilita(card, q, r){
 // sola per ogni cella sorvolata: renderBoard e renderHand la chiedono entrambi
 // e ridisegnano piu' volte per la stessa posizione del puntatore.
 let _anteprimaTavolo = null;
+// v0.75.74 — l'ultima carta a cui e' stato messo il segno "ti stai per
+// trasformare". Serve per poterglielo TOGLIERE: il segno lo mette l'anteprima,
+// ma l'anteprima finisce anche uscendo di scena — lasciando la carta, o
+// lasciandola cadere — e in quei due casi non c'e' piu' nessun dragState da cui
+// risalire a chi l'aveva. Senza questo riferimento il segno restava addosso alla
+// carta VERA, che quindi si vedeva gia' col vestito nuovo appena posata: la
+// trasformazione sembrava avvenuta prima di avvenire.
+let _cartaConSegnoTrasformazione = null;
+function _spegniSegnoTrasformazione(){
+  if(_cartaConSegnoTrasformazione){
+    _cartaConSegnoTrasformazione.__anteprimaTrasformazione = null;
+    _cartaConSegnoTrasformazione = null;
+  }
+}
 function anteprimaTavolo(){
   if(!dragState || !dragState.card || !dragState.hoverCellKey){
+    _spegniSegnoTrasformazione();
     _anteprimaTavolo = null;
     return null;
   }
@@ -23296,9 +23337,13 @@ function anteprimaTavolo(){
   // li' lo legge chi la disegna (vedi cardFoilVisualCard) e mostra l'arte della
   // carta in cui sta per diventare. Si riscrive a ogni casella sorvolata e si
   // spegne appena la condizione non c'e' piu', quindi non puo' restare appeso.
-  carta.__anteprimaTrasformazione =
-    (esito && abilitaAttivaDi(carta) === 'kiss' && !isNaN(q) && cePrincipessaAccanto(q, r))
-      ? 'The Green Prince' : null;
+  const siTrasformerebbe = !!(esito && abilitaAttivaDi(carta) === 'kiss'
+                             && !isNaN(q) && cePrincipessaAccanto(q, r));
+  _spegniSegnoTrasformazione();
+  if(siTrasformerebbe){
+    carta.__anteprimaTrasformazione = 'The Green Prince';
+    _cartaConSegnoTrasformazione = carta;
+  }
   _anteprimaTavolo = { chiave, esito };
   return esito;
 }
