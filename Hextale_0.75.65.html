@@ -7327,7 +7327,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.64</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.65</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -10798,7 +10798,7 @@ const LIVELLI_MAX = 4;
 // `esplicita` dice quale delle due forme era scritta: serve a non confondere
 // una scaletta scritta a mano con quella ricavata dalla regola, perche' solo la
 // prima va conservata.
-function _scalettaDiLivelli(cella){
+function _scalettaDiLivelli(cella, nomeCarta, nomeLato){
   const grezzo = String(cella==null ? '' : cella).trim();
   if(!grezzo) return null;
   // Il separatore accetta il trattino normale e quello lungo, che un foglio di
@@ -10806,13 +10806,17 @@ function _scalettaDiLivelli(cella){
   const pezzi = grezzo.split(/\s*[-\u2013\u2014]\s*/).filter(x=>x!=='');
   const numeri = pezzi.map(x=>parseInt(x,10)).filter(n=>isFinite(n));
   if(!numeri.length) return null;
-  const esplicita = numeri.length > 1;
+  if(numeri.length !== 1 && numeri.length !== LIVELLI_MAX){
+    console.warn('[carte] "'+(nomeCarta||'?')+'", lato '+(nomeLato||'?')+': "'+grezzo
+      + '" ha '+numeri.length+' numeri. Le forme accettate sono DUE: un numero solo'
+      + '\n(il livello 1, e ogni livello successivo aggiunge +1) oppure quattro'
+      + '\n(un valore per livello, es. "4-6-7-7"). Per ora vale il primo numero'
+      + '\ncol +1 a livello.');
+  }
+  const esplicita = numeri.length === LIVELLI_MAX;
   const fuori = [];
   for(let i=0;i<LIVELLI_MAX;i++){
-    // Oltre l'ultimo numero scritto: se la scaletta e' esplicita l'ultimo
-    // valore continua, se era un numero solo riparte la regola del +1.
-    fuori.push(i < numeri.length ? numeri[i]
-             : (esplicita ? numeri[numeri.length-1] : numeri[0] + i));
+    fuori.push(esplicita ? numeri[i] : numeri[0] + i);
   }
   fuori.esplicita = esplicita;
   return fuori;
@@ -10964,22 +10968,34 @@ function _cardaDaRiga(col, get, haColonna){
   // vale la regola di sempre: quello e' il livello 1, e ogni livello oltre
   // aggiunge +1. Oppure una scaletta — "4-6-7-7" — e allora quei numeri SONO i
   // livelli, uno per uno: 4 al primo, 6 al secondo, 7 al terzo e al quarto.
-  // Se la scaletta e' piu' corta di quattro, l'ultimo numero vale anche per i
-  // livelli che restano: "4-6" e' quindi 4, 6, 6, 6. E' la lettura piu' vicina
-  // a cio' che si intende scrivendo meno numeri — "da qui in poi non cambia" —
-  // e rende "4-6-7-7" e "4-6-7" la stessa carta.
+  // Le forme sono DUE e solo due: un numero, o quattro. Una scaletta di due o
+  // tre numeri non e' una scrittura piu' corta, e' una riga incompleta — e
+  // indovinare cosa volesse dire vorrebbe dire far giocare una carta diversa da
+  // quella che il foglio dichiara. Si segnala in console e si torna alla regola
+  // del +1 sul primo numero, che e' il comportamento di sempre.
   const lati=['NW','NE','E','SE','SW','W'];
   let values={};
   let scalette=null;   // {lato: [v1,v2,v3,v4]} solo per i lati scritti a scaletta
   let completa=true;
+  let latoMancante=null;
   for(const s of lati){
-    const scala=_scalettaDiLivelli(get(s));
-    if(!scala){ completa=false; break; }
+    const scala=_scalettaDiLivelli(get(s), nome, s);
+    if(!scala){ completa=false; latoMancante=s; break; }
     values[s]=scala[0];
     if(scala.esplicita){ (scalette || (scalette={}))[s]=scala; }
   }
   if(!completa){
     values = valoriProvvisori(nome);
+    // v0.75.65 — E LO SI DICE. Questo ripiego inventa i sei valori di una carta,
+    // ed era muto: una carta con una cella vuota entrava in partita con numeri
+    // che non stanno scritti da nessuna parte, e dal gioco sembrava un errore
+    // del codice. E' successo con Excalibur — che nel foglio ha 0-0-0-0 su ogni
+    // lato ma che il gioco aveva letto prima di quella modifica — ed e' costato
+    // un'indagine che questa riga avrebbe chiuso in dieci secondi.
+    console.warn('[carte] "'+nome+'": la colonna '+latoMancante+' e\' vuota o illeggibile,'
+      + '\nquindi TUTTI e sei i valori di questa carta sono INVENTATI dal codice'
+      + '\n(valori provvisori, stabili per nome). Quelli scritti nel foglio negli altri'
+      + '\nlati vengono ignorati: bastano sei celle leggibili perche\' valgano i suoi.');
   } else if(!valoriRispettanoLaRegola(values)){
     // I valori scritti a mano nel foglio NON vengono corretti: chi li ha messi
     // avra' avuto le sue ragioni, e riscriverli dal codice significherebbe far
