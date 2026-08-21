@@ -7774,7 +7774,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.83</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.84</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -8928,6 +8928,12 @@ if(document.readyState==='loading'){
     const carteProntePer = (typeof caricaCarteDalFoglio === 'function')
       ? caricaCarteDalFoglio() : Promise.resolve(false);
     carteProntePer
+      // v0.75.84 — i mazzi salvati si rileggono QUI, non prima: dentro c'e'
+      // solo un elenco di id, e per sapere quali di quegli id esistono ancora
+      // serve il foglio gia' letto. Chiamarla prima vorrebbe dire buttare via
+      // ogni carta di ogni mazzo, perche' il roster e' ancora quello di
+      // ripiego (vedi caricaMazzi).
+      .then(()=>{ try{ caricaMazzi(); }catch(_){} })
       .then(()=> (typeof registraSuoniExtra === 'function') ? registraSuoniExtra() : null)
       // v0.75.15 — la verifica dell'arte adesso RIFERISCE quanto e' avanti, e
       // la barra la mostra (vedi PESO_SONDE). Prima questa fase era muta: la
@@ -10724,7 +10730,12 @@ function capacitaDelMazzo(mazzo){
 // condizione che il gioco pretende per scendere in campo, chiesta prima
 // invece che dopo.
 function mazzoValido(mazzo){
-  const n = (mazzo && mazzo.carte || []).length;
+  // Si contano le carte che ESISTONO DAVVERO, non gli id scritti nel mazzo.
+  // Le due cose coincidono quasi sempre — caricaMazzi butta gli id spariti
+  // appena rilegge — ma "quasi sempre" non basta per una regola da cui
+  // dipende cosa scende in campo: un id senza carta passerebbe il conteggio e
+  // poi darebbe un mazzo di undici, scoperto solo a partita iniziata.
+  const n = carteDelMazzo(mazzo).length;
   return n === MAZZO_CARTE && capacitaDelMazzo(mazzo) <= MAZZO_PUNTI;
 }
 // L'illustrazione della prima carta del mazzo, nella variante che si sta
@@ -10820,15 +10831,401 @@ function _slotMazzoAggiungi(){
   img.alt = ''; img.draggable = false;
   impostaImgDaCandidati(img, uiFileCandidati('deck-add.png'));
   el.appendChild(img);
+  el.onclick = ()=>{ if(!_mazzoInModifica) creaMazzo(); };
   return el;
 }
-// Uno solo alla volta: selezionarne uno spegne gli altri. Non e' una casella
-// di spunta con piu' risposte, e' una scelta fra dodici.
+// Uno solo alla volta: sceglierne uno spegne gli altri. Non e' una casella di
+// spunta con piu' risposte, e' una scelta fra dodici — ed e' per questo che
+// l'id sta in una variabile sola invece che in un campo su ogni mazzo.
 function selezionaMazzo(id){
-  let trovato = false;
-  for(const m of MAZZI){ m.selezionato = (m.id === id); if(m.selezionato) trovato = true; }
-  if(!trovato && MAZZI.length) MAZZI[0].selezionato = true;
+  MAZZO_SCELTO = MAZZI.some(m=>m.id===id) ? id : (MAZZI.length ? MAZZI[0].id : null);
+  salvaMazzi();
   renderListaMazzi();
+}
+function creaMazzo(){
+  if(MAZZI.length >= MAZZI_SLOT) return;
+  const m = { id:'m'+Date.now().toString(36)+Math.floor(Math.random()*1e4).toString(36),
+              nome:'New deck', carte:[] };
+  MAZZI.push(m);
+  if(!MAZZO_SCELTO) MAZZO_SCELTO = m.id;
+  salvaMazzi();
+  renderListaMazzi();
+  apriModificaMazzo(m.id);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// v0.75.84 — LA MODIFICA DI UN MAZZO
+// ═══════════════════════════════════════════════════════════════════════════
+// Si lavora su una COPIA. Il mazzo vero viene toccato solo premendo "Save
+// Deck": e' l'unico modo perche' "Esc annulla" voglia dire davvero annullare,
+// invece di rimettere a posto a mano ogni singola modifica gia' applicata —
+// che e' la strada in cui prima o poi se ne dimentica una.
+let _mazzoInModifica = null;   // la copia su cui si sta lavorando
+let _mazzoInModificaId = null; // l'id del mazzo vero a cui appartiene
+function _pannelloModifica(mazzo){
+  const p = document.createElement('div');
+  p.className = 'deck-edit';
+  p.onclick = (ev)=> ev.stopPropagation(); // dentro al pannello non si riapre niente
+
+  const top = document.createElement('div');
+  top.className = 'deck-edit-top';
+  const nome = document.createElement('input');
+  nome.type = 'text'; nome.className = 'deck-edit-nome'; nome.maxLength = 40;
+  nome.oninput = ()=>{ if(_mazzoInModifica) _mazzoInModifica.nome = nome.value; };
+  const cestino = document.createElement('button');
+  cestino.type = 'button'; cestino.className = 'deck-edit-elimina';
+  cestino.setAttribute('aria-label','Delete deck');
+  const cestinoImg = document.createElement('img');
+  cestinoImg.alt=''; cestinoImg.draggable=false;
+  impostaImgDaCandidati(cestinoImg, uiFileCandidati('delete-icon.png'));
+  cestino.appendChild(cestinoImg);
+  cestino.onclick = ()=> eliminaMazzoInModifica();
+  top.append(nome, cestino);
+
+  const conta = document.createElement('div');
+  conta.className = 'deck-edit-conta';
+  const contaEt = document.createElement('span'); contaEt.textContent = 'Cards';
+  const contaNum = document.createElement('span'); contaNum.className = 'deck-edit-conta-num';
+  conta.append(contaEt, contaNum);
+
+  const carte = document.createElement('div');
+  carte.className = 'deck-edit-carte';
+
+  const barra = document.createElement('div');
+  barra.className = 'hx-capacity';
+  const bg = document.createElement('img'); bg.className='hx-capacity-bg'; bg.alt=''; bg.draggable=false;
+  const mask = document.createElement('div'); mask.className='hx-capacity-mask';
+  const fill = document.createElement('img'); fill.className='hx-capacity-fill'; fill.alt=''; fill.draggable=false;
+  mask.appendChild(fill);
+  barra.append(bg, mask);
+
+  const capRiga = document.createElement('div');
+  capRiga.className = 'deck-edit-cap-riga';
+  const capEt = document.createElement('span'); capEt.textContent = 'Power capacity';
+  const capNum = document.createElement('span'); capNum.className = 'deck-edit-cap-num';
+  capRiga.append(capEt, capNum);
+
+  const salva = document.createElement('button');
+  salva.type = 'button'; salva.className = 'hx-btn deck-edit-save';
+  salva.innerHTML = '<span class="hxb-left"></span><span class="hxb-fill"></span>'
+                  + '<span class="hxb-center"></span><span class="hxb-fill"></span>'
+                  + '<span class="hxb-right"></span><span class="hxb-label">Save Deck</span>';
+  salva.onclick = ()=> salvaMazzoInModifica();
+
+  p.append(top, conta, carte, barra, capRiga, salva);
+  return p;
+}
+function apriModificaMazzo(id){
+  const vero = MAZZI.find(m=>m.id===id);
+  if(!vero) return;
+  _mazzoInModificaId = id;
+  _mazzoInModifica = { id:vero.id, nome:vero.nome, carte:vero.carte.slice() };
+  const lista = document.getElementById('deck-list');
+  const slot = lista && lista.querySelector('[data-mazzo="'+id+'"]');
+  if(!lista || !slot) return;
+  // L'altezza di arrivo si legge PRIMA di far sparire le altre: e' l'altezza
+  // utile della colonna, e non cambia. Scritta in pixel perche' fra 70px e
+  // "100%" non c'e' niente da interpolare, e la crescita sarebbe uno scatto.
+  const altezza = lista.clientHeight;
+  for(const altro of lista.children){
+    if(altro !== slot) altro.classList.add('deck-slot-svanita');
+  }
+  slot.classList.add('in-modifica');
+  slot.style.height = altezza + 'px';
+  slot.style.marginBottom = '0';
+  // Gli asset della barra e del pulsante vanno messi ora: il pannello nasce
+  // insieme alla riga, ma montarli a ogni riga costruita vorrebbe dire dodici
+  // volte lo stesso lavoro per una sola che si aprira'.
+  vestiPannelloModifica(slot);
+  aggiornaPannelloModifica();
+  aggiornaFantasmiCollezione();
+}
+function vestiPannelloModifica(slot){
+  const p = slot.querySelector('.deck-edit');
+  if(!p || p.dataset.vestito) return;
+  p.dataset.vestito = '1';
+  impostaImgDaCandidati(p.querySelector('.hx-capacity-bg'), _candidati(
+    'player-ui/slider-bar-bg.png', PLAYER_UI_BASE+'slider-bar-bg.png'));
+  impostaImgDaCandidati(p.querySelector('.hx-capacity-fill'), _candidati(
+    'player-ui/slider-bar-fill.png', PLAYER_UI_BASE+'slider-bar-fill.png'));
+  const salva = p.querySelector('.deck-edit-save');
+  const g = (sel,file)=>{ const el=salva.querySelector(sel); if(el) impostaSfondoDaCandidati(el, uiFileCandidati(file)); };
+  g('.hxb-left','button-transparent-left.png');
+  g('.hxb-center','button-transparent-center.png');
+  g('.hxb-right','button-transparent-right.png');
+  salva.querySelectorAll('.hxb-fill').forEach(el=>
+    impostaSfondoDaCandidati(el, uiFileCandidati('button-transparent-filler.png')));
+}
+// Ridisegna SOLO il pannello, non tutta la lista: la lista e' in mezzo a una
+// transizione di altezza, e ricostruirla la interromperebbe a meta'.
+function aggiornaPannelloModifica(){
+  const m = _mazzoInModifica;
+  const lista = document.getElementById('deck-list');
+  const slot = lista && lista.querySelector('.deck-slot-piena.in-modifica');
+  if(!m || !slot) return;
+  const p = slot.querySelector('.deck-edit');
+  const nome = p.querySelector('.deck-edit-nome');
+  if(document.activeElement !== nome) nome.value = m.nome || '';
+  p.querySelector('.deck-edit-conta-num').textContent = m.carte.length + '/' + MAZZO_CARTE;
+  // le righe delle carte
+  const cont = p.querySelector('.deck-edit-carte');
+  cont.innerHTML = '';
+  for(const id of m.carte){
+    const entry = entryDaId(id);
+    if(entry) cont.appendChild(_rigaCartaMazzo(entry));
+  }
+  // la capacita'
+  const cap = capacitaDelMazzo(m);
+  const sfora = cap > MAZZO_PUNTI;
+  const barra = p.querySelector('.hx-capacity');
+  const mask = p.querySelector('.hx-capacity-mask');
+  const fill = p.querySelector('.hx-capacity-fill');
+  const quota = Math.max(0, Math.min(1, cap / MAZZO_PUNTI));
+  mask.style.width = (quota*100).toFixed(2) + '%';
+  // Il riempimento non si stira: la maschera si accorcia e l'immagine resta
+  // della sua larghezza vera (vedi .settings-slider-fill, stessa ragione).
+  // Il valore e' l'inverso della quota, cosi' l'immagine dentro alla maschera
+  // conserva la larghezza dell'intera barra.
+  fill.style.setProperty('--hx-cap-w', quota>0 ? (100/quota).toFixed(2)+'%' : '100%');
+  barra.classList.toggle('sfora', sfora);
+  p.querySelector('.deck-edit-cap-riga').classList.toggle('sfora', sfora);
+  p.querySelector('.deck-edit-cap-num').textContent = cap + '/' + MAZZO_PUNTI;
+  // il pulsante
+  const salva = p.querySelector('.deck-edit-save');
+  salva.setAttribute('aria-disabled', mazzoValido(m) ? 'false' : 'true');
+}
+function _rigaCartaMazzo(entry){
+  const r = document.createElement('div');
+  r.className = 'deck-card-row';
+  r.dataset.carta = entry.id;
+  const art = document.createElement('div'); art.className = 'deck-card-row-art';
+  const cand = candidatiArtDiCarta(entry);
+  if(cand.length) impostaSfondoDaCandidati(art, cand);
+  const velo = document.createElement('div'); velo.className = 'deck-card-row-velo';
+  const gemma = document.createElement('img');
+  gemma.className = 'deck-card-row-gemma'; gemma.alt=''; gemma.draggable=false;
+  const rar = String(entry.rarity||'common').toLowerCase();
+  impostaImgDaCandidati(gemma, uiFileCandidati('level-gem-'+rar+'.png'));
+  const nome = document.createElement('span');
+  nome.className = 'deck-card-row-nome';
+  nome.textContent = entry.name || '';
+  const x = document.createElement('button');
+  x.type='button'; x.className='deck-card-row-x'; x.setAttribute('aria-label','Remove card');
+  const xImg = document.createElement('img'); xImg.alt=''; xImg.draggable=false;
+  impostaImgDaCandidati(xImg, uiFileCandidati('close-icon.png'));
+  x.appendChild(xImg);
+  x.onclick = (ev)=>{ ev.stopPropagation(); togliCartaDalMazzo(entry.id); };
+  r.append(art, velo, gemma, nome, x);
+  return r;
+}
+// ── le tre azioni sul mazzo aperto ────────────────────────────────────────
+// IL LIMITE E' QUI E IN NESSUN ALTRO POSTO. Chi vuole aggiungere una carta
+// passa da questa funzione — il trascinamento, e domani qualunque altra
+// strada — e da qui non ne entrano piu' di dodici, ne' due volte la stessa.
+function aggiungiCartaAlMazzo(id){
+  const m = _mazzoInModifica;
+  if(!m) return false;
+  if(m.carte.length >= MAZZO_CARTE) return false;
+  if(m.carte.includes(String(id))) return false;
+  if(!entryDaId(id)) return false;
+  m.carte.push(String(id));
+  aggiornaPannelloModifica();
+  aggiornaFantasmiCollezione();
+  return true;
+}
+function togliCartaDalMazzo(id){
+  const m = _mazzoInModifica;
+  if(!m) return;
+  const i = m.carte.indexOf(String(id));
+  if(i < 0) return;
+  m.carte.splice(i,1);
+  aggiornaPannelloModifica();
+  aggiornaFantasmiCollezione();
+}
+function salvaMazzoInModifica(){
+  const m = _mazzoInModifica;
+  if(!m || !mazzoValido(m)) return;   // il pulsante e' gia' spento, ma la
+                                      // regola non vive nel pulsante
+  const vero = MAZZI.find(x=>x.id===_mazzoInModificaId);
+  if(vero){ vero.nome = (m.nome||'').trim() || 'Untitled deck'; vero.carte = m.carte.slice(); }
+  salvaMazzi();
+  chiudiModificaMazzo(true);
+}
+function eliminaMazzoInModifica(){
+  const id = _mazzoInModificaId;
+  MAZZI = MAZZI.filter(m=>m.id!==id);
+  if(MAZZO_SCELTO === id) MAZZO_SCELTO = MAZZI.length ? MAZZI[0].id : null;
+  salvaMazzi();
+  chiudiModificaMazzo(true);
+}
+// `ridisegna` dice se la lista va rifatta a transizione finita. Premendo Esc
+// non e' cambiato niente, quindi basta richiudere; salvando o eliminando, i
+// dati sono altri e la lista va ricostruita — ma DOPO, o si vedrebbe il
+// contenuto cambiare mentre il riquadro si sta ancora chiudendo.
+const MAZZO_CHIUSURA_MS = 320;      // deve combaciare con la transizione CSS
+function chiudiModificaMazzo(ridisegna){
+  const lista = document.getElementById('deck-list');
+  const slot = lista && lista.querySelector('.deck-slot-piena.in-modifica');
+  _mazzoInModifica = null; _mazzoInModificaId = null;
+  aggiornaFantasmiCollezione();
+  if(!lista || !slot){ if(ridisegna) renderListaMazzi(); return; }
+  slot.classList.remove('in-modifica');
+  slot.style.height = '70px';
+  slot.style.marginBottom = '';
+  for(const altro of lista.children) altro.classList.remove('deck-slot-svanita');
+  setTimeout(()=>{
+    if(slot && slot.style) slot.style.height = '';
+    if(ridisegna) renderListaMazzi();
+  }, MAZZO_CHIUSURA_MS);
+}
+// Le carte gia' nel mazzo restano nella griglia, spente. Sparirebbero
+// lasciando un buco che fa saltare di posto tutte le altre a ogni
+// trascinamento, e la griglia della Collezione e' posizionata a mano
+// (vedi cardDbRenderRoster): una carta in meno vorrebbe dire ricalcolare
+// tutto il mosaico per un cambiamento che non e' di posizione ma di stato.
+function aggiornaFantasmiCollezione(){
+  const dentro = new Set(_mazzoInModifica ? _mazzoInModifica.carte.map(String) : []);
+  document.querySelectorAll('#card-db-grid .card-db-card-slot').forEach(s=>{
+    const id = s.dataset.entryId || '';
+    s.classList.toggle('gia-nel-mazzo', dentro.has(String(id)));
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// v0.75.84 — TRASCINARE UNA CARTA NEL MAZZO (E FUORI)
+// ═══════════════════════════════════════════════════════════════════════════
+// La molla e' la stessa del trascinamento in partita — stessi numeri, stessa
+// inclinazione ricavata dalla velocita' — ma il codice e' suo. Quello del
+// gioco vive dentro a `dragState` e a `G`, cioe' dentro a una partita in
+// corso: qui una partita non c'e', e riusarlo vorrebbe dire inventarne una
+// finta perche' i suoi controlli passino. Meglio venti righe che si
+// assomigliano di due stati globali che si calpestano.
+//
+// LA SOGLIA. Il trascinamento comincia solo dopo qualche pixel di movimento:
+// senza, ogni clic per aprire l'ingrandimento della carta partirebbe come un
+// trascinamento, e non si potrebbe piu' guardare una carta senza infilarla
+// nel mazzo.
+const TIR_SOGLIA_PX = 6;
+const TIR_MOLLA_K = 0.08, TIR_MOLLA_SMORZO = 0.65, TIR_TILT_RIF = 10;
+let _tir = null;
+function _tirPosizioneAutoriale(ev){
+  return { x: screenToAuthoredX(ev.clientX), y: screenToAuthoredY(ev.clientY) };
+}
+function _tirPasso(){
+  if(!_tir || !_tir.attivo){ _tir && (_tir.raf = null); return; }
+  const dx = _tir.bersaglioX - _tir.x, dy = _tir.bersaglioY - _tir.y;
+  _tir.vx = (_tir.vx + dx*TIR_MOLLA_K) * TIR_MOLLA_SMORZO;
+  _tir.vy = (_tir.vy + dy*TIR_MOLLA_K) * TIR_MOLLA_SMORZO;
+  _tir.x += _tir.vx; _tir.y += _tir.vy;
+  const ghost = document.getElementById('drag-ghost');
+  if(ghost){
+    ghost.style.left = _tir.x+'px'; ghost.style.top = _tir.y+'px';
+    const rx = Math.max(-1, Math.min(1, _tir.vx/TIR_TILT_RIF));
+    const ry = Math.max(-1, Math.min(1, _tir.vy/TIR_TILT_RIF));
+    try{ cardFoilApply(ghost, rx, ry, 0.5+rx*0.5, 0.5+ry*0.5); }catch(_){}
+  }
+  _tir.raf = requestAnimationFrame(_tirPasso);
+}
+function _tirAvvia(ev){
+  const ghost = document.getElementById('drag-ghost');
+  if(!ghost) return;
+  _tir.attivo = true;
+  const r = _tir.origine.getBoundingClientRect();
+  const scala = (_fit && _fit.scale) || 1;
+  ghost.innerHTML = '';
+  ghost.style.width  = (r.width/scala)+'px';
+  ghost.style.height = (r.height/scala)+'px';
+  ghost.style.display = 'block';
+  const svg = _tir.origine.querySelector('svg');
+  if(svg){
+    const copia = svg.cloneNode(true);
+    copia.removeAttribute('id');
+    copia.style.cssText = 'position:absolute;inset:0;display:block;width:100%;height:100%;';
+    ghost.appendChild(copia);
+  }
+  // Si parte da dove sta la carta e si rincorre il puntatore: e' la molla a
+  // colmare la distanza, come in partita.
+  const p = _tirPosizioneAutoriale(ev);
+  _tir.x = screenToAuthoredX(r.left + r.width/2);
+  _tir.y = screenToAuthoredY(r.top + r.height/2);
+  _tir.bersaglioX = p.x; _tir.bersaglioY = p.y;
+  _tir.vx = 0; _tir.vy = 0;
+  if(_tir.raf === null) _tir.raf = requestAnimationFrame(_tirPasso);
+  try{ playSfx('sfx-pick'); }catch(_){}
+}
+function _tirContenitoreSotto(ev){
+  const el = document.elementFromPoint(ev.clientX, ev.clientY);
+  return el ? el.closest('.deck-edit-carte') : null;
+}
+function _tirFine(ev){
+  const ghost = document.getElementById('drag-ghost');
+  const dentro = _tir && _tir.attivo ? _tirContenitoreSotto(ev) : null;
+  if(_tir){
+    if(_tir.raf !== null){ cancelAnimationFrame(_tir.raf); _tir.raf = null; }
+    if(_tir.attivo && ghost){
+      ghost.innerHTML = ''; ghost.style.display = 'none';
+      try{ cardFoilApply(ghost, 0, 0, 0.5, 0.5); }catch(_){}
+    }
+    if(_tir.attivo){
+      if(_tir.verso === 'dentro' && dentro) aggiungiCartaAlMazzo(_tir.entryId);
+      // Trascinata FUORI dal contenitore, la carta esce dal mazzo. Lasciata
+      // dentro, non succede niente: il gesto e' stato annullato a meta'.
+      if(_tir.verso === 'fuori' && !dentro) togliCartaDalMazzo(_tir.entryId);
+    }
+    const cont = document.querySelector('.deck-edit-carte.bersaglio');
+    if(cont) cont.classList.remove('bersaglio');
+  }
+  _tir = null;
+  document.removeEventListener('pointermove', _tirMuovi, true);
+  document.removeEventListener('pointerup', _tirFine, true);
+  document.removeEventListener('pointercancel', _tirFine, true);
+}
+function _tirMuovi(ev){
+  if(!_tir || ev.pointerId !== _tir.pointerId) return;
+  if(!_tir.attivo){
+    const d = Math.hypot(ev.clientX - _tir.partenzaX, ev.clientY - _tir.partenzaY);
+    if(d < TIR_SOGLIA_PX) return;
+    _tirAvvia(ev);
+  }
+  const p = _tirPosizioneAutoriale(ev);
+  _tir.bersaglioX = p.x; _tir.bersaglioY = p.y;
+  const cont = _tirContenitoreSotto(ev);
+  document.querySelectorAll('.deck-edit-carte').forEach(c=>
+    c.classList.toggle('bersaglio', c === cont));
+}
+function _tirInizia(ev, entryId, origine, verso){
+  if(ev.button !== undefined && ev.button !== 0) return;
+  _tir = { entryId:String(entryId), origine, verso, pointerId:ev.pointerId,
+           partenzaX:ev.clientX, partenzaY:ev.clientY,
+           x:0, y:0, vx:0, vy:0, bersaglioX:0, bersaglioY:0, raf:null, attivo:false };
+  document.addEventListener('pointermove', _tirMuovi, true);
+  document.addEventListener('pointerup', _tirFine, true);
+  document.addEventListener('pointercancel', _tirFine, true);
+}
+// Ascolto DELEGATO, agganciato una volta sola: la griglia si ricostruisce a
+// ogni filtro e a ogni cambio di variante, e un ascoltatore per casella
+// andrebbe riattaccato ogni volta — cioe' dimenticato, prima o poi.
+let _tirCollegato = false;
+function collegaTrascinamentoMazzo(){
+  if(_tirCollegato) return;
+  _tirCollegato = true;
+  document.addEventListener('pointerdown', (ev)=>{
+    if(!_mazzoInModifica || _tir) return;
+    const riga = ev.target.closest && ev.target.closest('.deck-card-row');
+    if(riga){
+      if(ev.target.closest('.deck-card-row-x')) return; // la crocetta fa da se'
+      _tirInizia(ev, riga.dataset.carta, riga, 'fuori');
+      return;
+    }
+    const slot = ev.target.closest && ev.target.closest('#card-db-grid .card-db-card-slot');
+    if(!slot) return;
+    const id = slot.dataset.entryId;
+    // Una carta gia' nel mazzo non si trascina di nuovo: il suo fantasma resta
+    // li' apposta per dire "questa ce l'hai gia'", e resta cliccabile per
+    // aprirne l'ingrandimento.
+    if(!id || _mazzoInModifica.carte.includes(String(id))) return;
+    _tirInizia(ev, id, slot, 'dentro');
+  }, true);
 }
 function apriMenuPrincipale(){
   const start = document.getElementById('start-screen');
@@ -15058,6 +15455,7 @@ function openCardDbOverlay(){
   // v0.75.83 — la grafica nuova prima del contenuto: cosi' la barra e i
   // pulsanti sono gia' vestiti quando le carte cominciano ad apparire.
   montaGraficaLibreria();
+  collegaTrascinamentoMazzo();
   renderListaMazzi();
   cardDbRenderRoster();
   initCardDbDragScroll();
@@ -15172,6 +15570,11 @@ function cardDbRenderRoster(){
     // same pattern as data-has-ability/data-traits above, consumed by
     // cardDbApplyFilters' own rarity-matching pass.
     slot.dataset.rarity = entry.rarity || '';
+    // v0.75.84 — l'id della riga del foglio da cui viene questa carta. E' quello
+    // che i mazzi salvano, quindi e' anche l'unico modo per sapere se questa
+    // casella e' gia' nel mazzo che si sta componendo, e cosa aggiungere
+    // trascinandola (vedi aggiornaFantasmiCollezione e il trascinamento).
+    slot.dataset.entryId = String(entry.id||'');
     // v0.72.8: le carte con foil abilitato vengono avvolte in
     // .card-db-foil-wrap > .card-db-foil-tilt, con il layer glare come
     // fratello dell'SVG (vedi il blocco CSS .card-db-foil-* per il perché
@@ -18598,7 +19001,40 @@ function deckPowerGap(a,b){
 // Generates two full decks and keeps regenerating until their power gap is within
 // BALANCE_MAX_GAP, returning the most-balanced pair found. The loop keeps the best
 // pair as a fallback, so the result is ≤ threshold in practice.
+// ── v0.75.84 — IL MAZZO DEL GIOCATORE, SE NE HA UNO ───────────────────────
+// Il mazzo scelto nella Libreria diventa le carte del giocatore. L'IA non
+// riceve piu' un mazzo qualunque: se ne generano tanti e si tiene quello che
+// meglio pareggia il potere di quello del giocatore. E' lo stesso
+// bilanciamento di prima, ma con un lato fermo invece di due liberi — la sola
+// differenza e' che adesso uno dei due mazzi non si puo' cambiare.
+// Chi non ha ancora composto un mazzo gioca come ha sempre giocato: due mazzi
+// generati e bilanciati fra loro. Un mazzo incompleto o sforato non vale —
+// la Libreria non lascia salvarlo, ma un salvataggio vecchio o modificato a
+// mano potrebbe averlo, e il controllo si rifa' qui invece di fidarsi.
+function carteDalMazzoSalvato(mazzo, owner){
+  const carte = [];
+  carteDelMazzo(mazzo).forEach((entry, i)=>{
+    const carta = _makeCardDbCard(entry, owner);
+    carta.id = `${entry.id}-${owner}-${i}`;
+    carta.baseId = entry.id;
+    carte.push(carta);
+  });
+  return _mescola(carte);
+}
 function makeBalancedDecks(){
+  const mio = mazzoSelezionato();
+  if(mio && mazzoValido(mio)){
+    const d1 = carteDalMazzoSalvato(mio, 1);
+    let migliore=null, scartoMigliore=Infinity;
+    for(let i=0;i<300;i++){
+      const b = makeDeck(2, DECK_TOTAL);
+      const gap = deckPowerGap(d1, b);
+      if(gap<scartoMigliore){ scartoMigliore=gap; migliore=b; }
+      if(gap<=BALANCE_MAX_GAP) break;
+    }
+    console.info('[Hextale] mazzo del giocatore: "'+(mio.nome||mio.id)+'"');
+    return { d1, d2:migliore, gap:scartoMigliore };
+  }
   let best=null, bestGap=Infinity;
   for(let i=0;i<300;i++){
     const a=makeDeck(1,DECK_TOTAL), b=makeDeck(2,DECK_TOTAL);
@@ -35359,7 +35795,17 @@ function closeCardModal(){
   const closeBtn=document.getElementById('card-modal-close');
   if(closeBtn) closeBtn.addEventListener('click',closeCardModal);
   if(overlay) overlay.addEventListener('click',(e)=>{ if(e.target===overlay) closeCardModal(); });
-  document.addEventListener('keydown',(e)=>{ if(e.key==='Escape') closeCardModal(); });
+  document.addEventListener('keydown',(e)=>{
+    if(e.key!=='Escape') return;
+    // v0.75.84 — Esc chiude UNA cosa sola, la piu' interna. Un mazzo aperto
+    // sotto l'ingrandimento di una carta e' proprio il caso in cui premere
+    // Esc deve richiudere la carta e lasciare il mazzo dov'e': chiudere
+    // entrambi vorrebbe dire perdere il lavoro per aver guardato una carta.
+    const modaleAperta = document.getElementById('card-modal-overlay');
+    if(modaleAperta && modaleAperta.classList.contains('show')){ closeCardModal(); return; }
+    if(_mazzoInModifica){ chiudiModificaMazzo(false); return; }
+    closeCardModal();
+  });
   // v0.70.18: "M" toggles master audio mute globally, unless the user is typing in a text field.
   document.addEventListener('keydown',(e)=>{
     if(e.key!=='m' && e.key!=='M') return;
