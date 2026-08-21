@@ -6342,10 +6342,18 @@ body.prova-senza-willchange #mm-book-rot{
   pointer-events:none; z-index:0;
 }
 #card-db-right > *{ position:relative; z-index:1; }
+/* v0.75.84 — lo spazio fra le caselle e' un MARGINE e non un `gap`. Sembra un
+   dettaglio e non lo e': entrando in modifica le altre undici caselle si
+   chiudono fino a sparire, e un `gap` resterebbe comunque li' — undici volte
+   sedici pixel di vuoto che nessuno puo' animare via. Un margine, invece, si
+   chiude insieme alla casella a cui appartiene. */
 #deck-list{
-  display:flex; flex-direction:column; gap:16px;
+  display:flex; flex-direction:column;
   width:100%;
+  flex:1 1 auto; min-height:0;
 }
+#deck-list > *{ margin-bottom:16px; }
+#deck-list > *:last-child{ margin-bottom:0; }
 /* ── LA CASELLA DI UN MAZZO ────────────────────────────────────────────────
    Sfondo: l'illustrazione della PRIMA carta del mazzo, nella variante che si
    sta guardando in quel momento (scura o chiara), con sopra una velatura che
@@ -6402,7 +6410,7 @@ body.prova-senza-willchange #mm-book-rot{
 /* Le due immagini della spunta hanno proporzioni diverse (50x50 spenta,
    72x59 accesa, perche' quella accesa deborda col segno): si fissa l'ALTEZZA
    e si lascia libera la larghezza, o la spunta accesa si vedrebbe schiacciata. */
-.deck-slot-check img{ display:block; height:25px; width:auto; }
+.deck-slot-check img{ display:block; height:32px; width:auto; }
 .deck-slot-nome{
   flex:1 1 auto; min-width:0;
   font-family:'Marcellus',var(--font-display),serif;
@@ -6422,7 +6430,7 @@ body.prova-senza-willchange #mm-book-rot{
   opacity:0; pointer-events:none;
   transition:opacity 0.18s ease, filter 0.16s ease;
 }
-.deck-slot-edit img{ display:block; height:26px; width:auto; }
+.deck-slot-edit img{ display:block; height:36px; width:auto; }
 .deck-slot-piena:hover .deck-slot-edit{ opacity:0.9; pointer-events:auto; }
 .deck-slot-edit:hover{ opacity:1; filter:brightness(1.35); }
 /* La casella vuota e' solo la sua immagine. */
@@ -6445,6 +6453,162 @@ body.prova-senza-willchange #mm-book-rot{
 }
 .deck-slot-add:hover{ filter:brightness(1.2); }
 .deck-slot-add:active{ transform:scale(0.985); }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   v0.75.84 — LA MODIFICA DI UN MAZZO
+   ══════════════════════════════════════════════════════════════════════════
+   Non e' una schermata nuova: e' LA STESSA RIGA che si apre. La riga cresce
+   fino a riempire la colonna e le altre undici si chiudono; chiudendo, il
+   percorso si ripercorre al contrario. Questo e' cio' che rende evidente
+   QUALE mazzo si sta modificando, cosa che una finestra sopra a tutto non
+   direbbe — e costa una transizione invece di un secondo pannello da tenere
+   allineato con il primo.
+   L'altezza di arrivo la mette il JS in pixel: da 70px a "100%" non si
+   interpola, e la crescita sarebbe uno scatto. */
+.deck-slot{ transition:height 0.32s ease, opacity 0.24s ease, margin-bottom 0.32s ease; }
+.deck-slot.deck-slot-svanita{
+  height:0 !important; margin-bottom:0 !important;
+  opacity:0; overflow:hidden; pointer-events:none;
+}
+.deck-slot-piena.in-modifica{
+  align-items:stretch; flex-direction:column;
+  padding:16px; gap:12px;
+  cursor:default;
+  background:#25292A;
+}
+.deck-slot-piena.in-modifica:hover{ box-shadow:none; }
+.deck-slot-piena.in-modifica:hover::after{ background:#4E5455; }
+/* In modifica l'illustrazione resta dov'era — in cima, della sua altezza — e
+   NON si riscala per riempire il riquadro cresciuto: e' la stessa immagine
+   che si vedeva sulla riga chiusa, non una versione ingrandita. Sotto ci
+   pensa la velatura verticale, che a un settimo dell'altezza e' gia' piena.
+   Il fondo solido dietro esiste perche' fra la fine dell'immagine e il punto
+   in cui la velatura diventa opaca ci sarebbe un buco. */
+.deck-slot-piena.in-modifica .deck-slot-art{ bottom:auto; height:240px; border-radius:16px 16px 0 0; }
+.deck-slot-velo-verticale{
+  position:absolute; inset:0; z-index:1; border-radius:16px;
+  background-image:linear-gradient(180deg, rgba(37,41,42,0) 0%, rgba(37,41,42,1) 15%);
+  display:none; pointer-events:none;
+}
+.deck-slot-piena.in-modifica .deck-slot-velo-verticale{ display:block; }
+/* Spunta, nome e matita sono la riga CHIUSA: in modifica lasciano il posto al
+   pannello, e viceversa. */
+.deck-slot-piena.in-modifica > .deck-slot-check,
+.deck-slot-piena.in-modifica > .deck-slot-nome,
+.deck-slot-piena.in-modifica > .deck-slot-edit{ display:none; }
+.deck-edit{ display:none; }
+.deck-slot-piena.in-modifica .deck-edit{
+  position:relative; z-index:2;
+  display:flex; flex-direction:column; gap:12px;
+  flex:1 1 auto; min-height:0;
+}
+/* ── la riga in alto: nome del mazzo e cestino ───────────────────────────── */
+.deck-edit-top{ display:flex; align-items:center; gap:12px; }
+.deck-edit-nome{
+  flex:1 1 auto; min-width:0;
+  height:44px; padding:0 12px;
+  background:#1A1E1F;
+  border:1.5px solid #4E5455; border-radius:8px;
+  box-shadow:inset 0 4px 10px rgba(0,0,0,0.35);
+  font-family:'Marcellus',var(--font-display),serif;
+  font-size:26px; font-weight:400; color:#D4CBB9;
+  outline:none;
+}
+.deck-edit-nome:focus{ border-color:#B29B6C; }
+.deck-edit-elimina{
+  flex:0 0 auto;
+  background:none; border:0; padding:0; margin:0;
+  display:inline-flex; align-items:center; cursor:var(--cursore);
+  opacity:0.85; transition:opacity 0.16s ease, filter 0.16s ease;
+}
+.deck-edit-elimina img{ display:block; height:30px; width:auto; }
+.deck-edit-elimina:hover{ opacity:1; filter:brightness(1.3); }
+/* ── il contatore delle carte ─────────────────────────────────────────────── */
+.deck-edit-conta, .deck-edit-cap-riga{ display:flex; align-items:baseline; }
+.deck-edit-conta > span:first-child, .deck-edit-cap-riga > span:first-child{ margin-right:auto; }
+.deck-edit-conta{
+  font-family:'Marcellus',var(--font-display),serif;
+  font-size:22px; color:#D4CBB9; text-shadow:0 0 4px rgba(0,0,0,1);
+}
+/* ── il contenitore delle carte del mazzo ─────────────────────────────────── */
+.deck-edit-carte{
+  flex:1 1 auto; min-height:0;
+  display:flex; flex-direction:column; gap:12px;
+  padding:12px;
+  background:#1A1E1F;
+  border:1.5px solid #404445; border-radius:16px;
+  box-sizing:border-box;
+  overflow-y:auto; scrollbar-width:none; -ms-overflow-style:none;
+  transition:border-color 0.18s ease, box-shadow 0.18s ease;
+}
+.deck-edit-carte::-webkit-scrollbar{ display:none; width:0; height:0; }
+/* Si accende quando una carta ci sta passando sopra mentre la si trascina:
+   e' la risposta alla domanda "se la lascio qui, dove va a finire?". */
+.deck-edit-carte.bersaglio{
+  border-color:#FFE7B2;
+  box-shadow:0 0 18px rgba(255,231,178,0.45), inset 0 0 24px rgba(255,231,178,0.10);
+}
+.deck-card-row{
+  position:relative; flex:0 0 50px; height:50px;
+  display:flex; align-items:center;
+  padding:0 16px; border-radius:8px;
+  overflow:hidden;
+}
+.deck-card-row-art{
+  position:absolute; inset:0; z-index:0;
+  background-size:cover; background-position:center 30%;
+}
+.deck-card-row-velo{
+  position:absolute; inset:0; z-index:1;
+  background-image:linear-gradient(90deg, rgba(30,36,35,1) 0%, rgba(30,36,35,0.2) 100%);
+}
+.deck-card-row > *:not(.deck-card-row-art):not(.deck-card-row-velo){ position:relative; z-index:2; }
+.deck-card-row-gemma{ flex:0 0 16px; width:16px; height:16px; display:block; margin-right:4px; }
+.deck-card-row-nome{
+  flex:1 1 auto; min-width:0;
+  font-family:'Marcellus',var(--font-display),serif;
+  font-size:18px; color:#D4CBB9; text-shadow:0 0 4px rgba(0,0,0,1);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.deck-card-row-x{
+  flex:0 0 auto; background:none; border:0; padding:0; margin:0;
+  display:inline-flex; align-items:center; cursor:var(--cursore);
+  opacity:0.8; transition:opacity 0.16s ease, filter 0.16s ease;
+}
+.deck-card-row-x img{ display:block; height:18px; width:auto; }
+.deck-card-row-x:hover{ opacity:1; filter:brightness(1.4); }
+/* ── la barra della capacita' ──────────────────────────────────────────────
+   Gli stessi due pezzi dei cursori del volume, senza il pallino: qui non c'e'
+   niente da trascinare, e' solo un termometro. La barra si accorcia con una
+   maschera invece di stirarsi (vedi .settings-slider-fill-mask). */
+.hx-capacity{ position:relative; width:100%; height:8px; }
+.hx-capacity-bg{ position:absolute; inset:0; width:100%; height:100%; }
+.hx-capacity-mask{
+  position:absolute; left:0; top:0; height:100%; width:0%;
+  overflow:hidden; pointer-events:none;
+}
+.hx-capacity-fill{ position:absolute; left:0; top:0; height:100%; width:var(--hx-cap-w,100%); object-fit:fill; }
+/* Sopra la capacita' massima la barra non si limita a fermarsi: cambia
+   colore. Il rosso si ottiene coprendo l'immagine invece di tingerla, cosi'
+   e' esattamente il rosso chiesto e non "l'oro virato al rosso". */
+.hx-capacity.sfora .hx-capacity-mask{ background:#BE2F31; }
+.hx-capacity.sfora .hx-capacity-fill{ visibility:hidden; }
+.deck-edit-cap-riga{
+  font-family:'Rosarivo',serif; font-size:16px; color:#B4C6C9;
+}
+.deck-edit-cap-riga.sfora .deck-edit-cap-num{ color:#F34547; }
+/* ── il pulsante di salvataggio ────────────────────────────────────────────
+   Spento finche' il mazzo non e' valido: dodici carte esatte e capacita' non
+   sforata. Non nascosto — spento e trasparente, cosi' si vede che esiste e si
+   capisce che manca qualcosa, invece di chiedersi dove sia finito. */
+.deck-edit-save{ width:100%; }
+.deck-edit-save[aria-disabled="true"]{ opacity:0.4; }
+.deck-edit-save[aria-disabled="true"]:hover{ filter:none; }
+/* ── il fantasma della carta gia' nel mazzo ────────────────────────────────
+   Resta al suo posto nella libreria, spenta ma ancora cliccabile: da li' si
+   apre lo stesso ingrandimento di sempre. Una carta che sparisce dalla
+   griglia farebbe saltare tutte le altre di posto a ogni trascinamento. */
+.card-db-card-slot.gia-nel-mazzo{ opacity:0.35; }
 #card-db-right h1{
   margin:0;
   font-family:var(--font-display);
@@ -10496,21 +10660,77 @@ function impostaVariabileDaCandidati(el, nomeVar, candidati){
 // fondo le caselle ancora libere. Il "crea" sta fra i mazzi e il vuoto perche'
 // e' li' che finisce il prossimo.
 const MAZZI_SLOT = 12;
-// Un mazzo finto, per vedere la grafica finche' non esistono quelli veri.
-// `carte` restera' vuoto fino alla schermata di composizione: qui serve solo
-// `primaCarta`, che e' quella che presta la propria illustrazione alla riga.
-let MAZZI = [
-  { id:'finto-1', nome:'Alice Burst', selezionato:true, primaCarta:'Cheshire Cat', carte:[] },
-];
+// Un mazzo e' { id, nome, carte:[idCarta...] }. Le carte si tengono per ID e
+// non per oggetto: gli oggetti carta nascono dal foglio a ogni avvio e non
+// sopravvivono a un riavvio, mentre l'id e' quello che il foglio garantisce.
+// Il mazzo SELEZIONATO non e' un campo di ogni mazzo ma uno solo per tutti:
+// "selezionato" e' una proprieta' della lista, non del mazzo, e tenerla su
+// ogni elemento vuol dire poter finire con due caselle spuntate.
+let MAZZI = [];
+let MAZZO_SCELTO = null;   // l'id del mazzo con cui si scende in campo
+const MAZZI_CHIAVE = 'hextale.mazzi';
+function mazzoSelezionato(){ return MAZZI.find(m=>m.id===MAZZO_SCELTO) || null; }
 function mazziOrdinati(){
-  const sel = MAZZI.filter(m=>m.selezionato);
-  const altri = MAZZI.filter(m=>!m.selezionato);
+  const sel = MAZZI.filter(m=>m.id===MAZZO_SCELTO);
+  const altri = MAZZI.filter(m=>m.id!==MAZZO_SCELTO);
   return sel.concat(altri);
 }
+// ── SALVATAGGIO ───────────────────────────────────────────────────────────
+// Nel browser, accanto a valute e impostazioni. Un mazzo che si perde a ogni
+// ricarica non e' un mazzo, e' un esercizio.
+function salvaMazzi(){
+  try{
+    localStorage.setItem(MAZZI_CHIAVE, JSON.stringify({ mazzi:MAZZI, scelto:MAZZO_SCELTO }));
+  }catch(_){}
+}
+// Rileggendo si BUTTANO le carte che il foglio non ha piu'. Un id sparito
+// darebbe una riga senza nome e senza rarita', che poi entrerebbe in partita
+// come un buco: meglio un mazzo di undici carte, che la schermata segnala da
+// sola come incompleto, che uno di dodici con dentro un fantasma.
+function caricaMazzi(){
+  let dati = null;
+  try{ dati = JSON.parse(localStorage.getItem(MAZZI_CHIAVE) || 'null'); }catch(_){}
+  if(!dati || !Array.isArray(dati.mazzi)) return;
+  const esiste = new Set((FINAL_CARDS||[]).map(e=>String(e.id)));
+  let perse = 0;
+  MAZZI = dati.mazzi.map(m=>{
+    const carte = (m.carte||[]).map(String).filter(id=>{
+      if(esiste.has(id)) return true;
+      perse++; return false;
+    });
+    return { id:String(m.id), nome:String(m.nome||'Untitled deck'), carte };
+  });
+  MAZZO_SCELTO = dati.scelto && MAZZI.some(m=>m.id===dati.scelto) ? dati.scelto
+               : (MAZZI.length ? MAZZI[0].id : null);
+  if(perse){
+    console.warn('[mazzi] '+perse+' carta/e salvata/e non esiste piu\' nel foglio ed e\' stata tolta dai mazzi.'
+      + ' I mazzi rimasti incompleti si riconoscono dal contatore, e non si possono salvare finche\' non tornano a '
+      + MAZZO_CARTE + ' carte.');
+  }
+}
+// ── CONTI ─────────────────────────────────────────────────────────────────
+function entryDaId(id){ return (FINAL_CARDS||[]).find(e=>String(e.id)===String(id)) || null; }
+function carteDelMazzo(mazzo){ return (mazzo && mazzo.carte || []).map(entryDaId).filter(Boolean); }
+// La capacita' e' la somma dei costi di rarita': timeless 4, mythic 3, rare 2,
+// common 1. E' lo stesso conto che i mazzi generati devono rispettare (vedi
+// COSTO_RARITA e MAZZO_PUNTI): una regola sola per il giocatore e per il gioco.
+function capacitaDelMazzo(mazzo){
+  let t = 0;
+  for(const e of carteDelMazzo(mazzo)) t += costoDiRarita(e.rarity);
+  return t;
+}
+// Un mazzo si puo' salvare solo se e' giocabile: esattamente dodici carte e
+// capacita' non sforata. Non e' una cortesia dell'interfaccia — e' la stessa
+// condizione che il gioco pretende per scendere in campo, chiesta prima
+// invece che dopo.
+function mazzoValido(mazzo){
+  const n = (mazzo && mazzo.carte || []).length;
+  return n === MAZZO_CARTE && capacitaDelMazzo(mazzo) <= MAZZO_PUNTI;
+}
 // L'illustrazione della prima carta del mazzo, nella variante che si sta
-// guardando adesso. Se quella carta non c'e' (mazzo vuoto, o un nome che il
-// foglio non conosce piu') si torna null e la riga resta con la sola velatura:
-// meglio una riga scura che una riga rotta.
+// guardando adesso. Se quella carta non c'e' (mazzo vuoto, o un id che il
+// foglio non conosce piu') si torna una lista vuota e la riga resta con la
+// sola velatura: meglio una riga scura che una riga rotta.
 // Torna una LISTA di indirizzi da provare in ordine, non un indirizzo solo.
 // Il motivo e' l'ordine dei tempi: verificaArtCarte riempie entry.artDark e
 // entry.artLight con una raffica di sonde asincrone, e questa pagina puo'
@@ -10520,10 +10740,11 @@ function mazziOrdinati(){
 // nessuna porta; se non c'e' ancora, si compone l'indirizzo dallo slug come fa
 // il resto del gioco, e ci pensa impostaSfondoDaCandidati a scegliere.
 function candidatiArtDelMazzo(mazzo){
-  const nome = mazzo && mazzo.primaCarta;
-  if(!nome) return [];
-  const bersaglio = String(nome).trim().toLowerCase();
-  const entry = (FINAL_CARDS||[]).find(e => String(e.name||'').trim().toLowerCase() === bersaglio);
+  const entry = entryDaId((mazzo && mazzo.carte || [])[0]);
+  if(!entry) return [];
+  return candidatiArtDiCarta(entry);
+}
+function candidatiArtDiCarta(entry){
   if(!entry) return [];
   const scura = varianteCollezioneScura();
   const gia = (scura ? entry.artDark : entry.artLight) || entry.artSrc;
@@ -10561,7 +10782,7 @@ function _slotMazzoPieno(mazzo){
   checkImg.alt = '';
   checkImg.draggable = false;
   impostaImgDaCandidati(checkImg, uiFileCandidati(
-    mazzo.selezionato ? 'checkbox-round-checked.png' : 'checkbox-round-unchecked.png'));
+    mazzo.id === MAZZO_SCELTO ? 'checkbox-round-checked.png' : 'checkbox-round-unchecked.png'));
   check.appendChild(checkImg);
   check.onclick = (ev)=>{ ev.stopPropagation(); selezionaMazzo(mazzo.id); };
   const nome = document.createElement('span');
@@ -10575,7 +10796,13 @@ function _slotMazzoPieno(mazzo){
   editImg.alt = ''; editImg.draggable = false;
   impostaImgDaCandidati(editImg, uiFileCandidati('edit-icon.png'));
   edit.appendChild(editImg);
-  el.append(art, velo, check, nome, edit);
+  const veloV = document.createElement('div');
+  veloV.className = 'deck-slot-velo-verticale';
+  el.append(art, velo, veloV, check, nome, edit, _pannelloModifica(mazzo));
+  // Tutta la riga apre la modifica, non solo la matita: la matita e' il segno
+  // che si puo' fare, non l'unico punto in cui farlo. La spunta si ferma prima
+  // (ha il suo stopPropagation) perche' li' si sceglie, non si modifica.
+  el.onclick = ()=>{ if(!_mazzoInModifica) apriModificaMazzo(mazzo.id); };
   return el;
 }
 function _slotMazzoVuoto(){
