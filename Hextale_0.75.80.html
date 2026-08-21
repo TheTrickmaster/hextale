@@ -7357,7 +7357,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.79</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.80</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -10971,7 +10971,26 @@ function valoriAlLivello(values, livello, scalette){
 // Il valore null significa "slot vero, ma vuoto": e' cosi' che si ottiene
 // l'incastonatore senza la gemma dentro, che e' lo stato di tutte le carte
 // finche' non esistera' un modo di incastonarle.
+// ── v0.75.80 — LE GEMME SONO SPENTE ───────────────────────────────────────
+// Un interruttore solo, e non una potatura. Il codice delle gemme resta tutto
+// dov'e' — gli incastonatori sulla carta, quelli nei due tooltip, la riga
+// "Gems" della visuale espansa, il +2 sulle caselle magiche, la colonna "Gem
+// slots" del foglio — perche' e' roba che funziona e che un giorno tornera'
+// accesa: cancellarla vorrebbe dire riscriverla, e nel frattempo ogni ritocco
+// alle carte rischierebbe di romperla di nascosto.
+//
+// SI SPEGNE ALLA SORGENTE, non davanti a ogni disegno. Tutto cio' che si vede
+// nasce da questa funzione: e' lei a dire quanti incastonatori ha una carta, e
+// da `card.groupGems` passano tutti e cinque i punti che disegnano qualcosa,
+// piu' cardHasAnyGem (da cui dipendono il bonus della casella magica e quello
+// del potere). Se la mappa e' vuota, ognuno di quei punti non trova niente e
+// non disegna niente, da se'. Mettere un `if` in ognuno avrebbe voluto dire
+// cinque posti da ricordarsi di riaccendere, e uno dimenticato e' una gemma
+// che ricompare in un angolo del gioco senza che nessuno l'abbia chiesta.
+// Per riaccendere tutto: GEMME_ATTIVE = true, e basta.
+const GEMME_ATTIVE = false;
 function slotGemmeDaConteggio(quanti){
+  if(!GEMME_ATTIVE) return {};
   const n = Math.max(0, quanti|0);
   const out = {};
   for(let i=0;i<n;i++) out['slot'+i] = null;
@@ -34413,6 +34432,12 @@ function costruisciSchedaCarta(card, livello, conSelettore){
   // aumentano, ed e' una delle cose che si vengono a guardare qui.
   // La riga resta anche quando i castoni sono zero: "None" e' una risposta, un
   // buco no, e a livello 1 quasi tutte le carte sono senza.
+  // v0.75.80 — a gemme spente la riga sparisce del tutto. E' l'unico punto in
+  // cui gli incastonatori vuoti non bastavano a nascondere la cosa: qui
+  // continuerebbe a leggersi "Gems: None", cioe' il gioco che promette una
+  // funzione che non c'e'. Dire "nessuna" e non dire niente sono due risposte
+  // diverse, e adesso quella giusta e' la seconda.
+  if(GEMME_ATTIVE){
   const slot = Object.keys(vista.groupGems||{});
   const socket = isDark ? CARD_GEM_SOCKET_DARK : CARD_GEM_SOCKET_LIGHT;
   const pezzi = slot.map(k=>{
@@ -34425,6 +34450,7 @@ function costruisciSchedaCarta(card, livello, conSelettore){
   });
   html += '<div class="cm-riga"><span class="cm-et">Gems:</span>'
         + '<span class="cm-val">'+(pezzi.length ? pezzi.join('<span>,</span>') : 'None')+'</span></div>';
+  }
   const testi = testiAbilitaDi(card);
   if(testi){
     let dentro = '';
