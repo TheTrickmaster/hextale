@@ -7357,7 +7357,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.81</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.82</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -11684,12 +11684,39 @@ function _applicaRigheFoglio(righe){
 // sbloccabili: previste, non ancora implementate, qui non vengono guardate.
 
 const ART_BASE = 'https://thetrickmaster.github.io/hextale/cards/art/';
+// ── v0.75.82 — L'ARTE DELLE CARTE E' .jpg ─────────────────────────────────
+// Era .png, scritto a mano in cinque punti diversi. Adesso e' scritto QUI e
+// basta: chi compone un indirizzo dell'arte chiede l'estensione a questa
+// costante invece di ricordarsela. Il giorno in cui si cambia di nuovo — o si
+// aggiunge il .webp — e' una riga.
+//
+// UNA SOLA ESTENSIONE, non due provate a turno. La tentazione sarebbe
+// chiedere prima il .jpg e poi il .png come rete: non si fa, ed e' la stessa
+// lezione dei suoni (vedi ESTENSIONI_SUONO). Ogni sonda e' una richiesta vera,
+// e verificaArtCarte ne fa gia' centinaia in un colpo solo — raddoppiarle per
+// coprire dei file che non esistono piu' vorrebbe dire pagare a ogni avvio il
+// prezzo di una migrazione fatta una volta.
+//
+// ATTENZIONE: vale per cards/art/ e basta. Le cornici, gli incastonatori, le
+// icone dei tratti, i dorsi, le bustine e i tasselli sono ancora .png, e
+// hanno bisogno della trasparenza che il .jpg non ha: non vanno convertiti
+// senza prima guardare cosa ci si vede attraverso.
+const EST_ART = 'jpg';
 // v0.73.21 — il dischetto che copre un valore quando la carta e' nel fumo.
 // Sta nella cartella di The Caterpillar perche' e' li' che e' stato caricato,
 // ma non e' suo: e' l'aspetto che ha "questo numero non si puo' leggere", e
 // varra' per qualunque carta futura che si nasconda.
 // Sono QUATTRO: ogni gruppo valore della carta ne prende uno diverso, cosi' la
 // cortina non sembra tre volte lo stesso timbro.
+// v0.75.82 — QUESTI QUATTRO RESTANO .png, ED E' L'UNICA ECCEZIONE IN
+// cards/art/. Non sono illustrazioni: sono dischetti che si appoggiano SOPRA
+// alla carta, e vivono della loro trasparenza — fuori dal cerchio non c'e'
+// niente. Il .jpg la trasparenza non ce l'ha: convertendoli, i 197x197 pixel
+// intorno al disco erano diventati bianchi, e al posto della cortina di fumo
+// si sarebbero visti quattro quadrati bianchi sui numeri.
+// Su 176 file di cards/art/ questi quattro erano gli unici con un canale alfa
+// vero; tutte le altre sono immagini piene 1024x1024, per cui il .jpg va
+// benissimo. La regola per orientarsi: se ci si deve vedere attraverso, .png.
 const SMOKE_VALUE_CIRCLES = [1,2,3,4].map(n => ART_BASE + 'the-caterpillar/smoke-value-circle-'+n+'.png');
 // Quale dischetto tocca al gruppo numero `indice` di questa carta. L'indice da'
 // gia' la garanzia che due gruppi vicini non condividano lo stesso disegno; lo
@@ -11782,9 +11809,9 @@ function artUrlVariante(slug, fazione){
   const coda = slug + '/' + slug + '-' + fazione;
   const per = {};
   for(const n of ART_LIVELLI){
-    per[n] = _candidati(ART_REL + coda + '-layer' + n + '.png', ART_BASE + coda + '-layer' + n + '.png');
+    per[n] = _candidati(ART_REL + coda + '-layer' + n + '.' + EST_ART, ART_BASE + coda + '-layer' + n + '.' + EST_ART);
   }
-  return {per, senzaNumero: _candidati(ART_REL + coda + '.png', ART_BASE + coda + '.png')};
+  return {per, senzaNumero: _candidati(ART_REL + coda + '.' + EST_ART, ART_BASE + coda + '.' + EST_ART)};
 }
 
 // Un file esiste? Provare a caricarlo e' l'unico modo. Cio' che risponde
@@ -12085,15 +12112,15 @@ function verificaArtCarte(avanzamento){
     const abilitaDellaCarta = entry.cardAbility || null;
     if(abilitaDellaCarta === 'exaketededly'){
       for(const fazione of ['dark','light']){
-        lavori.push(_primoCheEsiste(_candidati(ART_REL+slug+'/'+slug+'-smoke-'+fazione+'.png',
-                                               ART_BASE+slug+'/'+slug+'-smoke-'+fazione+'.png'), _provaImmagine)
+        lavori.push(_primoCheEsiste(_candidati(ART_REL+slug+'/'+slug+'-smoke-'+fazione+'.'+EST_ART,
+                                               ART_BASE+slug+'/'+slug+'-smoke-'+fazione+'.'+EST_ART), _provaImmagine)
           .then(u=>{ entry[fazione==='dark'?'artFumoDark':'artFumoLight'] = u || null; }));
       }
     }
     if(abilitaDellaCarta === 'nightmare'){
       for(const fazione of ['dark','light']){
-        lavori.push(_primoCheEsiste(_candidati(ART_REL+slug+'/'+slug+'-night-'+fazione+'.png',
-                                               ART_BASE+slug+'/'+slug+'-night-'+fazione+'.png'), _provaImmagine)
+        lavori.push(_primoCheEsiste(_candidati(ART_REL+slug+'/'+slug+'-night-'+fazione+'.'+EST_ART,
+                                               ART_BASE+slug+'/'+slug+'-night-'+fazione+'.'+EST_ART), _provaImmagine)
           .then(u=>{ entry[fazione==='dark'?'artNotteDark':'artNotteLight'] = u || null; }));
       }
     }
@@ -19893,7 +19920,7 @@ function calaLaNotteSu(card){
   // cambio d'abito, e lo si dice, invece di restare muti su tutto.
   if(!card.artNotteDark && !card.artNotteLight){
     console.warn('[Nightmare] "'+(card.name||card.id)+'" non ha l\'arte notturna:'
-      + ' servono cards/art/<slug>/<slug>-night-dark.png e -night-light.png.'
+      + ' servono cards/art/<slug>/<slug>-night-dark.'+EST_ART+' e -night-light.'+EST_ART+'.'
       + ' Il +2 e la risata ci sono lo stesso, il cambio d\'illustrazione no.');
     return;
   }
