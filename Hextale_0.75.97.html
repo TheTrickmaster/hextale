@@ -5699,18 +5699,37 @@ body.prova-senza-willchange #mm-book-rot{
   height:var(--hx-bar-h);
   display:flex; align-items:stretch;
 }
+/* ── v0.75.97 — LE CUCITURE FRA I PEZZI ────────────────────────────────────
+   Fra una testata e il centro si vedeva una riga sottile di sfondo. La causa
+   e' la larghezza: veniva da una proporzione (129/136 dell'altezza) e cadeva
+   su MEZZO pixel. Il browser arrotonda la fine di un pezzo e l'inizio del
+   successivo in modo indipendente, e quando i due arrotondamenti vanno in
+   direzioni opposte resta scoperta una fessura.
+   La tentazione e' sovrapporre i pezzi di un pixel. NON SI PUO': queste
+   grafiche sono semi-trasparenti — il riempitivo ha alfa 165 su 255 — quindi
+   due strati sovrapposti non si coprono, si SOMMANO, e al posto della fessura
+   chiara comparirebbe una riga scura. Un difetto al posto dell'altro.
+   La larghezza si scrive quindi in pixel interi. Il 65 al posto di 64.5 e'
+   uno scarto dello 0,8% sull'ornamento: non si vede, e con numeri interi non
+   c'e' niente da arrotondare. */
 .hx-titlebar-cap{
   flex:0 0 auto;
-  width:calc(var(--hx-bar-h) * 129 / 136);
+  width:65px;
   background-size:100% 100%; background-repeat:no-repeat;
 }
 /* Il centro e' l'unico pezzo che si deforma, ed e' fatto per farlo: e' una
    fascia lunga 3584px senza ornamenti, quindi allungarla non si vede. */
+/* v0.75.97 — IL CENTRO NON SI STIRA PIU', SI TAGLIA.
+   E' una fascia larga 3584px: schiacciata dentro ai 520px della finestra dei
+   filtri diventava un settimo di se stessa, e la trama si impastava. Ora si
+   disegna alla sua altezza naturale e se ne mostra solo il tratto che serve,
+   preso dal centro — cosi' la fascia ha la stessa densita' in una barra larga
+   e in una stretta, che e' esattamente cio' che una fascia deve fare. */
 .hx-titlebar-center{
-  flex:1 1 auto; min-width:0;
+  flex:1 1 auto; min-width:0; position:relative; z-index:0;
   display:flex; align-items:center; gap:12px;
   padding:0 6px;
-  background-size:100% 100%; background-repeat:no-repeat;
+  background-size:auto 100%; background-repeat:repeat-x; background-position:center;
 }
 .hx-titlebar-spacer{ flex:1 1 auto; min-width:8px; }
 #card-db-header h1{
@@ -5772,19 +5791,30 @@ body.prova-senza-willchange #mm-book-rot{
   cursor:var(--cursore);
   transition:filter 0.16s ease, transform 0.16s ease;
 }
-.hx-btn > span[class^="hxb-"]:not(.hxb-label){
-  position:absolute; top:0; bottom:0;
-  background-repeat:no-repeat; background-size:100% 100%;
+
+/* v0.75.97 — I CINQUE PEZZI SONO UNA FILA, NON CINQUE POSIZIONI CALCOLATE.
+   Prima ognuno si piazzava per conto suo, e il centro si metteva a meta' con
+   un 50%: su un pulsante di larghezza dispari quel 50% cade su mezzo pixel, e
+   fra il riempitivo e il centro restava una fessura (stessa causa delle
+   testate della barra, vedi li' anche perche' sovrapporli non e' una via).
+   In una fila flex il browser dispone i pezzi uno attaccato all'altro e non
+   c'e' nessuna posizione da calcolare: le due testate e il centro tengono la
+   loro misura intera, e i due riempitivi si dividono quello che avanza —
+   frazione di pixel compresa. */
+.hx-btn .hxb-strip{
+  position:absolute; inset:0; z-index:0;
+  display:flex; align-items:stretch;
   pointer-events:none;
 }
-.hx-btn .hxb-left { left:0;  width:var(--hxb-cap); }
-.hx-btn .hxb-right{ right:0; width:var(--hxb-cap); }
-.hx-btn .hxb-center{ left:50%; width:var(--hxb-mid); transform:translateX(-50%); }
+.hx-btn .hxb-strip > span{ background-repeat:no-repeat; background-size:100% 100%; }
+.hx-btn .hxb-left, .hx-btn .hxb-right{ flex:0 0 49px; }
+.hx-btn .hxb-center{ flex:0 0 58px; }
 /* Il riempitivo e' una fetta larga 2px: si ripete invece di stirarsi, cosi'
    la trama resta della sua densita' su un pulsante lungo come su uno corto. */
-.hx-btn > span.hxb-fill{ background-repeat:repeat-x; background-size:auto 100%; }
-.hx-btn > span.hxb-fill:nth-child(2){ left:var(--hxb-cap); right:calc(50% + var(--hxb-mid) / 2 - 1px); }
-.hx-btn > span.hxb-fill:nth-child(4){ left:calc(50% + var(--hxb-mid) / 2 - 1px); right:var(--hxb-cap); }
+.hx-btn .hxb-strip > .hxb-fill{
+  flex:1 1 0; min-width:0;
+  background-repeat:repeat-x; background-size:auto 100%;
+}
 .hx-btn .hxb-label{
   position:relative; z-index:1;
   display:inline-flex; align-items:center; gap:10px;
@@ -6393,7 +6423,12 @@ body.prova-senza-willchange #mm-book-rot{
   font-size:24px; font-weight:400; color:#EDE0C6; text-align:left;
 }
 /* ── il menu a tendina ──────────────────────────────────────────────────── */
+/* v0.75.97 — LA TENDINA STA SOPRA. Ogni figlio diretto del pannello riceve
+   `z-index:1`, quindi le sezioni che vengono DOPO la tendina finivano davanti
+   a lei e l'elenco si leggeva attraverso Rarity e Trait. Il selettore deve
+   avere la stessa forza di quello che lo scavalcava — da qui l'id davanti. */
 .hx-dropdown{ position:relative; width:100%; }
+#filters-pannello > .hx-dropdown{ z-index:20; }
 .hx-dropdown-testa{
   width:100%; display:flex; align-items:center;
   padding:16px 20px; box-sizing:border-box;
@@ -6417,7 +6452,11 @@ body.prova-senza-willchange #mm-book-rot{
   background:#1A1E1F;
   border:1px solid rgba(255,255,255,0.2); border-radius:16px;
   box-shadow:0 12px 28px rgba(0,0,0,0.55);
-  max-height:320px; overflow-y:auto;
+  /* v0.75.97 — le voci sono otto e fisse: ci stanno tutte, e un elenco che
+     si fa scorrere per mostrare le ultime due nasconde proprio quelle che
+     interessa vedere. Il limite resta come rete se un giorno diventassero
+     venti, ma tarato perche' oggi non tagli niente. */
+  max-height:70vh; overflow-y:auto;
   scrollbar-width:none; -ms-overflow-style:none;
 }
 .hx-dropdown-voci::-webkit-scrollbar{ display:none; width:0; height:0; }
@@ -8036,7 +8075,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.96</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.97</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -8476,7 +8515,7 @@ body.prova-senza-willchange #mm-book-rot{
         <span class="hx-titlebar-cap hx-titlebar-right"></span>
       </div>
       <button class="hx-btn" id="library-filters" type="button" onclick="apriFiltri()">
-        <span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span>
+        <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
         <span class="hxb-label"><img class="hxb-icon" alt="" draggable="false">Filters</span>
       </button>
       <button class="hx-variant-toggle" id="card-db-toggle-variant" type="button" onclick="cardDbToggleVariant()">
@@ -8554,12 +8593,12 @@ body.prova-senza-willchange #mm-book-rot{
         <div class="filters-tratti" id="card-db-trait-filter-options"></div>
         <div class="filters-riga"></div>
         <button class="hx-btn hx-btn-warning filters-azione" type="button" onclick="cardDbResetFilters()">
-          <span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span>
+          <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
           <span class="hxb-label">Reset filters</span>
         </button>
         <button class="hx-btn filters-azione" type="button" onclick="chiudiFiltri()">
-          <span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span>
-          <span class="hxb-label"><img class="hxb-icon" alt="" draggable="false">Close</span>
+          <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
+          <span class="hxb-label">Close</span>
         </button>
       </div>
     </div>
@@ -11290,9 +11329,11 @@ function _pannelloModifica(mazzo){
 
   const salva = document.createElement('button');
   salva.type = 'button'; salva.className = 'hx-btn deck-edit-save';
-  salva.innerHTML = '<span class="hxb-left"></span><span class="hxb-fill"></span>'
+  salva.innerHTML = '<span class="hxb-strip">'
+                  + '<span class="hxb-left"></span><span class="hxb-fill"></span>'
                   + '<span class="hxb-center"></span><span class="hxb-fill"></span>'
-                  + '<span class="hxb-right"></span><span class="hxb-label">Save Deck</span>';
+                  + '<span class="hxb-right"></span></span>'
+                  + '<span class="hxb-label">Save Deck</span>';
   salva.onclick = ()=> salvaMazzoInModifica();
 
   p.append(top, conta, carte, barra, capRiga, salva);
