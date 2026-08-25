@@ -7911,7 +7911,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.93</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.94</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -21333,6 +21333,41 @@ function latiLiberiDi(cella){
   }
   return liberi;
 }
+// ═══════════════════════════════════════════════════════════════════════════
+// v0.75.94 — I VALORI VIVI DI UNA CARTA IN CAMPO
+// ═══════════════════════════════════════════════════════════════════════════
+// Quattro abilita' non scrivono i loro numeri una volta e basta: li
+// RIDERIVANO continuamente da quello che c'e' intorno — quanti Small in campo
+// (Snow White), quanti Trickster (Pixies), che turno e' (Strigoi), chi e'
+// adiacente (Baloo, Maid Marian, Lancelot, la Principessa sul Pisello).
+//
+// IL GUASTO CHE QUESTA FUNZIONE CHIUDE. Queste quattro righe vivevano dentro
+// al ciclo di renderBoard, cioe' i valori aggiornati esistevano solo COME
+// EFFETTO COLLATERALE DEL DISEGNO. Fra il piazzamento e lo scontro, pero', un
+// disegno non c'e': doPlace chiama resolveConquestAndEndTurn di filato. Una
+// carta da 6 che vale 8 grazie alla vicina attaccava quindi con 6, e contro un
+// altro 6 perdeva — perche' 6 non e' maggiore di 6. Il bonus si vedeva a
+// schermo un istante dopo, sulla conquista non riuscita.
+// Adesso il conto sta in un posto solo e lo chiedono in due: chi disegna e chi
+// combatte. Che e' l'unico modo perche' i numeri che si leggono e i numeri con
+// cui si vince siano gli stessi.
+function ricalcolaValoriVivi(card, cella){
+  if(!card) return;
+  recalcHoorayShesStays(card);
+  recalcMischief(card);
+  recalcNightmare(card);
+  // Baloo & C. hanno bisogno di sapere DOVE si trova questa carta: il loro
+  // dono dipende da chi le sta accanto.
+  recalcBearNecessities(card, cella);
+}
+// Tutto il tabellone, in un colpo. Si passa da qui PRIMA di ogni scontro.
+function ricalcolaTabellone(){
+  if(!G || !G.board) return;
+  for(const k in G.board){
+    const cella = G.board[k];
+    if(cella && cella.card) ricalcolaValoriVivi(cella.card, k);
+  }
+}
 function recalcBearNecessities(card, cella){
   if(!card || !cella) return;
   if(!card.balooBaseValues) card.balooBaseValues={...card.values};
@@ -23391,7 +23426,12 @@ const SCELTE_PIAZZAMENTO = {
       giocatore,
       cellaOrigine: key(q,r),
       bersagli,
-      applica: (cella) => copiaAbilitaDa(card, cella, q, r),
+      // v0.75.94 — `applicaEAspetta` e non `applica`: l'abilita' copiata puo'
+      // a sua volta chiedere un bersaglio, e in quel caso il turno deve
+      // aspettare la SECONDA finestra prima di passare allo scontro. Con
+      // `applica` il turno riprendeva subito, e la finestra della copia si
+      // sarebbe aperta su un turno gia' finito.
+      applicaEAspetta: (cella, poi) => copiaAbilitaDa(card, cella, q, r, giocatore, poi),
       rinuncia: () => {}
     };
   }
@@ -24234,21 +24274,70 @@ function bersagliMagicMirror(q, r){
 // resta scritta sulla carta.
 // Non si riapre nessuna scelta: i vicini con la scelta sono gia' esclusi
 // dai bersagli, ma il controllo resta qui perche' e' qui che farebbe danno.
-function copiaAbilitaDa(specchio, cellaBersaglio, q, r){
+// v0.75.94 — COPIARE E' COME GIOCARE QUELLA CARTA ADESSO, esattamente come lo
+// e' rubare per lo sceriffo. Prima non era cosi': lo specchio rifiutava in
+// silenzio ogni abilita' che chiede un bersaglio — Excalibur di King Arthur,
+// il tassello di Ali Baba, la treccia di Rapunzel — mentre bersagliMagicMirror
+// continuava a offrirle come scelte lecite. Si sceglieva la carta e non
+// succedeva niente: la copia piu' interessante era proprio quella impossibile.
+// La riga che le escludeva se n'e' andata, e al suo posto c'e' la stessa
+// catena dello sceriffo (vedi _usaAbilitaPresa).
+function copiaAbilitaDa(specchio, cellaBersaglio, q, r, giocatore, poi){
+  const finito = ()=>{ if(typeof poi === 'function') poi(); };
   const bersaglio = G.board[cellaBersaglio];
-  if(!bersaglio || !bersaglio.card) return;
+  if(!bersaglio || !bersaglio.card){ finito(); return; }
   // Seconda guardia, deliberatamente ridondante con bersagliMagicMirror: uno
   // specchio non copia mai un altro specchio, e la cosa non deve dipendere dal
   // fatto che l'elenco dei bersagli sia stato compilato bene. E' la regola
   // scritta due volte perche' e' l'unica che, se saltasse, farebbe copiare a
   // uno specchio la capacita' di copiare.
-  if(bersaglio.card.eSpecchio || bersaglio.card.cardAbility === 'magic_mirror') return;
+  if(bersaglio.card.eSpecchio || bersaglio.card.cardAbility === 'magic_mirror'){ finito(); return; }
   const copiata = abilitaAttivaDi(bersaglio.card);
-  if(!copiata || copiata === 'magic_mirror' || SCELTE_PIAZZAMENTO[copiata]) return;
+  if(!copiata || copiata === 'magic_mirror'){ finito(); return; }
   specchio.abilitaCopiataDa = bersaglio.card.name || cellaBersaglio;
   _prendiAbilita(bersaglio.card, specchio, copiata);
-  applicaAbilitaPiazzamento(specchio, q, r, copiata);
-  applicaEffettiRealiPiazzamento(specchio, q, r, copiata);
+  _usaAbilitaPresa(specchio, copiata, q, r, giocatore, finito);
+}
+// ── v0.75.94 — USARE UN'ABILITA' APPENA PRESA ─────────────────────────────
+// Lo sceriffo la ruba, lo specchio la copia; da li' in poi fanno la stessa
+// identica cosa, ed e' questa. Era scritta solo dentro al furto, e lo specchio
+// ne aveva una versione dimezzata: aggiungere una riga alla prima non la
+// aggiungeva alla seconda, che e' il motivo per cui l'una sapeva aprire le
+// finestre di scelta e l'altra no.
+//
+// L'ORDINE E' QUELLO DI UNA CARTA APPENA GIOCATA, e non e' negoziabile:
+//   1. gli effetti che non chiedono niente a nessuno (buff, ricalcoli)
+//   2. il tabellone si ridisegna, cosi' si vede cos'e' cambiato
+//   3. le abilita' che un bersaglio lo chiedono aprono la loro finestra
+//   4. e solo alla fine di tutto riprende il turno — cioe' si combatte
+// La finestra nuova si apre DOPO che quella vecchia si e' chiusa davvero
+// (chiudiSceltaBersaglio azzera G.sceltaBersaglio prima di chiamare l'azione):
+// non e' una finestra dentro l'altra, e' la successiva. A legarle e'
+// `alTermine`, la continuazione che fa riprendere il turno UNA VOLTA SOLA, in
+// fondo alla catena.
+function _usaAbilitaPresa(carta, chiave, q, r, giocatore, finito){
+  applicaAbilitaPiazzamento(carta, q, r, chiave);
+  applicaEffettiRealiPiazzamento(carta, q, r, chiave);
+  renderBoard();
+  // Se non ci sono bersagli leciti la finestra non si apre nemmeno (lo decide
+  // il registro) e si tira dritto: un'abilita' presa che non trova dove agire
+  // non deve fermare il turno.
+  const chiPuoScegliere = (giocatore != null) ? giocatore : G.currentPlayer;
+  const k = key(q,r);
+  if(SCELTE_PIAZZAMENTO[chiave] && apriSceltaBersaglio(carta, chiPuoScegliere, q, r, k, chiave)){
+    G.sceltaBersaglio.alTermine = finito;
+    // Le scelte che si fanno sulla MANO hanno i comandi nel ventaglio, quelle
+    // sul tabellone nella plancia: stessa distinzione di doPlace.
+    if(G.sceltaBersaglio.modo === 'mano') render(); else renderBoard();
+    // Il timer riparte, o la finestra nuova resterebbe aperta all'infinito.
+    startTimer();
+    // E se a giocare e' l'IA, la chiude lei: non ha un'interfaccia da cliccare,
+    // e questa finestra si apre troppo tardi perche' la risolva il richiamo che
+    // aiPlay fa dopo il piazzamento.
+    if(!giocatoreUmano(chiPuoScegliere)) aiResolvePendingAbilityIfAny();
+    return;
+  }
+  finito();
 }
 // v0.75.40 — IL PASSAGGIO DI UN'ABILITA' DA UNA CARTA A UN'ALTRA.
 // Estratto da copiaAbilitaDa quando e' arrivato lo sceriffo, che fa la stessa
@@ -24369,29 +24458,8 @@ function rubaAbilitaDa(sceriffo, cellaBersaglio, q, r, giocatore, poi){
   sceriffo.abilitaRubataA = bersaglio.card.name || cellaBersaglio;
   _prendiAbilita(bersaglio.card, sceriffo, rubata);
   _togliAbilita(bersaglio.card);
-  // Gli effetti che non chiedono niente a nessuno: agiscono subito.
-  applicaAbilitaPiazzamento(sceriffo, q, r, rubata);
-  applicaEffettiRealiPiazzamento(sceriffo, q, r, rubata);
-  renderBoard();
-  // E quelli che un bersaglio lo chiedono. Se non ci sono bersagli leciti la
-  // finestra non si apre nemmeno (lo decide il registro) e si tira dritto:
-  // un'abilita' rubata che non trova dove agire non deve fermare il turno.
-  const chiPuoScegliere = (giocatore != null) ? giocatore : G.currentPlayer;
-  const k = key(q,r);
-  if(SCELTE_PIAZZAMENTO[rubata] && apriSceltaBersaglio(sceriffo, chiPuoScegliere, q, r, k, rubata)){
-    G.sceltaBersaglio.alTermine = finito;
-    // Le scelte che si fanno sulla MANO hanno i comandi nel ventaglio, quelle
-    // sul tabellone nella plancia: stessa distinzione di doPlace.
-    if(G.sceltaBersaglio.modo === 'mano') render(); else renderBoard();
-    // Il timer riparte, o la finestra nuova resterebbe aperta all'infinito.
-    startTimer();
-    // E se a giocare e' l'IA, la chiude lei: non ha un'interfaccia da cliccare,
-    // e questa finestra si apre troppo tardi perche' la risolva il richiamo che
-    // aiPlay fa dopo il piazzamento.
-    if(!giocatoreUmano(chiPuoScegliere)) aiResolvePendingAbilityIfAny();
-    return;
-  }
-  finito();
+  // v0.75.94 — da qui in poi e' la catena condivisa con lo specchio.
+  _usaAbilitaPresa(sceriffo, rubata, q, r, giocatore, finito);
 }
 // La carta derubata resta in campo, coi suoi valori, ma senza piu' niente da
 // fare. Si azzerano anche i TESTI e non solo la chiave: lasciandoli, la carta
@@ -25419,6 +25487,14 @@ function shakeBoard(hitIndex, ux, uy){
 }
 
 function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLandAnim){
+  // v0.75.94 — PRIMA DI COMBATTERE, I NUMERI VANNO FATTI. Le sinergie di
+  // vicinato si ricavano da quello che c'e' intorno, e fra il piazzamento e
+  // questa riga il tabellone e' appena cambiato: e' arrivata una carta nuova.
+  // Chiedere i valori senza rifare il conto vuol dire combattere con quelli di
+  // un istante fa (vedi ricalcolaValoriVivi per il difetto che questo chiude).
+  // Si rifa' TUTTO il tabellone e non solo l'attaccante: la carta appena
+  // calata puo' aver cambiato i numeri anche a chi sta per difendersi.
+  ricalcolaTabellone();
   // 3) Conquest check happens AFTER any power-up is applied.
   const snap={...G.board};
   const myEffective=getFactionBonus(card,q,r,snap).values;
@@ -35096,12 +35172,7 @@ function renderBoard(){
       // recalcHoorayShesStays's comment. Placed here BEFORE getFactionBonus
       // reads placed.card.values so the synergy bonus is already baked in
       // by the time any faction-bonus/delta math below runs.
-      recalcHoorayShesStays(placed.card);
-      recalcMischief(placed.card); // v0.73.74 — vedi la gemella in renderHand
-      recalcNightmare(placed.card); // v0.73.78 — idem
-      // v0.73.97 — e Baloo, che pero' ha bisogno di sapere DOVE si trova
-      // questa carta: il suo dono dipende da chi le sta accanto.
-      recalcBearNecessities(placed.card, k);
+      ricalcolaValoriVivi(placed.card, k);
       // v0.73.11 FIX ("quando si droppa una carta su un tile, sembra che
       // sparisca il disegno del tile sotto"): non sembrava, spariva davvero.
       // Una cella occupata disegnava SOLO la carta: il tassello non veniva
