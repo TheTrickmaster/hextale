@@ -6458,6 +6458,29 @@ body.prova-senza-willchange #mm-book-rot{
 .deck-slot-vuota{
   background-size:100% 100%; background-repeat:no-repeat;
 }
+/* v0.75.93 — il cartellino del Giocatore 2, al posto della spunta. La spunta
+   dice "scegli questo"; qui non c'e' niente da scegliere, la casella e' sua
+   per sempre — quindi al suo posto va un'etichetta, non un comando spento. */
+.deck-slot-targa{
+  flex:0 0 auto;
+  display:inline-flex; align-items:center; justify-content:center;
+  min-width:34px; height:24px; padding:0 8px;
+  border:1px solid rgba(233,222,197,0.45); border-radius:6px;
+  background:rgba(0,0,0,0.35);
+  font-family:'Marcellus',var(--font-display),serif;
+  font-size:14px; line-height:1; color:#D4CBB9;
+  text-shadow:0 0 4px rgba(0,0,0,1);
+}
+.deck-slot-p2-vuota{
+  display:flex; align-items:center; gap:8px;
+  padding:0 16px; border:0;
+  position:relative;
+}
+.deck-slot-p2-testo{
+  font-family:'Rosarivo',serif; font-size:15px; color:#8E9EA0;
+  text-shadow:0 0 4px rgba(0,0,0,1);
+}
+.deck-slot-p2-vuota:hover .deck-slot-p2-testo{ color:#B4C6C9; }
 /* "Aggiungi mazzo" ha un alone che deborda dal riquadro: l'immagine e' 802x180
    ma la sua parte piena e' 762x140, cioe' esattamente quella della casella
    vuota. Si disegna quindi PIU' GRANDE della casella e spostata, cosi' la
@@ -7888,7 +7911,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.92</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.93</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -10790,7 +10813,7 @@ function impostaVariabileDaCandidati(el, nomeVar, candidati){
 // questa pagina — poi gli altri mazzi, poi il pulsante per crearne uno, e in
 // fondo le caselle ancora libere. Il "crea" sta fra i mazzi e il vuoto perche'
 // e' li' che finisce il prossimo.
-const MAZZI_SLOT = 12;
+const MAZZI_SLOT = 12;   // caselle in tutto: undici del Giocatore 1 piu' quella del 2
 // Un mazzo e' { id, nome, carte:[idCarta...] }. Le carte si tengono per ID e
 // non per oggetto: gli oggetti carta nascono dal foglio a ogni avvio e non
 // sopravvivono a un riavvio, mentre l'id e' quello che il foglio garantisce.
@@ -10799,7 +10822,22 @@ const MAZZI_SLOT = 12;
 // ogni elemento vuol dire poter finire con due caselle spuntate.
 let MAZZI = [];
 let MAZZO_SCELTO = null;   // l'id del mazzo con cui si scende in campo
+// ── v0.75.93 — LA CASELLA DEL GIOCATORE 2 ─────────────────────────────────
+// La quarta casella non e' un mazzo come gli altri: e' del Giocatore 2, e sta
+// sempre li'. Non entra nell'ordinamento e non ha la spunta — non c'e' niente
+// da scegliere, e' gia' il suo. Per questo vive in una variabile sua e non
+// dentro a MAZZI: cosi' "gli altri sono i mazzi del Giocatore 1" e' vero per
+// costruzione, invece di essere una regola da ricordarsi a ogni ciclo.
+// Vale solo in PvP. Contro l'IA l'avversario ha sempre un mazzo generato: e'
+// una scelta di gioco, non una dimenticanza (vedi makeBalancedDecks).
+let MAZZO_P2 = null;
 const MAZZI_CHIAVE = 'hextale.mazzi';
+const MAZZO_P2_POSTO = 3;          // la quarta casella, contando da zero
+const MAZZI_SLOT_P1 = 11;          // le altre undici
+function mazzoPerId(id){
+  if(MAZZO_P2 && MAZZO_P2.id === id) return MAZZO_P2;
+  return MAZZI.find(m=>m.id===id) || null;
+}
 function mazzoSelezionato(){ return MAZZI.find(m=>m.id===MAZZO_SCELTO) || null; }
 function mazziOrdinati(){
   const sel = MAZZI.filter(m=>m.id===MAZZO_SCELTO);
@@ -10811,7 +10849,7 @@ function mazziOrdinati(){
 // ricarica non e' un mazzo, e' un esercizio.
 function salvaMazzi(){
   try{
-    localStorage.setItem(MAZZI_CHIAVE, JSON.stringify({ mazzi:MAZZI, scelto:MAZZO_SCELTO }));
+    localStorage.setItem(MAZZI_CHIAVE, JSON.stringify({ mazzi:MAZZI, scelto:MAZZO_SCELTO, p2:MAZZO_P2 }));
   }catch(_){}
 }
 // Rileggendo si BUTTANO le carte che il foglio non ha piu'. Un id sparito
@@ -10824,13 +10862,15 @@ function caricaMazzi(){
   if(!dati || !Array.isArray(dati.mazzi)) return;
   const esiste = new Set((FINAL_CARDS||[]).map(e=>String(e.id)));
   let perse = 0;
-  MAZZI = dati.mazzi.map(m=>{
+  const ripulisci = (m)=>{
     const carte = (m.carte||[]).map(String).filter(id=>{
       if(esiste.has(id)) return true;
       perse++; return false;
     });
     return { id:String(m.id), nome:String(m.nome||'Untitled deck'), carte };
-  });
+  };
+  MAZZI = dati.mazzi.map(ripulisci);
+  MAZZO_P2 = dati.p2 ? ripulisci(dati.p2) : null;
   MAZZO_SCELTO = dati.scelto && MAZZI.some(m=>m.id===dati.scelto) ? dati.scelto
                : (MAZZI.length ? MAZZI[0].id : null);
   if(perse){
@@ -10904,12 +10944,18 @@ function renderListaMazzi(){
   const lista = document.getElementById('deck-list');
   if(!lista) return;
   lista.innerHTML = '';
-  const mazzi = mazziOrdinati().slice(0, MAZZI_SLOT);
-  for(const m of mazzi) lista.appendChild(_slotMazzoPieno(m));
+  // Prima si compongono le undici caselle del Giocatore 1, poi si INFILA
+  // quella del Giocatore 2 al suo posto fisso. Costruirle tutte e dodici
+  // insieme vorrebbe dire, a ogni riga, chiedersi "sono la quarta?" — e la
+  // risposta cambierebbe da sola il giorno in cui la posizione cambia.
+  const caselle = [];
+  const mazzi = mazziOrdinati().slice(0, MAZZI_SLOT_P1);
+  for(const m of mazzi) caselle.push(_slotMazzoPieno(m));
   // Il pulsante "crea" esiste solo se c'e' ancora posto.
-  let usati = mazzi.length;
-  if(usati < MAZZI_SLOT){ lista.appendChild(_slotMazzoAggiungi()); usati++; }
-  for(let i=usati; i<MAZZI_SLOT; i++) lista.appendChild(_slotMazzoVuoto());
+  if(caselle.length < MAZZI_SLOT_P1) caselle.push(_slotMazzoAggiungi());
+  while(caselle.length < MAZZI_SLOT_P1) caselle.push(_slotMazzoVuoto());
+  caselle.splice(MAZZO_P2_POSTO, 0, _slotGiocatore2());
+  for(const c of caselle) lista.appendChild(c);
   // ── v0.75.89 FIX — RIFARE LA LISTA NON DEVE CHIUDERE IL MAZZO APERTO ────
   // Cambiando le carte da scure a chiare, questa funzione ricostruiva la
   // colonna da zero: il pannello aperto spariva col resto, ma _mazzoInModifica
@@ -10918,7 +10964,7 @@ function renderListaMazzi(){
   // era si' per un pannello che non esisteva piu'.
   // Non si chiude e non si perde niente: si riapre la riga sulla COPIA di
   // lavoro che era gia' in corso, quindi le carte messe fin li' restano.
-  if(_mazzoInModificaId && MAZZI.some(m=>m.id===_mazzoInModificaId)) _apriSlotInModifica(_mazzoInModificaId);
+  if(_mazzoInModificaId && mazzoPerId(_mazzoInModificaId)) _apriSlotInModifica(_mazzoInModificaId);
   else if(_mazzoInModificaId){ _mazzoInModifica = null; _mazzoInModificaId = null; }
 }
 function _slotMazzoPieno(mazzo){
@@ -10966,6 +11012,44 @@ function _slotMazzoPieno(mazzo){
   el.onclick = ()=>{ if(!_mazzoInModifica) apriModificaMazzo(mazzo.id); };
   return el;
 }
+// La casella del Giocatore 2. Piena o vuota che sia, e' sempre riconoscibile:
+// porta il suo cartellino al posto della spunta, perche' li' non c'e' niente
+// da scegliere.
+function _slotGiocatore2(){
+  if(MAZZO_P2){
+    const el = _slotMazzoPieno(MAZZO_P2);
+    const check = el.querySelector('.deck-slot-check');
+    if(check){
+      const targa = document.createElement('span');
+      targa.className = 'deck-slot-targa';
+      targa.textContent = 'P2';
+      check.replaceWith(targa);
+    }
+    return el;
+  }
+  // Vuota: il Giocatore 2 scendera' in campo con un mazzo generato. Lo si dice,
+  // invece di lasciare una casella muta identica alle altre — e cliccandola si
+  // comincia a comporgliene uno.
+  const el = document.createElement('button');
+  el.type = 'button';
+  el.className = 'deck-slot deck-slot-vuota deck-slot-p2-vuota';
+  el.setAttribute('aria-label', 'Player 2 deck');
+  impostaSfondoDaCandidati(el, uiFileCandidati('deck-empty.png'));
+  const targa = document.createElement('span');
+  targa.className = 'deck-slot-targa'; targa.textContent = 'P2';
+  const testo = document.createElement('span');
+  testo.className = 'deck-slot-p2-testo'; testo.textContent = 'Random deck';
+  el.append(targa, testo);
+  el.onclick = ()=>{ if(!_mazzoInModifica) creaMazzoGiocatore2(); };
+  return el;
+}
+function creaMazzoGiocatore2(){
+  if(MAZZO_P2) return;
+  MAZZO_P2 = { id:'p2-'+Date.now().toString(36), nome:'Player 2', carte:[] };
+  salvaMazzi();
+  renderListaMazzi();
+  apriModificaMazzo(MAZZO_P2.id);
+}
 function _slotMazzoVuoto(){
   const el = document.createElement('div');
   el.className = 'deck-slot deck-slot-vuota';
@@ -10993,7 +11077,7 @@ function selezionaMazzo(id){
   renderListaMazzi();
 }
 function creaMazzo(){
-  if(MAZZI.length >= MAZZI_SLOT) return;
+  if(MAZZI.length >= MAZZI_SLOT_P1) return;
   const m = { id:'m'+Date.now().toString(36)+Math.floor(Math.random()*1e4).toString(36),
               nome:'New deck', carte:[] };
   MAZZI.push(m);
@@ -11068,7 +11152,7 @@ function _pannelloModifica(mazzo){
   return p;
 }
 function apriModificaMazzo(id){
-  const vero = MAZZI.find(m=>m.id===id);
+  const vero = mazzoPerId(id);
   if(!vero) return;
   _mazzoInModificaId = id;
   _mazzoInModifica = { id:vero.id, nome:vero.nome, carte:vero.carte.slice() };
@@ -11220,7 +11304,7 @@ function _sfondoInDissolvenza(el, candidati){
 // un mazzo aperto di restare aperto mentre si passa da scure a chiare.
 function aggiornaArtiMazzi(){
   document.querySelectorAll('#deck-list .deck-slot-piena').forEach(slot=>{
-    const mazzo = MAZZI.find(m=>m.id===slot.dataset.mazzo);
+    const mazzo = mazzoPerId(slot.dataset.mazzo);
     if(mazzo) _sfondoInDissolvenza(slot.querySelector('.deck-slot-art'), candidatiArtDelMazzo(mazzo));
   });
   document.querySelectorAll('.deck-card-row').forEach(riga=>{
@@ -11256,13 +11340,16 @@ function salvaMazzoInModifica(){
   const m = _mazzoInModifica;
   if(!m || !mazzoValido(m)) return;   // il pulsante e' gia' spento, ma la
                                       // regola non vive nel pulsante
-  const vero = MAZZI.find(x=>x.id===_mazzoInModificaId);
+  const vero = mazzoPerId(_mazzoInModificaId);
   if(vero){ vero.nome = (m.nome||'').trim() || 'Untitled deck'; vero.carte = m.carte.slice(); }
   salvaMazzi();
   chiudiModificaMazzo(true);
 }
 function eliminaMazzoInModifica(){
   const id = _mazzoInModificaId;
+  // v0.75.93 — svuotare la casella del Giocatore 2 non la fa sparire: torna a
+  // dire "mazzo generato", che e' il suo stato di riposo e non un vuoto.
+  if(MAZZO_P2 && MAZZO_P2.id === id){ MAZZO_P2 = null; salvaMazzi(); chiudiModificaMazzo(true); return; }
   MAZZI = MAZZI.filter(m=>m.id!==id);
   if(MAZZO_SCELTO === id) MAZZO_SCELTO = MAZZI.length ? MAZZI[0].id : null;
   salvaMazzi();
@@ -19306,10 +19393,25 @@ function carteDalMazzoSalvato(mazzo, owner){
   });
   return _mescola(carte);
 }
-function makeBalancedDecks(){
+// ── v0.75.93 — E IL MAZZO DEL GIOCATORE 2 ─────────────────────────────────
+// Vale SOLO in PvP, cioe' quando dall'altra parte c'e' una persona. Contro
+// l'IA l'avversario ha sempre un mazzo generato e bilanciato sul tuo: e' una
+// scelta di gioco — l'IA e' un avversario di misura, non un mazzo da battere
+// sempre uguale.
+// `controIA` arriva da chi chiama e non da G.vsAI, perche' quando questa
+// funzione gira G non esiste ancora (vedi initGame: i mazzi si fanno prima
+// della partita che li usera').
+function makeBalancedDecks(controIA){
   const mio = mazzoSelezionato();
+  const suo = (!controIA && MAZZO_P2 && mazzoValido(MAZZO_P2)) ? MAZZO_P2 : null;
   if(mio && mazzoValido(mio)){
     const d1 = carteDalMazzoSalvato(mio, 1);
+    console.info('[Hextale] mazzo del giocatore 1: "'+(mio.nome||mio.id)+'"');
+    if(suo){
+      console.info('[Hextale] mazzo del giocatore 2: "'+(suo.nome||suo.id)+'"');
+      const d2 = carteDalMazzoSalvato(suo, 2);
+      return { d1, d2, gap:deckPowerGap(d1, d2) };
+    }
     let migliore=null, scartoMigliore=Infinity;
     for(let i=0;i<300;i++){
       const b = makeDeck(2, DECK_TOTAL);
@@ -19317,8 +19419,21 @@ function makeBalancedDecks(){
       if(gap<scartoMigliore){ scartoMigliore=gap; migliore=b; }
       if(gap<=BALANCE_MAX_GAP) break;
     }
-    console.info('[Hextale] mazzo del giocatore: "'+(mio.nome||mio.id)+'"');
     return { d1, d2:migliore, gap:scartoMigliore };
+  }
+  // Il Giocatore 1 non ha un mazzo, ma il 2 si': si genera il primo cercando
+  // di pareggiare il secondo. E' lo stesso ragionamento a parti invertite.
+  if(suo){
+    const d2 = carteDalMazzoSalvato(suo, 2);
+    console.info('[Hextale] mazzo del giocatore 2: "'+(suo.nome||suo.id)+'"');
+    let migliore=null, scartoMigliore=Infinity;
+    for(let i=0;i<300;i++){
+      const a = makeDeck(1, DECK_TOTAL);
+      const gap = deckPowerGap(a, d2);
+      if(gap<scartoMigliore){ scartoMigliore=gap; migliore=a; }
+      if(gap<=BALANCE_MAX_GAP) break;
+    }
+    return { d1:migliore, d2, gap:scartoMigliore };
   }
   let best=null, bestGap=Infinity;
   for(let i=0;i<300;i++){
@@ -20025,7 +20140,7 @@ function initGame(vsAI){
   const muriAssegnati = assegnaMuriDellaPartita([...holes]);
   // Generate the two starting decks so their overall power is within 20% of each
   // other (accounts for values, group sizes, factions and gems — see cardPower).
-  const balanced=makeBalancedDecks();
+  const balanced=makeBalancedDecks(!!vsAI);
   const d1=balanced.d1, d2=balanced.d2;
   if(window.console&&console.info){
     console.info(`[Hextale] Mazzi bilanciati: scarto potenza ${(balanced.gap*100).toFixed(1)}% — P1 ${deckPower(d1).toFixed(1)} vs P2 ${deckPower(d2).toFixed(1)}`);
