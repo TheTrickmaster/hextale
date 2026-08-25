@@ -6342,6 +6342,12 @@ body.prova-senza-willchange #mm-book-rot{
   pointer-events:none; z-index:0;
 }
 #card-db-right > *{ position:relative; z-index:1; }
+/* v0.75.89 — IL CURSORE DEL GIOCO VALE ANCHE QUI. Il resto della pagina lo
+   eredita da html/body, ma questa colonna e' piena di elementi che il browser
+   veste da se': un <input> mostra la barretta del testo, un <button> la
+   freccia di sistema. Si dichiara una volta per tutta la colonna invece di
+   rincorrere ogni elemento nuovo che ci finira' dentro. */
+#card-db-right, #card-db-right *{ cursor:var(--cursore); }
 /* v0.75.84 — lo spazio fra le caselle e' un MARGINE e non un `gap`. Sembra un
    dettaglio e non lo e': entrando in modifica le altre undici caselle si
    chiudono fino a sparire, e un `gap` resterebbe comunque li' — undici volte
@@ -6481,7 +6487,6 @@ body.prova-senza-willchange #mm-book-rot{
 .deck-slot-piena.in-modifica{
   align-items:stretch; flex-direction:column;
   padding:16px; gap:12px;
-  cursor:default;
   background:#25292A;
 }
 .deck-slot-piena.in-modifica:hover{ box-shadow:none; }
@@ -6523,6 +6528,10 @@ body.prova-senza-willchange #mm-book-rot{
   outline:none;
 }
 .deck-edit-nome:focus{ border-color:#B29B6C; }
+/* v0.75.89 — il blu di sistema della selezione era l'unico colore in tutta la
+   pagina a non appartenere al gioco. */
+.deck-edit-nome::selection{ background:#4B585C; color:#EDE0C6; }
+.deck-edit-nome::-moz-selection{ background:#4B585C; color:#EDE0C6; }
 .deck-edit-elimina{
   flex:0 0 auto;
   background:none; border:0; padding:0; margin:0;
@@ -6561,6 +6570,15 @@ body.prova-senza-willchange #mm-book-rot{
   display:flex; align-items:center;
   padding:0 16px; border-radius:8px;
   overflow:hidden;
+  transition:box-shadow 0.18s ease, filter 0.18s ease;
+}
+/* v0.75.89 — una riga si accende quando ci passi sopra, come la riga di un
+   mazzo nella lista: dice che ci si puo' fare qualcosa — toglierla con la
+   crocetta, o prenderla e portarla fuori. Un elenco che non reagisce si
+   legge come un elenco e basta. */
+.deck-card-row:hover{
+  box-shadow:0 0 12px rgba(160,173,175,0.55), inset 0 0 0 1px rgba(255,231,178,0.45);
+  filter:brightness(1.12);
 }
 .deck-card-row-art{
   position:absolute; inset:0; z-index:0;
@@ -6589,13 +6607,29 @@ body.prova-senza-willchange #mm-book-rot{
    Gli stessi due pezzi dei cursori del volume, senza il pallino: qui non c'e'
    niente da trascinare, e' solo un termometro. La barra si accorcia con una
    maschera invece di stirarsi (vedi .settings-slider-fill-mask). */
+/* v0.75.89 — LE TESTATE ARROTONDATE NON SI STIRANO.
+   La barra dei volumi e' larga 160px, quanto il suo disegno; qui e' larga piu'
+   del doppio, e allungare l'immagine allungava anche i due semicerchi alle
+   estremita' — che e' esattamente il difetto che si vedeva.
+   Si passa quindi a `border-image`, che e' fatta per questo: le due testate
+   restano della loro misura e si stira soltanto la fascia piatta in mezzo.
+   I numeri delle fette non sono a occhio: sono i pixel veri in cui, nei due
+   file, la testata smette di essere curva (6 su slider-bar-bg, 9 su
+   slider-bar-fill). */
 .hx-capacity{ position:relative; width:100%; height:8px; }
-.hx-capacity-bg{ position:absolute; inset:0; width:100%; height:100%; }
+.hx-capacity-bg{
+  position:absolute; inset:0;
+  border-image:var(--hx-bar-bg) 0 6 fill / 0 3px stretch;
+}
 .hx-capacity-mask{
   position:absolute; left:0; top:0; height:100%; width:0%;
   overflow:hidden; pointer-events:none;
 }
-.hx-capacity-fill{ position:absolute; left:0; top:0; height:100%; width:var(--hx-cap-w,100%); object-fit:fill; }
+.hx-capacity-fill{
+  position:absolute; left:0; top:0; height:100%;
+  width:var(--hx-cap-w,100%);
+  border-image:var(--hx-bar-fill) 0 9 fill / 0 3px stretch;
+}
 /* Sopra la capacita' massima la barra non si limita a fermarsi: cambia
    colore. Il rosso si ottiene coprendo l'immagine invece di tingerla, cosi'
    e' esattamente il rosso chiesto e non "l'oro virato al rosso". */
@@ -7817,7 +7851,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.88</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.89</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -10828,6 +10862,16 @@ function renderListaMazzi(){
   let usati = mazzi.length;
   if(usati < MAZZI_SLOT){ lista.appendChild(_slotMazzoAggiungi()); usati++; }
   for(let i=usati; i<MAZZI_SLOT; i++) lista.appendChild(_slotMazzoVuoto());
+  // ── v0.75.89 FIX — RIFARE LA LISTA NON DEVE CHIUDERE IL MAZZO APERTO ────
+  // Cambiando le carte da scure a chiare, questa funzione ricostruiva la
+  // colonna da zero: il pannello aperto spariva col resto, ma _mazzoInModifica
+  // restava pieno. Da li' in poi la colonna sembrava morta — ogni casella
+  // chiede "sto gia' modificando qualcosa?" prima di reagire, e la risposta
+  // era si' per un pannello che non esisteva piu'.
+  // Non si chiude e non si perde niente: si riapre la riga sulla COPIA di
+  // lavoro che era gia' in corso, quindi le carte messe fin li' restano.
+  if(_mazzoInModificaId && MAZZI.some(m=>m.id===_mazzoInModificaId)) _apriSlotInModifica(_mazzoInModificaId);
+  else if(_mazzoInModificaId){ _mazzoInModifica = null; _mazzoInModificaId = null; }
 }
 function _slotMazzoPieno(mazzo){
   const el = document.createElement('div');
@@ -10947,9 +10991,11 @@ function _pannelloModifica(mazzo){
 
   const barra = document.createElement('div');
   barra.className = 'hx-capacity';
-  const bg = document.createElement('img'); bg.className='hx-capacity-bg'; bg.alt=''; bg.draggable=false;
+  // v0.75.89 — riquadri e non <img>: `border-image` vive su un elemento, non
+  // sul contenuto di un'immagine (vedi il CSS della barra).
+  const bg = document.createElement('div'); bg.className='hx-capacity-bg';
   const mask = document.createElement('div'); mask.className='hx-capacity-mask';
-  const fill = document.createElement('img'); fill.className='hx-capacity-fill'; fill.alt=''; fill.draggable=false;
+  const fill = document.createElement('div'); fill.className='hx-capacity-fill';
   mask.appendChild(fill);
   barra.append(bg, mask);
 
@@ -10974,6 +11020,12 @@ function apriModificaMazzo(id){
   if(!vero) return;
   _mazzoInModificaId = id;
   _mazzoInModifica = { id:vero.id, nome:vero.nome, carte:vero.carte.slice() };
+  _apriSlotInModifica(id);   // che si occupa anche dei fantasmi in griglia
+}
+// Apre la riga senza toccare la copia di lavoro. Separata da apriModificaMazzo
+// perche' serve anche a RIAPRIRLA dopo che la lista e' stata ricostruita, e in
+// quel caso ricreare la copia vorrebbe dire buttare via le carte appena messe.
+function _apriSlotInModifica(id){
   const lista = document.getElementById('deck-list');
   const slot = lista && lista.querySelector('[data-mazzo="'+id+'"]');
   if(!lista || !slot) return;
@@ -10999,9 +11051,9 @@ function vestiPannelloModifica(slot){
   const p = slot.querySelector('.deck-edit');
   if(!p || p.dataset.vestito) return;
   p.dataset.vestito = '1';
-  impostaImgDaCandidati(p.querySelector('.hx-capacity-bg'), _candidati(
+  impostaVariabileDaCandidati(p.querySelector('.hx-capacity-bg'), '--hx-bar-bg', _candidati(
     'player-ui/slider-bar-bg.png', PLAYER_UI_BASE+'slider-bar-bg.png'));
-  impostaImgDaCandidati(p.querySelector('.hx-capacity-fill'), _candidati(
+  impostaVariabileDaCandidati(p.querySelector('.hx-capacity-fill'), '--hx-bar-fill', _candidati(
     'player-ui/slider-bar-fill.png', PLAYER_UI_BASE+'slider-bar-fill.png'));
   const salva = p.querySelector('.deck-edit-save');
   const g = (sel,file)=>{ const el=salva.querySelector(sel); if(el) impostaSfondoDaCandidati(el, uiFileCandidati(file)); };
