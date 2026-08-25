@@ -6621,7 +6621,23 @@ body.prova-senza-willchange #mm-book-rot{
    Si alza solo per la durata del trascinamento nella Libreria, e non si
    cambia il numero di partenza: quel 500 e' giusto dov'e' per tutto il
    resto del gioco. */
-#drag-ghost.ghost-libreria{ z-index:4200; }
+/* v0.75.88 — il fantasma della Libreria. Stesse proprieta' di #drag-ghost —
+   segue il puntatore per left/top, e' centrato su quel punto, non intercetta
+   il mouse e porta la stessa ombra lunga che da' l'altezza — ma vive dentro
+   all'overlay della Libreria invece che nella pagina della partita.
+   Il `position:fixed` si risolve rispetto a #game-root, che ha una transform:
+   left/top sono quindi in coordinate autoriali, come per il fantasma del
+   gioco (vedi screenToAuthoredX).
+   Lo z-index e' alto quanto basta a stare sopra alle due colonne senza
+   inventare un numero fuori scala: qui dentro non c'e' nient'altro. */
+#library-drag-ghost{
+  position:fixed; left:0; top:0;
+  display:none; z-index:50;
+  pointer-events:none;
+  transform:translate(-50%,-50%);
+  filter:drop-shadow(0 46px 38px rgba(0,0,0,0.55));
+  will-change:transform;
+}
 /* v0.75.87 — cintura oltre alle bretelle del dragstart: si dichiara che qui
    dentro non c'e' niente da trascinare col trascinamento del browser. La
    regola JS basterebbe, ma questa spegne il gesto un istante prima — prima
@@ -7801,7 +7817,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.87</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.88</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -8270,6 +8286,17 @@ body.prova-senza-willchange #mm-book-rot{
   <div id="card-db-right">
     <div id="deck-list"></div>
   </div>
+  <!-- ── v0.75.88 — LA LIBRERIA HA IL SUO FANTASMA ─────────────────────────
+       La carta che segue il puntatore mentre la si porta in un mazzo.
+       Non si puo' riusare #drag-ghost, e questa e' la ragione per cui il
+       trascinamento non partiva: #drag-ghost appartiene alla pagina PARTITA
+       (vedi PAGE_ELEMENT_IDS), e le pagine qui sono ermetiche — entrando in
+       Libreria, showPage('collection') SMONTA dal documento tutti gli
+       elementi della partita, fantasma compreso. Cercarlo per id da qui
+       restituiva null, e il trascinamento moriva sul nascere.
+       Sta quindi dentro all'overlay della Libreria, che e' la sua pagina, e
+       viene montato e smontato insieme a lei. -->
+  <div id="library-drag-ghost"></div>
   <!-- ── v0.75.83 — I FILTRI, MESSI DA PARTE E NON BUTTATI ──────────────────
        Nascosti, non cancellati. Il filtro per rarita', quello per tratti,
        quello per abilita' e l'ordinamento funzionano gia' e sono agganciati a
@@ -11146,7 +11173,7 @@ function _tirPasso(){
   _tir.vx = (_tir.vx + dx*TIR_MOLLA_K) * TIR_MOLLA_SMORZO;
   _tir.vy = (_tir.vy + dy*TIR_MOLLA_K) * TIR_MOLLA_SMORZO;
   _tir.x += _tir.vx; _tir.y += _tir.vy;
-  const ghost = document.getElementById('drag-ghost');
+  const ghost = document.getElementById('library-drag-ghost');
   if(ghost){
     ghost.style.left = _tir.x+'px'; ghost.style.top = _tir.y+'px';
     const rx = Math.max(-1, Math.min(1, _tir.vx/TIR_TILT_RIF));
@@ -11156,7 +11183,7 @@ function _tirPasso(){
   _tir.raf = requestAnimationFrame(_tirPasso);
 }
 function _tirAvvia(ev){
-  const ghost = document.getElementById('drag-ghost');
+  const ghost = document.getElementById('library-drag-ghost');
   // Senza il fantasma non c'e' niente da trascinare: si smette del tutto,
   // invece di restare in un mezzo trascinamento che riprova a partire a ogni
   // movimento del puntatore e non parte mai.
@@ -11168,7 +11195,6 @@ function _tirAvvia(ev){
   ghost.style.width  = (r.width/scala)+'px';
   ghost.style.height = (r.height/scala)+'px';
   ghost.style.display = 'block';
-  ghost.classList.add('ghost-libreria');   // sopra al pannello, vedi il CSS
   const svg = _tir.origine.querySelector('svg');
   if(svg){
     // L'inclinazione la mette cardFoilApply, ma solo se trova un
@@ -11204,14 +11230,13 @@ function _tirContenitoreSotto(ev){
   return el ? el.closest('.deck-edit-carte') : null;
 }
 function _tirFine(ev){
-  const ghost = document.getElementById('drag-ghost');
+  const ghost = document.getElementById('library-drag-ghost');
   const dentro = _tir && _tir.attivo ? _tirContenitoreSotto(ev) : null;
   if(_tir){
     if(_tir.raf !== null){ cancelAnimationFrame(_tir.raf); _tir.raf = null; }
     if(_tir.attivo && ghost){
       try{ cardFoilApply(ghost, 0, 0, 0.5, 0.5); }catch(_){}
       ghost.innerHTML = ''; ghost.style.display = 'none';
-      ghost.classList.remove('ghost-libreria');
       ghost.style.removeProperty('--tilt-ampiezza');
     }
     if(_tir.attivo){
