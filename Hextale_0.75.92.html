@@ -7888,7 +7888,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.91</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.92</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -10875,8 +10875,19 @@ function mazzoValido(mazzo){
 // subito dopo l'avvio. Se il campo c'e' si usa quello e non si bussa a
 // nessuna porta; se non c'e' ancora, si compone l'indirizzo dallo slug come fa
 // il resto del gioco, e ci pensa impostaSfondoDaCandidati a scegliere.
+// v0.75.92 — QUAL E' IL MAZZO DA GUARDARE. Mentre se ne sta modificando uno,
+// quello che conta e' la COPIA DI LAVORO, non la versione salvata: e' la copia
+// che ha le carte appena trascinate dentro, e quindi e' lei a dire chi sta in
+// prima posizione. Chiedendolo al mazzo salvato, l'illustrazione della riga
+// restava indietro fino al salvataggio — cioe' mostrava un mazzo che nessuno
+// stava piu' guardando.
+function mazzoDaMostrare(mazzo){
+  if(_mazzoInModifica && mazzo && mazzo.id === _mazzoInModificaId) return _mazzoInModifica;
+  return mazzo;
+}
 function candidatiArtDelMazzo(mazzo){
-  const entry = entryDaId((mazzo && mazzo.carte || [])[0]);
+  const vista = mazzoDaMostrare(mazzo);
+  const entry = entryDaId((vista && vista.carte || [])[0]);
   if(!entry) return [];
   return candidatiArtDiCarta(entry);
 }
@@ -10918,6 +10929,10 @@ function _slotMazzoPieno(mazzo){
   art.className = 'deck-slot-art';
   const candidati = candidatiArtDelMazzo(mazzo);
   if(candidati.length) impostaSfondoDaCandidati(art, candidati);
+  // Si segna subito quale carta ha prestato l'illustrazione, cosi' il pannello
+  // sa gia' di essere in pari e non fa una dissolvenza a vuoto appena si apre
+  // (vedi aggiornaPannelloModifica).
+  el.dataset.primaCarta = String(((mazzoDaMostrare(mazzo)||{}).carte||[])[0] || '');
   const velo = document.createElement('div');
   velo.className = 'deck-slot-velo';
   const check = document.createElement('button');
@@ -11110,6 +11125,17 @@ function aggiornaPannelloModifica(){
   const p = slot.querySelector('.deck-edit');
   const nome = p.querySelector('.deck-edit-nome');
   if(document.activeElement !== nome) nome.value = m.nome || '';
+  // v0.75.92 — LO SFONDO SEGUE LA PRIMA CARTA, SUBITO. Questa funzione gira a
+  // ogni aggiunta, rimozione e riordino, quindi e' il punto in cui accorgersi
+  // che in cima e' arrivata un'altra carta.
+  // Si confronta con quella di prima invece di riscrivere sempre: rifare lo
+  // sfondo a ogni ritocco vorrebbe dire una dissolvenza a vuoto ogni volta che
+  // si tocca l'undicesima carta, che con la prima non c'entra niente.
+  const primaOra = String((m.carte||[])[0] || '');
+  if(slot.dataset.primaCarta !== primaOra){
+    slot.dataset.primaCarta = primaOra;
+    _sfondoInDissolvenza(slot.querySelector('.deck-slot-art'), candidatiArtDelMazzo(m));
+  }
   p.querySelector('.deck-edit-conta-num').textContent = m.carte.length + '/' + MAZZO_CARTE;
   // le righe delle carte
   const cont = p.querySelector('.deck-edit-carte');
