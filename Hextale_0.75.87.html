@@ -5903,9 +5903,9 @@ body.prova-senza-willchange #mm-book-rot{
      columns — that fixed size never depends on how many cards are
      currently visible, so filtering can never resize anything. */
   padding:0;
-  /* v0.71.76 ("scorrere la collezione anche con click-drag"): cursor hint
-     while idle — swapped to 'grabbing' during an active drag by
-     initCardDbDragScroll()'s own pointerdown/up handlers below. */
+  /* v0.75.87 — il cursore "afferrabile" resta, ma adesso vuol dire una cosa
+     sola: le carte si prendono per portarle in un mazzo. Lo scorrimento a
+     trascinamento non c'e' piu' (vedi initCardDbDragScroll). */
   cursor:var(--cursore-trascina);
   /* v0.71.77: hides the (still fully functional) native scrollbar — the
      outer #card-db-grid-viewport's own overflow:hidden already guarantees
@@ -6622,6 +6622,15 @@ body.prova-senza-willchange #mm-book-rot{
    cambia il numero di partenza: quel 500 e' giusto dov'e' per tutto il
    resto del gioco. */
 #drag-ghost.ghost-libreria{ z-index:4200; }
+/* v0.75.87 — cintura oltre alle bretelle del dragstart: si dichiara che qui
+   dentro non c'e' niente da trascinare col trascinamento del browser. La
+   regola JS basterebbe, ma questa spegne il gesto un istante prima — prima
+   ancora che l'evento nasca — ed e' quella che toglie anche il fantasma
+   semitrasparente che il browser disegna sotto al puntatore. */
+#card-db-grid, #card-db-grid *,
+.deck-edit-carte, .deck-edit-carte *{
+  -webkit-user-drag:none; user-drag:none;
+}
 /* ── il fantasma della carta gia' nel mazzo ────────────────────────────────
    Resta al suo posto nella libreria, spenta ma ancora cliccabile: da li' si
    apre lo stesso ingrandimento di sempre. Una carta che sparisce dalla
@@ -7792,7 +7801,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.86</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.87</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -11256,6 +11265,23 @@ let _tirCollegato = false;
 function collegaTrascinamentoMazzo(){
   if(_tirCollegato) return;
   _tirCollegato = true;
+  // ── v0.75.87 — IL VERO MOTIVO PER CUI LE CARTE NON PARTIVANO ─────────────
+  // Il browser ha un suo trascinamento, quello che serve a trascinare
+  // un'immagine fuori dalla pagina, e le immagini lo fanno partire da sole.
+  // Le carte della Collezione sono SVG pieni di <image>: premendo e muovendo,
+  // il browser decideva che stava cominciando QUEL trascinamento — e da quel
+  // momento smette di mandare pointermove e manda dragover. Il nostro
+  // trascinamento restava fermo al primo pixel, in attesa di movimenti che
+  // non arrivavano piu': da fuori, una carta che non si stacca.
+  // Non si fa preventDefault sul pointerdown, che sarebbe la mossa istintiva:
+  // quello spegnerebbe anche il clic, cioe' il modo in cui si apre una carta
+  // per leggerla. Si nega solo il trascinamento nativo, che in questo gioco
+  // non serve a niente, e solo dove nasce.
+  document.addEventListener('dragstart', (ev)=>{
+    const t = ev.target;
+    if(!t || !t.closest) return;
+    if(t.closest('#card-db-grid') || t.closest('.deck-edit-carte')) ev.preventDefault();
+  }, true);
   document.addEventListener('pointerdown', (ev)=>{
     if(!_mazzoInModifica || _tir) return;
     const riga = ev.target.closest && ev.target.closest('.deck-card-row');
@@ -15505,7 +15531,6 @@ function openCardDbOverlay(){
   collegaTrascinamentoMazzo();
   renderListaMazzi();
   cardDbRenderRoster();
-  initCardDbDragScroll();
   initCardDbFoilTilt();
 
   musicaMenuAvvia();
@@ -15698,11 +15723,10 @@ function cardDbRenderRoster(){
     // v0.74.2 — il click apre anche la carta a schermo intero, oltre a farla
     // parlare: in Collezione e' proprio la carta che si vuole guardare.
     slot.addEventListener('click', ()=>{ playCardVoiceLine(card); openCardModal(card, 0); });
-    // v0.71.96 FIX ("l'audio delle carte non si avvia nella collezione"):
-    // also stash the card directly on the element so initCardDbDragScroll's
-    // endDrag() can play the voice line manually when a plain click's native
-    // 'click' event gets mistargeted by grid.setPointerCapture() (see that
-    // function's own v0.71.96 comment for the full explanation).
+    // v0.75.87 — la carta resta appesa anche all'elemento. Serviva a rimediare
+    // al dirottamento dei clic causato dallo scorrimento a trascinamento, che
+    // non c'e' piu'; resta perche' e' il modo in cui si risale dalla casella
+    // alla carta senza cercarla nel roster (vedi il menu di debug).
     slot._cardDbCard = card;
     grid.appendChild(slot);
     // v0.75.1 — stessa ragione della mano: gli effetti si vedono anche a
@@ -16389,15 +16413,8 @@ function cardDbResetFilters(){
 let _cardDbDragScrollInit=false;
 // v0.71.77 REWORK ("il drag non si fermi appena si lascia il mouse, ma
 // voglio che continui ad andare rallentando piano piano"): tracks recent
-// pointer velocity throughout the drag (a short rolling window of
-// timestamped Y positions, so a quick flick right before release reads
-// correctly even if the drag had paused earlier), then on release keeps
-// scrolling in that direction via requestAnimationFrame, decaying the
-// velocity by CARD_DB_MOMENTUM_FRICTION every frame until it drops below a
-// negligible threshold — a standard momentum/inertia-scroll feel, same
-// idea as native touch-scroll physics.
-const CARD_DB_MOMENTUM_FRICTION = 0.95; // per-frame velocity decay (higher = slides further)
-const CARD_DB_MOMENTUM_MIN_V = 0.05;    // px/frame below which momentum stops
+// v0.75.87 — qui stavano i due numeri dell'inerzia dello scorrimento a
+// trascinamento. Se n'e' andato quello, se ne vanno anche loro.
 // v0.72.8 NEW: tilt prospettico + glare che seguono il puntatore, fase 1
 // dell'effetto "carta 3D"/foil (vedi il blocco CSS .card-db-foil-* per la
 // struttura DOM e il ragionamento sui livelli).
@@ -16411,15 +16428,13 @@ const CARD_DB_MOMENTUM_MIN_V = 0.05;    // px/frame below which momentum stops
 //     regola [data-foil-active], quindi esiste solo mentre serve davvero
 //     invece di tenere 82 layer di compositing permanentemente promossi.
 //
-// CONVIVENZA COL DRAG-SCROLL (initCardDbDragScroll, subito sotto): quello
-// usa grid.setPointerCapture() sul pointerdown, quindi mentre si trascina
-// per scrollare TUTTI i pointermove arrivano comunque qui. Inclinare le
-// carte durante uno scroll-drag sarebbe sbagliato (e il getBoundingClientRect
-// per carta sarebbe lavoro sprecato a ogni frame di scroll), quindi si tiene
-// un flag `pointerDown` locale e si esce subito. Non si può leggere il
-// `dragging` di initCardDbDragScroll perché è chiuso nel suo scope — di qui
-// il flag separato. Il listener è {passive:true} e non chiama mai
-// preventDefault, quindi non può interferire col drag.
+// COL PULSANTE PREMUTO NON SI INCLINA. Nasceva per non far traballare le
+// carte durante lo scorrimento a trascinamento; quello non c'e' piu'
+// (v0.75.87), ma la regola vale ancora e anzi vale di piu': adesso tenere
+// premuto e muoversi vuol dire portare una carta in un mazzo, e le carte
+// sotto al puntatore non devono mettersi a ballare mentre lo si fa. Il
+// listener e' {passive:true} e non chiama mai preventDefault, quindi non
+// puo' interferire col trascinamento.
 // v0.72.11 — spinta parallax per livello d'arte, in px al massimo
 // dell'inclinazione, indicizzata su data-parallax-depth (= indice del
 // livello: 0 bg, 1 layer2, 2 layer3/personaggio, 3 layer4/primo piano).
@@ -16995,113 +17010,19 @@ function initCardDbFoilTilt(){
   }, {passive:true});
   grid.addEventListener('pointerleave', clearActive);
 }
-function initCardDbDragScroll(){
-  if(_cardDbDragScrollInit) return;
-  _cardDbDragScrollInit=true;
-  const grid=document.getElementById('card-db-grid');
-  let dragging=false, startY=0, startScrollTop=0, moved=false;
-  let history=[]; // {t,y} samples from the last ~100ms, for release-velocity calc
-  let momentumRAF=null;
-
-  function stopMomentum(){
-    if(momentumRAF!=null){ cancelAnimationFrame(momentumRAF); momentumRAF=null; }
-  }
-
-  grid.addEventListener('pointerdown', (e)=>{
-    // Only the primary button/touch-point, and not on a checkbox or a card
-    // itself being clicked for some future purpose — plain background/card
-    // drag only, same as any other click-drag-to-scroll panel.
-    if(e.button!==0) return;
-    // ── v0.75.86 FIX — DUE GESTI SULLO STESSO PULSANTE DEL MOUSE ──────────
-    // Premere e trascinare qui ha sempre voluto dire "fai scorrere la
-    // griglia". Da quando si compongono i mazzi vuol dire anche "prendi
-    // questa carta e portala nel mazzo", e i due gesti partivano insieme: la
-    // carta si staccava e nello stesso istante la griglia scorreva sotto,
-    // portandosi via la carta appena presa. Peggio, questa riga chiamava
-    // setPointerCapture, che dirotta sul contenitore ogni evento successivo.
-    // Chi ha gia' preso il puntatore se lo tiene (vedi _tirInizia, che gira
-    // prima perche' ascolta in fase di cattura). Lo scorrimento non sparisce:
-    // premendo sullo SFONDO della griglia, dove non c'e' nessuna carta da
-    // prendere, si scorre come sempre — e la rotella non e' mai stata toccata.
-    if(_tir) return;
-    stopMomentum(); // grabbing again immediately cancels any still-decaying momentum
-    dragging=true; moved=false;
-    startY=e.clientY; startScrollTop=grid.scrollTop;
-    history=[{t:performance.now(), y:e.clientY}];
-    grid.setPointerCapture(e.pointerId);
-    grid.style.cursor = "url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, grabbing";
-  });
-  grid.addEventListener('pointermove', (e)=>{
-    if(!dragging) return;
-    const dy=e.clientY-startY;
-    if(Math.abs(dy)>3) moved=true;
-    grid.scrollTop = startScrollTop - dy;
-    const now=performance.now();
-    history.push({t:now, y:e.clientY});
-    // Keep only the last ~100ms of samples — recent motion is what should
-    // determine release velocity, not the drag's full history.
-    while(history.length>2 && now-history[0].t>100) history.shift();
-  });
-  const endDrag=(e)=>{
-    if(!dragging) return;
-    dragging=false;
-    grid.style.cursor = "url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, grab";
-    try{ grid.releasePointerCapture(e.pointerId); }catch(err){}
-    // v0.71.96 FIX ("l'audio delle carte non si avvia nella collezione"):
-    // grid.setPointerCapture() (see pointerdown above) redirects every
-    // subsequent pointer event — including the native 'click' the browser
-    // synthesizes right after pointerup — to the CAPTURING element (this
-    // grid), not whatever's actually under the cursor. That silently broke
-    // .card-db-card-slot's own 'click' listener (added in v0.71.92 to play a
-    // card's voice line): the click event still bubbled, but with a target
-    // outside the slot's own listener chain, so it was never seen — this was
-    // never a click-drag-to-scroll design intent, just an unnoticed side
-    // effect of capturing the pointer for EVERY press, including plain taps
-    // that never actually dragged. Fixed here: if the pointer never moved
-    // past the drag threshold (a genuine click, not a scroll-drag), manually
-    // find whatever card slot is under the release point and invoke its
-    // voice-line playback directly — restoring the exact behavior a normal,
-    // uncaptured click would have produced.
-    if(!moved){
-      const target=document.elementFromPoint(e.clientX,e.clientY);
-      const slotEl=target && target.closest('.card-db-card-slot:not(.card-db-card-slot-placeholder)');
-      if(slotEl && slotEl._cardDbCard){ playCardVoiceLine(slotEl._cardDbCard); openCardModal(slotEl._cardDbCard, 0); }
-    }
-    // Release velocity: displacement over time across the retained sample
-    // window, converted to an approximate px/frame figure (assuming ~60fps)
-    // so it decays in the same units the rAF loop below steps in.
-    let vy=0;
-    if(history.length>=2){
-      const first=history[0], last=history[history.length-1];
-      const dt=last.t-first.t;
-      if(dt>0) vy = ((last.y-first.y)/dt) * (1000/60); // px per ~16.7ms frame
-    }
-    if(Math.abs(vy)<CARD_DB_MOMENTUM_MIN_V) return;
-    // Momentum direction mirrors the drag itself: dragging the pointer DOWN
-    // moves content down as if pushed (scrollTop decreases), matching the
-    // live pointermove handler above (`scrollTop = startScrollTop - dy`).
-    let v=-vy;
-    const step=()=>{
-      grid.scrollTop += v;
-      v *= CARD_DB_MOMENTUM_FRICTION;
-      if(Math.abs(v)<CARD_DB_MOMENTUM_MIN_V){ momentumRAF=null; return; }
-      momentumRAF=requestAnimationFrame(step);
-    };
-    momentumRAF=requestAnimationFrame(step);
-  };
-  grid.addEventListener('pointerup', endDrag);
-  grid.addEventListener('pointercancel', endDrag);
-  grid.addEventListener('pointerleave', (e)=>{
-    // A pointerleave mid-drag should behave exactly like a release (not an
-    // abrupt stop with no momentum) — same handler, not just clearing the
-    // dragging flag.
-    if(dragging) endDrag(e);
-  });
-  // A fresh wheel/trackpad scroll or a new drag should immediately cancel
-  // any still-decaying momentum from a previous release, rather than the
-  // two motions fighting each other.
-  grid.addEventListener('wheel', stopMomentum, {passive:true});
-}
+// ── v0.75.87 — LO SCORRIMENTO A TRASCINAMENTO NON C'E' PIU' ───────────────
+// Qui vivevano sessanta righe che facevano scorrere la Collezione tenendo
+// premuto e muovendo il mouse, con tanto di inerzia al rilascio. Se ne vanno
+// per richiesta esplicita, e la ragione e' che nella Libreria quel gesto ha
+// smesso di essere libero: premere su una carta e muoversi adesso vuol dire
+// "portala nel mazzo", e due significati sullo stesso gesto non convivono —
+// uno dei due vince sempre, e non e' detto sia quello che serve.
+// Si scorre con la rotella, che non e' mai stata toccata.
+// Con lo scorrimento se ne va anche la sua compensazione: catturava il
+// puntatore a ogni pressione, e per questo doveva poi ritrovare a mano la
+// carta sotto al rilascio per farle dire la sua battuta. Senza cattura, il
+// clic arriva da solo dove deve (vedi il listener 'click' sullo slot).
+function initCardDbDragScroll(){ /* niente: vedi il commento qui sopra */ }
 // Jumps straight to the game-over screen in one of its 3 variants, without
 // having to actually play/win/draw a real match first — huge time-saver
 // for visually testing that screen's own faction-coded styling (see
