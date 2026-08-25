@@ -6382,6 +6382,21 @@ body.prova-senza-willchange #mm-book-rot{
   position:absolute; inset:0; z-index:0;
   background-size:cover; background-position:center 30%;
   border-radius:16px;
+  /* v0.75.91 — cambiando fra carte scure e chiare l'illustrazione si scambia
+     in dissolvenza invece di saltare (vedi _sfondoInDissolvenza). */
+  transition:opacity 0.22s ease;
+}
+/* v0.75.91 — una velatura verticale sopra all'illustrazione: trasparente in
+   cima, piena in fondo. Serve a far posare la riga sul suo fondo invece di
+   lasciarla tagliata di netto, e vale sia sulla riga chiusa sia sul
+   riquadro aperto, dove l'illustrazione finisce a un terzo dell'altezza.
+   Sta in uno pseudo-elemento perche' il fondo dell'illustrazione lo scrive il
+   JS su `background-image`: aggiungendo qui un secondo livello di sfondo, la
+   prima immagine che arriva lo cancellerebbe. */
+.deck-slot-art::after{
+  content:''; position:absolute; inset:0; border-radius:inherit;
+  background-image:linear-gradient(180deg, rgba(30,36,35,0) 0%, rgba(30,36,35,1) 100%);
+  pointer-events:none;
 }
 .deck-slot-velo{
   position:absolute; inset:0; z-index:1;
@@ -6550,7 +6565,7 @@ body.prova-senza-willchange #mm-book-rot{
 /* ── il contenitore delle carte del mazzo ─────────────────────────────────── */
 .deck-edit-carte{
   flex:1 1 auto; min-height:0;
-  display:flex; flex-direction:column; gap:12px;
+  display:flex; flex-direction:column; gap:10px;
   padding:12px;
   background:#1A1E1F;
   border:1.5px solid #404445; border-radius:16px;
@@ -6604,6 +6619,7 @@ body.prova-senza-willchange #mm-book-rot{
 .deck-card-row-art{
   position:absolute; inset:0; z-index:0;
   background-size:cover; background-position:center 30%;
+  transition:opacity 0.22s ease;
 }
 .deck-card-row-velo{
   position:absolute; inset:0; z-index:1;
@@ -7872,7 +7888,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.90</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.91</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -11143,8 +11159,48 @@ function _rigaCartaMazzo(entry){
   impostaImgDaCandidati(xImg, uiFileCandidati('close-icon.png'));
   x.appendChild(xImg);
   x.onclick = (ev)=>{ ev.stopPropagation(); togliCartaDalMazzo(entry.id); };
+  // v0.75.91 — cliccando la riga si apre la carta a tutto schermo, come
+  // cliccandola nella libreria: e' la stessa carta e la stessa domanda ("cosa
+  // fa, questa?"), e non c'e' motivo perche' la risposta arrivi da una parte
+  // sola. Dopo un trascinamento il clic non arriva qui (viene ingoiato, vedi
+  // _tirFine), quindi riordinare non apre niente.
+  r.onclick = ()=>{
+    try{
+      const carta = _makeCardDbCard(entry, _cardDbVariant);
+      playCardVoiceLine(carta);
+      openCardModal(carta, 0);
+    }catch(_){}
+  };
   r.append(art, velo, gemma, nome, x);
   return r;
+}
+// v0.75.91 — scambia il fondo di un elemento passando per il nulla, invece di
+// sostituirlo di colpo. Il tempo d'uscita e quello del CSS: si aspetta che la
+// dissolvenza in uscita sia finita, si mette l'immagine nuova e si rientra.
+// impostaSfondoDaCandidati prova gli indirizzi in ordine e scrive solo quello
+// che esiste davvero, quindi a schermo non compare mai un buco.
+const DISSOLVENZA_ART_MS = 220;
+function _sfondoInDissolvenza(el, candidati){
+  if(!el) return;
+  if(!candidati || !candidati.length){ el.style.backgroundImage = ''; return; }
+  el.style.opacity = '0';
+  setTimeout(()=>{
+    impostaSfondoDaCandidati(el, candidati);
+    el.style.opacity = '1';
+  }, DISSOLVENZA_ART_MS);
+}
+// Cambia le illustrazioni della colonna dei mazzi SENZA ricostruirla: le righe
+// restano quelle che sono, cambia solo cosa mostrano. E' quello che permette a
+// un mazzo aperto di restare aperto mentre si passa da scure a chiare.
+function aggiornaArtiMazzi(){
+  document.querySelectorAll('#deck-list .deck-slot-piena').forEach(slot=>{
+    const mazzo = MAZZI.find(m=>m.id===slot.dataset.mazzo);
+    if(mazzo) _sfondoInDissolvenza(slot.querySelector('.deck-slot-art'), candidatiArtDelMazzo(mazzo));
+  });
+  document.querySelectorAll('.deck-card-row').forEach(riga=>{
+    const entry = entryDaId(riga.dataset.carta);
+    if(entry) _sfondoInDissolvenza(riga.querySelector('.deck-card-row-art'), candidatiArtDiCarta(entry));
+  });
 }
 // ── le tre azioni sul mazzo aperto ────────────────────────────────────────
 // IL LIMITE E' QUI E IN NESSUN ALTRO POSTO. Chi vuole aggiungere una carta
@@ -16117,9 +16173,22 @@ function aggiornaSelettoreVariante(){
   const iconaEl = document.getElementById('card-db-toggle-variant-icon');
   if(iconaEl) impostaImgDaCandidati(iconaEl, uiFileCandidati(scura ? 'color-dark.png' : 'color-light.png'));
   // Le righe dei mazzi mostrano l'illustrazione della loro prima carta nella
-  // variante che si sta guardando: cambiando variante vanno ridisegnate, o
+  // variante che si sta guardando: cambiando variante vanno aggiornate, o
   // resterebbero l'unica cosa in pagina rimasta all'altro colore.
-  try { renderListaMazzi(); } catch(_){}
+  // v0.75.91 — MA NON RICOSTRUENDO LA COLONNA. Rifarla chiudeva e riapriva il
+  // mazzo aperto a ogni cambio di colore: il pannello spariva e tornava, e per
+  // un istante si vedeva la riga richiudersi. Un cambio di colore non e' una
+  // ragione per interrompere quello che si stava facendo. Si cambiano quindi
+  // solo le illustrazioni, in dissolvenza, e la struttura resta dov'e'.
+  try {
+    if(_mazzoInModifica){
+      aggiornaArtiMazzi();
+      // La griglia si e' appena ricostruita: i suoi fantasmi vanno rimessi.
+      aggiornaFantasmiCollezione();
+    } else {
+      renderListaMazzi();
+    }
+  } catch(_){}
 }
 // Toggle button (v0.71.76 REWORK): flips every card in the grid (a brief
 // rotateY through 90°, same .card-flip technique the real conquest
