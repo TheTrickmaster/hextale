@@ -7911,7 +7911,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.94</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.95</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -10525,12 +10525,56 @@ function menuFileCandidati(nome){
                     'https://thetrickmaster.github.io/hextale/main-menu/' + nome);
 }
 // Mette sull'<img> il primo indirizzo che esiste davvero.
+// ═══════════════════════════════════════════════════════════════════════════
+// v0.75.95 — QUANDO UN ASSET NON SI TROVA, LO SI DEVE SAPERE SUBITO
+// ═══════════════════════════════════════════════════════════════════════════
+// Un'immagine che manca non rompe niente: la pagina si apre lo stesso, solo
+// nuda. E' il modo peggiore di sbagliare — nessun errore, nessuna riga rossa,
+// e ci si accorge del guasto solo guardando lo schermo. Peggio ancora se il
+// guasto c'e' solo per gli ALTRI: chi ha i file sul proprio disco non lo vede
+// mai, perche' li' i due indirizzi provati sono due e uno funziona sempre.
+//
+// Da qui in poi ogni mancanza finisce in un elenco unico, e mezzo secondo dopo
+// l'ultima si stampa UN SOLO messaggio con dentro tutto. Un avviso per file
+// sarebbe cinquanta righe che scorrono via; uno solo, in fondo, si legge.
+//
+// LA DIAGNOSI PIU' PROBABILE E' SCRITTA DENTRO. Chi cura questo gioco lavora
+// su Windows, dove il disco NON distingue le maiuscole, e pubblica su GitHub
+// Pages, dove le distingue: una cartella chiamata "ui" nel repository e
+// scritta "UI" nel codice funziona in locale e sparisce online. E' successo
+// davvero (v0.75.95), e quando succedera' di nuovo questo messaggio lo dira'
+// invece di lasciarlo indovinare.
+let _assetMancanti = [];
+let _assetMancantiTimer = null;
+function segnalaAssetMancante(candidati){
+  _assetMancanti.push(Array.isArray(candidati) ? candidati.join(' | ') : String(candidati));
+  if(_assetMancantiTimer !== null) clearTimeout(_assetMancantiTimer);
+  _assetMancantiTimer = setTimeout(()=>{
+    _assetMancantiTimer = null;
+    const elenco = _assetMancanti.slice();
+    _assetMancanti = [];
+    // Le cartelle citate, che sono quasi sempre il vero indiziato.
+    const cartelle = new Set();
+    for(const riga of elenco){
+      for(const url of riga.split(' | ')){
+        const m = /(?:hextale\/)?([A-Za-z0-9_.-]+)\/[^\/]+$/.exec(url.trim());
+        if(m) cartelle.add(m[1]);
+      }
+    }
+    console.error('[asset] ' + elenco.length + ' file non trovati. La pagina si apre lo stesso, ma incompleta.\n'
+      + 'CARTELLE COINVOLTE: ' + [...cartelle].join(', ') + '\n'
+      + 'CAUSA PIU\' FREQUENTE: le MAIUSCOLE. Windows non le distingue, GitHub Pages si\':\n'
+      + 'una cartella registrata in git come "ui" e scritta "UI" nel codice funziona in\n'
+      + 'locale e non esiste online. Si verifica con: git ls-files | grep -i <cartella>\n'
+      + 'ELENCO COMPLETO:\n  ' + elenco.join('\n  '));
+  }, 500);
+}
 function impostaImgDaCandidati(el, candidati){
   if(!el) return;
   let i = 0;
   const prova = ()=>{
     if(i >= candidati.length){
-      console.warn('[menu] immagine non trovata: ' + candidati.join(' | '));
+      segnalaAssetMancante(candidati);
       return;
     }
     const url = candidati[i++];
@@ -10743,8 +10787,17 @@ function montaSfondoCollezione(){
 // da una funzione e non si scrive a mano: aprendo il file in locale va provata
 // prima la copia accanto al file e poi quella sul repository, e questa e'
 // l'unica riga che lo sa (vedi _candidati).
-const UI_BASE = 'https://thetrickmaster.github.io/hextale/UI/';
-function uiFileCandidati(nome){ return _candidati('UI/' + nome, UI_BASE + nome); }
+// ── v0.75.95 — LA CARTELLA SI CHIAMA "ui", MINUSCOLA ──────────────────────
+// Qui c'era scritto "UI". Su Windows funzionava — il disco non distingue le
+// maiuscole e serviva "ui/" a chi chiedeva "UI/" — ma GitHub Pages le
+// distingue, quindi dal sito ogni file di questa cartella era un 404: titolo,
+// pulsanti, caselle dei mazzi, trama della colonna. Il gioco si apriva nudo, e
+// solo per chi non lo aveva sul proprio disco.
+// La grafia giusta e' quella che sta NEL REPOSITORY, non quella che si legge
+// in Esplora risorse: git ha registrato "ui" e la tiene cosi' anche se la
+// cartella locale si mostra maiuscola.
+const UI_BASE = 'https://thetrickmaster.github.io/hextale/ui/';
+function uiFileCandidati(nome){ return _candidati('ui/' + nome, UI_BASE + nome); }
 
 // I fondi si montano da JS e non dal CSS per la stessa ragione dello sfondo
 // della Collezione: scritti nel foglio di stile si vedrebbero solo dopo aver
@@ -10792,7 +10845,7 @@ function impostaVariabileDaCandidati(el, nomeVar, candidati){
   let i = 0;
   const prova = ()=>{
     if(i >= candidati.length){
-      console.warn('[UI] immagine non trovata: ' + candidati.join(' | '));
+      segnalaAssetMancante(candidati);
       return;
     }
     const url = candidati[i++];
@@ -14548,7 +14601,7 @@ function impostaSfondoDaCandidati(el, candidati){
   let i = 0;
   const prova = ()=>{
     if(i >= candidati.length){
-      console.warn('[bustine] immagine non trovata: ' + candidati.join(' | '));
+      segnalaAssetMancante(candidati);
       return;
     }
     const url = candidati[i++];
