@@ -6465,9 +6465,17 @@ body.prova-senza-willchange #mm-book-rot{
    allineato con il primo.
    L'altezza di arrivo la mette il JS in pixel: da 70px a "100%" non si
    interpola, e la crescita sarebbe uno scatto. */
-.deck-slot{ transition:height 0.32s ease, opacity 0.24s ease, margin-bottom 0.32s ease; }
+/* v0.75.85 FIX — SI ANIMA `flex-basis`, NON `height`.
+   La riga non si apriva, e la colpa era di una riga piu' su: .deck-slot ha
+   `flex:0 0 70px`, cioe' flex-basis 70px. In una colonna flex e' la
+   flex-basis a decidere l'altezza, e `height` scritta a mano non la scavalca:
+   il riquadro restava di settanta pixel col contenuto schiacciato dentro, che
+   e' esattamente cio' che si vedeva.
+   Si scrivono quindi tutte e due — flex-basis per il calcolo, height perche'
+   il riquadro sappia contenere — e la transizione le segue entrambe. */
+.deck-slot{ transition:flex-basis 0.32s ease, height 0.32s ease, opacity 0.24s ease, margin-bottom 0.32s ease; }
 .deck-slot.deck-slot-svanita{
-  height:0 !important; margin-bottom:0 !important;
+  flex-basis:0 !important; height:0 !important; margin-bottom:0 !important;
   opacity:0; overflow:hidden; pointer-events:none;
 }
 .deck-slot-piena.in-modifica{
@@ -6604,6 +6612,16 @@ body.prova-senza-willchange #mm-book-rot{
 .deck-edit-save{ width:100%; }
 .deck-edit-save[aria-disabled="true"]{ opacity:0.4; }
 .deck-edit-save[aria-disabled="true"]:hover{ filter:none; }
+/* v0.75.85 FIX — LA CARTA TRASCINATA STAVA DIETRO ALLA PAGINA.
+   #drag-ghost vive a z-index 500, che in partita e' sopra a tutto; la
+   Libreria pero' e' un pannello a 4000, quindi il fantasma seguiva il
+   puntatore per davvero — la molla girava, il contenitore si accendeva — ma
+   nascosto sotto alla pagina. Da fuori si vedeva un contenitore che reagisce
+   a niente.
+   Si alza solo per la durata del trascinamento nella Libreria, e non si
+   cambia il numero di partenza: quel 500 e' giusto dov'e' per tutto il
+   resto del gioco. */
+#drag-ghost.ghost-libreria{ z-index:4200; }
 /* ── il fantasma della carta gia' nel mazzo ────────────────────────────────
    Resta al suo posto nella libreria, spenta ma ancora cliccabile: da li' si
    apre lo stesso ingrandimento di sempre. Una carta che sparisce dalla
@@ -7774,7 +7792,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.84</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.85</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -10931,6 +10949,7 @@ function apriModificaMazzo(id){
     if(altro !== slot) altro.classList.add('deck-slot-svanita');
   }
   slot.classList.add('in-modifica');
+  slot.style.flexBasis = altezza + 'px';   // e' questa a comandare, vedi il CSS
   slot.style.height = altezza + 'px';
   slot.style.marginBottom = '0';
   // Gli asset della barra e del pulsante vanno messi ora: il pannello nasce
@@ -11070,11 +11089,12 @@ function chiudiModificaMazzo(ridisegna){
   aggiornaFantasmiCollezione();
   if(!lista || !slot){ if(ridisegna) renderListaMazzi(); return; }
   slot.classList.remove('in-modifica');
+  slot.style.flexBasis = '70px';
   slot.style.height = '70px';
   slot.style.marginBottom = '';
   for(const altro of lista.children) altro.classList.remove('deck-slot-svanita');
   setTimeout(()=>{
-    if(slot && slot.style) slot.style.height = '';
+    if(slot && slot.style){ slot.style.flexBasis = ''; slot.style.height = ''; }
     if(ridisegna) renderListaMazzi();
   }, MAZZO_CHIUSURA_MS);
 }
@@ -11128,7 +11148,10 @@ function _tirPasso(){
 }
 function _tirAvvia(ev){
   const ghost = document.getElementById('drag-ghost');
-  if(!ghost) return;
+  // Senza il fantasma non c'e' niente da trascinare: si smette del tutto,
+  // invece di restare in un mezzo trascinamento che riprova a partire a ogni
+  // movimento del puntatore e non parte mai.
+  if(!ghost){ _tirFine(ev); return; }
   _tir.attivo = true;
   const r = _tir.origine.getBoundingClientRect();
   const scala = (_fit && _fit.scale) || 1;
@@ -11136,13 +11159,27 @@ function _tirAvvia(ev){
   ghost.style.width  = (r.width/scala)+'px';
   ghost.style.height = (r.height/scala)+'px';
   ghost.style.display = 'block';
+  ghost.classList.add('ghost-libreria');   // sopra al pannello, vedi il CSS
   const svg = _tir.origine.querySelector('svg');
   if(svg){
+    // L'inclinazione la mette cardFoilApply, ma solo se trova un
+    // `.card-db-foil-tilt` dentro all'ospite: e' quello l'elemento che porta
+    // le due rotazioni. Il ghost del gioco ce l'ha perche' glielo costruisce
+    // la sua struttura foil; qui si sta clonando una casella della griglia, e
+    // senza questo involucro la carta seguirebbe il puntatore restando
+    // perfettamente piatta.
+    const tilt = document.createElement('div');
+    tilt.className = 'card-db-foil-tilt';
+    tilt.style.cssText = 'position:absolute;inset:0;';
     const copia = svg.cloneNode(true);
     copia.removeAttribute('id');
     copia.style.cssText = 'position:absolute;inset:0;display:block;width:100%;height:100%;';
-    ghost.appendChild(copia);
+    tilt.appendChild(copia);
+    ghost.appendChild(tilt);
   }
+  // La stessa ampiezza del trascinamento in partita: venti gradi, non i dieci
+  // di riposo della Collezione.
+  ghost.style.setProperty('--tilt-ampiezza', '20deg');
   // Si parte da dove sta la carta e si rincorre il puntatore: e' la molla a
   // colmare la distanza, come in partita.
   const p = _tirPosizioneAutoriale(ev);
@@ -11163,8 +11200,10 @@ function _tirFine(ev){
   if(_tir){
     if(_tir.raf !== null){ cancelAnimationFrame(_tir.raf); _tir.raf = null; }
     if(_tir.attivo && ghost){
-      ghost.innerHTML = ''; ghost.style.display = 'none';
       try{ cardFoilApply(ghost, 0, 0, 0.5, 0.5); }catch(_){}
+      ghost.innerHTML = ''; ghost.style.display = 'none';
+      ghost.classList.remove('ghost-libreria');
+      ghost.style.removeProperty('--tilt-ampiezza');
     }
     if(_tir.attivo){
       if(_tir.verso === 'dentro' && dentro) aggiungiCartaAlMazzo(_tir.entryId);
