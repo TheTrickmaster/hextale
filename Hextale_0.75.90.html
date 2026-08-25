@@ -6580,6 +6580,27 @@ body.prova-senza-willchange #mm-book-rot{
   box-shadow:0 0 12px rgba(160,173,175,0.55), inset 0 0 0 1px rgba(255,231,178,0.45);
   filter:brightness(1.12);
 }
+/* ── v0.75.90 — RIORDINARE LE CARTE DEL MAZZO ──────────────────────────────
+   La riga che si sta spostando esce dal flusso: se restasse al suo posto,
+   ci sarebbero due copie della stessa carta a schermo — quella sotto al
+   puntatore e quella nell'elenco — e non si capirebbe quale delle due conta.
+   Al suo posto si muove un BUCO, che e' la risposta alla domanda "se la
+   lascio adesso, dove finisce?". Non e' un segnaposto decorativo: e'
+   letteralmente la casella in cui la carta atterrera'. */
+.deck-card-row.deck-card-row-presa{ display:none; }
+.deck-card-gap{
+  flex:0 0 50px; height:50px; border-radius:8px;
+  border:1.5px dashed rgba(255,231,178,0.45);
+  background:rgba(255,231,178,0.06);
+  pointer-events:none;
+}
+/* Le righe scorrono verso la loro posizione nuova invece di saltarci.
+   L'animazione la guida il JS con la tecnica FLIP (misura, sposta, riporta
+   indietro, lascia andare): un cambio d'ordine nel DOM non e' una cosa che il
+   CSS da solo possa animare, perche' fra un fotogramma e l'altro l'elemento
+   e' semplicemente altrove. */
+.deck-card-row{ transition:box-shadow 0.18s ease, filter 0.18s ease, transform 0.18s ease; }
+.deck-card-row.senza-scivolo{ transition:none; }
 .deck-card-row-art{
   position:absolute; inset:0; z-index:0;
   background-size:cover; background-position:center 30%;
@@ -7851,7 +7872,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.89</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.90</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -11247,26 +11268,47 @@ function _tirAvvia(ev){
   ghost.style.width  = (r.width/scala)+'px';
   ghost.style.height = (r.height/scala)+'px';
   ghost.style.display = 'block';
+  // L'inclinazione la mette cardFoilApply, ma solo se trova un
+  // `.card-db-foil-tilt` dentro all'ospite: e' quello l'elemento che porta le
+  // due rotazioni. Il ghost del gioco ce l'ha perche' glielo costruisce la sua
+  // struttura foil; qui si sta clonando qualcosa d'altro, e senza questo
+  // involucro seguirebbe il puntatore restando perfettamente piatto.
+  const tilt = document.createElement('div');
+  tilt.className = 'card-db-foil-tilt';
+  tilt.style.cssText = 'position:absolute;inset:0;';
   const svg = _tir.origine.querySelector('svg');
   if(svg){
-    // L'inclinazione la mette cardFoilApply, ma solo se trova un
-    // `.card-db-foil-tilt` dentro all'ospite: e' quello l'elemento che porta
-    // le due rotazioni. Il ghost del gioco ce l'ha perche' glielo costruisce
-    // la sua struttura foil; qui si sta clonando una casella della griglia, e
-    // senza questo involucro la carta seguirebbe il puntatore restando
-    // perfettamente piatta.
-    const tilt = document.createElement('div');
-    tilt.className = 'card-db-foil-tilt';
-    tilt.style.cssText = 'position:absolute;inset:0;';
+    // Una carta della griglia: si porta dietro solo il suo disegno.
     const copia = svg.cloneNode(true);
     copia.removeAttribute('id');
     copia.style.cssText = 'position:absolute;inset:0;display:block;width:100%;height:100%;';
     tilt.appendChild(copia);
-    ghost.appendChild(tilt);
+  } else {
+    // v0.75.90 — una riga del mazzo: si porta dietro tutta se stessa, perche'
+    // li' il disegno non e' un'immagine sola ma illustrazione, velatura,
+    // gemma, nome e crocetta insieme. Si clona PRIMA di nasconderla, o la
+    // copia nascerebbe gia' invisibile.
+    const copia = _tir.origine.cloneNode(true);
+    copia.classList.remove('deck-card-row-presa');
+    copia.style.cssText = 'position:absolute;inset:0;margin:0;';
+    tilt.appendChild(copia);
   }
+  ghost.appendChild(tilt);
   // La stessa ampiezza del trascinamento in partita: venti gradi, non i dieci
   // di riposo della Collezione.
   ghost.style.setProperty('--tilt-ampiezza', '20deg');
+  // v0.75.90 — se si e' presa una riga del mazzo, da questo momento nell'elenco
+  // c'e' un buco al suo posto: la riga esce dal flusso (e' gia' sotto al
+  // puntatore, tenerne due copie confonderebbe e basta) e il buco prende a
+  // muoversi seguendo il puntatore.
+  if(_tir.verso === 'fuori'){
+    const cont = _tir.origine.parentNode;
+    const righe = [...cont.children].filter(x=>x.classList.contains('deck-card-row'));
+    const buco = _cartaBucoCrea();
+    _tir.riordino = { contenitore:cont, buco, origine:_tir.origine, indice:righe.indexOf(_tir.origine) };
+    cont.insertBefore(buco, _tir.origine);
+    _tir.origine.classList.add('deck-card-row-presa');
+  }
   // Si parte da dove sta la carta e si rincorre il puntatore: e' la molla a
   // colmare la distanza, come in partita.
   const p = _tirPosizioneAutoriale(ev);
@@ -11280,6 +11322,89 @@ function _tirAvvia(ev){
 function _tirContenitoreSotto(ev){
   const el = document.elementFromPoint(ev.clientX, ev.clientY);
   return el ? el.closest('.deck-edit-carte') : null;
+}
+// ═══════════════════════════════════════════════════════════════════════════
+// v0.75.90 — IL RIORDINO: IL BUCO CHE SI SPOSTA
+// ═══════════════════════════════════════════════════════════════════════════
+// Chi decide dove finisce la carta e' il BUCO, non il puntatore: si sposta
+// mentre ci si muove, e al rilascio la carta prende il posto che il buco
+// occupa in quel momento. E' una differenza che conta — cosi' l'anteprima e il
+// risultato non possono discordare, perche' sono la stessa cosa.
+function _cartaBucoCrea(){
+  const b = document.createElement('div');
+  b.className = 'deck-card-gap';
+  return b;
+}
+// Fra quali due righe sta il puntatore? Si guarda la META' di ogni riga: sopra
+// la meta' si va prima, sotto si va dopo. Usare il bordo superiore darebbe una
+// zona morta di mezza riga in cui niente si muove.
+function _cartaIndiceSotto(cont, clientY){
+  const righe = [...cont.children].filter(x =>
+    x.classList.contains('deck-card-row') && !x.classList.contains('deck-card-row-presa'));
+  for(let i=0;i<righe.length;i++){
+    const r = righe[i].getBoundingClientRect();
+    if(clientY < r.top + r.height/2) return i;
+  }
+  return righe.length;
+}
+// Sposta il buco all'indice chiesto, facendo SCIVOLARE le righe invece di
+// farle saltare. La tecnica e' quella nota come FLIP: si misura dov'erano
+// (First), si sposta il nodo (Last), si rimettono dove stavano con una
+// traslazione (Invert) e le si lascia andare (Play). Serve perche' un cambio
+// d'ordine nel DOM non e' animabile dal CSS: fra un fotogramma e l'altro
+// l'elemento e' semplicemente altrove.
+function _cartaBucoSposta(cont, buco, indice){
+  const righe = [...cont.children].filter(x =>
+    x.classList.contains('deck-card-row') && !x.classList.contains('deck-card-row-presa'));
+  const prima = new Map();
+  try{ for(const r of righe) prima.set(r, r.getBoundingClientRect().top); }catch(_){}
+  const riferimento = righe[indice] || null;
+  if(riferimento) cont.insertBefore(buco, riferimento); else cont.appendChild(buco);
+  try{
+    for(const r of righe){
+      const dy = prima.get(r) - r.getBoundingClientRect().top;
+      if(!dy) continue;
+      r.classList.add('senza-scivolo');
+      r.style.transform = 'translateY('+dy+'px)';
+      requestAnimationFrame(()=>{
+        r.classList.remove('senza-scivolo');
+        r.style.transform = '';
+      });
+    }
+  }catch(_){}
+}
+function _riordinoAggiorna(ev){
+  const rio = _tir && _tir.riordino;
+  if(!rio) return;
+  const cont = _tirContenitoreSotto(ev);
+  if(!cont || cont !== rio.contenitore){
+    // Fuori dal contenitore il buco si chiude: si sta portando la carta via,
+    // non a un'altra riga, e un buco aperto prometterebbe il contrario.
+    if(rio.buco.parentNode) rio.buco.remove();
+    rio.indice = -1;
+    return;
+  }
+  const i = _cartaIndiceSotto(cont, ev.clientY);
+  if(rio.indice === i && rio.buco.parentNode) return;
+  rio.indice = i;
+  _cartaBucoSposta(cont, rio.buco, i);
+}
+function _riordinoChiudi(applica){
+  const rio = _tir && _tir.riordino;
+  if(!rio) return false;
+  if(rio.buco.parentNode) rio.buco.remove();
+  if(rio.origine) rio.origine.classList.remove('deck-card-row-presa');
+  const m = _mazzoInModifica;
+  if(!applica || !m || rio.indice < 0) return false;
+  const da = m.carte.indexOf(String(_tir.entryId));
+  if(da < 0) return false;
+  m.carte.splice(da, 1);
+  // L'indice del buco e' contato fra le righe RIMASTE, cioe' senza quella che
+  // si sta spostando: e' gia' l'indice giusto nell'elenco a cui la si
+  // reinserisce, e non va corretto.
+  m.carte.splice(Math.min(rio.indice, m.carte.length), 0, String(_tir.entryId));
+  aggiornaPannelloModifica();
+  return true;
 }
 function _tirFine(ev){
   const ghost = document.getElementById('library-drag-ghost');
@@ -11301,9 +11426,13 @@ function _tirFine(ev){
       document.addEventListener('click', ingoia, true);
       setTimeout(()=>document.removeEventListener('click', ingoia, true), 0);
       if(_tir.verso === 'dentro' && dentro) aggiungiCartaAlMazzo(_tir.entryId);
-      // Trascinata FUORI dal contenitore, la carta esce dal mazzo. Lasciata
-      // dentro, non succede niente: il gesto e' stato annullato a meta'.
-      if(_tir.verso === 'fuori' && !dentro) togliCartaDalMazzo(_tir.entryId);
+      // v0.75.90 — una riga trascinata ha due destini, e a deciderlo e' dove
+      // la si lascia. Dentro al contenitore: si riordina, e la carta va dove
+      // sta il buco. Fuori: esce dal mazzo, come prima.
+      if(_tir.verso === 'fuori'){
+        if(dentro) _riordinoChiudi(true);
+        else { _riordinoChiudi(false); togliCartaDalMazzo(_tir.entryId); }
+      }
     }
     const cont = document.querySelector('.deck-edit-carte.bersaglio');
     if(cont) cont.classList.remove('bersaglio');
@@ -11323,8 +11452,12 @@ function _tirMuovi(ev){
   const p = _tirPosizioneAutoriale(ev);
   _tir.bersaglioX = p.x; _tir.bersaglioY = p.y;
   const cont = _tirContenitoreSotto(ev);
+  // Il bagliore del contenitore dice "qui dentro la carta ENTRA": ha senso solo
+  // quando la si sta portando dalla libreria. Riordinando e' gia' dentro, e a
+  // dire dove andra' e' il buco.
   document.querySelectorAll('.deck-edit-carte').forEach(c=>
-    c.classList.toggle('bersaglio', c === cont));
+    c.classList.toggle('bersaglio', _tir.verso === 'dentro' && c === cont));
+  if(_tir.verso === 'fuori') _riordinoAggiorna(ev);
 }
 function _tirInizia(ev, entryId, origine, verso){
   if(ev.button !== undefined && ev.button !== 0) return;
