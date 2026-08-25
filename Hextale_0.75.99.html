@@ -8156,7 +8156,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.98</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.99</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -11516,35 +11516,88 @@ function mediaLatiDelMazzo(mazzo){
   for(const s of DISTRIB_LATI) media[s] /= carte.length;
   return media;
 }
-function disegnaDistribuzione(ospite, mazzo){
-  if(!ospite) return;
+// v0.75.99 — il raggio a pieno potere passa da 46 a 56: dieci pixel piu' in
+// fuori sul vertice piu' alto, e in proporzione su tutti gli altri (il
+// riquadro e' 100 unita' disegnate a 100px, quindi un'unita' e' un pixel).
+// L'SVG lascia debordare: a pieno potere il vertice esce dall'esagono, ed e'
+// giusto che si veda invece di essere tagliato di netto.
+const DISTRIB_R = 56;
+const DISTRIB_C = 50;
+// I sei vertici stanno dove stanno i sei lati dell'esagono della carta: NW in
+// alto a sinistra e poi in senso orario. Gli angoli sono quelli, non una
+// ripartizione qualsiasi del cerchio — o il grafico direbbe la verita' su
+// numeri sbagliati.
+const DISTRIB_ANGOLI = { NW:-120, NE:-60, E:0, SE:60, SW:120, W:180 };
+// ── v0.75.99 — IL GRAFICO SI MUOVE ────────────────────────────────────────
+// Cambiava di scatto a ogni carta aggiunta o tolta, e da fuori sembrava un
+// disegno diverso invece dello stesso disegno che si sposta: con lo scatto
+// non si vede QUALE lato e' cresciuto, si vede solo che adesso e' un'altra
+// forma.
+// L'animazione la fa il JS un fotogramma alla volta e non una transizione
+// CSS: `points` di un poligono non e' una proprieta' che il CSS sappia
+// interpolare, e i sei pallini andrebbero comunque mossi a parte. Interpolando
+// i sei RAGGI — che sono i numeri veri — poligono e pallini restano d'accordo
+// per costruzione.
+const DISTRIB_ANIM_MS = 380;
+function _distribQuote(mazzo){
   const media = mediaLatiDelMazzo(mazzo);
   const massimo = _massimoLatoDelGioco();
-  const R = 46;            // il raggio a cui il vertice tocca il bordo
-  const C = 50;            // il centro, in un riquadro 100x100
-  // I sei vertici stanno dove stanno i sei lati dell'esagono della carta: NW
-  // in alto a sinistra e poi in senso orario. Gli angoli sono quelli, non una
-  // ripartizione qualsiasi del cerchio — o il grafico direbbe la verita' su
-  // numeri sbagliati.
-  const angoli = { NW:-120, NE:-60, E:0, SE:60, SW:120, W:180 };
-  const punti = DISTRIB_LATI.map(s=>{
-    const quota = Math.max(0.04, Math.min(1, (media[s]||0) / massimo));
-    const a = angoli[s] * Math.PI / 180;
-    return [C + Math.cos(a)*R*quota, C + Math.sin(a)*R*quota];
+  return DISTRIB_LATI.map(s => Math.max(0.04, Math.min(1, (media[s]||0) / massimo)));
+}
+function _distribPunti(quote){
+  return DISTRIB_LATI.map((s,i)=>{
+    const a = DISTRIB_ANGOLI[s] * Math.PI / 180;
+    return [DISTRIB_C + Math.cos(a)*DISTRIB_R*quote[i],
+            DISTRIB_C + Math.sin(a)*DISTRIB_R*quote[i]];
   });
-  const poly = punti.map(p=>p[0].toFixed(2)+','+p[1].toFixed(2)).join(' ');
-  const pallini = punti.map(p=>
-    '<circle cx="'+p[0].toFixed(2)+'" cy="'+p[1].toFixed(2)+'" r="1.5" fill="#FFFFFF"/>').join('');
+}
+function _distribCostruisci(ospite){
   ospite.innerHTML =
-    '<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">'
+    '<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" style="overflow:visible">'
     + '<defs><radialGradient id="hxDistribFill" cx="50%" cy="50%" r="50%">'
     +   '<stop offset="0%" stop-color="#24292A" stop-opacity="0"/>'
     +   '<stop offset="100%" stop-color="#A1DAE4" stop-opacity="1"/>'
     + '</radialGradient></defs>'
-    + '<polygon points="'+poly+'" fill="url(#hxDistribFill)" '
-    +   'stroke="rgba(255,255,255,0.6)" stroke-width="1.5" stroke-linejoin="round"/>'
-    + pallini
+    + '<polygon fill="url(#hxDistribFill)" stroke="rgba(255,255,255,0.6)" '
+    +   'stroke-width="1.5" stroke-linejoin="round"/>'
+    + DISTRIB_LATI.map(()=>'<circle r="1.5" fill="#FFFFFF"/>').join('')
     + '</svg>';
+  ospite._poly = ospite.querySelector('polygon');
+  ospite._dots = [...ospite.querySelectorAll('circle')];
+}
+function _distribScrivi(ospite, quote){
+  const punti = _distribPunti(quote);
+  ospite._poly.setAttribute('points', punti.map(p=>p[0].toFixed(2)+','+p[1].toFixed(2)).join(' '));
+  punti.forEach((p,i)=>{
+    ospite._dots[i].setAttribute('cx', p[0].toFixed(2));
+    ospite._dots[i].setAttribute('cy', p[1].toFixed(2));
+  });
+}
+function disegnaDistribuzione(ospite, mazzo){
+  if(!ospite) return;
+  if(!ospite._poly) _distribCostruisci(ospite);
+  const arrivo = _distribQuote(mazzo);
+  // Un mazzo appena aperto parte da zero e si apre: e' il modo piu' onesto di
+  // dire "questo e' il tuo mazzo" invece di trovarselo gia' li'.
+  const partenza = ospite._quote || arrivo.map(()=>0);
+  if(ospite._raf){ cancelAnimationFrame(ospite._raf); ospite._raf = null; }
+  const t0 = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+  const passo = ()=>{
+    const ora = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+    const t = Math.min(1, (ora - t0) / DISTRIB_ANIM_MS);
+    // Parte deciso e arriva piano: un grafico che rallenta in fondo si legge
+    // meglio di uno che si ferma di colpo.
+    const e = 1 - Math.pow(1 - t, 3);
+    // Si segna a ogni fotogramma DOVE SI TROVA davvero, non solo dove
+    // arrivera': se nel frattempo si aggiunge un'altra carta, la nuova
+    // animazione riparte da qui invece di saltare indietro al punto in cui
+    // era cominciata la precedente.
+    ospite._quote = partenza.map((p,i)=> p + (arrivo[i]-p)*e);
+    _distribScrivi(ospite, ospite._quote);
+    if(t < 1){ ospite._raf = requestAnimationFrame(passo); }
+    else { ospite._raf = null; ospite._quote = arrivo; }
+  };
+  passo();
 }
 function apriModificaMazzo(id){
   const vero = mazzoPerId(id);
