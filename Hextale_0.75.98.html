@@ -5844,6 +5844,11 @@ body.prova-senza-willchange #mm-book-rot{
   color:#DDCAA1; white-space:nowrap;
   transition:filter 0.16s ease;
 }
+/* v0.75.98 — l'etichetta ha una larghezza fissa e il testo appoggiato a
+   destra, contro l'icona. "Dark" e "Light" sono lunghe diverso: lasciandole
+   libere, l'icona faceva un saltino a ogni cambio — e un elemento che si
+   sposta da solo attira l'occhio proprio quando non dovrebbe. */
+#card-db-toggle-variant-label{ display:inline-block; width:50px; text-align:right; }
 .hx-variant-toggle img{ display:block; width:27px; height:27px; }
 .hx-variant-toggle:hover{ filter:brightness(1.2); }
 .hx-variant-toggle:active{ transform:scale(0.97); }
@@ -6749,10 +6754,19 @@ body.prova-senza-willchange #mm-book-rot{
   font-family:'Marcellus',var(--font-display),serif;
   font-size:22px; color:#D4CBB9; text-shadow:0 0 4px rgba(0,0,0,1);
 }
-/* ── il contenitore delle carte del mazzo ─────────────────────────────────── */
+/* ── il contenitore delle carte del mazzo ───────────────────────────────────
+   v0.75.98 — ALTEZZA ESATTA, NON "QUELLO CHE AVANZA". Il numero e' 595px,
+   quello chiesto. Per la cronaca, dodici righe da 42 piu' undici spazi da 5,
+   24 di margine e 3 di bordo fanno 586: i nove pixel di scarto restano come
+   aria in fondo al riquadro, dove non danno fastidio a nessuno — meglio un
+   filo di respiro che dodici righe che sfiorano il bordo.
+   Scritta cosi' e non come `flex:1`, il riquadro e' alto quanto il
+   mazzo pieno anche quando e' vuoto — cioe' non cambia misura mentre lo si
+   riempie — e lo spazio che resta sotto e' quello, prevedibile, in cui stanno
+   il contatore, la capacita' e il grafico. */
 .deck-edit-carte{
-  flex:1 1 auto; min-height:0;
-  display:flex; flex-direction:column; gap:10px;
+  flex:0 0 595px; height:595px;
+  display:flex; flex-direction:column; gap:5px;
   padding:12px;
   background:#1A1E1F;
   border:1.5px solid #404445; border-radius:16px;
@@ -6768,7 +6782,7 @@ body.prova-senza-willchange #mm-book-rot{
   box-shadow:0 0 18px rgba(255,231,178,0.45), inset 0 0 24px rgba(255,231,178,0.10);
 }
 .deck-card-row{
-  position:relative; flex:0 0 50px; height:50px;
+  position:relative; flex:0 0 42px; height:42px;
   display:flex; align-items:center;
   padding:0 16px; border-radius:8px;
   overflow:hidden;
@@ -6791,7 +6805,7 @@ body.prova-senza-willchange #mm-book-rot{
    letteralmente la casella in cui la carta atterrera'. */
 .deck-card-row.deck-card-row-presa{ display:none; }
 .deck-card-gap{
-  flex:0 0 50px; height:50px; border-radius:8px;
+  flex:0 0 42px; height:42px; border-radius:8px;
   border:1.5px dashed rgba(255,231,178,0.45);
   background:rgba(255,231,178,0.06);
   pointer-events:none;
@@ -6867,7 +6881,74 @@ body.prova-senza-willchange #mm-book-rot{
    Spento finche' il mazzo non e' valido: dodici carte esatte e capacita' non
    sforata. Non nascosto — spento e trasparente, cosi' si vede che esiste e si
    capisce che manca qualcosa, invece di chiedersi dove sia finito. */
+/* ── v0.75.98 — IL GRAFICO DELLA DISTRIBUZIONE DI POTENZA ──────────────────
+   Un esagono che mostra, lato per lato, la media dei valori delle carte del
+   mazzo. Dice una cosa che il totale di capacita' non dice: non QUANTO e'
+   forte il mazzo, ma DA CHE PARTE lo e'. Un mazzo tutto sbilanciato a
+   nord-ovest e uno equilibrato possono valere gli stessi 24 punti.
+   L'esagono deborda in altezza dal suo riquadro, di proposito: e' 100px
+   dentro a un contenitore da 76, e sporgere e' cio' che lo fa leggere come
+   una vetrina e non come una riga di modulo. */
+.deck-distrib{
+  position:relative;
+  height:76px; box-sizing:border-box;
+  display:flex; align-items:center;
+  padding:0 20px;
+  border-radius:16px;
+  background-image:linear-gradient(135deg, rgba(84,96,98,0.5) 0%, rgba(29,38,39,0.5) 100%);
+  border:1px solid #4E5455;
+}
+.deck-distrib-titolo{
+  font-family:'Marcellus',var(--font-display),serif;
+  font-size:20px; color:#D4CBB9; margin-right:auto;
+}
+/* Fuori dal flusso, cosi' la sua altezza maggiore non allarga il riquadro. */
+.deck-distrib-hex{
+  position:absolute; right:20px; top:50%;
+  width:100px; height:100px; transform:translateY(-50%);
+  background-size:contain; background-position:center; background-repeat:no-repeat;
+}
+.deck-distrib-hex svg{ position:absolute; inset:0; width:100%; height:100%; display:block; }
 .deck-edit-save{ width:100%; }
+
+/* ── v0.75.98 — LA CONFERMA PRIMA DI ELIMINARE UN MAZZO ────────────────────
+   Un mazzo si compone in qualche minuto e si cancella in un clic: fra le due
+   cose ci va una domanda. Riusa il fondale e il riquadro della finestra dei
+   filtri — e' la stessa famiglia di finestre, e non c'e' ragione perche' si
+   somiglino solo un po'. */
+#delete-overlay{
+  display:none; position:fixed; inset:0; z-index:4400;
+  align-items:center; justify-content:center;
+  background:rgba(3,7,7,0.7);
+  -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px);
+  cursor:var(--cursore);
+}
+#delete-overlay.show{ display:flex; }
+#delete-overlay *{ cursor:var(--cursore); }
+#delete-box{
+  position:relative;
+  width:650px; box-sizing:border-box;
+  display:flex; flex-direction:column; align-items:center;
+  padding:30px; border-radius:28px;
+  background-image:linear-gradient(135deg, rgba(84,96,98,0.5) 0%, rgba(29,38,39,0.5) 100%);
+  border:1.5px solid rgba(255,255,255,0.2);
+}
+#delete-box::before{
+  content:''; position:absolute; inset:0; border-radius:inherit;
+  background-image:var(--hx-trama, none);
+  background-size:cover; background-position:center;
+  opacity:0.4; mix-blend-mode:overlay;
+  pointer-events:none; z-index:0;
+}
+#delete-box > *{ position:relative; z-index:1; }
+#delete-testo{
+  margin:0; text-align:center;
+  font-family:'Marcellus',var(--font-display),serif;
+  font-size:30px; font-weight:400; line-height:1.25; color:#EDE0C6;
+}
+#delete-box .filters-riga{ width:300px; margin:26px 0; }
+#delete-azioni{ display:flex; gap:16px; width:100%; }
+#delete-azioni .hx-btn{ flex:1 1 0; min-width:0; }
 .deck-edit-save[aria-disabled="true"]{ opacity:0.4; }
 .deck-edit-save[aria-disabled="true"]:hover{ filter:none; }
 /* v0.75.85 FIX — LA CARTA TRASCINATA STAVA DIETRO ALLA PAGINA.
@@ -8075,7 +8156,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.97</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.98</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -8552,7 +8633,32 @@ body.prova-senza-willchange #mm-book-rot{
        elementi della partita, fantasma compreso. Cercarlo per id da qui
        restituiva null, e il trascinamento moriva sul nascere.
        Sta quindi dentro all'overlay della Libreria, che e' la sua pagina, e
-       viene montato e smontato insieme a lei. -->
+       viene montato e smontato insieme a lei.
+       v0.75.98 — ed era sparito: nel sostituire il blocco dei filtri (v0.75.96)
+       questa riga e' finita dentro al taglio, e il trascinamento delle carte
+       nei mazzi e' rimasto rotto per due versioni senza che niente lo dicesse.
+       Adesso lo dice: vedi controllaPezziLibreria. -->
+  <div id="library-drag-ghost"></div>
+  <!-- v0.75.98 — la conferma prima di eliminare un mazzo. Il rosso sta sul
+       pulsante che CANCELLA: in una finestra che si legge di fretta il colore
+       e' la prima cosa che si nota, e deve segnalare l'azione da cui non si
+       torna indietro. -->
+  <div id="delete-overlay" onclick="if(event.target===this) chiudiConfermaElimina()">
+    <div id="delete-box">
+      <p id="delete-testo"></p>
+      <div class="filters-riga"></div>
+      <div id="delete-azioni">
+        <button class="hx-btn hx-btn-warning" type="button" onclick="confermaEliminaMazzo()">
+          <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
+          <span class="hxb-label">Yes, delete</span>
+        </button>
+        <button class="hx-btn" type="button" onclick="chiudiConfermaElimina()">
+          <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
+          <span class="hxb-label">No, go back</span>
+        </button>
+      </div>
+    </div>
+  </div>
   <!-- ══════════════════════════════════════════════════════════════════════
        v0.75.96 — LA FINESTRA DEI FILTRI
        ══════════════════════════════════════════════════════════════════════
@@ -10937,6 +11043,30 @@ function uiFileCandidati(nome){ return _candidati('ui/' + nome, UI_BASE + nome);
 // pubblicato, e mai aprendo il file in locale.
 // Una volta sola: rifarlo a ogni entrata farebbe ripartire i caricamenti e
 // sfarfallare le immagini.
+// ── v0.75.98 — I PEZZI CHE DEVONO ESSERCI ─────────────────────────────────
+// Nel sostituire il blocco dei filtri (v0.75.96) e' finito dentro al taglio
+// anche #library-drag-ghost, e il trascinamento delle carte nei mazzi e'
+// rimasto rotto per due versioni intere senza che niente lo dicesse: il codice
+// cerca l'elemento, non lo trova, e smette in silenzio.
+// Un elemento che manca e' come un asset che manca — la pagina si apre lo
+// stesso, solo che qualcosa non funziona — quindi si segnala allo stesso modo.
+// L'elenco e' corto di proposito: solo i pezzi senza i quali una funzione
+// intera sparisce, non ogni div della pagina.
+const PEZZI_LIBRERIA = [
+  ['library-drag-ghost', 'trascinare le carte nei mazzi'],
+  ['deck-list',          'la lista dei mazzi'],
+  ['card-db-grid',       'la griglia delle carte'],
+  ['filters-overlay',    'la finestra dei filtri'],
+  ['delete-overlay',     'la conferma di eliminazione'],
+  ['card-db-sort',       'l\'ordinamento'],
+];
+function controllaPezziLibreria(){
+  const mancanti = PEZZI_LIBRERIA.filter(([id])=>!document.getElementById(id));
+  if(!mancanti.length) return;
+  console.error('[libreria] mancano dal documento ' + mancanti.length + ' elementi, e con loro '
+    + 'altrettante funzioni:\n  '
+    + mancanti.map(([id,cosa])=>'#'+id+' -> '+cosa).join('\n  '));
+}
 let _graficaLibreriaMontata = false;
 function montaGraficaLibreria(){
   if(_graficaLibreriaMontata) return;
@@ -11299,7 +11429,7 @@ function _pannelloModifica(mazzo){
   cestinoImg.alt=''; cestinoImg.draggable=false;
   impostaImgDaCandidati(cestinoImg, uiFileCandidati('delete-icon.png'));
   cestino.appendChild(cestinoImg);
-  cestino.onclick = ()=> eliminaMazzoInModifica();
+  cestino.onclick = ()=> apriConfermaElimina();
   top.append(nome, cestino);
 
   const conta = document.createElement('div');
@@ -11321,6 +11451,15 @@ function _pannelloModifica(mazzo){
   mask.appendChild(fill);
   barra.append(bg, mask);
 
+  // v0.75.98 — il grafico della distribuzione, fra la capacita' e il salvataggio.
+  const distrib = document.createElement('div');
+  distrib.className = 'deck-distrib';
+  const distribT = document.createElement('span');
+  distribT.className = 'deck-distrib-titolo'; distribT.textContent = 'Power distribution';
+  const distribH = document.createElement('div');
+  distribH.className = 'deck-distrib-hex';
+  distrib.append(distribT, distribH);
+
   const capRiga = document.createElement('div');
   capRiga.className = 'deck-edit-cap-riga';
   const capEt = document.createElement('span'); capEt.textContent = 'Power capacity';
@@ -11336,8 +11475,76 @@ function _pannelloModifica(mazzo){
                   + '<span class="hxb-label">Save Deck</span>';
   salva.onclick = ()=> salvaMazzoInModifica();
 
-  p.append(top, conta, carte, barra, capRiga, salva);
+  // v0.75.98 — l'ordine chiesto: nome, carte, contatore, capacita', grafico,
+  // salvataggio. Il contatore e' sceso sotto al riquadro delle carte, accanto
+  // alla capacita': sono i due numeri che dicono se il mazzo e' pronto, e
+  // averli vicini vuol dire poterli leggere in un colpo d'occhio invece che
+  // uno sopra e uno sotto all'elenco.
+  const riga = ()=>{ const r=document.createElement('div'); r.className='filters-riga'; return r; };
+  p.append(top, carte, conta, barra, capRiga, riga(), distrib, riga(), salva);
   return p;
+}
+// ── v0.75.98 — L'ESAGONO DELLA DISTRIBUZIONE ──────────────────────────────
+// Per ognuno dei sei lati, la media di quel lato su tutte le carte del mazzo.
+// Racconta una cosa che il totale di capacita' non racconta: non QUANTO e'
+// forte il mazzo, ma DA CHE PARTE lo e'.
+//
+// LA SCALA NON E' UN NUMERO INVENTATO. Il vertice tocca il bordo quando la
+// media di quel lato eguaglia il lato piu' alto che esiste nel foglio: cosi'
+// "pieno" vuol dire "forte quanto la carta piu' forte del gioco", e il
+// significato non cambia il giorno in cui arriva una carta da 15. Il minimo a
+// 6 e' solo una rete per il foglio quasi vuoto, dove un massimo di 1 farebbe
+// sbattere ogni vertice contro il bordo.
+const DISTRIB_LATI = ['NW','NE','E','SE','SW','W'];
+function _massimoLatoDelGioco(){
+  let mx = 6;
+  for(const e of (FINAL_CARDS||[])){
+    const v = e && e.values; if(!v) continue;
+    for(const s of SIDES){ const x = v[s]||0; if(x > mx) mx = x; }
+  }
+  return mx;
+}
+function mediaLatiDelMazzo(mazzo){
+  const carte = carteDelMazzo(mazzo);
+  const media = {};
+  for(const s of DISTRIB_LATI) media[s] = 0;
+  if(!carte.length) return media;
+  for(const e of carte){
+    const v = e.values || {};
+    for(const s of DISTRIB_LATI) media[s] += (v[s]||0);
+  }
+  for(const s of DISTRIB_LATI) media[s] /= carte.length;
+  return media;
+}
+function disegnaDistribuzione(ospite, mazzo){
+  if(!ospite) return;
+  const media = mediaLatiDelMazzo(mazzo);
+  const massimo = _massimoLatoDelGioco();
+  const R = 46;            // il raggio a cui il vertice tocca il bordo
+  const C = 50;            // il centro, in un riquadro 100x100
+  // I sei vertici stanno dove stanno i sei lati dell'esagono della carta: NW
+  // in alto a sinistra e poi in senso orario. Gli angoli sono quelli, non una
+  // ripartizione qualsiasi del cerchio — o il grafico direbbe la verita' su
+  // numeri sbagliati.
+  const angoli = { NW:-120, NE:-60, E:0, SE:60, SW:120, W:180 };
+  const punti = DISTRIB_LATI.map(s=>{
+    const quota = Math.max(0.04, Math.min(1, (media[s]||0) / massimo));
+    const a = angoli[s] * Math.PI / 180;
+    return [C + Math.cos(a)*R*quota, C + Math.sin(a)*R*quota];
+  });
+  const poly = punti.map(p=>p[0].toFixed(2)+','+p[1].toFixed(2)).join(' ');
+  const pallini = punti.map(p=>
+    '<circle cx="'+p[0].toFixed(2)+'" cy="'+p[1].toFixed(2)+'" r="1.5" fill="#FFFFFF"/>').join('');
+  ospite.innerHTML =
+    '<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">'
+    + '<defs><radialGradient id="hxDistribFill" cx="50%" cy="50%" r="50%">'
+    +   '<stop offset="0%" stop-color="#24292A" stop-opacity="0"/>'
+    +   '<stop offset="100%" stop-color="#A1DAE4" stop-opacity="1"/>'
+    + '</radialGradient></defs>'
+    + '<polygon points="'+poly+'" fill="url(#hxDistribFill)" '
+    +   'stroke="rgba(255,255,255,0.6)" stroke-width="1.5" stroke-linejoin="round"/>'
+    + pallini
+    + '</svg>';
 }
 function apriModificaMazzo(id){
   const vero = mazzoPerId(id);
@@ -11379,13 +11586,8 @@ function vestiPannelloModifica(slot){
     'player-ui/slider-bar-bg.png', PLAYER_UI_BASE+'slider-bar-bg.png'));
   impostaVariabileDaCandidati(p.querySelector('.hx-capacity-fill'), '--hx-bar-fill', _candidati(
     'player-ui/slider-bar-fill.png', PLAYER_UI_BASE+'slider-bar-fill.png'));
-  const salva = p.querySelector('.deck-edit-save');
-  const g = (sel,file)=>{ const el=salva.querySelector(sel); if(el) impostaSfondoDaCandidati(el, uiFileCandidati(file)); };
-  g('.hxb-left','button-transparent-left.png');
-  g('.hxb-center','button-transparent-center.png');
-  g('.hxb-right','button-transparent-right.png');
-  salva.querySelectorAll('.hxb-fill').forEach(el=>
-    impostaSfondoDaCandidati(el, uiFileCandidati('button-transparent-filler.png')));
+  impostaSfondoDaCandidati(p.querySelector('.deck-distrib-hex'), uiFileCandidati('power-distribution-hex.png'));
+  vestiPulsante(p.querySelector('.deck-edit-save'));
 }
 // Ridisegna SOLO il pannello, non tutta la lista: la lista e' in mezzo a una
 // transizione di altezza, e ricostruirla la interromperebbe a meta'.
@@ -11432,6 +11634,9 @@ function aggiornaPannelloModifica(){
   barra.classList.toggle('sfora', sfora);
   p.querySelector('.deck-edit-cap-riga').classList.toggle('sfora', sfora);
   p.querySelector('.deck-edit-cap-num').textContent = cap + '/' + MAZZO_PUNTI;
+  // il grafico della distribuzione: si rifa' a ogni ritocco, perche' ogni
+  // carta aggiunta o tolta sposta le medie.
+  disegnaDistribuzione(p.querySelector('.deck-distrib-hex'), m);
   // il pulsante
   const salva = p.querySelector('.deck-edit-save');
   salva.setAttribute('aria-disabled', mazzoValido(m) ? 'false' : 'true');
@@ -11532,6 +11737,47 @@ function salvaMazzoInModifica(){
   if(vero){ vero.nome = (m.nome||'').trim() || 'Untitled deck'; vero.carte = m.carte.slice(); }
   salvaMazzi();
   chiudiModificaMazzo(true);
+}
+// ── v0.75.98 — SI CHIEDE PRIMA ────────────────────────────────────────────
+// Un mazzo si compone in qualche minuto e si cancella in un clic. Il cestino
+// non elimina piu': apre la domanda, e a eliminare e' la risposta.
+function apriConfermaElimina(){
+  const m = _mazzoInModifica;
+  const ov = document.getElementById('delete-overlay');
+  if(!m || !ov) return;
+  vestiConfermaElimina();
+  const testo = document.getElementById('delete-testo');
+  if(testo) testo.textContent = 'Are you sure you want to delete the deck "'
+    + ((m.nome||'').trim() || 'Untitled deck') + '"?';
+  ov.classList.add('show');
+}
+function chiudiConfermaElimina(){
+  const ov = document.getElementById('delete-overlay');
+  if(ov) ov.classList.remove('show');
+}
+function confermaEliminaMazzo(){
+  chiudiConfermaElimina();
+  eliminaMazzoInModifica();
+}
+let _confermaEliminaVestita = false;
+function vestiConfermaElimina(){
+  if(_confermaEliminaVestita) return;
+  _confermaEliminaVestita = true;
+  impostaVariabileDaCandidati(document.getElementById('delete-box'),
+                              '--hx-trama', uiFileCandidati('brushed-texture.jpg'));
+  for(const btn of document.querySelectorAll('#delete-azioni .hx-btn')) vestiPulsante(btn);
+}
+// Il vestito dei cinque pezzi, in un posto solo: lo chiedono la finestra dei
+// filtri, quella di conferma e il pulsante di salvataggio del mazzo.
+function vestiPulsante(btn){
+  if(!btn) return;
+  const coda = btn.classList.contains('hx-btn-warning') ? '-warning.png' : '.png';
+  const g = (sel,nome)=>{ const el=btn.querySelector(sel); if(el) impostaSfondoDaCandidati(el, uiFileCandidati(nome+coda)); };
+  g('.hxb-left','button-transparent-left');
+  g('.hxb-center','button-transparent-center');
+  g('.hxb-right','button-transparent-right');
+  btn.querySelectorAll('.hxb-fill').forEach(el=>
+    impostaSfondoDaCandidati(el, uiFileCandidati('button-transparent-filler'+coda)));
 }
 function eliminaMazzoInModifica(){
   const id = _mazzoInModificaId;
@@ -16095,6 +16341,7 @@ function openCardDbOverlay(){
   // v0.75.83 — la grafica nuova prima del contenuto: cosi' la barra e i
   // pulsanti sono gia' vestiti quando le carte cominciano ad apparire.
   montaGraficaLibreria();
+  controllaPezziLibreria();
   collegaTrascinamentoMazzo();
   renderListaMazzi();
   cardDbRenderRoster();
@@ -17028,17 +17275,7 @@ function vestiFinestraFiltri(){
   impostaVariabileDaCandidati(pannello, '--hx-casella-off', uiFileCandidati('checkbox-square-unchecked.png'));
   impostaVariabileDaCandidati(pannello, '--hx-casella-on',  uiFileCandidati('checkbox-square-checked.png'));
   // I due pulsanti: quello rosso ha i suoi cinque pezzi, con "-warning".
-  for(const btn of document.querySelectorAll('#filters-pannello .hx-btn')){
-    const coda = btn.classList.contains('hx-btn-warning') ? '-warning.png' : '.png';
-    const g = (sel,nome)=>{ const el=btn.querySelector(sel); if(el) impostaSfondoDaCandidati(el, uiFileCandidati(nome+coda)); };
-    g('.hxb-left','button-transparent-left');
-    g('.hxb-center','button-transparent-center');
-    g('.hxb-right','button-transparent-right');
-    btn.querySelectorAll('.hxb-fill').forEach(el=>
-      impostaSfondoDaCandidati(el, uiFileCandidati('button-transparent-filler'+coda)));
-    const icona = btn.querySelector('.hxb-icon');
-    if(icona) impostaImgDaCandidati(icona, uiFileCandidati('close-icon.png'));
-  }
+  document.querySelectorAll('#filters-pannello .hx-btn').forEach(vestiPulsante);
 }
 // ── la tendina dell'ordinamento ───────────────────────────────────────────
 // Disegnata a mano, ma NON e' lei a ricordare la scelta: scrive nel <select>
@@ -36564,6 +36801,8 @@ function closeCardModal(){
     if(modaleAperta && modaleAperta.classList.contains('show')){ closeCardModal(); return; }
     // v0.75.96 — la finestra dei filtri sta sopra alla Libreria e sotto
     // all'ingrandimento di una carta: e' il suo posto anche nella catena di Esc.
+    const conferma = document.getElementById('delete-overlay');
+    if(conferma && conferma.classList.contains('show')){ chiudiConfermaElimina(); return; }
     const filtri = document.getElementById('filters-overlay');
     if(filtri && filtri.classList.contains('show')){ chiudiFiltri(); return; }
     if(_mazzoInModifica){ chiudiModificaMazzo(false); return; }
