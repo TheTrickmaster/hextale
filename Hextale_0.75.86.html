@@ -7792,7 +7792,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.85</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.86</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -11206,6 +11206,14 @@ function _tirFine(ev){
       ghost.style.removeProperty('--tilt-ampiezza');
     }
     if(_tir.attivo){
+      // v0.75.86 — dopo un trascinamento vero, il clic che il browser
+      // sintetizza al rilascio non deve aprire l'ingrandimento della carta:
+      // uno ha appena spostato una carta, non ha chiesto di leggerla. Si
+      // ingoia quello e basta — un clic senza trascinamento (che e' come si
+      // apre una carta, anche quelle gia' nel mazzo) non passa di qui.
+      const ingoia = (e)=>{ e.stopPropagation(); e.preventDefault(); };
+      document.addEventListener('click', ingoia, true);
+      setTimeout(()=>document.removeEventListener('click', ingoia, true), 0);
       if(_tir.verso === 'dentro' && dentro) aggiungiCartaAlMazzo(_tir.entryId);
       // Trascinata FUORI dal contenitore, la carta esce dal mazzo. Lasciata
       // dentro, non succede niente: il gesto e' stato annullato a meta'.
@@ -17004,6 +17012,18 @@ function initCardDbDragScroll(){
     // itself being clicked for some future purpose — plain background/card
     // drag only, same as any other click-drag-to-scroll panel.
     if(e.button!==0) return;
+    // ── v0.75.86 FIX — DUE GESTI SULLO STESSO PULSANTE DEL MOUSE ──────────
+    // Premere e trascinare qui ha sempre voluto dire "fai scorrere la
+    // griglia". Da quando si compongono i mazzi vuol dire anche "prendi
+    // questa carta e portala nel mazzo", e i due gesti partivano insieme: la
+    // carta si staccava e nello stesso istante la griglia scorreva sotto,
+    // portandosi via la carta appena presa. Peggio, questa riga chiamava
+    // setPointerCapture, che dirotta sul contenitore ogni evento successivo.
+    // Chi ha gia' preso il puntatore se lo tiene (vedi _tirInizia, che gira
+    // prima perche' ascolta in fase di cattura). Lo scorrimento non sparisce:
+    // premendo sullo SFONDO della griglia, dove non c'e' nessuna carta da
+    // prendere, si scorre come sempre — e la rotella non e' mai stata toccata.
+    if(_tir) return;
     stopMomentum(); // grabbing again immediately cancels any still-decaying momentum
     dragging=true; moved=false;
     startY=e.clientY; startScrollTop=grid.scrollTop;
