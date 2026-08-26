@@ -8388,7 +8388,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.8</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.9</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -10076,8 +10076,32 @@ function getSfxVolume(){
 function getGlobalVolume(){
   return getMasterVolume()*getSfxVolume();
 }
+// ── v0.77.9 — OGNI BRANO HA IL SUO LIVELLO ────────────────────────────────
+// I file di musica non sono masterizzati tutti allo stesso volume, e alzare o
+// abbassare il cursore della musica li sposta tutti insieme: per rimettere in
+// riga uno solo serve un guadagno suo, esattamente come SFX_GAIN_DB fa per gli
+// effetti. In dB perche' e' la misura in cui si ragiona quando si dice "questo
+// sta quattro decibel troppo alto"; la conversione in moltiplicatore e' la
+// stessa formula degli effetti.
+// Il nome si ricava dal file, senza il "-loop" finale: la coda di un brano e'
+// lo stesso brano e non puo' avere un livello diverso dalla sua testa, o al
+// punto di giunzione si sentirebbe un gradino.
+const MUSIC_GAIN_DB = {
+  'moonlit-card-court': -4,   // la musica di battaglia
+};
+function guadagnoDelBrano(){
+  const bgm=document.getElementById('bgm');
+  if(!bgm) return 1;
+  const url = bgm.dataset.currentTrack || bgm.getAttribute('src') || '';
+  const nome = (url.split('/').pop()||'').replace(/\.(mp3|wav)$/i,'').replace(/-loop$/,'');
+  const db = MUSIC_GAIN_DB[nome];
+  return db ? Math.pow(10, db/20) : 1;
+}
+// Il volume della musica passa TUTTO da qui — la dozzina di punti che scrivono
+// `.volume=` chiamano questa, quindi il guadagno del brano si applica da solo
+// dovunque, compreso l'abbassamento di fine partita che ci si moltiplica sopra.
 function getEffectiveMusicVolume(){
-  return getMasterVolume()*getMusicVolume();
+  return getMasterVolume()*getMusicVolume()*guadagnoDelBrano();
 }
 
 function playSfx(id){
@@ -10188,7 +10212,7 @@ abilitaSuonoClickGlobale();
 // with ~19 of them stacking up across the intro (-4dB).
 // v0.77.5 — scored (il punteggio che incassa) e change-turn (il cambio turno)
 // arrivavano sopra a tutto il resto: -6dB ciascuno, cioe' meta' ampiezza.
-const SFX_GAIN_DB={ 'arcane': 2, 'bump': -4, 'scored': -6, 'change-turn': -6 };
+const SFX_GAIN_DB={ 'arcane': 2, 'bump': -4, 'scored': -3, 'change-turn': -6 };
 function sfxGainMultiplier(name){
   const db=SFX_GAIN_DB[name];
   return db ? Math.pow(10, db/20) : 1;
