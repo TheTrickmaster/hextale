@@ -864,10 +864,17 @@ body.mouse-down{
 }
 #banner-dim-overlay.show{ opacity:0.3; }
 
+/* v0.77.5 — TUTTA LA LARGHEZZA. Il fondo e' turn-banner-bg, una fascia che
+   attraversa lo schermo da parte a parte. 1920px e non 100vw: qui dentro
+   siamo nel telaio da 1920x1080 che fitGameRoot() scala per riempire la
+   finestra, quindi la larghezza piena della viewport SI SCRIVE 1920 — un
+   100vw leggerebbe i pixel veri dello schermo e sborderebbe di tanto quanto
+   e' il fattore di scala. Stessa ragione per il banner del tempo scaduto e
+   per quello di fine partita. */
 #turn-banner{
   position:fixed; top:510.4px; left:50%;
   transform:translate(-50%,-50%);
-  width:1125px; height:auto;
+  width:1920px; height:auto;
   opacity:0;
   pointer-events:none;
   z-index:700;
@@ -897,13 +904,19 @@ body.mouse-down{
    just centered as text instead of painted into the asset. Color is set
    per-turn by showTurnBanner() (FBF0D7 for the dark player, 3B2E23 for the
    light player, per explicit spec). */
+/* v0.77.5 — il nome sta al centro della fascia, in Marcellus 60px color
+   D4CBB9 con un'ombra netta sotto. Il colore non cambia piu' con la fazione:
+   il fondo adesso e' lo stesso per tutti e due, quindi un solo colore basta
+   e non c'e' piu' un secondo caso da tenere d'accordo. */
 #turn-banner-text{
-  position:fixed; top:490px; left:50%;
+  position:fixed; top:510.4px; left:50%;
   transform:translate(-50%,-50%);
-  width:1125px;
+  width:1920px;
   text-align:center;
   font-family:'Marcellus SC','Marcellus',serif;
   font-size:60px;
+  color:#D4CBB9;
+  filter:drop-shadow(0 0 10px rgba(0,0,0,1));
   opacity:0;
   pointer-events:none;
   z-index:701;
@@ -915,7 +928,7 @@ body.mouse-down{
 
 /* v0.71.68 NEW ("puoi tenerli fissi a schermo? adesso spariscono. tieni
    fisso anche i banner final blow e times up"): the "Mostra asset" debug
-   shortcuts for these banners (debugShowTurnBannerDark/Light,
+   shortcuts for these banners (debugShowTurnBanner,
    debugShowTimesUpBanner, debugShowFinalBlowBanner) want the banner to just
    sit there indefinitely so Lorenzo can inspect it and hand back precise
    CSS tweaks — but every one of #turn-banner/#turn-banner-text/
@@ -948,20 +961,37 @@ body.mouse-down{
    banners read as a consistent visual family even though only one is ever
    on screen at a time (see showTimesUpBanner()'s own JS comment for the
    sequencing that guarantees they never overlap). */
+/* v0.77.5 — anche questa e' una fascia a tutta larghezza (time-up-bg). */
 #timesup-banner{
   position:fixed; top:510.4px; left:50%;
   transform:translate(-50%,-50%);
-  /* v0.71.40: sized down 50% (1125px -> 562.5px) per explicit request — was
-     sharing #turn-banner's own 1125px width for visual-family consistency,
-     but Lorenzo asked for this one specifically to read smaller/lighter on
-     screen. translate(-50%,-50%) keeps it centered at the new size with no
-     other position math needed. */
-  width:562.5px; height:auto;
+  width:1920px; height:auto;
   opacity:0;
   pointer-events:none;
   z-index:700;
   display:block;
 }
+/* Il contenuto della fascia: l'orologio a sinistra, la scritta a destra,
+   venti pixel in mezzo, il gruppo centrato sullo schermo. E' una riga flex e
+   non due elementi posizionati a mano perche' cosi' il gruppo resta centrato
+   qualunque cosa ci si scriva dentro. */
+#timesup-content{
+  position:fixed; top:510.4px; left:50%;
+  transform:translate(-50%,-50%);
+  display:flex; align-items:center; justify-content:center; gap:20px;
+  opacity:0;
+  pointer-events:none;
+  z-index:701;
+  white-space:nowrap;
+}
+#timesup-content img{ width:125px; height:auto; display:block;
+  filter:drop-shadow(0 0 10px rgba(0,0,0,1)); }
+#timesup-content span{
+  font-family:'Marcellus SC','Marcellus',serif;
+  font-size:60px; color:#D4CBB9;
+  filter:drop-shadow(0 0 10px rgba(0,0,0,1));
+}
+#timesup-content.show{ animation:timesUpBannerFade 1.25s ease-in-out forwards; }
 #timesup-banner.show{
   animation:timesUpBannerFade 1.25s ease-in-out forwards;
 }
@@ -1747,8 +1777,9 @@ body.mouse-down{
    center must land on that same x, so deck's left = bannerCenterX -
    CARD_W/2. v0.65.0: top 160px → 130px per direct spec.
    v0.66.0: top 130px → 100px per direct spec. */
-#p1-deck-pile{ left:calc(50px + 163px - var(--card-w)/2); top:100px; }
-#p2-deck-pile{ left:calc(1544px + 163px - var(--card-w)/2); top:100px; }
+/* v0.77.5 — 270px (erano 100). */
+#p1-deck-pile{ left:calc(50px + 163px - var(--card-w)/2); top:270px; }
+#p2-deck-pile{ left:calc(1544px + 163px - var(--card-w)/2); top:270px; }
 .deck-pile-card{
   position:absolute; left:0; width:100%; height:100%;
   display:block; border-radius:6px;
@@ -3722,134 +3753,54 @@ body.mouse-down{
    player 2/Computer (light) wins, and a separate neutral variant (flat
    #8D9C99→#4D5856 gradient, no flag, name-wrapper-neutral reading "Draw!")
    for an exact tie. */
-#gameover{display:none;position:fixed;inset:0;background:rgba(0,0,0,.87);align-items:center;justify-content:center;z-index:200;flex-direction:column;gap:14px;}
+#gameover{display:none;position:fixed;inset:0;background:rgba(0,0,0,.87);align-items:center;justify-content:center;z-index:200;flex-direction:column;}
 #gameover.show{display:flex;}
+/* v0.77.5 — LA FASCIA AL POSTO DEL RIQUADRO.
+   La box da 440px con la bandiera e il name-wrapper non c'e' piu': il fondo
+   e' end-game-bg, una fascia a tutta larghezza come quelle dei due banner, e
+   il contenuto ci sta sopra. #gameover-box resta solo come contenitore
+   posizionato, senza fondo ne' cornice: le tre varianti di colore (dark,
+   light, pareggio) erano legate al gradiente che qui non esiste piu', quindi
+   restano solo come classi che nessuno stile usa. Non le tolgo perche' il
+   riquadro di debug le passa ancora, e riceverle senza che facciano niente e'
+   corretto: la schermata e' una sola per tutti e tre gli esiti. */
 .go-box{
-  position:relative; width:440px; max-width:90vw;
-  border-radius:30px;
-  padding:40px 32px 32px;
-  background-image:linear-gradient(135deg,#2F3837 0%,#1A1F1E 100%);
-  background-size:100% 100%; background-repeat:no-repeat;
-  box-shadow:inset 0 0 0 1.5px rgba(255,255,255,0.2), 0 0 30px rgba(0,0,0,0.6);
-  font-family:var(--font-body); color:var(--text);
-  display:flex; flex-direction:column; align-items:stretch;
-}
-.go-box.go-light{
-  background-image:linear-gradient(135deg,#FFF9ED 0%,#DAD3C4 100%);
-  box-shadow:inset 0 0 0 1.5px rgba(255,255,255,0.5), 0 0 30px rgba(0,0,0,0.6);
-}
-.go-box.go-draw{
-  background-image:linear-gradient(135deg,#8D9C99 0%,#4D5856 100%);
-  box-shadow:inset 0 0 0 1.5px rgba(255,255,255,0.3), 0 0 30px rgba(0,0,0,0.6);
-}
-/* Same painted-noise ::before technique as #card-tooltip.ctb-board (see
-   that rule's own comment for why this needs a separate layer rather than
-   background-blend-mode) — border-radius:inherit so it always matches the
-   box's own uniform 30px radius. */
-.go-box::before{
-  content:''; position:absolute; inset:0; border-radius:inherit;
-  background-image:url('https://thetrickmaster.github.io/hextale/painted-noise.png');
-  background-size:auto; background-repeat:repeat;
-  opacity:0.4; mix-blend-mode:overlay; pointer-events:none; z-index:0;
-}
-.go-box.go-light::before{ mix-blend-mode:soft-light; }
-.go-box > *{ position:relative; z-index:1; } /* keep real content above the ::before noise layer */
-/* The draped flag asset — centered horizontally, its own hooks straddling
-   the box's TOP edge (per spec: "deve sembrare che gli uncini in alto...
-   siano agganciati al bordo superiore della box"), hanging down INTO the
-   box's own content area behind the name-wrapper. Sized/positioned by eye
-   against Lorenzo's own reference screenshot: the flag's top (where the
-   hooks are drawn, near the very top of its own transparent canvas) lines
-   up with the box's top edge, centered horizontally, wide enough to peek
-   out past the name-wrapper on both sides same as the screenshot. */
-/* v0.71.23 FIX (Lorenzo's own devtools-tuned values, applied back into the
-   source): left 50%->54%, width 195px->270px. */
-.go-flag{
-  position:absolute; top:0; left:54%; transform:translate(-50%,-14px);
-  width:270px; pointer-events:none; z-index:0;
-}
-/* v0.71.23 FIX ("top: 5px per la dark flag"): the dark-win flag (flag-dark.png,
-   shown on the base/default .go-box — no .go-light/.go-draw class) sits
-   5px lower than the light/draw default above, per explicit spec. Scoped
-   with :not() so it only overrides the base (dark) state, leaving
-   .go-light's own flag position untouched. */
-.go-box:not(.go-light):not(.go-draw) .go-flag{ top:5px; }
-/* v0.71.29 FIX (".go-flag (solo light): top:-17px, left:53%, width:325px"):
-   light-win flag gets its own distinct position/size, overriding the
-   shared base .go-flag rule above (which stays the dark/default look —
-   see the :not() rule right above this one). Was top:-15px/width:300px in
-   v0.71.26. */
-.go-box.go-light .go-flag{ top:-17px; left:53%; width:325px; }
-/* No flag at all for a draw (explicit spec: "nessuna flag nel pareggio"). */
-.go-box.go-draw .go-flag{ display:none; }
-/* Name-wrapper title — same asset/technique as the card tooltip's own
-   .ctb-namewrap (see that rule), sized up to match this screen's larger
-   scale, and DELIBERATELY wider than the box's own content column so its
-   pointed chevron ends poke out past the box's left/right edges, per
-   explicit spec ("il name wrapper deve uscire dalla box come nello
-   screenshot"). Sits partway down the flag (not at the very top), matching
-   the reference screenshot's overlap. */
-/* v0.71.27 REWORK ("ho cambiato gli asset dei name wrapper perché il drop
-   shadow non funziona (rimuovilo)... controlla che le dimensioni vadano
-   bene e cerca di riallinearli visivamente a come sono adesso"): the new
-   winner-name-wrapper-*.png assets bake their own soft glow directly into
-   the art (see GAMEOVER_WINNER_NAME_WRAPPER_DARK's own comment) at a
-   1147×399 native size — a much "flatter/wider" ribbon shape sitting well
-   inside a larger transparent+glow canvas, NOT the old name-wrapper-*.png's
-   proportions the previous calc(100%+104px)/64px sizing was tuned for.
-   Stretching the new asset into that old box (aspect ~8.5:1) would badly
-   squash its glow. Fixed height (was 64px) is now replaced with a
-   width+aspect-ratio pair matching the asset's real 1147:399 ratio, scaled
-   so the asset's own OPAQUE banner core (measured directly: ~143px tall
-   out of the 399px canvas) reads at roughly the same ~64px visual height
-   the old flat namewrap had — 510px wide keeps it close to the previous
-   footprint (was 544px @ 440px box) while the box-shadow this asset made
-   redundant (its glow is already baked in) is removed entirely. */
-/* v0.71.28 FIX (Lorenzo's own devtools-tuned values): width 510px->630px,
-   margin -58px auto 0 -> -58px -127px (top/bottom -58px, left/right
-   -127px — was auto-centering horizontally, now an explicit symmetric
-   pull-in instead). */
-.go-namewrap{
-  position:relative; z-index:1;
-  width:630px; aspect-ratio:1147/399; margin:-58px -127px; height:auto;
+  position:relative;
+  width:1920px; height:315px;
   display:flex; align-items:center; justify-content:center;
-  background-size:100% 100%; background-repeat:no-repeat; background-position:center;
+  font-family:var(--font-body); color:var(--text);
 }
-.go-namewrap span{
-  font-family:'Marcellus SC','Marcellus',serif; font-size:26px; color:#fff;
-  letter-spacing:.02em; text-align:center; padding:0 40px;
+#gameover-bg{
+  position:absolute; inset:0;
+  width:100%; height:100%;
+  object-fit:fill;
+  pointer-events:none; z-index:0;
 }
-.go-box.go-light .go-namewrap span{ color:#3B2E23; }
-.go-box.go-draw .go-namewrap span{ color:#fff; }
-#gameover-actions{
+#gameover-content{
   position:relative; z-index:1;
-  display:flex; flex-direction:column; gap:20px;
-  margin-top:50px;
+  display:flex; flex-direction:column; align-items:center;
+  gap:30px;                       /* i 30px chiesti fra nome e pulsanti */
 }
-/* v0.71.16 FIX ("sostituisci tutte le grafiche dei pulsanti vecchie con
-   quelle nuove, per adesso tutte versione primary"): #btn-newgame/
-   #btn-view-board/#btn-back-to-results used to be plain flat-CSS gradient
-   buttons — now they reuse the exact same .start-art-btn.sab-primary
-   sliced-image button (see that class's own CSS block + markup, already
-   used by the start screen and the settings modal's Surrender/Back
-   buttons), via the class added directly on these elements in the HTML
-   below. Only the LAYOUT-critical rules survive here (display/position/
-   z-index for the fixed-positioned back-to-results button); every visual
-   property (background, color, border, font, padding, cursor) is now
-   supplied by .start-art-btn/.sab-primary instead. */
-/* "Guarda tabellone" reveals the real board underneath the (still-mounted)
-   #gameover overlay — see toggleBoardView() — by temporarily hiding the
-   overlay itself rather than tearing it down, so "Guarda risultati" can
-   bring it right back with no re-render needed. */
+#gameover-title span{
+  font-family:'Marcellus SC','Marcellus',serif;
+  font-size:60px; color:#D4CBB9;
+  filter:drop-shadow(0 0 10px rgba(0,0,0,1));
+  white-space:nowrap;
+}
+#gameover-actions{
+  display:flex; flex-direction:row; gap:20px;
+}
+/* Larghezza fissa a 330px l'uno: i pulsanti hanno una larghezza naturale che
+   dipende da quanto e' lungo il testo, e due etichette diverse darebbero due
+   pulsanti diversi. Qui devono essere una coppia. */
+#gameover-actions .hx-btn{ width:330px; padding:0; }
+#btn-end-match{
+  /* Centrato sulla pagina, dieci pixel dal bordo alto. */
+  display:none; position:fixed; top:10px; left:50%;
+  transform:translateX(-50%); z-index:210;
+}
+#btn-end-match.show{ display:inline-flex; }
 #gameover.board-view{display:none;}
-#btn-back-to-results{
-  /* v0.71.21 FIX ("sposta anche il pulsante guarda risultati. centralo
-     verticalmente nella pagina"): stays anchored to the right edge (same
-     right:16px as before) but is now vertically centered in the viewport
-     (top:50% + a -50% Y-translate) instead of pinned to the top. */
-  display:none;position:fixed;top:50%;right:16px;transform:translateY(-50%);z-index:210;
-}
-#btn-back-to-results.show{display:block;}
 
 /* ── card detail modal ── */
 /* v0.74.5 — sopra a TUTTO. Era a 300: bastava in partita, dove il tabellone
@@ -8233,9 +8184,12 @@ body.prova-senza-willchange #mm-book-rot{
      centered only within the board column between the two hand panels)
      to live here as a fixed-canvas sibling, same pattern as .player-info/
      #timer-bar-wrap — see the CSS block's own comment for the full
-     rationale. `src` starts empty; showTurnBanner() (JS) sets it to
-     dark-player-turn-banner.png or light-player-turn-banner.png depending
-     on whose turn is starting, every time it fires. -->
+     rationale.
+     v0.77.5 — il fondo e' turn-banner-bg, una fascia a tutta larghezza,
+     uguale per tutti e due i giocatori. `src` parte vuoto e viene riempito
+     una volta sola all'avvio insieme agli altri asset della cartella ui:
+     prima lo riscriveva showTurnBanner() a ogni turno, scegliendo fra due
+     file per fazione che non esistono piu'. -->
 <!-- ── shared dim overlay behind ANY banner (turn-change, time's up, etc.)
      v0.71.40 NEW ("dietro al banner metti un overlay nero opacity 30%"):
      one shared full-screen scrim, toggled by showTurnBanner()/
@@ -8249,13 +8203,12 @@ body.prova-senza-willchange #mm-book-rot{
 <img id="turn-banner" src="" alt="" draggable="false">
 <!-- v0.71.66 NEW ("ti ho ricaricato i banner del turno, adesso non hanno più
      scritte dentro. dovrai tu scriverci... centrato nel banner"): the new
-     banner art Lorenzo uploaded has no baked-in "X's turn" text any more
-     (unlike the old dark/light-player-turn-banner.png this replaced — see
-     showTurnBanner()'s own v0.55.0 comment), so the label is now drawn here
-     as a plain text overlay, positioned exactly on top of #turn-banner (same
-     fixed-canvas position/transform/animation, just a sibling element
-     instead of baked into the image) and populated/colored by
-     showTurnBanner() every time it fires. -->
+     banner art has no baked-in "X's turn" text, so the label is drawn here
+     as a plain text overlay, posato esattamente sopra a #turn-banner (stessa
+     posizione, stessa animazione, solo un elemento fratello invece che
+     dipinto dentro l'immagine) e riempito da showTurnBanner() a ogni turno.
+     v0.77.5 — il colore non lo mette piu' il JS: e' D4CBB9 nel CSS, uno solo
+     per tutti e due i giocatori. -->
 <div id="turn-banner-text"></div>
 
 <!-- ── "Time's up" banner ───────────────────────────────────────────
@@ -8267,7 +8220,13 @@ body.prova-senza-willchange #mm-book-rot{
      opacity transition is enough to read clearly without needing its own
      translate keyframe. Same fixed-canvas centering technique as
      #turn-banner (position:fixed, translate(-50%,-50%)). -->
-<img id="timesup-banner" src="https://thetrickmaster.github.io/hextale/player-ui/timesup-banner.png" alt="" draggable="false">
+<img id="timesup-banner" src="" alt="" draggable="false">
+<!-- v0.77.5 — orologio + scritta sopra la fascia, come per il banner del
+     turno: il fondo e' un'immagine muta e il contenuto e' testo vero. -->
+<div id="timesup-content">
+  <img id="timesup-clock" src="" alt="" draggable="false">
+  <span>Time's up!</span>
+</div>
 
 <div id="drag-ghost"></div>
 <div id="hand-hover-preview"></div>
@@ -8317,29 +8276,36 @@ body.prova-senza-willchange #mm-book-rot{
     <span id="timer-pin-seconds"></span>
   </div>
 </div>
+<!-- ── fine partita (v0.77.5) ─────────────────────────────────────────
+     Era un riquadro da 440px con la bandiera del vincitore e il name-wrapper.
+     Adesso e' la stessa cosa dei due banner: una fascia a tutta larghezza
+     (end-game-bg) con dentro il nome di chi ha vinto e, sotto, i due
+     pulsanti. #gameover-box resta come contenitore per non spostare lo
+     scrim e i suoi stati, ma non ha piu' fondo ne' cornice sue. -->
 <div id="gameover">
   <div id="gameover-box" class="go-box">
-    <img id="gameover-flag" class="go-flag" src="" alt=""/>
-    <div id="gameover-title" class="go-namewrap"><span id="gameover-title-text"></span></div>
-    <div id="gameover-actions">
-      <button id="btn-view-board" class="start-art-btn" onclick="toggleBoardView(true)">
-        <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">View game board</span>
-      </button>
-      <!-- v0.75.54 — rigiocare senza passare dal menu. La modalita' non si
-           chiede di nuovo: si ricomincia quella appena finita, che e' cio' che
-           "again" vuol dire. La scelta della fazione resta, perche' e' una
-           scelta della partita e non della modalita'. -->
-      <button id="btn-play-again" class="start-art-btn sab-primary" onclick="rigiocaSubito()">
-        <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Play again</span>
-      </button>
-      <button id="btn-back-main" class="start-art-btn" onclick="backToMainMenu()">
-        <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Back to main menu</span>
-      </button>
+    <img id="gameover-bg" src="" alt="" draggable="false">
+    <div id="gameover-content">
+      <div id="gameover-title"><span id="gameover-title-text"></span></div>
+      <div id="gameover-actions">
+        <button id="btn-view-board" class="hx-btn" onclick="toggleBoardView(true)">
+          <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
+          <span class="hxb-label">View board</span>
+        </button>
+        <button id="btn-back-main" class="hx-btn" onclick="backToMainMenu()">
+          <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
+          <span class="hxb-label">Back to main menu</span>
+        </button>
+      </div>
     </div>
   </div>
 </div>
-<button id="btn-back-to-results" class="start-art-btn sab-primary" onclick="toggleBoardView(false)">
-  <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Guarda risultati</span>
+<!-- v0.77.5 — mentre si guarda il tabellone a partita finita, questo e'
+     l'unico comando in scena: chiude la partita e riporta al risultato.
+     Prende il posto del vecchio "Guarda risultati" sulla destra. -->
+<button id="btn-end-match" class="hx-btn" onclick="toggleBoardView(false)">
+  <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
+  <span class="hxb-label">End match</span>
 </button>
 <!-- Build version badge — bumped by hand on every delivered file so Lorenzo
      can tell at a glance which build he's looking at. Bottom-center (v0.71.9:
@@ -8362,7 +8328,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.4</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.5</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -9031,7 +8997,7 @@ if(document.readyState==='loading'){
   // caricare"): discovery via REMOTE_HOST_PATTERN alone (steps 1-3 below)
   // only ever matches a FULL literal URL sitting in the source as one
   // unbroken string — but a large chunk of this file's own asset
-  // constants (CARD_BASE_DARK, GAMEOVER_FLAG_DARK, every TILE_PARTS_BASE/
+  // constants (CARD_BASE_DARK, TOOLTIP_CORNER_DARK, every TILE_PARTS_BASE/
   // CARD_PARTS_BASE/PLAYER_UI_BASE-prefixed const, 34 total as of this fix
   // — see e.g. card-base-dark.png, flag-dark.png, winner-name-wrapper-
   // dark.png) are instead built as `SOME_BASE+'suffix.png'`, a runtime
@@ -10160,7 +10126,9 @@ abilitaSuonoClickGlobale();
 // reported as too quiet relative to its animation (+2dB); bump.mp3 (each
 // tile landing during the board's drop-in intro) was reported as too loud
 // with ~19 of them stacking up across the intro (-4dB).
-const SFX_GAIN_DB={ 'arcane': 2, 'bump': -4 };
+// v0.77.5 — scored (il punteggio che incassa) e change-turn (il cambio turno)
+// arrivavano sopra a tutto il resto: -6dB ciascuno, cioe' meta' ampiezza.
+const SFX_GAIN_DB={ 'arcane': 2, 'bump': -4, 'scored': -6, 'change-turn': -6 };
 function sfxGainMultiplier(name){
   const db=SFX_GAIN_DB[name];
   return db ? Math.pow(10, db/20) : 1;
@@ -10202,7 +10170,7 @@ const PAGE_ELEMENT_IDS = {
     'p1-deck-pile','p2-deck-pile','p1-hand-fan','p2-hand-fan',
     'p1-hand-expand-hint','p2-hand-expand-hint','hand-collapse-hint',
     'hand-expand-overlay','p1-info','p2-info',
-    'banner-dim-overlay','turn-banner','turn-banner-text','timesup-banner',
+    'banner-dim-overlay','turn-banner','turn-banner-text','timesup-banner','timesup-content',
     'drag-ghost','hand-hover-preview',
     'timer-bar-wrap','gameover','settings-btn',
   ],
@@ -11322,6 +11290,18 @@ function montaGraficaPartita(){
   document.querySelectorAll('.player-info').forEach(el=>
     impostaVariabileDaCandidati(el, '--hx-drappo', uiFileCandidati('player-banner.png')));
   img('.player-avatar-frame', 'avatar-frame.png');
+  // v0.77.5 — i fondi dei tre banner. Passano dalla stessa strada di ogni
+  // altro asset della cartella ui: locale se si apre il file da disco,
+  // repository altrimenti, e un solo avviso in console se manca.
+  img('#turn-banner', 'turn-banner-bg.png');
+  img('#timesup-banner', 'time-up-bg.png');
+  img('#timesup-clock', 'clock-timeup.png');
+  img('#gameover-bg', 'end-game-bg.png');
+  // I tre pulsanti della fine partita usano i pezzi del pulsante normale.
+  // Si vestono qui, una volta sola: non appartengono a nessuna pagina che li
+  // ricostruisce, quindi non c'e' un momento successivo in cui rifarlo.
+  ['#btn-view-board','#btn-back-main','#btn-end-match'].forEach(sel=>
+    vestiPulsante(document.querySelector(sel)));
   img('.player-hp-orb-bg', 'score.png');
   // Il lampo del punteggio e' la stessa immagine, resa bianca dal CSS.
   img('.player-hp-orb-lampo', 'score.png');
@@ -12819,17 +12799,9 @@ function musicaMenuFerma(){
     if(!bgm._preMenuPaused) bgm.play().catch(()=>{});
   }
 }
-// v0.75.54 — si rigioca la stessa modalita' appena finita. `G.vsAI` e' l'unica
-// fonte che la conosce ancora a partita conclusa: _pendingNewGameVsAI viene
-// azzerato appena la partita comincia, quindi leggere quello darebbe sempre
-// null. Il riquadro della fazione si riapre: e' una scelta della singola
-// partita, e ricominciare senza poterla rifare vorrebbe dire ereditarla.
-function rigiocaSubito(){
-  const controIA = !!(G && G.vsAI);
-  const ov=document.getElementById('gameover');
-  if(ov) ov.classList.remove('show');
-  requestNewGame(controIA);
-}
+// v0.77.5 — qui stava rigiocaSubito(), il "Play again" della vecchia
+// schermata di fine partita. La nuova ne ha due soli, "View board" e "Back to
+// main menu", quindi non lo chiama piu' nessuno.
 function requestNewGame(vsAI){
   // v0.75.63 — e cominciandone una nuova: il "Play again" a fine partita parte
   // mentre la scena precedente puo' avere ancora qualcosa in canna.
@@ -18660,7 +18632,7 @@ function debugShowAiSpeechBubble(){
 // picks (or reopening the same one) never leaves a stale banner from a
 // PREVIOUS pick still pinned underneath/behind the new one.
 function debugClearPinnedBanners(){
-  ['turn-banner','turn-banner-text','timesup-banner'].forEach(id=>{
+  ['turn-banner','turn-banner-text','timesup-banner','timesup-content'].forEach(id=>{
     const el=document.getElementById(id);
     if(el) el.classList.remove('show','debug-pinned');
   });
@@ -18679,6 +18651,7 @@ function debugShowTimesUpBanner(){
   // just sits there until this shortcut is used again or a new game starts.
   document.getElementById('banner-dim-overlay')?.classList.add('show');
   document.getElementById('timesup-banner').classList.add('debug-pinned');
+  document.getElementById('timesup-content')?.classList.add('debug-pinned');
   closeDebugModal();
 }
 // Debug shortcut: shows BOTH damage-bubble variants (dark + light) side by
@@ -18725,35 +18698,22 @@ function debugShowDamageBubbles(){
 // showTurnBanner() would, then pins both with .debug-pinned (plain
 // opacity:1, no animation) so the banner just sits there statically for
 // inspection until this shortcut is used again or a new game starts.
-function debugShowTurnBannerDark(){
+// v0.77.5 — una scorciatoia sola, perche' il banner e' uno solo. Erano due,
+// "Dark" e "Light", e ognuna scriveva a mano l'URL della propria arte e il
+// proprio colore del testo: due file che non esistono piu' e due colori che
+// non si usano piu'. Resta il nome del giocatore, che e' l'unica cosa che
+// cambia davvero da un turno all'altro.
+function debugShowTurnBanner(player){
   showPage('game'); // v0.72.31: monta la pagina partita e smonta tutte le altre
   document.getElementById('app').style.display='flex';
   document.getElementById('settings-btn').style.display='block';
   debugClearPinnedBanners();
-  const nameEl=document.getElementById('p1-name-label');
-  if(nameEl && !nameEl.textContent) nameEl.textContent='Player 1';
-  const banner=document.getElementById('turn-banner');
-  banner.src='https://thetrickmaster.github.io/hextale/dark-player-turn-banner.png';
-  banner.classList.add('debug-pinned');
+  const nomeId = player===2 ? 'p2-name-label' : 'p1-name-label';
+  const nameEl=document.getElementById(nomeId);
+  if(nameEl && !nameEl.textContent) nameEl.textContent = player===2 ? 'Player 2' : 'Player 1';
+  document.getElementById('turn-banner').classList.add('debug-pinned');
   const bannerText=document.getElementById('turn-banner-text');
-  bannerText.textContent=(nameEl?nameEl.textContent:'Player 1')+"'s turn";
-  bannerText.style.color='#FBF0D7';
-  bannerText.classList.add('debug-pinned');
-  closeDebugModal();
-}
-function debugShowTurnBannerLight(){
-  showPage('game'); // v0.72.31: monta la pagina partita e smonta tutte le altre
-  document.getElementById('app').style.display='flex';
-  document.getElementById('settings-btn').style.display='block';
-  debugClearPinnedBanners();
-  const nameEl=document.getElementById('p2-name-label');
-  if(nameEl && !nameEl.textContent) nameEl.textContent='Player 2';
-  const banner=document.getElementById('turn-banner');
-  banner.src='https://thetrickmaster.github.io/hextale/light-player-turn-banner.png';
-  banner.classList.add('debug-pinned');
-  const bannerText=document.getElementById('turn-banner-text');
-  bannerText.textContent=(nameEl?nameEl.textContent:'Player 2')+"'s turn";
-  bannerText.style.color='#3B2E23';
+  bannerText.textContent=(nameEl?nameEl.textContent:('Player '+(player===2?2:1)))+"'s turn";
   bannerText.classList.add('debug-pinned');
   closeDebugModal();
 }
@@ -18793,8 +18753,8 @@ const DEBUG_ASSET_OPTIONS = [
   { label:'AI speech bubble',       run:debugShowAiSpeechBubble },
   { label:'"Time\'s up" banner',    run:debugShowTimesUpBanner },
   { label:'Bolle danno',            run:debugShowDamageBubbles },
-  { label:"Turn banner — Dark",     run:debugShowTurnBannerDark },
-  { label:"Turn banner — Light",    run:debugShowTurnBannerLight },
+  { label:"Turn banner — P1",       run:()=>debugShowTurnBanner(1) },
+  { label:"Turn banner — P2",       run:()=>debugShowTurnBanner(2) },
 ];
 // v0.71.97 NEW ("se c'è già un altro menu a tendina aperto, chiudilo"): the
 // single source of truth for every reveal-a-picker-inline dropdown in the
@@ -27309,39 +27269,12 @@ function showTurnBanner(player){
   // turn 2+, see the "Shared conquest-check..." block's showTurnBanner()+
   // startTurn() pair).
   playSfxFile('change-turn.mp3');
-  // v0.55.0: real art (dark-player-turn-banner.png / light-player-turn-
-  // banner.png) replaces the old plain-text banner — dark for P1
-  // (Pernocchio), light for P2 (Pinocchio), same mapping as the
-  // player-info banners elsewhere. v0.71.66 UPDATE ("ti ho ricaricato i
-  // banner del turno, adesso non hanno più scritte dentro. dovrai tu
-  // scriverci"): the replacement art Lorenzo uploaded no longer has "DARK/
-  // LIGHT PLAYER TURN" baked in — the label is now drawn as a separate
-  // #turn-banner-text overlay (see its own HTML/CSS comment), populated
-  // right below with the real player name (same p1-name-label/p2-name-label
-  // text already shown in the player-info panels — "Player 1" / "Player 2"
-  // or "Computer") and the exact colors specified: FBF0D7 for the dark
-  // player's turn, 3B2E23 for the light player's turn.
-  // v0.57.0 FIX ("ancora non vedo apparire i banner al cambio turno"): the
-  // real cause was neither the JS trigger logic (proven firing correctly
-  // via instrumented testing) nor z-index stacking (v0.56.0's fix, still
-  // valid but insufficient alone) — it was a wrong asset path. These two
-  // images actually live at the repo ROOT (hextale/dark-player-turn-
-  // banner.png), NOT inside hextale/player-ui/ like the rest of the
-  // player-info art (banner-dark.png, avatar-frame.png, etc.). The old
-  // player-ui/ path 404'd silently (an <img> with a broken src just stays
-  // invisible — no console error loud enough to have been caught by the
-  // earlier z-index-focused investigation), so the banner was firing and
-  // "showing" (opacity animating to 1, .show class applied) with nothing
-  // actually painted. Confirmed via a fresh clone of the asset repo.
-  // v0.72.27 (fazioni dinamiche): l'arte del banner segue la FAZIONE di chi
-  // sta per giocare, non il suo numero — se l'umano ha scelto Light, il
-  // giocatore 1 e' light e deve vedere il banner light.
-  banner.src = playerFactionIsDark(player)
-    ? 'https://thetrickmaster.github.io/hextale/dark-player-turn-banner.png'
-    : 'https://thetrickmaster.github.io/hextale/light-player-turn-banner.png';
-  banner.classList.remove('show');
-  void banner.offsetWidth; // force reflow so the animation restarts every turn
-  banner.classList.add('show');
+  // v0.77.5 — il fondo non cambia piu' con la fazione: e' turn-banner-bg per
+  // tutti e due, messo una volta sola all'avvio insieme agli altri asset
+  // della cartella ui. Qui restava un `src` scritto a mano su due file che
+  // non esistono piu' nel repository, e riscriverlo a ogni turno avrebbe
+  // continuato a cancellare quello buono.
+  riavviaAnimazione(banner, ['show']);
   // "<Name>'s turn" text overlay (see #turn-banner-text's own comment) — same
   // player-name source the player-info panels use (p1-name-label/
   // p2-name-label: "Player 1" / "Player 2" or "Computer"), same
@@ -27351,12 +27284,9 @@ function showTurnBanner(player){
     const nameEl=document.getElementById(player===1?'p1-name-label':'p2-name-label');
     const playerName=nameEl ? nameEl.textContent : (player===1?'Player 1':'Player 2');
     bannerText.textContent=playerName+"'s turn";
-    // v0.72.27: stesso ribaltamento dell'arte qui sopra — chiaro su banner
-    // dark, scuro su banner light, per fazione e non per numero giocatore.
-    bannerText.style.color = playerFactionIsDark(player) ? '#FBF0D7' : '#3B2E23';
-    bannerText.classList.remove('show');
-    void bannerText.offsetWidth; // force reflow so the animation restarts every turn, same as banner img above
-    bannerText.classList.add('show');
+    // v0.77.5 — il colore e' uno solo (D4CBB9, nel CSS): il fondo e' lo stesso
+    // per tutti e due i giocatori, quindi non c'e' piu' niente da ribaltare.
+    riavviaAnimazione(bannerText, ['show']);
   }
   const genAtShow = gameGeneration;
   _turnBannerHideTimeout = setTimeout(()=>{
@@ -27425,12 +27355,14 @@ function showTimesUpBanner(callback){
   // showTurnBanner()'s own hide timeout is what finally turns it off, same
   // as turnBannerActive/turn-locked.
   document.getElementById('banner-dim-overlay')?.classList.add('show');
-  banner.classList.remove('show');
-  void banner.offsetWidth; // force reflow so the animation restarts every time
-  banner.classList.add('show');
+  riavviaAnimazione(banner, ['show']);
+  // v0.77.5 — orologio e scritta viaggiano con la fascia: stessa animazione,
+  // fatta ripartire nello stesso istante.
+  riavviaAnimazione(document.getElementById('timesup-content'), ['show']);
   const genAtShow=gameGeneration;
   setTimeout(()=>{
     banner.classList.remove('show');
+    document.getElementById('timesup-content')?.classList.remove('show');
     if(genAtShow!==gameGeneration) return; // a new game started meanwhile — don't drive a dead board's next banner
     // Deliberately does NOT clear turnBannerActive/turn-locked here — the
     // turn banner that immediately follows (via callback) re-locks anyway,
@@ -30069,41 +30001,24 @@ function finishGameWithResult(){
   // e' cosa racconta — ed e' per questo che il confronto vive in una riga
   // sola, commentata: e' l'unico posto in cui la regola si legge.
   // Un pareggio esatto resta un pareggio.
-  const box=document.getElementById('gameover-box');
-  const flag=document.getElementById('gameover-flag');
   const titleSpan=document.getElementById('gameover-title-text');
-  const viewBoardBtn=document.getElementById('btn-view-board');
-  const backMainBtn=document.getElementById('btn-back-main');
-  box.classList.remove('go-light','go-draw');
-  viewBoardBtn.classList.remove('sab-primary','sab-secondary');
-  backMainBtn.classList.remove('sab-primary','sab-secondary');
-  if(hp1===hp2){
-    // Draw: neutral gradient (no go-light/go-dark class needed — the base
-    // .go-box rule IS the dark gradient, so go-draw only needs to override
-    // it), no flag, name-wrapper-neutral reading "Draw!", mixed button pair.
-    box.classList.add('go-draw');
-    flag.style.display='none';
-    document.getElementById('gameover-title').style.backgroundImage=`url('${GAMEOVER_WINNER_NAME_WRAPPER_DRAW}')`;
-    titleSpan.textContent='Draw!';
-    viewBoardBtn.classList.add('sab-primary');
-    backMainBtn.classList.add('sab-secondary');
-  } else {
-    const p1Wins = hp1>hp2;   // v0.77.0 — piu' punti, non meno danni
-    // v0.72.27 (fazioni dinamiche): il giocatore 1 NON è più per forza dark —
-    // la bandiera/nome del vincitore deve mostrare la fazione realmente
-    // giocata da chi ha vinto, quindi si passa da playerFactionIsDark()
-    // esattamente come tutti gli altri asset owner-dipendenti.
-    const isLightWin = !playerFactionIsDark(p1Wins?1:2);
-    box.classList.toggle('go-light', isLightWin);
-    flag.style.display='';
-    flag.src = isLightWin ? GAMEOVER_FLAG_LIGHT : GAMEOVER_FLAG_DARK;
-    document.getElementById('gameover-title').style.backgroundImage=`url('${isLightWin?GAMEOVER_WINNER_NAME_WRAPPER_LIGHT:GAMEOVER_WINNER_NAME_WRAPPER_DARK}')`;
-    titleSpan.textContent=`${p1Wins?p1Label:p2Label} wins!`;
-    const variant = isLightWin ? 'sab-primary' : 'sab-secondary';
-    viewBoardBtn.classList.add(variant);
-    backMainBtn.classList.add(variant);
+  // v0.77.5 — la schermata e' UNA. Qui si sceglieva fra tre varianti (fondo
+  // scuro, chiaro o neutro, bandiera del vincitore, name-wrapper diverso, e
+  // due pulsanti vestiti in coppia secondo la fazione). Il nuovo fondo e'
+  // end-game-bg per tutti e tre gli esiti, quindi di tutta quella scelta non
+  // resta niente da fare: cambia solo cosa c'e' scritto.
+  if(titleSpan){
+    titleSpan.textContent = (hp1===hp2)
+      ? 'Draw!'
+      : ((hp1>hp2 ? p1Label : p2Label) + ' wins!');   // piu' punti, non meno danni
   }
-  setTimeout(()=>document.getElementById('gameover').classList.add('show'),500);
+  setTimeout(()=>{
+    document.getElementById('gameover').classList.add('show');
+    // Il suono della fine, nello stesso istante in cui la schermata compare:
+    // legarlo alla comparsa e non a endGame() vuol dire che arriva insieme a
+    // quello che annuncia, mezzo secondo dopo l'ultima carta.
+    try{ playSfxFile('end-game-win.mp3'); }catch(_){}
+  },500);
 }
 
 // Toggles between the game-over results overlay and the live board
@@ -30116,7 +30031,9 @@ function finishGameWithResult(){
 // called from elsewhere.
 function toggleBoardView(showBoard){
   const overlay=document.getElementById('gameover');
-  const backBtn=document.getElementById('btn-back-to-results');
+  // v0.77.5 — il comando che riporta al risultato adesso si chiama "End
+  // match" e sta in cima al centro (era "Guarda risultati", a destra).
+  const backBtn=document.getElementById('btn-end-match');
   if(!overlay) return;
   overlay.classList.toggle('board-view', !!showBoard);
   if(backBtn) backBtn.classList.toggle('show', !!showBoard);
@@ -30829,32 +30746,12 @@ const CARD_LEVEL_GEM_IMG = CARD_LEVEL_GEM_COMMON_IMG; // alias/fallback for any 
 const PLAYER_UI_BASE = 'https://thetrickmaster.github.io/hextale/player-ui/';
 const TOOLTIP_CORNER_DARK  = PLAYER_UI_BASE+'corner-tooltip-dark.png';
 const TOOLTIP_CORNER_LIGHT = PLAYER_UI_BASE+'corner-tooltip-light.png';
-// v0.71.22 NEW ("ricreiamo la schermata di fine partita con la nuova UI"):
-// game-over screen assets — the draped "flag" banner that hangs down behind
-// the winner name-wrapper (faction-coded, no neutral variant — a draw shows
-// no flag at all per explicit spec), and the neutral name-wrapper used only
-// for the draw case ("Draw!").
-const GAMEOVER_FLAG_DARK  = PLAYER_UI_BASE+'flag-dark.png';
-const GAMEOVER_FLAG_LIGHT = PLAYER_UI_BASE+'flag-light.png';
-// v0.71.27 FIX ("ho cambiato gli asset dei name wrapper perché il drop
-// shadow non funziona... adesso gli asset da usare per il name wrapper
-// sono winner-name-wrapper"): the game-over screen's own dedicated
-// name-wrapper assets — DISTINCT from CARD_NAME_WRAPPER_DARK/LIGHT/NEUTRAL
-// above (those are shared with real card rendering elsewhere — see
-// drawHexCard's nameImg.setAttribute and buildBoardCardTooltipHTML's own
-// nameWrapperSrc — must never be repointed). These new assets bake their
-// own soft glow directly into the PNG (inspected directly: a ~1147×399
-// canvas, opaque banner core roughly centered with glow padding on all
-// sides) — replacing the old plain name-wrapper-*.png + CSS box-shadow
-// combo from v0.71.26, which is why that box-shadow is now removed (see
-// .go-namewrap's own v0.71.27 comment).
-const GAMEOVER_WINNER_NAME_WRAPPER_DARK  = PLAYER_UI_BASE+'winner-name-wrapper-dark.png';
-const GAMEOVER_WINNER_NAME_WRAPPER_LIGHT = PLAYER_UI_BASE+'winner-name-wrapper-light.png';
-const GAMEOVER_WINNER_NAME_WRAPPER_DRAW  = PLAYER_UI_BASE+'winner-name-wrapper-draw.png';
-// Native pixel dimensions (checked via PIL against the staged assets) —
-// used to derive the correct aspect-ratio for .go-namewrap so the asset's
-// own glow is never stretched/squashed by a mismatched container shape.
-const GAMEOVER_WINNER_NAME_WRAPPER_NATIVE_W = 1147, GAMEOVER_WINNER_NAME_WRAPPER_NATIVE_H = 399;
+// v0.77.5 — qui stavano la bandiera del vincitore e i tre name-wrapper della
+// vecchia schermata di fine partita. Il fondo adesso e' end-game-bg, uno per
+// tutti e tre gli esiti, e quegli asset non li guarda piu' nessuno. Sono
+// tolti invece che lasciati: un URL che non serve piu' e' indistinguibile da
+// uno che serve, e la prossima volta che si cerchera' "cosa disegna questa
+// schermata" saranno cinque risposte sbagliate da scartare.
 // Native pixel dimensions (checked via PIL against the staged assets).
 const CARD_FULL_NATIVE_W = 976, CARD_FULL_NATIVE_H = 1676; // card-base-*.png — defines the 7:12 aspect ratio (976/1676 ≈ 7/12.02)
 // v0.72.2 FIX ("ho cambiato il name wrapper, ora è più alto e si è
