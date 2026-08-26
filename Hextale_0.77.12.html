@@ -8446,7 +8446,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.11</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.12</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -8542,7 +8542,7 @@ body.prova-senza-willchange #mm-book-rot{
           <div class="settings-slider-fill-mask" id="volume-slider-fill-mask"><img class="settings-slider-fill" id="volume-slider-fill" src="https://thetrickmaster.github.io/hextale/player-ui/slider-bar-fill.png" alt="" draggable="false"></div>
           <img class="settings-slider-cursor" id="volume-slider-cursor" src="https://thetrickmaster.github.io/hextale/player-ui/slider-bar-cursor.png" alt="" draggable="false">
         </div>
-        <span class="settings-mute-icon" id="volume-mute-btn" onclick="toggleMute()"><img id="volume-mute-icon-img" src="https://thetrickmaster.github.io/hextale/player-ui/sound-icon.png" alt=""></span>
+        <span class="settings-mute-icon" id="volume-mute-btn" onclick="toggleMute()"><img id="volume-mute-icon-img" src="" alt=""></span>
       </div>
       <div class="settings-row">
         <label>Music volume</label>
@@ -8552,7 +8552,7 @@ body.prova-senza-willchange #mm-book-rot{
           <div class="settings-slider-fill-mask" id="music-volume-slider-fill-mask"><img class="settings-slider-fill" id="music-volume-slider-fill" src="https://thetrickmaster.github.io/hextale/player-ui/slider-bar-fill.png" alt="" draggable="false"></div>
           <img class="settings-slider-cursor" id="music-volume-slider-cursor" src="https://thetrickmaster.github.io/hextale/player-ui/slider-bar-cursor.png" alt="" draggable="false">
         </div>
-        <span class="settings-mute-icon" id="music-mute-btn" onclick="toggleMusicMute()"><img id="music-mute-icon-img" src="https://thetrickmaster.github.io/hextale/player-ui/sound-icon.png" alt=""></span>
+        <span class="settings-mute-icon" id="music-mute-btn" onclick="toggleMusicMute()"><img id="music-mute-icon-img" src="" alt=""></span>
       </div>
       <div class="settings-row">
         <label>SFX volume</label>
@@ -8562,7 +8562,7 @@ body.prova-senza-willchange #mm-book-rot{
           <div class="settings-slider-fill-mask" id="sfx-volume-slider-fill-mask"><img class="settings-slider-fill" id="sfx-volume-slider-fill" src="https://thetrickmaster.github.io/hextale/player-ui/slider-bar-fill.png" alt="" draggable="false"></div>
           <img class="settings-slider-cursor" id="sfx-volume-slider-cursor" src="https://thetrickmaster.github.io/hextale/player-ui/slider-bar-cursor.png" alt="" draggable="false">
         </div>
-        <span class="settings-mute-icon" id="sfx-mute-btn" onclick="toggleSfxMute()"><img id="sfx-mute-icon-img" src="https://thetrickmaster.github.io/hextale/player-ui/sound-icon.png" alt=""></span>
+        <span class="settings-mute-icon" id="sfx-mute-btn" onclick="toggleSfxMute()"><img id="sfx-mute-icon-img" src="" alt=""></span>
       </div>
       <div class="filters-riga"></div>
       <!-- v0.75.1 — l'esagono di aiuto in alto a sinistra sulla carta si puo'
@@ -13280,12 +13280,22 @@ function applySfxVolume(vol){
 // v0.70.18: sound-icon.png/mute-icon.png swap in for the old 🔊/🔇 emoji —
 // same on/off logic (getXVolume()<=0 selects the muted art), just swapping
 // an <img>'s src instead of a span's textContent.
-const SOUND_ICON_SRC='https://thetrickmaster.github.io/hextale/player-ui/sound-icon.png';
-const MUTE_ICON_SRC='https://thetrickmaster.github.io/hextale/player-ui/mute-icon.png';
-function updateMuteIcon(){
-  const img=document.getElementById('volume-mute-icon-img');
+// ── v0.77.12 — LE DUE ICONE ARRIVANO DALLA CARTELLA ui ────────────────────
+// Erano due indirizzi scritti a mano dentro al repository. Adesso passano da
+// uiFileCandidati come ogni altro asset di quella cartella: aprendo il gioco
+// dal disco si usa la copia locale, altrimenti quella pubblicata, e se un file
+// manca la segnalazione arriva insieme a tutte le altre invece di essere
+// un'immagine rotta e basta.
+// C'e' una funzione sola per metterle perche' i posti che le mostrano sono
+// quattro (i tre canali del volume e la spia della "M"): la regola "muto o
+// acceso" sta scritta una volta, e chi la chiama non deve sapere quali file
+// siano ne' dove stiano.
+function mostraIconaAudio(img, muto){
   if(!img) return;
-  img.src = getMasterVolume()<=0 ? MUTE_ICON_SRC : SOUND_ICON_SRC;
+  impostaImgDaCandidati(img, uiFileCandidati(muto ? 'mute-icon.png' : 'sound-icon.png'));
+}
+function updateMuteIcon(){
+  mostraIconaAudio(document.getElementById('volume-mute-icon-img'), getMasterVolume()<=0);
 }
 // ── v0.72.57 — spia a schermo di muto / audio acceso ──────────────────────
 // Premendo "M" compare in basso a destra l'icona dello stato APPENA
@@ -13300,8 +13310,7 @@ function showAudioToggleIndicator(){
   const box = document.getElementById('audio-toggle-indicator');
   const img = document.getElementById('audio-toggle-indicator-img');
   if(!box || !img) return;
-  const muto = getMasterVolume()<=0;
-  img.src = muto ? MUTE_ICON_SRC : SOUND_ICON_SRC;
+  mostraIconaAudio(img, getMasterVolume()<=0);
   box.classList.add('show');
   if(_audioIndicatorTimer) clearTimeout(_audioIndicatorTimer);
   _audioIndicatorTimer = setTimeout(()=>{
@@ -13310,14 +13319,10 @@ function showAudioToggleIndicator(){
   }, AUDIO_INDICATOR_MS);
 }
 function updateMusicMuteIcon(){
-  const img=document.getElementById('music-mute-icon-img');
-  if(!img) return;
-  img.src = getMusicVolume()<=0 ? MUTE_ICON_SRC : SOUND_ICON_SRC;
+  mostraIconaAudio(document.getElementById('music-mute-icon-img'), getMusicVolume()<=0);
 }
 function updateSfxMuteIcon(){
-  const img=document.getElementById('sfx-mute-icon-img');
-  if(!img) return;
-  img.src = getSfxVolume()<=0 ? MUTE_ICON_SRC : SOUND_ICON_SRC;
+  mostraIconaAudio(document.getElementById('sfx-mute-icon-img'), getSfxVolume()<=0);
 }
 
 // Clicking a channel's speaker icon mutes/unmutes JUST that channel: muting
@@ -13423,6 +13428,16 @@ function openSettingsModal(quando){
 function vestiFinestraImpostazioni(){
   const pannello = document.getElementById('settings-pannello');
   if(!pannello) return;
+  // I tre pezzi della barra del titolo. Sono un fondo, non un'immagine: la
+  // barra e' una fila di tre riquadri vuoti che si vestono, cosi' il centro
+  // puo' allungarsi quanto serve senza stirare i due tappi.
+  const sfondo = (sel, file)=>{
+    const el = document.querySelector(sel);
+    if(el) impostaSfondoDaCandidati(el, uiFileCandidati(file));
+  };
+  sfondo('#settings-titlebar .hx-titlebar-left',   'title-bg-left.png');
+  sfondo('#settings-titlebar .hx-titlebar-center', 'title-bg-center.png');
+  sfondo('#settings-titlebar .hx-titlebar-right',  'title-bg-right.png');
   impostaVariabileDaCandidati(pannello, '--hx-trama', uiFileCandidati('brushed-texture.jpg'));
   impostaVariabileDaCandidati(pannello, '--hx-casella-off', uiFileCandidati('checkbox-square-unchecked.png'));
   impostaVariabileDaCandidati(pannello, '--hx-casella-on',  uiFileCandidati('checkbox-square-checked.png'));
