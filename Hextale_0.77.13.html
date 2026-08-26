@@ -8446,7 +8446,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.12</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.13</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -10177,6 +10177,7 @@ function playSfx(id){
 // be silently dropped.
 let _sfxCtx=null;
 const _sfxBuffers={};
+const _suoniSenzaFile = new Set();   // per non ripetere lo stesso avviso
 (function initSfxEngine(){
   try{
     const AC=window.AudioContext||window.webkitAudioContext;
@@ -10910,7 +10911,19 @@ function playSfxFile(filename, fixedVolume, offsetSec){
   // capped at 1.0 rather than actually amplifying past unity — a real (if
   // rare) limitation of this fallback path only, not the primary Web Audio
   // path above which can genuinely boost gain past 1.0.
+  // v0.77.13 — e se non c'e' nemmeno un indirizzo, lo si dice. Una volta per
+  // nome, non a ogni riproduzione: un suono che manca e' un difetto da
+  // sistemare, non un rumore di fondo da stampare cento volte.
+  // Questo e' il difetto che ha tenuto muta la fine partita per due versioni
+  // (end-game-win non era fra i precaricati) e che nessuno avrebbe scoperto
+  // leggendo il codice: la chiamata c'era, e sembrava tutto a posto.
   const dataUrl = AUDIO_DATA_URLS[name];
+  if(!dataUrl && !_sfxBuffers[name] && !_suoniSenzaFile.has(name)){
+    _suoniSenzaFile.add(name);
+    console.warn('[audio] "'+name+'" non ha ne\' un buffer caricato ne\' un indirizzo noto: resta muto.'
+      + '\nVa aggiunto a SUONI_SFX_EXTRA (strada consigliata: cerca prima la copia locale)'
+      + '\noppure ad AUDIO_DATA_URLS.');
+  }
   const audioUrl = dataUrl || `assets/audio/sfx/${filename}`;
   const audio = new Audio(audioUrl);
   audio.volume = fixedVolume!==undefined ? Math.min(1,Math.max(0,fixedVolume)) : Math.min(1, getGlobalVolume() * 0.8 * sfxGainMultiplier(name));
@@ -14802,6 +14815,16 @@ const SUONI_SFX_EXTRA = Object.values(WHOOSH_PER_RARITA)
   // prima cifra suonerebbe in ritardo sulla propria animazione.
   .concat(['kaching.mp3', 'card-ding.mp3', 'card-fly.mp3', 'card-burn.mp3', 'shield.mp3', 'eagle.mp3', 'break-stone.mp3',
            'score.mp3', 'scored.mp3',
+           // v0.77.13 — bell (il "ding" del tempo scaduto) stava SOLO in
+           // AUDIO_DATA_URLS. I due elenchi non sono equivalenti: quello lo
+           // precarica con fetch, e il precarico si salta interamente quando
+           // il gioco e' aperto dal disco (vedi initSfxEngine), lasciando come
+           // unica strada un <audio> puntato al repository — che senza rete
+           // non arriva. I suoni registrati qui invece si cercano PRIMA nella
+           // copia locale, e se non ci sono lo dicono in console invece di
+           // restare muti in silenzio. Un suono che deve essere puntuale
+           // merita la strada piu' solida.
+           'bell.mp3',
            // v0.77.6 — mancava, e un suono non precaricato non e' un suono in
            // ritardo: playSfxFile lo cerca fra i buffer, non lo trova e non
            // suona affatto. Era il motivo per cui la fine partita era muta.
@@ -27537,11 +27560,17 @@ const TIMESUP_BANNER_DUR_MS=1250; // must match #timesup-banner.show's CSS anima
 // seconda di chi l'aveva mandata.
 const ARCO_BOLLA_MS = 728;
 function mostraTempoScaduto(){
-  const banner=document.getElementById('timesup-banner');
-  if(!banner) return;
   // v0.72.0: bell.mp3 e' il "ding" del tempo scaduto.
+  // v0.77.13 — e suona PRIMA di ogni controllo sul disegno. Stava sotto a
+  // `if(!banner) return`, cioe' subordinato all'esistenza di un elemento: ma
+  // il "ding" annuncia che e' scaduto il tempo, non che c'e' un'immagine da
+  // mostrare. Il giorno in cui quell'elemento non c'e' — una pagina smontata,
+  // un ordine di avvio diverso — la partita perderebbe anche l'unico segnale
+  // che le resta. Chi racconta un fatto non deve dipendere da chi lo illustra.
   playSfxFile('bell.mp3');
   _tempoScadutoDa = performance.now();
+  const banner=document.getElementById('timesup-banner');
+  if(!banner) return;
   // v0.77.6 — QUESTA FUNZIONE NON BLOCCA PIU' NIENTE.
   // Prima alzava G.turnBannerActive e la classe turn-locked, e le lasciava
   // alzate perche' il banner del turno arrivava subito dopo. Adesso il banner
