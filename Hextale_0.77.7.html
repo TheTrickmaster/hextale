@@ -874,7 +874,15 @@ body.mouse-down{
 #turn-banner{
   position:fixed; top:510.4px; left:50%;
   transform:translate(-50%,-50%);
-  width:1920px; height:auto;
+  /* v0.77.6 — 1960px, cioe' la misura NATIVA del file, non 1920.
+     turn-banner-bg e' 1960x174 ma il disegno non arriva ai suoi bordi: ha
+     diciannove pixel di trasparente per parte. Disegnandolo largo 1920 quel
+     margine restava dentro allo schermo e la fascia si fermava una trentina
+     di pixel prima dei bordi — e' esattamente quello che si vedeva. A misura
+     nativa il disegno copre da 19 a 1939, cioe' i 1920 pieni.
+     Gli altri due fondi non hanno questo margine (controllato: il disegno
+     parte da 0 e finisce a 1919) e restano quindi a 1920. */
+  width:1960px; height:auto;
   opacity:0;
   pointer-events:none;
   z-index:700;
@@ -959,7 +967,7 @@ body.mouse-down{
    it. Native asset size 2157×703 — sized down to the same 1125px width
    #turn-banner uses (height auto, keeps native aspect ratio) so the two
    banners read as a consistent visual family even though only one is ever
-   on screen at a time (see showTimesUpBanner()'s own JS comment for the
+   on screen at a time (see mostraTempoScaduto()'s own JS comment for the
    sequencing that guarantees they never overlap). */
 /* v0.77.5 — anche questa e' una fascia a tutta larghezza (time-up-bg). */
 #timesup-banner{
@@ -3290,7 +3298,7 @@ body.mouse-down{
    #timesup-banner's own centered-image + plain-fade treatment (same fixed
    canvas-center position, same width/opacity-fade animation shape) — see
    showSuddenDeathBanner() in the script for the JS side of this, which
-   drives #banner-dim-overlay exactly like showTimesUpBanner() does. */
+   drives #banner-dim-overlay exactly like mostraTempoScaduto() does. */
 /* v0.75.0 — via lo stile di #sudden-death-banner: il banner del colpo finale
    non esiste piu' (vedi dannoDiFineTurno). Le bolle .sd-bubble qui sopra
    restano, perche' l'ondata e' rimasta e adesso gira a ogni turno. */
@@ -3794,12 +3802,25 @@ body.mouse-down{
    dipende da quanto e' lungo il testo, e due etichette diverse darebbero due
    pulsanti diversi. Qui devono essere una coppia. */
 #gameover-actions .hx-btn{ width:330px; padding:0; }
-#btn-end-match{
+#btn-show-results{
   /* Centrato sulla pagina, dieci pixel dal bordo alto. */
   display:none; position:fixed; top:10px; left:50%;
   transform:translateX(-50%); z-index:210;
+  width:300px; padding:0;
 }
-#btn-end-match.show{ display:inline-flex; }
+/* v0.77.6 — QUESTO PULSANTE E' OPACO.
+   L'arte dei pulsanti e' semitrasparente per costruzione (misurata: alfa 165
+   su 255 nel corpo), perche' di norma sta sopra a un fondo che deve
+   trasparire. Qui invece sta sopra al tabellone vivo, e un comando attraverso
+   cui si vedono le carte muoversi si legge male. L'opacita' non si aggiunge
+   con un colore dietro — la sagoma dei due tappi e' irregolare e un
+   rettangolo si vedrebbe agli angoli — ma alzando il canale alfa dell'arte
+   stessa: il filtro qui sotto moltiplica l'alfa per due, cosi' il corpo
+   (0.65) sfonda l'uno e viene tagliato, mentre i bordi sfumati restano
+   sfumati. E' l'unico modo di rendere opaca un'immagine senza inventarle
+   intorno una forma che non ha. */
+#btn-show-results .hxb-strip{ filter:url(#hx-opaco); }
+#btn-show-results.show{ display:inline-flex; }
 #gameover.board-view{display:none;}
 
 /* ── card detail modal ── */
@@ -8193,7 +8214,7 @@ body.prova-senza-willchange #mm-book-rot{
 <!-- ── shared dim overlay behind ANY banner (turn-change, time's up, etc.)
      v0.71.40 NEW ("dietro al banner metti un overlay nero opacity 30%"):
      one shared full-screen scrim, toggled by showTurnBanner()/
-     showTimesUpBanner() alongside each banner's own .show class — sits at a
+     mostraTempoScaduto() alongside each banner's own .show class — sits at a
      lower z-index than both banner <img>s (700) so it's always BEHIND
      whichever one is currently up, but above the board/hands so it visibly
      dims them while a banner is on screen. Plain opacity transition, no
@@ -8214,7 +8235,7 @@ body.prova-senza-willchange #mm-book-rot{
 <!-- ── "Time's up" banner ───────────────────────────────────────────
      Shown whenever a turn ends because the countdown hit 0 (autoPlay()
      firing), BEFORE the normal "Turno del Player X" banner — see
-     showTimesUpBanner()/endTurn()'s own comments for the sequencing that
+     mostraTempoScaduto()/endTurn()'s own comments for the sequencing that
      guarantees the two never overlap on screen. Plain fade in/out (not the
      drop-from-above motion #turn-banner uses) per explicit spec — simple
      opacity transition is enough to read clearly without needing its own
@@ -8301,11 +8322,19 @@ body.prova-senza-willchange #mm-book-rot{
   </div>
 </div>
 <!-- v0.77.5 — mentre si guarda il tabellone a partita finita, questo e'
-     l'unico comando in scena: chiude la partita e riporta al risultato.
+     l'unico comando in scena: riporta alla schermata del risultato.
      Prende il posto del vecchio "Guarda risultati" sulla destra. -->
-<button id="btn-end-match" class="hx-btn" onclick="toggleBoardView(false)">
+<!-- Il filtro che rende opaca l'arte semitrasparente del pulsante qui sotto.
+     Un SVG di zero pixel: serve solo a ospitare la definizione, che il CSS
+     richiama per id. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <filter id="hx-opaco" x="0" y="0" width="100%" height="100%">
+    <feComponentTransfer><feFuncA type="linear" slope="2" intercept="0"/></feComponentTransfer>
+  </filter>
+</defs></svg>
+<button id="btn-show-results" class="hx-btn" onclick="toggleBoardView(false)">
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
-  <span class="hxb-label">End match</span>
+  <span class="hxb-label">Show results</span>
 </button>
 <!-- Build version badge — bumped by hand on every delivered file so Lorenzo
      can tell at a glance which build he's looking at. Bottom-center (v0.71.9:
@@ -8328,7 +8357,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.5</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.7</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -11300,7 +11329,7 @@ function montaGraficaPartita(){
   // I tre pulsanti della fine partita usano i pezzi del pulsante normale.
   // Si vestono qui, una volta sola: non appartengono a nessuna pagina che li
   // ricostruisce, quindi non c'e' un momento successivo in cui rifarlo.
-  ['#btn-view-board','#btn-back-main','#btn-end-match'].forEach(sel=>
+  ['#btn-view-board','#btn-back-main','#btn-show-results'].forEach(sel=>
     vestiPulsante(document.querySelector(sel)));
   img('.player-hp-orb-bg', 'score.png');
   // Il lampo del punteggio e' la stessa immagine, resa bianca dal CSS.
@@ -14628,7 +14657,11 @@ const SUONI_SFX_EXTRA = Object.values(WHOOSH_PER_RARITA)
   // tonfo del punteggio che lo incassa. Precaricati come gli altri, o la
   // prima cifra suonerebbe in ritardo sulla propria animazione.
   .concat(['kaching.mp3', 'card-ding.mp3', 'card-fly.mp3', 'card-burn.mp3', 'shield.mp3', 'eagle.mp3', 'break-stone.mp3',
-           'score.mp3', 'scored.mp3']);
+           'score.mp3', 'scored.mp3',
+           // v0.77.6 — mancava, e un suono non precaricato non e' un suono in
+           // ritardo: playSfxFile lo cerca fra i buffer, non lo trova e non
+           // suona affatto. Era il motivo per cui la fine partita era muta.
+           'end-game-win.mp3']);
 const SFX_REL = 'audio/sfx/';
 const SFX_BASE = 'https://thetrickmaster.github.io/hextale/audio/sfx/';
 function registraSuoniExtra(){
@@ -18625,7 +18658,7 @@ function debugShowAiSpeechBubble(){
   showAiSpeechBubble();
   closeDebugModal();
 }
-// Debug shortcut: shows the new "Time's up" banner (see showTimesUpBanner())
+// Debug shortcut: shows the new "Time's up" banner (see mostraTempoScaduto())
 // on demand, without needing to actually let a real turn timer run out.
 // v0.71.68 NEW: clears every banner's .show/.debug-pinned state before a
 // fresh debug shortcut shows one — so switching between "Mostra asset"
@@ -18644,7 +18677,7 @@ function debugShowTimesUpBanner(){
   document.getElementById('settings-btn').style.display='block';
   debugClearPinnedBanners();
   // v0.71.68 ("tieni fisso anche i banner final blow e times up"): paints
-  // the banner directly instead of calling showTimesUpBanner() (whose own
+  // the banner directly instead of calling mostraTempoScaduto() (whose own
   // .show class drives a finite fade-in-then-out CSS animation that always
   // ends at opacity:0, per its own keyframe — see #timesup-banner's CSS
   // comment) — .debug-pinned holds it at opacity:1 with no animation, so it
@@ -21660,6 +21693,13 @@ function startTimer(){
       // be a different value.
       if(!G.gameOver && G.currentPlayer===timerPlayer){
         G.turnEndedByTimeout=true;
+        // v0.77.6 — IL BANNER ARRIVA ADESSO, non a fine turno.
+        // Prima lo mostrava endTurn(), cioe' dopo che la carta automatica era
+        // stata piazzata e tutte le sue animazioni erano finite: potevano
+        // passarci dei secondi, e "tempo scaduto" annunciato dopo il fatto non
+        // annuncia piu' niente. Qui siamo nel tick in cui il contatore tocca
+        // lo zero — l'unico istante in cui quella scritta vuol dire qualcosa.
+        mostraTempoScaduto();
         autoPlay(timerPlayer);
       }
     }
@@ -21826,7 +21866,7 @@ function autoPlay(player){
   // v0.71.41 FIX ("vedo ancora il vecchio banner 'tempo scaduto'"): this
   // toast was the OLD text-based "time's up" announcement, left over from
   // before #timesup-banner (the real graphical banner, see
-  // showTimesUpBanner()) existed. Both were firing together for the normal
+  // mostraTempoScaduto()) existed. Both were firing together for the normal
   // "timer ran out, a random card got auto-played" case — removed here since
   // the graphical banner alone now fully covers that announcement. The two
   // OTHER toasts just above (Bufera/Distruggere choices timing out without
@@ -26875,6 +26915,19 @@ function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLa
         // silently coalesced by the browser and the animation never
         // restarts — this was the root cause of "only the first hit plays".
         // Using a different class each time guarantees a real style change.
+        // ── v0.77.6 — UNA SOLA ANIMAZIONE PER VOLTA SU QUESTA CARTA ────────
+        // Il colpo e l'atterraggio animano tutti e due `transform` sullo
+        // STESSO elemento, e due animazioni sulla stessa proprieta' non si
+        // sommano: vince quella dichiarata piu' in basso nel foglio di stile.
+        // Il colpo e' dichiarato dopo, quindi vinceva lui — ma l'atterraggio
+        // restava attaccato, e nei percorsi in cui la carta si posa tardi
+        // (finestre decisionali) o in cui il tabellone viene ridisegnato a
+        // meta' caduta, i due si alternavano a schermo: la carta rimbalzava,
+        // poi rimbalzava di nuovo. Qui la caduta si toglie di mezzo prima di
+        // colpire, perche' a questo punto e' comunque finita: il colpo parte
+        // apposta dopo (vedi landDelayMs).
+        placedEl.classList.remove('card-land','card-hop-a','card-hop-b');
+        placedEl.style.animationDelay='';
         riavviaAnimazione(placedEl, ['card-lunge-a','card-lunge-b'], idx%2!==0);
       },stepStart);
 
@@ -27210,8 +27263,15 @@ function endTurn(player, animationsSettled, dannoFatto){
     showTurnBanner(G.currentPlayer);
     startTurn();
   };
+  // v0.77.6 — il banner del tempo scaduto e' gia' andato in scena da solo, nel
+  // tick in cui il contatore ha toccato lo zero (vedi mostraTempoScaduto). Qui
+  // resta solo da non pestargli i piedi: se e' ancora a schermo, il banner del
+  // turno aspetta che finisca invece di sovrapporsi.
   if(endedByTimeout){
-    showTimesUpBanner(proceedWithTurnBanner);
+    const passati = performance.now() - _tempoScadutoDa;
+    const resta = Math.max(0, TIMESUP_DUR_MS - passati);
+    if(resta > 0) setTimeout(proceedWithTurnBanner, resta);
+    else proceedWithTurnBanner();
   } else {
     proceedWithTurnBanner();
   }
@@ -27295,7 +27355,7 @@ function showTurnBanner(player){
     G.turnBannerActive=false;
     if(gameArea) gameArea.classList.remove('turn-locked');
     // v0.71.40: #turn-banner is always the LAST banner in any chain (either
-    // shown alone, or as showTimesUpBanner()'s own completion callback — see
+    // shown alone, or as mostraTempoScaduto()'s own completion callback — see
     // that function's comment) — safe to unconditionally turn the dim scrim
     // off here rather than needing to know whether another banner follows.
     document.getElementById('banner-dim-overlay')?.classList.remove('show');
@@ -27332,46 +27392,32 @@ const TIMESUP_BANNER_DUR_MS=1250; // must match #timesup-banner.show's CSS anima
 // altre, e la stessa cosa a schermo si muoveva a due velocita' diverse a
 // seconda di chi l'aveva mandata.
 const ARCO_BOLLA_MS = 728;
-function showTimesUpBanner(callback){
+function mostraTempoScaduto(){
   const banner=document.getElementById('timesup-banner');
-  const gameArea=document.getElementById('game-area');
-  if(!banner){ callback(); return; }
-  // v0.72.0 NEW ("quando scade il tempo e appare il banner time out durante
-  // un turno, riproduci il suono 'ding' una volta"): bell.mp3 was already
-  // wired into AUDIO_DATA_URLS (a leftover from before the turn-change sound
-  // was swapped to change-turn.mp3 — see that entry's own comment) but
-  // unused anywhere since — repurposed here as the "ding" for the timeout
-  // banner. Played once per banner show, same convention as every other
-  // one-shot sfx in the file.
+  if(!banner) return;
+  // v0.72.0: bell.mp3 e' il "ding" del tempo scaduto.
   playSfxFile('bell.mp3');
-  G.turnBannerActive=true;
-  if(gameArea) gameArea.classList.add('turn-locked');
-  // v0.71.40: dim scrim on for this banner too — deliberately NOT turned off
-  // in this function's own hide timeout below (see that block's existing
-  // comment on turnBannerActive/turn-locked for the identical reasoning):
-  // the turn banner that immediately follows via `callback` needs it to stay
-  // on right through the gap between the two, or the dim would flicker off
-  // and back on between banners instead of reading as one continuous dim.
-  // showTurnBanner()'s own hide timeout is what finally turns it off, same
-  // as turnBannerActive/turn-locked.
+  _tempoScadutoDa = performance.now();
+  // v0.77.6 — QUESTA FUNZIONE NON BLOCCA PIU' NIENTE.
+  // Prima alzava G.turnBannerActive e la classe turn-locked, e le lasciava
+  // alzate perche' il banner del turno arrivava subito dopo. Adesso il banner
+  // parte nell'istante dello scadere, mentre la giocata automatica deve ancora
+  // succedere — e quelle due leve sono proprio cio' che impedisce a una carta
+  // di essere piazzata (vedi le guardie in placeCard/doPlace). Tenerle alzate
+  // qui avrebbe bloccato il turno invece di annunciarlo. E' una messa in
+  // scena e basta: si mostra, si toglie, non tocca lo stato della partita.
   document.getElementById('banner-dim-overlay')?.classList.add('show');
   riavviaAnimazione(banner, ['show']);
-  // v0.77.5 — orologio e scritta viaggiano con la fascia: stessa animazione,
-  // fatta ripartire nello stesso istante.
   riavviaAnimazione(document.getElementById('timesup-content'), ['show']);
   const genAtShow=gameGeneration;
   setTimeout(()=>{
     banner.classList.remove('show');
     document.getElementById('timesup-content')?.classList.remove('show');
-    if(genAtShow!==gameGeneration) return; // a new game started meanwhile — don't drive a dead board's next banner
-    // Deliberately does NOT clear turnBannerActive/turn-locked here — the
-    // turn banner that immediately follows (via callback) re-locks anyway,
-    // and clearing then immediately re-setting it would let a single stray
-    // input land in the gap between the two banners. The turn banner's own
-    // hide timeout (showTurnBanner()'s _turnBannerHideTimeout) is what
-    // finally unlocks the board once BOTH banners are done.
-    callback();
-  }, TIMESUP_BANNER_DUR_MS);
+    if(genAtShow!==gameGeneration) return; // e' cominciata un'altra partita
+    // L'oscuramento e' condiviso col banner del turno: si spegne solo se nel
+    // frattempo non e' subentrato lui, o si porterebbe via il suo.
+    if(!G.turnBannerActive) document.getElementById('banner-dim-overlay')?.classList.remove('show');
+  }, TIMESUP_DUR_MS);
 }
 
 function drawInitialHands(callback){
@@ -29941,7 +29987,8 @@ function surrenderGame(){
   G.hp[loser]=G.hp[winner]+1;
   G.gameOver=true;
   render();
-  const bgmEl=document.getElementById('bgm'); if(bgmEl) bgmEl.volume=getEffectiveMusicVolume()*0.44;
+  // v0.77.6 — l'abbassamento della musica sta adesso dove compare la schermata
+  // (vedi finishGameWithResult): qui era mezzo secondo prima, cioe' su niente.
   finishGameWithResult();
 }
 
@@ -30018,6 +30065,12 @@ function finishGameWithResult(){
     // legarlo alla comparsa e non a endGame() vuol dire che arriva insieme a
     // quello che annuncia, mezzo secondo dopo l'ultima carta.
     try{ playSfxFile('end-game-win.mp3'); }catch(_){}
+    // v0.77.6 — e la musica della battaglia scende di 6dB (meta' ampiezza) nello
+    // stesso istante, per lasciargli spazio. Si moltiplica il volume EFFETTIVO
+    // invece di scriverne uno fisso: chi ha la musica a zero deve restare a
+    // zero, e un numero secco qui gliela riaccenderebbe proprio adesso.
+    const bgm=document.getElementById('bgm');
+    if(bgm) bgm.volume = getEffectiveMusicVolume() * 0.501;
   },500);
 }
 
@@ -30031,9 +30084,9 @@ function finishGameWithResult(){
 // called from elsewhere.
 function toggleBoardView(showBoard){
   const overlay=document.getElementById('gameover');
-  // v0.77.5 — il comando che riporta al risultato adesso si chiama "End
-  // match" e sta in cima al centro (era "Guarda risultati", a destra).
-  const backBtn=document.getElementById('btn-end-match');
+  // v0.77.5 — il comando che riporta al risultato sta in cima al centro
+  // (era "Guarda risultati", a destra). v0.77.7 — si chiama "Show results".
+  const backBtn=document.getElementById('btn-show-results');
   if(!overlay) return;
   overlay.classList.toggle('board-view', !!showBoard);
   if(backBtn) backBtn.classList.toggle('show', !!showBoard);
@@ -30117,6 +30170,9 @@ function dannoDiFineTurno(onDone){
 // fine turno, e ci passera' qualunque altra cosa ne dara' domani. Chi assegna
 // non deve sapere niente di come si vedono.
 const BOLLA_CIFRA_MS = 55;       // quanto ci mette una cifra a scorrere
+// Quanto resta a schermo il banner del tempo scaduto, e da quando.
+const TIMESUP_DUR_MS = 1250;     // deve combaciare con .show di #timesup-banner
+let _tempoScadutoDa = -99999;
 const _bolle = {1:null, 2:null};
 function _pannelloDi(player){ return document.getElementById('p'+player+'-info'); }
 // Apre la bolla sotto al punteggio, coperta dal lampo bianco. Il conteggio
@@ -30170,7 +30226,21 @@ function apriBollaPunti(player){
   // due numeri che devono restare uguali, scritti in due posti, prima o poi
   // smettono di esserlo — ed e' cosi' che la bolla mancherebbe il centro.
   const lato = parseFloat(getComputedStyle(el).width) || 100;
-  const salto = orb ? ((orb.offsetTop + orb.offsetHeight/2) - (sotto + lato/2)) : -110;
+  // v0.77.7 — LA BOLLA MIRA AL NUMERO, NON ALLA SCATOLA.
+  // Il centro del riquadro del punteggio non e' il centro di cio' che si
+  // vede: l'arte di score.png ha il suo incavo piu' in basso, ed e' per questo
+  // che la cifra grande e' posata al 58% dell'altezza e non al 50%. Mirando a
+  // meta' scatola la bolla arrivava una ventina di pixel troppo in alto —
+  // 8% di 240px, esattamente lo scarto fra i due. Adesso il bersaglio si
+  // legge dall'elemento della cifra: e' quello il punto in cui il punteggio
+  // "sta", e cosi' i due non possono piu' scostarsi anche se domani l'arte
+  // o la percentuale cambiano.
+  const cifra = pannello.querySelector('.player-hp-value');
+  const centroPunteggio = orb
+    ? (cifra ? (orb.offsetTop + cifra.offsetTop + cifra.offsetHeight/2)
+             : (orb.offsetTop + orb.offsetHeight*0.58))
+    : null;
+  const salto = centroPunteggio!==null ? (centroPunteggio - (sotto + lato/2)) : -110;
   el.style.setProperty('--bolla-salto', salto.toFixed(1)+'px');
   const art = document.createElement('img');
   art.className = 'score-bubble-art'; art.alt=''; art.draggable=false;
@@ -30977,6 +31047,14 @@ function swapCardOwnerVariant(containerEl, newOwner, card){
   }
 }
 
+// Chi non mostra i propri numeri. Un elenco e non un flag scritto a mano su
+// ogni copia della carta: le carte nascono in piu' posti (evocazioni,
+// trasformazioni, copie del Magic Mirror) e un flag da ricordare ogni volta e'
+// un flag che prima o poi qualcuno dimentica. Il nome invece ce l'hanno tutte.
+const CARTE_SENZA_NUMERI = ['Excalibur'];
+function valoriNascosti(card){
+  return !!card && CARTE_SENZA_NUMERI.includes(card.name);
+}
 function drawHexCard(svg,cx,cy,R,card,fillColor,strokeColor,textColor,nameText,isSelected,glowColor,onClick,onBoard,displayValues,factionDeltas,uncertainBonus,displayFortifiedSides){
   const cardValues = displayValues || card.values || card;
   // ── v0.75.50 — IL VERDE E IL ROSSO SE LI CALCOLA LA CARTA ────────────────
@@ -31727,9 +31805,21 @@ function drawHexCard(svg,cx,cy,R,card,fillColor,strokeColor,textColor,nameText,i
   const labelInset=0.78;
   const activatedGroups = card.activatedGroups || {};
 
+  // ── v0.77.6 — LE CARTE CHE NON MOSTRANO NUMERI ─────────────────────────
+  // Excalibur ha zero su tutti e sei i lati: non e' un personaggio che
+  // combatte, e' una spada che King Arthur pianta sul tabellone. Sei zeri
+  // disegnati intorno sembrano un errore di lettura del foglio piu' che una
+  // caratteristica, quindi non si disegnano affatto — ne' il dischetto ne' la
+  // cifra. I valori sotto restano quelli che sono: si nasconde la lettura,
+  // non il dato, esattamente come fa il fumo del Brucaliffo.
+  // La regola sta QUI perche' drawHexCard e' l'unico posto in cui una carta
+  // viene disegnata: tabellone, mano, ingrandimento e Collezione passano
+  // tutti da questa funzione, quindi una riga sola le copre tutte.
+  const senzaNumeri = valoriNascosti(card);
   let indiceGruppo = -1;
   for(const g of groups){
     indiceGruppo++;
+    if(senzaNumeri) continue;
     const n=g.sides.length;
     let lx,ly;
     if(n%2===1){
@@ -36072,14 +36162,23 @@ function cardLandApplyTo(el){
   // v0.72.22 FIX (secondo tentativo, il primo era sbagliato): il tabellone e'
   // #board-svg > un <g> PER CELLA (19 fratelli) > [<g> tassello, <g> carta].
   // Spostare la carta in fondo al proprio gruppo-cella la mette sopra al
-  // proprio tassello e basta: le celle disegnate DOPO (misurato: la cella
-  // toccata era la 4a di 19, quindi 14 celle successive) continuavano a
-  // passarle davanti. Va spostato in fondo il GRUPPO-CELLA intero, che e'
-  // l'unita' che #board-svg impila.
+  // proprio tassello e basta: le celle disegnate DOPO continuavano a passarle
+  // davanti. Va spostato in fondo cio' che il suo genitore impila.
+  // v0.77.6 — E QUEL GENITORE NON E' PIU' L'SVG. Da quando le carte hanno uno
+  // strato loro (#board-cards-layer), questa risalita arrivava fino allo
+  // STRATO INTERO e lo rimetteva in fondo: spostare un nodo lo stacca e lo
+  // riattacca, e cio' azzera ogni animazione CSS in corso su di lui e su tutti
+  // i suoi figli — cioe' su tutte le carte del tabellone insieme. Adesso si
+  // sale solo fino al figlio diretto del proprio genitore e si sposta quello.
   const bsvgRoot = el.ownerSVGElement || document.getElementById('board-svg');
+  const strato = (bsvgRoot && bsvgRoot.querySelector('#board-cards-layer')) || bsvgRoot;
   let cellGroup = el;
-  while(cellGroup.parentNode && cellGroup.parentNode !== bsvgRoot) cellGroup = cellGroup.parentNode;
-  if(cellGroup.parentNode === bsvgRoot) bsvgRoot.appendChild(cellGroup);
+  while(cellGroup.parentNode && cellGroup.parentNode !== strato && cellGroup.parentNode !== bsvgRoot)
+    cellGroup = cellGroup.parentNode;
+  const genitore = cellGroup.parentNode;
+  // Se e' gia' l'ultimo non si tocca niente: un appendChild inutile e' pur
+  // sempre uno stacca-e-riattacca, con tutto quello che si porta dietro.
+  if(genitore && genitore.lastElementChild !== cellGroup) genitore.appendChild(cellGroup);
   el.classList.remove('card-land');
   void el.getBoundingClientRect(); // forza il reflow prima di riavviare
   el.style.animationDelay = (-elapsed).toFixed(0)+'ms';
