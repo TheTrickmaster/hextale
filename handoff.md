@@ -395,16 +395,85 @@ fa niente: se una tace, il turno resta appeso e la partita si ferma.
 ## Vincolo tecnico principale: `file://`
 
 Lorenzo apre il gioco **facendo doppio clic sul file**, quindi l'origine e'
-`file://`. Conseguenza: **`fetch()` non funziona**, per nessun URL e con
-qualunque header CORS. Ogni lettura da rete deve passare da JSONP, cioe' da
-un tag `<script>` iniettato:
+`file://` — e lo e' anche dentro al guscio desktop, che carica con `loadFile`.
 
-- Google Sheets → `_foglioViaScript()` (gviz con `responseHandler`)
-- GitHub API → `_githubJsonp(url, timeoutMs)` (parametro `callback=`)
+**v0.77.24 — questa sezione diceva una cosa piu' forte del vero, e ha fatto
+perdere tempo: non e' che `fetch()` non funzioni da `file://`.** Quello che
+succede e' che una pagina `file://` si presenta con `Origin: null`, e un
+server che non risponde con intestazioni CORS permissive vede quella origine e
+rifiuta. Il divieto quindi non dipende da noi, dipende da CHI si interroga:
+
+- **gviz di Google e `api.github.com` non le mandano** → per loro serve JSONP,
+  cioe' un tag `<script>` iniettato, ed e' il motivo per cui esistono
+  `_foglioViaScript()` (gviz con `responseHandler`) e `_githubJsonp(url,
+  timeoutMs)` (parametro `callback=`). Qui non e' cambiato niente.
+- **Nakama le manda** (`Access-Control-Allow-Origin: *`, con `Content-Type` e
+  `Authorization` fra le intestazioni ammesse) → da `file://` `fetch()`, XHR e
+  WebSocket funzionano tutti e tre. Verificato dentro a Electron, non dedotto.
+
+La regola giusta, per chi aggiunge una lettura da rete: **guarda le
+intestazioni CORS di quel server** (`curl -I` basta). Se sono permissive si usa
+`fetch`; se non lo sono, e solo allora, si passa da JSONP.
 
 Anche i download vanno costruiti a mano: l'attributo `download` viene
 ignorato cross-origin, quindi si scarica il blob in base64 e si passa da
 `URL.createObjectURL`.
+
+---
+
+## L'account (dalla v0.77.24)
+
+Il server e' un **Nakama** (Heroic Labs) su una macchina nostra:
+`45.59.124.211`, porta **7350** per il gioco. Gira in Docker insieme a un
+Postgres; la configurazione sta sul server in `/opt/nakama/`. La console di
+amministrazione (porta 7351) e Postgres (5432) **non sono esposti a internet**:
+ci si arriva con un tunnel SSH, `ssh -L 7351:127.0.0.1:7351 root@45.59.124.211`.
+
+Nel gioco non c'e' nessuna libreria: `@heroiclabs/nakama-js` e' un pacchetto
+npm e questo e' un file solo senza build. Le chiamate che servono sono quattro
+POST di JSON, scritte a mano nella sezione **L'ACCOUNT: IL CLIENT NAKAMA**.
+Tutte passano da `nakamaChiedi()`, che e' l'unico posto dove stanno il tempo
+massimo, la lettura del corpo e la traduzione degli errori.
+
+**`NAKAMA.chiaveServer` non e' un segreto.** Viaggia dentro a ogni copia del
+gioco e chiunque apra l'HTML la legge: dice "sono un client di Hextale", non
+"sono questo giocatore". Chi si autentica lo fa con email e password, e cio'
+che torna e' un token personale. Se la si cambia qui va cambiata anche sul
+server (`--socket.server_key`).
+
+**Il codice degli errori conta, e `0` e' speciale.** `nakamaChiedi` mette 0
+quando la richiesta non e' nemmeno partita — rete assente, server spento, tempo
+scaduto — e solo in quel caso compare il pulsante **"Gioca in locale"**. Un 401
+e' una risposta vera e vuole un'altra frase. La regola che valeva quando questi
+campi erano una facciata **resta valida**: dalla partita contro l'IA non si
+deve poter restare chiusi fuori, e infatti nessun percorso di errore lascia il
+giocatore senza una strada per entrare.
+
+**Il Login a password vuota si appoggia alla sessione salvata**
+(`hextale.sessione` in `localStorage`), che al bisogno si rinnova col refresh
+token. La decisione guarda solo la PASSWORD, mai l'email: il saluto
+"Bentornato" riempie quel campo da solo, e la prima versione — che chiedeva
+vuoti tutti e due — rendeva la strada irraggiungibile proprio a chi una
+sessione ce l'aveva. Se pero' nel campo c'e' un'email DIVERSA da quella della
+sessione, la password si chiede: una sessione vale per il suo proprietario.
+
+**Cosa non c'e' ancora.** "Login with google" e' rimasto una facciata, e ora lo
+dice invece di entrare come se avesse controllato qualcosa (serve un client
+OAuth). "Forgot password?" non e' collegato. Non c'e' un "esci" nel menu:
+`accessoEsci()` esiste ma non ha un pulsante. E nessun dato di gioco —
+collezione, mazzi, valute — passa ancora dal server: restano tutti in
+`localStorage`. `giocatoreOnline` dice se si e' entrati con un account, ed e'
+l'aggancio da cui partira' quel lavoro.
+
+**Il collaudo.** Non c'e' un file in `test/` per questa parte: il giro completo
+(registrazione, accesso, sessione ritrovata, password sbagliata, nome utente
+occupato, server irraggiungibile) e' stato provato lanciando il gioco vero
+dentro Electron, che e' l'unico modo di vedere l'origine `file://` com'e'
+davvero. Due trappole per chi lo rifara': le funzioni async del gioco si
+**lanciano** e basta — passare la loro promise a `executeJavaScript` trasforma
+un rigetto interno in un errore del collaudo invece che in un esito da leggere
+— e **"e' entrato nel menu" non si misura su `#start-screen.style.display`**,
+perche' quella schermata il gioco la RIMUOVE dal DOM.
 
 ---
 
