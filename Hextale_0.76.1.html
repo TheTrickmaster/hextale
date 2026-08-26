@@ -6336,12 +6336,12 @@ body.prova-senza-willchange #mm-book-rot{
    v0.75.83 — LA COLONNA DEI MAZZI
    ══════════════════════════════════════════════════════════════════════════
    440px a tutta altezza, 30px di margine interno su ogni lato. Dodici caselle
-   da 70px con 16px fra l'una e l'altra: 12x70 + 11x16 + 60 di margini fa
-   1076px, che sta dentro ai 1080 della tela autoriale con quattro pixel
-   d'avanzo. Non e' una coincidenza fortunata da lasciare al caso — se un
-   domani le caselle diventassero tredici, o piu' alte, questa colonna va
-   fatta scorrere: oggi non serve, e una barra di scorrimento che non scorre
-   mai e' solo un bordo in piu'.
+   da 70px con 8px fra l'una e l'altra: 12x70 + 11x8 fa 928px, e nei 1018
+   utili ne restano 90 — che e' esattamente lo spazio in cui stanno la riga di
+   separazione e il campo per importare un mazzo da un codice (v0.76.1).
+   Se un domani le caselle diventassero tredici, o piu' alte, questa colonna
+   va fatta scorrere: oggi non serve, e una barra di scorrimento che non
+   scorre mai e' solo un bordo in piu'.
    Il fondo e' un gradiente in diagonale con sopra una trama spazzolata in
    "overlay": la trama non colora, ridistribuisce il contrasto di quello che
    ha sotto, ed e' per questo che si vede sul chiaro in alto a sinistra e
@@ -6527,7 +6527,7 @@ body.prova-senza-willchange #mm-book-rot{
   width:100%;
   flex:1 1 auto; min-height:0;
 }
-#deck-list > *{ margin-bottom:16px; }
+#deck-list > *{ margin-bottom:8px; }
 #deck-list > *:last-child{ margin-bottom:0; }
 /* ── LA CASELLA DI UN MAZZO ────────────────────────────────────────────────
    Sfondo: l'illustrazione della PRIMA carta del mazzo, nella variante che si
@@ -6686,9 +6686,15 @@ body.prova-senza-willchange #mm-book-rot{
    e' esattamente cio' che si vedeva.
    Si scrivono quindi tutte e due — flex-basis per il calcolo, height perche'
    il riquadro sappia contenere — e la transizione le segue entrambe. */
-.deck-slot{ transition:flex-basis 0.32s ease, height 0.32s ease, opacity 0.24s ease, margin-bottom 0.32s ease; }
-.deck-slot.deck-slot-svanita{
+/* v0.76.1 — la sparizione vale per QUALUNQUE figlio della lista, non solo per
+   le caselle: entrando in modifica devono chiudersi anche la separazione e il
+   campo di importazione in fondo, o resterebbero appesi sotto al pannello
+   aperto. Scritta sulla classe da sola invece che su `.deck-slot.svanita`,
+   cosi' domani vale anche per quello che verra' aggiunto li' dentro. */
+#deck-list > *{ transition:flex-basis 0.32s ease, height 0.32s ease, opacity 0.24s ease, margin-bottom 0.32s ease; }
+.deck-slot-svanita{
   flex-basis:0 !important; height:0 !important; margin-bottom:0 !important;
+  padding-top:0 !important; padding-bottom:0 !important;
   opacity:0; overflow:hidden; pointer-events:none;
 }
 .deck-slot-piena.in-modifica{
@@ -6747,6 +6753,54 @@ body.prova-senza-willchange #mm-book-rot{
 }
 .deck-edit-elimina img{ display:block; height:30px; width:auto; }
 .deck-edit-elimina:hover{ opacity:1; filter:brightness(1.3); }
+/* v0.76.1 — copia il codice del mazzo. Alla sinistra del cestino, un filo
+   piu' piccola: e' un gesto che si fa spesso e senza conseguenze, mentre
+   quello accanto cancella. */
+.deck-edit-copia{
+  flex:0 0 auto;
+  background:none; border:0; padding:0; margin:0;
+  display:inline-flex; align-items:center;
+  opacity:0.85; transition:opacity 0.16s ease, filter 0.16s ease, transform 0.16s ease;
+}
+.deck-edit-copia img{ display:block; height:28px; width:auto; }
+.deck-edit-copia:hover{ opacity:1; filter:brightness(1.3); }
+/* Il lampo che dice "fatto": un attimo di luce e basta. Un messaggio scritto
+   andrebbe letto, e per una cosa andata bene non c'e' niente da leggere. */
+.deck-edit-copia.copiato{ filter:brightness(2.2) drop-shadow(0 0 8px rgba(255,231,178,0.9)); transform:scale(1.12); }
+
+/* ── v0.76.1 — LA RIGA PER IMPORTARE UN MAZZO ──────────────────────────────
+   Ultima riga della lista, sotto a una separazione. Stessa scatola della
+   casella del nome mazzo — e' lo stesso gesto, scrivere dentro un riquadro —
+   con l'icona appoggiata a destra, dentro al riquadro e non accanto. */
+.deck-lista-riga{ flex:0 0 auto; }
+.deck-importa{
+  position:relative; flex:0 0 auto;
+  display:flex; align-items:center; gap:8px;
+  height:44px; padding:0 12px; box-sizing:border-box;
+  background:#1A1E1F;
+  border:1.5px solid #4E5455; border-radius:8px;
+  box-shadow:inset 0 4px 10px rgba(0,0,0,0.35);
+}
+.deck-importa:focus-within{ border-color:#B29B6C; }
+.deck-importa-campo{
+  flex:1 1 auto; min-width:0;
+  background:none; border:0; outline:none; padding:0;
+  font-family:'Rosarivo',serif; font-size:20px; color:#B4C6C9;
+}
+.deck-importa-campo::placeholder{ color:#505A5C; }
+.deck-importa-campo::selection{ background:#4B585C; color:#EDE0C6; }
+/* Spenta finche' il codice non e' leggibile: e' il modo in cui il riquadro
+   risponde "si, questo l'ho capito" mentre uno lo sta ancora incollando. */
+.deck-importa-vai{
+  flex:0 0 auto;
+  background:none; border:0; padding:0; margin:0;
+  display:inline-flex; align-items:center;
+  opacity:0.4; pointer-events:none;
+  transition:opacity 0.18s ease, filter 0.16s ease;
+}
+.deck-importa-vai img{ display:block; height:24px; width:auto; }
+.deck-importa.valido .deck-importa-vai{ opacity:1; pointer-events:auto; }
+.deck-importa.valido .deck-importa-vai:hover{ filter:brightness(1.35); }
 /* ── il contatore delle carte ─────────────────────────────────────────────── */
 .deck-edit-conta, .deck-edit-cap-riga{ display:flex; align-items:baseline; }
 .deck-edit-conta > span:first-child, .deck-edit-cap-riga > span:first-child{ margin-right:auto; }
@@ -8158,7 +8212,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.76.0</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.76.1</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -11396,6 +11450,12 @@ function renderListaMazzi(){
   while(caselle.length < MAZZI_SLOT_P1) caselle.push(_slotMazzoVuoto());
   caselle.splice(MAZZO_P2_POSTO, 0, _slotGiocatore2());
   for(const c of caselle) lista.appendChild(c);
+  // v0.76.1 — in fondo, sotto a tutte le caselle, il campo per importare un
+  // mazzo da un codice. Sta QUI e non in una finestra a parte perche' e' la
+  // tredicesima riga della lista: incollare un codice e' un modo di aggiungere
+  // un mazzo, esattamente come premere "crea".
+  lista.appendChild(_rigaSeparatrice());
+  lista.appendChild(_rigaImporta());
   // ── v0.75.89 FIX — RIFARE LA LISTA NON DEVE CHIUDERE IL MAZZO APERTO ────
   // Cambiando le carte da scure a chiare, questa funzione ricostruiva la
   // colonna da zero: il pannello aperto spariva col resto, ma _mazzoInModifica
@@ -11490,6 +11550,101 @@ function creaMazzoGiocatore2(){
   renderListaMazzi();
   apriModificaMazzo(MAZZO_P2.id);
 }
+function _rigaSeparatrice(){
+  const r = document.createElement('div');
+  r.className = 'filters-riga deck-lista-riga';
+  return r;
+}
+// ── v0.76.1 — INCOLLA UN CODICE E DIVENTA UN MAZZO ────────────────────────
+// L'icona si accende SOLO quando il codice e' leggibile davvero. Non e' una
+// rifinitura: e' la risposta alla domanda "questo che ho incollato va bene?",
+// data mentre uno la sta ancora facendo invece che dopo aver premuto. La
+// prova la fa mazzoDaCodice, cioe' esattamente la stessa funzione che poi
+// importa — quindi non esiste il caso in cui l'icona si accende e poi
+// l'importazione fallisce.
+function _rigaImporta(){
+  const box = document.createElement('div');
+  box.className = 'deck-importa';
+  const campo = document.createElement('input');
+  campo.type = 'text'; campo.id = 'deck-importa-campo';
+  campo.className = 'deck-importa-campo';
+  campo.placeholder = 'Paste deck ID to import';
+  campo.spellcheck = false; campo.autocomplete = 'off';
+  const bottone = document.createElement('button');
+  bottone.type = 'button'; bottone.className = 'deck-importa-vai';
+  bottone.setAttribute('aria-label','Import deck');
+  const img = document.createElement('img');
+  img.alt=''; img.draggable=false;
+  impostaImgDaCandidati(img, uiFileCandidati('import-icon.png'));
+  bottone.appendChild(img);
+  const controlla = ()=>{
+    const esito = mazzoDaCodice(campo.value);
+    box.classList.toggle('valido', !esito.errore);
+  };
+  campo.addEventListener('input', controlla);
+  campo.addEventListener('paste', ()=> setTimeout(controlla, 0));
+  campo.addEventListener('keydown', (ev)=>{ if(ev.key==='Enter') importaMazzoDalCampo(); });
+  bottone.onclick = ()=> importaMazzoDalCampo();
+  box.append(campo, bottone);
+  return box;
+}
+function importaMazzoDalCampo(){
+  const campo = document.getElementById('deck-importa-campo');
+  if(!campo) return;
+  const esito = mazzoDaCodice(campo.value);
+  if(esito.errore){ console.warn('[codice mazzo] ' + esito.errore); return; }
+  if(MAZZI.length >= MAZZI_SLOT_P1){
+    console.warn('[codice mazzo] le dodici caselle sono piene: elimina un mazzo prima di importarne un altro.');
+    return;
+  }
+  if(esito.perse && esito.perse.length){
+    console.warn('[codice mazzo] ' + esito.perse.length + ' carta/e del codice non esiste piu\' nel foglio '
+      + '(numeri: ' + esito.perse.join(', ') + '). Il mazzo entra incompleto e non si potra\' salvare '
+      + 'finche\' non torna a ' + MAZZO_CARTE + ' carte.');
+  }
+  const m = { id:'m'+Date.now().toString(36)+Math.floor(Math.random()*1e4).toString(36),
+              nome:esito.nome, carte:esito.carte };
+  MAZZI.push(m);
+  if(!MAZZO_SCELTO) MAZZO_SCELTO = m.id;
+  salvaMazzi();
+  campo.value = '';
+  renderListaMazzi();
+}
+// Copia negli appunti. Si prova prima la via moderna e poi quella vecchia:
+// navigator.clipboard esige un contesto sicuro, e aprendo il gioco da file://
+// quel contesto non c'e' — cioe' proprio nel caso in cui uno sta provando il
+// file sul suo disco.
+function copiaCodiceDelMazzo(bottone){
+  const m = _mazzoInModifica;
+  if(!m) return;
+  const codice = codiceDelMazzo(m);
+  const fatto = ()=>{
+    if(!bottone) return;
+    bottone.classList.add('copiato');
+    setTimeout(()=>bottone.classList.remove('copiato'), 900);
+  };
+  try{
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(codice).then(fatto, ()=>_copiaAllaVecchia(codice, fatto));
+      return;
+    }
+  }catch(_){}
+  _copiaAllaVecchia(codice, fatto);
+}
+function _copiaAllaVecchia(testo, poi){
+  try{
+    const t = document.createElement('textarea');
+    t.value = testo;
+    t.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0;';
+    document.body.appendChild(t);
+    t.select();
+    document.execCommand('copy');
+    t.remove();
+    if(poi) poi();
+  }catch(e){
+    console.warn('[codice mazzo] non sono riuscito a copiare negli appunti. Il codice e\': ' + testo);
+  }
+}
 function _slotMazzoVuoto(){
   const el = document.createElement('div');
   el.className = 'deck-slot deck-slot-vuota';
@@ -11546,6 +11701,19 @@ function _pannelloModifica(mazzo){
   const nome = document.createElement('input');
   nome.type = 'text'; nome.className = 'deck-edit-nome'; nome.maxLength = 40;
   nome.oninput = ()=>{ if(_mazzoInModifica) _mazzoInModifica.nome = nome.value; };
+  // v0.76.1 — copia il codice del mazzo COSI' COM'E', anche incompleto: un
+  // mazzo a meta' e' comunque qualcosa da mandare a qualcuno, e aspettare che
+  // sia valido vorrebbe dire non poter chiedere consiglio proprio quando
+  // serve. Il codice dice quante carte contiene, quindi chi lo riceve lo
+  // scopre da se'.
+  const copia = document.createElement('button');
+  copia.type = 'button'; copia.className = 'deck-edit-copia';
+  copia.setAttribute('aria-label','Copy deck code');
+  const copiaImg = document.createElement('img');
+  copiaImg.alt=''; copiaImg.draggable=false;
+  impostaImgDaCandidati(copiaImg, uiFileCandidati('copy-icon.png'));
+  copia.appendChild(copiaImg);
+  copia.onclick = ()=> copiaCodiceDelMazzo(copia);
   const cestino = document.createElement('button');
   cestino.type = 'button'; cestino.className = 'deck-edit-elimina';
   cestino.setAttribute('aria-label','Delete deck');
@@ -11554,7 +11722,7 @@ function _pannelloModifica(mazzo){
   impostaImgDaCandidati(cestinoImg, uiFileCandidati('delete-icon.png'));
   cestino.appendChild(cestinoImg);
   cestino.onclick = ()=> apriConfermaElimina();
-  top.append(nome, cestino);
+  top.append(nome, copia, cestino);
 
   const conta = document.createElement('div');
   conta.className = 'deck-edit-conta';
