@@ -1155,7 +1155,8 @@ body.mouse-down{
      that gap, right-anchored so its tail (now pointing up after the
      scaleY(-1) flip on #ai-speech-right) lands under the avatar/orb
      regardless of how wide the current phrase makes it. */
-  position:fixed; top:360px; right:-40px; z-index:25;
+  /* v0.77.4 — 150px piu' in basso di prima (era 360). */
+  position:fixed; top:510px; right:-40px; z-index:25;
   display:none;
   pointer-events:none; user-select:none;
   transform-origin:100% 0%; /* wobble pivots around the tail tip, at the top-right of this box */
@@ -1499,7 +1500,11 @@ body.mouse-down{
    appena andate. */
 .score-bubble{
   position:absolute; left:50%;
-  width:80px; height:80px;
+  /* v0.77.4 — 100px (erano 80). La meta' di questa misura serve anche a
+     calcolare il viaggio verso il centro del punteggio: sta scritta una volta
+     sola, in --bolla-lato, cosi' cambiarla qui basta. */
+  --bolla-lato:100px;
+  width:var(--bolla-lato); height:var(--bolla-lato);
   transform:translateX(-50%);
   z-index:3; pointer-events:none;
   opacity:0; transition:opacity 0.16s ease;
@@ -1538,7 +1543,7 @@ body.mouse-down{
 .score-bubble-num{
   position:relative; z-index:1;
   font-family:'Marcellus SC','Marcellus',var(--font-display),serif;
-  font-weight:400; font-size:30px; line-height:1;
+  font-weight:400; font-size:38px; line-height:1;   /* v0.77.4 — erano 30 */
   font-variant-numeric:tabular-nums;
   background-image:linear-gradient(135deg, #FFD376 0%, #FFF1D4 50%, #FFD376 100%);
   -webkit-background-clip:text; background-clip:text;
@@ -8357,7 +8362,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.3</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.4</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -14647,7 +14652,11 @@ const WHOOSH_PER_RARITA = {
 // verrebbero cercati nell'istante in cui devono suonare e arriverebbero tardi
 // — e un suono in ritardo su un'animazione breve si sente come un errore.
 const SUONI_SFX_EXTRA = Object.values(WHOOSH_PER_RARITA)
-  .concat(['kaching.mp3', 'card-ding.mp3', 'card-fly.mp3', 'card-burn.mp3', 'shield.mp3', 'eagle.mp3', 'break-stone.mp3']);
+  // score/scored: il ticchettio di ogni punto che entra nella bolla e il
+  // tonfo del punteggio che lo incassa. Precaricati come gli altri, o la
+  // prima cifra suonerebbe in ritardo sulla propria animazione.
+  .concat(['kaching.mp3', 'card-ding.mp3', 'card-fly.mp3', 'card-burn.mp3', 'shield.mp3', 'eagle.mp3', 'break-stone.mp3',
+           'score.mp3', 'scored.mp3']);
 const SFX_REL = 'audio/sfx/';
 const SFX_BASE = 'https://thetrickmaster.github.io/hextale/audio/sfx/';
 function registraSuoniExtra(){
@@ -30220,6 +30229,14 @@ function conSegno(n){
   const v = n|0;
   return (v < 0 ? '' : '+') + v;
 }
+// v0.77.4 — un punto, un suono. Il numero della bolla sale una cifra alla
+// volta e ogni cifra e' un colpo: e' quello che rende il conteggio un evento
+// invece di un numero che cambia. Sta in una funzione sua e non scritto due
+// volte perche' le cifre salgono da due strade diverse (l'onda di fine turno
+// una alla volta, la conquista tutte di fila) e devono suonare uguale.
+function suonoDelPunto(){
+  try{ playSfxFile('score.mp3'); }catch(_){}
+}
 function apriBollaPunti(player){
   const pannello = _pannelloDi(player);
   if(!pannello || _bolle[player]) return _bolle[player];
@@ -30232,7 +30249,11 @@ function apriBollaPunti(player){
   // Quanto dovra' salire per finire ESATTAMENTE al centro del punteggio: la
   // distanza fra i due centri. Sull'orizzontale sono gia' allineati (tutti e
   // due `left:50%`), quindi il centro si raggiunge con la sola verticale.
-  const salto = orb ? ((orb.offsetTop + orb.offsetHeight/2) - (sotto + 80/2)) : -110;
+  // Il lato vero della bolla si legge dal CSS invece di essere ricopiato qui:
+  // due numeri che devono restare uguali, scritti in due posti, prima o poi
+  // smettono di esserlo — ed e' cosi' che la bolla mancherebbe il centro.
+  const lato = parseFloat(getComputedStyle(el).width) || 100;
+  const salto = orb ? ((orb.offsetTop + orb.offsetHeight/2) - (sotto + lato/2)) : -110;
   el.style.setProperty('--bolla-salto', salto.toFixed(1)+'px');
   const art = document.createElement('img');
   art.className = 'score-bubble-art'; art.alt=''; art.draggable=false;
@@ -30264,6 +30285,7 @@ function incrementaBollaPunti(player, quanti){
   b.valore += (quanti||1);
   b.mostrato = b.valore;
   b.num.textContent = conSegno(b.valore);
+  suonoDelPunto();
 }
 // Fa scorrere il numero fino a `bersaglio`. Serve alla conquista, dove i punti
 // arrivano tutti insieme e vederli salire dice quanto e' stato grosso il colpo.
@@ -30277,7 +30299,10 @@ function scorriBollaPunti(player, bersaglio, poi){
   // andava bene finche' i punti potevano solo aumentare.
   const conta = ()=>{
     const dir = bersaglio < 0 ? -1 : 1;
-    const scrivi = (v)=>{ b.valore = v; b.mostrato = v; b.num.textContent = conSegno(v); };
+    const scrivi = (v)=>{
+      b.valore = v; b.mostrato = v; b.num.textContent = conSegno(v);
+      suonoDelPunto();
+    };
     if(Math.abs(bersaglio) <= 1){
       scrivi(bersaglio);
       setTimeout(()=>poi && poi(), BOLLA_CIFRA_MS*2);
@@ -30298,6 +30323,10 @@ function scorriBollaPunti(player, bersaglio, poi){
 function lampeggiaPunteggio(player){
   const orb = document.getElementById(player===1?'p1-hp-orb':'p2-hp-orb');
   riavviaAnimazione(orb, ['lampeggia']);
+  // Una volta sola, qui: e' l'unico punto della sequenza in cui il punteggio
+  // incassa, e legare il suono al lampo invece che al contatore garantisce
+  // che i due arrivino insieme comunque vada il conteggio.
+  try{ playSfxFile('scored.mp3'); }catch(_){}
 }
 // Il finale, in quattro tempi: la bolla viaggia fino al centro del punteggio,
 // svanisce, il punteggio lampeggia, e solo allora il contatore sale.
