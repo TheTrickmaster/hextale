@@ -1390,8 +1390,8 @@ body.mouse-down{
   width:var(--pi-banner-w); height:1080px;
   z-index:20; pointer-events:none; user-select:none;
 }
-#p1-info{ left:0; }
-#p2-info{ left:1652px; }   /* 1920 - 268: stessa aritmetica per tutti e due */
+#p1-info{ left:80px; }    /* v0.76.10: 80px verso il centro */
+#p2-info{ left:1572px; }  /* 1920 - 268 - 80: stessa aritmetica per tutti e due */
 /* Lo sfondo di legno, appeso al bordo superiore. E' alto 1200 su una tela di
    1080: deborda in basso, ed e' giusto — e' un drappo, non un riquadro. */
 .player-banner{
@@ -3943,8 +3943,8 @@ body.mouse-down{
      #hand-expand-overlay sits at z-index:800, above this new 20): flagged
      to Lorenzo directly before applying, he confirmed to proceed anyway. */
   display:none; /* v0.71.9: starts hidden — see this rule's own comment above; shown via inline style once startGame() runs */
-  position:fixed; left:344px; top:30px; z-index:20;   /* v0.76.9: (268+360)/2 + 30 */
-  height:67px; width:auto;
+  position:fixed; left:424px; top:30px; z-index:20;   /* v0.76.10: 80 + (268+360)/2 + 30 */
+  width:67px; height:67px;
   padding:0; border:none; background:transparent;
   cursor:var(--cursore);
   user-select:none;
@@ -8220,7 +8220,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.76.9</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.76.10</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -9523,6 +9523,11 @@ if(document.readyState==='loading'){
     document.addEventListener('DOMContentLoaded', ()=>{ allineaTarghettaVersione(); caricaImpostazioniAudio(); caricaAiutoEsagono(); caricaValute(); runPreload(); });
   } else {
     allineaTarghettaVersione();
+    // v0.76.10 — il fondale della battaglia si mette SUBITO. Stava dentro a
+    // montaGraficaPartita, che gira solo quando comincia una partita: fino a
+    // quel momento quell'immagine non c'era, e chi guardava vedeva il nero.
+    // Il fondale e' della pagina, non della partita.
+    try{ impostaImgDaCandidati(document.getElementById('board-bg-img'), uiFileCandidati('battle-bg.jpg')); }catch(_){}
     caricaImpostazioniAudio();
     caricaAiutoEsagono();
     caricaValute();
@@ -26845,27 +26850,6 @@ function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLa
 // animazioni, aspettando la pausa, aspettando l'ondata) e senza questo flag
 // il tabellone verrebbe contato una volta per rientro.
 function endTurn(player, animationsSettled, dannoFatto){
-  // ── v0.76.3 — UN TURNO SI CHIUDE UNA VOLTA SOLA ──────────────────────────
-  // Segnalato: se il tempo scade mentre una finestra di scelta e' aperta, a
-  // volte il giocatore riceve due turni di fila. Succede perche' quel momento
-  // ha DUE strade che portano qui — il timer che scade (autoPlay) e la scelta
-  // che si chiude e fa proseguire il turno — e in una manciata di millisecondi
-  // possono partire tutt'e due.
-  // Inseguire tutte le combinazioni sarebbe un lavoro senza fine: le strade
-  // che finiscono un turno sono gia' molte e ne arriveranno altre. Il paletto
-  // si mette QUI, dove passano tutte: chi chiude il turno di qualcuno che ha
-  // gia' finito, non fa niente.
-  // `G.turnoChiuso` porta il NUMERO del turno gia' archiviato e non un
-  // semplice si/no: un booleano andrebbe azzerato da qualche parte, e quel
-  // "da qualche parte" e' esattamente il genere di riga che si dimentica.
-  if(G && !G.gameOver){
-    const marchio = (G.numeroTurno||0) + ':' + (player || G.currentPlayer);
-    if(G.turnoChiuso === marchio){
-      console.info('[turno] seconda richiesta di chiudere il turno ' + marchio + ': ignorata.');
-      return;
-    }
-    G.turnoChiuso = marchio;
-  }
   // v0.71.21: belt-and-suspenders stop for the AI-thinking fake-hover
   // (see startAiThinkingHover()'s own comment) — normally already stopped
   // right before aiPlay() fires (see maybeTriggerAiTurn()), but aiPlay()
@@ -26910,6 +26894,25 @@ function endTurn(player, animationsSettled, dannoFatto){
     _fineTurnoNonPrimaDi = 0;
     setTimeout(()=>endTurn(player, true, dannoFatto), pausa);
     return;
+  }
+  // ── v0.76.10 — UN TURNO SI CHIUDE UNA VOLTA SOLA, MA IL PALETTO VA QUI ───
+  // Serve a impedire i doppi turni quando il tempo scade mentre una finestra
+  // di scelta e' aperta: quel momento ha due strade che portano a chiudere il
+  // turno, e in pochi millisecondi possono partire tutt'e due.
+  // Nella v0.76.3 lo avevo messo in cima alla funzione, ed era il posto
+  // sbagliato: endTurn RICHIAMA SE STESSA due volte prima di arrivare qui —
+  // una per aspettare che i danni finiscano di scorrere, una per la pausa di
+  // lettura — e il paletto fermava proprio quelle. Il turno non girava piu'.
+  // Il posto giusto e' questo: dopo tutte le attese, un attimo prima che il
+  // turno cambi davvero. Le chiamate che tornano indietro ad aspettare non ci
+  // arrivano nemmeno.
+  if(G && !G.gameOver){
+    const marchio = (G.numeroTurno||0) + ':' + (player || G.currentPlayer);
+    if(G.turnoChiuso === marchio){
+      console.info('[turno] seconda richiesta di chiudere il turno ' + marchio + ': ignorata.');
+      return;
+    }
+    G.turnoChiuso = marchio;
   }
   // ── v0.75.0 — IL TABELLONE PRESENTA IL CONTO ────────────────────────────
   // Prima di ogni altra cosa, e prima del controllo di fine partita: ogni
@@ -35350,6 +35353,10 @@ function stratoCarteDellaPlancia(root){
     };
     prova();
   }
+  // In fondo a ogni giro, non solo alla nascita: renderBoard aggiunge tasselli
+  // fino all'ultima casella, e un'immagine ferma dov'era nata finirebbe sotto
+  // a tutti quelli venuti dopo.
+  root.appendChild(rami);
   // Centrati sul tabellone. La misura si legge dall'SVG a ogni giro perche' il
   // tabellone puo' cambiare grandezza (il pizzico a due dita), e un'immagine
   // centrata su una misura vecchia si sposta di lato.
@@ -36732,6 +36739,15 @@ function renderBoard(){
       buildSvgIconBtn(CARD_PARTS_BASE+'close-icon-red.png', ox, oy, R*0.42, ()=>rinunciaSceltaBersaglio());
     }
   }
+  // ── v0.76.10 — GLI STRATI SI RIMETTONO IN ORDINE ALLA FINE ──────────────
+  // I rami e lo strato delle carte devono stare in fondo all'SVG, ed e' QUI
+  // che si sistemano: durante il giro qui sopra si aggiungono tasselli fino
+  // all'ultima casella, e ogni tassello aggiunto dopo di loro ci finirebbe
+  // sopra. Nella v0.76.9 li mettevo a posto dentro al giro, quando nasceva una
+  // carta: bastavano le caselle disegnate dopo quella per ricoprire i rami —
+  // e su un tabellone vuoto, dove non nasce nessuna carta, i rami non
+  // comparivano affatto.
+  try{ stratoCarteDellaPlancia(boardSvgRoot); }catch(_){}
 }
 
 // ── FULL RENDER ──────────────────────────────────────────────────
