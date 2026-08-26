@@ -1380,7 +1380,7 @@ body.mouse-down{
   --pi-bar-h:67px;     /* alta quanto il pulsante delle impostazioni */
   --pi-gap:20px;       /* fra la barra e l'avatar */
   --pi-avatar-h:320px;
-  --pi-score-h:148px;
+  --pi-score-h:180px;
   --pi-score-sovrapp:70px;  /* di quanto il punteggio sale dentro all'avatar */
   --pi-banner-w:268px;   /* v0.76.9: il drappo e' alto 600 e tiene le sue
                             proporzioni (536x1200), quindi largo 268. La barra
@@ -1450,13 +1450,15 @@ body.mouse-down{
   position:absolute; left:50%;
   top:calc(var(--pi-bar-top) + var(--pi-bar-h) + var(--pi-gap)
            + var(--pi-avatar-h) - var(--pi-score-sovrapp));
-  height:var(--pi-score-h);
-  width:calc(var(--pi-score-h) * 499 / 443);
+  height:var(--pi-score-h); width:var(--pi-score-h);   /* v0.76.11: 180x180 */
   transform:translateX(-50%);
   z-index:2;
 }
 .player-hp-orb-bg{
   position:absolute; inset:0; width:100%; height:100%;
+  /* v0.76.11 — il riquadro e' quadrato (180x180) ma il disegno non lo e'
+     (499x443): `contain` lo fa entrare intero invece di stirarlo. */
+  object-fit:contain;
   pointer-events:none;
 }
 /* ── v0.76.8 — IL PULSANTE DELLE IMPOSTAZIONI ──────────────────────────────
@@ -8220,7 +8222,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.76.10</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.76.11</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -9880,7 +9882,13 @@ function preloadNextMusicTrack(){
 preloadNextMusicTrack();
 preloadNextMusicTrack();
 
-const GAMEBOARD_BG = 'https://thetrickmaster.github.io/hextale/battle-bg.png';
+// v0.76.11 — questa costante puntava ancora a battle-bg.png nella radice del
+// repository, dove quel file non c'e' piu' da un pezzo. Non era innocua: chi la
+// usava riscriveva l'indirizzo dello sfondo buono con quello morto (vedi
+// positionBoardBgImg), e da fuori si vedeva lo sfondo comparire all'avvio e
+// sparire al primo ridimensionamento del tabellone, cioe' dopo il primo turno.
+// Resta dichiarata perche' altri punti la nominano, ma con l'indirizzo giusto.
+const GAMEBOARD_BG = 'https://thetrickmaster.github.io/hextale/ui/battle-bg.jpg';
 
 // SFX / MUSIC / MASTER volume — three independent channels per user request
 // (previously there was only one master slider driving everything). The
@@ -26895,25 +26903,17 @@ function endTurn(player, animationsSettled, dannoFatto){
     setTimeout(()=>endTurn(player, true, dannoFatto), pausa);
     return;
   }
-  // ── v0.76.10 — UN TURNO SI CHIUDE UNA VOLTA SOLA, MA IL PALETTO VA QUI ───
-  // Serve a impedire i doppi turni quando il tempo scade mentre una finestra
-  // di scelta e' aperta: quel momento ha due strade che portano a chiudere il
-  // turno, e in pochi millisecondi possono partire tutt'e due.
-  // Nella v0.76.3 lo avevo messo in cima alla funzione, ed era il posto
-  // sbagliato: endTurn RICHIAMA SE STESSA due volte prima di arrivare qui —
-  // una per aspettare che i danni finiscano di scorrere, una per la pausa di
-  // lettura — e il paletto fermava proprio quelle. Il turno non girava piu'.
-  // Il posto giusto e' questo: dopo tutte le attese, un attimo prima che il
-  // turno cambi davvero. Le chiamate che tornano indietro ad aspettare non ci
-  // arrivano nemmeno.
-  if(G && !G.gameOver){
-    const marchio = (G.numeroTurno||0) + ':' + (player || G.currentPlayer);
-    if(G.turnoChiuso === marchio){
-      console.info('[turno] seconda richiesta di chiudere il turno ' + marchio + ': ignorata.');
-      return;
-    }
-    G.turnoChiuso = marchio;
-  }
+  // ── v0.76.11 — IL PALETTO CONTRO I DOPPI TURNI SE N'E' ANDATO ────────────
+  // L'avevo messo nella v0.76.3 per un difetto raro — un doppio turno quando
+  // il tempo scade con una finestra di scelta aperta — e ha finito per
+  // causarne uno comune: il turno che non gira piu'. Spostarlo piu' in basso
+  // (v0.76.10) non e' bastato, e a quel punto la scelta e' fra tenere in casa
+  // una guardia che non capisco fino in fondo e toglierla.
+  // Si toglie. Un difetto raro e' meglio di uno che blocca la partita, e una
+  // guardia che ferma cose legittime non e' una guardia: e' un secondo difetto
+  // messo li' a coprire il primo.
+  // Il doppio turno torna nell'elenco delle cose da sistemare, e va affrontato
+  // sapendo COME si riproduce, non a naso.
   // ── v0.75.0 — IL TABELLONE PRESENTA IL CONTO ────────────────────────────
   // Prima di ogni altra cosa, e prima del controllo di fine partita: ogni
   // giocatore incassa tanti danni quante sono le carte avversarie in campo
@@ -35330,7 +35330,9 @@ const TILE_FREE = [
 // Si creano una volta e si riusano: renderBoard gira a ogni mossa e a ogni
 // passaggio del mouse, e rifare un'immagine da 2464px a ogni fotogramma
 // vorrebbe dire ricaricarla.
-const VINES_W = 1232;   // meta' della misura nativa
+// v0.76.11 — misure e posizione dei rami, in coordinate del tabellone. Non si
+// centrano piu' da soli: sono quelle chieste, e stanno scritte qui una volta.
+const VINES_X = 280, VINES_Y = -45, VINES_W = 1360, VINES_H = 1180;
 function stratoCarteDellaPlancia(root){
   let rami = root.querySelector('#board-vines-svg');
   if(!rami){
@@ -35357,16 +35359,10 @@ function stratoCarteDellaPlancia(root){
   // fino all'ultima casella, e un'immagine ferma dov'era nata finirebbe sotto
   // a tutti quelli venuti dopo.
   root.appendChild(rami);
-  // Centrati sul tabellone. La misura si legge dall'SVG a ogni giro perche' il
-  // tabellone puo' cambiare grandezza (il pizzico a due dita), e un'immagine
-  // centrata su una misura vecchia si sposta di lato.
-  const w = (root.viewBox && root.viewBox.baseVal && root.viewBox.baseVal.width) || root.clientWidth || 0;
-  const h = (root.viewBox && root.viewBox.baseVal && root.viewBox.baseVal.height) || root.clientHeight || 0;
-  const vh = VINES_W * 1860 / 2464;
-  rami.setAttribute('x', ((w - VINES_W)/2).toFixed(1));
-  rami.setAttribute('y', ((h - vh)/2).toFixed(1));
+  rami.setAttribute('x', VINES_X);
+  rami.setAttribute('y', VINES_Y);
   rami.setAttribute('width', VINES_W);
-  rami.setAttribute('height', vh.toFixed(1));
+  rami.setAttribute('height', VINES_H);
   let strato = root.querySelector('#board-cards-layer');
   if(!strato){
     strato = document.createElementNS('http://www.w3.org/2000/svg','g');
@@ -35632,7 +35628,13 @@ function drawTileCell(svg, x, y, R, imgSrc, uid, placeable){
 function positionBoardBgImg(availW, availH, R){
   const bg=document.getElementById('board-bg-img');
   if(!bg) return;
-  if(bg.getAttribute('src')!==GAMEBOARD_BG) bg.src=GAMEBOARD_BG;
+  // v0.76.11 — non si tocca piu' il `src`. Chi monta lo sfondo lo fa una volta
+  // sola all'avvio, cercando l'indirizzo come ogni altro asset (accanto al
+  // file, poi sul repository): riscriverlo da qui a ogni ridimensionamento
+  // voleva dire buttare via quella scelta e rimettere un indirizzo fisso.
+  // La funzione resta perche' i suoi richiami sono sparsi, ma non ha piu'
+  // niente da fare: lo sfondo lo tiene fermo il suo CSS.
+  void bg;
 }
 
 
