@@ -1379,7 +1379,7 @@ body.mouse-down{
   --pi-bar-top:30px;   /* la barra del nome, dal bordo superiore */
   --pi-bar-h:67px;     /* alta quanto il pulsante delle impostazioni */
   --pi-gap:20px;       /* fra la barra e l'avatar */
-  --pi-avatar-h:320px;
+  --pi-avatar-h:384px;   /* v0.76.12: +20% */
   --pi-score-h:180px;
   --pi-score-sovrapp:70px;  /* di quanto il punteggio sale dentro all'avatar */
   --pi-banner-w:268px;   /* v0.76.9: il drappo e' alto 600 e tiene le sue
@@ -1394,6 +1394,23 @@ body.mouse-down{
 #p2-info{ left:1572px; }  /* 1920 - 268 - 80: stessa aritmetica per tutti e due */
 /* Lo sfondo di legno, appeso al bordo superiore. E' alto 1200 su una tela di
    1080: deborda in basso, ed e' giusto — e' un drappo, non un riquadro. */
+/* v0.76.12 — la sfocatura DIETRO al drappo. Non si puo' mettere sull'immagine
+   stessa: un backdrop-filter sfoca cio' che sta dietro all'elemento, e su un
+   <img> quel "dietro" e' il suo rettangolo intero — si vedrebbe un riquadro
+   sfocato con gli angoli netti, fuori dalla sagoma del drappo.
+   Si mette quindi su uno strato suo, ritagliato con l'immagine del drappo come
+   MASCHERA: cosi' la sfocatura ha esattamente la forma del legno, bordi
+   frastagliati compresi. La stessa immagine fa da disegno sopra e da sagoma
+   sotto, e non c'e' modo che le due si scollino. */
+.player-banner-sfoca{
+  position:absolute; left:0; top:0;
+  width:var(--pi-banner-w); height:600px;
+  -webkit-backdrop-filter:blur(30px); backdrop-filter:blur(30px);
+  -webkit-mask-image:var(--hx-drappo, none); mask-image:var(--hx-drappo, none);
+  -webkit-mask-size:100% 100%; mask-size:100% 100%;
+  -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat;
+  pointer-events:none;
+}
 .player-banner{
   position:absolute; left:0; top:0;
   width:var(--pi-banner-w); height:600px;
@@ -1431,11 +1448,17 @@ body.mouse-down{
    solo la parte centrale: misurando il canale alfa, il vuoto interno va da
    x 146 a 605 e da y 174 a 658. Con la foto a `inset:0` — cioe' su tutto il
    riquadro — sbordava da ogni lato, ed e' quello che si vedeva.
-   Le percentuali qui sotto sono quelle misure, strette di un altro punto per
-   sicurezza: meglio un filo di cornice in piu' che un filo di foto di fuori. */
+   v0.76.12 — e la prima misura era sbagliata: avevo letto i tratti opachi
+   della RIGA CENTRALE, che incontrano anche la decorazione esterna, e ne era
+   uscita un'apertura piu' stretta del vero. Misurata come si deve — partendo
+   dal centro e camminando verso i bordi finche' non si incontra il telaio —
+   l'apertura va da x 123 a 625 e da y 118 a 698, cioe' il 67% e il 69,5% del
+   riquadro. Da qui il buco scuro fra la foto e la cornice.
+   Le percentuali qui sotto sono quelle, allargate di un punto: la foto deve
+   finire SOTTO al bordo dorato, non fermarsi prima. */
 .player-avatar-photo{
   position:absolute;
-  left:20.5%; top:22%; width:59.4%; height:56.2%;
+  left:15.5%; top:13%; width:69%; height:72%;
   object-fit:cover;
   clip-path:polygon(50% 0%, 100% 25.1%, 100% 74.5%, 50% 100%, 0% 74.5%, 0% 25.1%);
 }
@@ -1455,9 +1478,12 @@ body.mouse-down{
   z-index:2;
 }
 .player-hp-orb-bg{
-  position:absolute; inset:0; width:100%; height:100%;
-  /* v0.76.11 — il riquadro e' quadrato (180x180) ma il disegno non lo e'
-     (499x443): `contain` lo fa entrare intero invece di stirarlo. */
+  /* v0.76.12 — il disegno e' 240x240 e deborda dal riquadro da 180: si centra
+     sul riquadro invece di riempirlo, cosi' il numero resta al suo posto
+     mentre la cornice gli cresce intorno. `contain` perche' il file e' 499x443
+     e in un quadrato andrebbe stirato. */
+  position:absolute; left:50%; top:50%;
+  width:240px; height:240px; transform:translate(-50%,-50%);
   object-fit:contain;
   pointer-events:none;
 }
@@ -2111,7 +2137,8 @@ body.mouse-down{
    #board-wrap: quello porta gia' una transform sua che il pizzico a due dita
    riscrive (vedi .pinch-snapback), e due cose che scrivono la stessa proprieta'
    finiscono sempre per cancellarsi a vicenda. */
-#board-svg{display:block;position:relative;z-index:2;transform:scale(0.93);transform-origin:center center;}
+#board-svg{display:block;position:relative;z-index:2;}
+#board-scale{position:relative;z-index:2;transform:scale(0.93);transform-origin:center center;}
 /* ── v0.76.8 — LA CORNICE E I RAMI ─────────────────────────────────────────
    Due immagini centrate sul tabellone, sotto ai tasselli. La cornice sporge
    appena: a tabellone pieno di lei si vede solo il filo dorato che gira
@@ -7950,7 +7977,14 @@ body.prova-senza-willchange #mm-book-rot{
              che e' l'effetto voluto. Vedi il commento nel CSS per il perche'
              non stanno SOPRA ai tasselli. -->
         <img id="board-outline" alt="" draggable="false">
-        <svg id="board-svg"></svg>
+        <!-- v0.76.12 — un involucro che porta SOLO la rimpicciolita del 7%.
+             Stava sull'SVG, ma li' ci scrive anche il sussulto del colpo (vedi
+             boardShake), e i suoi fotogrammi dicono `transform:translate(...)`:
+             una transform ne sostituisce un'altra per intero, quindi per mezzo
+             secondo la scala spariva e il tabellone saltava a grandezza piena.
+             Due cose che scrivono la stessa proprieta' non convivono: si
+             separano su due elementi. -->
+        <div id="board-scale"><svg id="board-svg"></svg></div>
       </div>
     </div>
   </div>
@@ -8054,6 +8088,7 @@ body.prova-senza-willchange #mm-book-rot{
      (#p2-info .player-avatar-photo{transform:scaleX(-1)} — see that rule's
      comment) so both players share this exact same markup structure. -->
 <div class="player-info" id="p1-info">
+  <div class="player-banner-sfoca"></div>
   <img class="player-banner" id="p1-banner" alt="" draggable="false">
   <div class="hx-titlebar player-name" id="p1-name-bar">
     <span class="hx-titlebar-cap hx-titlebar-left"></span>
@@ -8071,6 +8106,7 @@ body.prova-senza-willchange #mm-book-rot{
   </div>
 </div>
 <div class="player-info" id="p2-info">
+  <div class="player-banner-sfoca"></div>
   <img class="player-banner" id="p2-banner" alt="" draggable="false">
   <div class="hx-titlebar player-name" id="p2-name-bar">
     <span class="hx-titlebar-cap hx-titlebar-left"></span>
@@ -8222,7 +8258,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.76.11</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.76.12</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -11178,6 +11214,9 @@ function montaGraficaPartita(){
   img('#board-bg-img',  'battle-bg.jpg');
   img('#board-outline', 'board-outline.png');
   img('.player-banner', 'player-banner.png');
+  // La stessa immagine serve anche da sagoma alla sfocatura dietro al drappo.
+  document.querySelectorAll('.player-info').forEach(el=>
+    impostaVariabileDaCandidati(el, '--hx-drappo', uiFileCandidati('player-banner.png')));
   img('.player-avatar-frame', 'avatar-frame.png');
   img('.player-hp-orb-bg', 'score.png');
   img('#settings-btn img', 'settings-button.png');
@@ -28750,15 +28789,43 @@ VALUTAZIONI_IA.braids = (scelta) => {
 // l'abilita' da una sua carta all'altra e in cambio scopre il fianco che
 // quell'alleato copriva — un pareggio nella migliore delle ipotesi. Se accanto
 // ci sono solo carte sue, lascia perdere.
+// ── v0.76.12 — LO SCERIFFO RUBA UN'ABILITA', NON UN NUMERO ────────────────
+// Sceglieva il bersaglio col potere piu' alto. E' il criterio sbagliato: lo
+// sceriffo non prende i valori di quella carta, prende cio' che SA FARE. Con
+// quel conto derubava la carta piu' grossa anche quando la sua abilita' non
+// gli serviva a niente, e lasciava stare quella accanto che gli avrebbe messo
+// in mano Excalibur.
+// Si valuta quindi la stessa cosa che si valuta per lo specchio (vedi
+// VALUTAZIONI_IA.magic_mirror): si costruisce una copia dello sceriffo CON
+// L'ABILITA' DEL BERSAGLIO e le si chiede quanto varrebbe giocata li'. La
+// prova non tocca niente — simulaPiazzamento lavora su cloni, e gli effetti
+// che cambiano davvero la partita stanno in un registro che la simulazione
+// non esegue.
+// A questo si somma il DANNO ALL'AVVERSARIO: allo sceriffo l'abilita' resta,
+// al derubato viene tolta. Rubarla a un nemico vale quindi doppio — quello che
+// guadagno io piu' quello che perde lui — e a parita' di guadagno conviene
+// sempre prendersela da lui invece che da un alleato.
 VALUTAZIONI_IA.new_tax = (scelta) => {
-  let migliore = null, massimo = -Infinity;
+  let migliore = null, punteggioMigliore = -Infinity;
   for(const cella of scelta.bersagli){
     const posto = G.board[cella];
     if(!posto || !posto.card) continue;
-    if(posto.owner === scelta.giocatore) continue;
-    let forza = 0;
-    try { forza = cardPower(posto.card); } catch(_){ forza = 0; }
-    if(forza > massimo){ massimo = forza; migliore = cella; }
+    const ab = abilitaAttivaDi(posto.card);
+    if(!ab) continue;                       // non c'e' niente da rubare
+    const sonda = Object.assign({}, scelta.card, {values:{...scelta.card.values}, cardAbility:ab});
+    let punteggio = 0;
+    try {
+      const ev = aiEvaluateConquests(sonda, scelta.q, scelta.r);
+      punteggio = ev.damage + ev.count*2 - ev.autolesione
+                + bonusAbilitaPerIA(sonda, scelta.q, scelta.r, scelta.giocatore);
+    } catch(_){ punteggio = 0; }
+    // Quanto vale TOGLIERGLIELA: solo se la carta e' dell'avversario.
+    if(posto.owner !== scelta.giocatore){
+      let danno = 0;
+      try { danno = bonusAbilitaPerIA(posto.card, ...cella.split(',').map(Number), posto.owner); } catch(_){ danno = 0; }
+      punteggio += Math.max(0, danno);
+    }
+    if(punteggio > punteggioMigliore){ punteggioMigliore = punteggio; migliore = cella; }
   }
   return migliore;
 };
@@ -35333,6 +35400,32 @@ const TILE_FREE = [
 // v0.76.11 — misure e posizione dei rami, in coordinate del tabellone. Non si
 // centrano piu' da soli: sono quelle chieste, e stanno scritte qui una volta.
 const VINES_X = 280, VINES_Y = -45, VINES_W = 1360, VINES_H = 1180;
+// ── v0.76.12 — L'INDIRIZZO DEI RAMI SI CERCA UNA VOLTA SOLA ───────────────
+// renderBoard svuota l'SVG e lo ricostruisce a ogni mossa e a ogni passaggio
+// del mouse. L'immagine dei rami spariva con lui e ne nasceva una nuova, che
+// ricominciava da capo a cercare il proprio indirizzo: fra il momento in cui
+// nasceva e quello in cui l'indirizzo arrivava passava un fotogramma vuoto —
+// ed e' quello il lampeggio.
+// L'indirizzo, invece, non cambia mai. Si cerca al primo giro e si tiene: da
+// li' in poi ogni immagine nuova nasce gia' col suo, e non c'e' nessun istante
+// in cui e' vuota.
+let _viniUrl = null, _viniInCerca = false;
+function _cercaUrlDeiRami(poi){
+  if(_viniUrl){ poi(_viniUrl); return; }
+  if(_viniInCerca) return;          // una ricerca alla volta
+  _viniInCerca = true;
+  const candidati = uiFileCandidati('vines.png');
+  let i = 0;
+  const prova = ()=>{
+    if(i >= candidati.length){ _viniInCerca = false; segnalaAssetMancante(candidati); return; }
+    const url = candidati[i++];
+    const test = new Image();
+    test.onload = ()=>{ _viniUrl = url; _viniInCerca = false; poi(url); };
+    test.onerror = prova;
+    test.src = url;
+  };
+  prova();
+}
 function stratoCarteDellaPlancia(root){
   let rami = root.querySelector('#board-vines-svg');
   if(!rami){
@@ -35340,20 +35433,11 @@ function stratoCarteDellaPlancia(root){
     rami.setAttribute('id','board-vines-svg');
     rami.setAttribute('preserveAspectRatio','xMidYMid meet');
     rami.style.pointerEvents = 'none';
-    root.appendChild(rami);
-    // L'indirizzo si cerca come ogni altro asset: prima accanto al file, poi
-    // sul repository (vedi _candidati).
-    const candidati = uiFileCandidati('vines.png');
-    let i = 0;
-    const prova = ()=>{
-      if(i >= candidati.length){ segnalaAssetMancante(candidati); return; }
-      const url = candidati[i++];
-      const test = new Image();
-      test.onload = ()=>{ rami.setAttributeNS('http://www.w3.org/1999/xlink','href', url); rami.setAttribute('href', url); };
-      test.onerror = prova;
-      test.src = url;
+    const metti = (url)=>{
+      rami.setAttributeNS('http://www.w3.org/1999/xlink','href', url);
+      rami.setAttribute('href', url);
     };
-    prova();
+    if(_viniUrl) metti(_viniUrl); else _cercaUrlDeiRami(metti);
   }
   // In fondo a ogni giro, non solo alla nascita: renderBoard aggiunge tasselli
   // fino all'ultima casella, e un'immagine ferma dov'era nata finirebbe sotto
@@ -35370,6 +35454,22 @@ function stratoCarteDellaPlancia(root){
   }
   // Sempre in fondo: renderBoard aggiunge tasselli per tutto il giro, e lo
   // strato deve restare l'ultimo comunque vada.
+  root.appendChild(strato);
+  // ── v0.76.12 — E SOPRA A TUTTI, I COMANDI ────────────────────────────────
+  // Il mirino e la croce rossa di una scelta sono l'unica cosa su cui il
+  // giocatore deve poter cliccare: se una carta ci finisce sopra, la scelta
+  // c'e' ma non si vede e il turno sembra bloccato. Da quando le carte hanno
+  // uno strato loro in fondo all'SVG, i comandi disegnati durante il giro
+  // restavano dietro. Hanno quindi il loro, ancora piu' in fondo.
+  root.appendChild(stratoComandiDellaPlancia(root));
+  return strato;
+}
+function stratoComandiDellaPlancia(root){
+  let strato = root.querySelector('#board-icons-layer');
+  if(!strato){
+    strato = document.createElementNS('http://www.w3.org/2000/svg','g');
+    strato.setAttribute('id','board-icons-layer');
+  }
   root.appendChild(strato);
   return strato;
 }
@@ -36678,7 +36778,8 @@ function renderBoard(){
     btnGroup.appendChild(overlayRect);
 
     btnGroup.addEventListener('click',onClick);
-    svg.appendChild(btnGroup);
+    // v0.76.12 — nello strato dei comandi, che sta sopra a tutto il resto.
+    stratoComandiDellaPlancia(boardSvgRoot).appendChild(btnGroup);
     return btnGroup;
   }
 
