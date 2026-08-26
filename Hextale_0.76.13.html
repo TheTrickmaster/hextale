@@ -1379,8 +1379,8 @@ body.mouse-down{
   --pi-bar-top:30px;   /* la barra del nome, dal bordo superiore */
   --pi-bar-h:67px;     /* alta quanto il pulsante delle impostazioni */
   --pi-gap:20px;       /* fra la barra e l'avatar */
-  --pi-avatar-h:384px;   /* v0.76.12: +20% */
-  --pi-score-h:180px;
+  --pi-avatar-h:422px;   /* v0.76.12: +20%; v0.76.13: +10% ancora */
+  --pi-score-h:240px;
   --pi-score-sovrapp:70px;  /* di quanto il punteggio sale dentro all'avatar */
   --pi-banner-w:268px;   /* v0.76.9: il drappo e' alto 600 e tiene le sue
                             proporzioni (536x1200), quindi largo 268. La barra
@@ -1473,17 +1473,18 @@ body.mouse-down{
   position:absolute; left:50%;
   top:calc(var(--pi-bar-top) + var(--pi-bar-h) + var(--pi-gap)
            + var(--pi-avatar-h) - var(--pi-score-sovrapp));
-  height:var(--pi-score-h); width:var(--pi-score-h);   /* v0.76.11: 180x180 */
+  /* v0.76.13 — il riquadro e' grande quanto il disegno. Prima era 180 con
+     dentro un disegno da 240 centrato, quindi il disegno debordava di 30px in
+     alto e la sovrapposizione vera era di 100 invece di 70: la misura chiesta
+     e quella vista non erano la stessa cosa. Ora coincidono. */
+  height:var(--pi-score-h); width:var(--pi-score-h);
   transform:translateX(-50%);
   z-index:2;
 }
 .player-hp-orb-bg{
-  /* v0.76.12 — il disegno e' 240x240 e deborda dal riquadro da 180: si centra
-     sul riquadro invece di riempirlo, cosi' il numero resta al suo posto
-     mentre la cornice gli cresce intorno. `contain` perche' il file e' 499x443
-     e in un quadrato andrebbe stirato. */
-  position:absolute; left:50%; top:50%;
-  width:240px; height:240px; transform:translate(-50%,-50%);
+  position:absolute; inset:0; width:100%; height:100%;
+  /* Il file e' 499x443: in un riquadro quadrato `contain` lo fa entrare
+     intero invece di stirarlo. */
   object-fit:contain;
   pointer-events:none;
 }
@@ -1509,8 +1510,14 @@ body.mouse-down{
    sistema. Le altre scritte se la cavavano perche' passano da
    var(--font-display), che quel nome giusto ce l'ha dentro. */
 .player-hp-value{
-  position:absolute;
-  left:13.6%; top:18.5%; width:72.4%; height:81.5%;
+  /* v0.76.13 — il centro OTTICO del riquadro disegnato, dentro a un contenitore
+     quadrato in cui l'immagine entra con `contain`. Il file e' 499x443, quindi
+     in 240x240 viene disegnato alto 213 e centrato: la parte disegnata del
+     riquadro (y 82..443 del file) cade fra il 22% e il 94% dell'altezza, e il
+     suo centro al 58%. In orizzontale il riquadro sta fra x 68 e 428, centro
+     al 49.7%. */
+  position:absolute; left:49.7%; top:58%;
+  transform:translate(-50%,-50%);
   display:flex; align-items:center; justify-content:center;
   font-family:'Marcellus SC','Marcellus',var(--font-display),serif; font-weight:400; font-size:64px;
   line-height:1; z-index:3;
@@ -8258,7 +8265,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.76.12</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.76.13</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -12791,6 +12798,37 @@ function applyFactionToPlayerPanels(){
     const img=document.getElementById('p'+p+'-banner');
     if(img) img.src = playerFactionIsDark(p) ? PLAYER_BANNER_DARK : PLAYER_BANNER_LIGHT;
   }
+  assegnaAvatarDeiGiocatori();
+}
+// ── v0.76.13 — L'AVATAR E' UNA CARTA, PESCATA A OGNI PARTITA ──────────────
+// Due carte diverse a caso, una per giocatore, ciascuna nella variante della
+// PROPRIA fazione: il giocatore scuro guarda il ritratto scuro, quello chiaro
+// il chiaro. Non e' una rifinitura — sono le due facce della stessa carta, e
+// dare a un giocatore il ritratto dell'altra fazione confonderebbe l'unico
+// segno che dice a colpo d'occhio chi e' chi.
+// Si sceglie fra le carte che entrano davvero in Collezione: le evocabili
+// (Excalibur, la Principessa di Cristallo) non sono personaggi che qualcuno
+// impersona, sono cose che compaiono in campo.
+// Chi ha gia' l'illustrazione verificata la usa; agli altri si compone
+// l'indirizzo dallo slug, come fa il resto del gioco — cosi' l'avatar c'e'
+// anche aprendo una partita prima che la verifica delle art abbia finito.
+function assegnaAvatarDeiGiocatori(){
+  const pool = (typeof carteGiocabili === 'function') ? carteGiocabili() : [];
+  if(!pool.length) return;
+  const mescolate = _mescola(pool.slice());
+  for(const p of [1,2]){
+    const el = document.querySelector('#p'+p+'-info .player-avatar-photo');
+    if(!el) continue;
+    // Due carte diverse quando si puo': lo stesso ritratto da tutte e due le
+    // parti si legge come un errore, non come una coincidenza.
+    const entry = mescolate[(p-1) % mescolate.length];
+    const scura = playerFactionIsDark(p);
+    const gia = scura ? entry.artDark : entry.artLight;
+    if(gia){ el.src = gia; continue; }
+    const slug = entry.slug || slugPersonaggio(entry.name);
+    if(!slug) continue;
+    impostaImgDaCandidati(el, artUrlVariante(slug, scura ? 'dark' : 'light').senzaNumero || []);
+  }
 }
 function startGame(vsAI){
   // Cancel any pending timers
@@ -14023,9 +14061,17 @@ function caricaCarteDalFoglio(){
 
 // Da tabella di righe a FINAL_CARDS. Separata dal trasporto apposta: la
 // logica di lettura e' identica quale che sia la strada che ha portato i dati.
+// v0.76.13 — QUESTO FOGLIO E' STATO LETTO DAVVERO? La tabella interna ha
+// quattro carte e serve solo a non lasciare il gioco senza niente: se resta
+// lei, la Collezione mostra Robin Hood, Merlino, Alice e Biancaneve e basta.
+// Succedeva davvero, ed e' il genere di guasto che sembra un gioco rotto senza
+// spiegare perche'. Chi apre la Collezione adesso lo controlla e, se il foglio
+// non era arrivato, riprova prima di disegnare (vedi openCardDbOverlay).
+let _foglioLetto = false;
 function _applicaRigheFoglio(righe){
   if(!righe || righe.length < 2){
     console.warn('[carte] foglio non raggiungibile: uso la tabella interna (anonime)');
+    _foglioLetto = false;
     return false;
   }
   const col = righe[0].map(x => x.trim());
@@ -14127,6 +14173,7 @@ function _applicaRigheFoglio(righe){
   FINAL_CARDS.length=0;
   FINAL_CARDS.push(...nuove);
   console.info('[carte] caricate '+nuove.length+' carte dal foglio');
+  _foglioLetto = true;
   return true;
 }
 
@@ -16833,6 +16880,24 @@ function openCardDbOverlay(){
   showPage('collection');
   document.getElementById('card-db-overlay').classList.add('show');
   montaSfondoCollezione();
+  // ── v0.76.13 — LE CARTE DEVONO ESSERE QUELLE VERE ────────────────────────
+  // Se il foglio non era arrivato all'avvio (rete lenta, un intoppo passeggero)
+  // in memoria c'e' ancora la tabella interna da quattro carte, e la Collezione
+  // mostrerebbe quelle. Si riprova QUI, che e' il momento in cui quelle carte
+  // servono davvero, e si ridisegna a lettura finita.
+  // Non blocca l'apertura: la pagina si apre subito con quello che c'e', e si
+  // aggiorna da sola quando il foglio arriva.
+  if(!_foglioLetto && typeof caricaCarteDalFoglio === 'function'){
+    console.info('[carte] la Collezione si apre con la tabella interna: riprovo a leggere il foglio.');
+    caricaCarteDalFoglio().then(ok=>{
+      if(!ok) return;
+      try{
+        if(typeof verificaArtCarte === 'function') verificaArtCarte();
+        caricaMazzi();
+        cardDbRenderRoster();
+      }catch(_){}
+    });
+  }
   // v0.75.83 — la grafica nuova prima del contenuto: cosi' la barra e i
   // pulsanti sono gia' vestiti quando le carte cominciano ad apparire.
   montaGraficaLibreria();
