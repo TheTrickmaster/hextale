@@ -121,6 +121,42 @@ body.mouse-down{
    ready) → create-account button → exit-game button. Authored entirely in
    the 1920×1080 fixed-canvas coordinate space per the scaling system
    (v0.29.0) — no vw/vh here, same convention as #board-bg-img etc. */
+/* ══════════════════════════════════════════════════════════════════════════
+   v0.77.15 — LO SPLASH
+   ══════════════════════════════════════════════════════════════════════════
+   Sta FUORI da #game-root, ed e' l'unica cosa in tutto il file che lo fa.
+   Il resto del gioco vive dentro a un telaio da 1920x1080 che fitGameRoot()
+   scala per intero, lasciando due bande nere dove le proporzioni non tornano:
+   e' giusto per una partita, dove ogni pixel e' stato composto a quella
+   misura, ma un fondale d'apertura con due bande nere intorno non e' "a tutto
+   schermo". Qui si ritaglia invece di rimpicciolire (object-fit:cover), cosi'
+   riempie qualunque finestra.
+   Il markup e' gia' visibile nell'HTML, senza aspettare il JS: e' la prima
+   cosa che si deve vedere, e un elemento che compare quando parte uno script
+   lascia intravedere per un istante cio' che dovrebbe coprire. */
+#splash{
+  position:fixed; inset:0; z-index:9600;
+  display:flex; align-items:center; justify-content:center;
+  background:#000;
+  opacity:1; transition:opacity 0.6s ease;
+}
+#splash.via{ opacity:0; pointer-events:none; }
+#splash-bg{
+  position:absolute; inset:0; width:100%; height:100%;
+  object-fit:cover; object-position:center;
+  pointer-events:none; user-select:none;
+}
+/* Il logo: al centro, e mai piu' largo dello schermo su una finestra stretta.
+   I due secondi di entrata e di uscita sono la stessa transizione, accesa e
+   spenta dal JS aggiungendo e togliendo una classe (vedi avviaSplash). */
+#splash-logo{
+  position:relative;
+  width:min(854px, 60vw); height:auto; display:block;
+  opacity:0; transition:opacity 2s ease;
+  pointer-events:none; user-select:none;
+}
+#splash-logo.acceso{ opacity:1; }
+
 #start-screen{
   position:fixed;inset:0;z-index:300;
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;
@@ -7890,6 +7926,12 @@ body.prova-senza-willchange #mm-book-rot{
      establishes a containing block for fixed-position descendants, every
      `position:fixed` element inside is now fixed RELATIVE TO this 1920×1080
      root, not the real viewport — which is exactly what we want. -->
+<!-- v0.77.15 — lo splash d'apertura. Fuori dal telaio (vedi il suo CSS) e
+     primo nel documento: si vede prima di qualunque altra cosa. -->
+<div id="splash">
+  <img id="splash-bg" src="https://thetrickmaster.github.io/hextale/loading-screen/splash-bg.png" alt="" draggable="false">
+  <img id="splash-logo" src="https://thetrickmaster.github.io/hextale/loading-screen/big-fennel-logo.png" alt="" draggable="false">
+</div>
 <div id="game-root">
 <!-- Persistent gameboard background — now a STATIC full-viewport backdrop
      (per explicit request) instead of a board-radius-relative image sized to
@@ -8448,7 +8490,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.14</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.15</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -9739,9 +9781,39 @@ if(document.readyState==='loading'){
     if(m) targhetta.textContent = 'v' + m[1];
   }
 
+  // ── v0.77.15 — LO SPLASH D'APERTURA ─────────────────────────────────────
+  // fadein 2s > attesa 3s > fadeout 2s, e poi se ne va anche il fondale,
+  // scoprendo la schermata di caricamento che intanto ha lavorato sotto.
+  // I tempi stanno qui, uno per costante: leggendoli in fila si legge la
+  // sequenza. Devono combaciare con le transizioni del CSS, che e' l'unico
+  // altro posto in cui sono scritti.
+  const SPLASH_DISSOLVENZA_MS = 2000; // #splash-logo transition:opacity
+  const SPLASH_ATTESA_MS      = 3000; // quanto resta fermo, a piena luce
+  const SPLASH_USCITA_MS      =  600; // #splash transition:opacity
+  function avviaSplash(){
+    const velo = document.getElementById('splash');
+    if(!velo) return;
+    const logo = document.getElementById('splash-logo');
+    // Un fotogramma di respiro prima di accendere la transizione, o il
+    // browser la salta: un elemento appena dipinto non ha uno stato "prima"
+    // da cui partire.
+    requestAnimationFrame(()=>{ if(logo) logo.classList.add('acceso'); });
+    setTimeout(()=>{ if(logo) logo.classList.remove('acceso'); },
+               SPLASH_DISSOLVENZA_MS + SPLASH_ATTESA_MS);
+    setTimeout(()=>{ velo.classList.add('via'); },
+               SPLASH_DISSOLVENZA_MS + SPLASH_ATTESA_MS + SPLASH_DISSOLVENZA_MS);
+    // E poi si toglie di mezzo davvero: un velo trasparente ma ancora nel
+    // documento continuerebbe a coprire i pulsanti sotto di lui.
+    setTimeout(()=>{ try{ velo.remove(); }catch(_){} },
+               SPLASH_DISSOLVENZA_MS + SPLASH_ATTESA_MS + SPLASH_DISSOLVENZA_MS + SPLASH_USCITA_MS);
+  }
+  // Lo splash e' una scena a se': parte insieme al caricamento, non prima ne'
+  // dopo. runPreload() qui accanto continua a scaricare tutto mentre il logo
+  // e' a schermo, cosi' i sette secondi non sono sette secondi persi.
   if(document.readyState==='loading'){
-    document.addEventListener('DOMContentLoaded', ()=>{ allineaTarghettaVersione(); caricaImpostazioniAudio(); caricaAiutoEsagono(); caricaValute(); runPreload(); });
+    document.addEventListener('DOMContentLoaded', ()=>{ avviaSplash(); allineaTarghettaVersione(); caricaImpostazioniAudio(); caricaAiutoEsagono(); caricaValute(); runPreload(); });
   } else {
+    avviaSplash();
     allineaTarghettaVersione();
     // v0.76.10 — il fondale della battaglia si mette SUBITO. Stava dentro a
     // montaGraficaPartita, che gira solo quando comincia una partita: fino a
@@ -11396,6 +11468,22 @@ function montaSfondoCollezione(){
 // in Esplora risorse: git ha registrato "ui" e la tiene cosi' anche se la
 // cartella locale si mostra maiuscola.
 const UI_BASE = 'https://thetrickmaster.github.io/hextale/ui/';
+// ── v0.77.15 — LE ICONE DELLE AZIONI IN CAMPO ─────────────────────────────
+// Stavano in cards/card-parts/, insieme ai pezzi con cui si disegna una carta.
+// Non e' il loro posto: non sono parti di una carta, sono comandi — il mirino
+// che chiede dove colpire, la croce che rinuncia, la mano che afferra un
+// tassello. Adesso stanno in ui/ con tutto il resto dell'interfaccia, e i
+// vecchi file in card-parts/ non li guarda piu' nessuno.
+// Scritte come UI_BASE+'nome' e non passate a una funzione perche' il
+// preloader scopre gli asset proprio da questa forma (vedi
+// BASE_CONCAT_PATTERN): un indirizzo costruito altrove non verrebbe mai
+// contato, e l'icona comparirebbe a schermo mentre ancora si scarica.
+const ICONA_MIRINO      = UI_BASE+'crosshair-icon.png';   // scegli un bersaglio
+const ICONA_RINUNCIA    = UI_BASE+'close-icon-red.png';   // lascia perdere / scarta
+const ICONA_SCAMBIO     = UI_BASE+'swap-icon.png';        // March Hare
+const ICONA_PICCONE     = UI_BASE+'hammer-icon.png';      // sfonda un muro
+const ICONA_MANO        = UI_BASE+'hand-icon.png';        // afferra un tassello
+const ICONA_MANO_CHIUSA = UI_BASE+'hand-closed-icon.png'; // ...e lo tiene
 function uiFileCandidati(nome){ return _candidati('ui/' + nome, UI_BASE + nome); }
 
 // I fondi si montano da JS e non dal CSS per la stessa ragione dello sfondo
@@ -24710,7 +24798,7 @@ const SCELTE_PIAZZAMENTO = {
     return {
       chiave: 'swap_values',
       giocatore,
-      icona: 'swap-icon.png',
+      icona: ICONA_SCAMBIO,
       cellaOrigine: key(q,r),
       bersagli,
       applicaEAspetta: (cella, poi) => scambiaConAnimazione(cella, poi),
@@ -24729,6 +24817,12 @@ const SCELTE_PIAZZAMENTO = {
     return {
       chiave: 'heigh_ho',
       giocatore,
+      // v0.77.15 — il piccone. Era l'unica delle sei icone nuove senza un
+      // posto: questa scelta usava il mirino generico, come tutte quelle che
+      // non ne dichiarano una. Ma qui non si sceglie un bersaglio da colpire,
+      // si sceglie un muro da sfondare — ed e' esattamente cio' che l'icona
+      // del martello dice, senza bisogno di spiegarlo.
+      icona: ICONA_PICCONE,
       cellaOrigine: key(q,r),
       bersagli,
       applicaEAspetta: (cella, poi) => sfondaConIlPiccone(key(q,r), cella, poi),
@@ -25394,11 +25488,11 @@ const TRASCINA_SOGLIA_PX = 3; // sotto questa soglia e' un tocco, non un trascin
 function preparaTrascinamentoTassello(svg, cella, bx, by, R, buildSvgIconBtn){
   const bsvg = document.getElementById('board-svg');
   const wrap = bsvg && bsvg.querySelector('[data-tile-wrap="'+cella+'h"]');
-  const iconaAperta = CARD_PARTS_BASE+'hand-icon.png';
+  const iconaAperta = ICONA_MANO;
   // v0.73.89 — se la mano chiusa non c'e' ancora fra gli asset si continua con
   // quella aperta: il gesto funziona lo stesso, cambia solo che non si vede
   // stringere. Un file mancante non deve rendere inutilizzabile un'abilita'.
-  const iconaChiusa = CARD_PARTS_BASE+'hand-closed-icon.png';
+  const iconaChiusa = ICONA_MANO_CHIUSA;
   const gruppoIcona = buildSvgIconBtn(iconaAperta, bx, by, R*0.62, ()=>{});
   if(!gruppoIcona) return;
   const immagineIcona = gruppoIcona.querySelector('image');
@@ -34640,7 +34734,7 @@ function renderHand(containerId,hand,playerIdx){
       const croce = document.createElement('div');
       croce.className = 'scarta-croce';
       const img = document.createElement('img');
-      img.src = CARD_PARTS_BASE + 'close-icon-red.png';
+      img.src = ICONA_RINUNCIA;
       img.alt = '';
       img.draggable = false;
       croce.appendChild(img);
@@ -37437,13 +37531,13 @@ function renderBoard(){
         // — vuol dire "indica un bersaglio" e vale per quasi tutte — ma chi fa
         // un gesto diverso puo' mostrarlo: March Hare scambia due valori, e uno
         // scambio ha un segno suo.
-        buildSvgIconBtn(CARD_PARTS_BASE+(scelta.icona||'crosshair-icon.png'), bx, by, R*0.62, ()=>scegliBersaglio(cella));
+        buildSvgIconBtn(scelta.icona || ICONA_MIRINO, bx, by, R*0.62, ()=>scegliBersaglio(cella));
       }
     }
     const orig = G.cells.find(x=>key(x.q,x.r)===scelta.cellaOrigine);
     if(orig){
       const {x:ox,y:oy} = axialToPixel(orig.q,orig.r,cx,cy,R);
-      buildSvgIconBtn(CARD_PARTS_BASE+'close-icon-red.png', ox, oy, R*0.42, ()=>rinunciaSceltaBersaglio());
+      buildSvgIconBtn(ICONA_RINUNCIA, ox, oy, R*0.42, ()=>rinunciaSceltaBersaglio());
     }
   }
   // ── v0.76.10 — GLI STRATI SI RIMETTONO IN ORDINE ALLA FINE ──────────────
