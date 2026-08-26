@@ -7249,6 +7249,19 @@ body.prova-senza-willchange #mm-book-rot{
   font-family:'Cinzel',serif; font-size:0.9rem; color:#E9DEC5;
 }
 .donate-btn:hover{ background:rgba(255,255,255,0.09); border-color:rgba(233,222,197,0.55); transform:translateY(-1px); }
+/* v0.76.4 — la stessa donazione, appoggiata nell'angolo in alto a sinistra del
+   menu principale. Piu' piccola di quella delle impostazioni: li' e' una voce
+   del modulo e ha il suo spazio, qui e' un angolo e non deve rubare l'occhio
+   al libro, che e' cio' che uno e' venuto a guardare. */
+.mm-donate{
+  position:absolute; left:28px; top:24px; z-index:20;
+  width:auto; margin:0;
+}
+.mm-donate .donate-btn{
+  min-width:0; min-height:0; padding:5px 10px;
+  font-size:0.8rem;
+}
+.mm-donate .donate-btn img{ height:26px; width:auto; display:block; }
 .donate-btn:active{ transform:translateY(0); }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -7859,6 +7872,22 @@ body.prova-senza-willchange #mm-book-rot{
      non e' pubblicato — errore gia' commesso, vedi il fascio del libro. -->
 <div id="main-menu">
   <img id="mm-bg" alt="" draggable="false">
+  <!-- v0.76.4 — la donazione anche qui, in alto a sinistra. Sta FUORI dal
+       gruppo inclinato di tre gradi (vedi #mm-book-rot), come le impostazioni
+       e le valute: e' un comando della pagina, non un oggetto appoggiato sul
+       libro, e inclinarlo lo farebbe sembrare parte della scena.
+       Il modulo e' lo stesso delle impostazioni, con lo stesso target="_blank"
+       e la stessa rete se l'immagine di PayPal non arriva. -->
+  <form class="donate-form mm-donate" action="https://www.paypal.com/donate" method="post" target="_blank" rel="noopener">
+    <input type="hidden" name="business" value="4HZY4JGJ2A358">
+    <input type="hidden" name="no_recurring" value="0">
+    <input type="hidden" name="currency_code" value="EUR">
+    <button type="submit" class="donate-btn" title="PayPal - The safer, easier way to pay online!">
+      <img src="https://www.paypalobjects.com/en_US/IT/i/btn/btn_donateCC_LG.gif"
+           alt="Donate with PayPal" draggable="false"
+           onerror="this.remove(); this.parentNode.textContent='Donate with PayPal';">
+    </button>
+  </form>
   <img class="mm-radial" id="mm-radial-a" alt="" draggable="false">
   <img class="mm-radial" id="mm-radial-b" alt="" draggable="false">
 
@@ -8213,7 +8242,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.76.3</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.76.4</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -8353,11 +8382,9 @@ body.prova-senza-willchange #mm-book-rot{
     <div class="settings-voci" data-quando="menu">
       <div class="settings-divider"></div>
       <div class="donate-box">
-        <p class="donate-testo">We are developing a deck-building video game. Any kind of support is greatly appreciated. Thank you so much!</p>
         <form class="donate-form" action="https://www.paypal.com/donate" method="post" target="_blank" rel="noopener">
           <input type="hidden" name="business" value="4HZY4JGJ2A358">
           <input type="hidden" name="no_recurring" value="0">
-          <input type="hidden" name="item_name" value="We are developing a deck-building video game, any kind of support is greatly appreciated. Thank you so much! The Hextale Team">
           <input type="hidden" name="currency_code" value="EUR">
           <button type="submit" class="donate-btn" title="PayPal - The safer, easier way to pay online!">
             <img src="https://www.paypalobjects.com/en_US/IT/i/btn/btn_donateCC_LG.gif"
@@ -9515,9 +9542,10 @@ if(document.readyState==='loading'){
   }
 
   if(document.readyState==='loading'){
-    document.addEventListener('DOMContentLoaded', ()=>{ allineaTarghettaVersione(); caricaAiutoEsagono(); caricaValute(); runPreload(); });
+    document.addEventListener('DOMContentLoaded', ()=>{ allineaTarghettaVersione(); caricaImpostazioniAudio(); caricaAiutoEsagono(); caricaValute(); runPreload(); });
   } else {
     allineaTarghettaVersione();
+    caricaImpostazioniAudio();
     caricaAiutoEsagono();
     caricaValute();
     runPreload();
@@ -12785,6 +12813,44 @@ function startGame(vsAI){
 // chiedere la stessa cosa. Il vero rimedio non e' chiamare questa funzione in
 // un punto in piu': e' che un dato non appartenga a una schermata. Il volume
 // e' del gioco, non della partita.
+// ═══════════════════════════════════════════════════════════════════════════
+// v0.76.4 — I VOLUMI SI RICORDANO
+// ═══════════════════════════════════════════════════════════════════════════
+// Chi abbassa la musica lo fa perche' quella musica, a quel volume, gli da'
+// fastidio: ritrovarla al massimo al riavvio successivo vuol dire chiedergli
+// di rifare la stessa scelta ogni volta.
+// Si salva DENTRO alle tre applyVolume e non nei punti che le chiamano: quelle
+// tre sono l'unica porta da cui un volume cambia — cursori, pulsanti muto e
+// qualunque cosa arrivi domani passano tutti di li'.
+// Con un ritardo, pero': trascinando un cursore quelle funzioni girano decine
+// di volte al secondo, e scrivere su disco a ogni fotogramma per un valore che
+// sta ancora cambiando e' lavoro buttato. Si aspetta che il cursore si fermi.
+const AUDIO_CHIAVE = 'hextale.audio';
+let _audioSalvaTimer = null;
+function salvaImpostazioniAudio(){
+  if(_audioSalvaTimer !== null) clearTimeout(_audioSalvaTimer);
+  _audioSalvaTimer = setTimeout(()=>{
+    _audioSalvaTimer = null;
+    try{
+      localStorage.setItem(AUDIO_CHIAVE, JSON.stringify({
+        master: getMasterVolume(), music: getMusicVolume(), sfx: getSfxVolume()
+      }));
+    }catch(_){}
+  }, 250);
+}
+// Si legge PRIMA che preparaImpostazioniAudio metta i suoi valori di partenza:
+// quella riempie solo cio' che e' `undefined`, quindi un valore letto da qui
+// vince senza bisogno di dirglielo.
+function caricaImpostazioniAudio(){
+  let dati = null;
+  try{ dati = JSON.parse(localStorage.getItem(AUDIO_CHIAVE) || 'null'); }catch(_){}
+  if(!dati) return;
+  const buono = (v)=> (typeof v === 'number' && isFinite(v)) ? Math.max(0, Math.min(1, v)) : null;
+  const m = buono(dati.master), mu = buono(dati.music), sf = buono(dati.sfx);
+  if(m  !== null) window.globalVolume = m;
+  if(mu !== null) window.musicVolume  = mu;
+  if(sf !== null) window.sfxVolume    = sf;
+}
 function preparaImpostazioniAudio(){
   // v0.73.61 — si parte con tutto al massimo.
   // Il volume generale era a 0.45: un gioco che si presenta a meta' voce
@@ -12875,6 +12941,7 @@ function applyVolume(vol){
   document.querySelectorAll('audio[id^="sfx-"]').forEach(el=>{ el.volume=getGlobalVolume(); });
   setSliderVisual('volume-slider', vol);
   updateMuteIcon();
+  salvaImpostazioniAudio();
 }
 
 // Applies the MUSIC-only volume level [0-1] — affects bgm exclusively, sfx
@@ -12887,6 +12954,7 @@ function applyMusicVolume(vol){
   if(bgmLoop) bgmLoop.volume=getEffectiveMusicVolume();
   setSliderVisual('music-volume-slider', vol);
   updateMusicMuteIcon();
+  salvaImpostazioniAudio();
 }
 
 // Applies the SFX-only volume level [0-1] — affects every static sfx
@@ -12897,6 +12965,7 @@ function applySfxVolume(vol){
   document.querySelectorAll('audio[id^="sfx-"]').forEach(el=>{ el.volume=getGlobalVolume(); });
   setSliderVisual('sfx-volume-slider', vol);
   updateSfxMuteIcon();
+  salvaImpostazioniAudio();
 }
 
 // v0.70.18: sound-icon.png/mute-icon.png swap in for the old 🔊/🔇 emoji —
