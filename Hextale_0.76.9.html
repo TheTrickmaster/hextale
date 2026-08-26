@@ -1382,18 +1382,21 @@ body.mouse-down{
   --pi-avatar-h:320px;
   --pi-score-h:148px;
   --pi-score-sovrapp:70px;  /* di quanto il punteggio sale dentro all'avatar */
-  --pi-banner-w:536px;
+  --pi-banner-w:268px;   /* v0.76.9: il drappo e' alto 600 e tiene le sue
+                            proporzioni (536x1200), quindi largo 268. La barra
+                            del nome resta 360 e sborda di proposito da tutti e
+                            due i lati, com'era anche prima. */
   position:fixed; top:0;
   width:var(--pi-banner-w); height:1080px;
   z-index:20; pointer-events:none; user-select:none;
 }
 #p1-info{ left:0; }
-#p2-info{ left:1384px; }   /* 1920 - 536: stessa aritmetica per tutti e due */
+#p2-info{ left:1652px; }   /* 1920 - 268: stessa aritmetica per tutti e due */
 /* Lo sfondo di legno, appeso al bordo superiore. E' alto 1200 su una tela di
    1080: deborda in basso, ed e' giusto — e' un drappo, non un riquadro. */
 .player-banner{
   position:absolute; left:0; top:0;
-  width:var(--pi-banner-w); height:auto;
+  width:var(--pi-banner-w); height:600px;
   display:block; pointer-events:none; user-select:none;
   filter:drop-shadow(8px 7px 40px rgba(0,0,0,0.4));
 }
@@ -1423,8 +1426,16 @@ body.mouse-down{
   width:calc(var(--pi-avatar-h) * 749 / 834);
   transform:translateX(-50%);
 }
+/* v0.76.9 — LA FOTO STA DENTRO ALL'APERTURA DELLA CORNICE, NON DENTRO AL SUO
+   RIQUADRO. Il file avatar-frame.png e' 749x834 ma il telaio disegnato occupa
+   solo la parte centrale: misurando il canale alfa, il vuoto interno va da
+   x 146 a 605 e da y 174 a 658. Con la foto a `inset:0` — cioe' su tutto il
+   riquadro — sbordava da ogni lato, ed e' quello che si vedeva.
+   Le percentuali qui sotto sono quelle misure, strette di un altro punto per
+   sicurezza: meglio un filo di cornice in piu' che un filo di foto di fuori. */
 .player-avatar-photo{
-  position:absolute; inset:0; width:100%; height:100%;
+  position:absolute;
+  left:20.5%; top:22%; width:59.4%; height:56.2%;
   object-fit:cover;
   clip-path:polygon(50% 0%, 100% 25.1%, 100% 74.5%, 50% 100%, 0% 74.5%, 0% 25.1%);
 }
@@ -1460,16 +1471,26 @@ body.mouse-down{
    diventa trasparente, quindi un text-shadow non si vedrebbe piu' sotto le
    lettere. L'ombra si mette percio' sull'elemento intero con drop-shadow, che
    segue la sagoma ritagliata invece della scatola. */
+/* v0.76.9 — CENTRATO SUL DISEGNO, NON SULLA TELA. score.png e' 499x443 ma il
+   riquadro disegnato sta fra y 82 e 443: il suo centro cade al 59.3%
+   dell'immagine, non al 50%. Con `inset:0` il numero si centrava sulla tela e
+   finiva troppo in alto — che e' esattamente quello che si vedeva.
+   v0.76.9 — e il font. Diceva 'Marcellus', che in questo gioco NON ESISTE: il
+   file caricato e' MarcellusSC-Regular.ttf, cioe' la famiglia si chiama
+   'Marcellus SC'. Senza un ripiego dichiarato il numero cadeva sul serif di
+   sistema. Le altre scritte se la cavavano perche' passano da
+   var(--font-display), che quel nome giusto ce l'ha dentro. */
 .player-hp-value{
-  position:absolute; inset:0;
+  position:absolute;
+  left:13.6%; top:18.5%; width:72.4%; height:81.5%;
   display:flex; align-items:center; justify-content:center;
-  font-family:'Marcellus',serif; font-weight:400; font-size:64px;
+  font-family:'Marcellus SC','Marcellus',var(--font-display),serif; font-weight:400; font-size:64px;
   line-height:1; z-index:3;
   font-variant-numeric:tabular-nums;
   background-image:linear-gradient(135deg, #FFD376 0%, #FFF1D4 50%, #FFD376 100%);
   -webkit-background-clip:text; background-clip:text;
   -webkit-text-fill-color:transparent; color:transparent;
-  filter:drop-shadow(0 2px 6px rgba(0,0,0,0.8));
+  filter:drop-shadow(0 2px 6px rgba(0,0,0,1));
 }
 /* v0.52.0 FIX ("quando l'avatar riceve danni, fa un movimento estremamente
    brusco verso sinistra non previsto"): .player-avatar is horizontally
@@ -2101,13 +2122,12 @@ body.mouse-down{
    cuore del disegno del tabellone e merita un passaggio suo.
    Sotto, intanto, i rami fanno esattamente cio' che si vede nello screenshot:
    spuntano da sotto il bordo del tabellone. */
-#board-outline, #board-vines{
+#board-outline{
   position:absolute; left:50%; top:50%;
   transform:translate(-50%,-50%);
   pointer-events:none; user-select:none;
+  z-index:0; width:1032px; height:auto;
 }
-#board-outline{ z-index:0; width:1012px; height:auto; }
-#board-vines{ z-index:1; width:1232px; height:auto; }
 
 /* ── Conquest flip animation ── */
 /* v0.73.11 — il giro con la prospettiva. Senza `perspective()` una rotazione
@@ -3923,7 +3943,7 @@ body.mouse-down{
      #hand-expand-overlay sits at z-index:800, above this new 20): flagged
      to Lorenzo directly before applying, he confirmed to proceed anyway. */
   display:none; /* v0.71.9: starts hidden — see this rule's own comment above; shown via inline style once startGame() runs */
-  position:fixed; left:478px; top:30px; z-index:20;   /* v0.76.8: (536+360)/2 + 30 */
+  position:fixed; left:344px; top:30px; z-index:20;   /* v0.76.9: (268+360)/2 + 30 */
   height:67px; width:auto;
   padding:0; border:none; background:transparent;
   cursor:var(--cursore);
@@ -7698,7 +7718,7 @@ body.prova-senza-willchange #mm-book-rot{
      underneath it, then got covered a moment later once the src was finally
      assigned ("per un attimo vedo ancora i vecchi sfondi prima che
      compaiano i nuovi" — reported and fixed in v0.31.1). -->
-<img id="board-bg-img" src="https://thetrickmaster.github.io/hextale/ui/battle-bg.png" alt="" style="position:fixed;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;pointer-events:none;">
+<img id="board-bg-img" alt="" style="position:fixed;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;pointer-events:none;">
 
 <!-- START SCREEN (v0.32.0 rebuild, sequence rewritten in v0.37.0) ───────
      Fully sequential fade cascade (see revealBg()/beginLoadingPhase()/
@@ -7928,7 +7948,6 @@ body.prova-senza-willchange #mm-book-rot{
              che e' l'effetto voluto. Vedi il commento nel CSS per il perche'
              non stanno SOPRA ai tasselli. -->
         <img id="board-outline" alt="" draggable="false">
-        <img id="board-vines" alt="" draggable="false">
         <svg id="board-svg"></svg>
       </div>
     </div>
@@ -8201,7 +8220,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.76.8</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.76.9</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -11143,8 +11162,8 @@ function montaGraficaPartita(){
   const sfondo = (sel, file)=>{
     document.querySelectorAll(sel).forEach(el=> impostaSfondoDaCandidati(el, uiFileCandidati(file)));
   };
+  img('#board-bg-img',  'battle-bg.jpg');
   img('#board-outline', 'board-outline.png');
-  img('#board-vines',   'vines.png');
   img('.player-banner', 'player-banner.png');
   img('.player-avatar-frame', 'avatar-frame.png');
   img('.player-hp-orb-bg', 'score.png');
@@ -35299,6 +35318,58 @@ const TILE_FREE = [
 // varianti, la formula continua a mescolare. Resta deterministica — la stessa
 // casella da' sempre lo stesso tassello, che e' cio' che serve perche' il
 // tabellone non cambi faccia a ogni ridisegno.
+// ── v0.76.9 — I RAMI FRA I TASSELLI E LE CARTE ────────────────────────────
+// In SVG l'ordine del documento E' l'ordine di disegno: per mettere qualcosa
+// fra i tasselli e le carte basta che quel qualcosa stia in mezzo. Prima non
+// si poteva, perche' ogni carta nasceva DENTRO al gruppo del suo tassello e
+// fra i due non c'era spazio. Adesso le carte hanno uno strato tutto loro,
+// creato in fondo all'SVG; i rami stanno subito prima.
+// Si creano una volta e si riusano: renderBoard gira a ogni mossa e a ogni
+// passaggio del mouse, e rifare un'immagine da 2464px a ogni fotogramma
+// vorrebbe dire ricaricarla.
+const VINES_W = 1232;   // meta' della misura nativa
+function stratoCarteDellaPlancia(root){
+  let rami = root.querySelector('#board-vines-svg');
+  if(!rami){
+    rami = document.createElementNS('http://www.w3.org/2000/svg','image');
+    rami.setAttribute('id','board-vines-svg');
+    rami.setAttribute('preserveAspectRatio','xMidYMid meet');
+    rami.style.pointerEvents = 'none';
+    root.appendChild(rami);
+    // L'indirizzo si cerca come ogni altro asset: prima accanto al file, poi
+    // sul repository (vedi _candidati).
+    const candidati = uiFileCandidati('vines.png');
+    let i = 0;
+    const prova = ()=>{
+      if(i >= candidati.length){ segnalaAssetMancante(candidati); return; }
+      const url = candidati[i++];
+      const test = new Image();
+      test.onload = ()=>{ rami.setAttributeNS('http://www.w3.org/1999/xlink','href', url); rami.setAttribute('href', url); };
+      test.onerror = prova;
+      test.src = url;
+    };
+    prova();
+  }
+  // Centrati sul tabellone. La misura si legge dall'SVG a ogni giro perche' il
+  // tabellone puo' cambiare grandezza (il pizzico a due dita), e un'immagine
+  // centrata su una misura vecchia si sposta di lato.
+  const w = (root.viewBox && root.viewBox.baseVal && root.viewBox.baseVal.width) || root.clientWidth || 0;
+  const h = (root.viewBox && root.viewBox.baseVal && root.viewBox.baseVal.height) || root.clientHeight || 0;
+  const vh = VINES_W * 1860 / 2464;
+  rami.setAttribute('x', ((w - VINES_W)/2).toFixed(1));
+  rami.setAttribute('y', ((h - vh)/2).toFixed(1));
+  rami.setAttribute('width', VINES_W);
+  rami.setAttribute('height', vh.toFixed(1));
+  let strato = root.querySelector('#board-cards-layer');
+  if(!strato){
+    strato = document.createElementNS('http://www.w3.org/2000/svg','g');
+    strato.setAttribute('id','board-cards-layer');
+  }
+  // Sempre in fondo: renderBoard aggiunge tasselli per tutto il giro, e lo
+  // strato deve restare l'ultimo comunque vada.
+  root.appendChild(strato);
+  return strato;
+}
 function tileVariant(arr, q, r){
   const h = Math.imul(q|0, 374761393) ^ Math.imul(r|0, 668265263);
   return arr[Math.abs(h) % arr.length];
@@ -36298,7 +36369,14 @@ function renderBoard(){
       // in this file.
       const cardGroup=document.createElementNS('http://www.w3.org/2000/svg','g');
       cardGroup.setAttribute('data-conquered',k);
-      svg.appendChild(cardGroup);
+      // v0.76.9 — LA CARTA NON NASCE PIU' DENTRO AL GRUPPO DEL SUO TASSELLO.
+      // Va in uno strato suo, che sta in fondo all'SVG: cosi' fra i tasselli e
+      // le carte c'e' finalmente un "in mezzo", ed e' li' che si infilano i
+      // rami (vedi stratoCarteDellaPlancia).
+      // I gruppi non creano un sistema di coordinate proprio finche' non hanno
+      // una `transform`, quindi la carta resta esattamente dove stava: cambia
+      // l'ordine di disegno, non la posizione.
+      stratoCarteDellaPlancia(boardSvgRoot).appendChild(cardGroup);
       // v0.72.99 FIX ("gli hextile conquistati non flippano piu'"): il giro
       // (.card-flip) e il contraccolpo del colpo incassato (.card-recoil-*)
       // finivano ENTRAMBI su questo stesso elemento, e animano entrambi
