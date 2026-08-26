@@ -8238,7 +8238,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.76.5</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.76.6</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -21108,6 +21108,9 @@ function initGame(vsAI){
   // partita, e non a ogni disegno: un muro che cambia faccia da solo fra un
   // ridisegno e l'altro sarebbe la cosa piu' strana del tabellone.
   const muriAssegnati = assegnaMuriDellaPartita([...holes]);
+  // v0.76.6 — e le sette varianti di tassello libero, distribuite a mazzo su
+  // TUTTE le caselle del tabellone (vedi assegnaTasselliLiberi).
+  const tasselliAssegnati = assegnaTasselliLiberi(cells.map(c=>key(c.q,c.r)));
   // Generate the two starting decks so their overall power is within 20% of each
   // other (accounts for values, group sizes, factions and gems — see cardPower).
   const balanced=makeBalancedDecks(!!vsAI);
@@ -21213,6 +21216,7 @@ function initGame(vsAI){
     // pausa: chi lo apre DEVE anche chiuderlo, per entrambi i giocatori.
     sceltaBersaglio:null,
     muriAssegnati,   // v0.75.63 — quale tile-broken tocca a ogni casella bloccata
+    tasselliAssegnati, // v0.76.6 — e quale delle sette varianti libere
     destroyedHoles:new Set(), // cells whose blocked tile was removed via Distruggere — rendered with the special "free-tile-destroyed" art
     fortifiedCells:new Set(),
     // conqueredHistory teneva la lista delle carte che ognuna aveva conquistato,
@@ -35255,28 +35259,34 @@ function drawBoardOutline(svg, cx, cy, R){
 // cui arriveranno tile-fixed-2/3/4 basta aggiungerli qui sotto e l'accoppiata
 // tornera' a dire qualcosa, senza toccare nient'altro.
 const TILE_BLOCKED = [
-  'https://thetrickmaster.github.io/hextale/tiles/tile-broken-1.png',
-  'https://thetrickmaster.github.io/hextale/tiles/tile-broken-2.png',
-  'https://thetrickmaster.github.io/hextale/tiles/tile-broken-3.png',
-  'https://thetrickmaster.github.io/hextale/tiles/tile-broken-4.png',
-  'https://thetrickmaster.github.io/hextale/tiles/tile-broken-5.png',
+  'https://thetrickmaster.github.io/hextale/ui/tiles/tile-broken-1.png',
+  'https://thetrickmaster.github.io/hextale/ui/tiles/tile-broken-2.png',
+  'https://thetrickmaster.github.io/hextale/ui/tiles/tile-broken-3.png',
+  'https://thetrickmaster.github.io/hextale/ui/tiles/tile-broken-4.png',
+  'https://thetrickmaster.github.io/hextale/ui/tiles/tile-broken-5.png',
 ];
 const TILE_FIXED = [
-  'https://thetrickmaster.github.io/hextale/tiles/tile-fixed-1.png',
+  'https://thetrickmaster.github.io/hextale/ui/tiles/tile-fixed-1.png',
 ];
+// v0.76.6 — sette varianti, non piu' quattro. Le tre nuove non richiedono
+// altro che essere elencate qui: chi le distribuisce lavora sulla lunghezza
+// dell'elenco, non su un numero scritto da qualche parte.
 const TILE_FREE = [
-  'https://thetrickmaster.github.io/hextale/tiles/tile-1.png',
-  'https://thetrickmaster.github.io/hextale/tiles/tile-2.png',
-  'https://thetrickmaster.github.io/hextale/tiles/tile-3.png',
-  'https://thetrickmaster.github.io/hextale/tiles/tile-4.png',
+  'https://thetrickmaster.github.io/hextale/ui/tiles/tile-1.png',
+  'https://thetrickmaster.github.io/hextale/ui/tiles/tile-2.png',
+  'https://thetrickmaster.github.io/hextale/ui/tiles/tile-3.png',
+  'https://thetrickmaster.github.io/hextale/ui/tiles/tile-4.png',
+  'https://thetrickmaster.github.io/hextale/ui/tiles/tile-5.png',
+  'https://thetrickmaster.github.io/hextale/ui/tiles/tile-6.png',
+  'https://thetrickmaster.github.io/hextale/ui/tiles/tile-7.png',
 ];
 // Magic-tile art (Part A/C): replaces the old colored-border/gradient overlay
 // entirely — a magic tile now shows one of these 4 art variants instead.
 const TILE_MAGIC = [
-  'https://thetrickmaster.github.io/hextale/tiles/tile-magic-1.png',
-  'https://thetrickmaster.github.io/hextale/tiles/tile-magic-2.png',
-  'https://thetrickmaster.github.io/hextale/tiles/tile-magic-3.png',
-  'https://thetrickmaster.github.io/hextale/tiles/tile-magic-4.png',
+  'https://thetrickmaster.github.io/hextale/ui/tiles/tile-magic-1.png',
+  'https://thetrickmaster.github.io/hextale/ui/tiles/tile-magic-2.png',
+  'https://thetrickmaster.github.io/hextale/ui/tiles/tile-magic-3.png',
+  'https://thetrickmaster.github.io/hextale/ui/tiles/tile-magic-4.png',
 ];
 // v0.72.71 — via TILE_FREE_DESTROYED: era gia' un residuo, dichiarato e mai
 // letto da nessuno da quando le caselle liberate usano tile-fixed-N.
@@ -35285,8 +35295,47 @@ const TILE_MAGIC = [
 // free-tile picker so board layouts keep picking consistent variants across
 // re-renders, AND so TILE_BLOCKED/TILE_FIXED always agree on the same index
 // for a given cell (see v0.71.46 comment above).
+// ── v0.76.6 — IL SETTE ERA UN NUMERO SBAGLIATO DA MOLTIPLICARE ────────────
+// La formula era `abs(q*7 + r*13) % lunghezza`. Con quattro varianti andava;
+// con SETTE si rompe, e in un modo che si vede subito: `q*7` diviso per sette
+// non lascia resto, quindi la colonna spariva dal conto e la variante finiva
+// per dipendere dal solo `r`. Tutte le caselle di una stessa riga uscivano
+// identiche — sette disegni e il tabellone a strisce.
+// I due moltiplicatori sono adesso numeri primi grandi, che non hanno fattori
+// in comune con nessuna lunghezza plausibile: quattro, cinque, sette o dodici
+// varianti, la formula continua a mescolare. Resta deterministica — la stessa
+// casella da' sempre lo stesso tassello, che e' cio' che serve perche' il
+// tabellone non cambi faccia a ogni ridisegno.
 function tileVariant(arr, q, r){
-  return arr[(Math.abs(q*7+r*13))%arr.length];
+  const h = Math.imul(q|0, 374761393) ^ Math.imul(r|0, 668265263);
+  return arr[Math.abs(h) % arr.length];
+}
+// ── v0.76.6 — I TASSELLI LIBERI SI DISTRIBUISCONO A MAZZO ─────────────────
+// Anche con una formula che mescola bene, sette varianti su diciannove
+// caselle lasciano al caso quante volte esce ciascuna: capita benissimo di
+// vederne una quattro volte e un'altra mai. Con sette disegni disegnati apposta
+// non e' quello che si vuole.
+// Si fa quindi come per i muri (vedi assegnaMuriDellaPartita): si mescola il
+// mazzo delle varianti e se ne da' una per casella; finito il mazzo se ne
+// mescola un altro. Su diciannove caselle escono due giri pieni piu' cinque,
+// quindi OGNI variante compare almeno due volte, sempre.
+// Si decide una volta per partita e non a ogni disegno: un tassello che cambia
+// faccia da solo fra un ridisegno e l'altro sarebbe la cosa piu' strana del
+// tabellone.
+function assegnaTasselliLiberi(celle){
+  const assegnate = {};
+  let mazzo = [];
+  for(const k of celle){
+    if(!mazzo.length) mazzo = _mescola(TILE_FREE.slice());
+    assegnate[k] = mazzo.pop();
+  }
+  return assegnate;
+}
+// Il tassello di una casella: quello assegnato a inizio partita, o il ripiego
+// stabile di sempre per una casella che a inizio partita non c'era.
+function tasselloLibero(k, q, r){
+  if(G && G.tasselliAssegnati && G.tasselliAssegnati[k]) return G.tasselliAssegnati[k];
+  return tileVariant(TILE_FREE, q, r);
 }
 // ── v0.75.63 — I MURI NON SI RIPETONO ──────────────────────────────────────
 // tileVariant sceglie da una moltiplicazione sulle coordinate: e' stabile — la
@@ -36155,7 +36204,7 @@ function renderBoard(){
       // tassello bloccato si alza sotto c'e' gia' tutto, decodificato e pronto.
       // Non costa niente a chi non usa l'abilita': e' un'immagine coperta al
       // 100% da quella sopra, che il browser non ridisegna mai da sola.
-      drawTileCell(svg,x,y,R,tileVariant(TILE_FREE,q,r),k+'sotto',false);
+      drawTileCell(svg,x,y,R,tasselloLibero(k,q,r),k+'sotto',false);
       const holePoly=drawTileCell(svg,x,y,R,muroDellaCella(k,q,r),k+'h',false);
       // Il tassello bloccato viaggia come un pezzo unico quando lo si trascina:
       // gli si mette addosso un contrassegno per ritrovarlo (vedi
@@ -36187,7 +36236,7 @@ function renderBoard(){
         ? tileVariant(TILE_FIXED,q,r)
         : isMagicTile(k)
           ? tileVariant(TILE_MAGIC,q,r)
-          : tileVariant(TILE_FREE,q,r);
+          : tasselloLibero(k,q,r);
       drawTileCell(svg,x,y,R,tileSottoSrc,k+'f',false);
       // v0.73.11 FIX ("quando morgana procca, il bordo cambia colore molto
       // prima della metà dell'animazione"): il cambio di proprietario e' JS
@@ -36345,7 +36394,7 @@ function renderBoard(){
         ? tileVariant(TILE_FIXED,q,r)
         : cellIsMagic
           ? tileVariant(TILE_MAGIC,q,r)
-          : tileVariant(TILE_FREE,q,r);
+          : tasselloLibero(k,q,r);
       const poly=drawTileCell(svg,x,y,R,tileSrc,k+'f',placeable);
       // Tagged so the Distruggere attack sequence (see doDistruggi) can find
       // THIS cell's overlay polygon right after the wall comes down — by the
