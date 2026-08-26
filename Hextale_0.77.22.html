@@ -363,11 +363,19 @@ body.mouse-down, body.mouse-down *{
    Il centro della barra e' gia' una riga flex che centra il titolo: il
    pulsante ci entra come primo elemento, e il titolo resta centrato sul
    testo. Otto pixel fra i due, come chiesto. */
+/* v0.77.22 — il centro della barra CENTRA. La regola condivisa
+   (.hx-titlebar-center) e' una fila flex che parte da sinistra: finche' il
+   titolo aveva `width:100%` riempiva la fila e il suo text-align lo centrava,
+   ma togliendo quella larghezza — servita per far spazio al pulsante
+   indietro — il titolo si e' ridotto al proprio testo ed e' scivolato a
+   sinistra. Si centra la FILA, non il titolo: cosi' vale per la barra con un
+   elemento solo e per quella che ne ha due. */
+#login-titlebar .hx-titlebar-center,
 #registrazione-titlebar .hx-titlebar-center{
-  display:flex; align-items:center; justify-content:center; gap:8px;
+  justify-content:center; gap:8px;
 }
 .hx-indietro{
-  flex:0 0 auto; width:30px; height:30px; padding:0; margin:0;
+  flex:0 0 auto; width:38px; height:38px; padding:0; margin:0;   /* v0.77.22 — +8px */
   background:none; border:0; cursor:var(--cursore);
   transition:filter 0.16s ease, transform 0.16s ease;
 }
@@ -8766,7 +8774,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.21</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.22</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -9781,15 +9789,14 @@ if(document.readyState==='loading'){
     // revealLogoAndButtons() cosi' puo' essere RIGIOCATA quando si rientra
     // nella schermata iniziale da un'altra pagina (vedi window.__replayStartReveal).
     setTimeout(revealLogoAndButtons, STD_FADE_MS);
-    // v0.73.4 — le note di aggiornamento, a caricamento finito. Dopo la
-    // cascata di logo e pulsanti e non insieme: sovrapporre un riquadro a
-    // un'animazione di entrata le rovina entrambe.
-    // Solo alla PRIMA apertura della schermata iniziale: rientrandoci da una
-    // partita non e' una novita' che si vuole rileggere.
-    if(!_patchNotesGiaMostrate){
-      _patchNotesGiaMostrate = true;
-      setTimeout(()=>{ try { caricaPatchNotes(); } catch(_){} }, STD_FADE_MS*2 + 600);
-    }
+    // v0.77.22 — LE NOTE NON SI APRONO PIU' QUI.
+    // Si aprivano sulla schermata iniziale, sopra al logo e alla barra. Adesso
+    // quella schermata chiede di accedere, e un riquadro di novita' davanti a
+    // un modulo di login e' una cosa in mezzo ai piedi. Il loro posto e' il
+    // menu principale, cioe' dopo che si e' entrati: vedi apriMenuPrincipale.
+    // Le note si CARICANO comunque adesso, in silenzio: cosi' quando il menu
+    // si apre sono gia' pronte e non c'e' un'attesa da guardare.
+    setTimeout(()=>{ try { caricaPatchNotes({soloCarica:true}); } catch(_){} }, STD_FADE_MS*2 + 600);
   }
 
   // v0.72.38 — la cascata finale, isolata e ri-eseguibile.
@@ -13278,10 +13285,21 @@ function collegaTrascinamentoMazzo(){
     _tirInizia(ev, id, slot, 'dentro');
   }, true);
 }
+// v0.77.22 — le note di aggiornamento vivono QUI. Si aprono da sole una volta
+// sola, entrando nel menu, e solo se contengono una versione che non e' quella
+// gia' letta l'ultima volta — un ricordo che sta in localStorage e quindi
+// sopravvive alla chiusura del gioco (vedi PATCH_NOTES_LETTE).
+// Mezzo secondo di ritardo: il menu ha la sua entrata, e sovrapporle un
+// riquadro rovinerebbe tutte e due.
+let _patchNotesProposte = false;
 function apriMenuPrincipale(){
   const start = document.getElementById('start-screen');
   if(start) start.style.display = 'none';
   showPage('mainmenu');
+  if(!_patchNotesProposte){
+    _patchNotesProposte = true;
+    setTimeout(()=>{ try { caricaPatchNotes({automatico:true}); } catch(_){} }, 500);
+  }
 }
 // Le patch notes hanno gia' la loro finestra: qui si riapre quella, con le
 // note gia' caricate all'avvio. Se per qualche motivo non ce ne fossero (prima
@@ -13291,6 +13309,7 @@ function apriPatchNotesDalMenu(){
   const corpo = document.getElementById('patch-notes-body');
   const overlay = document.getElementById('patch-notes-overlay');
   if(!overlay) return;
+  // Chieste col pulsante: si aprono sempre, anche se gia' lette.
   if(corpo && corpo.childNodes.length) overlay.classList.add('show');
   else if(typeof caricaPatchNotes === 'function') caricaPatchNotes();
 }
@@ -19579,8 +19598,31 @@ function _dataUltimoCommit(percorso){
 // volta, invece di un riquadro vuoto.
 const PATCH_NOTES_FILE = 'patch-notes.txt';
 const PATCH_NOTES_CACHE = 'hextale.patchnotes';
+// ── v0.77.22 — QUELLO CHE SI E' GIA' LETTO ────────────────────────────────
+// Si ricorda la VERSIONE piu' recente fra quelle mostrate, non un "si/no": un
+// interruttore andrebbe rimesso a mano a ogni pubblicazione, e la prima volta
+// che qualcuno se ne dimenticasse le note non si aprirebbero piu'. Con la
+// versione, la domanda "c'e' qualcosa di nuovo da leggere?" si risponde da
+// sola confrontando due stringhe, e pubblicare basta.
+const PATCH_NOTES_LETTE = 'hextale.patchnotes.lette';
+function patchNotesUltimaLetta(){
+  try { return localStorage.getItem(PATCH_NOTES_LETTE) || ''; } catch(_){ return ''; }
+}
+function ricordaPatchNotesLette(versione){
+  if(!versione) return;
+  try { localStorage.setItem(PATCH_NOTES_LETTE, versione); } catch(_){}
+}
+// La piu' recente fra quelle che si stanno mostrando: l'elenco arriva gia' in
+// ordine, dalla piu' nuova alla piu' vecchia (vedi analizzaPatchNotes).
+function patchNotesVersionePiuNuova(versioni){
+  return (versioni && versioni.length) ? String(versioni[0].versione||'').replace(/^v/i,'') : '';
+}
 const PATCH_NOTES_MAX = 10;
-let _patchNotesGiaMostrate = false;
+// v0.77.22 — qui stava _patchNotesGiaMostrate, il paletto che impediva alle
+// note di riaprirsi rientrando nella schermata iniziale. Non serve piu': le
+// note non nascono piu' li', e a non riproporle ci pensa il ricordo di cosa si
+// e' gia' letto (vedi PATCH_NOTES_LETTE), che a differenza di una variabile
+// sopravvive alla chiusura del gioco.
 
 // Dal testo alla struttura. Formato: "## versione" apre un blocco, le righe
 // che cominciano con "-" sono le voci. Tutto il resto viene ignorato, cosi'
@@ -19604,11 +19646,29 @@ function analizzaPatchNotes(testo){
   return versioni.filter(v=>v.voci.length).slice(0, PATCH_NOTES_MAX);
 }
 
-function mostraPatchNotes(versioni){
+// `opzioni.automatico` distingue le due strade: aperta da sola all'ingresso
+// nel menu, o chiesta col pulsante. La prima tace se non c'e' niente di nuovo;
+// la seconda apre sempre, perche' e' stata chiesta.
+function mostraPatchNotes(versioni, opzioni){
   const corpo = document.getElementById('patch-notes-body');
   const overlay = document.getElementById('patch-notes-overlay');
   if(!corpo || !overlay) return;
   if(!versioni || !versioni.length) return; // niente da dire: non si disturba
+  const automatico = !!(opzioni && opzioni.automatico);
+  const piuNuova = patchNotesVersionePiuNuova(versioni);
+  // Il contenuto si riscrive comunque: cosi' il pulsante del menu trova le
+  // note aggiornate anche quando l'apertura automatica ha taciuto.
+  if(automatico && piuNuova && piuNuova === patchNotesUltimaLetta()){
+    riempiPatchNotes(versioni);
+    return;
+  }
+  riempiPatchNotes(versioni);
+  if(automatico) ricordaPatchNotesLette(piuNuova);
+  overlay.classList.add('show');
+}
+function riempiPatchNotes(versioni){
+  const corpo = document.getElementById('patch-notes-body');
+  if(!corpo) return;
   const badge = document.getElementById('build-version-badge');
   const attuale = badge ? (badge.textContent||'').trim() : '';
   corpo.innerHTML = versioni.map(v=>{
@@ -19619,20 +19679,25 @@ function mostraPatchNotes(versioni){
       + v.voci.map(x=>'<li>'+escapeHtml(x)+'</li>').join('')
       + '</ul></div>';
   }).join('');
-  overlay.classList.add('show');
 }
 function chiudiPatchNotes(){
   const overlay = document.getElementById('patch-notes-overlay');
   if(overlay) overlay.classList.remove('show');
 }
 
-function caricaPatchNotes(){
+// `opzioni.soloCarica` scarica e basta, senza aprire niente: serve all'avvio,
+// dove le note si preparano ma non si mostrano.
+// `opzioni.automatico` chiede l'apertura solo se c'e' qualcosa di nuovo.
+function caricaPatchNotes(opzioni){
+  const modo = { automatico: !!(opzioni && opzioni.automatico) };
+  const soloCarica = !!(opzioni && opzioni.soloCarica);
+  const consegna = (versioni)=> soloCarica ? riempiPatchNotes(versioni) : mostraPatchNotes(versioni, modo);
   // Prima si mostra cio' che si era gia' letto: se la rete risponde, il
   // contenuto viene sostituito un attimo dopo. Meglio note leggermente
   // vecchie subito che un riquadro vuoto che forse si riempie.
   let daCache = null;
   try { daCache = JSON.parse(localStorage.getItem(PATCH_NOTES_CACHE) || 'null'); } catch(_){}
-  if(daCache && daCache.length) mostraPatchNotes(daCache);
+  if(daCache && daCache.length) consegna(daCache);
 
   // v0.73.9 — il controllo della versione parte insieme alle note e per conto
   // suo: le due richieste non si aspettano a vicenda, e se quella della
@@ -19653,7 +19718,7 @@ function caricaPatchNotes(){
     const versioni = analizzaPatchNotes(testo);
     if(!versioni.length) return;
     try { localStorage.setItem(PATCH_NOTES_CACHE, JSON.stringify(versioni)); } catch(_){}
-    mostraPatchNotes(versioni);
+    consegna(versioni);
   }).catch(()=>{ /* si resta con quelle salvate, o con niente */ });
 }
 
