@@ -1499,20 +1499,21 @@ body.mouse-down{
    appena andate. */
 .score-bubble{
   position:absolute; left:50%;
-  width:139px; height:139px;
+  width:80px; height:80px;
   transform:translateX(-50%);
   z-index:3; pointer-events:none;
-  opacity:0; transition:opacity 0.14s ease;
+  opacity:0; transition:opacity 0.16s ease;
   display:flex; align-items:center; justify-content:center;
 }
+/* 1. COMPARE. */
 .score-bubble.viva{ opacity:1; }
 .score-bubble-art{
   position:absolute; inset:0; width:100%; height:100%;
   object-fit:contain; pointer-events:none;
 }
-/* Il lampo che la rivela: nasce coprendola di bianco e sparisce, cosi' la
-   bolla non "compare" — viene scoperta. Ha la forma della bolla perche' usa
-   la stessa immagine come maschera. */
+/* 2. LAMPEGGIA. Bianco pieno che si accende e si spegne sulla sagoma della
+   bolla — non la scopre (quello lo fa il fadein), la ANNUNCIA. Ha la forma
+   della bolla perche' usa la stessa immagine come maschera. */
 .score-bubble-lampo{
   position:absolute; inset:0;
   background:#FFFFFF;
@@ -1520,11 +1521,15 @@ body.mouse-down{
   -webkit-mask-size:contain; mask-size:contain;
   -webkit-mask-position:center; mask-position:center;
   -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat;
-  opacity:1; transition:opacity 0.22s ease;
-  pointer-events:none;
+  opacity:0; pointer-events:none;
 }
-.score-bubble.svelata .score-bubble-lampo{ opacity:0; }
-/* Il numero: stesso oro e stesso carattere del punteggio grande, ma 30px. */
+@keyframes bollaLampo{
+  0%   {opacity:0;}
+  35%  {opacity:1;}
+  100% {opacity:0;}
+}
+.score-bubble.lampeggia .score-bubble-lampo{ animation:bollaLampo 0.30s ease-out; }
+/* 3. IL NUMERO SALE. Stesso oro e stesso carattere del punteggio grande. */
 .score-bubble-num{
   position:relative; z-index:1;
   font-family:'Marcellus SC','Marcellus',var(--font-display),serif;
@@ -1536,15 +1541,35 @@ body.mouse-down{
   filter:drop-shadow(0 2px 6px rgba(0,0,0,1));
   opacity:0; transition:opacity 0.14s ease;
 }
-.score-bubble.svelata .score-bubble-num{ opacity:1; }
-/* Il salto dentro al punteggio: parte deciso, supera di poco e si assesta —
-   e' il rimbalzo. La `transform` porta anche il -50% che centra la bolla,
-   o il salto la butterebbe di lato. */
-.score-bubble.salta{
-  transition:transform 0.42s cubic-bezier(.22,1.5,.36,1), opacity 0.16s ease 0.34s;
+.score-bubble.conta .score-bubble-num{ opacity:1; }
+/* 4. VIAGGIA fino al centro del punteggio. La `transform` porta anche il -50%
+   che centra la bolla, o il viaggio la butterebbe di lato. Orizzontalmente
+   bolla e punteggio sono gia' sullo stesso asse (left:50% per entrambi),
+   quindi basta la verticale perche' finisca esattamente al centro. */
+.score-bubble.viaggia{
+  transition:transform 0.38s cubic-bezier(.34,.85,.3,1);
   transform:translateX(-50%) translateY(var(--bolla-salto,-110px));
-  opacity:0;
 }
+/* 5. SVANISCE. Dichiarata dopo .viva perche' a parita' di specificita' vince
+   l'ultima: senza quest'ordine la bolla resterebbe visibile. */
+.score-bubble.sfuma{ opacity:0; transition:opacity 0.18s ease; }
+/* 6. IL PUNTEGGIO LAMPEGGIA, e solo dopo il contatore sale. Stessa tecnica
+   della bolla: bianco pieno ritagliato sulla sagoma del punteggio. */
+.player-hp-orb-lampo{
+  position:absolute; inset:0;
+  background:#FFFFFF;
+  -webkit-mask-image:var(--hx-punteggio, none); mask-image:var(--hx-punteggio, none);
+  -webkit-mask-size:contain; mask-size:contain;
+  -webkit-mask-position:center; mask-position:center;
+  -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat;
+  opacity:0; pointer-events:none; z-index:1;
+}
+@keyframes punteggioLampo{
+  0%   {opacity:0;}
+  30%  {opacity:0.95;}
+  100% {opacity:0;}
+}
+.player-hp-orb.lampeggia .player-hp-orb-lampo{ animation:punteggioLampo 0.34s ease-out; }
 
 /* ── v0.76.8 — IL PULSANTE DELLE IMPOSTAZIONI ──────────────────────────────
    Alto quanto la barra del nome e allineato con lei, trenta pixel alla sua
@@ -8171,6 +8196,7 @@ body.prova-senza-willchange #mm-book-rot{
   </div>
   <div class="player-hp-orb" id="p1-hp-orb">
     <img class="player-hp-orb-bg" alt="" draggable="false">
+    <div class="player-hp-orb-lampo"></div>
     <div class="player-hp-value" id="p1-hp-value">30</div>
   </div>
 </div>
@@ -8189,6 +8215,7 @@ body.prova-senza-willchange #mm-book-rot{
   </div>
   <div class="player-hp-orb" id="p2-hp-orb">
     <img class="player-hp-orb-bg" alt="" draggable="false">
+    <div class="player-hp-orb-lampo"></div>
     <div class="player-hp-value" id="p2-hp-value">30</div>
   </div>
 </div>
@@ -8327,7 +8354,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.0</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.2</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -11291,6 +11318,9 @@ function montaGraficaPartita(){
   document.querySelectorAll('.player-info').forEach(el=>
     impostaVariabileDaCandidati(el, '--hx-bolla', uiFileCandidati('score-bubble.png')));
   img('.player-hp-orb-bg', 'score.png');
+  // Il punteggio serve anche da sagoma al lampo bianco che lo accende.
+  document.querySelectorAll('.player-info').forEach(el=>
+    impostaVariabileDaCandidati(el, '--hx-punteggio', uiFileCandidati('score.png')));
   img('#settings-btn img', 'settings-button.png');
   // La barra del nome usa i tre pezzi OPACHI: dietro c'e' il drappo di legno,
   // e una barra trasparente lascerebbe vedere le venature attraverso il nome.
@@ -22828,9 +22858,10 @@ function animaScambioCoppiaValori(elsA, elsB){
       el.style.setProperty('--asty', ty.toFixed(2)+'px');
       el.style.setProperty('--asbowx', (perp.x*BOW_PX*bowSign).toFixed(2)+'px');
       el.style.setProperty('--asbowy', (perp.y*BOW_PX*bowSign).toFixed(2)+'px');
-      el.classList.remove('valore-in-viaggio');
-      void el.offsetWidth; // force reflow so a re-add always restarts the animation
-      el.classList.add('valore-in-viaggio');
+      // v0.77.2 — anche questi sono elementi SVG: `void el.offsetWidth` non
+      // forzava nessun ricalcolo e dalla seconda rotazione in poi i valori si
+      // spostavano di colpo invece di viaggiare.
+      riavviaAnimazione(el, ['valore-in-viaggio']);
     });
   });
 }
@@ -24686,9 +24717,9 @@ function sfondaConIlPiccone(cellaNano, cellaMuro, poi){
     nano.style.setProperty('--sx', st.sx.toFixed(3));
     nano.style.setProperty('--sy', st.sy.toFixed(3));
     spawnAttackStreak(nano, (ux*LUNGE_PX).toFixed(2), (uy*LUNGE_PX).toFixed(2), st.sx.toFixed(3), st.sy.toFixed(3));
-    nano.classList.remove('card-lunge-a','card-lunge-b');
-    void nano.getBoundingClientRect();
-    nano.classList.add('card-lunge-a');
+    // v0.77.2 — alternando: rimettendo sempre 'card-lunge-a' il colpo del
+    // piccone si vedeva una volta sola e mai piu'.
+    riavviaAnimazione(nano, ['card-lunge-a','card-lunge-b']);
   }catch(_){}
   // Al contatto: il muro lampeggia e trema.
   setTimeout(()=>{
@@ -26486,6 +26517,31 @@ function attackStretchFactors(ux, uy){
 // Scia: sagoma esagonale monocroma dietro l'attaccante, inserita PRIMA della
 // carta nel suo stesso gruppo cosi' le sta sotto (nell'SVG vince l'ordine nel
 // documento) e si rimuove da sola a fine animazione.
+// ── v0.77.2 — RIFAR PARTIRE UN'ANIMAZIONE, ANCHE SU UN <g> ──────────────
+// Per rigiocare un'animazione CSS bisogna togliere la classe, costringere il
+// browser a ricalcolare, e rimetterla: senza il ricalcolo in mezzo le due
+// modifiche vengono accorpate e l'animazione non riparte proprio.
+// Il modo classico di forzare il ricalcolo e' leggere `offsetWidth` — ma
+// offsetWidth NON ESISTE sugli elementi SVG: la' quella riga e' un `undefined`
+// letto e buttato via, cioe' niente. Ed e' su elementi SVG che stanno tutte le
+// carte del tabellone. Il ricalcolo si forza con getBoundingClientRect().
+// In piu' si alterna fra due classi gemelle quando ci sono: se un colpo parte
+// mentre il precedente non ha ancora finito davvero, cambiare NOME alla classe
+// e' l'unica garanzia che il browser veda un cambiamento.
+let _alternaAnim = 0;
+function riavviaAnimazione(el, classi, alterna){
+  if(!el) return;
+  const lista = Array.isArray(classi) ? classi : [classi];
+  lista.forEach(c=>el.classList.remove(c));
+  try{ el.getBoundingClientRect(); }catch(_){}
+  if(lista.length > 1){
+    const i = (alterna === undefined) ? (_alternaAnim = (_alternaAnim+1) % lista.length)
+                                      : (alterna ? 1 : 0);
+    el.classList.add(lista[i % lista.length]);
+  } else {
+    el.classList.add(lista[0]);
+  }
+}
 function spawnAttackStreak(attackerEl, lx, ly, sx, sy){
   if(!attackerEl) return;
   try{
@@ -26851,9 +26907,7 @@ function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLa
         // silently coalesced by the browser and the animation never
         // restarts — this was the root cause of "only the first hit plays".
         // Using a different class each time guarantees a real style change.
-        placedEl.classList.remove('card-lunge-a','card-lunge-b');
-        void placedEl.offsetWidth;
-        placedEl.classList.add(idx%2===0 ? 'card-lunge-a' : 'card-lunge-b');
+        riavviaAnimazione(placedEl, ['card-lunge-a','card-lunge-b'], idx%2!==0);
       },stepStart);
 
       // At the exact strike instant: flip the defender, highlight the winning
@@ -26883,9 +26937,10 @@ function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLa
         const loseEl=defEl && defEl.querySelector(`[data-value-side-${dir.theirSide}]`);
         [winEl,loseEl].forEach(el=>{
           if(!el)return;
-          el.classList.remove('value-win');
-          void el.offsetWidth;
-          el.classList.add('value-win');
+          // v0.77.2 — `void el.offsetWidth` qui non forzava niente (e' un SVG):
+          // tolta e rimessa nello stesso istante, la classe non cambiava mai
+          // davvero e il numero vincente non si riaccendeva dal secondo colpo.
+          riavviaAnimazione(el, ['value-win']);
         });
         // HP damage (test variant): the defending player (the card's owner
         // BEFORE this flip) takes damage equal to the win margin on this one
@@ -30136,25 +30191,40 @@ function dannoDiFineTurno(onDone){
 // Una porta sola per assegnare punti: ci passano la conquista e il conto di
 // fine turno, e ci passera' qualunque altra cosa ne dara' domani. Chi assegna
 // non deve sapere niente di come si vedono.
-const BOLLA_SALTO_MS = 420;      // deve combaciare con .score-bubble.salta
-const BOLLA_SVELA_MS = 240;      // il lampo bianco che si spegne
 const BOLLA_CIFRA_MS = 55;       // quanto ci mette una cifra a scorrere
 const _bolle = {1:null, 2:null};
 function _pannelloDi(player){ return document.getElementById('p'+player+'-info'); }
 // Apre la bolla sotto al punteggio, coperta dal lampo bianco. Il conteggio
 // parte da zero e lo alza chi la usa, un punto alla volta.
+// ── v0.77.2 — LA SEQUENZA DELLA BOLLA, IN SETTE TEMPI ────────────────────
+// compare > lampeggia > il numero sale > viaggia al centro del punteggio >
+// svanisce > il punteggio lampeggia > il contatore sale.
+// I sette tempi stanno qui, uno per costante, invece che sparsi fra i
+// setTimeout: leggendoli in fila si legge l'animazione. Devono combaciare con
+// le durate dichiarate nel CSS della bolla, che e' l'unico altro posto in cui
+// sono scritte.
+const BOLLA_COMPARE_MS = 160;   // .score-bubble transition:opacity
+const BOLLA_LAMPO_MS   = 300;   // @keyframes bollaLampo
+const BOLLA_VIAGGIO_MS = 380;   // .score-bubble.viaggia transition:transform
+const BOLLA_SFUMA_MS   = 180;   // .score-bubble.sfuma transition:opacity
+const PUNTEGGIO_LAMPO_MS = 340; // @keyframes punteggioLampo
+// Da quando la bolla nasce a quando il suo numero e' leggibile: e' il momento
+// in cui chiunque voglia farlo salire puo' cominciare.
+const BOLLA_PRONTA_MS = BOLLA_COMPARE_MS + Math.round(BOLLA_LAMPO_MS*0.45);
+
 function apriBollaPunti(player){
   const pannello = _pannelloDi(player);
   if(!pannello || _bolle[player]) return _bolle[player];
   const orb = pannello.querySelector('.player-hp-orb');
   const el = document.createElement('div');
   el.className = 'score-bubble';
-  // Sotto al punteggio: si parte da dove finisce lui e si scende un po'.
-  const sotto = orb ? (orb.offsetTop + orb.offsetHeight - 30) : 400;
+  // v0.77.1 — la posizione e' quella chiesta, non piu' dedotta dal punteggio.
+  const sotto = 500;
   el.style.top = sotto + 'px';
-  // Di quanto dovra' saltare per finirgli dentro: la distanza fra i due
-  // centri, calcolata adesso che entrambi sono al loro posto.
-  const salto = orb ? ((orb.offsetTop + orb.offsetHeight/2) - (sotto + 139/2)) : -110;
+  // Quanto dovra' salire per finire ESATTAMENTE al centro del punteggio: la
+  // distanza fra i due centri. Sull'orizzontale sono gia' allineati (tutti e
+  // due `left:50%`), quindi il centro si raggiunge con la sola verticale.
+  const salto = orb ? ((orb.offsetTop + orb.offsetHeight/2) - (sotto + 80/2)) : -110;
   el.style.setProperty('--bolla-salto', salto.toFixed(1)+'px');
   const art = document.createElement('img');
   art.className = 'score-bubble-art'; art.alt=''; art.draggable=false;
@@ -30169,8 +30239,11 @@ function apriBollaPunti(player){
   // Un fotogramma di respiro prima di accendere le transizioni, o il browser
   // le salta: un elemento appena nato non ha uno stato "prima" da cui partire.
   requestAnimationFrame(()=>{
-    el.classList.add('viva');
-    requestAnimationFrame(()=>el.classList.add('svelata'));
+    el.classList.add('viva');                                    // 1. compare
+    setTimeout(()=>{ riavviaAnimazione(el, ['lampeggia']); },     // 2. lampeggia
+               BOLLA_COMPARE_MS);
+    setTimeout(()=>el.classList.add('conta'),                     // 3. il numero
+               BOLLA_PRONTA_MS);
   });
   return _bolle[player];
 }
@@ -30185,39 +30258,56 @@ function incrementaBollaPunti(player, quanti){
 }
 // Fa scorrere il numero fino a `bersaglio`. Serve alla conquista, dove i punti
 // arrivano tutti insieme e vederli salire dice quanto e' stato grosso il colpo.
+// Aspetta che la bolla sia comparsa e abbia lampeggiato: il conto e' il terzo
+// tempo, e farlo partire prima vorrebbe dire contare sotto al lampo.
 function scorriBollaPunti(player, bersaglio, poi){
   const b = _bolle[player];
   if(!b){ if(poi) poi(); return; }
-  if(bersaglio <= 1){
-    b.valore = bersaglio; b.mostrato = bersaglio;
-    b.num.textContent = String(bersaglio);
-    setTimeout(()=>poi && poi(), BOLLA_CIFRA_MS*2);
-    return;
-  }
-  let n = 0;
-  const passo = ()=>{
-    n++;
-    b.valore = n; b.mostrato = n; b.num.textContent = String(n);
-    if(n < bersaglio) setTimeout(passo, BOLLA_CIFRA_MS);
-    else setTimeout(()=>poi && poi(), BOLLA_CIFRA_MS*2);
+  const conta = ()=>{
+    if(bersaglio <= 1){
+      b.valore = bersaglio; b.mostrato = bersaglio;
+      b.num.textContent = String(bersaglio);
+      setTimeout(()=>poi && poi(), BOLLA_CIFRA_MS*2);
+      return;
+    }
+    let n = 0;
+    const passo = ()=>{
+      n++;
+      b.valore = n; b.mostrato = n; b.num.textContent = String(n);
+      if(n < bersaglio) setTimeout(passo, BOLLA_CIFRA_MS);
+      else setTimeout(()=>poi && poi(), BOLLA_CIFRA_MS*2);
+    };
+    passo();
   };
-  passo();
+  setTimeout(conta, BOLLA_PRONTA_MS);
 }
-// Il finale: la bolla salta dentro al punteggio, svanisce, e il contatore sale
-// uno alla volta. I punti si scrivono nello stato PRIMA di far salire il
-// contatore, cosi' chi legge G.hp durante l'animazione legge gia' il totale
-// vero — un numero a schermo che rincorre non e' lo stesso che un numero
-// sbagliato nello stato.
+// Il lampo bianco sul punteggio, nell'istante in cui incassa la bolla.
+function lampeggiaPunteggio(player){
+  const orb = document.getElementById(player===1?'p1-hp-orb':'p2-hp-orb');
+  riavviaAnimazione(orb, ['lampeggia']);
+}
+// Il finale, in quattro tempi: la bolla viaggia fino al centro del punteggio,
+// svanisce, il punteggio lampeggia, e solo allora il contatore sale.
+// I punti si scrivono nello stato PRIMA di far salire il contatore, cosi' chi
+// legge G.hp durante l'animazione legge gia' il totale vero — un numero a
+// schermo che rincorre non e' lo stesso che un numero sbagliato nello stato.
 function chiudiBollaPunti(player, punti, poi){
   const b = _bolle[player];
   const fine = ()=>{ if(typeof poi==='function') poi(); };
   if(!b){ fine(); return; }
   _bolle[player] = null;
-  b.el.classList.add('salta');
+  b.el.classList.add('viaggia');                                  // 4. viaggia
   setTimeout(()=>{
-    try{ b.el.remove(); }catch(_){}
-    salePunteggio(player, punti, fine);
-  }, BOLLA_SALTO_MS);
+    b.el.classList.add('sfuma');                                  // 5. svanisce
+    setTimeout(()=>{
+      try{ b.el.remove(); }catch(_){}
+      lampeggiaPunteggio(player);                                 // 6. il lampo
+      // Il contatore parte quando il bianco e' al suo massimo: e' li' che il
+      // punteggio "riceve", e vedere le cifre uscire dal lampo lega le due cose.
+      setTimeout(()=>salePunteggio(player, punti, fine),          // 7. il conto
+                 Math.round(PUNTEGGIO_LAMPO_MS*0.3));
+    }, BOLLA_SFUMA_MS);
+  }, BOLLA_VIAGGIO_MS);
 }
 // Il contatore grande che sale uno alla volta.
 function salePunteggio(player, punti, poi){
@@ -30256,25 +30346,45 @@ function assegnaPunti(player, punti, sourceKey){
 function ondataDanno(owner, cellKeys, onDone){
   const fine = typeof onDone === 'function' ? onDone : ()=>{};
   if(!cellKeys || !cellKeys.length){ fine(); return; }
+  // v0.77.1 — questi due erano locali della funzione di prima e li avevo
+  // cancellati riscrivendola, continuando pero' a usarne uno: bastava quello
+  // per far saltare l'intera onda, e con lei la chiamata che fa proseguire il
+  // turno. Da fuori si vedeva la partita bloccarsi, timer compreso.
+  const V = (typeof ONDATA_VELOCITA === 'number' && ONDATA_VELOCITA) ? ONDATA_VELOCITA : 1;
+  const PASSO_MS = 90/V;    // quanto passa fra una carta accesa e la successiva
+  const DURATA_MS = 520/V;  // quanto dura l'accensione di una carta
   const colorClass = playerFactionIsDark(owner) ? 'dark' : 'light';
   apriBollaPunti(owner);
+  // v0.77.2 — l'onda parte quando la bolla ha finito di comparire e di
+  // lampeggiare. Il punto che si aggiunge deve essere VISTO aggiungersi
+  // insieme alla carta che si accende: contare sotto al lampo bianco vuol dire
+  // arrivare al totale senza aver mai mostrato da dove viene.
+  const INIZIO = BOLLA_PRONTA_MS;
   cellKeys.forEach((k,i)=>{
     setTimeout(()=>{
-      const el = document.querySelector('[data-conquered="'+k+'"]') ||
-                 document.querySelector('[data-cellkey="'+k+'"]');
-      if(el){
-        el.classList.remove('sd-flash-red','sd-flash-blue');
-        try{ el.getBoundingClientRect(); }catch(_){}   // forza il reflow: su <svg> offsetWidth non esiste
-        el.classList.add(colorClass==='dark'?'sd-flash-red':'sd-flash-blue');
-      }
-      // Il punto si aggiunge NELLO STESSO istante in cui la carta si accende:
-      // e' quello a rendere leggibile da dove viene il conto.
-      incrementaBollaPunti(owner, 1);
-    }, i*FLASH_STAGGER_MS);
+      try{
+        const el = document.querySelector('[data-conquered="'+k+'"]') ||
+                   document.querySelector('[data-cellkey="'+k+'"]');
+        if(el){
+          el.classList.remove('sd-flash-red','sd-flash-blue');
+          el.getBoundingClientRect();   // forza il reflow: su <svg> offsetWidth non esiste
+          el.classList.add(colorClass==='dark'?'sd-flash-red':'sd-flash-blue');
+        }
+        // Il punto si aggiunge NELLO STESSO istante in cui la carta si accende:
+        // e' quello a rendere leggibile da dove viene il conto.
+        incrementaBollaPunti(owner, 1);
+      }catch(e){ console.warn('[punti] carta '+k+' saltata: '+e); }
+    }, INIZIO + i*PASSO_MS);
   });
+  // ── v0.77.1 — IL TURNO NON SI PERDE, QUALUNQUE COSA SUCCEDA QUI ──────────
+  // Questa e' la chiamata che fa ripartire il turno: se qualcosa qui dentro
+  // solleva un errore, la partita si ferma e non riparte piu'. E' successo
+  // davvero. Il turno prosegue anche quando l'animazione fallisce — una
+  // partita senza un'animazione e' una partita, una partita bloccata no.
   setTimeout(()=>{
-    chiudiBollaPunti(owner, cellKeys.length, fine);
-  }, cellKeys.length*FLASH_STAGGER_MS + 160);
+    try{ chiudiBollaPunti(owner, cellKeys.length, fine); }
+    catch(e){ console.error('[punti] animazione fallita, il turno prosegue lo stesso: '+e); fine(); }
+  }, INIZIO + cellKeys.length*PASSO_MS + DURATA_MS*0.35);
 }
 
 // Creates the persistent central "collector" bubble that each feeder bubble
@@ -35687,7 +35797,29 @@ function stratoCarteDellaPlancia(root){
   // c'e' ma non si vede e il turno sembra bloccato. Da quando le carte hanno
   // uno strato loro in fondo all'SVG, i comandi disegnati durante il giro
   // restavano dietro. Hanno quindi il loro, ancora piu' in fondo.
+  // v0.77.2 — e sopra alle carte, le zone di tocco (vedi stratoTocchiDellaPlancia).
+  root.appendChild(stratoTocchiDellaPlancia(root));
   root.appendChild(stratoComandiDellaPlancia(root));
+  return strato;
+}
+// ── v0.77.2 — DOVE SI TOCCA UNA CARTA IN CAMPO ───────────────────────────
+// Ogni carta ha un poligono trasparente che raccoglie il passaggio del mouse:
+// e' lui ad aprire il tooltip e ad aprire la carta a schermo intero. Nasceva
+// come figlio diretto dell'SVG, e finche' anche le carte stavano li' bastava
+// che venisse dopo. Da quando le carte hanno uno strato loro, aggiunto in
+// fondo a ogni giro, i poligoni sono rimasti sotto: sopra di loro c'era la
+// carta, che il mouse intercettava per prima. Il risultato era una carta in
+// campo su cui non si poteva ne' passare ne' cliccare.
+// Adesso hanno uno strato anche loro, fra le carte e i comandi: sopra alle
+// carte, cosi' ricevono il mouse, e sotto ai comandi, che devono restare la
+// cosa piu' cliccabile del tabellone quando c'e' una scelta aperta.
+function stratoTocchiDellaPlancia(root){
+  let strato = root.querySelector('#board-touch-layer');
+  if(!strato){
+    strato = document.createElementNS('http://www.w3.org/2000/svg','g');
+    strato.setAttribute('id','board-touch-layer');
+  }
+  root.appendChild(strato);
   return strato;
 }
 function stratoComandiDellaPlancia(root){
@@ -36755,7 +36887,9 @@ function renderBoard(){
       // structured tooltip hover target (transparent overlay)
       const tp=svgEl('polygon'); tp.setAttribute('points',ptStr(x,y,R)); tp.setAttribute('fill','transparent'); tp.setAttribute('stroke','none');
       tp.style.pointerEvents='all';
-      svg.appendChild(tp);
+      // v0.77.2 — nello strato dei tocchi, non fra i tasselli: deve stare SOPRA
+      // alla carta o il mouse non lo raggiunge mai (vedi stratoTocchiDellaPlancia).
+      stratoTocchiDellaPlancia(boardSvgRoot).appendChild(tp);
       // v0.71.17 FIX: pass cardWithOwner (not the bare placed.card) so the
       // on-board tooltip's own faction-color logic (buildBoardCardTooltipHTML
       // reads card.owner) reflects the card's CURRENT owner after a
