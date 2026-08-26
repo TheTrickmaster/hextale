@@ -8213,7 +8213,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.76.2</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.76.3</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -9764,6 +9764,14 @@ function playCardBattlecry(card){
 let _cardVoicePlaying = null; // {voiceKey, src, timer} | null
 function playCardVoiceLine(card){
   if(_simulazioneInCorso) return;   // vedi playCardBattlecry
+  // ── v0.76.3 — DURANTE UNA SCELTA, UN CLIC E' UNA SCELTA ──────────────────
+  // Non e' una richiesta di sentir parlare quella carta. Finche' una finestra
+  // di scelta e' aperta, quindi, nessuna voce nuova parte — e la battuta della
+  // carta appena giocata arriva in fondo invece di essere tagliata a meta'
+  // dal clic sul bersaglio. La colpa era della riga qui sotto che zittisce la
+  // voce precedente quando ne parte un'altra: giusta quando uno clicca le
+  // carte per sentirle, sbagliata quando sta rispondendo a una domanda.
+  if(typeof G !== 'undefined' && G && G.sceltaBersaglio) return;
   if(!card || !card.id) return;
   const voci = _vociDellaCarta(card);
   if(!voci) return;
@@ -20196,12 +20204,20 @@ function makeDeck(owner,total){
   // pescata iniziale — che prende le prime HAND_SIZE — se la ritrova in mano da
   // sola. Il mazzo resta di dodici carte e la mano di quattro: l'abilita' non
   // regala niente, decide solo QUALE delle dodici arriva subito.
-  const inFretta = carte.filter(c => abilitaAttivaDi(c) === 'rush_hour');
-  if(inFretta.length){
-    const altre = carte.filter(c => abilitaAttivaDi(c) !== 'rush_hour');
-    return inFretta.concat(altre);
-  }
-  return carte;
+  return _inCimaChiHaFretta(carte);
+}
+// v0.76.3 — LA REGOLA STA IN UN POSTO SOLO. Era scritta dentro a makeDeck,
+// cioe' valeva solo per i mazzi generati: da quando il giocatore scende in
+// campo col PROPRIO mazzo (v0.75.84), quel percorso non passava di qui e il
+// Coniglio Bianco non partiva piu' in mano — la sua abilita' dice "Starts the
+// game in hand" e non lo faceva.
+// Adesso ci passano tutti e due. Chi costruisce un mazzo, comunque lo
+// costruisca, chiama questa.
+function _inCimaChiHaFretta(carte){
+  const inFretta = (carte||[]).filter(c => abilitaAttivaDi(c) === 'rush_hour');
+  if(!inFretta.length) return carte;
+  const altre = carte.filter(c => abilitaAttivaDi(c) !== 'rush_hour');
+  return inFretta.concat(altre);
 }
 // Quanto costa un mazzo gia' costruito. Serve alle prove e al menu di debug:
 // una regola che non si puo' misurare da fuori e' una regola di cui ci si
@@ -20270,7 +20286,9 @@ function carteDalMazzoSalvato(mazzo, owner){
     carta.baseId = entry.id;
     carte.push(carta);
   });
-  return _mescola(carte);
+  // Si mescola PRIMA e si mette in cima DOPO: mescolando dopo, il Coniglio
+  // Bianco tornerebbe in mezzo al mazzo e la sua abilita' non varrebbe niente.
+  return _inCimaChiHaFretta(_mescola(carte));
 }
 // ── v0.75.93 — E IL MAZZO DEL GIOCATORE 2 ─────────────────────────────────
 // Vale SOLO in PvP, cioe' quando dall'altra parte c'e' una persona. Contro
@@ -21323,6 +21341,14 @@ function startTimer(){
   // branches, which keep the real turn timer alive so an ignored choice can
   clearInterval(timerInterval);
   stopScreenEdgeFlash();
+  // v0.76.3 — e il ticchettio del tempo che scade. Partiva a dieci secondi
+  // dalla fine e nessuno lo fermava se il turno finiva PRIMA: giocando una
+  // carta in quegli ultimi secondi, il turno passava all'avversario e il
+  // ticchettio continuava per conto suo fino a fine traccia, sopra al turno
+  // di un altro. Un timer che riparte E' il turno che passa, quindi e' qui che
+  // va zittito — non nei singoli punti da cui un turno puo' finire, che sono
+  // tanti e diventeranno di piu'.
+  stopTictoc();
   timerLeft=TURN_SECS;
   timerDeadline=Date.now()+TURN_SECS*1000;
   // Capture whose turn this timer belongs to. If the turn has already advanced by
@@ -26730,6 +26756,27 @@ function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLa
 // animazioni, aspettando la pausa, aspettando l'ondata) e senza questo flag
 // il tabellone verrebbe contato una volta per rientro.
 function endTurn(player, animationsSettled, dannoFatto){
+  // ── v0.76.3 — UN TURNO SI CHIUDE UNA VOLTA SOLA ──────────────────────────
+  // Segnalato: se il tempo scade mentre una finestra di scelta e' aperta, a
+  // volte il giocatore riceve due turni di fila. Succede perche' quel momento
+  // ha DUE strade che portano qui — il timer che scade (autoPlay) e la scelta
+  // che si chiude e fa proseguire il turno — e in una manciata di millisecondi
+  // possono partire tutt'e due.
+  // Inseguire tutte le combinazioni sarebbe un lavoro senza fine: le strade
+  // che finiscono un turno sono gia' molte e ne arriveranno altre. Il paletto
+  // si mette QUI, dove passano tutte: chi chiude il turno di qualcuno che ha
+  // gia' finito, non fa niente.
+  // `G.turnoChiuso` porta il NUMERO del turno gia' archiviato e non un
+  // semplice si/no: un booleano andrebbe azzerato da qualche parte, e quel
+  // "da qualche parte" e' esattamente il genere di riga che si dimentica.
+  if(G && !G.gameOver){
+    const marchio = (G.numeroTurno||0) + ':' + (player || G.currentPlayer);
+    if(G.turnoChiuso === marchio){
+      console.info('[turno] seconda richiesta di chiudere il turno ' + marchio + ': ignorata.');
+      return;
+    }
+    G.turnoChiuso = marchio;
+  }
   // v0.71.21: belt-and-suspenders stop for the AI-thinking fake-hover
   // (see startAiThinkingHover()'s own comment) — normally already stopped
   // right before aiPlay() fires (see maybeTriggerAiTurn()), but aiPlay()
