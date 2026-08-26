@@ -292,26 +292,37 @@ body.mouse-down, body.mouse-down *{
    Centrate sulla COLONNA e non sullo schermo: al centro dello schermo
    sarebbero finite a cavallo delle due colonne, cioe' anche dietro al modulo
    di accesso, che ha un fondo suo e le avrebbe mangiate a meta'. */
-.start-radial{
+/* ── v0.77.23 — DUE PAROLE SUL PERCHE' C'E' UN ID DAVANTI ─────────────────
+   Scritta come `.start-radial`, questa regola perdeva `position` contro
+   `.start-fade`, che le raggiere portano anche loro: due selettori di una
+   classe ciascuno hanno la stessa forza, e a parita' vince quello dichiarato
+   piu' in basso — che e' .start-fade, con il suo `position:relative`.
+   Le due raggiere cadevano cosi' nel flusso normale, si impilavano una sotto
+   l'altra invece di sovrapporsi, e la colonna cresceva per contenerle: e' il
+   motivo per cui era gigante e usciva dalla viewport.
+   L'id davanti risolve senza ricorrere a !important, che avrebbe spento anche
+   ogni futura correzione fatta come si deve. */
+#start-col-sinistra .start-radial{
   position:absolute; left:50%; top:50%;
   width:150%; height:150%;
   object-fit:contain;
   transform-origin:center center;
+  /* v0.77.23 — NIENTE isolation:isolate. L'avevo messo nella v0.77.20 su
+     un'ipotesi sbagliata, e faceva danno: isolare un elemento che fonde vuol
+     dire dargli un gruppo di composizione tutto suo, e dentro a un gruppo suo
+     `plus-lighter` non ha piu' niente sotto con cui sommarsi — l'immagine
+     finisce dipinta com'e', fondo nero compreso. A schermo erano due
+     rettangoli opachi. Il vero difetto era un altro (vedi qui sopra). */
   mix-blend-mode:plus-lighter;
-  /* v0.77.20 — ISOLATE. E' la trappola gia' documentata due volte in questo
-     file: un <img> grande e posizionato in assoluto, FRATELLO di un elemento
-     con mix-blend-mode, manda in tilt la composizione — e qui, nella stessa
-     colonna, il fratello con mix-blend-mode c'e' ed e' il bagliore della barra
-     di caricamento (#start-loading-glow-img). `isolation:isolate` crea a
-     questi strati un contesto di composizione proprio, cosi' non entrano nel
-     gruppo di fusione degli altri. E' lo stesso rimedio che a suo tempo ha
-     salvato bars.png. */
-  isolation:isolate;
   pointer-events:none; user-select:none; -webkit-user-drag:none;
   z-index:0 !important;
 }
 #start-radial-a{ animation:mmRuotaOraria 140s linear infinite; }
 #start-radial-b{ animation:mmRuotaAntioraria 190s linear infinite; }
+/* Rete: qualunque cosa dentro alla colonna porti .start-fade e debba stare
+   sovrapposta invece che in fila, lo dichiara qui — con la forza di un id,
+   cioe' abbastanza da non farsi scavalcare da .start-fade. */
+#start-col-sinistra #start-effetti{ position:absolute; }
 /* Gli effetti dietro al logo: entrano con lui e poi respirano, un ciclo ogni
    due secondi. `alternate` e non un ciclo intero: cosi' il ritorno e' lento
    quanto l'andata, e non c'e' lo scatto di chi riparte da capo.
@@ -326,7 +337,6 @@ body.mouse-down, body.mouse-down *{
   width:150%; height:auto;
   transform:translate(-50%,-50%);
   mix-blend-mode:plus-lighter;
-  isolation:isolate;   /* vedi .start-radial qui sopra */
   pointer-events:none; user-select:none; -webkit-user-drag:none;
   z-index:0 !important;
 }
@@ -8774,7 +8784,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.22</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.23</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
