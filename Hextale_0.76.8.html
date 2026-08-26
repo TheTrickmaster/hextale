@@ -1365,185 +1365,111 @@ body.mouse-down{
    directly — using those exact selectors here wires this new UI into all
    of that existing hit-feedback machinery for free, no JS changes needed
    there. */
+/* ══════════════════════════════════════════════════════════════════════════
+   v0.76.8 — LA UI DEL GIOCATORE
+   ══════════════════════════════════════════════════════════════════════════
+   Tutto si appende al margine SUPERIORE della viewport e scende. Le misure
+   sono quelle chieste, e sono incatenate: la barra del nome parte a 30px dal
+   bordo, l'avatar 20px sotto di lei, il punteggio risale di 70px dentro
+   all'avatar. Scritte come somme e non come numeri gia' fatti, cosi' cambiare
+   l'altezza dell'avatar sposta il punteggio da solo.
+   Il pannello non intercetta il mouse (e' decorazione): l'unica cosa
+   cliccabile qui intorno e' il pulsante delle impostazioni, che vive fuori. */
 .player-info{
-  /* v0.51.0: top -4px → -50px per explicit spec.
-     v0.64.0 FIX ("l'immagine player-banner è troppo grande perché facevi
-     ancora riferimento all'immagine vecchia"): banner-dark/light.png's real
-     native size is 326×432 (verified via PIL) — width/height corrected from
-     the old 404×510 (a leftover guess from before Lorenzo re-exported the
-     art) to the art's own true size, so it renders at 1:1 scale instead of
-     stretched. All CHILD elements positioned inside this box (name bar,
-     avatar, hp orb) keep their OWN native pixel sizes unchanged — only their
-     top/left offsets are rescaled by the same 326/404≈0.8069 ratio so they
-     land in the same relative spot on the (now smaller) banner artwork. */
-  /* v0.65.0: top -50px → 16px per explicit spec.
-     v0.66.0: top 16px → -50px per explicit spec (reverted back). */
-  position:fixed; top:-50px;
-  width:326px; height:432px;
+  --pi-bar-top:30px;   /* la barra del nome, dal bordo superiore */
+  --pi-bar-h:67px;     /* alta quanto il pulsante delle impostazioni */
+  --pi-gap:20px;       /* fra la barra e l'avatar */
+  --pi-avatar-h:320px;
+  --pi-score-h:148px;
+  --pi-score-sovrapp:70px;  /* di quanto il punteggio sale dentro all'avatar */
+  --pi-banner-w:536px;
+  position:fixed; top:0;
+  width:var(--pi-banner-w); height:1080px;
   z-index:20; pointer-events:none; user-select:none;
 }
-/* v0.51.0 FIX ("gli elementi sopra al banner delle due UI non sono
-   allineate perfettamente... forse il solito problema di allineamento per
-   colpa della risoluzione?"): #p2-info previously used `right:50px` while
-   #p1-info used `left:50px` — on the fixed 1920×1920-scaled canvas those
-   two resolve through DIFFERENT arithmetic (right:50px = 1920-50-404, vs
-   left:50px = 50 directly), and depending on the browser's own subpixel
-   rounding for the `right` shorthand at whatever the current canvas scale
-   factor happens to be, the two sides could end up a fraction of a pixel
-   apart vertically-adjacent content wouldn't line up pixel-for-pixel
-   between the two banners even though both were authored with the same
-   "50px" number. Both sides now use `left` with an explicitly PRE-COMPUTED
-   pixel value (1920-404-50=1466) instead of `right`, so both banners are
-   positioned through the exact same CSS property/arithmetic path and can't
-   drift apart due to how the two shorthands round differently.
-   v0.64.0: pre-computed value updated for the new 326px banner width
-   (1920-326-50=1544, was 1466 for the old 404px width). */
-#p1-info{ left:50px; } /* dark player (Pernocchio) — left, per spec */
-#p2-info{ left:1544px; } /* light player (Pinocchio) — right, per spec (1920-326-50) */
+#p1-info{ left:0; }
+#p2-info{ left:1384px; }   /* 1920 - 536: stessa aritmetica per tutti e due */
+/* Lo sfondo di legno, appeso al bordo superiore. E' alto 1200 su una tela di
+   1080: deborda in basso, ed e' giusto — e' un drappo, non un riquadro. */
 .player-banner{
-  /* v0.66.0: top 0 → 20px per explicit spec. */
-  position:absolute; left:0; top:20px; width:326px; height:432px;
+  position:absolute; left:0; top:0;
+  width:var(--pi-banner-w); height:auto;
   display:block; pointer-events:none; user-select:none;
-  /* v0.63.0: explicit drop-shadow re-added now that the shadow baked into
-     the old banner-dark/light.png art is gone (see .player-name's own
-     v0.63.0 comment) — per spec: x:8px, y:7px, blur:40px, color #000 40%
-     opacity. filter:drop-shadow (not box-shadow) since the banner is a
-     transparent-background PNG and the shadow must follow its own alpha
-     silhouette, not its rectangular box. */
   filter:drop-shadow(8px 7px 40px rgba(0,0,0,0.4));
 }
-/* Player name bar: 375×58 art — kept at its own native size per explicit
-   spec ("solo riposiziona, non ridimensionare"), even though it's wider
-   than the new 326px banner; centered via left:50%/translateX(-50%) so it
-   overflows evenly on both sides rather than clipping or drifting off to
-   one side. v0.64.0: top offset rescaled to the new (shorter) 432px-tall
-   banner — 70px was calibrated against the old 510px banner height, so it's
-   now 70 * (432/510) ≈ 59.3px to land in the same relative spot on the
-   artwork. */
+/* La barra del nome: gli stessi tre pezzi della Libreria, ma nella versione
+   opaca. Larghezza fissa a 360, centrata sul drappo. */
 .player-name{
-  position:absolute; left:50%; top:59.3px; width:375px; height:58px;
+  --hx-bar-h:var(--pi-bar-h);
+  position:absolute; left:50%; top:var(--pi-bar-top);
+  width:360px; height:var(--pi-bar-h);
   transform:translateX(-50%);
-  display:flex; align-items:center; justify-content:center;
-  background-repeat:no-repeat; background-size:100% 100%;
+  display:flex; align-items:stretch;
 }
+.player-name .hx-titlebar-center{ justify-content:center; }
 .player-name span{
-  font-family:var(--font-display, serif); font-size:32px; font-weight:400;
-  text-align:center; line-height:1;
-  /* Small downward nudge — the name-bar art's diamond end-caps sit exactly
-     on its vertical center, but the Marcellus glyphs' own optical center
-     sits very slightly above their box's true center at this size;
-     verified by eye against the art's end-cap diamonds. */
-  transform:translateY(1px);
+  font-family:'Marcellus',var(--font-display),serif;
+  font-size:20px; font-weight:400; line-height:1;
+  color:#EDE0C6; text-shadow:0 0 4px rgba(0,0,0,1);
+  white-space:nowrap;
 }
-#p1-info .player-name{ background-image:url('https://thetrickmaster.github.io/hextale/player-ui/player-name-dark.png'); }
-#p1-info .player-name span{ color:#FBF0D7; }
-#p2-info .player-name{ background-image:url('https://thetrickmaster.github.io/hextale/player-ui/player-name-light.png'); }
-#p2-info .player-name span{ color:#3B2E23; }
-/* v0.72.27 — FAZIONI DINAMICHE. Le due regole qui sopra danno per scontato
-   che il giocatore di sinistra (#p1-info) sia sempre dark. Da quando il popup
-   di inizio partita fa scegliere la fazione, non è più vero: se il giocatore
-   umano sceglie Light, confirmFactionChoice() mette <body class="human-light">
-   e queste due regole invertono banner e colore del testo. Tutto il resto
-   (carte, retro, bolle danno, bandiera di fine partita) passa già da
-   playerFactionIsDark() lato JS — qui serve solo il ribaltamento CSS. */
-body.human-light #p1-info .player-name{ background-image:url('https://thetrickmaster.github.io/hextale/player-ui/player-name-light.png'); }
-body.human-light #p1-info .player-name span{ color:#3B2E23; }
-body.human-light #p2-info .player-name{ background-image:url('https://thetrickmaster.github.io/hextale/player-ui/player-name-dark.png'); }
-body.human-light #p2-info .player-name span{ color:#FBF0D7; }
-/* Avatar: hex-clipped portrait + avatar-frame.png as an external frame on
-   top, both perfectly aligned/centered on the same box so the frame reads
-   as sitting flush around the clipped photo's own edges. v0.51.0: top
-   102px → 150px per explicit spec (no longer derived from the name bar's
-   own position — both are now independent fixed offsets set directly by
-   Lorenzo). 231×267 — avatar-frame.png's own native size — rather than any
-   other size, so the frame art is never up/downscaled relative to the hex
-   clip drawn under it (a size mismatch here would show the photo's hex
-   edge and the frame's own drawn hex edge at two different scales,
-   visibly misaligned).
-   v0.63.0: the earlier -8px visual-center correction (calc(-50% - 8px)) is
-   REMOVED — it was compensating for an 8px drop-shadow baked into the old
-   banner art, not a real offset (see .player-name's own v0.63.0 comment).
-   Plain -50% centering is correct now that the banner art's shadow is gone
-   and re-applied honestly via box-shadow on .player-banner.
-   v0.64.0: top offset rescaled to the new (shorter) 432px-tall banner —
-   150px was calibrated against the old 510px banner height, so it's now
-   150 * (432/510) ≈ 127.1px to land in the same relative spot. Own size
-   (231×267) unchanged, per "solo riposiziona, non ridimensionare". */
+/* L'avatar. L'altezza e' quella chiesta, la larghezza la detta la cornice
+   (749x834): calcolarla invece di scriverla vuol dire che sostituendo la
+   cornice con una di un'altra forma non resta niente da correggere. */
 .player-avatar{
-  position:absolute; left:50%; top:127.1px; width:231px; height:267px;
+  position:absolute; left:50%;
+  top:calc(var(--pi-bar-top) + var(--pi-bar-h) + var(--pi-gap));
+  height:var(--pi-avatar-h);
+  width:calc(var(--pi-avatar-h) * 749 / 834);
   transform:translateX(-50%);
 }
-/* Pointy-top/bottom hexagon clip-path, vertices measured directly from
-   avatar-frame.png's real alpha silhouette (top/bottom points, side edges
-   flattening at y≈67/199 of 267 ⇒ 25.1%/74.5%) so the photo's clipped edge
-   lines up exactly with the frame art drawn on top of it, not an
-   eyeballed/generic hexagon that would peek out from under the frame or
-   leave a visible gap. */
 .player-avatar-photo{
   position:absolute; inset:0; width:100%; height:100%;
   object-fit:cover;
   clip-path:polygon(50% 0%, 100% 25.1%, 100% 74.5%, 50% 100%, 0% 74.5%, 0% 25.1%);
 }
-/* v0.51.0: the right-side player (P2/Pinocchio, light) must always face
-   INWARD toward the board, i.e. mirrored from how the source photo is
-   framed (which faces the same direction for both, per the shared
-   pinocchio-avatar-test.png asset) — per explicit spec ("l'avatar del
-   giocatore di dx deve essere sempre flippato dal lato opposto in modo che
-   guardi la board"). A horizontal flip on the photo layer only (not the
-   frame or the hex clip-path, both of which are symmetric shapes anyway,
-   so flipping them would be a visual no-op) — scaleX(-1) around the
-   element's own center, same technique already used elsewhere in this
-   codebase for card-facing flips. */
+/* Il giocatore di destra guarda sempre verso il tabellone. */
 #p2-info .player-avatar-photo{ transform:scaleX(-1); }
 .player-avatar-frame{
   position:absolute; inset:0; width:100%; height:100%;
   pointer-events:none;
 }
-/* HP orb: centered on the avatar's own bottom hex POINT (avatar box is
-   231px wide ⇒ horizontal center at 115.5px; the point sits at the box's
-   bottom edge, 267px down from the avatar's own top) — spec: "sits centered
-   exactly aligned with the bottom pointy corner of the hexagon... -15px",
-   i.e. pulled up 15px from that exact point so the orb overlaps the frame's
-   point rather than hanging fully below it. Positioned relative to
-   .player-info (not .player-avatar) so its own transform/animation can't be
-   affected by anything the avatar box does. v0.51.0: avatarTop(150) +
-   avatarH(267) - 15 = 402px (re-derived after .player-avatar's own top
-   moved 102→150 — see that rule's comment).
-   v0.63.0: the earlier -8px visual-center correction is REMOVED (see
-   .player-name's own v0.63.0 comment) — plain -50% horizontal centering;
-   translateY portion (the orb's own vertical centering on its `top`
-   coordinate, unrelated to the banner's horizontal-center correction) is
-   untouched.
-   v0.64.0: re-derived with .player-avatar's own new top (127.1px, see that
-   rule's v0.64.0 comment) — avatarTop(127.1) + avatarH(267) - 15 = 379.1px.
-   Own size (89×89) unchanged, per "solo riposiziona, non ridimensionare". */
+/* Il punteggio, sovrapposto all'avatar di 70px. */
 .player-hp-orb{
-  position:absolute; left:50%; top:379.1px; width:89px; height:89px;
-  transform:translate(-50%,-50%);
+  position:absolute; left:50%;
+  top:calc(var(--pi-bar-top) + var(--pi-bar-h) + var(--pi-gap)
+           + var(--pi-avatar-h) - var(--pi-score-sovrapp));
+  height:var(--pi-score-h);
+  width:calc(var(--pi-score-h) * 499 / 443);
+  transform:translateX(-50%);
   z-index:2;
 }
 .player-hp-orb-bg{
   position:absolute; inset:0; width:100%; height:100%;
   pointer-events:none;
 }
-/* v0.51.0: the liquid-fill mask/animation (mask.png-driven --hp-fill
-   height clip + the hpLiquidWave keyframe + the low-hp red tint) has been
-   REMOVED per explicit request ("rimuoviamo la maschera con il
-   riempimento e l'animazione dei danni e lasciamo statica perché non ci
-   siamo capiti sul da farsi") — the orb is static art only for now
-   (hp-orb.png + the number on top), pending a revisit of the liquid-fill
-   concept later. mask.png itself is left unused/unreferenced rather than
-   deleted from the repo. updatePlayerHpOrb() (JS) still writes the number
-   and the --hp-fill custom property + .low-hp class for bookkeeping (so
-   this can be re-enabled later without re-deriving that logic), but
-   nothing currently reads --hp-fill/.low-hp visually. */
+/* ── v0.76.8 — IL PULSANTE DELLE IMPOSTAZIONI ──────────────────────────────
+   Alto quanto la barra del nome e allineato con lei, trenta pixel alla sua
+   destra. La posizione si ricava dalle stesse misure della barra invece di
+   essere un numero a se': la barra e' larga 360 e centrata sul drappo da 536,
+   quindi finisce a 0 + (536 + 360)/2 = 448, e il pulsante comincia trenta
+   pixel dopo. Spostando il drappo o allargando la barra, il pulsante segue. */
+/* v0.76.8 — il numero dei danni, in oro. Il gradiente si ottiene dipingendo
+   il FONDO e ritagliandolo sulla forma delle cifre: e' l'unico modo di dare
+   un gradiente a del testo, e porta con se' una conseguenza — il colore vero
+   diventa trasparente, quindi un text-shadow non si vedrebbe piu' sotto le
+   lettere. L'ombra si mette percio' sull'elemento intero con drop-shadow, che
+   segue la sagoma ritagliata invece della scatola. */
 .player-hp-value{
   position:absolute; inset:0;
   display:flex; align-items:center; justify-content:center;
-  font-family:'Marcellus SC','Marcellus',serif; font-weight:700; font-size:45px;
-  color:#F0E9DD; text-shadow:0 2px 6px rgba(0,0,0,0.8);
+  font-family:'Marcellus',serif; font-weight:400; font-size:64px;
   line-height:1; z-index:3;
   font-variant-numeric:tabular-nums;
+  background-image:linear-gradient(135deg, #FFD376 0%, #FFF1D4 50%, #FFD376 100%);
+  -webkit-background-clip:text; background-clip:text;
+  -webkit-text-fill-color:transparent; color:transparent;
+  filter:drop-shadow(0 2px 6px rgba(0,0,0,0.8));
 }
 /* v0.52.0 FIX ("quando l'avatar riceve danni, fa un movimento estremamente
    brusco verso sinistra non previsto"): .player-avatar is horizontally
@@ -2158,7 +2084,30 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
    snap-back-to-1x animation at gesture end, absent during the live pinch
    for immediate 1:1 finger tracking (a transition would introduce lag). */
 #board-wrap.pinch-snapback{transition:transform 0.3s ease;}
-#board-svg{display:block;position:relative;z-index:2;}
+/* v0.76.8 — il tabellone rimpicciolito del 7%. Si scala l'SVG e non
+   #board-wrap: quello porta gia' una transform sua che il pizzico a due dita
+   riscrive (vedi .pinch-snapback), e due cose che scrivono la stessa proprieta'
+   finiscono sempre per cancellarsi a vicenda. */
+#board-svg{display:block;position:relative;z-index:2;transform:scale(0.93);transform-origin:center center;}
+/* ── v0.76.8 — LA CORNICE E I RAMI ─────────────────────────────────────────
+   Due immagini centrate sul tabellone, sotto ai tasselli. La cornice sporge
+   appena: a tabellone pieno di lei si vede solo il filo dorato che gira
+   intorno. I rami stanno sopra alla cornice e sotto ai tasselli.
+   PERCHE' SOTTO E NON SOPRA. Tasselli e carte non sono due strati: sono
+   disegnati insieme, casella per casella, dentro allo stesso SVG — la carta
+   nasce dentro al gruppo del suo tassello. Non esiste quindi un "fra i due" in
+   cui infilare un'immagine sola per tutto il tabellone: per averlo servirebbe
+   disegnare prima TUTTI i tasselli e poi TUTTE le carte, che e' un cambio al
+   cuore del disegno del tabellone e merita un passaggio suo.
+   Sotto, intanto, i rami fanno esattamente cio' che si vede nello screenshot:
+   spuntano da sotto il bordo del tabellone. */
+#board-outline, #board-vines{
+  position:absolute; left:50%; top:50%;
+  transform:translate(-50%,-50%);
+  pointer-events:none; user-select:none;
+}
+#board-outline{ z-index:0; width:1012px; height:auto; }
+#board-vines{ z-index:1; width:1232px; height:auto; }
 
 /* ── Conquest flip animation ── */
 /* v0.73.11 — il giro con la prospettiva. Senza `perspective()` una rotazione
@@ -3974,8 +3923,8 @@ body.human-light #p2-info .player-name span{ color:#FBF0D7; }
      #hand-expand-overlay sits at z-index:800, above this new 20): flagged
      to Lorenzo directly before applying, he confirmed to proceed anyway. */
   display:none; /* v0.71.9: starts hidden — see this rule's own comment above; shown via inline style once startGame() runs */
-  position:fixed; left:420px; top:14px; z-index:20;
-  width:50px; height:auto;
+  position:fixed; left:478px; top:30px; z-index:20;   /* v0.76.8: (536+360)/2 + 30 */
+  height:67px; width:auto;
   padding:0; border:none; background:transparent;
   cursor:var(--cursore);
   user-select:none;
@@ -7749,7 +7698,7 @@ body.prova-senza-willchange #mm-book-rot{
      underneath it, then got covered a moment later once the src was finally
      assigned ("per un attimo vedo ancora i vecchi sfondi prima che
      compaiano i nuovi" — reported and fixed in v0.31.1). -->
-<img id="board-bg-img" src="https://thetrickmaster.github.io/hextale/battle-bg.png" alt="" style="position:fixed;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;pointer-events:none;">
+<img id="board-bg-img" src="https://thetrickmaster.github.io/hextale/ui/battle-bg.png" alt="" style="position:fixed;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;pointer-events:none;">
 
 <!-- START SCREEN (v0.32.0 rebuild, sequence rewritten in v0.37.0) ───────
      Fully sequential fade cascade (see revealBg()/beginLoadingPhase()/
@@ -7972,6 +7921,14 @@ body.prova-senza-willchange #mm-book-rot{
   <div id="game-area">
     <div id="center-column">
       <div id="board-wrap">
+        <!-- v0.76.8 — I DUE STRATI DECORATIVI DEL TABELLONE.
+             Sotto ai tasselli la cornice, che a tabellone pieno lascia vedere
+             solo il suo filo dorato; sopra la cornice, e sempre sotto ai
+             tasselli, i rami — cosi' spuntano da sotto il bordo del tabellone,
+             che e' l'effetto voluto. Vedi il commento nel CSS per il perche'
+             non stanno SOPRA ai tasselli. -->
+        <img id="board-outline" alt="" draggable="false">
+        <img id="board-vines" alt="" draggable="false">
         <svg id="board-svg"></svg>
       </div>
     </div>
@@ -8076,30 +8033,36 @@ body.prova-senza-willchange #mm-book-rot{
      (#p2-info .player-avatar-photo{transform:scaleX(-1)} — see that rule's
      comment) so both players share this exact same markup structure. -->
 <div class="player-info" id="p1-info">
-  <!-- v0.72.27: src iniziale solo come default; la fazione vera la assegna
-       applyFactionToPlayerPanels() a ogni nuova partita (vedi quella funzione). -->
-  <img class="player-banner" id="p1-banner" src="https://thetrickmaster.github.io/hextale/player-ui/banner-dark.png" alt="" draggable="false">
-  <div class="player-name"><span id="p1-name-label">Player 1</span></div>
+  <img class="player-banner" id="p1-banner" alt="" draggable="false">
+  <div class="hx-titlebar player-name" id="p1-name-bar">
+    <span class="hx-titlebar-cap hx-titlebar-left"></span>
+    <div class="hx-titlebar-center"><span id="p1-name-label">Player 1</span></div>
+    <span class="hx-titlebar-cap hx-titlebar-right"></span>
+  </div>
   <div class="player-avatar">
     <img class="player-avatar-photo" src="https://thetrickmaster.github.io/hextale/player-ui/pinocchio-avatar-test.png" alt="" draggable="false">
     <div class="player-avatar-flash"></div>
-    <img class="player-avatar-frame" src="https://thetrickmaster.github.io/hextale/player-ui/avatar-frame.png" alt="" draggable="false">
+    <img class="player-avatar-frame" alt="" draggable="false">
   </div>
   <div class="player-hp-orb" id="p1-hp-orb">
-    <img class="player-hp-orb-bg" src="https://thetrickmaster.github.io/hextale/player-ui/hp-orb.png" alt="" draggable="false">
+    <img class="player-hp-orb-bg" alt="" draggable="false">
     <div class="player-hp-value" id="p1-hp-value">30</div>
   </div>
 </div>
 <div class="player-info" id="p2-info">
-  <img class="player-banner" id="p2-banner" src="https://thetrickmaster.github.io/hextale/player-ui/banner-light.png" alt="" draggable="false">
-  <div class="player-name"><span id="p2-name-label">Player 2</span></div>
+  <img class="player-banner" id="p2-banner" alt="" draggable="false">
+  <div class="hx-titlebar player-name" id="p2-name-bar">
+    <span class="hx-titlebar-cap hx-titlebar-left"></span>
+    <div class="hx-titlebar-center"><span id="p2-name-label">Player 2</span></div>
+    <span class="hx-titlebar-cap hx-titlebar-right"></span>
+  </div>
   <div class="player-avatar">
     <img class="player-avatar-photo" src="https://thetrickmaster.github.io/hextale/player-ui/pinocchio-avatar-test.png" alt="" draggable="false">
     <div class="player-avatar-flash"></div>
-    <img class="player-avatar-frame" src="https://thetrickmaster.github.io/hextale/player-ui/avatar-frame.png" alt="" draggable="false">
+    <img class="player-avatar-frame" alt="" draggable="false">
   </div>
   <div class="player-hp-orb" id="p2-hp-orb">
-    <img class="player-hp-orb-bg" src="https://thetrickmaster.github.io/hextale/player-ui/hp-orb.png" alt="" draggable="false">
+    <img class="player-hp-orb-bg" alt="" draggable="false">
     <div class="player-hp-value" id="p2-hp-value">30</div>
   </div>
 </div>
@@ -8238,8 +8201,8 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.76.7</div>
-<button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.76.8</div>
+<button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
      Light"). Riusa .hx-modal-overlay/.hx-modal-box (le stesse regole del box
@@ -11028,7 +10991,9 @@ function montaMenuPrincipale(){
     const banner = document.getElementById('mm-player-banner');
     if(banner) banner.src = base + 'banner-dark.png';
     const targa = document.getElementById('mm-player-name');
-    if(targa) targa.style.backgroundImage = "url('" + base + "player-name-dark.png')";
+    // v0.76.8 — la barra del nome non ha piu' due versioni per fazione: e'
+    // la stessa per tutti e due, coi pezzi opachi (vedi montaGraficaPartita).
+    void targa;
     const avatar = document.getElementById('mm-player-avatar');
     if(avatar) avatar.src = base + 'pinocchio-avatar-test.png';
     const cornice = document.getElementById('mm-player-frame');
@@ -11163,6 +11128,32 @@ function controllaPezziLibreria(){
   console.error('[libreria] mancano dal documento ' + mancanti.length + ' elementi, e con loro '
     + 'altrettante funzioni:\n  '
     + mancanti.map(([id,cosa])=>'#'+id+' -> '+cosa).join('\n  '));
+}
+// ── v0.76.8 — GLI ASSET DELLA SCHERMATA DI PARTITA ────────────────────────
+// Come per la Libreria: si montano da JS e non dal CSS, perche' vanno cercati
+// prima accanto al file e poi sul repository (vedi _candidati), e una volta
+// sola — rifarli a ogni partita farebbe ripartire i caricamenti.
+let _graficaPartitaMontata = false;
+function montaGraficaPartita(){
+  if(_graficaPartitaMontata) return;
+  _graficaPartitaMontata = true;
+  const img = (sel, file)=>{
+    document.querySelectorAll(sel).forEach(el=> impostaImgDaCandidati(el, uiFileCandidati(file)));
+  };
+  const sfondo = (sel, file)=>{
+    document.querySelectorAll(sel).forEach(el=> impostaSfondoDaCandidati(el, uiFileCandidati(file)));
+  };
+  img('#board-outline', 'board-outline.png');
+  img('#board-vines',   'vines.png');
+  img('.player-banner', 'player-banner.png');
+  img('.player-avatar-frame', 'avatar-frame.png');
+  img('.player-hp-orb-bg', 'score.png');
+  img('#settings-btn img', 'settings-button.png');
+  // La barra del nome usa i tre pezzi OPACHI: dietro c'e' il drappo di legno,
+  // e una barra trasparente lascerebbe vedere le venature attraverso il nome.
+  sfondo('.player-name .hx-titlebar-left',   'title-bg-left-opaque.png');
+  sfondo('.player-name .hx-titlebar-center', 'title-bg-center-opaque.png');
+  sfondo('.player-name .hx-titlebar-right',  'title-bg-right-opaque.png');
 }
 let _graficaLibreriaMontata = false;
 function montaGraficaLibreria(){
@@ -21053,6 +21044,8 @@ function assignTileAbilities(){
 }
 
 function initGame(vsAI){
+  // v0.76.8 — la grafica della schermata di partita, montata alla prima partita.
+  try{ montaGraficaPartita(); }catch(_){}
   // Cancel all active animation frames from the previous game
   activeAnimationFrames.forEach(rafId => cancelAnimationFrame(rafId));
   activeAnimationFrames.clear();
