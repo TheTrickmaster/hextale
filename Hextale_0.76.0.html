@@ -6950,6 +6950,7 @@ body.prova-senza-willchange #mm-book-rot{
 #delete-box .filters-riga{ width:300px; margin:26px 0; }
 #delete-azioni{ display:flex; gap:16px; width:100%; }
 #delete-azioni .hx-btn{ flex:1 1 0; min-width:0; }
+
 .deck-edit-save[aria-disabled="true"]{ opacity:0.4; }
 .deck-edit-save[aria-disabled="true"]:hover{ filter:none; }
 /* v0.75.85 FIX — LA CARTA TRASCINATA STAVA DIETRO ALLA PAGINA.
@@ -8157,7 +8158,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.75.99</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.76.0</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -11161,6 +11162,128 @@ function mazziOrdinati(){
   const altri = MAZZI.filter(m=>m.id!==MAZZO_SCELTO);
   return sel.concat(altri);
 }
+// ═══════════════════════════════════════════════════════════════════════════
+// v0.76.0 — IL CODICE DI UN MAZZO
+// ═══════════════════════════════════════════════════════════════════════════
+// Una stringa sola, da copiare e incollare, che contiene un mazzo intero.
+//
+// COSA CI VA DENTRO. Le carte per NUMERO, quello della colonna ID del foglio.
+// Non lo slug: "little-red-riding-hood" sono ventidue caratteri, il suo numero
+// ne occupa due, e su dodici carte la differenza e' fra un codice di sessanta
+// caratteri e uno di duecento. Il numero e' anche piu' stabile del nome —
+// rinominare una carta nel foglio non spezza i codici gia' in giro.
+//
+// PERCHE' BASE32 E NON BASE64. Serviva alfanumerico puro: il base64 usa "-" e
+// "_", che alcuni programmi di messaggistica trasformano o mandano a capo. Si
+// paga con un 60% di lunghezza in piu' rispetto ai byte grezzi, ed e' un
+// prezzo giusto per un codice che sopravvive a una chat.
+// L'alfabeto salta I, L, O e U: le prime tre si confondono con 1 e 0 quando
+// uno ricopia a mano, la quarta perche' senza vocali un codice non puo'
+// comporre parole sgradevoli per caso.
+//
+// IL CONTROLLO IN FONDO. Un byte ricavato da tutti gli altri. Non protegge da
+// niente e non vuole: serve solo a dire "questo codice e' arrivato monco"
+// invece di far comparire un mazzo con dentro tre carte a caso.
+const CODICE_ALFABETO = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+const CODICE_PREFISSO = 'HXT1';
+function _base32Cifra(byte){
+  let bit = 0, valore = 0, fuori = '';
+  for(const b of byte){
+    valore = (valore << 8) | b; bit += 8;
+    while(bit >= 5){ fuori += CODICE_ALFABETO[(valore >> (bit-5)) & 31]; bit -= 5; }
+  }
+  if(bit > 0) fuori += CODICE_ALFABETO[(valore << (5-bit)) & 31];
+  return fuori;
+}
+function _base32Decifra(testo){
+  let bit = 0, valore = 0; const fuori = [];
+  for(const c of String(testo).toUpperCase()){
+    const i = CODICE_ALFABETO.indexOf(c);
+    if(i < 0) return null;                 // un carattere che non appartiene
+    valore = (valore << 5) | i; bit += 5;
+    if(bit >= 8){ fuori.push((valore >> (bit-8)) & 255); bit -= 8; }
+  }
+  return fuori;
+}
+function _codiceControllo(byte){
+  let h = 17;
+  for(const b of byte) h = ((h*31) + b) & 255;
+  return h;
+}
+// Il numero con cui una carta viaggia. Dal foglio quando c'e'; altrimenti uno
+// ricavato dal nome, che e' comunque stabile, e lo si dice — perche' una
+// colonna ID lasciata vuota e' una svista, non una scelta.
+let _numeriInventati = null;
+function numeroDiCarta(entry){
+  if(!entry) return 0;
+  if(typeof entry.numero === 'number' && entry.numero > 0) return entry.numero;
+  if(!_numeriInventati){
+    _numeriInventati = new Set();
+  }
+  const slug = entry.slug || slugPersonaggio(entry.name) || '';
+  let h = 0;
+  for(let i=0;i<slug.length;i++) h = (h*131 + slug.charCodeAt(i)) & 0xFFFF;
+  // Sopra 999, cosi' non puo' scontrarsi con un numero vero del foglio.
+  const n = 1000 + (h % 60000);
+  if(!_numeriInventati.has(entry.id)){
+    _numeriInventati.add(entry.id);
+    console.warn('[codice mazzo] "'+(entry.name||entry.id)+'" non ha un numero nella colonna ID del '
+      + 'foglio: nei codici viaggia con un numero ricavato dal nome ('+n+'). Funziona, ma cambiando '
+      + 'il nome della carta i codici gia\' in giro non la troveranno piu\'. RIMEDIO: riempi la cella ID.');
+  }
+  return n;
+}
+function _carteDaNumero(){
+  const mappa = new Map();
+  for(const e of (FINAL_CARDS||[])){
+    const n = numeroDiCarta(e);
+    if(mappa.has(n)){
+      console.warn('[codice mazzo] due carte con lo stesso numero ('+n+'): "'
+        + mappa.get(n).name + '" e "' + e.name + '". Nei codici la seconda prendera\' il posto della '
+        + 'prima. RIMEDIO: dai numeri diversi nella colonna ID del foglio.');
+    }
+    mappa.set(n, e);
+  }
+  return mappa;
+}
+function codiceDelMazzo(mazzo){
+  const carte = carteDelMazzo(mazzo);
+  const nome = String((mazzo && mazzo.nome) || '').trim().slice(0, 40);
+  const nomeByte = Array.from(new TextEncoder().encode(nome));
+  const byte = [1, carte.length, nomeByte.length];
+  for(const e of carte){ const n = numeroDiCarta(e); byte.push((n >> 8) & 255, n & 255); }
+  byte.push(...nomeByte);
+  byte.push(_codiceControllo(byte));
+  return CODICE_PREFISSO + _base32Cifra(byte);
+}
+// Torna { nome, carte } oppure { errore } — mai un mazzo a meta'. Un codice
+// che non torna deve dire perche', non lasciare una lista monca.
+function mazzoDaCodice(codice){
+  const pulito = String(codice||'').trim().replace(/\s+/g,'').toUpperCase();
+  if(!pulito) return { errore:'Nessun codice.' };
+  if(pulito.slice(0, CODICE_PREFISSO.length) !== CODICE_PREFISSO)
+    return { errore:'Non sembra un codice mazzo di Hextale (deve cominciare con '+CODICE_PREFISSO+').' };
+  const byte = _base32Decifra(pulito.slice(CODICE_PREFISSO.length));
+  if(!byte || byte.length < 5) return { errore:'Codice incompleto o storpiato.' };
+  const controllo = byte.pop();
+  if(controllo !== _codiceControllo(byte))
+    return { errore:'Codice incompleto o storpiato: il controllo finale non torna.' };
+  const [versione, quante, lunghezzaNome] = byte;
+  if(versione !== 1) return { errore:'Codice di una versione che questo gioco non conosce.' };
+  const attesi = 3 + quante*2 + lunghezzaNome;
+  // Il base32 puo' lasciare in coda qualche bit di riempimento: si accetta un
+  // byte in piu', non uno in meno.
+  if(byte.length < attesi) return { errore:'Codice incompleto.' };
+  const mappa = _carteDaNumero();
+  const carte = []; const perse = [];
+  for(let i=0;i<quante;i++){
+    const n = (byte[3 + i*2] << 8) | byte[4 + i*2];
+    const e = mappa.get(n);
+    if(e) carte.push(String(e.id)); else perse.push(n);
+  }
+  const nome = new TextDecoder().decode(new Uint8Array(byte.slice(3 + quante*2, 3 + quante*2 + lunghezzaNome)));
+  return { nome: nome || 'Imported deck', carte, perse };
+}
 // ── SALVATAGGIO ───────────────────────────────────────────────────────────
 // Nel browser, accanto a valute e impostazioni. Un mazzo che si perde a ogni
 // ricarica non e' un mazzo, e' un esercizio.
@@ -13348,8 +13471,14 @@ function _cardaDaRiga(col, get, haColonna){
   const dropRateDalFoglio=isFinite(dropDaFoglio) && dropDaFoglio>=0;
   const dropRate = dropRateDalFoglio ? dropDaFoglio : (DROP_RATE_STANDARD[rarita] ?? 0);
 
+  // v0.76.0 — IL NUMERO DELLA CARTA NEL FOGLIO. Fin qui non veniva letto: al
+  // gioco bastava lo slug ricavato dal nome. Serve ai codici mazzo, dove due
+  // caratteri al posto di venti sono la differenza fra un codice che si passa
+  // e uno che non si passa (vedi codiceDelMazzo).
+  const numeroDalFoglio = parseInt(String(get('ID')||'').replace(/[^0-9]/g,''), 10);
   return {
     id:'final-'+slug,
+    numero: isFinite(numeroDalFoglio) ? numeroDalFoglio : null,
     name:nome,
     quote:(get('Flavour text')||'').trim(),
     // v0.73.0 — I VALORI DEL FOGLIO SONO LA BASE DI LIVELLO 1: ogni livello
