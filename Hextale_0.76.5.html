@@ -7250,18 +7250,14 @@ body.prova-senza-willchange #mm-book-rot{
 }
 .donate-btn:hover{ background:rgba(255,255,255,0.09); border-color:rgba(233,222,197,0.55); transform:translateY(-1px); }
 /* v0.76.4 — la stessa donazione, appoggiata nell'angolo in alto a sinistra del
-   menu principale. Piu' piccola di quella delle impostazioni: li' e' una voce
-   del modulo e ha il suo spazio, qui e' un angolo e non deve rubare l'occhio
-   al libro, che e' cio' che uno e' venuto a guardare. */
+   menu principale. Della STESSA misura di quella delle impostazioni: qui si
+   posiziona soltanto, l'aspetto resta quello di .donate-btn — due pulsanti che
+   fanno la stessa cosa e si somigliano solo un po' si leggono come due cose
+   diverse. */
 .mm-donate{
   position:absolute; left:28px; top:24px; z-index:20;
   width:auto; margin:0;
 }
-.mm-donate .donate-btn{
-  min-width:0; min-height:0; padding:5px 10px;
-  font-size:0.8rem;
-}
-.mm-donate .donate-btn img{ height:26px; width:auto; display:block; }
 .donate-btn:active{ transform:translateY(0); }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -8242,7 +8238,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.76.4</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.76.5</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -9991,8 +9987,16 @@ const _sfxBuffers={};
 // no: hanno i loro suoni (pesca, presa, posa) e sovrapporgli un click li
 // sporcherebbe. Un elemento puo' chiamarsi fuori con data-no-click-sfx.
 const SELETTORE_PREMIBILE = 'button, a[href], [role="button"], .start-art-btn, .hx-icon-scelta, .hx-icon-btn';
+// v0.76.5 — IL CLIC SI SENTE QUANDO SI PREME, NON QUANDO SI LASCIA.
+// Era agganciato a 'click', che il browser manda al RILASCIO: fra il dito che
+// scende e il suono passava tutto il tempo in cui uno tiene premuto, e
+// l'interfaccia sembrava rispondere in ritardo. Un pulsante risponde
+// nell'istante in cui lo premi — e' li' che l'orecchio se lo aspetta.
+// Si ascolta solo il tasto principale: premere col destro apre un menu di
+// sistema, non e' una pressione di quel pulsante e non deve suonare come tale.
 function abilitaSuonoClickGlobale(){
-  document.addEventListener('click', (e)=>{
+  document.addEventListener('pointerdown', (e)=>{
+    if(e.button !== undefined && e.button !== 0) return;
     // composedPath perche' il bersaglio vero, dentro un pulsante disegnato,
     // e' spesso un figlio (uno <span> di riempimento, un'immagine mascherata).
     const percorso = (typeof e.composedPath === 'function') ? e.composedPath() : [e.target];
