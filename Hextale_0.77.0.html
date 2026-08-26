@@ -1378,7 +1378,7 @@ body.mouse-down{
 .player-info{
   --pi-bar-top:30px;   /* la barra del nome, dal bordo superiore */
   --pi-bar-h:67px;     /* alta quanto il pulsante delle impostazioni */
-  --pi-gap:1px;        /* fra la barra e l'avatar */
+  --pi-gap:-16px;      /* fra la barra e l'avatar */
   --pi-avatar-h:430px;
   --pi-score-h:240px;
   --pi-score-sovrapp:190px; /* di quanto il punteggio sale dentro all'avatar */
@@ -1488,6 +1488,64 @@ body.mouse-down{
   object-fit:contain;
   pointer-events:none;
 }
+/* ══════════════════════════════════════════════════════════════════════════
+   v0.77.0 — LA BOLLA DEL PUNTEGGIO
+   ══════════════════════════════════════════════════════════════════════════
+   Compare sotto al punteggio, conta, sale a incassarsi dentro e svanisce.
+   Racconta una cosa sola: "questi punti, adesso, sono tuoi". Vive dentro al
+   pannello del giocatore perche' e' la' che deve tornare — un elemento che
+   nasce altrove e ci vola dentro avrebbe due sistemi di coordinate da tenere
+   d'accordo, e sarebbe la stessa fragilita' delle bolle che se ne sono
+   appena andate. */
+.score-bubble{
+  position:absolute; left:50%;
+  width:139px; height:139px;
+  transform:translateX(-50%);
+  z-index:3; pointer-events:none;
+  opacity:0; transition:opacity 0.14s ease;
+  display:flex; align-items:center; justify-content:center;
+}
+.score-bubble.viva{ opacity:1; }
+.score-bubble-art{
+  position:absolute; inset:0; width:100%; height:100%;
+  object-fit:contain; pointer-events:none;
+}
+/* Il lampo che la rivela: nasce coprendola di bianco e sparisce, cosi' la
+   bolla non "compare" — viene scoperta. Ha la forma della bolla perche' usa
+   la stessa immagine come maschera. */
+.score-bubble-lampo{
+  position:absolute; inset:0;
+  background:#FFFFFF;
+  -webkit-mask-image:var(--hx-bolla, none); mask-image:var(--hx-bolla, none);
+  -webkit-mask-size:contain; mask-size:contain;
+  -webkit-mask-position:center; mask-position:center;
+  -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat;
+  opacity:1; transition:opacity 0.22s ease;
+  pointer-events:none;
+}
+.score-bubble.svelata .score-bubble-lampo{ opacity:0; }
+/* Il numero: stesso oro e stesso carattere del punteggio grande, ma 30px. */
+.score-bubble-num{
+  position:relative; z-index:1;
+  font-family:'Marcellus SC','Marcellus',var(--font-display),serif;
+  font-weight:400; font-size:30px; line-height:1;
+  font-variant-numeric:tabular-nums;
+  background-image:linear-gradient(135deg, #FFD376 0%, #FFF1D4 50%, #FFD376 100%);
+  -webkit-background-clip:text; background-clip:text;
+  -webkit-text-fill-color:transparent; color:transparent;
+  filter:drop-shadow(0 2px 6px rgba(0,0,0,1));
+  opacity:0; transition:opacity 0.14s ease;
+}
+.score-bubble.svelata .score-bubble-num{ opacity:1; }
+/* Il salto dentro al punteggio: parte deciso, supera di poco e si assesta —
+   e' il rimbalzo. La `transform` porta anche il -50% che centra la bolla,
+   o il salto la butterebbe di lato. */
+.score-bubble.salta{
+  transition:transform 0.42s cubic-bezier(.22,1.5,.36,1), opacity 0.16s ease 0.34s;
+  transform:translateX(-50%) translateY(var(--bolla-salto,-110px));
+  opacity:0;
+}
+
 /* ── v0.76.8 — IL PULSANTE DELLE IMPOSTAZIONI ──────────────────────────────
    Alto quanto la barra del nome e allineato con lei, trenta pixel alla sua
    destra. La posizione si ricava dalle stesse misure della barra invece di
@@ -1557,7 +1615,11 @@ body.mouse-down{
   90% { transform:translateX(-50%) translate(2px,0); }
   100%{ transform:translateX(-50%) translate(0,0); }
 }
-.player-avatar.hp-shake{ animation:playerAvatarShake .45s ease-in-out; }
+/* v0.77.0 — l'avatar non sussulta piu': non prende piu' colpi. I punti non
+   sono qualcosa che gli viene fatto, sono qualcosa che gli viene dato, e uno
+   scossone direbbe il contrario. Le due regole restano dichiarate, spente:
+   il giorno in cui qualcosa colpira' davvero un giocatore, sono gia' qui.
+.player-avatar.hp-shake{ animation:playerAvatarShake .45s ease-in-out; } */
 /* Brief white flash layered over the avatar photo the instant it shakes —
    per explicit request ("farei anche che fa un breve flash bianco allo
    stesso tempo"). A plain white overlay, clipped to the SAME hexagon as
@@ -1582,7 +1644,7 @@ body.mouse-down{
   35%  { opacity:0; }
   100% { opacity:0; }
 }
-.player-avatar.hp-shake .player-avatar-flash{ animation:playerAvatarFlash .45s ease-out; }
+/* .player-avatar.hp-shake .player-avatar-flash{ animation:playerAvatarFlash .45s ease-out; } */
 
 /* ── game area ── */
 /* #game-area is the single top-level row: [hand-panel P1] [center-column]
@@ -8265,7 +8327,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.76.15</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.0</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -11225,6 +11287,9 @@ function montaGraficaPartita(){
   document.querySelectorAll('.player-info').forEach(el=>
     impostaVariabileDaCandidati(el, '--hx-drappo', uiFileCandidati('player-banner.png')));
   img('.player-avatar-frame', 'avatar-frame.png');
+  // La bolla del punteggio serve anche da sagoma al lampo bianco che la svela.
+  document.querySelectorAll('.player-info').forEach(el=>
+    impostaVariabileDaCandidati(el, '--hx-bolla', uiFileCandidati('score-bubble.png')));
   img('.player-hp-orb-bg', 'score.png');
   img('#settings-btn img', 'settings-button.png');
   // La barra del nome usa i tre pezzi OPACHI: dietro c'e' il drappo di legno,
@@ -18523,9 +18588,11 @@ function debugShowGameOver(variant){
   // v0.75.0 — i due numeri sono DANNI SUBITI e vince chi ne ha meno: le due
   // coppie sono scambiate rispetto a prima, quando erano punti vita. Vince
   // sempre lo stesso giocatore di prima per ogni variante.
+  // v0.77.0 — sono punti: vince chi ne ha di piu', quindi i numeri delle due
+  // prove si scambiano rispetto a quando erano danni.
   if(variant==='draw'){ G.hp={1:15,2:15}; }
-  else if(variant==='light'){ G.hp={1:30,2:5}; }
-  else { G.hp={1:5,2:30}; } // 'dark'
+  else if(variant==='light'){ G.hp={1:5,2:30}; }
+  else { G.hp={1:30,2:5}; } // 'dark'
   G.gameOver=true;
   document.getElementById('gameover').classList.remove('board-view');
   finishGameWithResult();
@@ -27029,15 +27096,24 @@ function endTurn(player, animationsSettled, dannoFatto){
     return;
   }
   calcScores();
-  // v0.75.0 — checkHpKO non fa piu' niente (non esiste piu' uno zero da
-  // toccare) ma la chiamata resta: e' il posto in cui la domanda "questo colpo
-  // ha chiuso la partita?" va fatta, e il giorno in cui una regola nuova dira'
-  // di si', dira' di si' da qui.
+  // checkHpKO non fa niente (non esiste piu' uno zero da toccare) ma la
+  // chiamata resta: e' il posto in cui la domanda "questo colpo ha chiuso la
+  // partita?" va fatta, e il giorno in cui una regola nuova dira' di si',
+  // dira' di si' da qui.
   if(checkHpKO()) return;
+  // ── v0.77.0 — QUANDO FINISCE UNA PARTITA ────────────────────────────────
+  // Due condizioni, e basta che ne valga una:
+  //   - non c'e' piu' una casella libera dove giocare;
+  //   - uno dei due giocatori e' rimasto senza carte in mano.
+  // La seconda prima chiedeva che fossero vuote le mani E i mazzi di TUTTI E
+  // DUE: una partita in cui uno resta a mani vuote proseguiva con l'altro che
+  // giocava da solo, il che non e' piu' una partita.
+  // Le mani si riempiono dal mazzo da sole, quindi una mano vuota vuol dire
+  // gia' che anche il mazzo lo e': non serve chiederlo due volte.
   const playable=G.cells.filter(c=>!isHole(c.q,c.r)).length;
   const placed=Object.keys(G.board).length;
-  const noCards=G.p1Hand.length===0&&G.p2Hand.length===0&&G.p1Deck.length===0&&G.p2Deck.length===0;
-  if(placed>=playable||noCards){endGame();return;}
+  const senzaCarte = G.p1Hand.length===0 || G.p2Hand.length===0;
+  if(placed>=playable||senzaCarte){endGame();return;}
   // v0.72.72 — qui si contavano i turni delle carte con Rinascita e le si
   // riportava in vita dal proprietario originale, con +2 su ogni lato e 2 PV
   // di cura. Rinascita non esiste piu': G.rebirthPending resta dichiarato e
@@ -29309,30 +29385,25 @@ const DANNI_RIFERIMENTO=30;
 // the flipped card's actual on-screen position; if that element can't be
 // found (e.g. defensive edge case) it falls back to animating from the
 // avatar itself so the countdown still plays.
+// ── v0.77.0 — LA DIFFERENZA E' UN PREMIO, NON UNA FERITA ──────────────────
+// Prima chi subiva una conquista incassava tanti danni quanta era la
+// differenza fra i due valori. Adesso quella stessa differenza va come PUNTI a
+// chi ha attaccato: non si perde niente, si guadagna. E' un rovesciamento del
+// segno, e cambia anche chi guarda il numero — non piu' il difensore ma
+// l'attaccante.
+// La funzione tiene il nome vecchio perche' e' chiamata dai due punti di
+// conquista e da qualche prova, ma il primo argomento non e' piu' "chi
+// subisce": e' la carta conquistata, e da lei si risale a chi ha colpito.
 function applyHpDamage(defenderPlayer, atkVal, defVal, sourceKey){
-  const dmg=Math.max(0, atkVal-defVal);
-  if(dmg<=0) return;
-  const hpBefore=G.hp[defenderPlayer];
-  // Intentionally NOT clamped to 0 here: HP is allowed to go negative so a
-  // KO check (elsewhere) still fires the instant it CROSSES zero, but the
-  // stored/displayed value keeps counting down past it — clamping here used
-  // to silently throw away "how far below zero" a hit actually went, which
-  // also fed into the sudden-death/end-of-board comparison and the
-  // game-over splash both incorrectly floor-ing every loss to exactly 0.
-  // v0.75.0 — si SOMMA: G.hp non e' piu' la vita che resta ma il danno accumulato.
-  G.hp[defenderPlayer]=hpBefore+dmg;
-  const hpAfter=G.hp[defenderPlayer];
-  // Reserve this hit's spot in the display queue RIGHT NOW, synchronously,
-  // in the same tick G.hp changes — not later once the presentation layer
-  // (spawnDamageProjectile's ~728ms arc flight) gets around to marking it
-  // ready. Without this, there's a window where G.hp has already moved but
-  // nothing has claimed display authority yet, and an unrelated render()
-  // firing in that window would snap the big HP number straight to the new
-  // (further-along) G.hp value ahead of schedule — see the _hpQueue block
-  // below for how that used to corrupt later hits' countdown targets.
-  const queueEntry=_hpQueueDamage(defenderPlayer, dmg);
-  spawnDamageProjectile(defenderPlayer, dmg, hpBefore, hpAfter, sourceKey, queueEntry);
+  const punti=Math.max(0, atkVal-defVal);
+  if(punti<=0) return;
+  const vincitore = defenderPlayer===1 ? 2 : 1;
+  assegnaPunti(vincitore, punti, sourceKey);
 }
+// v0.77.0 — qui stava la vecchia applyHpDamage, quella che sottraeva vita al
+// difensore. Non la si tiene "per riferimento": il riferimento e' la storia
+// del repository, mentre una copia morta nel file e' solo una cosa in piu' che
+// un domani qualcuno leggera' credendola viva.
 
 // Finds the on-screen center point (viewport coords) of a flipped board
 // card by its cell key, using the real rendered SVG element — same approach
@@ -29929,9 +30000,12 @@ function finishGameWithResult(){
   const{1:hp1,2:hp2}=G.hp;
   const p1Label='Player 1';
   const p2Label=G.vsAI?'Computer':'Player 2';
-  // v0.75.0 — hp1 e hp2 sono i DANNI SUBITI, e vince chi ne ha di meno.
-  // Il confronto e' quindi ribaltato rispetto a prima, quando erano punti vita
-  // e vinceva chi ne aveva di piu'. Un pareggio esatto resta un pareggio.
+  // v0.77.0 — hp1 e hp2 sono i PUNTI FATTI, e vince chi ne ha di piu'.
+  // Nella v0.75.0 erano i danni subiti e vinceva chi ne aveva meno; prima
+  // ancora erano punti vita. Il numero e' sempre stato lo stesso, a cambiare
+  // e' cosa racconta — ed e' per questo che il confronto vive in una riga
+  // sola, commentata: e' l'unico posto in cui la regola si legge.
+  // Un pareggio esatto resta un pareggio.
   const box=document.getElementById('gameover-box');
   const flag=document.getElementById('gameover-flag');
   const titleSpan=document.getElementById('gameover-title-text');
@@ -29951,7 +30025,7 @@ function finishGameWithResult(){
     viewBoardBtn.classList.add('sab-primary');
     backMainBtn.classList.add('sab-secondary');
   } else {
-    const p1Wins = hp1<hp2;   // v0.75.0 — meno danni, non piu' vita
+    const p1Wins = hp1>hp2;   // v0.77.0 — piu' punti, non meno danni
     // v0.72.27 (fazioni dinamiche): il giocatore 1 NON è più per forza dark —
     // la bandiera/nome del vincitore deve mostrare la fazione realmente
     // giocata da chi ha vinto, quindi si passa da playerFactionIsDark()
@@ -30032,10 +30106,10 @@ function dannoDiFineTurno(onDone){
   }
   // Nessuna carta in campo: niente da contare e niente da guardare.
   if(!celle[1].length && !celle[2].length){ fine(); return; }
-  // Le carte del giocatore 1 colpiscono il 2 e viceversa. Le due ondate
-  // corrono insieme e `fine` scatta quando ha finito la piu' lenta: si aspetta
-  // che si siano fermati ENTRAMBI i conteggi, altrimenti il turno ripartirebbe
-  // con dei numeri ancora in movimento a schermo.
+  // v0.77.0 — le carte di un giocatore fruttano punti A LUI, non danni
+  // all'altro. Le due ondate corrono insieme e `fine` scatta quando ha finito
+  // la piu' lenta: si aspetta che si siano fermati ENTRAMBI i conteggi,
+  // altrimenti il turno ripartirebbe con dei numeri ancora in movimento.
   let restano = 2;
   const unaMeno = ()=>{ if(--restano === 0) fine(); };
   ondataDanno(1, celle[1], unaMeno);
@@ -30056,64 +30130,151 @@ function dannoDiFineTurno(onDone){
 //  - il punto di raccolta non e' piu' il centro dello schermo ma e' SPOSTATO
 //    verso il proprio lato, perche' le due ondate corrono insieme e due
 //    mucchi di bolle sullo stesso pixel sarebbero illeggibili.
+// ═══════════════════════════════════════════════════════════════════════════
+// v0.77.0 — I PUNTI, E LA BOLLA CHE LI RACCONTA
+// ═══════════════════════════════════════════════════════════════════════════
+// Una porta sola per assegnare punti: ci passano la conquista e il conto di
+// fine turno, e ci passera' qualunque altra cosa ne dara' domani. Chi assegna
+// non deve sapere niente di come si vedono.
+const BOLLA_SALTO_MS = 420;      // deve combaciare con .score-bubble.salta
+const BOLLA_SVELA_MS = 240;      // il lampo bianco che si spegne
+const BOLLA_CIFRA_MS = 55;       // quanto ci mette una cifra a scorrere
+const _bolle = {1:null, 2:null};
+function _pannelloDi(player){ return document.getElementById('p'+player+'-info'); }
+// Apre la bolla sotto al punteggio, coperta dal lampo bianco. Il conteggio
+// parte da zero e lo alza chi la usa, un punto alla volta.
+function apriBollaPunti(player){
+  const pannello = _pannelloDi(player);
+  if(!pannello || _bolle[player]) return _bolle[player];
+  const orb = pannello.querySelector('.player-hp-orb');
+  const el = document.createElement('div');
+  el.className = 'score-bubble';
+  // Sotto al punteggio: si parte da dove finisce lui e si scende un po'.
+  const sotto = orb ? (orb.offsetTop + orb.offsetHeight - 30) : 400;
+  el.style.top = sotto + 'px';
+  // Di quanto dovra' saltare per finirgli dentro: la distanza fra i due
+  // centri, calcolata adesso che entrambi sono al loro posto.
+  const salto = orb ? ((orb.offsetTop + orb.offsetHeight/2) - (sotto + 139/2)) : -110;
+  el.style.setProperty('--bolla-salto', salto.toFixed(1)+'px');
+  const art = document.createElement('img');
+  art.className = 'score-bubble-art'; art.alt=''; art.draggable=false;
+  impostaImgDaCandidati(art, uiFileCandidati('score-bubble.png'));
+  const lampo = document.createElement('div');
+  lampo.className = 'score-bubble-lampo';
+  const num = document.createElement('span');
+  num.className = 'score-bubble-num'; num.textContent = '0';
+  el.append(art, lampo, num);
+  pannello.appendChild(el);
+  _bolle[player] = { el, num, valore:0, mostrato:0 };
+  // Un fotogramma di respiro prima di accendere le transizioni, o il browser
+  // le salta: un elemento appena nato non ha uno stato "prima" da cui partire.
+  requestAnimationFrame(()=>{
+    el.classList.add('viva');
+    requestAnimationFrame(()=>el.classList.add('svelata'));
+  });
+  return _bolle[player];
+}
+// Alza il numero della bolla. Non anima: e' chiamata una volta per carta,
+// ed e' il ritmo delle carte a dare il ritmo al conto.
+function incrementaBollaPunti(player, quanti){
+  const b = _bolle[player] || apriBollaPunti(player);
+  if(!b) return;
+  b.valore += (quanti||1);
+  b.mostrato = b.valore;
+  b.num.textContent = String(b.valore);
+}
+// Fa scorrere il numero fino a `bersaglio`. Serve alla conquista, dove i punti
+// arrivano tutti insieme e vederli salire dice quanto e' stato grosso il colpo.
+function scorriBollaPunti(player, bersaglio, poi){
+  const b = _bolle[player];
+  if(!b){ if(poi) poi(); return; }
+  if(bersaglio <= 1){
+    b.valore = bersaglio; b.mostrato = bersaglio;
+    b.num.textContent = String(bersaglio);
+    setTimeout(()=>poi && poi(), BOLLA_CIFRA_MS*2);
+    return;
+  }
+  let n = 0;
+  const passo = ()=>{
+    n++;
+    b.valore = n; b.mostrato = n; b.num.textContent = String(n);
+    if(n < bersaglio) setTimeout(passo, BOLLA_CIFRA_MS);
+    else setTimeout(()=>poi && poi(), BOLLA_CIFRA_MS*2);
+  };
+  passo();
+}
+// Il finale: la bolla salta dentro al punteggio, svanisce, e il contatore sale
+// uno alla volta. I punti si scrivono nello stato PRIMA di far salire il
+// contatore, cosi' chi legge G.hp durante l'animazione legge gia' il totale
+// vero — un numero a schermo che rincorre non e' lo stesso che un numero
+// sbagliato nello stato.
+function chiudiBollaPunti(player, punti, poi){
+  const b = _bolle[player];
+  const fine = ()=>{ if(typeof poi==='function') poi(); };
+  if(!b){ fine(); return; }
+  _bolle[player] = null;
+  b.el.classList.add('salta');
+  setTimeout(()=>{
+    try{ b.el.remove(); }catch(_){}
+    salePunteggio(player, punti, fine);
+  }, BOLLA_SALTO_MS);
+}
+// Il contatore grande che sale uno alla volta.
+function salePunteggio(player, punti, poi){
+  const da = (G && G.hp && typeof G.hp[player]==='number') ? G.hp[player] : 0;
+  const a = da + (punti||0);
+  if(G && G.hp) G.hp[player] = a;
+  let n = da;
+  const passo = ()=>{
+    if(n >= a){ if(poi) poi(); return; }
+    n++;
+    updatePlayerHpOrb(player, n);
+    setTimeout(passo, BOLLA_CIFRA_MS);
+  };
+  if(a === da){ updatePlayerHpOrb(player, a); if(poi) poi(); return; }
+  passo();
+}
+// La porta unica. `sourceKey` non serve piu' a nessuno ma resta accettato: i
+// due punti di conquista lo passano ancora.
+function assegnaPunti(player, punti, sourceKey){
+  if(!punti || punti <= 0) return;
+  void sourceKey;
+  apriBollaPunti(player);
+  scorriBollaPunti(player, punti, ()=>chiudiBollaPunti(player, punti));
+}
+
+// ── v0.77.0 — L'ONDA DI FINE TURNO, ORA IN PUNTI ──────────────────────────
+// Le carte di un giocatore si illuminano una dopo l'altra, e a ogni
+// illuminazione la sua bolla del punteggio sale di uno. Finita l'onda, la
+// bolla fa il suo giro: rimbalza sul punteggio, svanisce, e il contatore sale.
+//
+// Qui sotto stavano le bollicine che partivano da ogni carta, si raccoglievano
+// al centro dello schermo e volavano addosso all'avversario. Se ne vanno con i
+// danni che rappresentavano: adesso quei punti non attraversano il tabellone
+// per andare a colpire qualcuno, restano a chi li ha fatti. L'illuminazione a
+// scalare resta, ed e' la parte che conta — dice QUALI carte hanno fruttato.
 function ondataDanno(owner, cellKeys, onDone){
   const fine = typeof onDone === 'function' ? onDone : ()=>{};
   if(!cellKeys || !cellKeys.length){ fine(); return; }
-  const opponent=owner===1?2:1;
-  // La variante ART della bolla e' la FAZIONE del giocatore, non il suo numero:
-  // con le fazioni dinamiche il giocatore 1 puo' essere light.
-  const colorClass=playerFactionName(owner);
-  const bsvg=document.getElementById('board-svg');
-  const V=ONDATA_VELOCITA;
-  const FLASH_STAGGER_MS=90/V;
-  const FLASH_DUR_MS=520/V;
-  // 1) Lampeggiano tutte le carte di questo giocatore, una dopo l'altra.
+  const colorClass = playerFactionIsDark(owner) ? 'dark' : 'light';
+  apriBollaPunti(owner);
   cellKeys.forEach((k,i)=>{
     setTimeout(()=>{
-      if(!bsvg) return;
-      const el=bsvg.querySelector(`[data-conquered="${k}"]`);
-      if(!el) return;
-      el.classList.remove('sd-flash-red','sd-flash-blue');
-      void el.offsetWidth;
-      // Le due classi animano lo stesso identico fotogramma bianco condiviso:
-      // quale delle due si applichi non cambia piu' cio' che si vede, ma
-      // colorClass vale 'dark'/'light' e non piu' 'red'/'blue', quindi il
-      // controllo e' su quello.
-      el.classList.add(colorClass==='dark'?'sd-flash-red':'sd-flash-blue');
+      const el = document.querySelector('[data-conquered="'+k+'"]') ||
+                 document.querySelector('[data-cellkey="'+k+'"]');
+      if(el){
+        el.classList.remove('sd-flash-red','sd-flash-blue');
+        try{ el.getBoundingClientRect(); }catch(_){}   // forza il reflow: su <svg> offsetWidth non esiste
+        el.classList.add(colorClass==='dark'?'sd-flash-red':'sd-flash-blue');
+      }
+      // Il punto si aggiunge NELLO STESSO istante in cui la carta si accende:
+      // e' quello a rendere leggibile da dove viene il conto.
+      incrementaBollaPunti(owner, 1);
     }, i*FLASH_STAGGER_MS);
   });
-  const allFlashesDoneAt=cellKeys.length*FLASH_STAGGER_MS + FLASH_DUR_MS;
-  // 2) Finiti i lampi, da ogni carta parte una bollicina verso il punto di
-  // raccolta. Li' vive una bolla "collettrice" per tutta la convergenza: a
-  // ogni arrivo cresce un po' e il suo numero sale di uno, cosi' il totale si
-  // vede formarsi invece di comparire alla fine. L'ULTIMA bollicina che
-  // arriva trasforma quella stessa bolla nel colpo finale verso l'avversario,
-  // che porta il totale come numero e come danno.
   setTimeout(()=>{
-    // Le bolle vivono dentro #game-root e ragionano in coordinate 1920x1080,
-    // quindi il punto di raccolta si calcola li' dentro e non sulla finestra
-    // vera. Un quarto di schermo per parte: il giocatore 1 a sinistra, il 2 a
-    // destra, cosi' le due ondate simultanee non si accavallano.
-    const centro={x: owner===1 ? CANVAS_W*0.3 : CANVAS_W*0.7, y: CANVAS_H/2};
-    let arrived=0;
-    const total=cellKeys.length;
-    const collector=createSuddenDeathCollector(centro, colorClass);
-    cellKeys.forEach((k,i)=>{
-      setTimeout(()=>{
-        const from=getCellScreenCenter(k) || centro;
-        flySuddenDeathBubble(from, centro, colorClass, ()=>{
-          arrived++;
-          growSuddenDeathCollector(collector, arrived, total);
-          if(arrived===total){
-            const to=getAvatarScreenCenter(opponent) || centro;
-            launchSuddenDeathFinalBubble(collector, centro, to, total, ()=>{
-              applyDannoOndata(opponent, total, fine);
-            });
-          }
-        });
-      }, i*FLASH_STAGGER_MS);
-    });
-  }, allFlashesDoneAt);
+    chiudiBollaPunti(owner, cellKeys.length, fine);
+  }, cellKeys.length*FLASH_STAGGER_MS + 160);
 }
 
 // Creates the persistent central "collector" bubble that each feeder bubble
