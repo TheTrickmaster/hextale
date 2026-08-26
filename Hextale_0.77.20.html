@@ -286,6 +286,15 @@ body.mouse-down, body.mouse-down *{
   object-fit:contain;
   transform-origin:center center;
   mix-blend-mode:plus-lighter;
+  /* v0.77.20 — ISOLATE. E' la trappola gia' documentata due volte in questo
+     file: un <img> grande e posizionato in assoluto, FRATELLO di un elemento
+     con mix-blend-mode, manda in tilt la composizione — e qui, nella stessa
+     colonna, il fratello con mix-blend-mode c'e' ed e' il bagliore della barra
+     di caricamento (#start-loading-glow-img). `isolation:isolate` crea a
+     questi strati un contesto di composizione proprio, cosi' non entrano nel
+     gruppo di fusione degli altri. E' lo stesso rimedio che a suo tempo ha
+     salvato bars.png. */
+  isolation:isolate;
   pointer-events:none; user-select:none; -webkit-user-drag:none;
   z-index:0 !important;
 }
@@ -305,6 +314,7 @@ body.mouse-down, body.mouse-down *{
   width:150%; height:auto;
   transform:translate(-50%,-50%);
   mix-blend-mode:plus-lighter;
+  isolation:isolate;   /* vedi .start-radial qui sopra */
   pointer-events:none; user-select:none; -webkit-user-drag:none;
   z-index:0 !important;
 }
@@ -336,19 +346,23 @@ body.mouse-down, body.mouse-down *{
 }
 .hx-modulo.mostra{ display:flex; }
 .hx-modulo.visibile{ opacity:1; }
-/* La riga del titolo della registrazione: il pulsante indietro a sinistra,
-   otto pixel, poi la barra — che si prende tutto lo spazio che resta. */
-.hx-titlebar-riga{ display:flex; align-items:center; gap:8px; }
-.hx-titlebar-riga .hx-titlebar{ flex:1 1 auto; min-width:0; }
+/* v0.77.20 — il pulsante indietro sta DENTRO alla barra del titolo, accanto
+   al nome, non in una riga sua accanto alla barra.
+   Il centro della barra e' gia' una riga flex che centra il titolo: il
+   pulsante ci entra come primo elemento, e il titolo resta centrato sul
+   testo. Otto pixel fra i due, come chiesto. */
+#registrazione-titlebar .hx-titlebar-center{
+  display:flex; align-items:center; justify-content:center; gap:8px;
+}
 .hx-indietro{
-  flex:0 0 auto; width:44px; height:44px; padding:0; margin:0;
+  flex:0 0 auto; width:30px; height:30px; padding:0; margin:0;
   background:none; border:0; cursor:var(--cursore);
   transition:filter 0.16s ease, transform 0.16s ease;
 }
 .hx-indietro img{ width:100%; height:100%; object-fit:contain; display:block; pointer-events:none; }
 .hx-indietro:hover{ filter:brightness(1.15); transform:translateX(-2px); }
 #login-titlebar h2, #registrazione-titlebar h2{
-  margin:0; width:100%; text-align:center;
+  margin:0; text-align:center;
   font-family:'Marcellus',var(--font-display),serif;
   font-size:30px; font-weight:400; line-height:1;
   color:#EDE0C6; text-shadow:0 0 4px rgba(0,0,0,1);
@@ -372,22 +386,31 @@ body.mouse-down, body.mouse-down *{
 /* Le righe qui dentro non portano il margine che hanno nei filtri: la
    distanza e' gia' il gap del pannello, sedici pixel. */
 .hx-pannello .filters-riga{ margin:0; }
-/* La riga con "or" nel mezzo: la linea passa dietro e il testo la interrompe.
-   Il fondo dello span e' quello del pannello, altrimenti la linea gli
-   passerebbe attraverso. */
+/* v0.77.20 — la riga con "or": due tratti veri e il testo in mezzo, non una
+   linea sola con sopra un tappo colorato. Il tappo era una tinta piatta che
+   doveva fingere il fondo del pannello — ma quel fondo e' un gradiente con
+   sopra una trama, quindi la finzione si vedeva. Due tratti che si fermano
+   dove comincia il testo non hanno niente da fingere.
+   L'elemento non e' piu' una linea: e' una riga alta quanto il suo contenuto,
+   con i due tratti che si dividono lo spazio rimasto. */
 .hx-riga-oppure{
-  position:relative; display:flex; align-items:center; justify-content:center;
-  overflow:visible;
+  height:auto; background:none; margin:0;
+  display:flex; align-items:center; justify-content:center; gap:4px;
+}
+.hx-riga-oppure::before, .hx-riga-oppure::after{
+  content:''; flex:1 1 0; height:1px; background:rgba(255,255,255,0.1);
 }
 .hx-riga-oppure span{
+  flex:0 0 auto;
   font-family:'Rosarivo',serif; font-size:14px; color:#EDE0C6;
-  padding:0 12px; background:#2A3335;
-  position:relative; top:-1px;
+  line-height:1;
 }
 /* Il tratto corto sotto ai moduli, prima di Exit game. */
 .hx-riga-corta{
   width:300px; align-self:center; margin:0;
 }
+/* v0.77.20 — Exit game ha una misura sua, piu' stretta del pannello. */
+#start-accesso > .hx-btn{ width:470px; align-self:center; }
 /* ── i campi ─────────────────────────────────────────────────────────────
    Stesso riquadro incassato del nome mazzo (vedi .deck-edit-nome), con il
    carattere e la misura di questa colonna. Il segnaposto e' piu' spento del
@@ -8264,13 +8287,13 @@ body.prova-senza-willchange #mm-book-rot{
       </div>
 
       <div class="hx-modulo" id="modulo-registrazione">
-        <div class="hx-titlebar-riga">
-          <button type="button" class="hx-indietro" aria-label="Torna al login" onclick="mostraModuloAccesso('login')"><img alt="" draggable="false"></button>
-          <div class="hx-titlebar" id="registrazione-titlebar">
-            <span class="hx-titlebar-cap hx-titlebar-left"></span>
-            <div class="hx-titlebar-center"><h2>Create new account</h2></div>
-            <span class="hx-titlebar-cap hx-titlebar-right"></span>
+        <div class="hx-titlebar" id="registrazione-titlebar">
+          <span class="hx-titlebar-cap hx-titlebar-left"></span>
+          <div class="hx-titlebar-center">
+            <button type="button" class="hx-indietro" aria-label="Torna al login" onclick="mostraModuloAccesso('login')"><img alt="" draggable="false"></button>
+            <h2>Create new account</h2>
           </div>
+          <span class="hx-titlebar-cap hx-titlebar-right"></span>
         </div>
         <div class="hx-pannello">
       <input type="text" id="reg-email" class="hx-campo" placeholder="Email address" autocomplete="off" spellcheck="false">
@@ -8295,7 +8318,7 @@ body.prova-senza-willchange #mm-book-rot{
       <!-- Fuori dai due moduli, e uguale per tutti e due: da qui si esce dal
            gioco comunque si sia arrivati. -->
       <div class="filters-riga hx-riga-corta"></div>
-      <button class="hx-btn hx-azione hx-btn-warning hx-btn-opaco" type="button">
+      <button class="hx-btn hx-azione hx-btn-warning" type="button">
         <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
         <span class="hxb-label">Exit game</span>
       </button>
@@ -8731,7 +8754,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.19</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.20</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -9686,7 +9709,18 @@ if(document.readyState==='loading'){
   // defeats the point of a loading indicator.
   let loadingBarShownAt = null;
   function revealLoadingBar(){
-    loadingBarShownAt = Date.now();
+    // ── v0.77.20 — LA BARRA NON PUO' VIVERE SOTTO ALLO SPLASH ──────────────
+    // Lo splash copre lo schermo per cinque secondi e mezzo; il caricamento,
+    // su una macchina svelta, comincia e finisce dentro quella finestra. La
+    // barra compariva e spariva senza che nessuno potesse vederla, e il logo
+    // arrivava quando il velo era gia' quasi via — cioe' la schermata di
+    // caricamento non si vedeva affatto, che e' esattamente cio' che e' stato
+    // segnalato.
+    // Non si ritarda la barra: si ritarda il suo OROLOGIO. Il minimo di
+    // permanenza (vedi hideLoadingBarThenRevealRest) comincia a contare da
+    // quando la barra e' davvero visibile, non da quando e' stata accesa
+    // sotto a qualcos'altro. Il caricamento intanto non aspetta nessuno.
+    loadingBarShownAt = Math.max(Date.now(), _splashViaA);
     const loading = document.getElementById('start-loading');
     if(loading) loading.classList.add('show');
   }
@@ -10036,12 +10070,17 @@ if(document.readyState==='loading'){
   // I tempi stanno qui, uno per costante: leggendoli in fila si legge la
   // sequenza. Devono combaciare con le transizioni del CSS, che e' l'unico
   // altro posto in cui sono scritti.
+  // Quando lo splash avra' finito di togliersi di mezzo. Serve alla barra di
+  // caricamento, che altrimenti nascerebbe e morirebbe sotto di lui.
+  let _splashViaA = 0;
   const SPLASH_DISSOLVENZA_MS = 1500; // #splash-logo transition:opacity
   const SPLASH_ATTESA_MS      = 2000; // quanto resta fermo, a piena luce
   const SPLASH_USCITA_MS      =  600; // #splash transition:opacity
   function avviaSplash(){
     const velo = document.getElementById('splash');
     if(!velo) return;
+    _splashViaA = Date.now() + SPLASH_DISSOLVENZA_MS + SPLASH_ATTESA_MS
+                             + SPLASH_DISSOLVENZA_MS + SPLASH_USCITA_MS;
     const logo = document.getElementById('splash-logo');
     // Un fotogramma di respiro prima di accendere la transizione, o il
     // browser la salta: un elemento appena dipinto non ha uno stato "prima"
