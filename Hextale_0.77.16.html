@@ -51,12 +51,16 @@
    nuovo ha un solo nome da ricordare, e chi lo dimentica eredita comunque
    quello di html/body invece di cadere su quello del sistema. */
 :root{
-  --cursore:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer;
+  /* v0.77.16 — il cursore vive adesso nella cartella ui, con tutto il resto
+     dell'interfaccia, e ha una seconda faccia per il momento in cui si preme
+     (vedi --cursore-premuto e body.mouse-down piu' sotto). */
+  --cursore:url('https://thetrickmaster.github.io/hextale/ui/cursor.png') 2 2, pointer;
+  --cursore-premuto:url('https://thetrickmaster.github.io/hextale/ui/cursor-click.png') 2 2, pointer;
   /* Il colore del bordo luminoso che dice "e' il tuo turno". */
   --bagliore-turno:#DDFBFF;
   /* Stessa immagine, ripiego diverso: sulle aree che si trascinano il browser
      deve ripiegare su "grab" e non su "pointer" se il file non si carica. */
-  --cursore-trascina:url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, grab;
+  --cursore-trascina:url('https://thetrickmaster.github.io/hextale/ui/cursor.png') 2 2, grab;
   --red:#e05555;--red-light:#ffaaaa;--red-bg:#2a1515;
   --blue:#4488dd;--blue-light:#99bbff;--blue-bg:#111a2a;
   --gold:#c8a84b;--text:#e8e6f0;--text-muted:#7a7890;
@@ -105,11 +109,18 @@ html,body{width:100%;height:100%;overflow:hidden;color:var(--text);font-family:v
      canvas edge, which is the desired look either way. */
   overflow:hidden;
 }
-/* Pressed/click cursor state, toggled via JS (see setupCustomCursor near the
-   drag/click handlers) since :active alone doesn't cover the whole
-   press-then-drag-elsewhere gesture used for cards. */
-body.mouse-down{
-  cursor:var(--cursore) !important;
+/* Pressed/click cursor state, toggled via JS since :active alone doesn't cover
+   the whole press-then-drag-elsewhere gesture used for cards.
+   v0.77.16 — E ADESSO QUESTA CLASSE FA QUALCOSA. C'era gia', col suo
+   ascoltatore su mousedown/mouseup, ma rimetteva lo STESSO cursore: era un
+   interruttore collegato a niente, in attesa di un disegno che non esisteva.
+   Adesso il disegno c'e'.
+   Il `*` serve perche' quasi ogni elemento del gioco dichiara il proprio
+   `cursor`, e una regola sul solo <body> verrebbe scavalcata da ognuna di
+   esse: chi preme su una carta deve vedere il cursore premuto come chi preme
+   sul fondo. E vale anche mentre si trascina — premuto lo si e' comunque. */
+body.mouse-down, body.mouse-down *{
+  cursor:var(--cursore-premuto) !important;
 }
 
 
@@ -8162,7 +8173,7 @@ body.prova-senza-willchange #mm-book-rot{
      chiusura in alto a destra e click fuori per chiudere. -->
 <div id="mm-play-overlay" class="hx-modal-overlay" onclick="if(event.target===this) mmChiudiSceltaPartita();">
   <div class="hx-modal-box">
-    <button class="hx-modal-close" aria-label="Chiudi" onclick="mmChiudiSceltaPartita()"><img src="https://thetrickmaster.github.io/hextale/player-ui/close-icon.png" alt="" draggable="false"></button>
+    <button class="hx-modal-close" aria-label="Chiudi" onclick="mmChiudiSceltaPartita()"><img src="https://thetrickmaster.github.io/hextale/ui/close-icon.png" alt="" draggable="false"></button>
     <h2>Start Game</h2>
     <button class="start-art-btn sab-primary" onclick="mmAvviaPartita(true)">
       <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Play vs AI</span>
@@ -8388,7 +8399,7 @@ body.prova-senza-willchange #mm-book-rot{
      da patch-notes.txt nel repository (vedi caricaPatchNotes). -->
 <div id="patch-notes-overlay" class="hx-modal-overlay">
   <div id="patch-notes-box" class="hx-modal-box">
-    <button id="patch-notes-close" aria-label="Chiudi"><img src="https://thetrickmaster.github.io/hextale/player-ui/close-icon.png" alt="" draggable="false"></button>
+    <button id="patch-notes-close" aria-label="Chiudi"><img src="https://thetrickmaster.github.io/hextale/ui/close-icon.png" alt="" draggable="false"></button>
     <h2>What's new</h2>
     <!-- v0.73.9 — l'avviso di una versione piu' recente. Nasce nascosto e
          compare solo se il controllo all'avvio ne trova davvero una: un
@@ -8408,7 +8419,7 @@ body.prova-senza-willchange #mm-book-rot{
 </div>
 <div id="card-modal-overlay">
   <div id="card-modal" class="hx-modal-box">
-    <button id="card-modal-close" aria-label="Chiudi"><img src="https://thetrickmaster.github.io/hextale/player-ui/close-icon.png" alt="" draggable="false"></button>
+    <button id="card-modal-close" aria-label="Chiudi"><img src="https://thetrickmaster.github.io/hextale/ui/close-icon.png" alt="" draggable="false"></button>
     <div id="card-modal-card"></div>
     <div id="card-modal-info"></div>
   </div>
@@ -8490,7 +8501,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.15</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.16</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -8504,7 +8515,7 @@ body.prova-senza-willchange #mm-book-rot{
      altre si chiudono allo stesso modo (X in alto a destra, click fuori). -->
 <div id="faction-choice-overlay" class="hx-modal-overlay" onclick="if(event.target===this) chiudiSceltaFazione();">
   <div id="faction-choice-modal" class="hx-modal-box">
-    <button class="hx-modal-close" aria-label="Chiudi" onclick="chiudiSceltaFazione()"><img src="https://thetrickmaster.github.io/hextale/player-ui/close-icon.png" alt="" draggable="false"></button>
+    <button class="hx-modal-close" aria-label="Chiudi" onclick="chiudiSceltaFazione()"><img src="https://thetrickmaster.github.io/hextale/ui/close-icon.png" alt="" draggable="false"></button>
     <h2>Choose your side</h2>
     <div id="faction-choice-mode"></div>
     <button class="start-art-btn sab-secondary" onclick="confirmFactionChoice('dark')">
@@ -8526,7 +8537,7 @@ body.prova-senza-willchange #mm-book-rot{
      esistenti: nessuno stile inventato. -->
 <div id="prova-carta-overlay" class="hx-modal-overlay" onclick="if(event.target===this) chiudiSceltaMazzoAvversario();">
   <div id="prova-carta-modal" class="hx-modal-box">
-    <button class="hx-modal-close" aria-label="Chiudi" onclick="chiudiSceltaMazzoAvversario()"><img src="https://thetrickmaster.github.io/hextale/player-ui/close-icon.png" alt="" draggable="false"></button>
+    <button class="hx-modal-close" aria-label="Chiudi" onclick="chiudiSceltaMazzoAvversario()"><img src="https://thetrickmaster.github.io/hextale/ui/close-icon.png" alt="" draggable="false"></button>
     <h2>Il mazzo dell'avversario</h2>
     <div id="prova-carta-nome" style="text-align:center;margin-bottom:4px;opacity:0.75;font-size:15px;"></div>
     <button class="start-art-btn sab-primary" onclick="confermaSceltaMazzoAvversario(true)">
@@ -8648,7 +8659,7 @@ body.prova-senza-willchange #mm-book-rot{
   </div>
 </div>
 <div id="debug-modal-overlay" onclick="if(event.target===this) closeDebugModal();">
-  <div id="debug-modal"><button id="debug-modal-close" aria-label="Chiudi" onclick="closeDebugModal()"><img src="https://thetrickmaster.github.io/hextale/player-ui/close-icon.png" alt="" draggable="false"></button><h2>Debug menu</h2><div id="debug-grid"><div class="debug-item" style="display:none"><!-- v0.75.19 — "Calibra foil"
+  <div id="debug-modal"><button id="debug-modal-close" aria-label="Chiudi" onclick="closeDebugModal()"><img src="https://thetrickmaster.github.io/hextale/ui/close-icon.png" alt="" draggable="false"></button><h2>Debug menu</h2><div id="debug-grid"><div class="debug-item" style="display:none"><!-- v0.75.19 — "Calibra foil"
          e' NASCOSTA, non rimossa: il pannello di calibrazione serve ancora il
          giorno in cui la lamina va ritoccata, e cancellarlo vorrebbe dire
          riscriverlo. Tolto dalla vista, resta nel file. --><!-- v0.72.43 NEW ("mi crei un pulsante nel debug menu per calibrare da
@@ -17467,7 +17478,7 @@ function cardDbRenderRoster(){
     // url(...) string used everywhere else in the game instead of a bare
     // 'pointer', so hovering a real card in the Collection shows the game's
     // own cursor art like every other clickable element.
-    slot.style.cursor="url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer";
+    slot.style.cursor='var(--cursore)';
     // v0.74.2 — il click apre anche la carta a schermo intero, oltre a farla
     // parlare: in Collezione e' proprio la carta che si vuole guardare.
     slot.addEventListener('click', ()=>{ playCardVoiceLine(card); openCardModal(card, 0); });
@@ -31935,7 +31946,7 @@ function drawHexCard(svg,cx,cy,R,card,fillColor,strokeColor,textColor,nameText,i
   poly.setAttribute('d',ptStrRounded(cx,cy,R,gap,cr));
   poly.setAttribute('fill','transparent');
   poly.setAttribute('stroke','none');
-  if(onClick){poly.style.cursor="url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer";poly.addEventListener('click',onClick);}
+  if(onClick){poly.style.cursor='var(--cursore)';poly.addEventListener('click',onClick);}
   svg.appendChild(poly);
 
   const corners=hexCorners(cx,cy,R);
@@ -37293,7 +37304,7 @@ function renderBoard(){
       // harmless and the function may still be handy for a future dev tool),
       // simply no longer called from this render path.
       if(placeable){
-        poly.style.cursor="url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer";
+        poly.style.cursor='var(--cursore)';
         poly.dataset.cellkey=`${q},${r}`;
         poly.addEventListener('click',()=>{if(G.selected)placeCard(q,r);});
         // Drag-over highlight
@@ -37455,7 +37466,7 @@ function renderBoard(){
 
     const btnGroup=svgEl('g');
     btnGroup.classList.add('hx-icon-scelta'); // classe hover condivisa, vedi CSS
-    btnGroup.style.cursor="url('https://thetrickmaster.github.io/hextale/cursor.png') 2 2, pointer";
+    btnGroup.style.cursor='var(--cursore)';
 
     const iconImg=svgEl('image');
     iconImg.setAttribute('href',href);
