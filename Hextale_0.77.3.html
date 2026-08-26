@@ -1512,23 +1512,28 @@ body.mouse-down{
   object-fit:contain; pointer-events:none;
 }
 /* 2. LAMPEGGIA. Bianco pieno che si accende e si spegne sulla sagoma della
-   bolla — non la scopre (quello lo fa il fadein), la ANNUNCIA. Ha la forma
-   della bolla perche' usa la stessa immagine come maschera. */
+   bolla — non la scopre (quello lo fa il fadein), la ANNUNCIA.
+   v0.77.3 — la sagoma non si ottiene piu' con una maschera CSS. Era un
+   `mask-image` puntato a una variabile riempita a caricamento avvenuto, e
+   bastava un solo anello di quella catena a saltare perche' un elemento
+   mascherato con una maschera che non arriva non venga disegnato affatto:
+   nessun errore, nessun lampo, niente da guardare. Adesso il lampo E' la
+   stessa immagine della bolla, resa bianca da un filtro: `brightness(0)` la
+   annerisce tutta e `invert(1)` la ribalta in bianco, lasciando intatto il
+   canale alfa. La forma e' quella giusta per costruzione, e l'immagine passa
+   dalla stessa strada dell'art della bolla — quella che gia' si vede. */
 .score-bubble-lampo{
-  position:absolute; inset:0;
-  background:#FFFFFF;
-  -webkit-mask-image:var(--hx-bolla, none); mask-image:var(--hx-bolla, none);
-  -webkit-mask-size:contain; mask-size:contain;
-  -webkit-mask-position:center; mask-position:center;
-  -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat;
+  position:absolute; inset:0; width:100%; height:100%;
+  object-fit:contain;
+  filter:brightness(0) invert(1);
   opacity:0; pointer-events:none;
 }
 @keyframes bollaLampo{
   0%   {opacity:0;}
-  35%  {opacity:1;}
+  22%  {opacity:1;}
   100% {opacity:0;}
 }
-.score-bubble.lampeggia .score-bubble-lampo{ animation:bollaLampo 0.30s ease-out; }
+.score-bubble.lampeggia .score-bubble-lampo{ animation:bollaLampo 0.38s ease-out; }
 /* 3. IL NUMERO SALE. Stesso oro e stesso carattere del punteggio grande. */
 .score-bubble-num{
   position:relative; z-index:1;
@@ -1555,18 +1560,16 @@ body.mouse-down{
 .score-bubble.sfuma{ opacity:0; transition:opacity 0.18s ease; }
 /* 6. IL PUNTEGGIO LAMPEGGIA, e solo dopo il contatore sale. Stessa tecnica
    della bolla: bianco pieno ritagliato sulla sagoma del punteggio. */
+/* Stessa tecnica del lampo della bolla, e per la stessa ragione. */
 .player-hp-orb-lampo{
-  position:absolute; inset:0;
-  background:#FFFFFF;
-  -webkit-mask-image:var(--hx-punteggio, none); mask-image:var(--hx-punteggio, none);
-  -webkit-mask-size:contain; mask-size:contain;
-  -webkit-mask-position:center; mask-position:center;
-  -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat;
+  position:absolute; inset:0; width:100%; height:100%;
+  object-fit:contain;
+  filter:brightness(0) invert(1);
   opacity:0; pointer-events:none; z-index:1;
 }
 @keyframes punteggioLampo{
   0%   {opacity:0;}
-  30%  {opacity:0.95;}
+  22%  {opacity:1;}
   100% {opacity:0;}
 }
 .player-hp-orb.lampeggia .player-hp-orb-lampo{ animation:punteggioLampo 0.34s ease-out; }
@@ -8196,7 +8199,7 @@ body.prova-senza-willchange #mm-book-rot{
   </div>
   <div class="player-hp-orb" id="p1-hp-orb">
     <img class="player-hp-orb-bg" alt="" draggable="false">
-    <div class="player-hp-orb-lampo"></div>
+    <img class="player-hp-orb-lampo" alt="" draggable="false">
     <div class="player-hp-value" id="p1-hp-value">30</div>
   </div>
 </div>
@@ -8215,7 +8218,7 @@ body.prova-senza-willchange #mm-book-rot{
   </div>
   <div class="player-hp-orb" id="p2-hp-orb">
     <img class="player-hp-orb-bg" alt="" draggable="false">
-    <div class="player-hp-orb-lampo"></div>
+    <img class="player-hp-orb-lampo" alt="" draggable="false">
     <div class="player-hp-value" id="p2-hp-value">30</div>
   </div>
 </div>
@@ -8354,7 +8357,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.2</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.3</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -11314,13 +11317,9 @@ function montaGraficaPartita(){
   document.querySelectorAll('.player-info').forEach(el=>
     impostaVariabileDaCandidati(el, '--hx-drappo', uiFileCandidati('player-banner.png')));
   img('.player-avatar-frame', 'avatar-frame.png');
-  // La bolla del punteggio serve anche da sagoma al lampo bianco che la svela.
-  document.querySelectorAll('.player-info').forEach(el=>
-    impostaVariabileDaCandidati(el, '--hx-bolla', uiFileCandidati('score-bubble.png')));
   img('.player-hp-orb-bg', 'score.png');
-  // Il punteggio serve anche da sagoma al lampo bianco che lo accende.
-  document.querySelectorAll('.player-info').forEach(el=>
-    impostaVariabileDaCandidati(el, '--hx-punteggio', uiFileCandidati('score.png')));
+  // Il lampo del punteggio e' la stessa immagine, resa bianca dal CSS.
+  img('.player-hp-orb-lampo', 'score.png');
   img('#settings-btn img', 'settings-button.png');
   // La barra del nome usa i tre pezzi OPACHI: dietro c'e' il drappo di legno,
   // e una barra trasparente lascerebbe vedere le venature attraverso il nome.
@@ -30212,6 +30211,15 @@ const PUNTEGGIO_LAMPO_MS = 340; // @keyframes punteggioLampo
 // in cui chiunque voglia farlo salire puo' cominciare.
 const BOLLA_PRONTA_MS = BOLLA_COMPARE_MS + Math.round(BOLLA_LAMPO_MS*0.45);
 
+// v0.77.3 — nella bolla il numero non e' un totale, e' una VARIAZIONE: quello
+// che sta succedendo adesso al punteggio. Un 4 da solo non dice se stai
+// guadagnando o perdendo; +4 e -4 lo dicono senza bisogno di altro contesto.
+// Lo zero porta il piu' perche' e' il segno in cui la bolla comincia sempre a
+// contare, e vederlo cambiare da +0 a +1 e' proprio il gesto che racconta.
+function conSegno(n){
+  const v = n|0;
+  return (v < 0 ? '' : '+') + v;
+}
 function apriBollaPunti(player){
   const pannello = _pannelloDi(player);
   if(!pannello || _bolle[player]) return _bolle[player];
@@ -30229,10 +30237,11 @@ function apriBollaPunti(player){
   const art = document.createElement('img');
   art.className = 'score-bubble-art'; art.alt=''; art.draggable=false;
   impostaImgDaCandidati(art, uiFileCandidati('score-bubble.png'));
-  const lampo = document.createElement('div');
-  lampo.className = 'score-bubble-lampo';
+  const lampo = document.createElement('img');
+  lampo.className = 'score-bubble-lampo'; lampo.alt=''; lampo.draggable=false;
+  impostaImgDaCandidati(lampo, uiFileCandidati('score-bubble.png'));
   const num = document.createElement('span');
-  num.className = 'score-bubble-num'; num.textContent = '0';
+  num.className = 'score-bubble-num'; num.textContent = conSegno(0);
   el.append(art, lampo, num);
   pannello.appendChild(el);
   _bolle[player] = { el, num, valore:0, mostrato:0 };
@@ -30254,7 +30263,7 @@ function incrementaBollaPunti(player, quanti){
   if(!b) return;
   b.valore += (quanti||1);
   b.mostrato = b.valore;
-  b.num.textContent = String(b.valore);
+  b.num.textContent = conSegno(b.valore);
 }
 // Fa scorrere il numero fino a `bersaglio`. Serve alla conquista, dove i punti
 // arrivano tutti insieme e vederli salire dice quanto e' stato grosso il colpo.
@@ -30263,18 +30272,22 @@ function incrementaBollaPunti(player, quanti){
 function scorriBollaPunti(player, bersaglio, poi){
   const b = _bolle[player];
   if(!b){ if(poi) poi(); return; }
+  // v0.77.3 — si conta VERSO il bersaglio, in su o in giu': il passo e' +1 o
+  // -1 a seconda del segno. Prima si contava solo salendo da zero, il che
+  // andava bene finche' i punti potevano solo aumentare.
   const conta = ()=>{
-    if(bersaglio <= 1){
-      b.valore = bersaglio; b.mostrato = bersaglio;
-      b.num.textContent = String(bersaglio);
+    const dir = bersaglio < 0 ? -1 : 1;
+    const scrivi = (v)=>{ b.valore = v; b.mostrato = v; b.num.textContent = conSegno(v); };
+    if(Math.abs(bersaglio) <= 1){
+      scrivi(bersaglio);
       setTimeout(()=>poi && poi(), BOLLA_CIFRA_MS*2);
       return;
     }
     let n = 0;
     const passo = ()=>{
-      n++;
-      b.valore = n; b.mostrato = n; b.num.textContent = String(n);
-      if(n < bersaglio) setTimeout(passo, BOLLA_CIFRA_MS);
+      n += dir;
+      scrivi(n);
+      if(Math.abs(n) < Math.abs(bersaglio)) setTimeout(passo, BOLLA_CIFRA_MS);
       else setTimeout(()=>poi && poi(), BOLLA_CIFRA_MS*2);
     };
     passo();
@@ -30310,24 +30323,30 @@ function chiudiBollaPunti(player, punti, poi){
   }, BOLLA_VIAGGIO_MS);
 }
 // Il contatore grande che sale uno alla volta.
+// v0.77.3 — il contatore si muove nella direzione giusta, e non scende sotto
+// zero: un punteggio negativo non vuol dire niente in questo gioco, e un
+// numero che si puo' leggere ma non ottenere e' solo confusione.
 function salePunteggio(player, punti, poi){
   const da = (G && G.hp && typeof G.hp[player]==='number') ? G.hp[player] : 0;
-  const a = da + (punti||0);
+  const a = Math.max(0, da + (punti||0));
   if(G && G.hp) G.hp[player] = a;
+  if(a === da){ updatePlayerHpOrb(player, a); if(poi) poi(); return; }
+  const dir = a > da ? 1 : -1;
   let n = da;
   const passo = ()=>{
-    if(n >= a){ if(poi) poi(); return; }
-    n++;
+    if(n === a){ if(poi) poi(); return; }
+    n += dir;
     updatePlayerHpOrb(player, n);
     setTimeout(passo, BOLLA_CIFRA_MS);
   };
-  if(a === da){ updatePlayerHpOrb(player, a); if(poi) poi(); return; }
   passo();
 }
 // La porta unica. `sourceKey` non serve piu' a nessuno ma resta accettato: i
 // due punti di conquista lo passano ancora.
 function assegnaPunti(player, punti, sourceKey){
-  if(!punti || punti <= 0) return;
+  // v0.77.3 — passa anche un numero negativo: zero no, perche' una bolla che
+  // annuncia "niente" e' una pausa in mezzo al turno senza niente da dire.
+  if(!punti) return;
   void sourceKey;
   apriBollaPunti(player);
   scorriBollaPunti(player, punti, ()=>chiudiBollaPunti(player, punti));
