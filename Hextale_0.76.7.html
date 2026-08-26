@@ -8238,7 +8238,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.76.6</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.76.7</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img src="https://thetrickmaster.github.io/hextale/player-ui/settings-button.png" alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -35222,7 +35222,7 @@ function drawBoardOutline(svg, cx, cy, R){
 
 // ── BOARD RENDERING ──────────────────────────────────────────────
 // ── TILE IMAGES ─────────────────────────────────────────────────
-// TILE_BLOCKED/TILE_FREE/TILE_MAGIC now each hold 4 pseudo-random variants
+// TILE_BLOCKED/TILE_FREE now each hold several pseudo-random variants
 // hosted on the new GitHub Pages asset host (thetrickmaster.github.io),
 // picked deterministically per cell position via the same (q*7+r*13)%4 hash
 // so a given board layout always shows the same variant at the same cell
@@ -35244,7 +35244,7 @@ function drawBoardOutline(svg, cx, cy, R){
 // — tileVariant()'s (q*7+r*13)%arr.length hash below works unchanged with a
 // 1-element array (modulo 1 is always 0), so every blocked/fixed cell simply
 // always resolves to this same single variant for now; no other code needed
-// to change. The other two variant arrays (TILE_FREE/TILE_MAGIC) were NOT
+// to change. L'altra schiera di varianti (TILE_FREE) NON e'
 // touched — this request was scoped to tile-broken/tile-fixed only.
 //
 // v0.75.61 — E ADESSO LE QUATTRO VARIANTI CI SONO. I muri smettono di essere
@@ -35280,18 +35280,18 @@ const TILE_FREE = [
   'https://thetrickmaster.github.io/hextale/ui/tiles/tile-6.png',
   'https://thetrickmaster.github.io/hextale/ui/tiles/tile-7.png',
 ];
-// Magic-tile art (Part A/C): replaces the old colored-border/gradient overlay
-// entirely — a magic tile now shows one of these 4 art variants instead.
-const TILE_MAGIC = [
-  'https://thetrickmaster.github.io/hextale/ui/tiles/tile-magic-1.png',
-  'https://thetrickmaster.github.io/hextale/ui/tiles/tile-magic-2.png',
-  'https://thetrickmaster.github.io/hextale/ui/tiles/tile-magic-3.png',
-  'https://thetrickmaster.github.io/hextale/ui/tiles/tile-magic-4.png',
-];
+// v0.76.7 — TILE_MAGIC se n'e' andato. Erano quattro indirizzi a file che non
+// sono mai esistiti, per una casella che non si genera piu' dalla v0.74.6
+// (`G.magicTiles` resta sempre vuota): un elenco che nessuno poteva usare e
+// che nessuno avrebbe visto rompersi. Con l'allarme sugli asset mancanti
+// (v0.75.95) una roba del genere e' anche una mina: bastava riaccendere le
+// caselle magiche per riempire la console di errori invece di disegnare
+// qualcosa. Il giorno in cui quelle art esisteranno, si rimette l'elenco e si
+// rimettono i due rami qui sotto — sono cinque righe.
 // v0.72.71 — via TILE_FREE_DESTROYED: era gia' un residuo, dichiarato e mai
 // letto da nessuno da quando le caselle liberate usano tile-fixed-N.
 // Deterministic per-cell pseudo-random variant picker, shared by TILE_FREE,
-// TILE_BLOCKED, TILE_FIXED and TILE_MAGIC — same hash as the original
+// TILE_BLOCKED e TILE_FIXED — same hash as the original
 // free-tile picker so board layouts keep picking consistent variants across
 // re-renders, AND so TILE_BLOCKED/TILE_FIXED always agree on the same index
 // for a given cell (see v0.71.46 comment above).
@@ -36234,9 +36234,7 @@ function renderBoard(){
       // come giocabile sarebbe una bugia.
       const tileSottoSrc = (G.destroyedHoles && G.destroyedHoles.has(k))
         ? tileVariant(TILE_FIXED,q,r)
-        : isMagicTile(k)
-          ? tileVariant(TILE_MAGIC,q,r)
-          : tasselloLibero(k,q,r);
+        : tasselloLibero(k,q,r);
       drawTileCell(svg,x,y,R,tileSottoSrc,k+'f',false);
       // v0.73.11 FIX ("quando morgana procca, il bordo cambia colore molto
       // prima della metà dell'animazione"): il cambio di proprietario e' JS
@@ -36383,18 +36381,12 @@ function renderBoard(){
       // Fortifica is now shown via the shield icon replacing the group's value
       // number (see drawHexCard) — no extra border needed on the tile.
     } else {
-      // empty cell — use the special "fixed" tile art (matching, by number,
-      // the tile-broken-N variant this exact cell showed while still
-      // blocked — see tileVariant()'s v0.71.46 comment) if this cell's
-      // blocked tile was removed via the Riparare ability; otherwise, if
-      // this cell is a magic tile (G.magicTiles), use one of the 4
-      // magic-tile art variants; otherwise a random ordinary free tile.
-      const cellIsMagic=isMagicTile(k);
+      // Casella vuota: il tassello "riparato" se il muro che c'era e' stato
+      // buttato giu' (vedi Riparare), altrimenti quello libero assegnato a
+      // questa casella a inizio partita.
       const tileSrc = (G.destroyedHoles && G.destroyedHoles.has(k))
         ? tileVariant(TILE_FIXED,q,r)
-        : cellIsMagic
-          ? tileVariant(TILE_MAGIC,q,r)
-          : tasselloLibero(k,q,r);
+        : tasselloLibero(k,q,r);
       const poly=drawTileCell(svg,x,y,R,tileSrc,k+'f',placeable);
       // Tagged so the Distruggere attack sequence (see doDistruggi) can find
       // THIS cell's overlay polygon right after the wall comes down — by the
@@ -36412,11 +36404,9 @@ function renderBoard(){
       // ever appears on a CARD (in its hand tooltip — see buildCardTooltipHTML
       // — and as the on-board activated-ability badge — see activatedAbility
       // above), never painted onto the board tile art itself.
-      // Magic-tile art (Part A/C): a magic tile is now rendered entirely via
-      // its own art variant (TILE_MAGIC, picked above alongside TILE_FREE/
-      // TILE_BLOCKED) instead of a colored border/gradient overlay drawn on
-      // top of the plain free-tile art. Nothing further to draw here — the
-      // old dual-infusion-tile linear-gradient border/tint block is gone. (Historical name only — see TILE_MAGIC above for the current art-based rendering.)
+      // v0.76.7 — qui si raccontava come veniva disegnata una casella magica.
+      // Non se ne disegnano piu' dalla v0.74.6, e da questa versione non ne
+      // esiste nemmeno la grafica: non c'e' niente da disegnare.
       // EXPERIMENTAL (v0.21.0-abilities-on-cards): the tile-ability tooltip
       // overlay (attachTileAbilityTooltip) that used to sit on ability tiles
       // is gone along with the tile-ability icon above — no cell ever has an
