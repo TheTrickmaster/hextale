@@ -2623,13 +2623,44 @@ body.mouse-down{
   84%{ transform:translateY(-9px) scale(0.99,1.02); filter:drop-shadow(0 8px 7px rgba(0,0,0,0.3)) brightness(1.02); }
   100%{ transform:translateY(0) scale(1); opacity:1; filter:none; }
 }
-.card-land{
+/* ── v0.77.8 — L'ATTERRAGGIO DI CHI STA PER COLPIRE ──────────────────────
+   Uguale in tutto, tranne il contraccolpo dell'84%: niente risalita di 9px,
+   la carta si schiaccia e resta giu'.
+   Il perche': una carta che attacca fa DUE movimenti di fila, l'atterraggio e
+   il colpo, e l'atterraggio finisce con un rimbalzino mentre il colpo comincia
+   con una caricata all'indietro. Attaccati l'uno all'altro si leggono come un
+   solo gesto sbagliato — la carta che rimbalza due volte. Tolto il rimbalzino,
+   resta una sola risalita in tutta la sequenza ed e' quella del colpo, che e'
+   la cosa che deve farsi notare.
+   Chi non attacca tiene il suo rimbalzo: li' e' l'ultimo movimento del gesto e
+   serve a dire "e' arrivata". */
+@keyframes cardLandSecco{
+  0%{
+    transform:translateY(-150px) scale(1.28); opacity:0;
+    filter:drop-shadow(0 30px 18px rgba(0,0,0,0.40)) brightness(1.22);
+    animation-timing-function:cubic-bezier(.55,.06,.68,.19);
+  }
+  14%{ opacity:1; animation-timing-function:cubic-bezier(.55,.06,.68,.19); }
+  58%{
+    transform:translateY(0) scale(1.03);
+    filter:drop-shadow(0 5px 6px rgba(0,0,0,0.5)) brightness(1.18);
+    animation-timing-function:ease-out;
+  }
+  70%{
+    transform:translateY(0) scale(1.05,0.94);
+    filter:drop-shadow(0 2px 4px rgba(0,0,0,0.45)) brightness(1.06);
+    animation-timing-function:ease-out;
+  }
+  100%{ transform:translateY(0) scale(1); opacity:1; filter:none; }
+}
+.card-land, .card-land-secco{
   animation:cardLand 0.52s linear; /* le easing vere sono per-keyframe, vedi sopra */
   transform-box:fill-box;
   /* origine in basso: la schiacciata deve avvenire CONTRO il tassello, non
      attorno al centro della carta, altrimenti sembra che si comprima a mezz'aria. */
   transform-origin:center bottom;
 }
+.card-land-secco{ animation-name:cardLandSecco; }
 
 /* ── v0.73.52 — IL SALTO DEL CHESHIRE CAT ─────────────────────────────────
    La carta lascia il tabellone uscendo dal bordo alto dello schermo, e da li'
@@ -8357,7 +8388,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.7</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.8</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -26873,6 +26904,14 @@ function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLa
   if(_cardLand && _cardLand.k===k){
     const elapsed = performance.now() - _cardLand.t0;
     landDelayMs = Math.max(0, Math.round(CARD_LAND_MS - elapsed));
+    // v0.77.8 — se da qui parte un colpo, l'atterraggio rinuncia al proprio
+    // contraccolpo: due risalite di fila si leggono come un rimbalzo doppio
+    // (vedi cardLandSecco nel CSS). Si decide qui perche' e' l'unico punto in
+    // cui si sa gia' se questa carta conquistera' qualcosa, e la caduta e'
+    // appena cominciata: c'e' tutto il tempo di cambiarle animazione.
+    _cardLand.secco = conquered.length > 0;
+    const giaLi = document.querySelector('[data-conquered="'+k+'"]');
+    if(giaLi) cardLandApplyTo(giaLi);
   }
   if(conquered.length){
     const LUNGE_DUR=420;       // must match .card-lunge's CSS animation-duration
@@ -26926,7 +26965,7 @@ function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLa
         // poi rimbalzava di nuovo. Qui la caduta si toglie di mezzo prima di
         // colpire, perche' a questo punto e' comunque finita: il colpo parte
         // apposta dopo (vedi landDelayMs).
-        placedEl.classList.remove('card-land','card-hop-a','card-hop-b');
+        placedEl.classList.remove('card-land','card-land-secco','card-hop-a','card-hop-b');
         placedEl.style.animationDelay='';
         riavviaAnimazione(placedEl, ['card-lunge-a','card-lunge-b'], idx%2!==0);
       },stepStart);
@@ -30235,11 +30274,27 @@ function apriBollaPunti(player){
   // legge dall'elemento della cifra: e' quello il punto in cui il punteggio
   // "sta", e cosi' i due non possono piu' scostarsi anche se domani l'arte
   // o la percentuale cambiano.
+  // v0.77.8 — e il centro della cifra si MISURA, non si ricostruisce.
+  // Il tentativo di prima sommava mezza altezza a `cifra.offsetTop`, ma quel
+  // valore E' GIA' il centro: la cifra e' posata con translate(-50%,-50%),
+  // che sposta cio' che si vede senza toccare offsetTop. Sommandoci mezza
+  // altezza la bolla finiva una trentina di pixel sotto — tanto quanto era
+  // finita sopra mirando a meta' scatola.
+  // Invece di rincorrere quale correzione serva, si chiede al browser dove
+  // stanno davvero le due cose. I rettangoli sono in pixel VERI (dopo la
+  // scala del telaio), quindi non si usano come misura ma come RAPPORTO: a
+  // che frazione dell'altezza del punteggio sta il centro della cifra. Quel
+  // rapporto e' lo stesso in pixel disegnati e in pixel autori, e si riporta
+  // nello spazio del telaio moltiplicandolo per l'altezza autorata.
   const cifra = pannello.querySelector('.player-hp-value');
-  const centroPunteggio = orb
-    ? (cifra ? (orb.offsetTop + cifra.offsetTop + cifra.offsetHeight/2)
-             : (orb.offsetTop + orb.offsetHeight*0.58))
-    : null;
+  let frazione = 0.58;   // ripiego: la stessa percentuale che la cifra usa nel CSS
+  if(orb && cifra){
+    try{
+      const rO = orb.getBoundingClientRect(), rC = cifra.getBoundingClientRect();
+      if(rO.height > 0) frazione = ((rC.top + rC.height/2) - rO.top) / rO.height;
+    }catch(_){}
+  }
+  const centroPunteggio = orb ? (orb.offsetTop + orb.offsetHeight*frazione) : null;
   const salto = centroPunteggio!==null ? (centroPunteggio - (sotto + lato/2)) : -110;
   el.style.setProperty('--bolla-salto', salto.toFixed(1)+'px');
   const art = document.createElement('img');
@@ -36179,10 +36234,13 @@ function cardLandApplyTo(el){
   // Se e' gia' l'ultimo non si tocca niente: un appendChild inutile e' pur
   // sempre uno stacca-e-riattacca, con tutto quello che si porta dietro.
   if(genitore && genitore.lastElementChild !== cellGroup) genitore.appendChild(cellGroup);
-  el.classList.remove('card-land');
+  // v0.77.8 — quale dei due atterraggi: quello secco se questa carta sta per
+  // attaccare (lo decide resolveConquestAndEndTurn, che e' l'unico a saperlo).
+  const classe = _cardLand.secco ? 'card-land-secco' : 'card-land';
+  el.classList.remove('card-land','card-land-secco');
   void el.getBoundingClientRect(); // forza il reflow prima di riavviare
   el.style.animationDelay = (-elapsed).toFixed(0)+'ms';
-  el.classList.add('card-land');
+  el.classList.add(classe);
 }
 // Riaggancia l'animazione dopo una ricostruzione del tabellone.
 function cardLandReattach(){
