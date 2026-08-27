@@ -423,11 +423,24 @@ ignorato cross-origin, quindi si scarica il blob in base64 e si passa da
 
 ## L'account (dalla v0.77.24)
 
-Il server e' un **Nakama** (Heroic Labs) su una macchina nostra:
-`45.59.124.211`, porta **7350** per il gioco. Gira in Docker insieme a un
-Postgres; la configurazione sta sul server in `/opt/nakama/`. La console di
-amministrazione (porta 7351) e Postgres (5432) **non sono esposti a internet**:
-ci si arriva con un tunnel SSH, `ssh -L 7351:127.0.0.1:7351 root@45.59.124.211`.
+Il server e' un **Nakama** (Heroic Labs) su una macchina nostra
+(`45.59.124.211`), raggiungibile solo come **`https://api.hextalegame.com`**.
+Gira in Docker insieme a un Postgres e a un Caddy; la configurazione sta sul
+server in `/opt/nakama/`.
+
+**Verso internet sono aperte solo la 22, la 80 e la 443.** Dalla v0.77.32 anche
+la 7350 e' legata a `127.0.0.1`, come gia' erano la 7349 (gRPC), la 7351
+(console) e la 5432 (Postgres): niente parla piu' in chiaro con l'esterno, e
+l'unica strada per il gioco e' il TLS di Caddy. Nakama resta raggiungibile da
+Caddy perche' i due si parlano sulla rete interna di Docker, che non passa
+dalle porte pubblicate — e resta raggiungibile da dentro alla macchina per una
+diagnosi (`curl http://127.0.0.1:7350/healthcheck`).
+Per la console di amministrazione serve un tunnel:
+`ssh -L 7351:127.0.0.1:7351 root@45.59.124.211`, poi `http://localhost:7351`.
+
+Ogni modifica al `docker-compose.yml` lascia una copia accanto
+(`.prima-di-caddy`, `.prima-di-chiudere-7350`): se qualcosa va storto si torna
+indietro copiando il file e rifacendo `docker compose up -d`.
 
 Nel gioco non c'e' nessuna libreria: `@heroiclabs/nakama-js` e' un pacchetto
 npm e questo e' un file solo senza build. Le chiamate che servono sono quattro
