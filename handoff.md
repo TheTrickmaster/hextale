@@ -651,6 +651,52 @@ modulo, con un aggancio `registerBeforeAuthenticateGoogle`.
 
 ---
 
+## I mazzi (dalla v0.77.37)
+
+**Dodici caselle, tutte del giocatore.** Fino alla v0.77.36 la quarta era del
+Giocatore 2 e le altre undici del Giocatore 1. Quella funzione e' stata tolta,
+e la **conseguenza va sapuita**: in PvP il secondo giocatore scende sempre in
+campo con un mazzo GENERATO, scelto fra trecento tentativi come il piu' vicino
+di forza al tuo. Era gia' cosi' per chi non si era composto un mazzo per il P2;
+adesso e' l'unico caso.
+
+**I mazzi stanno nel database**, non piu' solo nella cache del browser: si
+perdevano svuotando i dati del sito e non seguivano il giocatore su un altro
+computer. La copia locale pero' RESTA, e non e' una ridondanza — e' quello che
+permette di comporre mazzi anche scollegati e di averli pronti allo splash,
+prima che ci sia una sessione. Il server e' la verita', la copia locale e' la
+memoria di lavoro.
+
+**Chi vince quando le due copie non coincidono:** la piu' recente. Ognuna porta
+il momento in cui e' stata toccata. Non e' una fusione — comporre mazzi su due
+computer diversi senza collegarsi fa perdere uno dei due lavori — ma fondere
+due liste senza sapere cosa il giocatore volesse tenere sarebbe peggio: si
+inventerebbe una risposta invece di prenderne una.
+
+**Si scrive passando da una RPC, non dallo storage.** Un mazzo si puo'
+CONTROLLARE, e i controlli che stanno nel client non contano: chi apre gli
+strumenti del browser scriverebbe dodici mazzi di carte che non possiede.
+`hx_mazzi_scrivi` verifica che ogni carta sia davvero sua, che i mazzi non siano
+piu' di dodici, che le carte non siano piu' di dodici e che il costo stia nel
+tetto di ventiquattro punti. Le carte non possedute non fanno fallire la
+scrittura: **si tolgono**, perche' possono capitare in buona fede (una carta
+tolta dal foglio, un mazzo importato da un codice).
+
+**Cosa NON si controlla, di proposito:** che un mazzo sia completo. Uno appena
+creato e' vuoto e il gioco lo salva com'e'. "Dodici carte" e' la regola per
+SCENDERE IN CAMPO, non per esistere.
+
+**Ordine dei passaggi, e non e' scambiabile:** i mazzi si sincronizzano DOPO che
+il roster e' arrivato. Potarli vuole le carte gia' lette, altrimenti butterebbe
+ogni carta di ogni mazzo.
+
+**Le regole del mazzo sono scritte in due posti** — `MAZZI_SLOT`, `MAZZO_CARTE`,
+`MAZZO_PUNTI` e `COSTO_RARITA` nel gioco, e le stesse costanti nel modulo del
+server. E' voluto: il server non puo' fidarsi di quelle del client. Se cambiano
+di la', vanno cambiate anche qua.
+
+---
+
 ## Finestre e pulsanti: lo standard (dalla v0.77.34)
 
 **La regola precedente e' superata e va dimenticata.** Fino alla v0.77.33 il

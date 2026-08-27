@@ -28,6 +28,16 @@ var COLL_SISTEMA = 'sistema';
 var KEY_CATALOGO = 'catalogo';
 var COLL_PROFILO = 'profilo';
 var KEY_POSSESSO = 'carte';
+var KEY_MAZZI = 'mazzi';
+
+// Le regole di un mazzo, ripetute qui perche' il server non puo' fidarsi di
+// quelle scritte nel client: chi apre gli strumenti del browser puo' cambiarle.
+// Devono restare uguali a MAZZI_SLOT, MAZZO_CARTE, MAZZO_PUNTI e COSTO_RARITA
+// nel gioco: se un giorno cambiano li', vanno cambiate anche qui.
+var MAZZI_MAX = 12;      // quanti mazzi puo' avere un giocatore
+var MAZZO_CARTE = 12;    // quante carte ci stanno in un mazzo
+var MAZZO_PUNTI = 24;    // il tetto di costo
+var COSTO_RARITA = { timeless: 4, mythic: 3, rare: 2, common: 1 };
 
 // I mazzi iniziali disponibili. Finche' non c'e' una schermata che li fa
 // scegliere, se ne assegna uno a caso — ed e' una decisione che si prende UNA
@@ -51,6 +61,25 @@ var NOMI_ADMIN = ['LoreAdmin', 'BoBAdmin'];
 // quell'indirizzo email. Il controllo quindi si fa qui.
 var GOOGLE_CLIENT_ID = '947017238895-crsaaks4v9lv08o16jsin68dr3a5s0qh.apps.googleusercontent.com';
 
+// Da base64url a testo. Il runtime consegna un ArrayBuffer; se un domani
+// consegnasse una stringa, questa funzione se ne accorge da sola.
+function _testoDaBase64Url(nk, pezzo) {
+  // I payload dei JWT arrivano SENZA riempimento, ma nk.base64UrlDecode lo
+  // pretende: senza, risponde "Failed to decode string" su qualunque token la
+  // cui parte di mezzo non abbia lunghezza multipla di quattro — cioe' quasi
+  // sempre. Il riempimento si rimette qui.
+  var s = String(pezzo);
+  var resto = s.length % 4;
+  if (resto === 2) s += '==';
+  else if (resto === 3) s += '=';
+  else if (resto === 1) throw Error('lunghezza base64 impossibile');
+  var d = nk.base64UrlDecode(s);
+  if (typeof d === 'string') return d;
+  var b = new Uint8Array(d), s = '';
+  for (var i = 0; i < b.length; i++) s += String.fromCharCode(b[i]);
+  return s;
+}
+
 function primaDiGoogle(ctx, logger, nk, data) {
   var token = data && data.account && data.account.token;
   if (!token) throw Error('token Google mancante');
@@ -58,9 +87,12 @@ function primaDiGoogle(ctx, logger, nk, data) {
   if (parti.length !== 3) throw Error('token Google malformato');
   var payload;
   try {
-    var grezzo = nk.base64UrlDecode(parti[1]);
-    payload = JSON.parse(typeof grezzo === 'string' ? grezzo : String(grezzo));
-  } catch (e) { throw Error('token Google illeggibile'); }
+    // nk.base64UrlDecode restituisce un ArrayBuffer, NON una stringa: passarlo
+    // a String() dava "[object ArrayBuffer]" e JSON.parse falliva su ogni
+    // accesso con Google. Verificato sul server, non dedotto.
+    // I byte si rileggono uno per uno: qui serve solo `aud`, che e' ASCII.
+    payload = JSON.parse(_testoDaBase64Url(nk, parti[1]));
+  } catch (e) { throw Error('token Google illeggibile: ' + String(e && e.message || e)); }
   // aud puo essere una stringa o un elenco, secondo come Google lo emette.
   var aud = payload.aud;
   var ok = (aud === GOOGLE_CLIENT_ID) ||
@@ -184,18 +216,7 @@ function rpcAvvio(ctx, logger, nk, payload) {
     carte.push(c);
   }
 
-  // Cosa possiede: un admin ha tutto, sempre, al livello massimo.
-  var possedute = {};
-  for (var j = 0; j < carte.length; j++) {
-    var carta = carte[j];
-    if (admin) { possedute[carta.slug] = LIVELLO_ADMIN; continue; }
-    var dentro = false;
-    var sd = carta.starterDecks || [];
-    for (var k = 0; k < sd.length; k++) {
-      if (possesso.mazzi.indexOf(sd[k]) !== -1) { dentro = true; break; }
-    }
-    if (dentro) possedute[carta.slug] = possesso.livello || LIVELLO_NORMALE;
-  }
+  var possedute = _possedute(carte, possesso, admin);
 
   // Il catalogo pesa una settantina di chilobyte: se il client ce l'ha gia' e
   // non e' cambiato, non si rimanda.
@@ -249,10 +270,127 @@ function dopoAccesso(ctx, logger, nk, data, request) {
   catch (e) { logger.error('assegnazione mazzo fallita: %s', String(e)); }
 }
 
+// Cosa possiede un giocatore, dato il catalogo e il suo profilo. Un admin ha
+// tutto al livello massimo; gli altri le carte dei mazzi starter che hanno.
+function _possedute(carte, possesso, admin) {
+  var out = {};
+  for (var j = 0; j < carte.length; j++) {
+    var carta = carte[j];
+    if (admin) { out[carta.slug] = LIVELLO_ADMIN; continue; }
+    var dentro = false;
+    var sd = carta.starterDecks || [];
+    for (var k = 0; k < sd.length; k++) {
+      if (possesso.mazzi.indexOf(sd[k]) !== -1) { dentro = true; break; }
+    }
+    if (dentro) out[carta.slug] = possesso.livello || LIVELLO_NORMALE;
+  }
+  return out;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// I MAZZI (dalla v0.77.37)
+// ══════════════════════════════════════════════════════════════════════════
+// Erano nella cache del browser. Ci stavano male per due motivi: si perdevano
+// svuotando i dati del sito, e non seguivano il giocatore su un altro computer.
+//
+// PERCHE' PASSANO DA UNA RPC e non dallo storage scritto dal client. Perche' un
+// mazzo si puo' CONTROLLARE, e i controlli che stanno nel client non contano:
+// chi apre gli strumenti del browser scriverebbe dodici mazzi di carte che non
+// possiede. Qui invece si verifica che ogni carta sia sua, che i mazzi non
+// siano piu' di dodici, che le carte non siano piu' di dodici e che il costo
+// stia nel tetto. Oggi le partite sono locali e barare danneggia solo chi bara,
+// ma il PvP in rete arrivera', e quel giorno queste regole devono gia' essere
+// dalla parte giusta.
+//
+// COSA NON SI CONTROLLA, di proposito: che un mazzo sia COMPLETO. Un mazzo
+// appena creato e' vuoto, e il gioco lo salva com'e'. La regola "dodici carte"
+// vale per SCENDERE IN CAMPO, non per esistere.
+function _mazziPuliti(ctx, nk, dati) {
+  var catalogo = leggiSistema(nk, KEY_CATALOGO);
+  if (!catalogo || !catalogo.carte) throw Error('catalogo non ancora importato');
+  var possesso = assicuraPossesso(ctx, nk, { info: function () {} }, ctx.userId, ctx.username);
+  var admin = !!possesso.admin;
+
+  // Le carte del catalogo che il giocatore puo' mettere in un mazzo, per id.
+  // Nel mazzo le carte stanno per ID ("final-robin-hood"), non per slug.
+  var possedute = _possedute(catalogo.carte, possesso, admin);
+  var perId = {};
+  for (var i = 0; i < catalogo.carte.length; i++) {
+    var c = catalogo.carte[i];
+    if (c.soloAdmin && !admin) continue;
+    if (possedute[c.slug]) perId[String(c.id)] = c;
+  }
+
+  var dentro = (dati && dati.mazzi) || [];
+  if (dentro.length > MAZZI_MAX) throw Error('non si possono avere piu\' di ' + MAZZI_MAX + ' mazzi');
+
+  var fuori = [];
+  var visti = {};
+  for (var m = 0; m < dentro.length; m++) {
+    var mazzo = dentro[m] || {};
+    var id = String(mazzo.id || '');
+    if (!id) throw Error('un mazzo senza id');
+    if (visti[id]) throw Error('due mazzi con lo stesso id: ' + id);
+    visti[id] = true;
+    var nome = String(mazzo.nome || 'Untitled deck').slice(0, 40);
+    var carte = [];
+    var punti = 0;
+    var elenco = mazzo.carte || [];
+    if (elenco.length > MAZZO_CARTE) throw Error('"' + nome + '" ha piu\' di ' + MAZZO_CARTE + ' carte');
+    for (var k2 = 0; k2 < elenco.length; k2++) {
+      var idCarta = String(elenco[k2]);
+      var carta = perId[idCarta];
+      // Una carta non posseduta non entra: non e' un errore da fermare tutto,
+      // e' una carta che si toglie. Puo' capitare in buona fede — una carta
+      // tolta dal foglio, o un mazzo importato da un codice.
+      if (!carta) continue;
+      carte.push(idCarta);
+      punti += (COSTO_RARITA[String(carta.rarity || '').toLowerCase()] || 1);
+    }
+    if (punti > MAZZO_PUNTI) throw Error('"' + nome + '" supera il tetto di ' + MAZZO_PUNTI + ' punti');
+    fuori.push({ id: id, nome: nome, carte: carte });
+  }
+
+  var scelto = dati && dati.scelto ? String(dati.scelto) : null;
+  if (scelto && !visti[scelto]) scelto = null;
+  if (!scelto && fuori.length) scelto = fuori[0].id;
+
+  return {
+    mazzi: fuori,
+    scelto: scelto,
+    // Serve al client per sapere quale copia e' piu' recente fra la sua e
+    // questa, quando si e' giocato scollegati.
+    modificatoIl: Math.floor(Date.now() / 1000)
+  };
+}
+
+function rpcMazziLeggi(ctx, logger, nk, payload) {
+  if (!ctx.userId) throw Error('serve un accesso');
+  var r = nk.storageRead([{ collection: COLL_PROFILO, key: KEY_MAZZI, userId: ctx.userId }]);
+  var v = (r && r.length && r[0].value) ? r[0].value : { mazzi: [], scelto: null, modificatoIl: 0 };
+  return JSON.stringify(v);
+}
+
+function rpcMazziScrivi(ctx, logger, nk, payload) {
+  if (!ctx.userId) throw Error('serve un accesso');
+  var dati;
+  try { dati = JSON.parse(payload || '{}'); } catch (e) { throw Error('mazzi illeggibili'); }
+  var puliti = _mazziPuliti(ctx, nk, dati);
+  nk.storageWrite([{
+    collection: COLL_PROFILO, key: KEY_MAZZI, userId: ctx.userId,
+    value: puliti,
+    // Il giocatore li LEGGE ma non li SCRIVE: si passa da qui, che controlla.
+    permissionRead: 1, permissionWrite: 0
+  }]);
+  return JSON.stringify(puliti);
+}
+
 function InitModule(ctx, logger, nk, initializer) {
   initializer.registerRpc('hx_avvio', rpcAvvio);
   initializer.registerRpc('hx_importa', rpcImporta);
   initializer.registerRpc('hx_sistema_utenti', rpcSistemaUtenti);
+  initializer.registerRpc('hx_mazzi_leggi', rpcMazziLeggi);
+  initializer.registerRpc('hx_mazzi_scrivi', rpcMazziScrivi);
   // Tutte le strade d'ingresso, non solo quella con l'email: chi entra con
   // Google deve ricevere il mazzo esattamente come gli altri.
   initializer.registerAfterAuthenticateEmail(dopoAccesso);

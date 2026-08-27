@@ -8972,7 +8972,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.36</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.37</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -11723,6 +11723,9 @@ async function aggiornaCarteDopoAccesso(){
     // lungo, e rifarlo a ogni accesso allungherebbe l'attesa per niente.
     if(esito.cambiato && typeof verificaArtCarte === 'function') await verificaArtCarte();
     if(typeof caricaMazzi === 'function') caricaMazzi();
+    // v0.77.37 — i mazzi si confrontano col database SOLO ADESSO: potarli vuole
+    // il roster gia' letto, altrimenti butterebbe ogni carta di ogni mazzo.
+    if(typeof sincronizzaMazzi === 'function') await sincronizzaMazzi();
     if(typeof cardDbRenderRoster === 'function' && document.getElementById('card-db-overlay')) cardDbRenderRoster();
   }catch(_){}
 }
@@ -12934,7 +12937,14 @@ function impostaVariabileDaCandidati(el, nomeVar, candidati){
 // questa pagina — poi gli altri mazzi, poi il pulsante per crearne uno, e in
 // fondo le caselle ancora libere. Il "crea" sta fra i mazzi e il vuoto perche'
 // e' li' che finisce il prossimo.
-const MAZZI_SLOT = 12;   // caselle in tutto: undici del Giocatore 1 piu' quella del 2
+// v0.77.37 — DODICI CASELLE UGUALI, tutte del giocatore. Fino alla v0.77.36
+// la quarta era del Giocatore 2 e le altre undici del Giocatore 1: quella
+// funzione e' stata tolta.
+// CONSEGUENZA, e non e' una dimenticanza: in PvP il secondo giocatore scende
+// sempre in campo con un mazzo GENERATO e bilanciato sul primo. Era gia' il
+// comportamento di chi non si era composto un mazzo per il P2 (vedi
+// makeBalancedDecks), adesso e' l'unico.
+const MAZZI_SLOT = 12;   // caselle in tutto, tutte del giocatore
 // Un mazzo e' { id, nome, carte:[idCarta...] }. Le carte si tengono per ID e
 // non per oggetto: gli oggetti carta nascono dal foglio a ogni avvio e non
 // sopravvivono a un riavvio, mentre l'id e' quello che il foglio garantisce.
@@ -12943,20 +12953,8 @@ const MAZZI_SLOT = 12;   // caselle in tutto: undici del Giocatore 1 piu' quella
 // ogni elemento vuol dire poter finire con due caselle spuntate.
 let MAZZI = [];
 let MAZZO_SCELTO = null;   // l'id del mazzo con cui si scende in campo
-// ── v0.75.93 — LA CASELLA DEL GIOCATORE 2 ─────────────────────────────────
-// La quarta casella non e' un mazzo come gli altri: e' del Giocatore 2, e sta
-// sempre li'. Non entra nell'ordinamento e non ha la spunta — non c'e' niente
-// da scegliere, e' gia' il suo. Per questo vive in una variabile sua e non
-// dentro a MAZZI: cosi' "gli altri sono i mazzi del Giocatore 1" e' vero per
-// costruzione, invece di essere una regola da ricordarsi a ogni ciclo.
-// Vale solo in PvP. Contro l'IA l'avversario ha sempre un mazzo generato: e'
-// una scelta di gioco, non una dimenticanza (vedi makeBalancedDecks).
-let MAZZO_P2 = null;
 const MAZZI_CHIAVE = 'hextale.mazzi';
-const MAZZO_P2_POSTO = 3;          // la quarta casella, contando da zero
-const MAZZI_SLOT_P1 = 11;          // le altre undici
 function mazzoPerId(id){
-  if(MAZZO_P2 && MAZZO_P2.id === id) return MAZZO_P2;
   return MAZZI.find(m=>m.id===id) || null;
 }
 function mazzoSelezionato(){ return MAZZI.find(m=>m.id===MAZZO_SCELTO) || null; }
@@ -13090,37 +13088,128 @@ function mazzoDaCodice(codice){
 // ── SALVATAGGIO ───────────────────────────────────────────────────────────
 // Nel browser, accanto a valute e impostazioni. Un mazzo che si perde a ogni
 // ricarica non e' un mazzo, e' un esercizio.
+// ══════════════════════════════════════════════════════════════════════════
+// v0.77.37 — I MAZZI VIVONO NEL DATABASE
+// ══════════════════════════════════════════════════════════════════════════
+// Erano solo nella cache del browser. Ci stavano male per due motivi: si
+// perdevano svuotando i dati del sito, e non seguivano il giocatore su un
+// altro computer. Adesso stanno nell'account.
+//
+// LA COPIA LOCALE PERO' RESTA, e non e' una ridondanza: e' quello che permette
+// di comporre mazzi anche scollegati, e di averli gia' pronti allo splash,
+// prima che ci sia una sessione. Il server e' la verita', la copia locale e'
+// la memoria di lavoro.
+//
+// CHI VINCE quando le due copie non coincidono. Ognuna porta il momento in cui
+// e' stata toccata: vince la piu' recente. Non e' una fusione — se si compone
+// un mazzo su due computer diversi senza collegarsi, uno dei due lavori si
+// perde — ma fondere due liste di mazzi senza sapere cosa il giocatore
+// volesse tenere sarebbe peggio: si inventerebbe una risposta invece di
+// prenderne una.
+let _mazziModificatoIl = 0;
+
 function salvaMazzi(){
+  _mazziModificatoIl = Math.floor(Date.now()/1000);
   try{
-    localStorage.setItem(MAZZI_CHIAVE, JSON.stringify({ mazzi:MAZZI, scelto:MAZZO_SCELTO, p2:MAZZO_P2 }));
+    localStorage.setItem(MAZZI_CHIAVE, JSON.stringify({
+      mazzi: MAZZI, scelto: MAZZO_SCELTO, modificatoIl: _mazziModificatoIl
+    }));
   }catch(_){}
+  // Sul server si manda senza aspettare: comporre un mazzo non deve fermarsi
+  // perche' la rete e' lenta. Se non parte, la copia locale resta ed e' piu'
+  // recente di quella del server: al prossimo accesso vince lei.
+  mandaMazziAlServer();
+}
+
+// Una scrittura alla volta, e se ne arriva un'altra mentre la prima e' in volo
+// si rimanda a dopo: sette punti del gioco chiamano salvaMazzi(), e comporre
+// un mazzo ne fa scattare parecchi di fila.
+let _mazziInVolo = false;
+let _mazziDaRimandare = false;
+async function mandaMazziAlServer(){
+  if(!sessioneAccount || !sessioneAccount.token) return;
+  if(_mazziInVolo){ _mazziDaRimandare = true; return; }
+  _mazziInVolo = true;
+  try{
+    await nakamaRpc('hx_mazzi_scrivi', { mazzi: MAZZI, scelto: MAZZO_SCELTO });
+  }catch(e){
+    console.warn('[mazzi] non salvati sul server: ' + (e && e.message) + ' (restano in locale)');
+  }finally{
+    _mazziInVolo = false;
+    if(_mazziDaRimandare){ _mazziDaRimandare = false; mandaMazziAlServer(); }
+  }
+}
+
+// A accesso avvenuto: si confrontano le due copie e si tiene la piu' recente.
+// Se il server non ha niente e in locale c'e' qualcosa, quel qualcosa sale —
+// e' il caso di chi aveva gia' i suoi mazzi prima che esistesse il database.
+async function sincronizzaMazzi(){
+  if(!sessioneAccount || !sessioneAccount.token) return;
+  let dalServer;
+  try{ dalServer = await nakamaRpc('hx_mazzi_leggi', {}); }
+  catch(e){ console.warn('[mazzi] il database non risponde: resto con la copia locale'); return; }
+  const suoi = (dalServer && dalServer.mazzi) || [];
+  const quando = (dalServer && dalServer.modificatoIl) || 0;
+  if(!suoi.length && MAZZI.length){
+    console.info('[mazzi] il database non ne ha: mando su i ' + MAZZI.length + ' mazzi di questo computer.');
+    await mandaMazziAlServer();
+    return;
+  }
+  if(quando >= _mazziModificatoIl){
+    MAZZI = suoi.map(m => ({ id:String(m.id), nome:String(m.nome||'Untitled deck'), carte:(m.carte||[]).map(String) }));
+    MAZZO_SCELTO = (dalServer.scelto && MAZZI.some(m=>m.id===dalServer.scelto))
+      ? dalServer.scelto : (MAZZI.length ? MAZZI[0].id : null);
+    _mazziModificatoIl = quando;
+    // Le carte che non esistono piu' si buttano qui come faceva caricaMazzi:
+    // la regola non cambia solo perche' cambia la provenienza.
+    _potaMazzi();
+    try{
+      localStorage.setItem(MAZZI_CHIAVE, JSON.stringify({ mazzi:MAZZI, scelto:MAZZO_SCELTO, modificatoIl:_mazziModificatoIl }));
+    }catch(_){}
+    console.info('[mazzi] ' + MAZZI.length + ' mazzi dal database.');
+  }else{
+    console.info('[mazzi] la copia di questo computer e\' piu\' recente: la mando su.');
+    await mandaMazziAlServer();
+  }
+  try{ if(typeof renderListaMazzi === 'function' && document.getElementById('card-db-overlay')) renderListaMazzi(); }catch(_){}
+}
+
+// Toglie dai mazzi le carte che il roster non ha piu'. Era dentro caricaMazzi;
+// adesso serve anche a cio' che arriva dal server, quindi sta per conto suo.
+function _potaMazzi(){
+  const esiste = new Set((FINAL_CARDS||[]).map(e=>String(e.id)));
+  let perse = 0;
+  for(const m of MAZZI){
+    m.carte = (m.carte||[]).map(String).filter(id=>{
+      if(esiste.has(id)) return true;
+      perse++; return false;
+    });
+  }
+  if(perse){
+    console.warn('[mazzi] '+perse+' carta/e non esiste piu\' ed e\' stata tolta dai mazzi.'
+      + ' I mazzi rimasti incompleti si riconoscono dal contatore, e non si possono usare finche\''
+      + ' non tornano a ' + MAZZO_CARTE + ' carte.');
+  }
 }
 // Rileggendo si BUTTANO le carte che il foglio non ha piu'. Un id sparito
 // darebbe una riga senza nome e senza rarita', che poi entrerebbe in partita
 // come un buco: meglio un mazzo di undici carte, che la schermata segnala da
 // sola come incompleto, che uno di dodici con dentro un fantasma.
+// Legge la COPIA LOCALE. Gira allo splash, quando una sessione non c'e' ancora
+// e il database non risponderebbe: e' cio' che permette di avere i propri mazzi
+// gia' pronti, e di comporne anche scollegati. Il confronto con la copia del
+// database avviene dopo l'accesso (vedi sincronizzaMazzi).
 function caricaMazzi(){
   let dati = null;
   try{ dati = JSON.parse(localStorage.getItem(MAZZI_CHIAVE) || 'null'); }catch(_){}
   if(!dati || !Array.isArray(dati.mazzi)) return;
-  const esiste = new Set((FINAL_CARDS||[]).map(e=>String(e.id)));
-  let perse = 0;
-  const ripulisci = (m)=>{
-    const carte = (m.carte||[]).map(String).filter(id=>{
-      if(esiste.has(id)) return true;
-      perse++; return false;
-    });
-    return { id:String(m.id), nome:String(m.nome||'Untitled deck'), carte };
-  };
-  MAZZI = dati.mazzi.map(ripulisci);
-  MAZZO_P2 = dati.p2 ? ripulisci(dati.p2) : null;
+  MAZZI = dati.mazzi.map(m => ({
+    id:String(m.id), nome:String(m.nome||'Untitled deck'), carte:(m.carte||[]).map(String)
+  }));
   MAZZO_SCELTO = dati.scelto && MAZZI.some(m=>m.id===dati.scelto) ? dati.scelto
                : (MAZZI.length ? MAZZI[0].id : null);
-  if(perse){
-    console.warn('[mazzi] '+perse+' carta/e salvata/e non esiste piu\' nel foglio ed e\' stata tolta dai mazzi.'
-      + ' I mazzi rimasti incompleti si riconoscono dal contatore, e non si possono salvare finche\' non tornano a '
-      + MAZZO_CARTE + ' carte.');
-  }
+  _mazziModificatoIl = dati.modificatoIl || 0;
+  _potaMazzi();
 }
 // ── CONTI ─────────────────────────────────────────────────────────────────
 function entryDaId(id){ return (FINAL_CARDS||[]).find(e=>String(e.id)===String(id)) || null; }
@@ -13187,17 +13276,14 @@ function renderListaMazzi(){
   const lista = document.getElementById('deck-list');
   if(!lista) return;
   lista.innerHTML = '';
-  // Prima si compongono le undici caselle del Giocatore 1, poi si INFILA
-  // quella del Giocatore 2 al suo posto fisso. Costruirle tutte e dodici
-  // insieme vorrebbe dire, a ogni riga, chiedersi "sono la quarta?" — e la
-  // risposta cambierebbe da sola il giorno in cui la posizione cambia.
+  // v0.77.37 — dodici caselle tutte uguali: non c'e' piu' niente da infilare
+  // in una posizione fissa.
   const caselle = [];
-  const mazzi = mazziOrdinati().slice(0, MAZZI_SLOT_P1);
+  const mazzi = mazziOrdinati().slice(0, MAZZI_SLOT);
   for(const m of mazzi) caselle.push(_slotMazzoPieno(m));
   // Il pulsante "crea" esiste solo se c'e' ancora posto.
-  if(caselle.length < MAZZI_SLOT_P1) caselle.push(_slotMazzoAggiungi());
-  while(caselle.length < MAZZI_SLOT_P1) caselle.push(_slotMazzoVuoto());
-  caselle.splice(MAZZO_P2_POSTO, 0, _slotGiocatore2());
+  if(caselle.length < MAZZI_SLOT) caselle.push(_slotMazzoAggiungi());
+  while(caselle.length < MAZZI_SLOT) caselle.push(_slotMazzoVuoto());
   for(const c of caselle) lista.appendChild(c);
   // v0.76.1 — in fondo, sotto a tutte le caselle, il campo per importare un
   // mazzo da un codice. Sta QUI e non in una finestra a parte perche' e' la
@@ -13264,41 +13350,6 @@ function _slotMazzoPieno(mazzo){
 // La casella del Giocatore 2. Piena o vuota che sia, e' sempre riconoscibile:
 // porta il suo cartellino al posto della spunta, perche' li' non c'e' niente
 // da scegliere.
-function _slotGiocatore2(){
-  if(MAZZO_P2){
-    const el = _slotMazzoPieno(MAZZO_P2);
-    const check = el.querySelector('.deck-slot-check');
-    if(check){
-      const targa = document.createElement('span');
-      targa.className = 'deck-slot-targa';
-      targa.textContent = 'P2';
-      check.replaceWith(targa);
-    }
-    return el;
-  }
-  // Vuota: il Giocatore 2 scendera' in campo con un mazzo generato. Lo si dice,
-  // invece di lasciare una casella muta identica alle altre — e cliccandola si
-  // comincia a comporgliene uno.
-  const el = document.createElement('button');
-  el.type = 'button';
-  el.className = 'deck-slot deck-slot-vuota deck-slot-p2-vuota';
-  el.setAttribute('aria-label', 'Player 2 deck');
-  impostaSfondoDaCandidati(el, uiFileCandidati('deck-empty.png'));
-  const targa = document.createElement('span');
-  targa.className = 'deck-slot-targa'; targa.textContent = 'P2';
-  const testo = document.createElement('span');
-  testo.className = 'deck-slot-p2-testo'; testo.textContent = 'Random deck';
-  el.append(targa, testo);
-  el.onclick = ()=>{ if(!_mazzoInModifica) creaMazzoGiocatore2(); };
-  return el;
-}
-function creaMazzoGiocatore2(){
-  if(MAZZO_P2) return;
-  MAZZO_P2 = { id:'p2-'+Date.now().toString(36), nome:'Player 2', carte:[] };
-  salvaMazzi();
-  renderListaMazzi();
-  apriModificaMazzo(MAZZO_P2.id);
-}
 function _rigaSeparatrice(){
   const r = document.createElement('div');
   r.className = 'filters-riga deck-lista-riga';
@@ -13342,7 +13393,7 @@ function importaMazzoDalCampo(){
   if(!campo) return;
   const esito = mazzoDaCodice(campo.value);
   if(esito.errore){ console.warn('[codice mazzo] ' + esito.errore); return; }
-  if(MAZZI.length >= MAZZI_SLOT_P1){
+  if(MAZZI.length >= MAZZI_SLOT){
     console.warn('[codice mazzo] le dodici caselle sono piene: elimina un mazzo prima di importarne un altro.');
     return;
   }
@@ -13421,7 +13472,7 @@ function selezionaMazzo(id){
   renderListaMazzi();
 }
 function creaMazzo(){
-  if(MAZZI.length >= MAZZI_SLOT_P1) return;
+  if(MAZZI.length >= MAZZI_SLOT) return;
   const m = { id:'m'+Date.now().toString(36)+Math.floor(Math.random()*1e4).toString(36),
               nome:'New deck', carte:[] };
   MAZZI.push(m);
@@ -13875,9 +13926,6 @@ function vestiPulsante(btn){
 }
 function eliminaMazzoInModifica(){
   const id = _mazzoInModificaId;
-  // v0.75.93 — svuotare la casella del Giocatore 2 non la fa sparire: torna a
-  // dire "mazzo generato", che e' il suo stato di riposo e non un vuoto.
-  if(MAZZO_P2 && MAZZO_P2.id === id){ MAZZO_P2 = null; salvaMazzi(); chiudiModificaMazzo(true); return; }
   MAZZI = MAZZI.filter(m=>m.id!==id);
   if(MAZZO_SCELTO === id) MAZZO_SCELTO = MAZZI.length ? MAZZI[0].id : null;
   salvaMazzi();
@@ -22241,25 +22289,19 @@ function carteDalMazzoSalvato(mazzo, owner){
   // Bianco tornerebbe in mezzo al mazzo e la sua abilita' non varrebbe niente.
   return _inCimaChiHaFretta(_mescola(carte));
 }
-// ── v0.75.93 — E IL MAZZO DEL GIOCATORE 2 ─────────────────────────────────
-// Vale SOLO in PvP, cioe' quando dall'altra parte c'e' una persona. Contro
-// l'IA l'avversario ha sempre un mazzo generato e bilanciato sul tuo: e' una
-// scelta di gioco — l'IA e' un avversario di misura, non un mazzo da battere
-// sempre uguale.
-// `controIA` arriva da chi chiama e non da G.vsAI, perche' quando questa
-// funzione gira G non esiste ancora (vedi initGame: i mazzi si fanno prima
-// della partita che li usera').
+// ── L'AVVERSARIO HA SEMPRE UN MAZZO GENERATO (dalla v0.77.37) ─────────────
+// Vale sia contro l'IA sia in PvP. Fino alla v0.77.36 il Giocatore 2 poteva
+// avere un mazzo suo, composto a mano nella quarta casella; quella funzione e'
+// stata tolta, e con lei quel ramo. Il mazzo generato viene comunque scelto
+// fra trecento tentativi come il piu' vicino di forza al tuo: e' un avversario
+// di misura, non un mazzo qualunque.
+// `controIA` resta nella firma perche' chi chiama lo passa gia', e perche'
+// distinguere i due casi tornera' utile quando ci sara' il PvP in rete.
 function makeBalancedDecks(controIA){
   const mio = mazzoSelezionato();
-  const suo = (!controIA && MAZZO_P2 && mazzoValido(MAZZO_P2)) ? MAZZO_P2 : null;
   if(mio && mazzoValido(mio)){
     const d1 = carteDalMazzoSalvato(mio, 1);
     console.info('[Hextale] mazzo del giocatore 1: "'+(mio.nome||mio.id)+'"');
-    if(suo){
-      console.info('[Hextale] mazzo del giocatore 2: "'+(suo.nome||suo.id)+'"');
-      const d2 = carteDalMazzoSalvato(suo, 2);
-      return { d1, d2, gap:deckPowerGap(d1, d2) };
-    }
     let migliore=null, scartoMigliore=Infinity;
     for(let i=0;i<300;i++){
       const b = makeDeck(2, DECK_TOTAL);
