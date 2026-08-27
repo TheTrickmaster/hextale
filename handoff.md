@@ -457,9 +457,35 @@ vuoti tutti e due — rendeva la strada irraggiungibile proprio a chi una
 sessione ce l'aveva. Se pero' nel campo c'e' un'email DIVERSA da quella della
 sessione, la password si chiede: una sessione vale per il suo proprietario.
 
-**Cosa non c'e' ancora.** "Login with google" e' rimasto una facciata, e ora lo
-dice invece di entrare come se avesse controllato qualcosa (serve un client
-OAuth). "Forgot password?" non e' collegato. Non c'e' un "esci" nel menu:
+**Tutto cio' che si vede e' in inglese (dalla v0.77.29).** Messaggi
+dell'accesso, avviso di aggiornamento, `aria-label` e note di aggiornamento.
+Resta in italiano il **menu debug**, che e' uno strumento di lavoro e non UI
+del giocatore. I COMMENTI del codice restano in italiano: non sono a schermo.
+
+**L'accesso con Google (dalla v0.77.30) vive solo sulla versione web.** Google
+non permette `file://`: fra le "origini JavaScript autorizzate" si registra un
+dominio, e una pagina aperta col doppio clic si presenta con origine `null`,
+che non si puo' registrare. Vale anche per il guscio desktop, che carica con
+`loadFile` ed e' percio' anche lui `file://`. Dove non puo' funzionare il
+pulsante NON sparisce: resta e dice dov'e' che funziona, perche' un pulsante
+che si volatilizza sembra un guasto. Il disegno del pulsante lo fa Google
+(`renderButton`) e non si puo' rifare a mano: le sue linee guida vogliono il
+suo pulsante, e la libreria consegna la credenziale solo da li' o dal One Tap.
+Serve `GOOGLE_CLIENT_ID` nell'HTML e `--social.google.client_id` sul server:
+**senza il secondo Nakama verifica la firma del token ma non per chi e' stato
+emesso**, e accetterebbe un token valido di un'altra applicazione qualsiasi.
+
+**TRAPPOLA GROSSA — https non puo' chiamare http.** La versione su GitHub
+Pages e' servita in `https`, il server Nakama risponde in `http` sulla 7350: il
+browser blocca la chiamata come *mixed content* e non parte nemmeno. Verificato
+sul sito pubblicato, non dedotto: `Mixed Content: ... has been blocked`.
+Conseguenza pratica: **dalla versione web nessun accesso funziona** — ne'
+Google ne' email — finche' Nakama non sta dietro a un dominio con TLS. Da
+`file://` invece funziona tutto, perche' li' la regola del mixed content non si
+applica. E' il motivo per cui il TLS non e' piu' una rifinitura: e' il
+prerequisito della versione web.
+
+**Cosa non c'e' ancora.** "Forgot password?" non e' collegato. Non c'e' un "esci" nel menu:
 `accessoEsci()` esiste ma non ha un pulsante. E nessun dato di gioco —
 collezione, mazzi, valute — passa ancora dal server: restano tutti in
 `localStorage`. `giocatoreOnline` dice se si e' entrati con un account, ed e'

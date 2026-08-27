@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Hextale</title>
+</head>
+<body>
+    <script>
+        const owner = "TheTrickmaster";
+        const repo = "hextale";
+
+        async function redirectToLatestVersion() {
+            try {
+                const response = await fetch(
+                    `https://api.github.com/repos/${owner}/${repo}/contents/`
+                );
+
+                const files = await response.json();
+
+                // Trova tutti i file Hextale_x.x.x.html
+                const versions = files
+                    .filter(file => file.type === "file")
+                    .map(file => {
+                        const match = file.name.match(
+                            /^Hextale_(\d+)\.(\d+)\.(\d+)\.html$/i
+                        );
+
+                        if (!match) return null;
+
+                        return {
+                            name: file.name,
+                            version: [
+                                Number(match[1]),
+                                Number(match[2]),
+                                Number(match[3])
+                            ]
+                        };
+                    })
+                    .filter(Boolean);
+
+                if (versions.length === 0) {
+                    document.body.innerHTML = "No game version found.";
+                    return;
+                }
+
+                // Ordina dalla versione più recente alla più vecchia
+                versions.sort((a, b) => {
+                    for (let i = 0; i < 3; i++) {
+                        if (a.version[i] !== b.version[i]) {
+                            return b.version[i] - a.version[i];
+                        }
+                    }
+                    return 0;
+                });
+
+                // Redirect alla versione più recente
+                window.location.replace(versions[0].name);
+
+            } catch (error) {
+                console.error(error);
+                document.body.innerHTML = "Unable to load Hextale.";
+            }
+        }
+
+        redirectToLatestVersion();
+    </script>
+</body>
+</html>
