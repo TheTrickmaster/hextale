@@ -8972,7 +8972,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.35</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.36</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -10164,8 +10164,13 @@ if(document.readyState==='loading'){
     // discoverAssetUrls per lo stesso motivo per cui ci va il foglio, cioe'
     // che gli URL dell'arte non esistono finche' questo passaggio non li ha
     // decisi. Entrambi risolvono sempre, quindi la partita parte comunque.
-    const carteProntePer = (typeof caricaCarteDalFoglio === 'function')
-      ? caricaCarteDalFoglio() : Promise.resolve(false);
+    // v0.77.36 — qui NON si chiama piu' il foglio Google. Le carte vengono dal
+    // database, ma il database vuole un accesso che a questo punto non c'e'
+    // ancora: si parte dalla copia locale dell'ultima volta, cosi' gli
+    // indirizzi dell'arte si possono scoprire come prima, e appena fatto
+    // l'accesso si chiede al server (vedi aggiornaCarteDopoAccesso).
+    const carteProntePer = Promise.resolve(
+      (typeof caricaCatalogoDaCache === 'function') ? caricaCatalogoDaCache() : false);
     carteProntePer
       // v0.75.84 — i mazzi salvati si rileggono QUI, non prima: dentro c'e'
       // solo un elenco di id, e per sapere quali di quegli id esistono ancora
@@ -11590,12 +11595,156 @@ function accessoEntra(sessione){
   // aspetta la risposta del server per aprire il menu: chi gioca non deve
   // stare fermo davanti a una schermata perche' una lettura e' lenta.
   if(sessione){ try{ chiediUsernameSeServe(); }catch(_){} }
+  // v0.77.36 — e si vanno a prendere le carte: catalogo e possesso. Anche
+  // questa non blocca l'ingresso.
+  if(sessione){ try{ aggiornaCarteDopoAccesso(); }catch(_){} }
 }
 // Il pulsante che compare solo quando il server non ha risposto.
 function accessoEntraInLocale(){
   giocatoreOnline = false;
   apriMenuPrincipale();
 }
+// ══════════════════════════════════════════════════════════════════════════
+// v0.77.36 — LE CARTE VENGONO DAL DATABASE
+// ══════════════════════════════════════════════════════════════════════════
+// Fino alla v0.77.35 il roster si leggeva dal foglio Google a ogni avvio. Da
+// qui in avanti la verita' e' il server: il foglio resta lo strumento con cui
+// si scrivono le carte, ma quello che il gioco legge e' il database, e ci
+// arriva con un'importazione (vedi il modulo hextale sul server).
+//
+// PERCHE' NON SI PUO' PIU' DECIDERE QUI. Quali carte possiede un giocatore, a
+// che livello, e se e' un amministratore sono tre risposte che non possono
+// venire da una macchina che il giocatore controlla: chi aprisse gli strumenti
+// del browser si darebbe tutte le carte al massimo. Il client chiede, il
+// server risponde.
+//
+// DUE COSE SEPARATE, e confonderle sarebbe l'errore:
+//   il CATALOGO   — tutte le carte che esistono. Serve a GIOCARE, e serve
+//                   intero: una carta non posseduta puo' comparire lo stesso
+//                   in partita, evocata o per trasformazione (Excalibur,
+//                   The Green Prince). Filtrarlo romperebbe quelle.
+//   il POSSESSO   — { slug: livello }. Serve a MOSTRARE: e' questo che la
+//                   Collezione e i mazzi guardano.
+// E' lo stesso paio di domande che il gioco distingueva gia' fra "Visible" e
+// "Drop rate": una dice se la carta esiste, l'altra se ti riguarda.
+//
+// QUANDO si legge cosa. Il catalogo serve GIA' durante il caricamento, perche'
+// gli indirizzi dell'arte si ricavano da li' — ma a quel punto non si e'
+// ancora fatto l'accesso, e il server non risponderebbe. Quindi: allo splash
+// si parte dalla COPIA IN CACHE dell'ultima volta, e appena fatto l'accesso si
+// chiede al server. Se il catalogo e' cambiato si rifa' la verifica dell'arte
+// e si ridisegna. Chi apre il gioco per la prima volta senza rete resta con la
+// tabella interna, che e' poca roba ma non e' il vuoto.
+const CHIAVE_CATALOGO = 'hextale.catalogo';
+const CHIAVE_POSSESSO = 'hextale.possesso';
+let CARTE_POSSEDUTE = {};      // slug -> livello
+let GIOCATORE_ADMIN = false;
+// "Non ne so niente" e "ne so, ed e' vuoto" sono stati diversi: senza questa
+// distinzione un giocatore scollegato vedrebbe una Collezione vuota invece
+// della Collezione di prima.
+let _possessoNoto = false;
+let _catalogoVersione = '';
+
+function nakamaRpc(nome, corpo){
+  const s = sessioneAccount;
+  if(!s || !s.token) throw erroreNakama('serve un accesso', 401);
+  // `unwrap` dice a Nakama di prendere il corpo come payload e di restituire
+  // la risposta cosi' com'e', senza incartarla in un oggetto con dentro una
+  // stringa JSON. Meno passaggi, meno posti dove sbagliare.
+  return nakamaChiedi('/v2/rpc/' + nome + '?unwrap', {
+    metodo: 'POST',
+    intestazioni: { Authorization: 'Bearer ' + s.token },
+    corpo: corpo || {}
+  });
+}
+
+function _applicaCatalogo(carte){
+  FINAL_CARDS.length = 0;
+  FINAL_CARDS.push.apply(FINAL_CARDS, carte);
+}
+function catalogoInCache(versione, carte){
+  try{ localStorage.setItem(CHIAVE_CATALOGO, JSON.stringify({ versione: versione, carte: carte })); }catch(_){}
+}
+// Torna true se ha davvero messo delle carte: chi chiama deve poter sapere se
+// il caricamento e' partito da qualcosa o dal niente.
+function caricaCatalogoDaCache(){
+  try{
+    const g = JSON.parse(localStorage.getItem(CHIAVE_CATALOGO) || 'null');
+    if(g && g.carte && g.carte.length){
+      _applicaCatalogo(g.carte);
+      _catalogoVersione = g.versione || '';
+      console.info('[carte] ' + g.carte.length + ' carte dalla copia locale (in attesa del server)');
+      return true;
+    }
+  }catch(_){}
+  try{
+    const p = JSON.parse(localStorage.getItem(CHIAVE_POSSESSO) || 'null');
+    if(p){ CARTE_POSSEDUTE = p.possedute || {}; GIOCATORE_ADMIN = !!p.admin; _possessoNoto = true; }
+  }catch(_){}
+  return false;
+}
+// Il possesso si rilegge anche quando il catalogo c'era gia': sono due chiavi
+// separate e la seconda vale pure da sola.
+function caricaPossessoDaCache(){
+  try{
+    const p = JSON.parse(localStorage.getItem(CHIAVE_POSSESSO) || 'null');
+    if(p){ CARTE_POSSEDUTE = p.possedute || {}; GIOCATORE_ADMIN = !!p.admin; _possessoNoto = true; return true; }
+  }catch(_){}
+  return false;
+}
+
+// Una chiamata sola: catalogo (se cambiato) e possesso.
+async function caricaCarteDalServer(){
+  const risposta = await nakamaRpc('hx_avvio', { versioneNota: _catalogoVersione || '' });
+  const cambiato = !risposta.invariato && risposta.carte && risposta.carte.length;
+  if(cambiato){
+    _applicaCatalogo(risposta.carte);
+    _catalogoVersione = risposta.versione || '';
+    catalogoInCache(_catalogoVersione, risposta.carte);
+    console.info('[carte] ' + risposta.carte.length + ' carte dal database (versione ' + _catalogoVersione + ')');
+  }
+  CARTE_POSSEDUTE = risposta.possedute || {};
+  GIOCATORE_ADMIN = !!risposta.admin;
+  _possessoNoto = true;
+  try{ localStorage.setItem(CHIAVE_POSSESSO, JSON.stringify({ possedute: CARTE_POSSEDUTE, admin: GIOCATORE_ADMIN })); }catch(_){}
+  _foglioLetto = true;
+  return { cambiato: !!cambiato };
+}
+
+// Si chiama a accesso avvenuto. Non blocca niente: se il server non risponde
+// si resta con quello che c'era, che e' il comportamento giusto per un gioco
+// che deve poter funzionare anche scollegato.
+async function aggiornaCarteDopoAccesso(){
+  let esito;
+  try{ esito = await caricaCarteDalServer(); }
+  catch(e){ console.warn('[carte] il database non ha risposto: resto con la copia locale (' + (e && e.message) + ')'); return; }
+  try{
+    // L'arte si riverifica solo se il catalogo e' cambiato davvero: e' un giro
+    // lungo, e rifarlo a ogni accesso allungherebbe l'attesa per niente.
+    if(esito.cambiato && typeof verificaArtCarte === 'function') await verificaArtCarte();
+    if(typeof caricaMazzi === 'function') caricaMazzi();
+    if(typeof cardDbRenderRoster === 'function' && document.getElementById('card-db-overlay')) cardDbRenderRoster();
+  }catch(_){}
+}
+
+// ── LE CARTE DEL GIOCATORE ────────────────────────────────────────────────
+// Quelle che la Collezione e i mazzi devono mostrare: cio' che possiede, al
+// livello che il server dice. Un admin ha tutto, al massimo.
+// Se il possesso NON e' noto (si gioca scollegati, oppure la chiamata non e'
+// ancora tornata) si mostra tutto il catalogo: una Collezione vuota sembra un
+// gioco rotto, mentre una Collezione completa in locale e' solo generosa.
+function carteDelGiocatore(){
+  const tutte = (typeof carteGiocabili === 'function') ? carteGiocabili() : [];
+  if(!_possessoNoto) return tutte;
+  if(GIOCATORE_ADMIN) return tutte.map(c => _cartaAlSuoLivello(c, 4));
+  return tutte.filter(c => CARTE_POSSEDUTE[c.slug])
+              .map(c => _cartaAlSuoLivello(c, CARTE_POSSEDUTE[c.slug]));
+}
+function _cartaAlSuoLivello(c, livello){
+  if(!livello || livello === c.level) return c;
+  return (typeof cartaAlLivello === 'function') ? cartaAlLivello(c, livello) : c;
+}
+
 // ── L'ACCESSO CON GOOGLE (dalla v0.77.30) ─────────────────────────────────
 // Google non permette `file://`. Fra le "origini JavaScript autorizzate" si
 // registra un dominio, e una pagina aperta col doppio clic non ne ha uno: si
@@ -15577,6 +15726,12 @@ function _sembraIlFoglioDelleCarte(righe){
   const titoli = righe[0].map(x => String(x||'').toLowerCase().replace(/\s+/g,' ').trim());
   return titoli.includes('name') && titoli.includes('nw');
 }
+// v0.77.36 — QUESTA NON E' PIU' LA SORGENTE DELLE CARTE, e non viene piu'
+// chiamata all'avvio. Il roster arriva dal database (vedi
+// caricaCarteDalServer); il foglio Google resta lo strumento con cui le carte
+// si SCRIVONO, e da li' entrano nel database con un'importazione fatta a mano.
+// Il codice resta perche' serve ancora a quell'importazione, ma se un giorno
+// l'importazione si sposta altrove, tutto questo blocco si puo' cancellare.
 function caricaCarteDalFoglio(){
   const primaStrada = _daFileLocale ? _foglioViaScript() : _foglioViaCsv();
   const secondaStrada = _daFileLocale ? _foglioViaCsv() : _foglioViaScript();
@@ -18438,9 +18593,12 @@ function openCardDbOverlay(){
   // servono davvero, e si ridisegna a lettura finita.
   // Non blocca l'apertura: la pagina si apre subito con quello che c'e', e si
   // aggiorna da sola quando il foglio arriva.
-  if(!_foglioLetto && typeof caricaCarteDalFoglio === 'function'){
-    console.info('[carte] la Collezione si apre con la tabella interna: riprovo a leggere il foglio.');
-    caricaCarteDalFoglio().then(ok=>{
+  // v0.77.36 — si riprova col DATABASE, non col foglio. Serve una sessione:
+  // senza, non c'e' niente da riprovare e si resta con la copia locale.
+  if(!_possessoNoto && sessioneAccount && sessioneAccount.token){
+    console.info('[carte] la Collezione si apre senza sapere cosa possiedi: richiedo al database.');
+    caricaCarteDalServer().then(esito=>{
+      const ok = !!esito;
       if(!ok) return;
       try{
         if(typeof verificaArtCarte === 'function') verificaArtCarte();
@@ -18667,17 +18825,20 @@ function cardDbRenderRoster(){
   // v0.73.64 — si contano le carte MOSTRATE, non tutte quelle che esistono:
   // con le evocabili escluse dalla griglia, il totale di prima avrebbe detto
   // un numero piu' alto di quello che si vede, e sembrerebbe che ne manchi una.
-  const mostrate = carteGiocabili().length;
   // v0.75.83 — due misure e due colori: la cifra di sinistra e' quella che
-  // interessa, la destra e' il totale ed e' spenta. Le due coincidono ancora,
-  // perche' il possesso delle carte non esiste: quando esistera', cambiera'
-  // solo il primo numero e la riga qui sotto sara' gia' pronta a mostrarlo.
+  // interessa, la destra e' il totale ed e' spenta. Quella riga diceva che le
+  // due sarebbero rimaste uguali "finche' il possesso non esiste".
+  // v0.77.36 — adesso esiste, e le due si separano: a sinistra le carte CHE
+  // HAI, a destra quante ne esistono da avere. Un admin le vede coincidere di
+  // nuovo, perche' le ha tutte davvero.
+  const mostrate = carteDelGiocatore().length;
+  const totali = carteGiocabili().length;
   if(countEl){
     countEl.innerHTML = '';
     const hai = document.createElement('span');
     hai.className = 'hx-count-hai'; hai.textContent = String(mostrate);
     const tot = document.createElement('span');
-    tot.className = 'hx-count-tot'; tot.textContent = '/' + mostrate;
+    tot.className = 'hx-count-tot'; tot.textContent = '/' + totali;
     countEl.append(hai, tot);
   }
   // v0.72.4 NEW: every slot just got position:absolute with no left/top/
@@ -19271,7 +19432,10 @@ function cardDbRosterOrdinato(){
   // Il filtro passa da carteGiocabili, la stessa regola che la tiene fuori da
   // mazzi e bustine: una sola definizione di "carta che si ottiene", valida in
   // tutti e tre i posti.
-  const copia = carteGiocabili();
+  // v0.77.36 — e da carteDelGiocatore, che sopra a quella regola mette il
+  // POSSESSO: la Collezione racconta cosa hai, non cosa esiste. Un admin le ha
+  // tutte, e chi gioca scollegato le vede tutte perche' il possesso non si sa.
+  const copia = carteDelGiocatore();
   if(!criterio.confronta) return copia;
   // A parita' di criterio si ordina per nome: senza, carte equivalenti
   // cambierebbero posto a ogni ridisegno e la griglia sembrerebbe instabile.

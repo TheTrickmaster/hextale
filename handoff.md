@@ -26,9 +26,11 @@ Tutto vive in `game-assets/`, che e' anche il repository GitHub
 | Bustine | `cards/packs/` |
 | Schermata iniziale | `loading-screen/` |
 
-Il database delle carte NON e' nel repository: sta su un Google Sheet
-(foglio `Cards DB`), letto a ogni avvio. La copia interna nell'HTML e' solo un
-ripiego per quando il foglio non risponde, ed e' vecchia.
+**Il database delle carte e' il SERVER (dalla v0.77.36).** Il Google Sheet
+(foglio `Cards DB`) resta lo strumento con cui le carte si SCRIVONO, ma il
+gioco non lo legge piu': legge il database, dove le carte entrano con
+un'importazione. Vedi la sezione "Le carte vengono dal database" piu' sotto.
+La copia interna nell'HTML e' l'ultimo ripiego, ed e' vecchia.
 
 **Come si consegna una versione.** Si rinomina il file col numero nuovo, si
 aggiorna il badge `#build-version-badge`, si scrive il blocco in
@@ -569,6 +571,83 @@ davvero. Due trappole per chi lo rifara': le funzioni async del gioco si
 un rigetto interno in un errore del collaudo invece che in un esito da leggere
 — e **"e' entrato nel menu" non si misura su `#start-screen.style.display`**,
 perche' quella schermata il gioco la RIMUOVE dal DOM.
+
+---
+
+## Le carte vengono dal database (dalla v0.77.36)
+
+Il roster non si legge piu' dal foglio a ogni avvio. La verita' e' il server, e
+il foglio e' diventato lo strumento con cui si SCRIVONO le carte.
+
+**Il modulo.** Sul server, `/opt/nakama/data/modules/index.js`. Il runtime
+JavaScript di Nakama carica **un solo file d'ingresso**, e di default si chiama
+`index.js`: un modulo con un altro nome viene ignorato in silenzio — nessun
+errore, semplicemente le RPC non esistono. E' costato mezz'ora.
+
+**Tre RPC.**
+- `hx_avvio` (serve un accesso) — torna il catalogo e il possesso in una
+  chiamata sola. Se il client manda la `versioneNota` e coincide, il catalogo
+  non viene rispedito: sono settanta chilobyte.
+- `hx_importa` (solo con la chiave http del runtime, MAI da un client) — e' il
+  modo in cui il foglio entra nel database.
+- `hx_sistema_utenti` (idem) — ricalcola il possesso di utenti gia' esistenti.
+
+**Catalogo e possesso sono DUE COSE, e confonderle e' l'errore.** Il catalogo
+sono tutte le carte che esistono e serve INTERO per giocare: una carta non
+posseduta puo' comparire lo stesso, evocata o per trasformazione (Excalibur,
+The Green Prince). Il possesso e' `{ slug: livello }` e serve a MOSTRARE: e'
+quello che guardano la Collezione e i mazzi. E' lo stesso paio di domande che
+il gioco distingueva gia' fra `Visible` e `Drop rate`.
+
+**Le due colonne nuove del foglio.**
+- `Starter deck` — in quali mazzi iniziali entra la carta: vuoto = nessuno,
+  `1` = il primo, `1-2` = il primo e il secondo. Oggi i tre mazzi hanno dieci
+  carte ciascuno.
+- `Admin = Yes` — carta riservata: non esce MAI verso un giocatore normale,
+  nemmeno dentro al catalogo. Quando e' Yes, `Visible` non conta piu'.
+
+**Chi e' amministratore** sta scritto in `metadata.admin` dell'account, e il
+client NON puo' scriverlo: `PUT /v2/account` accetta username, display name,
+avatar, lingua, luogo e fuso, non i metadati. I nomi in `NOMI_ADMIN` servono
+solo a SEMINARE quel contrassegno la prima volta: dopo comanda il contrassegno,
+ed e' per questo che quei nomi si possono cambiare senza perdere i privilegi.
+
+**Quando si legge cosa, e perche'.** Il catalogo serve gia' durante il
+caricamento, perche' gli indirizzi dell'arte si ricavano da li' — ma a quel
+punto l'accesso non c'e' ancora. Quindi: allo splash si parte dalla COPIA IN
+CACHE (`hextale.catalogo` in `localStorage`), e appena fatto l'accesso si chiede
+al server; se il catalogo e' cambiato si rifa' la verifica dell'arte. Chi gioca
+scollegato resta con la copia locale, e se il possesso non e' noto la Collezione
+mostra tutto invece di mostrare il vuoto — una Collezione vuota sembra un gioco
+rotto.
+
+**Come si reimporta il foglio: doppio clic su
+`server/importazione/reimporta.cmd`.** Scarica, converte col parser del gioco,
+**confronta i valori col foglio riga per riga**, controlla che non manchi
+niente, e solo allora importa. Alla prima cosa che non torna si ferma e non
+tocca il database. Dettagli in `server/LEGGIMI.md`.
+
+Quel confronto non e' prudenza esagerata: una normalizzazione sbagliata nel
+convertitore ha fatto leggere alla colonna `SE` i valori di `E` e alla colonna
+`W` quelli di `SW`, e **57 carte su 83** sono entrate nel database con numeri
+plausibili ma falsi — senza un errore e senza un avviso. Il parser CSV del
+controllo e' volutamente **indipendente** da quello del gioco: confrontare un
+risultato con se stesso non prova niente.
+
+**Il foglio si legge con `export?format=csv`, MAI con `gviz`.** `gviz` decide un
+tipo per ogni colonna e scarta le celle che non ci rientrano: le colonne dei
+lati sono numeriche, quindi una scaletta come `0-0-0-0` (Excalibur) da li' non
+arriva, e la carta entra con sei valori inventati. E' la stessa trappola che il
+gioco documenta gia' nell'avviso sui valori provvisori.
+
+**Attenzione ai flag di Nakama.** Il parser dei flag di Go **smette di leggere
+al primo argomento che non e' un flag**: un argomento spurio in mezzo fa
+ignorare in silenzio tutto cio' che viene dopo. E' successo, e per un po' ne
+sono stati ignorati due. Per questo l'entrypoint nel `docker-compose.yml` ha
+tutti i flag **su una riga sola**: niente continuazioni da rompere.
+E `social.google.client_id` **non esiste** in Nakama 3.40 (ci sono solo apple,
+facebook e steam): la verifica di per chi e' emesso il token Google si fa nel
+modulo, con un aggancio `registerBeforeAuthenticateGoogle`.
 
 ---
 
