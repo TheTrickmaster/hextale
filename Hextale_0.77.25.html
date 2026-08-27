@@ -303,9 +303,10 @@ body.mouse-down, body.mouse-down *{
    L'id davanti risolve senza ricorrere a !important, che avrebbe spento anche
    ogni futura correzione fatta come si deve. */
 #start-col-sinistra .start-radial{
-  position:absolute; left:50%; top:50%;
-  width:150%; height:150%;
+  position:absolute; left:40%; top:40%;
+  width:350%; height:350%;
   object-fit:contain;
+  margin-left: 80px;
   transform-origin:center center;
   /* v0.77.23 — NIENTE isolation:isolate. L'avevo messo nella v0.77.20 su
      un'ipotesi sbagliata, e faceva danno: isolare un elemento che fonde vuol
@@ -345,9 +346,22 @@ body.mouse-down, body.mouse-down *{
   from{ opacity:1; }
   to  { opacity:0.45; }
 }
-/* Logo e barra restano sopra a tutti e due. */
+/* Il logo resta sopra a raggiera ed effetti. */
 #start-col-sinistra #start-logo-wrap{ z-index:2; }
-#start-col-sinistra #start-loading{ z-index:2; }
+/* v0.77.25 — LA BARRA IN FONDO ALLO SCHERMO.
+   Centrata sulla viewport e non sulla colonna, appena sopra alla targhetta
+   della versione (che sta a bottom:14px ed e' alta una ventina di pixel): da
+   qui il conto, cosi' se un domani la targhetta si sposta si vede subito quale
+   numero cambiare.
+   L'id davanti a `position` non e' un vezzo: .start-fade dichiara anche lei
+   `position:relative`, e fra due selettori di pari forza vincerebbe lei
+   essendo scritta piu' in basso — e' il difetto che aveva gia' fatto cadere
+   nel flusso le due raggiere (vedi la loro regola). Qui l'id vince e basta. */
+#start-screen > #start-loading{
+  position:absolute; left:50%; bottom:56px;
+  transform:translateX(-50%);
+  z-index:2;
+}
 
 /* ══════════════════════════════════════════════════════════════════════════
    v0.77.19 — IL MODULO DI ACCESSO
@@ -8278,6 +8292,17 @@ body.prova-senza-willchange #mm-book-rot{
        effetti e la raggiera stanno DIETRO al logo ma dentro alla colonna:
        centrarli sullo schermo li avrebbe messi a cavallo delle due colonne,
        cioe' anche dietro al modulo di accesso. -->
+  <!-- v0.77.25 — la barra di caricamento sta in fondo allo schermo, centrata,
+       appena sopra alla targhetta della versione. Non e' piu' dentro alla
+       colonna di sinistra: quella colonna e' meta' schermo, e una barra
+       centrata su meta' schermo non e' centrata sullo schermo. -->
+  <div id="start-loading" class="start-fade">
+    <div id="start-loading-bar-wrap">
+      <div id="start-loading-fill-mask"><img id="start-loading-fill-img" src="https://thetrickmaster.github.io/hextale/loading-screen/fill-loading-bar.png" alt="" draggable="false"></div>
+      <img id="start-loading-bar-img" src="https://thetrickmaster.github.io/hextale/loading-screen/loading-bar.png" alt="" draggable="false">
+      <img id="start-loading-glow-img" src="https://thetrickmaster.github.io/hextale/loading-screen/glow.png" alt="" draggable="false">
+    </div>
+  </div>
   <div class="start-colonna" id="start-col-sinistra">
     <img class="start-radial start-fade" id="start-radial-a" alt="" draggable="false">
     <img class="start-radial start-fade" id="start-radial-b" alt="" draggable="false">
@@ -8285,13 +8310,6 @@ body.prova-senza-willchange #mm-book-rot{
     <div id="start-logo-wrap" class="start-fade">
       <img id="start-logo-img" src="https://thetrickmaster.github.io/hextale/loading-screen/logo.png" alt="Hextale Card Game">
       <img id="start-logo-blur" src="https://thetrickmaster.github.io/hextale/loading-screen/logo-blur.png" alt="" draggable="false" aria-hidden="true">
-    </div>
-    <div id="start-loading" class="start-fade">
-      <div id="start-loading-bar-wrap">
-        <div id="start-loading-fill-mask"><img id="start-loading-fill-img" src="https://thetrickmaster.github.io/hextale/loading-screen/fill-loading-bar.png" alt="" draggable="false"></div>
-        <img id="start-loading-bar-img" src="https://thetrickmaster.github.io/hextale/loading-screen/loading-bar.png" alt="" draggable="false">
-        <img id="start-loading-glow-img" src="https://thetrickmaster.github.io/hextale/loading-screen/glow.png" alt="" draggable="false">
-      </div>
     </div>
   </div>
   <!-- ── COLONNA DI DESTRA: l'accesso ────────────────────────────────────
@@ -8816,7 +8834,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.24</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.25</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -9862,8 +9880,20 @@ if(document.readyState==='loading'){
     // l'elemento e' a opacita' zero pulsa senza che si veda.
     const effetti = document.getElementById('start-effetti');
     if(effetti) effetti.classList.add('show');
-    // Il riflesso parte solo quando il logo e' effettivamente a schermo.
-    if(typeof avviaLogoSheen === 'function') avviaLogoSheen();
+    // ── v0.77.25 — RAGGIERA E RIFLESSO ASPETTANO IL LOGO ───────────────────
+    // Tutti e due raccontano qualcosa DEL logo: la luce che gira dietro di lui
+    // e il bagliore che gli passa sopra. Partendo mentre lui sta ancora
+    // comparendo si vedeva la luce prima della cosa illuminata, e il riflesso
+    // scorreva su un logo mezzo trasparente — due effetti sprecati su niente.
+    // STD_FADE_MS e' esattamente la durata della dissolvenza di .start-fade:
+    // quando scade, il logo e' a piena opacita'.
+    setTimeout(()=>{
+      ['start-radial-a','start-radial-b'].forEach(id=>{
+        const el = document.getElementById(id);
+        if(el) el.classList.add('show');
+      });
+      if(typeof avviaLogoSheen === 'function') avviaLogoSheen();
+    }, STD_FADE_MS);
     // v0.77.19 — al posto dei due pulsanti entra il modulo di accesso, un
     // blocco solo. I due pulsanti in cascata non ci sono piu': erano due
     // elementi affiancati e sfalsarli aveva senso, una finestra sola no.
@@ -9913,7 +9943,8 @@ if(document.readyState==='loading'){
     // riaggiungere .show su elementi che ce l'hanno gia' non produce nessuna
     // transizione e il fade-in non si vedrebbe.
     // v0.72.62: e' il wrapper a portare .start-fade, non piu' il logo.
-    ['start-logo-wrap','start-effetti','start-accesso'].forEach(id=>{
+    ['start-logo-wrap','start-effetti','start-accesso',
+     'start-radial-a','start-radial-b'].forEach(id=>{
       const el=document.getElementById(id);
       if(el){ el.classList.remove('show'); void el.offsetWidth; }
     });
@@ -10791,8 +10822,10 @@ function mountPage(name){
 // il primo caricamento (revealBg) e il rientro sulla pagina (__replayStartReveal).
 function startBgExtraLayersOn(){
   // v0.74.7 — le tre tele della polvere al posto del video.
-  ['start-particles-far','start-particles-mid','start-particles-near',
-   'start-radial-a','start-radial-b'].forEach(id=>{
+  // v0.77.25 — le raggiere NON sono piu' qui. Entravano col fondale, cioe'
+  // tre secondi prima del logo: la luce girava dietro a un vuoto. Adesso
+  // arrivano quando il logo ha finito di comparire — e' lui che illuminano.
+  ['start-particles-far','start-particles-mid','start-particles-near'].forEach(id=>{
     const el = document.getElementById(id);
     if(el) el.classList.add('show');
   });
