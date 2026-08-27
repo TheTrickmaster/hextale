@@ -4,6 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Hextale</title>
+<!-- v0.77.33 — indirizzo assoluto, non relativo: il gioco si apre anche col
+     doppio clic, e da file:// un percorso relativo cercherebbe l'icona sul
+     disco invece che sul sito. -->
+<link rel="icon" type="image/png" href="https://hextalegame.com/favicon.png">
 <style>
 /* v0.56.0 FIX ("altre persone che aprono l'html da altri pc, non riescono a
    vedere i font"): font, audio e immagini vivono tutti su GitHub Pages.
@@ -442,7 +446,8 @@ body.mouse-down, body.mouse-down *{
    sinistra. Si centra la FILA, non il titolo: cosi' vale per la barra con un
    elemento solo e per quella che ne ha due. */
 #login-titlebar .hx-titlebar-center,
-#registrazione-titlebar .hx-titlebar-center{
+#registrazione-titlebar .hx-titlebar-center,
+#username-titlebar .hx-titlebar-center{
   justify-content:center; gap:8px;
 }
 .hx-indietro{
@@ -452,7 +457,7 @@ body.mouse-down, body.mouse-down *{
 }
 .hx-indietro img{ width:100%; height:100%; object-fit:contain; display:block; pointer-events:none; }
 .hx-indietro:hover{ filter:brightness(1.15); transform:translateX(-2px); }
-#login-titlebar h2, #registrazione-titlebar h2{
+#login-titlebar h2, #registrazione-titlebar h2, #username-titlebar h2{
   margin:0; text-align:center;
   font-family:'Marcellus',var(--font-display),serif;
   font-size:30px; font-weight:400; line-height:1;
@@ -528,6 +533,14 @@ body.mouse-down, body.mouse-down *{
    restituisce la credenziale solo da li' o dal One Tap. */
 #google-vero{ display:none; align-self:center; min-height:44px; }
 #google-vero.mostra{ display:block; }
+/* v0.77.34 — la modale del nome sta sullo standard nuovo (.hx-overlay /
+   .hx-box + barra del titolo + .hx-pannello). Qui resta solo cio' che e' suo:
+   la larghezza e il testo di spiegazione. */
+#username-box{ width:470px; }
+#username-spiega{
+  font-family:'Rosarivo',serif; font-size:15px; line-height:1.4;
+  text-align:center; color:#EDE0C6; opacity:0.85;
+}
 #accesso-offline{ display:none; }
 #accesso-offline.mostra{ display:block; }
 /* ── i campi ─────────────────────────────────────────────────────────────
@@ -4491,14 +4504,14 @@ body.mouse-down, body.mouse-down *{
    list rather than duplicated, so any future tweak to the settings modal's
    look (gradient, noise, radius, close button, font-weight reset, etc.)
    automatically applies to the debug modal too. */
-/* v0.72.18: .hx-modal-box / .hx-modal-overlay sono le classi CONDIVISE da
-   usare per ogni nuovo box ("d'ora in avanti quando voglio che tu crei un box
-   voglio che tu usi sempre questa classe"). Stesso identico look del box
-   impostazioni, perche' e' letteralmente la stessa regola: aggiungere la
-   classe al selettore invece di duplicare il CSS garantisce che qualsiasi
-   ritocco futuro all'aspetto si propaghi a tutti i box insieme. Per i
-   pulsanti valgono le classi gia' esistenti .start-art-btn + .sab-primary /
-   .sab-secondary: nessuno stile nuovo. */
+/* v0.77.34 — REGOLA SUPERATA. Fino alla v0.77.33 qui c'era scritto di usare
+   .hx-modal-box / .hx-modal-overlay per ogni box nuovo, e .start-art-btn +
+   .sab-primary / .sab-secondary per i pulsanti. NON E' PIU' COSI'.
+   Quelle sono le modali e i pulsanti VECCHI. Il CSS resta perche' le finestre
+   gia' costruite (impostazioni, debug, note di aggiornamento, carta) ci
+   stanno sopra, ma NIENTE DI NUOVO va scritto con queste classi.
+   Lo standard nuovo e' quello della finestra dei filtri: vedi la regola
+   scritta accanto a .hx-overlay / .hx-box piu' sotto. */
 #debug-modal, .hx-modal-box{
   position:relative;
   width:460px; /* v0.70.21: widened again from 400px — 400px left the "Music volume" label with no room before the fixed 160px slider, forcing the SFX row (spec-defined 160px-wide bar) past the box's own right padding edge. 460px gives every row (longest label + 16px gaps + 160px slider + 24px icon) real breathing room inside the 30px padding on both sides. */
@@ -6833,16 +6846,45 @@ body.prova-senza-willchange #mm-book-rot{
    Il fondale non si limita a scurire: SFOCA cio' che copre. E' quello che
    dice "quella roba la' e' ancora al suo posto, ma adesso non e' lei che devi
    guardare" — una velatura piatta direbbe soltanto che e' piu' scura. */
-#filters-overlay{
+/* ══ LO STANDARD DELLE FINESTRE E DEI PULSANTI (dalla v0.77.34) ══════════
+   Ogni finestra NUOVA si scrive cosi', e non piu' con .hx-modal-box:
+
+     <div class="hx-overlay" onclick="if(event.target===this) chiudi()">
+       <div class="hx-box" style="width:...">
+         <div class="hx-titlebar" id="qualcosa-titlebar">
+           <span class="hx-titlebar-cap hx-titlebar-left"></span>
+           <div class="hx-titlebar-center"><h2>Titolo</h2></div>
+           <span class="hx-titlebar-cap hx-titlebar-right"></span>
+         </div>
+         <div class="hx-pannello"> ...contenuto... </div>
+       </div>
+     </div>
+
+   La larghezza la decide ogni finestra: non sta qui dentro.
+   Le tre parti della barra del titolo e la trama del pannello vanno vestite
+   una volta sola all'apertura, come fa montaColonnaAccesso.
+
+   I PULSANTI sono la famiglia .hx-btn, e le varianti sono QUATTRO:
+     .hx-btn                          trasparente        (il caso normale)
+     .hx-btn.hx-btn-warning           trasparente rosso  (azioni che tolgono)
+     .hx-btn.hx-btn-opaco             opaco
+     .hx-btn.hx-btn-opaco.hx-btn-warning  opaco rosso
+   Il rosso e' cio' che distingue i due warning. Dentro ci va sempre la
+   striscia .hxb-strip a cinque pezzi piu' .hxb-label, e il pulsante va
+   passato a vestiPulsante() che gli attacca le immagini giuste (sceglie da
+   solo i file -warning). Aggiungere .hx-azione lo rende largo quanto il
+   contenitore. .start-art-btn e .sab-* NON si usano piu'. */
+#filters-overlay, .hx-overlay{
   display:none; position:fixed; inset:0; z-index:4300;
   align-items:center; justify-content:center;
   background:rgba(3,7,7,0.7);
   -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px);
   cursor:var(--cursore);
 }
-#filters-overlay.show{ display:flex; }
-#filters-overlay *{ cursor:var(--cursore); }
-#filters-box{ width:650px; display:flex; flex-direction:column; gap:16px; }
+#filters-overlay.show, .hx-overlay.show{ display:flex; }
+#filters-overlay *, .hx-overlay *{ cursor:var(--cursore); }
+#filters-box, .hx-box{ display:flex; flex-direction:column; gap:16px; }
+#filters-box{ width:650px; }
 #filters-titlebar h2{
   margin:0; width:100%; text-align:center;
   font-family:'Marcellus',var(--font-display),serif;
@@ -8401,13 +8443,6 @@ body.prova-senza-willchange #mm-book-rot{
         <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
         <span class="hxb-label">Login</span>
       </button>
-      <button class="hx-btn hx-azione hx-btn-opaco" type="button" id="login-google-btn" onclick="accessoGoogleNonPronto()">
-        <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
-        <span class="hxb-label"><img class="hxb-icona" id="login-google-icon" alt="" draggable="false">Login with google</span>
-      </button>
-      <!-- v0.77.30 — qui Google disegna il proprio pulsante, e solo dove puo'
-           funzionare. Vedi montaAccessoGoogle. -->
-      <div id="google-vero"></div>
           <div class="filters-riga hx-riga-oppure"><span>or</span></div>
       <button class="hx-btn hx-azione" type="button" onclick="mostraModuloAccesso('registrazione')">
         <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
@@ -8433,8 +8468,10 @@ body.prova-senza-willchange #mm-book-rot{
           <span class="hx-titlebar-cap hx-titlebar-right"></span>
         </div>
         <div class="hx-pannello">
+      <!-- v0.77.33 — qui si chiede il minimo indispensabile. Il nome utente
+           arriva dopo, al primo avvio (vedi chiediUsernameSeServe): Nakama
+           intanto ne assegna uno provvisorio da se'. -->
       <input type="text" id="reg-email" class="hx-campo" placeholder="Email address" autocomplete="off" spellcheck="false">
-      <input type="text" id="reg-user" class="hx-campo" placeholder="Username" autocomplete="off" spellcheck="false">
           <div class="filters-riga"></div>
       <div class="hx-campo-pwd">
         <input type="password" id="reg-pwd" class="hx-campo" placeholder="Password" autocomplete="off" spellcheck="false">
@@ -8452,6 +8489,18 @@ body.prova-senza-willchange #mm-book-rot{
       </button>
         </div>
       </div>
+
+      <!-- v0.77.33 — Google sta FUORI dai due moduli, sopra al tratto di
+           "Exit game": cosi' compare sia sull'accesso sia sulla creazione
+           dell'account senza essere scritto due volte, ed e' vero anche
+           mentre i due moduli si danno il cambio in dissolvenza. -->
+      <button class="hx-btn hx-azione hx-btn-opaco" type="button" id="login-google-btn" onclick="accessoGoogleNonPronto()">
+        <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
+        <span class="hxb-label"><img class="hxb-icona" id="login-google-icon" alt="" draggable="false">Login with google</span>
+      </button>
+      <!-- Qui Google disegna il proprio pulsante, e solo dove puo' funzionare.
+           Vedi montaAccessoGoogle. -->
+      <div id="google-vero"></div>
 
       <!-- Fuori dai due moduli, e uguale per tutti e due: da qui si esce dal
            gioco comunque si sia arrivati. -->
@@ -8564,7 +8613,7 @@ body.prova-senza-willchange #mm-book-rot{
      chiusura in alto a destra e click fuori per chiudere. -->
 <div id="mm-play-overlay" class="hx-modal-overlay" onclick="if(event.target===this) mmChiudiSceltaPartita();">
   <div class="hx-modal-box">
-    <button class="hx-modal-close" aria-label="Chiudi" onclick="mmChiudiSceltaPartita()"><img src="https://hextalegame.com/ui/close-icon.png" alt="" draggable="false"></button>
+    <button class="hx-modal-close" aria-label="Close" onclick="mmChiudiSceltaPartita()"><img src="https://hextalegame.com/ui/close-icon.png" alt="" draggable="false"></button>
     <h2>Start Game</h2>
     <button class="start-art-btn sab-primary" onclick="mmAvviaPartita(true)">
       <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Play vs AI</span>
@@ -8788,9 +8837,40 @@ body.prova-senza-willchange #mm-book-rot{
 <div id="hand-hover-preview"></div>
 <!-- v0.73.4 — note di aggiornamento, mostrate all'avvio. Il contenuto arriva
      da patch-notes.txt nel repository (vedi caricaPatchNotes). -->
+<!-- v0.77.33 — IL NOME UTENTE, CHIESTO AL PRIMO AVVIO
+     La creazione dell'account non lo chiede piu': chiede il minimo, e questo
+     arriva quando il giocatore e' gia' dentro. Usa .hx-modal-overlay /
+     .hx-modal-box come vuole la regola della v0.72.18 — nessuno stile nuovo.
+     "Later" c'e' apposta: una finestra da cui non si esce e' la cosa piu'
+     pericolosa che si possa mettere davanti a chi gioca. Chi rimanda se la
+     ritrova al prossimo avvio, e nessuno resta bloccato. -->
+<!-- v0.77.35 — nessuna via d'uscita, VOLUTO: il nome si sceglie e basta.
+     Niente click sullo sfondo, niente "Later", ed Esc non chiude (vedi la
+     guardia in cima al gestore di Escape). Non e' pero' un vicolo cieco: chi
+     ricarica il gioco torna all'accesso, e chi il server non ce l'ha davanti
+     la finestra non la vede nemmeno — chiediUsernameSeServe esce in silenzio
+     se non riesce a leggere, e la partita in locale non la apre mai. -->
+<div id="username-overlay" class="hx-overlay">
+  <div id="username-box" class="hx-box">
+    <div class="hx-titlebar" id="username-titlebar">
+      <span class="hx-titlebar-cap hx-titlebar-left"></span>
+      <div class="hx-titlebar-center"><h2>Choose your name</h2></div>
+      <span class="hx-titlebar-cap hx-titlebar-right"></span>
+    </div>
+    <div class="hx-pannello">
+      <div id="username-spiega">This is the name other players will see.</div>
+      <input type="text" id="username-campo" class="hx-campo" placeholder="Username" autocomplete="off" spellcheck="false" maxlength="20">
+      <div id="username-messaggio" class="hx-messaggio"></div>
+      <button class="hx-btn hx-azione" type="button" id="username-conferma" onclick="confermaUsername(this)">
+        <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
+        <span class="hxb-label">Confirm</span>
+      </button>
+    </div>
+  </div>
+</div>
 <div id="patch-notes-overlay" class="hx-modal-overlay">
   <div id="patch-notes-box" class="hx-modal-box">
-    <button id="patch-notes-close" aria-label="Chiudi"><img src="https://hextalegame.com/ui/close-icon.png" alt="" draggable="false"></button>
+    <button id="patch-notes-close" aria-label="Close"><img src="https://hextalegame.com/ui/close-icon.png" alt="" draggable="false"></button>
     <h2>What's new</h2>
     <!-- v0.73.9 — l'avviso di una versione piu' recente. Nasce nascosto e
          compare solo se il controllo all'avvio ne trova davvero una: un
@@ -8810,7 +8890,7 @@ body.prova-senza-willchange #mm-book-rot{
 </div>
 <div id="card-modal-overlay">
   <div id="card-modal" class="hx-modal-box">
-    <button id="card-modal-close" aria-label="Chiudi"><img src="https://hextalegame.com/ui/close-icon.png" alt="" draggable="false"></button>
+    <button id="card-modal-close" aria-label="Close"><img src="https://hextalegame.com/ui/close-icon.png" alt="" draggable="false"></button>
     <div id="card-modal-card"></div>
     <div id="card-modal-info"></div>
   </div>
@@ -8892,7 +8972,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.32</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.35</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -8906,7 +8986,7 @@ body.prova-senza-willchange #mm-book-rot{
      altre si chiudono allo stesso modo (X in alto a destra, click fuori). -->
 <div id="faction-choice-overlay" class="hx-modal-overlay" onclick="if(event.target===this) chiudiSceltaFazione();">
   <div id="faction-choice-modal" class="hx-modal-box">
-    <button class="hx-modal-close" aria-label="Chiudi" onclick="chiudiSceltaFazione()"><img src="https://hextalegame.com/ui/close-icon.png" alt="" draggable="false"></button>
+    <button class="hx-modal-close" aria-label="Close" onclick="chiudiSceltaFazione()"><img src="https://hextalegame.com/ui/close-icon.png" alt="" draggable="false"></button>
     <h2>Choose your side</h2>
     <div id="faction-choice-mode"></div>
     <button class="start-art-btn sab-secondary" onclick="confirmFactionChoice('dark')">
@@ -8928,7 +9008,7 @@ body.prova-senza-willchange #mm-book-rot{
      esistenti: nessuno stile inventato. -->
 <div id="prova-carta-overlay" class="hx-modal-overlay" onclick="if(event.target===this) chiudiSceltaMazzoAvversario();">
   <div id="prova-carta-modal" class="hx-modal-box">
-    <button class="hx-modal-close" aria-label="Chiudi" onclick="chiudiSceltaMazzoAvversario()"><img src="https://hextalegame.com/ui/close-icon.png" alt="" draggable="false"></button>
+    <button class="hx-modal-close" aria-label="Close" onclick="chiudiSceltaMazzoAvversario()"><img src="https://hextalegame.com/ui/close-icon.png" alt="" draggable="false"></button>
     <h2>Il mazzo dell'avversario</h2>
     <div id="prova-carta-nome" style="text-align:center;margin-bottom:4px;opacity:0.75;font-size:15px;"></div>
     <button class="start-art-btn sab-primary" onclick="confermaSceltaMazzoAvversario(true)">
@@ -9050,7 +9130,7 @@ body.prova-senza-willchange #mm-book-rot{
   </div>
 </div>
 <div id="debug-modal-overlay" onclick="if(event.target===this) closeDebugModal();">
-  <div id="debug-modal"><button id="debug-modal-close" aria-label="Chiudi" onclick="closeDebugModal()"><img src="https://hextalegame.com/ui/close-icon.png" alt="" draggable="false"></button><h2>Debug menu</h2><div id="debug-grid"><div class="debug-item" style="display:none"><!-- v0.75.19 — "Calibra foil"
+  <div id="debug-modal"><button id="debug-modal-close" aria-label="Close" onclick="closeDebugModal()"><img src="https://hextalegame.com/ui/close-icon.png" alt="" draggable="false"></button><h2>Debug menu</h2><div id="debug-grid"><div class="debug-item" style="display:none"><!-- v0.75.19 — "Calibra foil"
          e' NASCOSTA, non rimossa: il pannello di calibrazione serve ancora il
          giorno in cui la lamina va ritoccata, e cancellarlo vorrebbe dire
          riscriverlo. Tolto dalla vista, resta nel file. --><!-- v0.72.43 NEW ("mi crei un pulsante nel debug menu per calibrare da
@@ -11466,7 +11546,9 @@ function accessoOccupato(bottone, occupato, etichetta){
   if(!bottone) return;
   bottone.disabled = !!occupato;
   bottone.classList.toggle('hx-btn-attesa', !!occupato);
-  const et = bottone.querySelector('.hxb-label');
+  // I due tipi di pulsante del gioco portano l'etichetta in classi diverse:
+  // .hxb-label nella colonna dell'accesso, .sab-label nei box condivisi.
+  const et = bottone.querySelector('.hxb-label, .sab-label');
   if(!et) return;
   if(occupato){
     if(!et.dataset.originale) et.dataset.originale = et.innerHTML;
@@ -11504,6 +11586,10 @@ function accessoEntra(sessione){
   accessoMessaggio('login', '', '');
   accessoMessaggio('registrazione', '', '');
   apriMenuPrincipale();
+  // v0.77.33 — si entra SUBITO, e la domanda sul nome arriva dopo. Non si
+  // aspetta la risposta del server per aprire il menu: chi gioca non deve
+  // stare fermo davanti a una schermata perche' una lettura e' lenta.
+  if(sessione){ try{ chiediUsernameSeServe(); }catch(_){} }
 }
 // Il pulsante che compare solo quando il server non ha risposto.
 function accessoEntraInLocale(){
@@ -11555,7 +11641,9 @@ async function montaAccessoGoogle(){
     });
     google.accounts.id.renderButton(posto, {
       type: 'standard', theme: 'filled_black', size: 'large',
-      text: 'signin_with', shape: 'pill', logo_alignment: 'left', width: 470
+      // 400 e il massimo che Google accetta: chiedendo di piu si torna alla
+      // larghezza di default, che e molto piu stretta.
+      text: 'signin_with', shape: 'pill', logo_alignment: 'left', width: 400
     });
   }catch(_){ return; }
   posto.classList.add('mostra');
@@ -11624,20 +11712,20 @@ async function accediConPassword(bottone){
 async function registraAccount(bottone){
   const leggi = id => { const el = document.getElementById(id); return el ? el.value : ''; };
   const email = leggi('reg-email').trim();
-  const utente = leggi('reg-user').trim();
   const p1 = leggi('reg-pwd');
   const p2 = leggi('reg-pwd2');
   // I controlli si fanno qui prima di partire non per fidarsi meno del server,
   // ma per dare la risposta subito: un giro di rete per sapere che due
   // password non combaciano e' un giro sprecato.
   if(!email || email.indexOf('@') < 0){ accessoMessaggio('registrazione', 'Enter a valid email address.', 'errore'); return; }
-  if(utente.length < 3){ accessoMessaggio('registrazione', 'Username must be at least 3 characters.', 'errore'); return; }
   if(p1.length < 8){ accessoMessaggio('registrazione', 'Password must be at least 8 characters.', 'errore'); return; }
   if(p1 !== p2){ accessoMessaggio('registrazione', 'Passwords do not match.', 'errore'); return; }
   accessoOccupato(bottone, true, 'Creating...');
   accessoMessaggio('registrazione', 'Creating your account...', 'attesa');
   try{
-    const s = nakamaSalvaSessione(await nakamaAutenticaEmail(email, p1, true, utente), email);
+    // Senza username Nakama ne assegna uno provvisorio: quello vero si chiede
+    // al primo avvio, con la modale.
+    const s = nakamaSalvaSessione(await nakamaAutenticaEmail(email, p1, true), email);
     await nakamaCompletaProfilo(s);
     accessoOccupato(bottone, false);
     accessoEntra(s);
@@ -11646,6 +11734,109 @@ async function registraAccount(bottone){
     accessoSpiegaGuasto('registrazione', e, true);
   }
 }
+// ── IL NOME UTENTE, CHIESTO AL PRIMO AVVIO (dalla v0.77.33) ───────────────
+// v0.77.35 — e la scelta NON si puo' rimandare: e' una decisione di Lorenzo,
+// presa sapendo che una finestra senza uscita e' una cosa da maneggiare con
+// cura. Quello che la rende accettabile e' che non e' un vicolo cieco:
+// ricaricare riporta all'accesso, il gioco in locale non la apre mai, e se il
+// server non risponde la finestra non compare nemmeno.
+// Creando l'account non lo si chiede piu': Nakama ne assegna uno provvisorio
+// (dieci caratteri a caso) e il nome vero si chiede qui, a giocatore gia'
+// dentro. Il segno che la domanda e' stata fatta e' un oggetto nello storage
+// di Nakama, non una riga in localStorage: deve seguire l'ACCOUNT da una
+// macchina all'altra, non restare sul computer dove ci si e' registrati.
+const NAKAMA_COLLEZIONE_PROFILO = 'profilo';
+function nakamaLeggiOggetto(collezione, chiave){
+  const s = sessioneAccount;
+  return nakamaChiedi('/v2/storage', {
+    metodo: 'POST',
+    intestazioni: { Authorization: 'Bearer ' + s.token },
+    corpo: { object_ids: [{ collection: collezione, key: chiave, user_id: s.userId }] }
+  }).then(r => {
+    // Una chiave che non esiste torna 200 con un oggetto vuoto, non un errore:
+    // verificato sul server. Chi chiama distingue "non c'e'" da "non si sa".
+    const o = r && r.objects && r.objects[0];
+    if(!o || !o.value) return null;
+    try{ return JSON.parse(o.value); }catch(_){ return null; }
+  });
+}
+function nakamaScriviOggetto(collezione, chiave, valore){
+  return nakamaChiedi('/v2/storage', {
+    metodo: 'PUT',
+    intestazioni: { Authorization: 'Bearer ' + sessioneAccount.token },
+    corpo: { objects: [{ collection: collezione, key: chiave,
+      value: JSON.stringify(valore), permission_read: 1, permission_write: 1 }] }
+  });
+}
+function nakamaCambiaUsername(nome){
+  return nakamaChiedi('/v2/account', {
+    metodo: 'PUT',
+    intestazioni: { Authorization: 'Bearer ' + sessioneAccount.token },
+    corpo: { username: nome }
+  });
+}
+// Si chiama a giocatore gia' entrato, e non blocca l'ingresso: se la rete non
+// risponde non si molesta nessuno e si riprova al prossimo avvio.
+async function chiediUsernameSeServe(){
+  const s = sessioneAccount;
+  if(!s || !s.token || !s.userId) return;
+  try{
+    const stato = await nakamaLeggiOggetto(NAKAMA_COLLEZIONE_PROFILO, 'stato');
+    if(stato && stato.usernameScelto) return;
+  }catch(_){ return; }
+  apriModaleUsername();
+}
+function messaggioUsername(testo, genere){
+  const el = document.getElementById('username-messaggio');
+  if(!el) return;
+  el.textContent = testo || '';
+  el.className = 'hx-messaggio' + (testo ? ' mostra' : '') + (genere ? ' hx-messaggio-' + genere : '');
+}
+function apriModaleUsername(){
+  const ov = document.getElementById('username-overlay');
+  if(!ov) return;
+  messaggioUsername('', '');
+  const campo = document.getElementById('username-campo');
+  if(campo) campo.value = '';
+  ov.classList.add('show');
+  if(campo) setTimeout(()=>{ try{ campo.focus(); }catch(_){} }, 50);
+}
+// Non e' agganciata a nessun pulsante: dalla v0.77.35 la finestra si chiude
+// SOLO quando il nome e' stato salvato davvero.
+function chiudiModaleUsername(){
+  const ov = document.getElementById('username-overlay');
+  if(ov) ov.classList.remove('show');
+}
+async function confermaUsername(bottone){
+  const campo = document.getElementById('username-campo');
+  const nome = ((campo && campo.value) || '').trim();
+  if(nome.length < 3){ messaggioUsername('Username must be at least 3 characters.', 'errore'); return; }
+  if(!/^[A-Za-z0-9_.-]+$/.test(nome)){ messaggioUsername('Only letters, numbers, dots, dashes and underscores.', 'errore'); return; }
+  accessoOccupato(bottone, true, 'Saving...');
+  messaggioUsername('Saving...', 'attesa');
+  try{
+    await nakamaCambiaUsername(nome);
+  }catch(e){
+    accessoOccupato(bottone, false);
+    // Un nome gia' preso qui torna 400 con un messaggio esplicito, NON 409
+    // come sulla registrazione: verificato sul server. Guardare solo il codice
+    // farebbe finire questo caso nel ramo generico "qualcosa e' andato storto".
+    const gia = /already in use/i.test((e && e.message) || '');
+    messaggioUsername(gia ? 'That username is already taken.' : ((e && e.message) || 'Something went wrong.'), 'errore');
+    return;
+  }
+  sessioneAccount.username = nome;
+  nakamaRiscriviSessione();
+  // Se questo fallisce la domanda tornera' al prossimo avvio: seccante, non
+  // grave. Il nome, che e' la cosa che conta, e' gia' salvato sul server.
+  try{ await nakamaScriviOggetto(NAKAMA_COLLEZIONE_PROFILO, 'stato', { usernameScelto: true }); }catch(_){}
+  accessoOccupato(bottone, false);
+  // Si spegne il messaggio PRIMA di chiudere: la finestra si nasconde e basta,
+  // non si svuota da sola, e riaprendola si leggerebbe ancora "Saving...".
+  messaggioUsername('', '');
+  chiudiModaleUsername();
+}
+
 // All'apertura della colonna: se c'e' una sessione buona lo si dice, e si
 // riempie l'email. Non si entra da soli — chi apre il gioco puo' voler
 // cambiare account, e vedersi portare dentro senza aver toccato niente e'
@@ -11735,7 +11926,16 @@ function montaColonnaAccesso(){
     const el = document.querySelector(sel);
     if(el) impostaSfondoDaCandidati(el, uiFileCandidati(file));
   };
-  for(const barra of ['#login-titlebar','#registrazione-titlebar']){
+  // v0.77.34 — la modale del nome vive fuori dalla colonna ma e' della stessa
+  // famiglia: barra del titolo a tre pezzi, pannello con la trama, pulsanti
+  // .hx-btn. Si veste qui, insieme al resto, una volta sola.
+  const modale = document.getElementById('username-overlay');
+  if(modale){
+    modale.querySelectorAll('.hx-pannello').forEach(pan=>
+      impostaVariabileDaCandidati(pan, '--hx-trama', uiFileCandidati('brushed-texture.jpg')));
+    modale.querySelectorAll('.hx-btn').forEach(vestiPulsante);
+  }
+  for(const barra of ['#login-titlebar','#registrazione-titlebar','#username-titlebar']){
     sfondo(barra+' .hx-titlebar-left',   'title-bg-left.png');
     sfondo(barra+' .hx-titlebar-center', 'title-bg-center.png');
     sfondo(barra+' .hx-titlebar-right',  'title-bg-right.png');
@@ -39217,6 +39417,11 @@ function closeCardModal(){
   if(overlay) overlay.addEventListener('click',(e)=>{ if(e.target===overlay) closeCardModal(); });
   document.addEventListener('keydown',(e)=>{
     if(e.key!=='Escape') return;
+    // v0.77.35 — finche' si sta scegliendo il nome, Esc non chiude NIENTE.
+    // Senza questa riga la catena qui sotto continuerebbe a lavorare sotto la
+    // finestra, e la scelta sarebbe forzata solo all'apparenza.
+    const sceltaNome = document.getElementById('username-overlay');
+    if(sceltaNome && sceltaNome.classList.contains('show')){ e.preventDefault(); return; }
     // v0.75.84 — Esc chiude UNA cosa sola, la piu' interna. Un mazzo aperto
     // sotto l'ingrandimento di una carta e' proprio il caso in cui premere
     // Esc deve richiudere la carta e lasciare il mazzo dov'e': chiudere

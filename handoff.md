@@ -513,6 +513,47 @@ e `www.hextalegame.com`) e GitHub non emetteva il certificato: il sito serviva
 un certificato `CN = *.github.io` e i browser lo rifiutavano. Per il `www` non
 si usa quel file, si aggiunge un record DNS `CNAME www -> <utente>.github.io`.
 
+**Il nome utente si chiede DOPO (dalla v0.77.33).** La creazione dell'account
+chiede solo email e password: senza `username` Nakama ne assegna uno
+provvisorio di dieci caratteri a caso, e il nome vero lo chiede una modale al
+primo avvio, a giocatore gia' dentro. Il segno che la domanda e' stata fatta e'
+un oggetto nello **storage di Nakama** (`profilo`/`stato`,
+`{usernameScelto:true}`), non una riga in `localStorage`: deve seguire
+l'ACCOUNT da una macchina all'altra, non restare sul computer dove ci si e'
+registrati. Chi si e' registrato PRIMA della v0.77.33 quell'oggetto non ce l'ha
+e la domanda gli arrivera' una volta: e' voluto, non un guasto.
+
+**La scelta NON si puo' rimandare (dalla v0.77.35).** Il "Later" c'era, ed e'
+stato tolto da Lorenzo: niente pulsante di rinvio, niente click sullo sfondo, e
+una guardia in cima al gestore di Esc che, finche' quella finestra e' aperta,
+non fa chiudere nulla — senza quella riga la catena di Esc avrebbe continuato a
+lavorare sotto la finestra e la forzatura sarebbe stata solo apparente.
+
+Va tenuta d'occhio, perche' una finestra senza uscita e' la cosa piu'
+pericolosa che si possa mettere davanti a chi gioca. Quello che la rende
+accettabile sono tre strade che restano aperte: **ricaricare** riporta
+all'accesso; la **partita in locale** non la apre mai; e se il server non
+risponde la finestra **non compare nemmeno**, perche' `chiediUsernameSeServe`
+esce in silenzio quando non riesce a leggere lo stato. Se un giorno si
+aggiungesse una quarta strada che porta dentro al menu senza passare da
+`accessoEntra`, va ricontrollato che questa non diventi un vicolo cieco.
+
+**Un nome gia' preso NON torna 409.** Su `PUT /v2/account` Nakama risponde
+**400** con `Username is already in use.`; il 409 e' la risposta della
+registrazione, un'altra strada. Guardare solo il codice fa finire questo caso
+nel ramo generico "qualcosa e' andato storto": si guarda il messaggio.
+Verificato sul server, non dedotto.
+
+**Il pulsante di Google sta FUORI dai due moduli** (dalla v0.77.33), sopra al
+tratto di "Exit game": cosi' compare sia sull'accesso sia sulla creazione senza
+essere scritto due volte, e resta al suo posto mentre i due moduli si danno il
+cambio in dissolvenza. La larghezza chiesta a `renderButton` e' **400**, il
+massimo che Google accetta: chiedendo di piu' si torna alla larghezza di
+default, molto piu' stretta.
+
+**Lo standard di finestre e pulsanti e' cambiato nella v0.77.34.** Vedi la
+sezione qui sotto: la modale del nome e' scritta con quello nuovo.
+
 **Cosa non c'e' ancora.** "Forgot password?" non e' collegato. Non c'e' un "esci" nel menu:
 `accessoEsci()` esiste ma non ha un pulsante. E nessun dato di gioco —
 collezione, mazzi, valute — passa ancora dal server: restano tutti in
@@ -528,6 +569,60 @@ davvero. Due trappole per chi lo rifara': le funzioni async del gioco si
 un rigetto interno in un errore del collaudo invece che in un esito da leggere
 — e **"e' entrato nel menu" non si misura su `#start-screen.style.display`**,
 perche' quella schermata il gioco la RIMUOVE dal DOM.
+
+---
+
+## Finestre e pulsanti: lo standard (dalla v0.77.34)
+
+**La regola precedente e' superata e va dimenticata.** Fino alla v0.77.33 il
+codice diceva di scrivere ogni finestra nuova con `.hx-modal-box` /
+`.hx-modal-overlay` e ogni pulsante con `.start-art-btn` + `.sab-primary` /
+`.sab-secondary`. Quelle sono le finestre e i pulsanti VECCHI. Il loro CSS
+resta in piedi — impostazioni, menu debug, note di aggiornamento e finestra
+della carta ci stanno sopra — ma **niente di nuovo si scrive cosi'**.
+
+**Lo standard e' quello della finestra dei filtri** (Library & decks). Dalla
+v0.77.34 non e' piu' legato ai soli filtri: e' nelle classi condivise
+`.hx-overlay` e `.hx-box`, aggiunte agli stessi selettori di `#filters-overlay`
+e `#filters-box` invece che duplicate, cosi' un ritocco all'aspetto si propaga
+a tutte le finestre insieme.
+
+```html
+<div class="hx-overlay" onclick="if(event.target===this) chiudi()">
+  <div class="hx-box" style="width:...">        <!-- la larghezza e' sua -->
+    <div class="hx-titlebar" id="qualcosa-titlebar">
+      <span class="hx-titlebar-cap hx-titlebar-left"></span>
+      <div class="hx-titlebar-center"><h2>Titolo</h2></div>
+      <span class="hx-titlebar-cap hx-titlebar-right"></span>
+    </div>
+    <div class="hx-pannello"> ...contenuto... </div>
+  </div>
+</div>
+```
+
+I tre pezzi della barra del titolo e la trama del pannello **non si vestono da
+soli**: vanno impostati una volta sola all'apertura, come fa
+`montaColonnaAccesso` (che dalla v0.77.34 veste anche la modale del nome).
+
+**I pulsanti sono la famiglia `.hx-btn`, e le varianti sono QUATTRO:**
+
+| Classi | Aspetto |
+|---|---|
+| `.hx-btn` | trasparente — il caso normale |
+| `.hx-btn.hx-btn-warning` | trasparente rosso — azioni che tolgono qualcosa |
+| `.hx-btn.hx-btn-opaco` | opaco |
+| `.hx-btn.hx-btn-opaco.hx-btn-warning` | opaco rosso |
+
+Il **rosso** e' cio' che distingue i due warning. Dentro ci va sempre la
+striscia `.hxb-strip` a cinque pezzi (`hxb-left`, `hxb-fill`, `hxb-center`,
+`hxb-fill`, `hxb-right`) piu' `.hxb-label`, e il pulsante va passato a
+`vestiPulsante()`, che sceglie da solo i file `-warning`. `.hx-azione` lo rende
+largo quanto il contenitore.
+
+**Cosa NON e' stato convertito.** Le finestre e gli 83 pulsanti vecchi che
+esistevano prima sono rimasti dov'erano: cambiarli tutti in un colpo e' un
+lavoro grosso e visibile su mezzo gioco, e non e' stato chiesto. Quando si
+tocca una di quelle schermate per altri motivi, conviene convertirla allora.
 
 ---
 
