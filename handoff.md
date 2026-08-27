@@ -475,15 +475,30 @@ Serve `GOOGLE_CLIENT_ID` nell'HTML e `--social.google.client_id` sul server:
 **senza il secondo Nakama verifica la firma del token ma non per chi e' stato
 emesso**, e accetterebbe un token valido di un'altra applicazione qualsiasi.
 
-**TRAPPOLA GROSSA — https non puo' chiamare http.** La versione su GitHub
-Pages e' servita in `https`, il server Nakama risponde in `http` sulla 7350: il
-browser blocca la chiamata come *mixed content* e non parte nemmeno. Verificato
-sul sito pubblicato, non dedotto: `Mixed Content: ... has been blocked`.
-Conseguenza pratica: **dalla versione web nessun accesso funziona** — ne'
-Google ne' email — finche' Nakama non sta dietro a un dominio con TLS. Da
-`file://` invece funziona tutto, perche' li' la regola del mixed content non si
-applica. E' il motivo per cui il TLS non e' piu' una rifinitura: e' il
-prerequisito della versione web.
+**TLS, e perche' non era una rifinitura (risolto nella v0.77.31).** Una pagina
+servita in `https` non puo' chiamare un indirizzo `http`: il browser blocca la
+richiesta come *mixed content* e non parte nemmeno. Finche' Nakama e' stato in
+chiaro su `http://45.59.124.211:7350`, dalla versione web **nessun accesso
+funzionava** — ne' Google ne' email — mentre da `file://` funzionava tutto,
+perche' li' quella regola non si applica. Misurato da un'origine https vera:
+il vecchio indirizzo `BLOCCATA: Failed to fetch`, il nuovo `RIUSCITA HTTP 200`.
+
+Oggi Nakama sta dietro a **`https://api.hextalegame.com`**: un **Caddy** nello
+stesso `docker-compose.yml` fa da muso, chiede il certificato a Let's Encrypt e
+lo rinnova da se', e inoltra a `nakama:7350` dentro alla rete di Docker —
+WebSocket compresi, senza configurazione aggiuntiva. Il gioco ci punta con
+`ssl:true` e `porta:443`, **da ogni ambiente**: cosi' le password non viaggiano
+in chiaro nemmeno aprendo il file col doppio clic.
+
+**Due domini diversi, e vanno tenuti distinti.** `hextalegame.com` e' il
+dominio del GIOCO (GitHub Pages, un `index.html` che rimanda all'ultima
+versione). `api.hextalegame.com` e' il dominio del SERVER (la nostra macchina).
+Configurare il primo non da' TLS al secondo: sono due cose separate.
+
+**Il file `CNAME` vuole UN dominio solo.** Ne conteneva due (`hextalegame.com`
+e `www.hextalegame.com`) e GitHub non emetteva il certificato: il sito serviva
+un certificato `CN = *.github.io` e i browser lo rifiutavano. Per il `www` non
+si usa quel file, si aggiunge un record DNS `CNAME www -> <utente>.github.io`.
 
 **Cosa non c'e' ancora.** "Forgot password?" non e' collegato. Non c'e' un "esci" nel menu:
 `accessoEsci()` esiste ma non ha un pulsante. E nessun dato di gioco —

@@ -8887,7 +8887,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.30</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.31</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -11256,12 +11256,18 @@ function lampeggiaValuta(quale){
 // risposta si legge. Verificato dentro al guscio Electron, che e' l'ambiente
 // vero: fetch, XHR e WebSocket funzionano tutti e tre.
 //
-// Se un giorno il server passasse dietro a un dominio con HTTPS, cambiano solo
-// `ssl` e `porta` qui sotto. Il resto del codice non se ne accorge.
+// v0.77.31 — il server ADESSO sta dietro a un dominio con HTTPS
+// (api.hextalegame.com, con Caddy che chiede e rinnova il certificato da se').
+// Non e' una rifinitura: la versione web e' servita in https, e una pagina
+// https non puo' chiamare un indirizzo http — il browser lo blocca come
+// "mixed content" e la richiesta non parte nemmeno. Verificato sul sito
+// pubblicato prima di mettere il TLS: era esattamente cosi'.
+// Da file:// quella regola non si applica, ma passare comunque da https vale
+// lo stesso: le password non viaggiano piu' in chiaro da nessuna parte.
 const NAKAMA = {
-  host: '45.59.124.211',
-  porta: 7350,
-  ssl: false,
+  host: 'api.hextalegame.com',
+  porta: 443,
+  ssl: true,
   // La chiave del server NON e' una password. Viaggia dentro a ogni copia del
   // gioco e chiunque apra questo file la legge: dice "sono un client di
   // Hextale", non "sono questo giocatore". Chi si autentica lo fa con email e
@@ -11281,7 +11287,11 @@ let sessioneAccount = null;
 let giocatoreOnline = false;
 
 function nakamaIndirizzo(){
-  return (NAKAMA.ssl ? 'https' : 'http') + '://' + NAKAMA.host + ':' + NAKAMA.porta;
+  const schema = NAKAMA.ssl ? 'https' : 'http';
+  // La porta di default non si scrive: "https://tizio:443" e' valido ma e'
+  // rumore, e finisce nei log e nei messaggi d'errore che legge una persona.
+  const predefinita = (NAKAMA.ssl && NAKAMA.porta === 443) || (!NAKAMA.ssl && NAKAMA.porta === 80);
+  return schema + '://' + NAKAMA.host + (predefinita ? '' : ':' + NAKAMA.porta);
 }
 // L'intestazione che identifica il CLIENT (non il giocatore): la chiave del
 // server come nome utente di un Basic, con password vuota. E' la convenzione
@@ -11504,7 +11514,7 @@ function accessoEntraInLocale(){
 // loadFile ed e' percio' anch'esso file://.
 // Dove non puo' funzionare il pulsante NON sparisce: resta e dice dov'e' che
 // funziona. Un pulsante che si volatilizza sembra un guasto.
-const GOOGLE_CLIENT_ID = '';   // Google Cloud Console → ID client OAuth 2.0
+const GOOGLE_CLIENT_ID = '947017238895-crsaaks4v9lv08o16jsin68dr3a5s0qh.apps.googleusercontent.com';
 function googleUsabileQui(){
   return !!GOOGLE_CLIENT_ID && (location.protocol === 'https:' || location.protocol === 'http:');
 }
