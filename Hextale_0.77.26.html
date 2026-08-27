@@ -200,7 +200,7 @@ body.mouse-down, body.mouse-down *{
 }
 /* La colonna di sinistra e' il punto da cui si misurano gli effetti e la
    raggiera: nascono dentro di lei, centrati su di lei, non sullo schermo. */
-#start-col-sinistra{ position:relative; }
+#start-col-sinistra{ position:relative; margin: 0 0 0 80px; width: 42%; max-width: 42%; }
 #start-screen h1{font-size:49px;font-weight:900;color:var(--gold);text-shadow:0 0 30px rgba(200,168,75,0.6);letter-spacing:2px;} /* v0.71.89: -2px; v0.71.90: -3px more */
 #start-screen p{font-size:13px;color:var(--text-muted);} /* v0.71.89: -2px; v0.71.90: -3px more */
 /* Full-screen static backdrop — same object-fit:cover "fill the 1920×1080
@@ -275,9 +275,9 @@ body.mouse-down, body.mouse-down *{
    "fuori fuoco" ma solo come "sporchi". */
 /* v0.77.14 — dimezzate insieme ai raggi (vedi PARTICELLE_PIANI): la sfocatura
    e' l'alone di un granello, non un effetto a parte, e va scalata con lui. */
-#start-particles-far { filter:blur(1px); }
+#start-particles-far { filter:blur(3.5px); }
 #start-particles-mid { filter:none; }
-#start-particles-near{ filter:blur(3.5px); }
+#start-particles-near{ filter:blur(1.5px); }
 /* v0.77.19 — qui stavano le regole di #start-bars-img. Il fondale nuovo ha
    gia' la sua cornice: due barre sopra di lui sarebbero state una seconda
    cornice, per giunta proprio all'altezza delle due colonne. */
@@ -338,16 +338,38 @@ body.mouse-down, body.mouse-down *{
   width:150%; height:auto;
   transform:translate(-50%,-50%);
   mix-blend-mode:plus-lighter;
+  /* v0.77.26 — tre volte la dissolvenza condivisa (.start-fade, .5s). Sta qui
+     dentro e non in un secondo blocco con lo stesso selettore: due regole per
+     lo stesso elemento funzionano — vince l'ultima — ma la prossima persona
+     che legge la prima crede di aver letto tutto. Il gemello di questo numero
+     e' EFFETTI_FADE_MS nel JS, che dice quando far cominciare il respiro. */
+  transition:opacity 1.5s ease;
   pointer-events:none; user-select:none; -webkit-user-drag:none;
   z-index:0 !important;
 }
-#start-effetti.show{ animation:startEffettiPulsa 2s ease-in-out infinite alternate; }
+/* ── v0.77.26 — PRIMA COMPARE, POI RESPIRA ────────────────────────────────
+   Il pulsare stava su .show, cioe' partiva nello stesso istante della
+   dissolvenza d'ingresso. Ma dissolvenza e animazione agiscono tutte e due su
+   `opacity`, e non si sommano: vince l'animazione. Il risultato era che gli
+   effetti non comparivano affatto — sbucavano gia' a piena luce e cominciavano
+   subito a respirare, e allungare la dissolvenza non avrebbe cambiato niente
+   perche' nessuno la stava guardando.
+   Adesso sono due momenti e due classi: `.show` fa la dissolvenza, `.pulsa`
+   arriva quando quella e' finita. L'animazione parte da opacity:1, che e'
+   esattamente dove la dissolvenza l'ha lasciata, quindi fra le due non c'e'
+   nessun salto. Il ciclo del respiro resta quello che hai messo tu. */
+#start-effetti.pulsa{ animation:startEffettiPulsa 4s ease-in-out infinite alternate; }
 @keyframes startEffettiPulsa{
   from{ opacity:1; }
   to  { opacity:0.45; }
 }
 /* Il logo resta sopra a raggiera ed effetti. */
-#start-col-sinistra #start-logo-wrap{ z-index:2; }
+/* v0.77.26 — il logo si prende il doppio del tempo per comparire. La misura
+   sta qui e non su .start-fade, che e' condivisa da mezza schermata: cambiarla
+   li' avrebbe allungato anche la barra di caricamento e il modulo di accesso.
+   Il gemello di questo numero e' LOGO_FADE_MS nel JS, che decide quando la
+   raggiera e il riflesso possono partire: se cambi uno, cambia l'altro. */
+#start-col-sinistra #start-logo-wrap{ z-index:2; transition:opacity 1s ease; }
 /* v0.77.25 — LA BARRA IN FONDO ALLO SCHERMO.
    Centrata sulla viewport e non sulla colonna, appena sopra alla targhetta
    della versione (che sta a bottom:14px ed e' alta una ventina di pixel): da
@@ -8834,7 +8856,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.25</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.26</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -9755,6 +9777,14 @@ if(document.readyState==='loading'){
   //      duration and STD_STAGGER_MS gap between them.
   const STD_STAGGER_MS = 200; // gap between two back-to-back fade-ins in step 5
   const STD_FADE_MS = 500;    // matches .start-fade's own CSS transition-duration
+  // v0.77.26 — logo ed effetti hanno una dissolvenza piu' lunga di quella
+  // condivisa, dichiarata nelle loro regole CSS. Questi due numeri sono i
+  // gemelli di quelle durate e servono a sapere QUANDO sono finite: la
+  // raggiera e il riflesso aspettano il logo, il respiro aspetta gli effetti.
+  // Espressi come multipli invece che scritti a mano, cosi' si legge subito il
+  // rapporto e non si sbaglia una conversione.
+  const LOGO_FADE_MS    = STD_FADE_MS * 2;   // = 1s,   vedi #start-logo-wrap
+  const EFFETTI_FADE_MS = STD_FADE_MS * 3;   // = 1.5s, vedi #start-effetti
   const BG_FADE_MS = 3000;    // matches #start-bg-img's own 3s transition-duration (see CSS)
   // v0.71.43 ("abbassa il tempo minimo della barra di caricamento a 2
   // secondi"): 3000ms -> 2000ms.
@@ -9879,7 +9909,12 @@ if(document.readyState==='loading'){
     // pulsare comincia da solo: e' un'animazione CSS infinita, e finche'
     // l'elemento e' a opacita' zero pulsa senza che si veda.
     const effetti = document.getElementById('start-effetti');
-    if(effetti) effetti.classList.add('show');
+    if(effetti){
+      effetti.classList.add('show');
+      // Il respiro comincia quando la dissolvenza ha finito: vedi
+      // #start-effetti.pulsa nel CSS per il perche' non possono convivere.
+      setTimeout(()=>effetti.classList.add('pulsa'), EFFETTI_FADE_MS);
+    }
     // ── v0.77.25 — RAGGIERA E RIFLESSO ASPETTANO IL LOGO ───────────────────
     // Tutti e due raccontano qualcosa DEL logo: la luce che gira dietro di lui
     // e il bagliore che gli passa sopra. Partendo mentre lui sta ancora
@@ -9900,7 +9935,7 @@ if(document.readyState==='loading'){
     setTimeout(()=>{
       const accesso = document.getElementById('start-accesso');
       if(accesso) accesso.classList.add('show');
-    }, STD_FADE_MS);
+    }, LOGO_FADE_MS);
   }
 
   // Vero dal momento in cui la cascata finale e' PARTITA (non da quando e'
@@ -9946,7 +9981,9 @@ if(document.readyState==='loading'){
     ['start-logo-wrap','start-effetti','start-accesso',
      'start-radial-a','start-radial-b'].forEach(id=>{
       const el=document.getElementById(id);
-      if(el){ el.classList.remove('show'); void el.offsetWidth; }
+      // v0.77.26 — via anche `pulsa`, o rientrando il respiro sarebbe gia' in
+      // corso e coprirebbe la dissolvenza che si sta cercando di rigiocare.
+      if(el){ el.classList.remove('show','pulsa'); void el.offsetWidth; }
     });
     revealLogoAndButtons();
   };
