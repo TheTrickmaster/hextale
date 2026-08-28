@@ -5292,25 +5292,8 @@ body.prova-senza-willchange #mm-book-rot{
    regola #settings-modal h2 qui sopra: quella e' un overline minuscolo in
    Rosarivo, pensato per fare da etichetta sopra al contenuto, mentre qui il
    titolo E' il contenuto principale del box. */
-#faction-choice-modal h2{
-  margin:0 0 6px;
-  /* v0.72.30: peso 400 esplicito (l'<h2> di default e' bold) e sintesi
-     disattivata, cosi' il browser non puo' ingrassare artificialmente il
-     glifo quando il file Marcellus SC non e' ancora arrivato e sta usando
-     il serif di fallback. */
-  font-family:'Marcellus SC','Marcellus',serif; font-weight:400; font-size:32px;
-  font-synthesis:none; -webkit-font-synthesis:none;
-  color:#FBF0D7; text-align:center; letter-spacing:.02em;
-}
-/* Riga "PvP"/"PvAI" sotto al titolo: il testo lo scrive requestNewGame(),
-   che e' l'unico punto che sa se la partita e' contro l'IA o meno. */
-#faction-choice-mode{
-  font-family:'Rosarivo',serif; font-size:20px; color:#95A7A9;
-  /* v0.72.30 ("sposta di 20px in alto PvP/AI"): margin-top negativo invece
-     di ridurre il margin-bottom dell'h2, cosi' lo spostamento e' esattamente
-     -20px e resta leggibile come tale se un domani si ritocca il titolo. */
-  text-align:center; margin:-20px 0 18px;
-}
+/* v0.77.46 — qui stavano le regole di "Choose your side": la finestra non
+   c'e' piu' (vedi impostaFazioneUmano). */
 /* v0.70.20: Surrender/Back-to-main-menu now stretch to the box's full
    content width (400px box - 30px*2 padding = 340px) instead of sitting at
    their natural min-width — the 5-slice art (.sab-fill-l/.sab-fill-r) is
@@ -9739,7 +9722,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.45</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.46</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -9751,19 +9734,11 @@ body.prova-senza-willchange #mm-book-rot{
      quindi chi la apriva per sbaglio era obbligato a cominciare una partita.
      Una finestra senza via d'uscita e' una trappola, e nel gioco tutte le
      altre si chiudono allo stesso modo (X in alto a destra, click fuori). -->
-<div id="faction-choice-overlay" class="hx-modal-overlay" onclick="if(event.target===this) chiudiSceltaFazione();">
-  <div id="faction-choice-modal" class="hx-modal-box">
-    <button class="hx-modal-close" aria-label="Close" onclick="chiudiSceltaFazione()"><img src="https://hextalegame.com/ui/close-icon.png" alt="" draggable="false"></button>
-    <h2>Choose your side</h2>
-    <div id="faction-choice-mode"></div>
-    <button class="start-art-btn sab-secondary" onclick="confirmFactionChoice('dark')">
-      <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Play as Dark</span>
-    </button>
-    <button class="start-art-btn sab-primary" onclick="confirmFactionChoice('light')">
-      <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Play as Light</span>
-    </button>
-  </div>
-</div>
+<!-- v0.77.46 — qui stava "Choose your side", chiesta all'inizio di ogni
+     partita. La fazione adesso e' una preferenza del giocatore e si sceglie
+     dal menu Customize: chiederla di nuovo a ogni partita avrebbe voluto dire
+     due posti che decidono la stessa cosa, e uno dei due che vince a caso.
+     Chi la imposta chiama impostaFazioneUmano (vedi piu' sotto). -->
 <!-- v0.73.71 — PROVA CARTA: CHE MAZZO HA L'AVVERSARIO?
      Dalla v0.73.30 la carta in prova finiva in ENTRAMBI i mazzi, sempre. E'
      giusto per vedere una carta contro se stessa (due specchi, due Brucaliffi,
@@ -13368,7 +13343,9 @@ if(document.readyState==='loading'){
 // intatto e sincrono — i test e le chiamate programmatiche continuano a
 // funzionare come prima, ed e' anche cio' che questa funzione chiama una
 // volta che la scelta e' stata fatta.
-let _pendingNewGameVsAI = null;
+// v0.77.46 — qui c'era _pendingNewGameVsAI, la modalita' messa da parte
+// mentre si aspettava che il giocatore scegliesse la fazione. Non si aspetta
+// piu' nessuno, quindi non c'e' piu' niente da mettere da parte.
 // ═══════════════════════════════════════════════════════════════════════════
 // v0.73.53 — MENU PRINCIPALE
 // ═══════════════════════════════════════════════════════════════════════════
@@ -15569,37 +15546,35 @@ function musicaMenuFerma(){
 // v0.77.5 — qui stava rigiocaSubito(), il "Play again" della vecchia
 // schermata di fine partita. La nuova ne ha due soli, "View board" e "Back to
 // main menu", quindi non lo chiama piu' nessuno.
+// ── v0.77.46 — LA FAZIONE E' UNA PREFERENZA, NON UNA DOMANDA ─────────────
+// Prima ogni partita cominciava chiedendo "chiaro o scuro?". Adesso la si
+// sceglie una volta dal menu Customize e resta: una domanda ripetuta a ogni
+// partita e' una domanda a cui si risponde sempre uguale.
+// Sta in localStorage e non solo su window perche' deve sopravvivere alla
+// chiusura del gioco; su window ci finisce comunque, perche' e' li' che la
+// cercano playerFactionIsDark e le venti cose che ne dipendono, e deve
+// sopravvivere alla creazione del nuovo G dentro startGame().
+const FAZIONE_CHIAVE = 'hextale.fazione';
+function fazioneUmano(){
+  if(typeof window !== 'undefined' && window.__humanFaction) return window.__humanFaction;
+  let v = null;
+  try{ v = localStorage.getItem(FAZIONE_CHIAVE); }catch(_){}
+  return v === 'light' ? 'light' : 'dark';   // scuro, se non e' mai stata scelta
+}
+function impostaFazioneUmano(fazione){
+  const f = (fazione === 'light') ? 'light' : 'dark';
+  window.__humanFaction = f;
+  try{ localStorage.setItem(FAZIONE_CHIAVE, f); }catch(_){}
+  applyFactionToPlayerPanels();   // banner, nome e colore dei due pannelli
+  return f;
+}
 function requestNewGame(vsAI){
   // v0.75.63 — e cominciandone una nuova: il "Play again" a fine partita parte
   // mentre la scena precedente puo' avere ancora qualcosa in canna.
   fermaTuttiISuoni();
-  _pendingNewGameVsAI = !!vsAI;
-  const ov=document.getElementById('faction-choice-overlay');
-  if(!ov){ startGame(!!vsAI); return; } // fallback difensivo
-  // v0.72.28: riga sotto al titolo che dice di che partita si tratta.
-  const modeEl=document.getElementById('faction-choice-mode');
-  if(modeEl) modeEl.textContent = vsAI ? 'PvAI' : 'PvP';
-  ov.classList.add('show');
-}
-// v0.73.60 — chiudere senza scegliere: la partita in attesa viene lasciata
-// cadere. Non basta nascondere il riquadro — _pendingNewGameVsAI resterebbe
-// impostato, e la prossima apertura si porterebbe dietro la modalita' scelta
-// la volta prima.
-function chiudiSceltaFazione(){
-  const ov=document.getElementById('faction-choice-overlay');
-  if(ov) ov.classList.remove('show');
-  _pendingNewGameVsAI = null;
-}
-function confirmFactionChoice(faction){
-  const ov=document.getElementById('faction-choice-overlay');
-  if(ov) ov.classList.remove('show');
-  // La scelta vive su window perche' deve sopravvivere alla creazione del
-  // nuovo G dentro startGame().
-  window.__humanFaction = (faction==='light') ? 'light' : 'dark';
-  applyFactionToPlayerPanels(); // banner + nome + colore testo dei due pannelli
-  const vsAI = _pendingNewGameVsAI;
-  _pendingNewGameVsAI = null;
-  startGame(vsAI===null ? true : vsAI);
+  // La fazione e' gia' decisa: si applica e si parte, senza fermare nessuno.
+  impostaFazioneUmano(fazioneUmano());
+  startGame(!!vsAI);
 }
 
 // ── v0.72.27 — FAZIONI DINAMICHE ────────────────────────────────────────
@@ -24341,7 +24316,7 @@ function initGame(vsAI){
   // finishGameWithResult()'s own p1Label/p2Label).
   const p1NameEl=document.getElementById('p1-name-label');
   const p2NameEl=document.getElementById('p2-name-label');
-  // v0.72.27: ri-applicato anche qui e non solo in confirmFactionChoice(),
+  // v0.72.27: ri-applicato anche qui e non solo in impostaFazioneUmano(),
   // cosi' il fallback difensivo di requestNewGame() (che chiama startGame()
   // direttamente se l'overlay manca) non lascia i pannelli su una fazione
   // vecchia.
