@@ -677,7 +677,11 @@ body.mouse-down, body.mouse-down *{
   font-size:30px; font-weight:400; line-height:1;
   color:#EDE0C6; text-shadow:0 0 4px rgba(0,0,0,1);
 }
-#mm2-deck-lista{ display:flex; flex-direction:column; gap:12px; max-height:52vh; overflow-y:auto; }
+/* v0.77.41 — il centro della barra CENTRA, come nelle altre finestre: la
+   regola condivisa e' una fila flex che parte da sinistra, e un titolo che non
+   riempie la fila ci scivola dentro. */
+#mm2-deck-titlebar .hx-titlebar-center{ justify-content:center; }
+#mm2-deck-lista{ display:flex; flex-direction:column; gap:12px; overflow:visible; }
 #mm2-deck-lista .deck-slot{ cursor:var(--cursore); }
 #mm2-find{ margin-top:30px; width:100%; height:82px; padding:0; }
 #mm2-find .hxb-label{ font-size:30px; color:#322C1D; }
@@ -712,6 +716,35 @@ body.mouse-down, body.mouse-down *{
    il pulsante dello shop e questo. Una misura sola per tutte e tre, cosi' non
    diventano tre grigi leggermente diversi. */
 #mm2-quest-btn{ width:100%; padding:0; margin-top:16px; opacity:0.3; pointer-events:none; }
+/* ── v0.77.41 — L'ETICHETTA SU DUE RIGHE ──────────────────────────────────
+   La riga delle bustine pronte stava sotto al pulsante; adesso ci sta dentro,
+   sotto al titolo. L'etichetta e' gia' una riga flex centrata (vedi
+   .hxb-label): qui diventa una colonna, e il resto — centratura, ombra, colore
+   del titolo — resta quello che era. */
+.mm2-label-doppia{ flex-direction:column; gap:2px; line-height:1.05; }
+.mm2-label-doppia small{
+  font-family:'Rosarivo',serif; font-size:13px; color:#DAD4C7;
+  -webkit-text-fill-color:#DAD4C7;   /* l'etichetta sopra ritaglia il testo su un gradiente: qui no */
+  background:none;
+}
+.mm2-label-doppia small.vuoto{ opacity:0.4; }
+/* L'alone azzurro quando una bustina e' pronta: stesso disegno e stessa
+   deformazione lenta dell'alone della bustina che si apre (vedi #pack-glow),
+   con il colore che hai chiesto. Spento finche' non c'e' niente da aprire. */
+.mm2-pack-glow{
+  position:absolute; left:0; right:0; top:0; bottom:14px;
+  margin:-18px -26px;
+  background:#7FD4FF;
+  filter:blur(26px);
+  mix-blend-mode:plus-lighter;
+  opacity:0; pointer-events:none; z-index:0;
+  border-radius:46% 54% 50% 50% / 52% 48% 52% 48%;
+  transition:opacity 0.5s ease;
+}
+.mm2-scorciatoia.ha-bustina .mm2-pack-glow{
+  opacity:0.85;
+  animation:packGlowMorph 7s ease-in-out infinite;
+}
 #mm2-quest-corpo{
   height:490px;
   display:flex; align-items:center; justify-content:center;
@@ -6711,6 +6744,11 @@ body.prova-senza-willchange #mm-book-rot{
    due riempitivi occupano quello che resta, uno per parte del centro. */
 .hx-btn{
   --hxb-h:68px;
+  /* Quanto sono larghi i due tappi e il centro. Stanno qui e non in un secondo
+     blocco con lo stesso selettore: due regole per lo stesso elemento
+     funzionano — vince l'ultima — ma chi legge la prima crede di aver letto
+     tutto. Le famiglie con un'arte di proporzioni diverse li ridichiarano. */
+  --hxb-cap-w:49px; --hxb-mid-w:58px;
   --hxb-cap:calc(var(--hxb-h) * 98 / 136);
   --hxb-mid:calc(var(--hxb-h) * 116 / 136);
   position:relative; flex:0 0 auto;
@@ -6737,8 +6775,20 @@ body.prova-senza-willchange #mm-book-rot{
   pointer-events:none;
 }
 .hx-btn .hxb-strip > span{ background-repeat:no-repeat; background-size:100% 100%; }
-.hx-btn .hxb-left, .hx-btn .hxb-right{ flex:0 0 49px; }
-.hx-btn .hxb-center{ flex:0 0 58px; }
+/* ── v0.77.41 — LE MISURE DEI PEZZI DIPENDONO DALLA FAMIGLIA ──────────────
+   Erano 49 e 58 per tutti. Sono i numeri giusti per l'arte normale (tappi
+   98x136, centro 116x136) all'altezza di 68px; l'arte "important" e' invece
+   119x164 e 114x164, e alla sua altezza di 82px vorrebbe 59.5 e 57. Tenendo
+   49 e 58 i due tappi venivano compressi e il centro allargato: il disegno
+   non combaciava piu' con il pezzo accanto, ed e' quello che si vedeva come
+   una righetta vuota fra un pezzo e l'altro.
+   I numeri sono INTERI, non calcolati: una larghezza frazionaria cade su mezzo
+   pixel e lascia una fessura — e' la stessa lezione delle testate della barra
+   del titolo. 60 invece di 59.5 stira il tappo dello 0.8%, che non si vede;
+   mezzo pixel di fondale in mezzo si vede eccome. */
+.hx-btn-important{ --hxb-cap-w:60px; --hxb-mid-w:57px; }
+.hx-btn .hxb-left, .hx-btn .hxb-right{ flex:0 0 var(--hxb-cap-w); }
+.hx-btn .hxb-center{ flex:0 0 var(--hxb-mid-w); }
 /* Il riempitivo e' una fetta larga 2px: si ripete invece di stirarsi, cosi'
    la trama resta della sua densita' su un pulsante lungo come su uno corto. */
 .hx-btn .hxb-strip > .hxb-fill{
@@ -7406,15 +7456,18 @@ body.prova-senza-willchange #mm-book-rot{
    z-index 4300 come i filtri: sopra alla Collezione e alle bustine, che
    stanno a 4000. Prima questa finestra era a 1000 e da quelle pagine sarebbe
    finita sotto. */
-#settings-modal-overlay{
+/* v0.77.41 — lo stesso velo per tutte e due. Non e' una copia: e' lo stesso
+   selettore, perche' due finestre che devono coprire lo schermo allo stesso
+   modo e che si scrivono due volte smettono di farlo alla prima modifica. */
+#settings-modal-overlay, #mm2-deck-overlay{
   display:none; position:fixed; inset:0; z-index:4300;
   align-items:center; justify-content:center;
   background:rgba(3,7,7,0.7);
   -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px);
   cursor:var(--cursore);
 }
-#settings-modal-overlay.show{ display:flex; }
-#settings-modal-overlay *{ cursor:var(--cursore); }
+#settings-modal-overlay.show, #mm2-deck-overlay.show{ display:flex; }
+#settings-modal-overlay *, #mm2-deck-overlay *{ cursor:var(--cursore); }
 #settings-modal{ width:530px; display:flex; flex-direction:column; gap:16px; }
 #settings-titlebar h2{
   margin:0; width:100%; text-align:center;
@@ -7624,7 +7677,12 @@ body.prova-senza-willchange #mm-book-rot{
 }
 .deck-slot-piena:hover{ box-shadow:0 0 16px rgba(160,173,175,0.8); }
 .deck-slot-check{
-  flex:0 0 auto;
+  /* v0.77.41 — LO SPAZIO DELLA SPUNTA E' SEMPRE OCCUPATO. L'immagine si mette
+     a caricamento avvenuto: fra il momento in cui si sceglie un mazzo e quello
+     in cui la nuova spunta risponde, quell'<img> resta senza sorgente e larga
+     zero — e il nome del mazzo scattava a sinistra e tornava indietro. Il
+     pulsante tiene la propria misura a prescindere da cosa ci sia dentro. */
+  flex:0 0 32px; width:32px; height:32px;
   background:none; border:0; padding:0; margin:0;
   display:inline-flex; align-items:center; justify-content:center;
   cursor:var(--cursore);
@@ -7633,6 +7691,13 @@ body.prova-senza-willchange #mm-book-rot{
    72x59 accesa, perche' quella accesa deborda col segno): si fissa l'ALTEZZA
    e si lascia libera la larghezza, o la spunta accesa si vedrebbe schiacciata. */
 .deck-slot-check img{ display:block; height:32px; width:auto; }
+/* v0.77.41 — LO SPAZIO DELLA SPUNTA E' SEMPRE OCCUPATO.
+   L'immagine si mette a caricamento avvenuto: fra il momento in cui si sceglie
+   un mazzo e quello in cui la nuova spunta risponde, quell'<img> resta senza
+   sorgente e larga zero — e il nome del mazzo scattava a sinistra e tornava
+   indietro. Il pulsante tiene la propria misura a prescindere da cosa ci sia
+   dentro, cosi' non c'e' nessun buco da riempire. */
+.deck-slot-check img{ width:32px; height:32px; object-fit:contain; }
 .deck-slot-nome{
   flex:1 1 auto; min-width:0;
   font-family:'Marcellus',var(--font-display),serif;
@@ -9134,11 +9199,18 @@ body.prova-senza-willchange #mm-book-rot{
     <div id="mm2-giu">
       <div class="mm2-scorciatoia" id="mm2-sc-packs">
         <img class="mm2-scorciatoia-icona" style="height:208px" alt="" draggable="false">
-      <button class="hx-btn hx-btn-opaco" type="button" onclick="openPackOverlay()">
-        <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
-        <span class="hxb-label">Card packs</span>
-      </button>
-        <div class="mm2-scorciatoia-sotto" id="mm2-packs-sotto"></div>
+        <!-- v0.77.41 — l'alone sta FUORI dal pulsante e dietro di lui: dentro
+             sarebbe stato tagliato dai pezzi che compongono il pulsante, e
+             sopra avrebbe velato l'etichetta. E' lo stesso alone della bustina
+             che si sta per aprire, con la stessa deformazione lenta. -->
+        <div class="mm2-pack-glow" aria-hidden="true"></div>
+        <button class="hx-btn hx-btn-opaco" type="button" onclick="openPackOverlay()">
+          <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
+          <span class="hxb-label mm2-label-doppia">
+            <span>Card packs</span>
+            <small id="mm2-packs-sotto"></small>
+          </span>
+        </button>
       </div>
       <div class="mm2-scorciatoia" id="mm2-sc-library">
         <img class="mm2-scorciatoia-icona" style="height:221px" alt="" draggable="false">
@@ -9541,7 +9613,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.40</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.41</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -13321,6 +13393,16 @@ function montaMenuPrincipale(){
     // Il drappo del giocatore e' un FONDO e non un'immagine nel flusso: il
     // contenuto ci si appoggia sopra invece di essergli accanto.
     impostaSfondoDaCandidati(document.getElementById('mm2-drappo'), uiFileCandidati('player-banner.png'));
+    // v0.77.41 — LA BARRA DELL'ESPERIENZA NON AVEVA I SUOI DISEGNI.
+    // .hx-capacity li prende da due variabili CSS, e a riempirle era solo la
+    // vestizione del pannello di modifica mazzi: qui nessuno lo faceva, quindi
+    // il `border-image` restava senza immagine e la barra non si vedeva
+    // affatto — non vuota, proprio assente. Sono gli stessi due file dei
+    // cursori del volume, cioe' la barra e' la stessa barra di sempre.
+    impostaVariabileDaCandidati(radice.querySelector('#mm2-xp .hx-capacity-bg'), '--hx-bar-bg',
+      _candidati('player-ui/slider-bar-bg.png', PLAYER_UI_BASE+'slider-bar-bg.png'));
+    impostaVariabileDaCandidati(radice.querySelector('#mm2-xp .hx-capacity-fill'), '--hx-bar-fill',
+      _candidati('player-ui/slider-bar-fill.png', PLAYER_UI_BASE+'slider-bar-fill.png'));
     // Il fondo del riquadro della fairy dust; quello dell'inchiostro non ne ha
     // uno suo — e' la differenza fra i due, e sta tutta qui.
     const dust = document.getElementById('mm2-box-dust');
@@ -13444,6 +13526,9 @@ function mm2AggiornaBustine(){
   try{ attesa = (typeof _bustinaTempoRimasto === 'function') ? _bustinaTempoRimasto() : ''; }catch(_){}
   el.textContent = disponibile ? 'One pack ready to open!' : ('Next pack in ' + attesa);
   el.classList.toggle('vuoto', !disponibile);
+  // L'alone si accende sul riquadro e non sull'etichetta: e' il pulsante
+  // intero a dover chiamare l'attenzione.
+  document.getElementById('mm2-sc-packs')?.classList.toggle('ha-bustina', disponibile);
 }
 
 // ── v0.77.38 — LA SCELTA DEL MAZZO ───────────────────────────────────────
