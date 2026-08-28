@@ -1,98 +1,78 @@
-<!DOCTYPE html>
+<script>
+    const owner = "TheTrickmaster";
+    const repo = "hextale";
 
-<html>
+    async function redirectToLatestVersion() {
+        try {
+            const response = await fetch(
+                `https://api.github.com/repos/${owner}/${repo}/contents/`
+            );
 
-<head>
-
-    <meta charset="UTF-8">
-
-    <title>Hextale</title>
-    <link rel="icon" type="image/png" href="favicon.png">
-
-</head>
-
-<body>
-
-    <script>
-
-        const owner = "TheTrickmaster";
-        const repo = "hextale";
-
-        async function redirectToLatestVersion() {
-
-            try {
-
-                const response = await fetch(
-                    `https://api.github.com/repos/${owner}/${repo}/contents/`
+            if (!response.ok) {
+                throw new Error(
+                    `GitHub API error: ${response.status} ${response.statusText}`
                 );
-
-                const files = await response.json();
-
-                // Trova tutti i file Hextale-x.x.x.html oppure Hextale_x.x.x.html
-                const versions = files
-                    .filter(file => file.type === "file")
-                    .map(file => {
-
-                        const match = file.name.match(
-                            /^Hextale[-_](\d+)\.(\d+)\.(\d+)\.html$/i
-                        );
-
-                        if (!match) return null;
-
-                        return {
-                            name: file.name,
-                            version: [
-                                Number(match[1]),
-                                Number(match[2]),
-                                Number(match[3])
-                            ]
-                        };
-
-                    })
-                    .filter(Boolean);
-
-                if (versions.length === 0) {
-
-                    document.body.innerHTML = "No game version found.";
-
-                    return;
-
-                }
-
-                // Ordina dalla versione più recente alla più vecchia
-                versions.sort((a, b) => {
-
-                    for (let i = 0; i < 3; i++) {
-
-                        if (a.version[i] !== b.version[i]) {
-
-                            return b.version[i] - a.version[i];
-
-                        }
-
-                    }
-
-                    return 0;
-
-                });
-
-                // Redirect alla versione più recente
-                window.location.replace(versions[0].name);
-
-            } catch (error) {
-
-                console.error(error);
-
-                document.body.innerHTML = "Unable to load Hextale.";
-
             }
 
+            const files = await response.json();
+
+            if (!Array.isArray(files)) {
+                throw new Error("GitHub API did not return a file list.");
+            }
+
+            const versions = files
+                .filter(file => file.type === "file")
+                .map(file => {
+                    const match = file.name.match(
+                        /^Hextale[-_](\d+)\.(\d+)\.(\d+)\.html$/i
+                    );
+
+                    if (!match) return null;
+
+                    return {
+                        name: file.name,
+                        version: [
+                            Number(match[1]),
+                            Number(match[2]),
+                            Number(match[3])
+                        ]
+                    };
+                })
+                .filter(Boolean);
+
+            if (versions.length === 0) {
+                throw new Error("No Hextale version found.");
+            }
+
+            versions.sort((a, b) => {
+                for (let i = 0; i < 3; i++) {
+                    if (a.version[i] !== b.version[i]) {
+                        return b.version[i] - a.version[i];
+                    }
+                }
+                return 0;
+            });
+
+            console.log("Latest Hextale version:", versions[0].name);
+
+            window.location.replace(versions[0].name);
+
+        } catch (error) {
+            console.error("Unable to load Hextale:", error);
+
+            document.body.innerHTML = `
+                <div style="
+                    color:white;
+                    background:#000;
+                    font-family:Arial;
+                    padding:40px;
+                ">
+                    <h2>Unable to load Hextale</h2>
+                    <p>${error.message}</p>
+                </div>
+            `;
         }
+    }
 
-        redirectToLatestVersion();
-
-    </script>
-
-</body>
-
-</html>
+    redirectToLatestVersion();
+</script>
