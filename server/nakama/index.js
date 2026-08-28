@@ -951,6 +951,12 @@ function _comincia(stato, dispatcher, logger, nk) {
     _aUno(dispatcher, stato, uid, OP_AVVIO, {
       tu: j + 1,
       mano: stato.mano[uid],
+      // Anche il RESTO del suo mazzo, nell'ordine in cui e' stato mescolato.
+      // Non e' un segreto — e' roba sua — e mandarlo adesso evita di dover
+      // sincronizzare ogni pescata: il client pesca da solo, nello stesso
+      // ordine, e quel che pesca coincide sempre con quel che il server sa.
+      // Del mazzo dell'AVVERSARIO, invece, non arriva niente.
+      mazzo: stato.mazzo[uid],
       buchi: stato.buchi,
       turno: stato.turno + 1,
       scadenza: stato.scadenza,

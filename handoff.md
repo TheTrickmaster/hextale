@@ -805,12 +805,12 @@ serviranno a salire di livello, il posto e' `rpcBustinaRaccogli`.
 
 ---
 
-## La partita in rete — TAPPA 1, solo lato server (dalla v0.77.53)
+## La partita in rete — TAPPA 1 (dalla v0.77.53, finita nella v0.77.54)
 
-**STATO: il gestore della partita e' scritto, schierato e collaudato, ma IL
-CLIENT NON LO USA ANCORA.** Chi gioca oggi gioca ancora in locale, esattamente
-come nella v0.77.52. Questa sezione descrive meta' di un lavoro; l'altra meta'
-— agganciare il client — e' il prossimo passo.
+**STATO (v0.77.54): la tappa 1 e' FINITA e funziona.** Due giocatori si
+accoppiano, entrano nella partita creata dal server e giocano davvero da due
+computer diversi. Restano fuori le conquiste (tappa 2) e le abilita' (tappa 3),
+che i client calcolano ancora ognuno per conto suo.
 
 **Perche' a tappe.** Il motore di regole e' ~9.600 righe, 270 funzioni e 44
 abilita', tutto nel client. Portarlo di la' in un colpo solo vuol dire settimane
@@ -862,13 +862,69 @@ precedente se il nuovo non parte.
 sorpassata da quella gia' in volo. Chi collauda deve passare da `salvaMazzi` e
 ASPETTARE che il server confermi, non dare per scontato di aver scritto.
 
-### Quel che manca alla tappa 1
+### Come e' agganciato il client (dalla v0.77.54)
 
-Agganciare il client: entrare nella partita col `match_id` che arriva
-nell'accoppiamento, far cominciare `startGame` con la mano e il tabellone del
-server, mandare le giocate invece di applicarle da solo, mostrare la mano
-avversaria come dorsi, e prendere la scadenza dal server invece che da
-`startTimer`.
+Tutto passa dal socket della ricerca, che dalla v0.77.54 **non si chiude piu'**
+quando l'avversario e' trovato: `mmTrovato` manda un `match_join` col
+`match_id` che arriva nell'accoppiamento, e la partita comincia solo quando
+arriva l'avvio del server (`reteMessaggio`, op 1). Aspettare quel messaggio
+invece di partire subito e' la differenza fra una partita e due partite diverse.
+
+`PARTITA_RETE` e' l'interruttore: quando c'e', il gioco e' in rete.
+
+| | |
+|---|---|
+| `makeBalancedDecks` | il mio mazzo e' quello mescolato dal server, nel suo ordine; il suo e' dodici `_cartaSconosciuta` |
+| le caselle bloccate | `PARTITA_RETE.buchi`, non piu' sorteggiate |
+| chi comincia | `PARTITA_RETE.turno` |
+| `doPlace` | senza `daServer` MANDA e non tocca il tabellone; con `daServer` applica |
+| `startTimer` | parte da quel che resta secondo il server |
+| `autoPlay` | non fa niente: la giocata d'ufficio la fa il server |
+| `renderHand` | la mano avversaria e' coperta SEMPRE, anche a partita finita |
+
+**Il mio mazzo me lo manda il server, mescolato.** Non e' un segreto — e' roba
+mia — e mandarlo all'avvio evita di sincronizzare ogni pescata: pesco da solo,
+nello stesso ordine, e quel che pesco coincide sempre con quel che lui sa.
+
+**`_cartaSconosciuta` ha `groupSides: []`, non sei null.** Con dei null dentro,
+`gruppiDiCarta` chiama `.slice()` su di loro e la partita muore mentre disegna
+la mano. Il fronte della carta viene costruito anche quando e' coperta.
+
+### Tre trappole gia' pagate
+
+**`G.currentPlayer=Math.random()<0.5?1:2`.** Ogni client tirava a sorte chi
+comincia. In locale e' l'unico posto che decide, quindi andava bene; in rete i
+due indovinavano lo stesso numero **una volta su due**, e nell'altra meta'
+ognuno credeva che toccasse a se'. Adesso in rete quel numero viene dal server.
+
+**Il turno puo' comunque divergere, e si riallinea.** Il motore fa passare il
+turno per conto suo alla fine delle animazioni. Quasi sempre arriva allo stesso
+numero del server; in un collaudo su quattro no. `reteAllineaTurno`, chiamata
+sul battito del tempo, lo rimette a posto — ma **solo a tabellone fermo**:
+forzarlo durante un'animazione strapperebbe il turno a meta' di una conquista.
+Quando le regole saranno sul server (tappe 2 e 3) questa riconciliazione
+sparira', perche' non ci sara' piu' un secondo posto che decide.
+
+**Le funzioni del match handler devono essere GLOBALI e con un nome.** Scritte
+come funzioni anonime dentro all'oggetto, il runtime non parte:
+`function literal found: javascript functions cannot be inlined`. E non e' un
+errore mite — **Nakama entra in ciclo di riavvio e il gioco resta giu'**. E'
+successo, ed e' durato un paio di minuti. Da allora si schiera con
+`server/nakama/schiera.sh`, che rimette da solo il modulo precedente se il
+nuovo non parte (l'indirizzo si passa da fuori: `HEXTALE_SRV=root@… bash …`,
+perche' questo repository e' pubblico).
+
+### Quel che manca ancora
+
+Le **conquiste** (tappa 2) e le **44 abilita'** (tappa 3). Finche' stanno nel
+client, due client possono calcolare due tabelloni diversi: per questo a ogni
+giocata mandano al server un'**impronta** del proprio stato (`reteImpronta`,
+op 7) e il server ferma la partita se le due non coincidono (op 8). Non
+impedisce di barare — impedisce di barare **senza che si veda**.
+
+Manca anche il **risultato**: la partita in rete non chiude ancora con vittoria
+e sconfitta comunicate dal server, quindi XP e rank di una partita PvP passano
+ancora da `riferisciPartita` come prima.
 
 ---
 
