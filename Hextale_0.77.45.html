@@ -491,13 +491,17 @@ body.mouse-down, body.mouse-down *{
   -webkit-mask-repeat:no-repeat;
           mask-repeat:no-repeat;
 }
-/* Da selezionato la sagoma e' quella dell'altra serie: stessi tre pezzi, altri
-   due file per i tappi. */
+/* Da selezionato le scintille si accendono, e la sagoma diventa quella
+   dell'altra serie: stessi tre pezzi, altri due file per i tappi.
+   Le due cose stanno nella stessa regola e non in due con lo stesso
+   selettore: funzionerebbero uguale, ma chi legge la prima crede di aver
+   letto tutto. */
 .mm2-nav-btn.attivo .mm2-nav-scintille{
+  opacity:1;
   -webkit-mask-image:var(--mm2-cap-sx-on), var(--mm2-cap-dx-on), linear-gradient(#000,#000);
           mask-image:var(--mm2-cap-sx-on), var(--mm2-cap-dx-on), linear-gradient(#000,#000);
 }
-.mm2-nav-btn.attivo .mm2-nav-scintille{ opacity:1; }
+
 #mm2-topbar-icone{ display:flex; align-items:center; gap:20px; flex:0 0 auto; }
 .mm2-icona{
   width:52px; height:52px; padding:0; margin:0; flex:0 0 auto;
@@ -755,13 +759,44 @@ body.mouse-down, body.mouse-down *{
    sotto al titolo. L'etichetta e' gia' una riga flex centrata (vedi
    .hxb-label): qui diventa una colonna, e il resto — centratura, ombra, colore
    del titolo — resta quello che era. */
-.mm2-label-doppia{ flex-direction:column; gap:2px; line-height:1.05; }
+.mm2-label-doppia{ position:relative; bottom:3px; flex-direction:column; gap:0; line-height:1.05; }
 .mm2-label-doppia small{
   font-family:'Rosarivo',serif; font-size:13px; color:#DAD4C7;
   -webkit-text-fill-color:#DAD4C7;   /* l'etichetta sopra ritaglia il testo su un gradiente: qui no */
   background:none;
 }
 .mm2-label-doppia small.vuoto{ opacity:0.4; }
+/* ── v0.77.45 — IL BORDO CHE SCORRE ──────────────────────────────────────
+   E' l'anello della carta appena sbustata (vedi .pack-card-rim-ring), con la
+   stessa costruzione: un gradiente CONICO che ruota dentro a un riquadro, e
+   una maschera a due strati che tiene solo la cornice — content-box meno
+   riquadro intero, cioe' una ciambella. Senza quella maschera il gradiente
+   riempirebbe tutto e sarebbe una macchia che gira, non un filo.
+   Il `padding` e' lo spessore del filo: la maschera scava esattamente li'. */
+.mm2-pack-rim{
+  position:absolute; left:0; right:0; top:0; bottom:14px;
+  border-radius:14px; overflow:hidden;
+  opacity:0; transition:opacity 0.5s ease;
+  pointer-events:none; z-index:2;
+  filter:blur(1.5px);
+}
+.mm2-pack-rim-ring{
+  position:absolute; inset:0;
+  border-radius:inherit;
+  padding:2px; overflow:hidden;
+  -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+          mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor;
+          mask-composite:exclude;
+}
+.mm2-pack-rim-ring::before{
+  content:''; position:absolute; left:-60%; top:-60%; width:220%; height:220%;
+  background:conic-gradient(#7FD4FF 0deg, transparent 55deg, #7FD4FF 130deg,
+                            transparent 200deg, #7FD4FF 270deg, transparent 330deg, #7FD4FF 360deg);
+  animation:packRimSpin 5.5s linear infinite;
+  will-change:transform;
+}
+.mm2-scorciatoia.ha-bustina .mm2-pack-rim{ opacity:1; animation:packRimBreathe 4.3s ease-in-out infinite; }
 /* L'alone azzurro quando una bustina e' pronta: stesso disegno e stessa
    deformazione lenta dell'alone della bustina che si apre (vedi #pack-glow),
    con il colore che hai chiesto. Spento finche' non c'e' niente da aprire. */
@@ -780,7 +815,7 @@ body.mouse-down, body.mouse-down *{
   animation:packGlowMorph 7s ease-in-out infinite;
 }
 #mm2-quest-corpo{
-  height:490px;
+  height:410px;
   display:flex; align-items:center; justify-content:center;
   font-family:'Marcellus',var(--font-display),serif; font-size:22px; color:#929899;
   background:rgba(0,0,0,0.15);
@@ -5165,10 +5200,13 @@ body.prova-senza-willchange #mm-book-rot{
 /* v0.73.4 — riquadro delle note di aggiornamento. Riusa la scatola condivisa
    (.hx-modal-box): stesso fondo, stesso bordo, stesso rumore del menu di
    debug e delle impostazioni. */
-#patch-notes-box{ width:560px; max-width:calc(100vw - 40px); max-height:calc(100vh - 80px); }
+
 /* Il velo: lo stesso delle altre due finestre. Terzo selettore sulla stessa
    regola, non una terza copia. */
-#patch-notes-box{ width:530px; display:flex; flex-direction:column; gap:16px; }
+#patch-notes-box{
+  width:830px; max-width:calc(100vw - 40px); max-height:calc(100vh - 80px);
+  display:flex; flex-direction:column; gap:16px;
+}
 #patch-notes-titlebar h2{
   margin:0; text-align:center;
   font-family:'Marcellus',var(--font-display),serif;
@@ -6843,6 +6881,24 @@ body.prova-senza-willchange #mm-book-rot{
 .hx-btn-important{ --hxb-cap-w:60px; --hxb-mid-w:57px; }
 .hx-btn .hxb-left, .hx-btn .hxb-right{ flex:0 0 var(--hxb-cap-w); }
 .hx-btn .hxb-center{ flex:0 0 var(--hxb-mid-w); }
+/* ── v0.77.45 — UN PIXEL DI SOVRAPPOSIZIONE, MA SOLO DOVE SI PUO' ─────────
+   Fra un pezzo e l'altro restava una righina di fondale: e' il mezzo pixel su
+   cui cade un bordo quando la larghezza non e' intera, e nessun arrotondamento
+   lo toglie del tutto.
+   La soluzione ovvia — accavallare i pezzi di un pixel — era stata scartata
+   ai tempi della barra del titolo, e per una ragione buona: quell'arte e'
+   semitrasparente (alfa 165 su 255), e due strati semitrasparenti sovrapposti
+   sommano la loro opacita', quindi la striscia accavallata viene piu' scura
+   della zona accanto. Il rimedio si vedrebbe quanto il difetto.
+   Ma questo vale per l'arte TRASPARENTE. Le altre tre famiglie sono piene
+   (misurato: alfa 254-255), e sopra a un pixel opaco un altro pixel opaco non
+   cambia niente. Li' si puo', e si fa. */
+.hx-btn-opaco .hxb-strip > span,
+.hx-btn-shop .hxb-strip > span,
+.hx-btn-important .hxb-strip > span{ margin-right:-1px; }
+.hx-btn-opaco .hxb-strip > span:last-child,
+.hx-btn-shop .hxb-strip > span:last-child,
+.hx-btn-important .hxb-strip > span:last-child{ margin-right:0; }
 /* Il riempitivo e' una fetta larga 2px: si ripete invece di stirarsi, cosi'
    la trama resta della sua densita' su un pulsante lungo come su uno corto. */
 .hx-btn .hxb-strip > .hxb-fill{
@@ -9258,6 +9314,10 @@ body.prova-senza-willchange #mm-book-rot{
              sopra avrebbe velato l'etichetta. E' lo stesso alone della bustina
              che si sta per aprire, con la stessa deformazione lenta. -->
         <div class="mm2-pack-glow" aria-hidden="true"></div>
+        <!-- Il bordo che gira: stessa costruzione dell'anello attorno a una
+             carta appena sbustata — un gradiente conico che ruota, ritagliato
+             a ciambella da una maschera, cosi' si vede solo il filo. -->
+        <div class="mm2-pack-rim" aria-hidden="true"><div class="mm2-pack-rim-ring"></div></div>
         <button class="hx-btn hx-btn-opaco" type="button" onclick="openPackOverlay()">
           <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
           <span class="hxb-label mm2-label-doppia">
@@ -9679,7 +9739,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.44</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.45</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -10325,15 +10385,31 @@ if(document.readyState==='loading'){
   // directory — a plain [0-9a-zA-Z._-]+ segment (no slash) would only ever
   // match the filename's own folder-less tail and miss everything nested.
   //
-  // v0.72.72 — un solo host da cercare. Il pattern ne accettava due, perche'
-  // gli asset erano divisi fra il vecchio deploy e GitHub Pages; oggi vive
-  // tutto su GitHub Pages e l'alternativa non poteva piu' trovare niente.
-  // (Il precedente e' istruttivo: quando il pattern conosceva UN solo host e
-  // gli asset erano su due, il preloader non contava meta' dei file e il menu
-  // compariva mentre alcuni stavano ancora scaricando. Se un domani gli asset
-  // torneranno a stare in due posti, e' questa riga a doverlo sapere.)
-  // I brani musicali restano esclusi piu' sotto, come sempre.
-  const REMOTE_HOST_PATTERN = /https:\/\/thetrickmaster\.github\.io\/[0-9a-zA-Z._/-]+\.[a-zA-Z0-9]+/g;
+  // ── v0.77.45 — L'HOST NON SI SCRIVE PIU' A MANO ─────────────────────────
+  // Qui c'era l'indirizzo del vecchio deploy, scritto per esteso. Gli asset
+  // sono passati a hextalegame.com e questa riga e' rimasta indietro: da
+  // allora il preloader non trovava NESSUN file — non "qualcuno", proprio
+  // nessuno — la barra di caricamento arrivava in fondo senza aver scaricato
+  // niente, e ogni schermata si riempiva sotto agli occhi man mano che le
+  // immagini arrivavano. E' esattamente il guasto che il commento di allora
+  // descriveva come possibile, previsto e poi non evitato.
+  // Adesso l'elenco degli host si ricava dalle costanti _BASE del file: sono
+  // loro a dire dove stanno gli asset, e finche' si passa di li' un trasloco
+  // non puo' piu' scollegare il preloader in silenzio.
+  const _hostDegliAsset = (()=>{
+    const host = new Set();
+    const testo = Array.from(document.querySelectorAll('script'))
+                       .map(el=>el.textContent||'').join('\n');
+    let m; const pat = /const\s+\w*_BASE\s*=\s*['"]https:\/\/([^\/'"]+)/g;
+    while((m = pat.exec(testo))) host.add(m[1]);
+    if(!host.size) host.add(location.host);   // rete di sicurezza
+    return Array.from(host);
+  })();
+  const _hostAlternativa = _hostDegliAsset.map(h=>h.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('|');
+  // Una funzione e non una costante: un'espressione con /g porta con se' un
+  // `lastIndex`, e riusarla per .test() la rende dipendente dalla chiamata
+  // precedente. Chiedendone una nuova ogni volta il problema non si pone.
+  const patternAsset = ()=> new RegExp('https:\\/\\/(?:'+_hostAlternativa+')\\/[0-9a-zA-Z._/-]+\\.[a-zA-Z0-9]+','g');
 
   // v0.71.39 FIX ("controllo automatico... ogni volta che aggiungiamo un
   // nuovo link ad un asset, questo viene aggiunto al pool di asset da
@@ -10362,12 +10438,24 @@ if(document.readyState==='loading'){
   // update.
   const BASE_CONST_PATTERN = /const\s+(\w*_BASE)\s*=\s*['"]([^'"]+)['"]/g;
   const BASE_CONCAT_PATTERN = /(\w*_BASE)\s*\+\s*['"]([^'"]+)['"]/g;
+  // ── v0.77.45 — E I FILE CHIESTI PER NOME ─────────────────────────────────
+  // Buona parte dell'interfaccia non nomina piu' un indirizzo: chiede un file
+  // a uiFileCandidati('nome.png') e lascia che sia quella funzione a decidere
+  // se prenderlo dal disco o dal sito. E' la strada giusta, ma per il
+  // preloader quel nome non esiste — ne' come URL scritto per esteso ne' come
+  // BASE + 'nome'. Risultato: tutto il menu principale non veniva contato, e
+  // le sue immagini comparivano una alla volta a schermata gia' aperta.
+  // Qui si riconoscono le chiamate e si ricostruisce l'indirizzo. La tabella
+  // dice quale cartella corrisponde a ciascuna funzione: aggiungendone una
+  // nuova, e' l'unica riga da toccare.
+  const CARTELLA_DEI_CANDIDATI = { ui:'ui/', menu:'main-menu/', pack:'cards/packs/' };
+  const FILE_CANDIDATI_PATTERN = /(\w+)FileCandidati\(\s*['"]([^'"]+)['"]/g;
 
   function discoverAssetUrls(){
     const urls = new Set();
     // 1) Every <style> block (covers @font-face src, background-image, cursor url()).
     document.querySelectorAll('style').forEach(styleEl=>{
-      const matches = styleEl.textContent.match(REMOTE_HOST_PATTERN);
+      const matches = styleEl.textContent.match(patternAsset());
       if(matches) matches.forEach(u=>urls.add(u));
     });
     // 2) The raw text of THIS <script> tag itself (covers JS string constants
@@ -10375,7 +10463,7 @@ if(document.readyState==='loading'){
       //    arrays, character art, etc. — anything assigned as a literal
       //    string before this preloader runs).
     document.querySelectorAll('script').forEach(scriptEl=>{
-      const matches = scriptEl.textContent.match(REMOTE_HOST_PATTERN);
+      const matches = scriptEl.textContent.match(patternAsset());
       if(matches) matches.forEach(u=>urls.add(u));
     });
     // 3) Any element already carrying a literal src/href attribute (the
@@ -10384,8 +10472,7 @@ if(document.readyState==='loading'){
     //    HTML, but cheap and catches anything #1/#2 miss.
     document.querySelectorAll('[src],[href]').forEach(el=>{
       const v = el.getAttribute('src') || el.getAttribute('href');
-      if(v && REMOTE_HOST_PATTERN.test(v)) urls.add(v);
-      REMOTE_HOST_PATTERN.lastIndex = 0; // reset regex state (global flag + .test() is stateful)
+      if(v && patternAsset().test(v)) urls.add(v);
     });
     // 4) `SOME_BASE+'suffix'` concatenations (see this function's own
     //    comment above) — resolve every `const X_BASE = '...'` declaration
@@ -10401,12 +10488,19 @@ if(document.readyState==='loading'){
       baseConsts[baseMatch[1]] = baseMatch[2];
     }
     let concatMatch;
+    // I file chiesti per nome (vedi FILE_CANDIDATI_PATTERN).
+    const sito = 'https://' + _hostDegliAsset[0] + '/';
+    let nomeMatch;
+    FILE_CANDIDATI_PATTERN.lastIndex = 0;
+    while((nomeMatch = FILE_CANDIDATI_PATTERN.exec(scriptText))){
+      const cartella = CARTELLA_DEI_CANDIDATI[nomeMatch[1]];
+      if(cartella) urls.add(sito + cartella + nomeMatch[2]);
+    }
     while((concatMatch = BASE_CONCAT_PATTERN.exec(scriptText))){
       const baseVal = baseConsts[concatMatch[1]];
       if(baseVal===undefined) continue; // referenced a name that wasn't declared as a const X_BASE='...' literal — nothing to resolve
       const fullUrl = baseVal + concatMatch[2];
-      if(REMOTE_HOST_PATTERN.test(fullUrl)) urls.add(fullUrl);
-      REMOTE_HOST_PATTERN.lastIndex = 0; // reset regex state (global flag + .test() is stateful)
+      if(patternAsset().test(fullUrl)) urls.add(fullUrl);
     }
     // Background MUSIC tracks are deliberately EXCLUDED from this blocking
     // up-front preload: each mp3 is ~9-10MB, so pulling the whole
@@ -11861,10 +11955,21 @@ function _pDimensiona(strato){
   // v0.77.38 — la tela di una scena dentro a un pulsante si misura sul
   // pulsante, non sulla finestra: `misura` e' l'elemento a cui guardare, e
   // quando manca si torna al comportamento di prima.
+  // v0.77.45 — LA MISURA VA PRESA NELLE UNITA' GIUSTE.
+  // getBoundingClientRect restituisce pixel VERI di schermo, cioe' gia'
+  // moltiplicati per la scala con cui fitGameRoot() adatta il telaio alla
+  // finestra. La tela pero' vive dentro al telaio, dove un pixel e' un pixel
+  // autorato: dando al disegno la misura scalata, il campo delle scintille
+  // risultava di un'altra grandezza rispetto al pulsante che lo contiene — ed
+  // e' per questo che la maschera sembrava piu' piccola e spostata.
+  // Le due scene a schermo pieno non se ne accorgevano: usano innerWidth, che
+  // e' in pixel di schermo come la tela che le contiene, quindi erano gia'
+  // coerenti fra loro.
   const rif = strato.misura;
   const r = rif ? rif.getBoundingClientRect() : null;
-  const w = (r && r.width)  ? r.width  : window.innerWidth;
-  const h = (r && r.height) ? r.height : window.innerHeight;
+  const scala = (rif && typeof _fit === 'object' && _fit.scale) ? _fit.scale : 1;
+  const w = (r && r.width)  ? r.width/scala  : window.innerWidth;
+  const h = (r && r.height) ? r.height/scala : window.innerHeight;
   strato.w = w; strato.h = h; strato.dpr = dpr;
   strato.tela.width  = Math.max(1, Math.round(w*dpr));
   strato.tela.height = Math.max(1, Math.round(h*dpr));
@@ -13430,7 +13535,9 @@ const MM2_SCINTILLE = {
   // v0.77.44 — un filo piu' grandi, e piu' svelte: con una vita di un secondo
   // e mezzo la velocita' decide FIN DOVE arrivano, ed e' quella la leva che le
   // porta piu' in alto nel pulsante.
-  quante:78, rMin:0.6, rMax:1.8, vMin:46, vMax:92,
+  // v0.77.45 — velocita' ridotta del 70%: salgono piano, e a tenerle in vista
+  // ci pensa la distanza di nascita, che adesso si misura sulla tela.
+  quante:78, rMin:0.6, rMax:1.8, vMin:14, vMax:28,
   alfaMin:0.30, alfaMax:0.85, ondaMin:2, ondaMax:8,
   // Una vita per granello, non una per piano: con un valore solo tutte le
   // scintille nate insieme morirebbero insieme, e si vedrebbe il battito.
@@ -13438,6 +13545,46 @@ const MM2_SCINTILLE = {
 };
 let _menuMontato = false;
 const _scintilleNav = new Map();   // pulsante -> scena della sua polvere
+
+// ── v0.77.45 — LE IMMAGINI DEL MENU, IN UNA LISTA SOLA ────────────────────
+// Scritte come UI_BASE+'nome' e non passate a uiFileCandidati('nome'): il
+// preloader riconosce la prima forma e non la seconda, e quello che non
+// riconosce non lo scarica — era il motivo per cui entrando nel menu le
+// immagini comparivano una alla volta invece di esserci gia'.
+// La stessa lista serve poi al montaggio (vedi montaMenuPrincipale), quindi
+// non ci sono due elenchi da tenere allineati: c'e' questo.
+// v0.77.45 — una FUNZIONE e non una costante: UI_BASE e' dichiarata piu' in
+// basso in questo file, e una costante che la usasse verrebbe valutata prima
+// che esista — fermando l'intero script alla prima riga utile. Chiamata al
+// momento del montaggio, invece, UI_BASE c'e' da un pezzo.
+// Per il preloader non cambia niente: lui legge il TESTO del file e riconosce
+// `UI_BASE+'nome'` dovunque sia scritto, dentro o fuori da una funzione.
+function mm2Immagini(){ return [
+  ['#mm2-bg',            UI_BASE+'main-menu-bg.jpg'],
+  ['#mm2-bg-lit',        UI_BASE+'main-menu-bg-lit.jpg'],
+  ['#mm2-topbar-bg',     UI_BASE+'main-menu-topbar-bg.png'],
+  ['#mm2-logo',          UI_BASE+'hextale-logo-topbar.png'],
+  ['#mm2-arrow',         UI_BASE+'matchmaking-arrow.png'],
+  ['#mm2-bug img',       UI_BASE+'bug-button.png'],
+  ['#mm2-news img',      UI_BASE+'news-button.png'],
+  ['#mm2-settings img',  UI_BASE+'settings-button.png'],
+  ['#mm2-shop-bg',       UI_BASE+'shop-bg.png'],
+  ['#mm2-gioca-bg',      UI_BASE+'matchmaking-bg.png'],
+  ['#mm2-donate-logo',   UI_BASE+'paypal-logo.png'],
+  ['#mm2-orb img',       UI_BASE+'level-orb.png'],
+  ['#mm2-find-glow',     UI_BASE+'radial-glow.png'],
+  ['#mm2-rank-icona',    UI_BASE+'ranks/bronze-2-rank-icon.png'],
+  ['#mm2-box-dust .mm2-box-sfondo', UI_BASE+'fairy-dust-bg.png'],
+  ['#mm2-sc-packs .mm2-scorciatoia-icona',   UI_BASE+'card-pack-icon.png'],
+  ['#mm2-sc-library .mm2-scorciatoia-icona', UI_BASE+'library-deck-icon.png'],
+]; }
+// Da un indirizzo alla coppia "prima in locale, poi sul sito": la cartella si
+// legge dall'indirizzo stesso, cosi' non c'e' un secondo posto in cui dire
+// dove sta un file.
+function candidatiDaUrl(url){
+  const i = url.indexOf('.com/');
+  return i < 0 ? [url] : _candidati(url.slice(i+5), url);
+}
 
 function montaMenuPrincipale(){
   const radice = document.getElementById('main-menu');
@@ -13449,24 +13596,13 @@ function montaMenuPrincipale(){
   if(!radice || !radice.isConnected) return;
   if(!_menuMontato){
     _menuMontato = true;
-    const img = (sel, file)=>{
-      const el = typeof sel === 'string' ? document.querySelector(sel) : sel;
-      if(el) impostaImgDaCandidati(el, uiFileCandidati(file));
-    };
-    img('#mm2-bg',        'main-menu-bg.jpg');
-    img('#mm2-bg-lit',    'main-menu-bg-lit.jpg');
-    img('#mm2-topbar-bg', 'main-menu-topbar-bg.png');
-    img('#mm2-logo',      'hextale-logo-topbar.png');
-    img('#mm2-arrow',     'matchmaking-arrow.png');
-    img('#mm2-bug img',      'bug-button.png');
-    img('#mm2-news img',     'news-button.png');
-    img('#mm2-settings img', 'settings-button.png');
-    img('#mm2-shop-bg',   'shop-bg.png');
-    img('#mm2-gioca-bg',  'matchmaking-bg.png');
-    img('#mm2-donate-logo','paypal-logo.png');
-    img('#mm2-orb img',   'level-orb.png');
-    img('#mm2-find-glow', 'radial-glow.png');
-    img('#mm2-rank-icona','ranks/bronze-2-rank-icon.png');
+    // v0.77.45 — le immagini si prendono dalla tabella qui sopra, che e' anche
+    // cio' che il preloader legge: una lista sola, usata per scaricare e per
+    // montare, non puo' scordarsi un pezzo per strada.
+    mm2Immagini().forEach(([sel, url])=>{
+      const el = document.querySelector(sel);
+      if(el) impostaImgDaCandidati(el, candidatiDaUrl(url));
+    });
     // Il drappo del giocatore e' un FONDO e non un'immagine nel flusso: il
     // contenuto ci si appoggia sopra invece di essergli accanto.
     impostaSfondoDaCandidati(document.getElementById('mm2-drappo'), uiFileCandidati('player-banner.png'));
@@ -13539,13 +13675,17 @@ function mm2VestiBarra(){
   const alta = 100, nativa = 206;
   barra.style.setProperty('--mm2-nav-scala', (alta/nativa).toFixed(4));
   barra.querySelectorAll('.mm2-nav-btn').forEach(btn=>{
-    const v = (nome, file)=> impostaVariabileDaCandidati(btn, nome, uiFileCandidati('main-menu-button-'+file));
-    v('--mm2-cap-sx',    'left.png');
-    v('--mm2-mid',       'center.png');
-    v('--mm2-cap-dx',    'right.png');
-    v('--mm2-cap-sx-on', 'left-1.png');
-    v('--mm2-mid-on',    'center-1.png');
-    v('--mm2-cap-dx-on', 'right-1.png');
+    // Gli indirizzi per esteso e non costruiti con una concatenazione: il
+    // preloader riconosce `UI_BASE+'nome'` e non `uiFileCandidati('pre'+var)`,
+    // e cio' che non riconosce non lo scarica. Sei righe piu' lunghe in cambio
+    // di sei immagini che ci sono gia' quando il menu si apre.
+    const v = (nome, url)=> impostaVariabileDaCandidati(btn, nome, candidatiDaUrl(url));
+    v('--mm2-cap-sx',    UI_BASE+'main-menu-button-left.png');
+    v('--mm2-mid',       UI_BASE+'main-menu-button-center.png');
+    v('--mm2-cap-dx',    UI_BASE+'main-menu-button-right.png');
+    v('--mm2-cap-sx-on', UI_BASE+'main-menu-button-left-1.png');
+    v('--mm2-mid-on',    UI_BASE+'main-menu-button-center-1.png');
+    v('--mm2-cap-dx-on', UI_BASE+'main-menu-button-right-1.png');
   });
 }
 // Quale delle tre viste e' scelta. Campaign e' spenta, quindi non arriva mai
