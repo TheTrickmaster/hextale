@@ -11,6 +11,9 @@ informazioni che non stanno dentro al codice.
 
 Tutto vive in `game-assets/`, che e' anche il repository GitHub
 (`TheTrickmaster/hextale`, pubblicato su `thetrickmaster.github.io/hextale/`).
+**Si gioca da `https://hextalegame.com/play/`**; in radice non c'e' nessuna
+pagina d'ingresso, e non deve tornarci — vedi la REGOLA FISSA sulla
+pubblicazione.
 
 | Cosa | Dove |
 |---|---|
@@ -172,6 +175,15 @@ contenuto: uno e' l'indirizzo, l'altro e' la copia con la targhetta.
 Perche' cosi': prima ogni versione era un file nuovo nella radice, e chi aveva
 salvato il link si ritrovava a giocare una versione vecchia senza accorgersene.
 Un indirizzo fisso toglie il problema alla radice.
+
+**L'indirizzo del gioco e' `https://hextalegame.com/play/`** (dal 28/08/2026).
+In radice non c'e' piu' niente: c'era un `index.html` che chiedeva alla API di
+GitHub l'elenco dei file e rediregeva al `Hextale_*.html` col numero piu' alto,
+ed e' stato tolto. Faceva due cose sbagliate — cercava in un posto dove i file
+non stanno piu', e per farlo usava una chiamata NON autenticata, cioe' 60
+richieste all'ora per indirizzo IP: bastava qualche ricarica di troppo, o un IP
+condiviso, perche' il gioco non si aprisse. Un indirizzo fisso non ha niente da
+cercare. **Non rimetterlo.**
 
 Lorenzo ha fatto lo spostamento a mano per la v0.77.51. **Da lì in poi tocca a
 chi pubblica**, e va fatto **prima** del push, non dopo.
