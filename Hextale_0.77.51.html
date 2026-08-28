@@ -1062,7 +1062,8 @@ body.mouse-down, body.mouse-down *{
 #login-titlebar .hx-titlebar-center,
 #registrazione-titlebar .hx-titlebar-center,
 #username-titlebar .hx-titlebar-center,
-#rank-titlebar .hx-titlebar-center{
+#rank-titlebar .hx-titlebar-center,
+#avviso-titlebar .hx-titlebar-center{
   justify-content:center; gap:8px;
 }
 .hx-indietro{
@@ -1072,7 +1073,7 @@ body.mouse-down, body.mouse-down *{
 }
 .hx-indietro img{ width:100%; height:100%; object-fit:contain; display:block; pointer-events:none; }
 .hx-indietro:hover{ filter:brightness(1.15); transform:translateX(-2px); }
-#login-titlebar h2, #registrazione-titlebar h2, #username-titlebar h2, #rank-titlebar h2{
+#login-titlebar h2, #registrazione-titlebar h2, #username-titlebar h2, #rank-titlebar h2, #avviso-titlebar h2{
   margin:0; text-align:center;
   font-family:'Marcellus',var(--font-display),serif;
   font-size:30px; font-weight:400; line-height:1;
@@ -1151,6 +1152,17 @@ body.mouse-down, body.mouse-down *{
 /* v0.77.34 — la modale del nome sta sullo standard nuovo (.hx-overlay /
    .hx-box + barra del titolo + .hx-pannello). Qui resta solo cio' che e' suo:
    la larghezza e il testo di spiegazione. */
+/* v0.77.51 — un mazzo che non si puo' ancora giocare. Non si nasconde: si
+   spegne. Nasconderlo farebbe sembrare perso un mazzo che e' solo incompleto. */
+.deck-slot.non-giocabile{ opacity:0.45; cursor:var(--cursore); }
+.deck-slot.non-giocabile:hover{ filter:none; }
+.deck-slot-check.non-giocabile{ opacity:0.3; pointer-events:none; }
+/* v0.77.51 — la finestra degli avvisi. */
+#avviso-box{ width:430px; }
+#avviso-testo{
+  font-family:'Rosarivo',serif; font-size:16px; line-height:1.4;
+  text-align:center; color:#EDE0C6;
+}
 /* v0.77.50 — la finestra del rank nuovo. L'aspetto viene tutto da .hx-box:
    qui c'e' solo cio' che e' suo, cioe' l'icona grande che pulsa. */
 #rank-box{ width:470px; }
@@ -9686,6 +9698,28 @@ body.prova-senza-willchange #mm-book-rot{
      si e' guadagnata e la si guarda. Il suo pulsante e' l'unica strada.
      Usa .hx-overlay / .hx-box e la famiglia .hx-btn, come ogni finestra nuova
      dalla v0.77.34. -->
+<!-- v0.77.51 — LA FINESTRA DEGLI AVVISI, una per tutti.
+     Titolo, testo e colore del pulsante si impostano da JS (vedi apriAvviso):
+     una finestra per ogni occasione avrebbe voluto dire lo stesso markup
+     ricopiato ogni volta, e la certezza che prima o poi due copie sarebbero
+     divergute. Il rosso si accende quando l'avviso chiude qualcosa che non e'
+     andata a buon fine, non quando ne conferma una riuscita. -->
+<div id="avviso-overlay" class="hx-overlay" onclick="if(event.target===this) chiudiAvviso()">
+  <div id="avviso-box" class="hx-box">
+    <div class="hx-titlebar" id="avviso-titlebar">
+      <span class="hx-titlebar-cap hx-titlebar-left"></span>
+      <div class="hx-titlebar-center"><h2 id="avviso-titolo">Notice</h2></div>
+      <span class="hx-titlebar-cap hx-titlebar-right"></span>
+    </div>
+    <div class="hx-pannello">
+      <div id="avviso-testo"></div>
+      <button class="hx-btn hx-azione" type="button" id="avviso-chiudi" onclick="chiudiAvviso()">
+        <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
+        <span class="hxb-label">Close</span>
+      </button>
+    </div>
+  </div>
+</div>
 <div id="rank-overlay" class="hx-overlay">
   <div id="rank-box" class="hx-box">
     <div class="hx-titlebar" id="rank-titlebar">
@@ -9838,7 +9872,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.50</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.51</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -12596,6 +12630,249 @@ function accessoEntraInLocale(){
   apriMenuPrincipale();
 }
 // ══════════════════════════════════════════════════════════════════════════
+// v0.77.51 — LA RICERCA DI UN AVVERSARIO
+// ══════════════════════════════════════════════════════════════════════════
+// Si appoggia al MATCHMAKER di Nakama, che e' fatto per questo: si consegna un
+// biglietto con le proprie caratteristiche e una domanda ("chi mi somiglia?"),
+// e quando due biglietti si rispondono a vicenda il server avvisa entrambi.
+// Scrivere una sala d'attesa nostra avrebbe voluto dire riscrivere anche i
+// biglietti abbandonati, i due che rivendicano lo stesso avversario e la
+// pulizia di cio' che resta: tutte cose gia' risolte di la'.
+//
+// LA FORBICE SI ALLARGA DA SOLA. Il matchmaker non sa allargare una domanda col
+// passare del tempo, quindi ogni dieci secondi il biglietto si ritira e se ne
+// consegna uno con la domanda piu' larga: prima solo il proprio rank, poi uno
+// sopra e uno sotto, e cosi' via fino a sei. Arrivati al massimo si insiste
+// ancora venti secondi, poi si rinuncia.
+//
+// COSA NON SI PUO' FARE, ed e' bene saperlo: il matchmaker forma lui le coppie
+// e non consegna un elenco di candidati fra cui scegliere. "Fra quelli nel
+// range, prendi il mazzo piu' vicino" non e' quindi esprimibile alla lettera;
+// la somiglianza dei mazzi e' un VINCOLO della domanda, con una tolleranza che
+// si allarga insieme al rank. Il risultato che si cerca — avversari simili — e'
+// lo stesso; il modo di ottenerlo no.
+const MM_SOCKET = 'wss://api.hextalegame.com/ws';
+const MM_PASSO_MS = 10000;        // ogni quanto si allarga la forbice
+const MM_FORBICE_MAX = 6;         // di quanti rank ci si puo' allontanare
+const MM_INSISTI_MS = 20000;      // quanto si insiste al massimo dell'apertura
+let _mmSocket = null;
+let _mmTicket = null;
+let _mmTimer = null;
+let _mmForbice = 0;
+let _mmRinuncia = null;
+// Il mazzo dell'avversario trovato, per la partita che sta per cominciare.
+let MAZZO_AVVERSARIO = null;
+
+// La forza di un mazzo, in due numeri: quanto costa (12-24) e quanto sono
+// cresciute le sue carte. Sono le due misure che Lorenzo ha indicato, e
+// viaggiano come proprieta' del biglietto.
+function forzaDelMazzo(mazzo){
+  const carte = (typeof carteDelMazzo === 'function') ? carteDelMazzo(mazzo) : [];
+  const capacita = (typeof capacitaDelMazzo === 'function') ? capacitaDelMazzo(mazzo) : 0;
+  let somma = 0;
+  for(const e of carte) somma += (Number(e.level) || 1);
+  return { capacita: capacita, livelloMedio: carte.length ? (somma / carte.length) : 1 };
+}
+
+// Il socket si apre QUANDO SERVE e si chiude appena finito. Tenerlo aperto
+// sempre vorrebbe dire una connessione viva anche per chi il menu lo guarda e
+// basta, e una cosa in piu' da rimettere in piedi ogni volta che cade.
+function mmApriSocket(){
+  return new Promise((risolvi, rifiuta)=>{
+    if(!sessioneAccount || !sessioneAccount.token) return rifiuta(erroreNakama('serve un accesso', 401));
+    const s = new WebSocket(MM_SOCKET + '?token=' + encodeURIComponent(sessioneAccount.token)
+      + '&format=json&status=false');
+    let aperto = false;
+    s.onopen = ()=>{ aperto = true; risolvi(s); };
+    s.onerror = ()=>{ if(!aperto) rifiuta(erroreNakama('non riesco a collegarmi alla ricerca', 0)); };
+    s.onclose = ()=>{ if(!aperto) rifiuta(erroreNakama('la ricerca si e\' chiusa subito', 0)); };
+    s.onmessage = ev => {
+      let m = null;
+      try{ m = JSON.parse(ev.data); }catch(_){ return; }
+      // Il ticket serve a RITIRARE il biglietto quando si allarga la forbice o
+      // si annulla: senza, resterebbero in giro biglietti nostri.
+      if(m && m.matchmaker_ticket && m.matchmaker_ticket.ticket) _mmTicket = m.matchmaker_ticket.ticket;
+      if(m && m.matchmaker_matched) mmTrovato(m.matchmaker_matched);
+    };
+  });
+}
+function mmManda(oggetto){
+  if(_mmSocket && _mmSocket.readyState === 1) _mmSocket.send(JSON.stringify(oggetto));
+}
+
+// La domanda da fare al matchmaker, larga quanto la forbice del momento.
+// La tolleranza sui mazzi cresce insieme al rank: al massimo dell'apertura non
+// vincola piu' niente, perche' a quel punto la priorita' e' trovare qualcuno.
+function mmDomanda(rank, forza, forbice){
+  const capMin = Math.max(0,  Math.round(forza.capacita - 2 - forbice * 2));
+  const capMax = Math.round(forza.capacita + 2 + forbice * 2);
+  return '+properties.gioco:hextale'
+    + ' +properties.rank:>=' + Math.max(0, rank - forbice)
+    + ' +properties.rank:<=' + (rank + forbice)
+    + ' +properties.capacita:>=' + capMin
+    + ' +properties.capacita:<=' + capMax;
+}
+
+function mmConsegnaBiglietto(rank, forza, codice){
+  mmManda({ cid: 'mm-' + Date.now().toString(36), matchmaker_add: {
+    min_count: 2, max_count: 2,
+    query: mmDomanda(rank, forza, _mmForbice),
+    string_properties: { gioco: 'hextale', mazzo: codice, nome: nomeGiocatore() },
+    numeric_properties: { rank: rank, capacita: Math.round(forza.capacita),
+                          livello: Math.round(forza.livelloMedio * 10) }
+  }});
+}
+
+// ── LA RICERCA ────────────────────────────────────────────────────────────
+async function mm2CercaAvversario(){
+  // Premuto mentre si cerca, il pulsante ANNULLA: e' la stessa azione al
+  // contrario, e due pulsanti per accendere e spegnere la stessa cosa sono
+  // uno di troppo.
+  if(_mm2Cercando){ mm2AnnullaRicerca(); return; }
+
+  // Contro l'IA non c'e' niente da cercare: si parte e basta.
+  if(_mm2Vista === 'ai'){ try{ requestNewGame(true); }catch(_){} return; }
+
+  const mio = (typeof mazzoSelezionato === 'function') ? mazzoSelezionato() : null;
+  // Un mazzo incompleto e' la ragione piu' probabile per cui questo pulsante
+  // non fa niente: merita una finestra, non una riga che si puo' non vedere.
+  if(!mio || !mazzoValido(mio)){
+    apriAvviso('Deck not ready',
+      'Pick a deck with ' + MAZZO_CARTE + ' cards, within ' + MAZZO_PUNTI + ' points, before searching.', false);
+    return;
+  }
+  if(!sessioneAccount || !sessioneAccount.token){
+    apriAvviso('Not signed in', 'You need to be signed in to find an opponent.', true);
+    return;
+  }
+
+  const btn = document.getElementById('mm2-find');
+  const box = document.getElementById('mm2-gioca');
+  const et  = btn && btn.querySelector('.hxb-label');
+  // Senza il pulsante non c'e' niente da accendere, e la ricerca non parte.
+  // Non dovrebbe succedere: si arriva qui solo premendolo. Ma una uscita muta
+  // e' indistinguibile da un guasto, quindi almeno lo dice.
+  if(!btn || !et){ console.warn('[ricerca] il pulsante non e in pagina: ricerca non avviata'); return; }
+  _mm2Cercando = true;
+  _mmForbice = 0;
+  btn.classList.add('cerca');
+  if(box) box.classList.add('cerca');
+  et.textContent = 'Cancel';
+
+  const rank = (PROFILO_STAGIONE && PROFILO_STAGIONE.rank) || 0;
+  const forza = forzaDelMazzo(mio);
+  const codice = (typeof codiceDelMazzo === 'function') ? codiceDelMazzo(mio) : '';
+
+  try{ _mmSocket = await mmApriSocket(); }
+  catch(e){
+    mm2FermaRicerca();
+    apriAvviso('Connection problem',
+      'Could not reach the matchmaking service. Check your connection and try again.', true);
+    return;
+  }
+  if(!_mm2Cercando){ mmChiudiSocket(); return; }   // annullata mentre si apriva
+
+  mmConsegnaBiglietto(rank, forza, codice);
+
+  // Ogni dieci secondi si allarga. Il biglietto vecchio si ritira: lasciarlo
+  // vorrebbe dire due biglietti nostri in giro, e due possibilita' di essere
+  // accoppiati due volte.
+  _mmTimer = setInterval(()=>{
+    if(!_mm2Cercando) return;
+    if(_mmForbice >= MM_FORBICE_MAX) return;
+    _mmForbice++;
+    mmManda({ cid:'rm-'+Date.now().toString(36), matchmaker_remove:{ ticket:_mmTicket||'' } });
+    mmConsegnaBiglietto(rank, forza, codice);
+    console.info('[ricerca] forbice allargata a ' + _mmForbice + ' rank');
+    if(_mmForbice >= MM_FORBICE_MAX && !_mmRinuncia){
+      // Al massimo dell'apertura si insiste ancora un po', poi si rinuncia.
+      _mmRinuncia = setTimeout(()=>{
+        if(!_mm2Cercando) return;
+        mm2FermaRicerca();
+        apriAvviso('No opponent', 'No player found. Try again later.', true);
+      }, MM_INSISTI_MS);
+    }
+  }, MM_PASSO_MS);
+}
+
+// Trovato: si ferma tutto, si prende il mazzo dell'altro e si gioca.
+function mmTrovato(dati){
+  if(!_mm2Cercando) return;
+  const io = dati.self && dati.self.presence && dati.self.presence.user_id;
+  const altro = (dati.users || []).find(u => u.presence && u.presence.user_id !== io);
+  const codice = altro && altro.string_properties && altro.string_properties.mazzo;
+  const nome = (altro && altro.string_properties && altro.string_properties.nome) || 'Opponent';
+
+  MAZZO_AVVERSARIO = null;
+  if(codice && typeof mazzoDaCodice === 'function'){
+    const esito = mazzoDaCodice(codice);
+    // Se il codice non si legge si gioca lo stesso, con un mazzo generato: una
+    // partita che non comincia sarebbe peggio di una partita contro un mazzo
+    // diverso da quello annunciato.
+    if(!esito.errore && esito.carte && esito.carte.length){
+      MAZZO_AVVERSARIO = { id:'avversario', nome:nome, carte:esito.carte };
+    }else{
+      console.warn('[ricerca] il mazzo dell\'avversario non si legge: si gioca con uno generato.');
+    }
+  }
+  console.info('[ricerca] avversario trovato: ' + nome);
+
+  const btn = document.getElementById('mm2-find');
+  const box = document.getElementById('mm2-gioca');
+  const et  = btn && btn.querySelector('.hxb-label');
+  if(et) et.textContent = 'Match found!';
+  if(btn) btn.classList.add('trovato');
+  if(box) box.classList.add('trovato');
+  try{ playSfxFile('match-found.mp3'); }catch(_){}
+  mmFermaTimer();
+  mmChiudiSocket();
+  setTimeout(()=>{
+    _mm2Cercando = false;
+    mm2FermaRicerca();
+    try{ requestNewGame(false); }catch(_){}
+  }, MM2_PASSO_MS);
+}
+
+function mm2AnnullaRicerca(){
+  mmManda({ cid:'rm-'+Date.now().toString(36), matchmaker_remove:{ ticket:_mmTicket||'' } });
+  mmFermaTimer();
+  mmChiudiSocket();
+  mm2FermaRicerca();
+  console.info('[ricerca] annullata.');
+}
+function mmFermaTimer(){
+  if(_mmTimer){ clearInterval(_mmTimer); _mmTimer = null; }
+  if(_mmRinuncia){ clearTimeout(_mmRinuncia); _mmRinuncia = null; }
+}
+function mmChiudiSocket(){
+  if(_mmSocket){ try{ _mmSocket.close(); }catch(_){} _mmSocket = null; }
+  _mmTicket = null;
+}
+// Un avviso: titolo, testo, e se il pulsante e' rosso. Il rosso non e'
+// decorazione — dice "questa cosa non e' andata", ed e' l'unica differenza
+// fra il chiudere una notizia e il chiudere un guasto.
+function apriAvviso(titolo, testo, guasto){
+  const ov = document.getElementById('avviso-overlay');
+  if(!ov) return;
+  const t = document.getElementById('avviso-titolo');
+  const p = document.getElementById('avviso-testo');
+  const b = document.getElementById('avviso-chiudi');
+  if(t) t.textContent = titolo || 'Notice';
+  if(p) p.textContent = testo || '';
+  if(b){
+    b.classList.toggle('hx-btn-warning', !!guasto);
+    // vestiPulsante sceglie i disegni dal colore, quindi si riveste dopo aver
+    // cambiato la classe: senza, il rosso resterebbe una promessa del CSS.
+    try{ vestiPulsante(b); }catch(_){}
+  }
+  ov.classList.add('show');
+}
+function chiudiAvviso(){
+  const ov = document.getElementById('avviso-overlay');
+  if(ov) ov.classList.remove('show');
+}
+
+// ══════════════════════════════════════════════════════════════════════════
 // v0.77.50 — IL PROFILO DI STAGIONE: LIVELLO, ESPERIENZA, RANK
 // ══════════════════════════════════════════════════════════════════════════
 // Quanto uno ha giocato non si tiene nel client. Il server dice a che livello
@@ -13236,7 +13513,13 @@ function montaColonnaAccesso(){
       impostaVariabileDaCandidati(pan, '--hx-trama', uiFileCandidati('brushed-texture.jpg')));
     finestraRank.querySelectorAll('.hx-btn').forEach(vestiPulsante);
   }
-  for(const barra of ['#login-titlebar','#registrazione-titlebar','#username-titlebar','#rank-titlebar']){
+  const finestraAvviso = document.getElementById('avviso-overlay');
+  if(finestraAvviso){
+    finestraAvviso.querySelectorAll('.hx-pannello').forEach(pan=>
+      impostaVariabileDaCandidati(pan, '--hx-trama', uiFileCandidati('brushed-texture.jpg')));
+    finestraAvviso.querySelectorAll('.hx-btn').forEach(vestiPulsante);
+  }
+  for(const barra of ['#login-titlebar','#registrazione-titlebar','#username-titlebar','#rank-titlebar','#avviso-titlebar']){
     sfondo(barra+' .hx-titlebar-left',   'title-bg-left.png');
     sfondo(barra+' .hx-titlebar-center', 'title-bg-center.png');
     sfondo(barra+' .hx-titlebar-right',  'title-bg-right.png');
@@ -14108,11 +14391,19 @@ function mm2ApriSceltaMazzo(){
     // Libreria, che qui non e' in scena, quindi e' questa lista a doversi
     // ricostruire — ed e' l'unico modo perche' il segno verde finisca sul
     // mazzo appena scelto, come succede nella Libreria.
-    slot.onclick = ()=>{
-      try{ selezionaMazzo(m.id); }catch(_){ MAZZO_SCELTO = m.id; }
-      mm2AggiornaMazzo();
-      mm2ApriSceltaMazzo();
-    };
+    // v0.77.51 — i mazzi non giocabili restano in elenco ma non si scelgono:
+    // toglierli farebbe sparire un mazzo che il giocatore sa di avere, e
+    // sembrerebbe perso invece che incompleto.
+    if(!mazzoGiocabile(m)){
+      slot.classList.add('non-giocabile');
+      slot.onclick = null;
+    } else {
+      slot.onclick = ()=>{
+        selezionaMazzo(m.id);
+        mm2AggiornaMazzo();
+        mm2ApriSceltaMazzo();
+      };
+    }
     lista.appendChild(slot);
   });
   // Il casuale sta in fondo, staccato: non e' uno dei mazzi, e' l'alternativa
@@ -14141,32 +14432,6 @@ function mm2ChiudiSceltaMazzo(){
 // leggere che qualcosa e' cambiato. Senza, i tre stati sarebbero un lampo solo.
 const MM2_PASSO_MS = 1000;
 let _mm2Cercando = false;
-function mm2CercaAvversario(){
-  if(_mm2Cercando) return;
-  const btn = document.getElementById('mm2-find');
-  const box = document.getElementById('mm2-gioca');
-  const et  = btn && btn.querySelector('.hxb-label');
-  if(!btn || !et) return;
-  _mm2Cercando = true;
-  btn.classList.add('cerca');
-  if(box) box.classList.add('cerca');
-  et.textContent = 'Searching opponent...';
-  setTimeout(()=>{
-    if(!_mm2Cercando) return;
-    et.textContent = 'Match found!';
-    // Il lampo arriva nello stesso istante del suono: sono la stessa notizia.
-    btn.classList.add('trovato');
-    if(box) box.classList.add('trovato');
-    try{ playSfxFile('match-found.mp3'); }catch(_){}
-    setTimeout(()=>{
-      if(!_mm2Cercando) return;
-      mm2FermaRicerca();
-      // Contro l'IA o contro un altro giocatore: lo dice la vista scelta in
-      // alto, che e' l'unico posto in cui quella scelta vive.
-      try{ requestNewGame(_mm2Vista === 'ai'); }catch(_){}
-    }, MM2_PASSO_MS);
-  }, MM2_PASSO_MS);
-}
 function mm2FermaRicerca(){
   _mm2Cercando = false;
   document.getElementById('mm2-find')?.classList.remove('cerca','trovato');
@@ -14791,6 +15056,11 @@ function _slotMazzoPieno(mazzo){
   impostaImgDaCandidati(checkImg, uiFileCandidati(
     mazzo.id === MAZZO_SCELTO ? 'checkbox-round-checked.png' : 'checkbox-round-unchecked.png'));
   check.appendChild(checkImg);
+  // v0.77.51 — un mazzo non giocabile non si sceglie, e si vede: la spunta e'
+  // spenta invece di rispondere con un silenzio che sembra un guasto.
+  const giocabile = mazzoGiocabile(mazzo);
+  check.classList.toggle('non-giocabile', !giocabile);
+  if(!giocabile) check.setAttribute('aria-label', 'Deck not playable yet');
   check.onclick = (ev)=>{ ev.stopPropagation(); selezionaMazzo(mazzo.id); };
   const nome = document.createElement('span');
   nome.className = 'deck-slot-nome';
@@ -14942,11 +15212,35 @@ function _slotMazzoAggiungi(){
 // Un mazzo casuale non e' quindi un caso particolare: e' l'assenza di scelta,
 // dichiarata invece che subita.
 const MAZZO_CASUALE = '__casuale';
+// ── v0.77.51 — UN MAZZO NON GIOCABILE NON SI SCEGLIE ──────────────────────
+// "Giocabile" e' quello che mazzoValido gia' dice: dodici carte esatte e non
+// piu' di ventiquattro punti di rarita'. Il tetto non dovrebbe mai essere
+// superato — l'editor non lo permette — ma un mazzo puo' arrivare da un codice
+// incollato, o da carte che nel frattempo sono cambiate di rarita' nel foglio.
+// Un controllo che non dovrebbe mai scattare costa una riga; una partita che
+// comincia con un mazzo storto costa un'indagine.
+//
+// La regola sta QUI e non nelle due schermate: ci passano tutte e due, e una
+// terza che arrivasse domani sarebbe protetta senza doversene ricordare.
+// Torna true se la scelta e' andata a buon fine.
+function mazzoGiocabile(mazzo){
+  return !!mazzo && typeof mazzoValido === 'function' && mazzoValido(mazzo);
+}
 function selezionaMazzo(id){
-  if(id === MAZZO_CASUALE){ MAZZO_SCELTO = id; salvaMazzi(); renderListaMazzi(); return; }
-  MAZZO_SCELTO = MAZZI.some(m=>m.id===id) ? id : (MAZZI.length ? MAZZI[0].id : null);
+  if(id === MAZZO_CASUALE){ MAZZO_SCELTO = id; salvaMazzi(); renderListaMazzi(); return true; }
+  const m = MAZZI.find(x=>x.id===id);
+  if(!m) return false;
+  if(!mazzoGiocabile(m)){
+    const n = (typeof carteDelMazzo === 'function') ? carteDelMazzo(m).length : 0;
+    const cap = (typeof capacitaDelMazzo === 'function') ? capacitaDelMazzo(m) : 0;
+    console.info('[mazzi] "' + (m.nome||m.id) + '" non si puo\' scegliere: '
+      + n + '/' + MAZZO_CARTE + ' carte, ' + cap + '/' + MAZZO_PUNTI + ' punti.');
+    return false;
+  }
+  MAZZO_SCELTO = id;
   salvaMazzi();
   renderListaMazzi();
+  return true;
 }
 function creaMazzo(){
   if(MAZZI.length >= MAZZI_SLOT) return;
@@ -23819,6 +24113,17 @@ function makeBalancedDecks(controIA){
   if(mio && mazzoValido(mio)){
     const d1 = carteDalMazzoSalvato(mio, 1);
     console.info('[Hextale] mazzo del giocatore 1: "'+(mio.nome||mio.id)+'"');
+    // v0.77.51 — se la ricerca ha trovato qualcuno, il secondo mazzo e' il SUO,
+    // arrivato come codice insieme all'accoppiamento. La partita non e' ancora
+    // sincronizzata fra i due computer, ma il mazzo contro cui si gioca e'
+    // quello vero: e' il gradino che rende la ricerca gia' utile.
+    if(MAZZO_AVVERSARIO && mazzoValido(MAZZO_AVVERSARIO)){
+      const d2 = carteDalMazzoSalvato(MAZZO_AVVERSARIO, 2);
+      console.info('[Hextale] mazzo dell\'avversario: "'+(MAZZO_AVVERSARIO.nome||'?')+'"');
+      const esito = { d1, d2, gap:deckPowerGap(d1, d2) };
+      MAZZO_AVVERSARIO = null;   // vale per UNA partita
+      return esito;
+    }
     let migliore=null, scartoMigliore=Infinity;
     for(let i=0;i<300;i++){
       const b = makeDeck(2, DECK_TOTAL);

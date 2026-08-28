@@ -691,6 +691,53 @@ in cui saranno sincronizzate quel giudizio passera' al server.
 
 ---
 
+## La ricerca di un avversario (dalla v0.77.51)
+
+Il pulsante **Find opponent** apre un WebSocket verso `wss://api.hextalegame.com/ws`
+e consegna un biglietto al matchmaker di Nakama. Non c'e' un RPC nostro in mezzo:
+il matchmaker e' un servizio del server, e ricostruirne uno sopra avrebbe voluto
+dire riscrivere la parte difficile (chi aspetta da piu' tempo, chi si e'
+scollegato mentre aspettava) con meno cura di chi l'ha gia' scritta.
+
+**Come si accoppiano.** Il biglietto porta il rank, la forza del mazzo e il mazzo
+stesso in forma di codice. La ricerca parte stretta — solo rank uguale — e si
+allarga di **un rank ogni dieci secondi**, fino a un massimo di **sei**
+(`MM_PASSO_MS`, `MM_FORBICE_MAX`). Ogni volta che si allarga il biglietto vecchio
+viene **ritirato** prima di consegnare il nuovo: lasciarlo in giro vorrebbe dire
+due biglietti nostri contemporaneamente, e due possibilita' di essere accoppiati
+due volte. Arrivati al massimo si insiste ancora `MM_INSISTI_MS` (venti secondi),
+poi si rinuncia e si apre la finestra *No player found. Try again later.*
+
+**Fra i candidati raggiungibili si preferisce il piu' vicino** per capacita' del
+mazzo (12–24) e livello medio delle carte: un rank simile dice quanto uno ha
+vinto, non con che cosa gioca.
+
+**Si gioca contro il mazzo VERO dell'avversario.** Trovato l'accoppiamento, il suo
+mazzo arriva in `MAZZO_AVVERSARIO` e `makeBalancedDecks` lo **consuma** invece di
+generarne uno. Consumarlo e' voluto: se restasse, la partita dopo — magari contro
+l'IA — comincerebbe in silenzio con il mazzo di uno sconosciuto.
+
+**Mentre cerca, il pulsante dice `Cancel`** e premerlo annulla: e' la stessa
+azione al contrario, e due pulsanti per accendere e spegnere la stessa cosa sono
+uno di troppo. Annullare ritira il biglietto e chiude il socket.
+
+**Un mazzo non giocabile non si sceglie e non si gioca.** La regola sta in
+`selezionaMazzo`, non nelle schermate: ci passano sia Library & decks sia il
+selettore del matchmaking, e una terza schermata che arrivasse domani sarebbe
+protetta senza doversene ricordare. `selezionaMazzo` **torna `true`/`false`**:
+chi la chiama non deve dare per scontato che abbia funzionato. I mazzi non
+giocabili restano in elenco, spenti (`.non-giocabile`) — nasconderli farebbe
+sembrare **perso** un mazzo che e' solo **incompleto**.
+
+**Trappola gia' pagata.** `mm2CercaAvversario` esce se `#mm2-find` non e' in
+pagina. E' corretto — senza il pulsante non c'e' niente da accendere — ma in un
+collaudo che aveva gia' aperto il tavolo quell'uscita sembrava un guasto della
+ricerca: nessuna finestra si apriva e la ricerca non partiva. Adesso lo scrive in
+console. Se una prova sul matchmaking fallisce senza aprire nessuna finestra,
+**la prima cosa da guardare e' se il menu c'e' ancora**, non il matchmaker.
+
+---
+
 ## I mazzi (dalla v0.77.37)
 
 **Dodici caselle, tutte del giocatore.** Fino alla v0.77.36 la quarta era del
