@@ -1061,7 +1061,8 @@ body.mouse-down, body.mouse-down *{
    elemento solo e per quella che ne ha due. */
 #login-titlebar .hx-titlebar-center,
 #registrazione-titlebar .hx-titlebar-center,
-#username-titlebar .hx-titlebar-center{
+#username-titlebar .hx-titlebar-center,
+#rank-titlebar .hx-titlebar-center{
   justify-content:center; gap:8px;
 }
 .hx-indietro{
@@ -1071,7 +1072,7 @@ body.mouse-down, body.mouse-down *{
 }
 .hx-indietro img{ width:100%; height:100%; object-fit:contain; display:block; pointer-events:none; }
 .hx-indietro:hover{ filter:brightness(1.15); transform:translateX(-2px); }
-#login-titlebar h2, #registrazione-titlebar h2, #username-titlebar h2{
+#login-titlebar h2, #registrazione-titlebar h2, #username-titlebar h2, #rank-titlebar h2{
   margin:0; text-align:center;
   font-family:'Marcellus',var(--font-display),serif;
   font-size:30px; font-weight:400; line-height:1;
@@ -1150,6 +1151,51 @@ body.mouse-down, body.mouse-down *{
 /* v0.77.34 — la modale del nome sta sullo standard nuovo (.hx-overlay /
    .hx-box + barra del titolo + .hx-pannello). Qui resta solo cio' che e' suo:
    la larghezza e il testo di spiegazione. */
+/* v0.77.50 — la finestra del rank nuovo. L'aspetto viene tutto da .hx-box:
+   qui c'e' solo cio' che e' suo, cioe' l'icona grande che pulsa. */
+#rank-box{ width:470px; }
+#rank-nuovo-alone{
+  position:relative; align-self:center;
+  display:flex; align-items:center; justify-content:center;
+  width:190px; height:190px;
+}
+/* L'alone sta SOTTO l'icona e pulsa da solo: l'animazione e' su di lui e non
+   sull'immagine, cosi' l'icona non si deforma (e' la stessa regola per cui le
+   raggiere del menu non stanno sullo stesso elemento del logo). */
+#rank-nuovo-alone::before{
+  content:''; position:absolute; inset:-20%;
+  background:radial-gradient(circle, rgba(232,195,106,0.55) 0%, rgba(232,195,106,0) 62%);
+  animation:rank-alone 2.2s ease-in-out infinite;
+  pointer-events:none;
+}
+#rank-nuovo-icona{ position:relative; width:100%; height:100%; object-fit:contain; }
+@keyframes rank-alone{
+  0%,100%{ transform:scale(0.92); opacity:0.55; }
+  50%    { transform:scale(1.08); opacity:1; }
+}
+#rank-nuovo-nome{
+  font-family:'Marcellus',var(--font-display),serif;
+  font-size:26px; text-align:center; color:#E8C36A;
+  text-shadow:0 0 10px rgba(232,195,106,0.45);
+}
+/* La barra dell'esperienza si muove con una transizione, non a scatti: e' il
+   punto dell'animazione. La larghezza si cambia da JS e ci pensa il CSS. */
+#mm2-xp-mask{ transition:width 1.1s cubic-bezier(0.22,0.61,0.36,1); }
+/* E prima di salire brilla. L'animazione sta sulla maschera, che e' l'elemento
+   che poi si allarga: due cose sullo stesso elemento vanno bene finche' non
+   toccano la stessa proprieta' — questa e' su filter, quella su width. */
+#mm2-xp-mask.xp-brilla{ animation:xp-brilla 0.45s ease-in-out 2; }
+@keyframes xp-brilla{
+  0%,100%{ filter:none; }
+  50%    { filter:brightness(2.2) drop-shadow(0 0 6px rgba(232,195,106,0.9)); }
+}
+/* Il numero del livello, quando cambia. */
+#mm2-orb.sale{ animation:orb-sale 1.2s ease-out; }
+@keyframes orb-sale{
+  0%  { transform:scale(1); }
+  35% { transform:scale(1.35); filter:brightness(1.6); }
+  100%{ transform:scale(1); }
+}
 #username-box{ width:470px; }
 #username-spiega{
   font-family:'Rosarivo',serif; font-size:15px; line-height:1.4;
@@ -9636,6 +9682,27 @@ body.prova-senza-willchange #mm-book-rot{
      ricarica il gioco torna all'accesso, e chi il server non ce l'ha davanti
      la finestra non la vede nemmeno — chiediUsernameSeServe esce in silenzio
      se non riesce a leggere, e la partita in locale non la apre mai. -->
+<!-- v0.77.50 — IL RANK NUOVO. Non si chiude cliccando fuori: e' una cosa che
+     si e' guadagnata e la si guarda. Il suo pulsante e' l'unica strada.
+     Usa .hx-overlay / .hx-box e la famiglia .hx-btn, come ogni finestra nuova
+     dalla v0.77.34. -->
+<div id="rank-overlay" class="hx-overlay">
+  <div id="rank-box" class="hx-box">
+    <div class="hx-titlebar" id="rank-titlebar">
+      <span class="hx-titlebar-cap hx-titlebar-left"></span>
+      <div class="hx-titlebar-center"><h2>New rank!</h2></div>
+      <span class="hx-titlebar-cap hx-titlebar-right"></span>
+    </div>
+    <div class="hx-pannello">
+      <div id="rank-nuovo-alone"><img id="rank-nuovo-icona" alt="" draggable="false"></div>
+      <div id="rank-nuovo-nome">Bronze I</div>
+      <button class="hx-btn hx-azione" type="button" onclick="chiudiModaleNuovoRank()">
+        <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
+        <span class="hxb-label">Advance rank</span>
+      </button>
+    </div>
+  </div>
+</div>
 <div id="username-overlay" class="hx-overlay">
   <div id="username-box" class="hx-box">
     <div class="hx-titlebar" id="username-titlebar">
@@ -9771,7 +9838,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.49</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.50</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -12529,6 +12596,153 @@ function accessoEntraInLocale(){
   apriMenuPrincipale();
 }
 // ══════════════════════════════════════════════════════════════════════════
+// v0.77.50 — IL PROFILO DI STAGIONE: LIVELLO, ESPERIENZA, RANK
+// ══════════════════════════════════════════════════════════════════════════
+// Quanto uno ha giocato non si tiene nel client. Il server dice a che livello
+// sei, a che rank e quanta esperienza hai; qui si mostra e basta. Il client
+// riferisce com'e' finita una partita, non cosa deve cambiare.
+//
+// LA STAGIONE si conta a mesi dalla prima, e non e' un numero salvato: e' una
+// funzione della data. Il primo accesso di una stagione nuova azzera livello e
+// rank — lo fa il server, alla prima occasione in cui il profilo serve.
+//
+// I DODICI GRADINI arrivano dal server insieme al profilo, e non sono scritti
+// qui: il nome e l'icona si ricavano dall'indice, cosi' aggiungerne uno vuol
+// dire toccare un posto solo (di la').
+let PROFILO_STAGIONE = null;
+let RANGHI = ['bronze-1','bronze-2','bronze-3','bronze-top',
+              'silver-1','silver-2','silver-3','silver-top',
+              'gold-1','gold-2','gold-3','gold-top'];
+let RANK_PUNTI = 10;
+let LIVELLO_MAX = 30;
+// Quello che una partita ha cambiato, in attesa che il menu lo faccia vedere.
+// Non si anima al momento della partita: la si guarda tornando al menu, ed e'
+// li' che la barra deve salire.
+let _daMostrareDopoPartita = null;
+
+// "bronze-top" -> "Bronze Top", "silver-2" -> "Silver II". I numeri diventano
+// romani perche' e' cosi' che si leggono i gradini in ogni gioco che li usa.
+const _ROMANI = { '1':'I', '2':'II', '3':'III', '4':'IV' };
+function nomeDelRank(chiave){
+  const p = String(chiave||'').split('-');
+  if(p.length < 2) return chiave || '';
+  const gruppo = p[0].charAt(0).toUpperCase() + p[0].slice(1);
+  return gruppo + ' ' + (_ROMANI[p[1]] || (p[1].charAt(0).toUpperCase() + p[1].slice(1)));
+}
+function iconaDelRank(chiave){ return uiFileCandidati('ranks/' + chiave + '-rank-icon.png'); }
+function xpPerSalire(livello){ return 50 * (livello + 1); }
+
+// Il nome che si vede nel menu. Viene dall'account; scollegati resta un nome
+// di cortesia invece di una riga vuota.
+function nomeGiocatore(){
+  return (sessioneAccount && sessioneAccount.username) || 'Player';
+}
+
+// Riempie il riquadro del giocatore. Si puo' chiamare sempre: senza profilo
+// mostra lo stato di partenza invece di lasciare i segnaposto finti.
+function mm2AggiornaProfilo(){
+  const p = PROFILO_STAGIONE;
+  const nome = document.getElementById('mm2-nome');
+  if(nome) nome.textContent = nomeGiocatore();
+
+  const liv = document.getElementById('mm2-livello');
+  if(liv) liv.textContent = String(p ? p.livello : 0);
+
+  const stag = document.getElementById('mm2-season');
+  if(stag) stag.textContent = 'Season ' + (p ? p.stagione : 1) + ' rank';
+
+  const chiave = RANGHI[(p && p.rank) || 0] || RANGHI[0];
+  const et = document.getElementById('mm2-rank-nome');
+  if(et) et.textContent = nomeDelRank(chiave);
+  const ic = document.getElementById('mm2-rank-icona');
+  if(ic && typeof impostaImgDaCandidati === 'function') impostaImgDaCandidati(ic, iconaDelRank(chiave));
+
+  // Al livello massimo la barra e' piena e lo dice: una barra che continua a
+  // riempirsi senza far salire niente racconterebbe una bugia.
+  if(p && p.livello >= LIVELLO_MAX){
+    const mask = document.getElementById('mm2-xp-mask');
+    const testo = document.getElementById('mm2-xp-testo');
+    if(mask) mask.style.width = '100%';
+    if(testo) testo.textContent = 'MAX';
+    return;
+  }
+  mm2AggiornaXp(p ? p.xp : 0, xpPerSalire(p ? p.livello : 0));
+}
+
+// ── QUANDO LA BARRA SALE ──────────────────────────────────────────────────
+// Tornando al menu dopo una partita: prima BRILLA, poi sale. Non si anima al
+// momento in cui il server risponde — a quel punto si sta guardando la
+// schermata di fine partita, e l'animazione andrebbe sprecata.
+// Se nel frattempo si e' saliti di livello la barra si riempie fino in fondo,
+// si azzera e riparte: e' il modo di far vedere DUE cose (il livello vecchio
+// che si completa e quello nuovo che comincia) invece di un salto solo.
+async function mm2MostraGuadagno(){
+  const d = _daMostrareDopoPartita;
+  _daMostrareDopoPartita = null;
+  if(!d) return;
+  const mask = document.getElementById('mm2-xp-mask');
+  const orb = document.getElementById('mm2-orb');
+  if(!mask) return;
+  const attesa = ms => new Promise(r=>setTimeout(r, ms));
+
+  // Si parte da com'era PRIMA.
+  mm2AggiornaXp(d.prima.xp, d.prima.xpPerSalire);
+  mask.classList.add('xp-brilla');
+  await attesa(900);
+  mask.classList.remove('xp-brilla');
+
+  if(d.profilo.livello > d.prima.livello){
+    mm2AggiornaXp(d.prima.xpPerSalire, d.prima.xpPerSalire);   // fino in fondo
+    await attesa(700);
+    if(orb){ orb.classList.add('sale'); setTimeout(()=>orb.classList.remove('sale'), 1200); }
+    const liv = document.getElementById('mm2-livello');
+    if(liv) liv.textContent = String(d.profilo.livello);
+    mm2AggiornaXp(0, xpPerSalire(d.profilo.livello));          // ricomincia
+    await attesa(120);
+  }
+  mm2AggiornaProfilo();
+
+  // E se si e' saliti di rank, la finestra. Dopo la barra, non insieme: due
+  // cose che si muovono nello stesso istante non si guardano bene.
+  if(d.salito){ await attesa(500); apriModaleNuovoRank(RANGHI[d.profilo.rank]); }
+}
+
+// ── LA FINESTRA DEL RANK NUOVO ───────────────────────────────────────────
+// Non si chiude cliccando fuori: e' una cosa che si e' guadagnata, e la si
+// guarda. Si chiude col suo pulsante, che e' l'unica strada.
+function apriModaleNuovoRank(chiave){
+  const ov = document.getElementById('rank-overlay');
+  if(!ov) return;
+  const ic = document.getElementById('rank-nuovo-icona');
+  if(ic && typeof impostaImgDaCandidati === 'function') impostaImgDaCandidati(ic, iconaDelRank(chiave));
+  const et = document.getElementById('rank-nuovo-nome');
+  if(et) et.textContent = nomeDelRank(chiave);
+  ov.classList.add('show');
+  try{ playSfxFile('end-game-win.mp3'); }catch(_){}
+}
+function chiudiModaleNuovoRank(){
+  const ov = document.getElementById('rank-overlay');
+  if(ov) ov.classList.remove('show');
+}
+
+// ── L'ESITO DI UNA PARTITA ────────────────────────────────────────────────
+// Si riferisce al server, che decide cosa cambia. Non blocca niente: se la
+// rete non c'e', la partita e' comunque finita e il menu mostra quello che
+// sapeva. Quel risultato non si recupera piu' — ed e' una scelta consapevole,
+// perche' una coda di partite da riferire piu' tardi sarebbe anche una coda di
+// partite da falsificare.
+async function riferisciPartita(vinta, pari, controIA){
+  if(!sessioneAccount || !sessioneAccount.token) return;
+  try{
+    const r = await nakamaRpc('hx_partita', { vinta: !!vinta, pari: !!pari, controIA: !!controIA });
+    PROFILO_STAGIONE = r.profilo;
+    _daMostrareDopoPartita = r;
+  }catch(e){
+    console.warn('[profilo] la partita non e\' stata registrata: ' + (e && e.message));
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
 // v0.77.36 — LE CARTE VENGONO DAL DATABASE
 // ══════════════════════════════════════════════════════════════════════════
 // Fino alla v0.77.35 il roster si leggeva dal foglio Google a ogni avvio. Da
@@ -12629,6 +12843,11 @@ async function caricaCarteDalServer(){
   }
   CARTE_POSSEDUTE = risposta.possedute || {};
   GIOCATORE_ADMIN = !!risposta.admin;
+  // v0.77.50 — e il profilo di stagione, che viaggia con lo stesso giro.
+  if(risposta.profilo) PROFILO_STAGIONE = risposta.profilo;
+  if(risposta.ranghi && risposta.ranghi.length) RANGHI = risposta.ranghi;
+  if(risposta.rankPunti) RANK_PUNTI = risposta.rankPunti;
+  if(risposta.livelloMax) LIVELLO_MAX = risposta.livelloMax;
   _possessoNoto = true;
   try{ localStorage.setItem(CHIAVE_POSSESSO, JSON.stringify({ possedute: CARTE_POSSEDUTE, admin: GIOCATORE_ADMIN })); }catch(_){}
   _foglioLetto = true;
@@ -13011,7 +13230,13 @@ function montaColonnaAccesso(){
       impostaVariabileDaCandidati(pan, '--hx-trama', uiFileCandidati('brushed-texture.jpg')));
     modale.querySelectorAll('.hx-btn').forEach(vestiPulsante);
   }
-  for(const barra of ['#login-titlebar','#registrazione-titlebar','#username-titlebar']){
+  const finestraRank = document.getElementById('rank-overlay');
+  if(finestraRank){
+    finestraRank.querySelectorAll('.hx-pannello').forEach(pan=>
+      impostaVariabileDaCandidati(pan, '--hx-trama', uiFileCandidati('brushed-texture.jpg')));
+    finestraRank.querySelectorAll('.hx-btn').forEach(vestiPulsante);
+  }
+  for(const barra of ['#login-titlebar','#registrazione-titlebar','#username-titlebar','#rank-titlebar']){
     sfondo(barra+' .hx-titlebar-left',   'title-bg-left.png');
     sfondo(barra+' .hx-titlebar-center', 'title-bg-center.png');
     sfondo(barra+' .hx-titlebar-right',  'title-bg-right.png');
@@ -13707,9 +13932,11 @@ function montaMenuPrincipale(){
   }
   // Da qui in giu' si rifa' a OGNI entrata: sono cose che possono essere
   // cambiate altrove mentre non si guardava.
-  const nome = document.getElementById('mm2-nome');
-  if(nome) nome.textContent = (typeof nomeGiocatore === 'function' ? nomeGiocatore() : 'Player 1');
-  mm2AggiornaXp(220, 300);
+  // v0.77.50 — nome, livello, esperienza, stagione e rank vengono dal profilo
+  // vero. Se una partita ha appena cambiato qualcosa, la barra lo fa VEDERE
+  // invece di trovarsi gia' al valore nuovo.
+  mm2AggiornaProfilo();
+  if(_daMostrareDopoPartita){ try{ mm2MostraGuadagno(); }catch(_){} }
   mm2AggiornaMazzo();
   mm2AggiornaBustine();
   try{ aggiornaValuteAVideo(); }catch(_){}
@@ -33059,6 +33286,10 @@ function finishGameWithResult(){
       ? 'Draw!'
       : ((hp1>hp2 ? p1Label : p2Label) + ' wins!');   // piu' punti, non meno danni
   }
+  // v0.77.50 — l'esito va al server, che decide livello e rank. Si fa QUI,
+  // dove il risultato e' appena stato deciso, e non all'uscita dalla schermata:
+  // di la' si puo' anche chiudere il gioco.
+  try{ riferisciPartita(hp1 > hp2, hp1 === hp2, !!G.vsAI); }catch(_){}
   setTimeout(()=>{
     document.getElementById('gameover').classList.add('show');
     // Il suono della fine, nello stesso istante in cui la schermata compare:

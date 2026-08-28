@@ -651,6 +651,46 @@ modulo, con un aggancio `registerBeforeAuthenticateGoogle`.
 
 ---
 
+## Stagione, livello e rank (dalla v0.77.50)
+
+Stanno sul SERVER, per la stessa ragione delle carte possedute: sono la misura
+di quanto uno ha giocato, e una misura che il giocatore puo' riscrivere non
+misura niente. Il client riferisce **com'e' finita** una partita (`hx_partita`);
+cosa cambia lo decide il server.
+
+**La stagione non e' un numero salvato:** e' una funzione della data, contata a
+mesi da `STAGIONE_INIZIO` (27 agosto 2026). Cosi' non esiste il caso "il server
+non era acceso il giorno dello scatto e la stagione non e' cambiata". Al primo
+accesso di una stagione nuova, livello e rank si **azzerano** — lo fa
+`leggiStagione`, alla prima occasione in cui il profilo serve.
+
+**L'esperienza.** Vittoria +50, sconfitta +20, **anche contro l'IA**. Salire dal
+livello L costa `50*(L+1)`: 50 il primo, 100 il secondo, e cosi' via fino al 30,
+dove l'esperienza smette di accumularsi — una barra che si riempie senza far
+salire niente racconterebbe una bugia.
+
+**Il rank.** Dodici gradini (`RANGHI`), da Bronze I a Gold Top. Vittoria +3,
+sconfitta −1. A 10 punti si sale **portandosi dietro l'eccesso** (da 9, una
+vittoria fa 12: gradino nuovo con 2 punti gia' fatti). Si scende solo dopo
+**tre sconfitte di fila**, e si riparte da **7/10**; da Bronze I non si
+retrocede. **Contro l'IA il rank non si muove**: e' la misura del gioco contro
+persone, ed e' quella su cui si basera' l'accoppiamento — lasciarla crescere da
+soli la renderebbe una misura di quanto uno ha voglia di battere il computer.
+
+**Perche' `hx_partita` torna il PRIMA e il DOPO.** Il menu deve poter far vedere
+la barra che sale da dove era, invece di trovarla gia' piena. L'animazione non
+parte quando il server risponde — a quel punto si sta guardando la schermata di
+fine partita — ma **entrando nel menu**: `_daMostrareDopoPartita` tiene lo stato
+in attesa, e `mm2MostraGuadagno` lo consuma.
+
+**Un limite dichiarato:** se la rete manca quando la partita finisce, quel
+risultato **non si recupera**. Una coda di partite da riferire piu' tardi
+sarebbe anche una coda di partite da falsificare. Vale lo stesso per il fatto
+che oggi e' il client a dire chi ha vinto: le partite sono locali, e il giorno
+in cui saranno sincronizzate quel giudizio passera' al server.
+
+---
+
 ## I mazzi (dalla v0.77.37)
 
 **Dodici caselle, tutte del giocatore.** Fino alla v0.77.36 la quarta era del

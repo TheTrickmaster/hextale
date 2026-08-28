@@ -29,6 +29,82 @@ var KEY_CATALOGO = 'catalogo';
 var COLL_PROFILO = 'profilo';
 var KEY_POSSESSO = 'carte';
 var KEY_MAZZI = 'mazzi';
+var KEY_STAGIONE = 'stagione';
+
+// ══════════════════════════════════════════════════════════════════════════
+// LA STAGIONE, IL LIVELLO E IL RANK
+// ══════════════════════════════════════════════════════════════════════════
+// Stanno QUI e non nel client per la stessa ragione delle carte possedute:
+// sono la misura di quanto uno ha giocato, e una misura che il giocatore
+// stesso puo' riscrivere non misura niente. Il client dice com'e' finita la
+// partita, il server decide cosa cambia.
+//
+// LA STAGIONE si conta a mesi dal giorno in cui e' cominciata la prima. Non e'
+// un numero salvato da qualche parte: e' una funzione della data, cosi' non
+// esiste il caso "il server non e' stato acceso il primo del mese e la
+// stagione non e' scattata".
+var STAGIONE_INIZIO = { anno: 2026, mese: 7, giorno: 27 };   // mese 7 = agosto
+
+function stagioneCorrente() {
+  var ora = new Date();
+  var mesi = (ora.getUTCFullYear() - STAGIONE_INIZIO.anno) * 12
+           + (ora.getUTCMonth() - STAGIONE_INIZIO.mese);
+  // Prima del giorno di anniversario il mese non e' ancora compiuto.
+  if (ora.getUTCDate() < STAGIONE_INIZIO.giorno) mesi -= 1;
+  return Math.max(1, mesi + 1);
+}
+
+// I dodici gradini, nell'ordine. L'indice e' cio' che si salva; il nome e
+// l'icona si ricavano da qui, cosi' esistono in un posto solo.
+var RANGHI = ['bronze-1','bronze-2','bronze-3','bronze-top',
+              'silver-1','silver-2','silver-3','silver-top',
+              'gold-1','gold-2','gold-3','gold-top'];
+var RANK_PUNTI = 10;        // quanti punti riempiono un gradino
+var RANK_VITTORIA = 3;      // quanti se ne guadagnano vincendo
+var RANK_SCONFITTA = 1;     // quanti se ne perdono perdendo
+var RANK_SCONFITTE_PER_SCENDERE = 3;
+var RANK_PUNTI_DOPO_RETROCESSIONE = 7;
+
+var LIVELLO_MAX = 30;
+var XP_VITTORIA = 50;
+var XP_SCONFITTA = 20;
+// Il livello L costa 50*(L+1): 50 per il primo, 100 per il secondo, e cosi'
+// via. E' la regola che Lorenzo ha scelto, e vive in questa riga sola.
+function xpPerSalire(livello) { return 50 * (livello + 1); }
+
+function profiloVuoto() {
+  return {
+    stagione: stagioneCorrente(),
+    livello: 0, xp: 0,
+    rank: 0, puntiRank: 0,
+    sconfitteDiFila: 0,
+    partite: 0, vittorie: 0
+  };
+}
+
+// Legge il profilo e, se la stagione e' cambiata, lo AZZERA: livelli e rank si
+// resettano a ogni stagione. Lo fa qui e non da qualche parte a mezzanotte,
+// cosi' il reset avviene alla prima occasione in cui il profilo serve.
+function leggiStagione(nk, userId) {
+  var r = nk.storageRead([{ collection: COLL_PROFILO, key: KEY_STAGIONE, userId: userId }]);
+  var p = (r && r.length && r[0].value) ? r[0].value : null;
+  var ora = stagioneCorrente();
+  if (!p || p.stagione !== ora) {
+    var nuovo = profiloVuoto();
+    nuovo.stagione = ora;
+    return { profilo: nuovo, azzerato: !!p };
+  }
+  return { profilo: p, azzerato: false };
+}
+
+function scriviStagione(nk, userId, profilo) {
+  nk.storageWrite([{
+    collection: COLL_PROFILO, key: KEY_STAGIONE, userId: userId,
+    value: profilo,
+    // Si legge ma non si scrive: si passa da hx_partita, che decide.
+    permissionRead: 1, permissionWrite: 0
+  }]);
+}
 
 // Le regole di un mazzo, ripetute qui perche' il server non puo' fidarsi di
 // quelle scritte nel client: chi apre gli strumenti del browser puo' cambiarle.
@@ -222,10 +298,17 @@ function rpcAvvio(ctx, logger, nk, payload) {
   // non e' cambiato, non si rimanda.
   var invariato = richiesta.versioneNota && richiesta.versioneNota === catalogo.versione;
 
+  var st = leggiStagione(nk, ctx.userId);
+  if (st.azzerato) { scriviStagione(nk, ctx.userId, st.profilo); logger.info('stagione nuova: profilo azzerato per %s', ctx.userId); }
+
   return JSON.stringify({
     versione: catalogo.versione,
     invariato: !!invariato,
     admin: admin,
+    profilo: st.profilo,
+    ranghi: RANGHI,
+    rankPunti: RANK_PUNTI,
+    livelloMax: LIVELLO_MAX,
     mazzi: possesso.mazzi,
     livello: possesso.livello,
     possedute: possedute,
@@ -385,12 +468,96 @@ function rpcMazziScrivi(ctx, logger, nk, payload) {
   return JSON.stringify(puliti);
 }
 
+// ── L'ESITO DI UNA PARTITA ────────────────────────────────────────────────
+// Il client dice com'e' finita; il server decide cosa cambia. Torna il PRIMA e
+// il DOPO, perche' il menu deve poter far vedere la barra che sale da dove era
+// invece di trovarla gia' piena.
+//
+// Contro l'IA si guadagna esperienza ma NON punti rank: il rank e' la misura
+// del gioco contro persone, ed e' quello su cui si basera' l'accoppiamento.
+// Lasciarlo crescere da soli lo renderebbe una misura di quanto uno ha voglia
+// di battere il computer.
+function rpcPartita(ctx, logger, nk, payload) {
+  if (!ctx.userId) throw Error('serve un accesso');
+  var dati;
+  try { dati = JSON.parse(payload || '{}'); } catch (e) { throw Error('esito illeggibile'); }
+  var vinta = !!dati.vinta;
+  var pari = !!dati.pari;
+  var controIA = !!dati.controIA;
+
+  var letto = leggiStagione(nk, ctx.userId);
+  var p = letto.profilo;
+  var prima = {
+    livello: p.livello, xp: p.xp, rank: p.rank, puntiRank: p.puntiRank,
+    xpPerSalire: xpPerSalire(p.livello)
+  };
+
+  // ── esperienza ──────────────────────────────────────────────────────────
+  // Un pareggio non e' una vittoria: vale come una sconfitta per l'esperienza,
+  // e non muove il rank.
+  var guadagno = vinta ? XP_VITTORIA : XP_SCONFITTA;
+  if (p.livello < LIVELLO_MAX) {
+    p.xp += guadagno;
+    while (p.livello < LIVELLO_MAX && p.xp >= xpPerSalire(p.livello)) {
+      p.xp -= xpPerSalire(p.livello);
+      p.livello += 1;
+    }
+    // Arrivati in cima l'esperienza non si accumula: non ci sarebbe piu' dove
+    // spenderla, e una barra che continua a riempirsi senza salire mentirebbe.
+    if (p.livello >= LIVELLO_MAX) p.xp = 0;
+  }
+
+  // ── rank ────────────────────────────────────────────────────────────────
+  var salito = false, sceso = false;
+  if (!controIA && !pari) {
+    if (vinta) {
+      p.sconfitteDiFila = 0;
+      p.puntiRank += RANK_VITTORIA;
+      while (p.puntiRank >= RANK_PUNTI && p.rank < RANGHI.length - 1) {
+        // L'eccesso si porta dietro: da 9 una vittoria fa 12, cioe' il gradino
+        // dopo con 2 punti gia' fatti.
+        p.puntiRank -= RANK_PUNTI;
+        p.rank += 1;
+        salito = true;
+      }
+      // In cima al gradino piu' alto i punti non straboccano.
+      if (p.rank >= RANGHI.length - 1 && p.puntiRank > RANK_PUNTI) p.puntiRank = RANK_PUNTI;
+    } else {
+      p.puntiRank = Math.max(0, p.puntiRank - RANK_SCONFITTA);
+      p.sconfitteDiFila += 1;
+      // Si scende solo dopo TRE sconfitte di fila, e mai sotto il primo
+      // gradino: da Bronze I non si retrocede.
+      if (p.sconfitteDiFila >= RANK_SCONFITTE_PER_SCENDERE && p.rank > 0) {
+        p.rank -= 1;
+        p.puntiRank = RANK_PUNTI_DOPO_RETROCESSIONE;
+        p.sconfitteDiFila = 0;
+        sceso = true;
+      }
+    }
+  }
+
+  p.partite = (p.partite || 0) + 1;
+  if (vinta) p.vittorie = (p.vittorie || 0) + 1;
+  scriviStagione(nk, ctx.userId, p);
+
+  return JSON.stringify({
+    prima: prima,
+    profilo: p,
+    salito: salito,
+    sceso: sceso,
+    xpGuadagnata: guadagno,
+    xpPerSalire: xpPerSalire(p.livello),
+    ranghi: RANGHI
+  });
+}
+
 function InitModule(ctx, logger, nk, initializer) {
   initializer.registerRpc('hx_avvio', rpcAvvio);
   initializer.registerRpc('hx_importa', rpcImporta);
   initializer.registerRpc('hx_sistema_utenti', rpcSistemaUtenti);
   initializer.registerRpc('hx_mazzi_leggi', rpcMazziLeggi);
   initializer.registerRpc('hx_mazzi_scrivi', rpcMazziScrivi);
+  initializer.registerRpc('hx_partita', rpcPartita);
   // Tutte le strade d'ingresso, non solo quella con l'email: chi entra con
   // Google deve ricevere il mazzo esattamente come gli altri.
   initializer.registerAfterAuthenticateEmail(dopoAccesso);
