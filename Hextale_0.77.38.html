@@ -291,6 +291,342 @@ body.mouse-down, body.mouse-down *{
    gia' la sua cornice: due barre sopra di lui sarebbero state una seconda
    cornice, per giunta proprio all'altezza delle due colonne. */
 
+
+/* ══════════════════════════════════════════════════════════════════════════
+   v0.77.38 — MENU PRINCIPALE, RICOSTRUITO
+   ══════════════════════════════════════════════════════════════════════════
+   Cinque zone ancorate ai bordi dello schermo authored 1920x1080: la barra in
+   alto, la colonna delle valute a sinistra, il centro (statistiche + gioca),
+   la colonna delle missioni a destra, la fascia dei tre pulsanti in basso.
+   Ognuna si posiziona da se' rispetto al bordo che le compete, invece di
+   stare in un impianto unico: cosi' spostarne una non muove le altre. */
+#mm2{ position:absolute; inset:0; overflow:hidden; }
+/* ── il fondale: due immagini e una candela ───────────────────────────────
+   La seconda e' la stessa scena illuminata. Facendone salire e scendere
+   l'opacita' si ottiene una luce che respira, che e' un'altra cosa dal
+   variare la luminosita' di un'immagine sola: li' cambierebbe tutto insieme,
+   qui cambiano solo le parti che nel file acceso sono davvero accese.
+   Le due durate non sono multiple fra loro e la curva e' diversa: una fiamma
+   non ha un ritmo riconoscibile, e due cicli che non tornano mai in fase sono
+   il modo piu' economico di non averne uno. */
+#mm2-bg, #mm2-bg-lit{
+  position:absolute; inset:0; width:100%; height:100%;
+  object-fit:cover; object-position:center;
+  pointer-events:none; user-select:none; -webkit-user-drag:none;
+}
+#mm2-bg{ z-index:0; }
+#mm2-bg-lit{ z-index:1; opacity:0.35; animation:mm2Candela 5.3s ease-in-out infinite alternate; }
+@keyframes mm2Candela{
+  0%   { opacity:0.18; }
+  38%  { opacity:0.62; }
+  61%  { opacity:0.34; }
+  100% { opacity:0.78; }
+}
+/* La polvere: le stesse tre tele della schermata d'accesso, stessi piani e
+   stesso `plus-lighter`. Non un secondo effetto simile — proprio le stesse
+   misure, cosi' passando da una schermata all'altra la scena non cambia aria. */
+.mm2-particelle{
+  position:absolute; inset:0; width:100%; height:100%;
+  z-index:2; pointer-events:none; user-select:none;
+  mix-blend-mode:plus-lighter;
+}
+#mm2-particles-far { filter:blur(1px); }
+#mm2-particles-mid { filter:none; }
+#mm2-particles-near{ filter:blur(3.5px); }
+
+/* ── LA BARRA IN ALTO ─────────────────────────────────────────────────── */
+#mm2-topbar{
+  position:absolute; top:0; left:0; right:0; height:100px; z-index:30;
+  display:flex; align-items:center; justify-content:space-between;
+  padding:0 30px; box-sizing:border-box;
+  -webkit-backdrop-filter:blur(40px); backdrop-filter:blur(40px);
+}
+#mm2-topbar-bg{
+  position:absolute; inset:0; width:100%; height:100%;
+  object-fit:cover; pointer-events:none; z-index:0;
+}
+#mm2-topbar > *{ position:relative; z-index:1; }
+#mm2-logo{ height:82px; width:auto; display:block; flex:0 0 auto; }
+/* I tre pulsanti sono attaccati: nessun gap, e coprono TUTTA l'altezza della
+   barra. Il gruppo e' centrato sullo schermo e non fra il logo e le icone —
+   `position:absolute` con left:50% invece di un flex fra fratelli di larghezza
+   diversa, che lo avrebbe spostato di lato. */
+#mm2-nav{
+  position:absolute; left:50%; top:0; transform:translateX(-50%);
+  height:100%; display:flex; align-items:stretch;
+}
+/* Un pulsante e' tre pezzi in fila: due tappi da 100px di disegno e un centro
+   che si RIPETE invece di stirarsi, cosi' la trama resta della sua densita'
+   qualunque sia la larghezza. I tappi tengono il rapporto del proprio file
+   (100x206) scalato all'altezza della barra. */
+.mm2-nav-btn{
+  position:relative; flex:0 0 auto; height:100%;
+  background:none; border:0; padding:0; margin:0;
+  cursor:var(--cursore);
+  display:flex; align-items:center; justify-content:center;
+  transition:filter 0.16s ease;
+}
+.mm2-nav-strip{
+  position:absolute; inset:0; z-index:0;
+  display:flex; align-items:stretch; pointer-events:none;
+}
+.mm2-nav-strip > span{ background-repeat:no-repeat; background-size:100% 100%; }
+.mm2-nav-cap{ flex:0 0 calc(100px * var(--mm2-nav-scala, 0.4854)); }
+.mm2-nav-mid{
+  flex:1 1 0; min-width:0;
+  background-repeat:repeat-x; background-size:auto 100%;
+}
+.mm2-nav-label{
+  position:relative; z-index:2;
+  font-family:'Marcellus',var(--font-display),serif;
+  font-weight:400; line-height:1; white-space:nowrap;
+  background-image:linear-gradient(180deg,#89713B 0%,#E6CA8E 50%,#89713B 100%);
+  -webkit-background-clip:text; background-clip:text;
+  -webkit-text-fill-color:transparent; color:transparent;
+}
+/* L'ombra sull'etichetta solo da selezionato. Con background-clip:text il
+   colore vero e' trasparente, quindi un text-shadow non si vedrebbe sotto le
+   lettere: l'ombra va sull'elemento con drop-shadow, che segue la sagoma
+   ritagliata invece della scatola. */
+.mm2-nav-btn.attivo .mm2-nav-label{ filter:drop-shadow(0 0 7px rgba(0,0,0,1)); }
+.mm2-nav-btn:not(.attivo):hover{ filter:brightness(1.12); }
+.mm2-nav-btn[disabled]{ opacity:0.6; cursor:var(--cursore); }
+/* La polvere del pulsante attivo: stessa tela e stesso colore della scena, ma
+   granelli piu' piccoli e fitti che si spengono appena nati. La maschera e'
+   il pulsante stesso — `overflow:hidden` sul contenitore — cosi' non c'e'
+   nessuna forma da tenere allineata al disegno. */
+.mm2-nav-scintille{
+  position:absolute; inset:0; z-index:1;
+  pointer-events:none; opacity:0;
+  mix-blend-mode:plus-lighter;
+  transition:opacity 0.3s ease;
+}
+.mm2-nav-btn.attivo .mm2-nav-scintille{ opacity:1; }
+#mm2-topbar-icone{ display:flex; align-items:center; gap:20px; flex:0 0 auto; }
+.mm2-icona{
+  width:52px; height:52px; padding:0; margin:0; flex:0 0 auto;
+  background:none; border:0; cursor:var(--cursore);
+  transition:filter 0.16s ease, transform 0.16s ease;
+}
+.mm2-icona img{ width:100%; height:100%; object-fit:contain; display:block; pointer-events:none; }
+.mm2-icona:hover{ filter:brightness(1.18); transform:translateY(-2px); }
+/* La freccia sotto la barra: attaccata a lei, centrata, e sotto a tutto il
+   resto — e' una decorazione della barra, non un elemento con cui si
+   interagisce. */
+#mm2-arrow{
+  position:absolute; top:100px; left:50%; transform:translateX(-50%);
+  height:184px; width:auto; z-index:20;
+  pointer-events:none; user-select:none; -webkit-user-drag:none;
+}
+
+/* ── I RIQUADRI ───────────────────────────────────────────────────────────
+   Stessa veste di ogni finestra del gioco. L'unica differenza e' che il lato
+   che tocca il bordo dello schermo perde il raggio: un angolo arrotondato
+   contro il bordo mostrerebbe il fondale nell'incavo e direbbe "questo
+   riquadro sta galleggiando", mentre deve dire "questo riquadro entra da
+   fuori". */
+.mm2-box{
+  position:relative;
+  border-radius:28px; box-sizing:border-box;
+  background-image:linear-gradient(135deg, rgba(84,96,98,0.5) 0%, rgba(29,38,39,0.5) 100%);
+  border:1.5px solid rgba(255,255,255,0.2);
+  overflow:hidden;
+}
+.mm2-box::before{
+  content:''; position:absolute; inset:0; border-radius:inherit;
+  background-image:var(--hx-trama, none);
+  background-size:cover; background-position:center;
+  opacity:0.4; mix-blend-mode:overlay;
+  pointer-events:none; z-index:1;
+}
+.mm2-box > *{ position:relative; z-index:2; }
+.mm2-box-sx{ border-radius:0 28px 28px 0; border-left:0; }
+.mm2-box-dx{ border-radius:28px 0 0 28px; border-right:0; }
+/* Il fondo illustrato di un riquadro: sotto alla trama e sotto al contenuto. */
+.mm2-box-sfondo{
+  position:absolute; inset:0; width:100%; height:100%;
+  object-fit:cover; object-position:center;
+  z-index:0; pointer-events:none; user-select:none; -webkit-user-drag:none;
+}
+
+/* ── COLONNA DI SINISTRA ─────────────────────────────────────────────── */
+#mm2-sx{
+  position:absolute; left:0; top:50%; transform:translateY(-50%); z-index:25;
+  display:flex; flex-direction:column; gap:20px;
+  width:310px;
+}
+#mm2-sx .mm2-box{ width:310px; padding:20px; }
+#mm2-box-shop{ opacity:0.4; pointer-events:none; }
+#mm2-box-donate{ height:108px; display:flex; align-items:center; }
+#mm2-box-ink, #mm2-box-dust{ height:100px; display:flex; align-items:center; }
+#mm2-sx .hx-btn{ width:100%; padding:0; }
+/* Il pulsante della donazione: il modulo di PayPal resta quello che era, si
+   cambia solo il vestito. Il <form> non deve introdurre spazio proprio, o il
+   pulsante non sarebbe piu' alto quanto il riquadro dice. */
+#mm2-box-donate .donate-form{ width:100%; margin:0; padding:0; display:block; }
+#mm2-donate-btn{ width:100%; }
+#mm2-donate-btn .hxb-label{ gap:8px; }
+#mm2-donate-logo{ height:27px; width:auto; display:block; }
+
+/* ── IL CENTRO ────────────────────────────────────────────────────────── */
+#mm2-centro{
+  position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+  z-index:25;
+  display:flex; align-items:center; gap:30px;
+}
+#mm2-stats, #mm2-gioca{ height:580px; }
+#mm2-divisorio{ width:1px; height:350px; background:rgba(255,255,255,0.1); flex:0 0 auto; }
+
+/* statistiche giocatore */
+#mm2-stats{
+  width:300px; padding:0 20px 20px 20px;
+  display:flex; flex-direction:column; align-items:center;
+}
+/* Il drappo: e' un fondo allineato in basso, non un'immagine nel flusso —
+   cosi' il contenuto ci si appoggia sopra e il drappo non ne detta l'altezza. */
+#mm2-drappo{
+  width:220px; height:430px; flex:0 0 auto;
+  padding-top:30px; box-sizing:border-box;
+  display:flex; flex-direction:column; align-items:center; gap:30px;
+  background-repeat:no-repeat; background-position:center bottom; background-size:contain;
+}
+#mm2-nome{
+  font-family:'Marcellus',var(--font-display),serif;
+  font-size:20px; color:#EDE0C6;
+  filter:drop-shadow(0 0 7px rgba(0,0,0,1));
+}
+/* L'avatar con la sua cornice, come in partita. L'orb del livello lo scavalca
+   di cinquanta pixel: sta in fondo al gruppo e sporge sotto, quindi il gruppo
+   non gli fa spazio — e' una sovrapposizione voluta, non un accostamento. */
+#mm2-avatar{ position:relative; height:185px; width:auto; flex:0 0 auto; }
+#mm2-avatar .player-avatar-photo, #mm2-avatar .player-avatar-frame{ height:185px; width:auto; }
+#mm2-orb{
+  position:absolute; left:50%; bottom:-50px; transform:translateX(-50%);
+  width:75px; height:75px;
+  display:flex; align-items:center; justify-content:center;
+}
+#mm2-orb img{ position:absolute; inset:0; width:100%; height:100%; object-fit:contain; }
+#mm2-orb span{
+  position:relative;
+  font-family:'Marcellus',var(--font-display),serif;
+  font-size:40px; line-height:1; color:#FFF1D3;
+  filter:drop-shadow(0 0 7px rgba(0,0,0,1));
+}
+#mm2-xp{ display:flex; flex-direction:column; align-items:center; gap:4px; }
+#mm2-xp .hx-capacity{ width:140px; }
+#mm2-xp-testo{ font-family:'Rosarivo',serif; font-size:16px; color:#CEDDDF; }
+#mm2-season{
+  font-family:'Marcellus',var(--font-display),serif;
+  font-size:20px; color:#808F92; text-align:center;
+  margin-top:auto;
+}
+/* Il riquadro della lega: il gradiente scalda il lato sinistro, da cui entra
+   l'icona. Sta SOPRA al fondo del riquadro e sotto al contenuto. */
+#mm2-rank{
+  position:relative; width:100%; height:60px; margin-top:12px;
+  padding:10px 20px; box-sizing:border-box;
+  display:flex; align-items:center;
+  overflow:visible;   /* l'icona deve poter sbordare */
+}
+#mm2-rank::after{
+  content:''; position:absolute; inset:0; border-radius:inherit;
+  background-image:linear-gradient(90deg, rgba(153,62,1,1) 0%, rgba(153,62,1,0) 100%);
+  pointer-events:none; z-index:1;
+}
+#mm2-rank > *{ position:relative; z-index:2; }
+#mm2-rank-icona{ height:70px; width:auto; display:block; margin-left:-6px; }
+#mm2-rank-nome{
+  margin-left:auto;
+  font-family:'Marcellus',var(--font-display),serif;
+  font-size:22px; color:#EDE0C6;
+}
+
+/* riquadro gioca */
+#mm2-gioca{
+  width:460px; padding:20px;
+  display:flex; flex-direction:column; align-items:center; justify-content:flex-end;
+}
+#mm2-gioca-deck{ width:100%; position:relative; z-index:2; }
+/* La casella del mazzo qui non e' una riga di elenco: e' un pulsante. Perde
+   quindi la spunta e l'icona di modifica, e guadagna il cursore del gioco. */
+#mm2-gioca-deck .deck-slot{ width:100%; cursor:var(--cursore); }
+.mm2-deck-vuoto{
+  width:100%; height:64px; border-radius:16px;
+  background:rgba(0,0,0,0.15);
+  border:1px solid rgba(255,255,255,0.2);
+  box-shadow:inset 0 4px 10px rgba(0,0,0,0.35);
+  font-family:'Marcellus',var(--font-display),serif; font-size:20px; color:#8FA1A3;
+  cursor:var(--cursore);
+}
+#mm2-deck-box{ width:530px; display:flex; flex-direction:column; gap:16px; }
+#mm2-deck-titlebar h2{
+  margin:0; text-align:center;
+  font-family:'Marcellus',var(--font-display),serif;
+  font-size:30px; font-weight:400; line-height:1;
+  color:#EDE0C6; text-shadow:0 0 4px rgba(0,0,0,1);
+}
+#mm2-deck-lista{ display:flex; flex-direction:column; gap:12px; max-height:52vh; overflow-y:auto; }
+#mm2-deck-lista .deck-slot{ cursor:var(--cursore); }
+#mm2-find{ margin-top:30px; width:100%; height:82px; padding:0; }
+#mm2-find .hxb-label{ font-size:30px; color:#322C1D; }
+/* Cercando un avversario il pulsante si accende, e dietro di lui gira la
+   raggiera di sempre. Il riquadro taglia quello che esce: una luce che
+   deborda dal riquadro racconterebbe una cosa che succede fuori. */
+#mm2-find.cerca{ filter:drop-shadow(0 0 20px rgba(216,195,149,1)); }
+#mm2-find-glow{
+  position:absolute; left:50%; top:50%;
+  width:900px; height:900px; transform:translate(-50%,-50%);
+  object-fit:contain; mix-blend-mode:plus-lighter;
+  opacity:0; transition:opacity 0.4s ease;
+  pointer-events:none; z-index:1;
+  animation:mmRuotaOraria 140s linear infinite;
+}
+#mm2-gioca.cerca #mm2-find-glow{ opacity:0.9; }
+
+/* ── COLONNA DI DESTRA ───────────────────────────────────────────────── */
+#mm2-dx{
+  position:absolute; right:0; top:50%; transform:translateY(-50%); z-index:25;
+  width:310px;
+}
+#mm2-dx .mm2-box{ width:310px; padding:20px; }
+#mm2-quest-testata{
+  display:flex; align-items:center; justify-content:space-between;
+  font-family:'Marcellus',var(--font-display),serif; font-size:22px;
+  margin-bottom:16px;
+}
+#mm2-quest-titolo{ color:#D4CBB9; }
+#mm2-quest-conta{ color:#AAB6B8; }
+#mm2-quest-corpo{
+  height:330px;
+  display:flex; align-items:center; justify-content:center;
+  font-family:'Marcellus',var(--font-display),serif; font-size:22px; color:#929899;
+  background:rgba(0,0,0,0.15);
+  border:1px solid rgba(255,255,255,0.2); border-radius:16px;
+  box-shadow:inset 0 4px 10px rgba(0,0,0,0.35);
+}
+
+/* ── LA FASCIA IN BASSO ──────────────────────────────────────────────── */
+#mm2-giu{
+  position:absolute; left:50%; bottom:0; transform:translateX(-50%); z-index:25;
+  display:flex; align-items:flex-end; gap:30px;
+}
+.mm2-scorciatoia{ position:relative; width:330px; display:flex; flex-direction:column; align-items:center; }
+/* L'icona sta DIETRO al pulsante e non dentro: e' un'illustrazione che sbuca
+   da sotto, e deve poter essere piu' alta del pulsante senza allargarlo. */
+.mm2-scorciatoia-icona{
+  position:absolute; left:50%; bottom:0; transform:translateX(-50%);
+  width:auto; z-index:0;
+  pointer-events:none; user-select:none; -webkit-user-drag:none;
+}
+.mm2-scorciatoia .hx-btn{ position:relative; z-index:1; width:100%; padding:0; }
+.mm2-scorciatoia-sotto{
+  position:relative; z-index:1;
+  margin-top:4px; margin-bottom:14px;
+  font-family:'Rosarivo',serif; font-size:13px; color:#DAD4C7;
+}
+.mm2-scorciatoia-sotto.vuoto{ opacity:0.4; }
+.mm2-scorciatoia.spenta{ opacity:0.4; pointer-events:none; }
+
 /* ══════════════════════════════════════════════════════════════════════════
    v0.77.19 — LA COLONNA DI SINISTRA: raggiera, effetti, logo
    ══════════════════════════════════════════════════════════════════════════ */
@@ -592,7 +928,10 @@ body.mouse-down, body.mouse-down *{
    semitrasparente per costruzione, e l'opacita' si alza sul canale alfa
    dell'immagine invece di metterle dietro un colore, che agli angoli dei due
    tappi si vedrebbe. */
-.hx-btn-opaco .hxb-strip{ filter:url(#hx-opaco); }
+/* v0.77.38 — l'opacita' non si finge piu' con un filtro sull'alfa: adesso
+   esistono i file veri (button-opaque-*), e vestiPulsante li sceglie da se'
+   quando trova questa classe. Il filtro indurivano i bordi sfumati; l'arte no.
+   La classe resta la stessa, quindi chi la usava non cambia. */
 
 /* ── Generic staggered fade-in/out helper ──────────────────────────
    Every start-screen element that participates in the reveal cascade
@@ -4210,7 +4549,7 @@ body.mouse-down, body.mouse-down *{
    (0.65) sfonda l'uno e viene tagliato, mentre i bordi sfumati restano
    sfumati. E' l'unico modo di rendere opaca un'immagine senza inventarle
    intorno una forma che non ha. */
-#btn-show-results .hxb-strip{ filter:url(#hx-opaco); }
+/* v0.77.38 — vedi .hx-btn-opaco: adesso l'arte opaca esiste davvero. */
 #btn-show-results.show{ display:inline-flex; }
 #gameover.board-view{display:none;}
 
@@ -8523,87 +8862,190 @@ body.prova-senza-willchange #mm-book-rot{
      Scriverlo qui vorrebbe dire non vedere mai un disegno appena fatto finche'
      non e' pubblicato — errore gia' commesso, vedi il fascio del libro. -->
 <div id="main-menu">
-  <img id="mm-bg" alt="" draggable="false">
-  <!-- v0.76.4 — la donazione anche qui, in alto a sinistra. Sta FUORI dal
-       gruppo inclinato di tre gradi (vedi #mm-book-rot), come le impostazioni
-       e le valute: e' un comando della pagina, non un oggetto appoggiato sul
-       libro, e inclinarlo lo farebbe sembrare parte della scena.
-       Il modulo e' lo stesso delle impostazioni, con lo stesso target="_blank"
-       e la stessa rete se l'immagine di PayPal non arriva. -->
-  <form class="donate-form mm-donate" action="https://www.paypal.com/donate" method="post" target="_blank" rel="noopener">
-    <input type="hidden" name="business" value="4HZY4JGJ2A358">
-    <input type="hidden" name="no_recurring" value="0">
-    <input type="hidden" name="currency_code" value="EUR">
-    <button type="submit" class="donate-btn" title="PayPal - The safer, easier way to pay online!">
-      <img src="https://www.paypalobjects.com/en_US/IT/i/btn/btn_donateCC_LG.gif"
-           alt="Donate with PayPal" draggable="false"
-           onerror="this.remove(); this.parentNode.textContent='Donate with PayPal';">
-    </button>
-  </form>
-  <img class="mm-radial" id="mm-radial-a" alt="" draggable="false">
-  <img class="mm-radial" id="mm-radial-b" alt="" draggable="false">
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       v0.77.38 — MENU PRINCIPALE
+       Cinque zone ancorate ognuna al proprio bordo, invece di un impianto
+       unico: spostarne una non muove le altre.
+       ═══════════════════════════════════════════════════════════════════ -->
+  <div id="mm2">
+    <!-- il fondale e la sua candela: la seconda immagine e' la stessa scena
+         illuminata, e a farla respirare e' la sua opacita' (vedi mm2Candela). -->
+    <img id="mm2-bg" alt="" draggable="false">
+    <img id="mm2-bg-lit" alt="" draggable="false">
+    <canvas id="mm2-particles-far"  class="mm2-particelle" aria-hidden="true"></canvas>
+    <canvas id="mm2-particles-mid"  class="mm2-particelle" aria-hidden="true"></canvas>
+    <canvas id="mm2-particles-near" class="mm2-particelle" aria-hidden="true"></canvas>
 
-  <!-- Il gruppo inclinato di 3 gradi: il libro e TUTTO cio' che ci sta
-       sopra. Le impostazioni e le valute stanno fuori di proposito. -->
-  <div id="mm-book-rot">
-    <div id="mm-book">
-      <img id="mm-book-art" alt="" draggable="false">
-      <img id="mm-book-glow" alt="" draggable="false">
+    <!-- la freccia: decorazione della barra, sotto a tutto il resto -->
+    <img id="mm2-arrow" alt="" draggable="false">
 
-      <!-- I segnalibri che escono dal taglio delle pagine -->
-      <button class="mm-clic mm-nudo mm-bookmark" id="mm-store" aria-label="Store" disabled><span class="mm-bookmark-scorri"><img alt="" draggable="false"><span class="mm-bookmark-testi"><span class="mm-bookmark-titolo">Store</span><span class="mm-bookmark-sotto">Summer Sales!</span></span></span></button>
-      <button class="mm-clic mm-nudo mm-bookmark" id="mm-missions" aria-label="Missions" disabled><span class="mm-bookmark-scorri"><img alt="" draggable="false"><span class="mm-bookmark-testi"><span class="mm-bookmark-titolo">Missions</span><span class="mm-bookmark-sotto">2 rewards ready</span></span></span></button>
-      <button class="mm-clic mm-nudo mm-bookmark" id="mm-packs" onclick="openPackOverlay()" aria-label="Book Packs"><span class="mm-bookmark-scorri"><img alt="" draggable="false"><span class="mm-bookmark-testi"><span class="mm-bookmark-titolo">Book Packs</span><span class="mm-bookmark-sotto"><!-- lo riscrive aggiornaSottotitoloBustine --></span></span></span></button>
+    <!-- ── BARRA IN ALTO ────────────────────────────────────────────── -->
+    <div id="mm2-topbar">
+      <img id="mm2-topbar-bg" alt="" draggable="false">
+      <img id="mm2-logo" alt="Hextale" draggable="false">
+      <div id="mm2-nav">
+      <button class="mm2-nav-btn" data-vista="campaign" type="button" style="width:300px" disabled onclick="mm2Vista('campaign')">
+        <span class="mm2-nav-strip"><span class="mm2-nav-cap mm2-nav-sx"></span><span class="mm2-nav-mid"></span><span class="mm2-nav-cap mm2-nav-dx"></span></span>
+        <canvas class="mm2-nav-scintille" aria-hidden="true"></canvas>
+        <span class="mm2-nav-label" style="font-size:28px">Campaign</span>
+      </button>
+      <button class="mm2-nav-btn" data-vista="matchmaking" type="button" style="width:350px" onclick="mm2Vista('matchmaking')">
+        <span class="mm2-nav-strip"><span class="mm2-nav-cap mm2-nav-sx"></span><span class="mm2-nav-mid"></span><span class="mm2-nav-cap mm2-nav-dx"></span></span>
+        <canvas class="mm2-nav-scintille" aria-hidden="true"></canvas>
+        <span class="mm2-nav-label" style="font-size:38px">Matchmaking</span>
+      </button>
+      <button class="mm2-nav-btn" data-vista="ai" type="button" style="width:300px" onclick="mm2Vista('ai')">
+        <span class="mm2-nav-strip"><span class="mm2-nav-cap mm2-nav-sx"></span><span class="mm2-nav-mid"></span><span class="mm2-nav-cap mm2-nav-dx"></span></span>
+        <canvas class="mm2-nav-scintille" aria-hidden="true"></canvas>
+        <span class="mm2-nav-label" style="font-size:28px">Play vs AI</span>
+      </button>
+      </div>
+      <div id="mm2-topbar-icone">
+        <button class="mm2-icona" id="mm2-bug" aria-label="Report a bug"><img alt="" draggable="false"></button>
+        <button class="mm2-icona" id="mm2-news" aria-label="Patch notes" onclick="apriPatchNotesDalMenu()"><img alt="" draggable="false"></button>
+        <button class="mm2-icona" id="mm2-settings" aria-label="Settings" onclick="openSettingsModal('menu')"><img alt="" draggable="false"></button>
+      </div>
+    </div>
 
-      <!-- Pagina sinistra: il giocatore -->
-      <div id="mm-player">
-        <img class="player-banner" id="mm-player-banner" alt="" draggable="false">
-        <div class="player-name" id="mm-player-name"><span id="mm-player-name-label">Player name</span></div>
-        <div class="player-avatar">
-          <img class="player-avatar-photo" id="mm-player-avatar" alt="" draggable="false">
-          <img class="player-avatar-frame" id="mm-player-frame" alt="" draggable="false">
+    <!-- ── COLONNA DI SINISTRA ──────────────────────────────────────── -->
+    <div id="mm2-sx">
+      <div class="mm2-box mm2-box-sx" id="mm2-box-shop">
+        <img class="mm2-box-sfondo" id="mm2-shop-bg" alt="" draggable="false">
+      <button id="mm2-shop-btn" class="hx-btn hx-btn-shop" type="button">
+        <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
+        <span class="hxb-label">Shop</span>
+      </button>
+      </div>
+      <div class="mm2-box mm2-box-sx" id="mm2-box-donate">
+        <!-- Il modulo di PayPal resta quello che era: si cambia il vestito del
+             pulsante, non cio' che il pulsante fa. target="_blank" e non
+             "_top", o dentro all'applicazione desktop la finestra del gioco
+             finirebbe su paypal.com senza un modo di tornare indietro. -->
+        <form class="donate-form" action="https://www.paypal.com/donate" method="post" target="_blank" rel="noopener">
+          <input type="hidden" name="business" value="4HZY4JGJ2A358">
+          <input type="hidden" name="no_recurring" value="0">
+          <input type="hidden" name="currency_code" value="EUR">
+      <button id="mm2-donate-btn" class="hx-btn " type="submit">
+        <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
+        <span class="hxb-label"><img id="mm2-donate-logo" alt="" draggable="false">Donate</span>
+      </button>
+        </form>
+      </div>
+    <div class="mm2-box mm2-box-sx" id="mm2-box-ink">
+      <div class="mm-cur mm-cur-ink">
+        <img class="mm-cur-bg" alt="" draggable="false">
+        <img class="mm-cur-icon" alt="" draggable="false">
+        <div class="mm-cur-value" id="mm2-ink-value" data-valuta="ink">0</div>
+        <button class="mm-cur-plus" aria-label="Compra magic ink"><img alt="" draggable="false"></button>
+      </div>
+    </div>
+    <div class="mm2-box mm2-box-sx" id="mm2-box-dust">
+      <div class="mm-cur mm-cur-premium mm-cur-dust">
+        <img class="mm-cur-bg" alt="" draggable="false">
+        <img class="mm-cur-icon" alt="" draggable="false">
+        <div class="mm-cur-value" id="mm2-dust-value" data-valuta="dust">0</div>
+        <button class="mm-cur-plus" aria-label="Compra fairy dust"><img alt="" draggable="false"></button>
+      </div>
+    </div>
+    </div>
+
+    <!-- ── CENTRO ───────────────────────────────────────────────────── -->
+    <div id="mm2-centro">
+      <div class="mm2-box" id="mm2-stats">
+        <div id="mm2-drappo">
+          <div id="mm2-nome">Player name</div>
+          <div class="player-avatar" id="mm2-avatar">
+            <img class="player-avatar-photo" alt="" draggable="false">
+            <img class="player-avatar-frame" alt="" draggable="false">
+            <div id="mm2-orb"><img alt="" draggable="false"><span id="mm2-livello">2</span></div>
+          </div>
+          <div id="mm2-xp">
+            <div class="hx-capacity">
+              <div class="hx-capacity-bg"></div>
+              <div class="hx-capacity-mask" id="mm2-xp-mask"><div class="hx-capacity-fill"></div></div>
+            </div>
+            <div id="mm2-xp-testo">220/300 XP</div>
+          </div>
+        </div>
+        <div id="mm2-season">Season 3 rank</div>
+        <div class="mm2-box" id="mm2-rank">
+          <img id="mm2-rank-icona" alt="" draggable="false">
+          <span id="mm2-rank-nome">Bronze II</span>
         </div>
       </div>
 
-      <!-- Pagina sinistra: i tre comandi -->
-      <div id="mm-actions">
-        <button class="mm-clic start-art-btn sab-primary" onclick="mmApriSceltaPartita()">
-          <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Start Game</span>
-        </button>
-        <button class="mm-clic start-art-btn sab-primary mm-inerte" disabled>
-          <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Edit Decks</span>
-        </button>
-        <button class="mm-clic start-art-btn sab-primary" onclick="openCardDbOverlay()">
-          <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Collection</span>
-        </button>
-      </div>
+      <div id="mm2-divisorio"></div>
 
-      <!-- Pagina destra -->
-      <div id="mm-quick-title">Quick decks</div>
-      <div id="mm-quick-grid" aria-label="Quick decks"></div>
-      <button class="mm-clic mm-nudo" id="mm-patch" onclick="apriPatchNotesDalMenu()" aria-label="Patch notes">
-        <img alt="" draggable="false">
-        <span id="mm-patch-label">Patch Notes</span>
+      <div class="mm2-box" id="mm2-gioca">
+        <img class="mm2-box-sfondo" id="mm2-gioca-bg" alt="" draggable="false">
+        <img id="mm2-find-glow" alt="" draggable="false">
+        <div id="mm2-gioca-deck"></div>
+      <button id="mm2-find" class="hx-btn hx-btn-important" type="button" onclick="mm2CercaAvversario()">
+        <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
+        <span class="hxb-label">Find opponent</span>
       </button>
+      </div>
+    </div>
+
+    <!-- ── COLONNA DI DESTRA ────────────────────────────────────────── -->
+    <div id="mm2-dx">
+      <div class="mm2-box mm2-box-dx">
+        <div id="mm2-quest-testata">
+          <span id="mm2-quest-titolo">Daily quests</span>
+          <span id="mm2-quest-conta">0/0</span>
+        </div>
+        <div id="mm2-quest-corpo">Coming soon</div>
+      </div>
+    </div>
+
+    <!-- ── FASCIA IN BASSO ──────────────────────────────────────────── -->
+    <div id="mm2-giu">
+      <div class="mm2-scorciatoia" id="mm2-sc-packs">
+        <img class="mm2-scorciatoia-icona" style="height:160px" alt="" draggable="false">
+      <button class="hx-btn hx-btn-opaco" type="button" onclick="openPackOverlay()">
+        <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
+        <span class="hxb-label">Card packs</span>
+      </button>
+        <div class="mm2-scorciatoia-sotto" id="mm2-packs-sotto"></div>
+      </div>
+      <div class="mm2-scorciatoia" id="mm2-sc-library">
+        <img class="mm2-scorciatoia-icona" style="height:170px" alt="" draggable="false">
+      <button class="hx-btn hx-btn-opaco" type="button" onclick="openCardDbOverlay()">
+        <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
+        <span class="hxb-label">Library &amp; decks</span>
+      </button>
+        <div class="mm2-scorciatoia-sotto">&nbsp;</div>
+      </div>
+      <div class="mm2-scorciatoia spenta" id="mm2-sc-quests">
+        <img class="mm2-scorciatoia-icona" style="height:200px" alt="" draggable="false">
+      <button class="hx-btn hx-btn-opaco" type="button">
+        <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
+        <span class="hxb-label">Quests</span>
+      </button>
+        <div class="mm2-scorciatoia-sotto">&nbsp;</div>
+      </div>
     </div>
   </div>
+</div>
 
-  <!-- Fuori dal libro: non ruotati, ancorati agli angoli dello schermo -->
-  <button id="mm-settings-btn" onclick="openSettingsModal('menu')" aria-label="Settings">
-    <img src="https://hextalegame.com/player-ui/settings-button.png" alt="" draggable="false">
-  </button>
-  <div id="mm-currencies">
-    <div class="mm-cur mm-cur-ink" id="mm-ink">
-      <img class="mm-cur-bg" alt="" draggable="false">
-      <img class="mm-cur-icon" alt="" draggable="false">
-      <div class="mm-cur-value" id="mm-ink-value" data-valuta="ink">0</div>
-      <button class="mm-cur-plus" aria-label="Compra magic ink"><img alt="" draggable="false"></button>
+<!-- v0.77.38 — la scelta del mazzo, aperta dal pulsante del mazzo nel
+     riquadro gioca. Stessa finestra di ogni altra: si chiude cliccando fuori
+     o col pulsante in fondo. La lista si costruisce all'apertura, perche' i
+     mazzi cambiano da un momento all'altro (vedi mm2ApriSceltaMazzo). -->
+<div id="mm2-deck-overlay" class="hx-modal-overlay" onclick="if(event.target===this) mm2ChiudiSceltaMazzo();">
+  <div id="mm2-deck-box">
+    <div class="hx-titlebar" id="mm2-deck-titlebar">
+      <span class="hx-titlebar-cap hx-titlebar-left"></span>
+      <div class="hx-titlebar-center"><h2>Select a deck</h2></div>
+      <span class="hx-titlebar-cap hx-titlebar-right"></span>
     </div>
-    <div class="mm-cur mm-cur-premium mm-cur-dust" id="mm-dust">
-      <img class="mm-cur-bg" alt="" draggable="false">
-      <img class="mm-cur-icon" alt="" draggable="false">
-      <div class="mm-cur-value" id="mm-dust-value" data-valuta="dust">0</div>
-      <button class="mm-cur-plus" aria-label="Compra fairy dust"><img alt="" draggable="false"></button>
+    <div class="hx-pannello" id="mm2-deck-pannello">
+      <div id="mm2-deck-lista"></div>
+      <div class="filters-riga"></div>
+      <button class="hx-btn hx-azione" type="button" onclick="mm2ChiudiSceltaMazzo()">
+        <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
+        <span class="hxb-label">Close</span>
+      </button>
     </div>
   </div>
 </div>
@@ -8947,7 +9389,7 @@ body.prova-senza-willchange #mm-book-rot{
     <feComponentTransfer><feFuncA type="linear" slope="2" intercept="0"/></feComponentTransfer>
   </filter>
 </defs></svg>
-<button id="btn-show-results" class="hx-btn" onclick="toggleBoardView(false)">
+<button id="btn-show-results" class="hx-btn hx-btn-opaco" onclick="toggleBoardView(false)">
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
   <span class="hxb-label">Show results</span>
 </button>
@@ -8972,7 +9414,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.37</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.38</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -10935,6 +11377,15 @@ function unmountPage(name){
   // logo. Coerente con la regola delle pagine ermetiche: quando una pagina
   // non e' attiva, i suoi processi sono spenti.
   if(name==='start' && typeof fermaLogoSheen==='function') fermaLogoSheen();
+  // v0.77.38 — uscendo dal menu si spengono la sua polvere e la ricerca di un
+  // avversario. Una tela staccata dal documento non si disegna piu', ma il
+  // giro di animazione continuerebbe a girare a vuoto; e una ricerca lasciata
+  // in corso tornerebbe a proporre "Match found!" su una pagina che nessuno
+  // sta guardando.
+  if(name==='mainmenu'){
+    if(typeof PolvereFerma==='function') PolvereFerma(_scenaMenu);
+    if(typeof mm2FermaRicerca==='function') mm2FermaRicerca();
+  }
   for(const id of ids){
     const el = document.getElementById(id);
     if(!el || !el.parentNode) continue;
@@ -11038,6 +11489,9 @@ const PAGE_ENTER_HOOKS = {
   // nome, valute e numero di versione si riscrivono a ogni entrata.
   mainmenu(){
     if(typeof montaMenuPrincipale === 'function') montaMenuPrincipale();
+    // La polvere va riavviata a ogni entrata e non solo alla prima: le tele
+    // staccate perdono il proprio contenuto (stessa ragione della pagina
+    // bustine, vedi sotto). montaMenuPrincipale la riavvia gia' in fondo.
     if(typeof musicaMenuAvvia === 'function') musicaMenuAvvia();
     // v0.75.14 — il conto alla rovescia del segnalibro bustine.
     if(typeof avviaOrologioSegnalibroBustine === 'function') avviaOrologioSegnalibroBustine();
@@ -11093,10 +11547,16 @@ const PARTICELLE_PIANI = [
   { id:'start-particles-mid',  quante:80, rMin:0.7, rMax:1.5, vMin:12, vMax:22, alfaMin:0.45, alfaMax:0.90, ondaMin:5,  ondaMax:14 },
   { id:'start-particles-near', quante:30, rMin:2.5, rMax:5.5, vMin:22, vMax:40, alfaMin:0.18, alfaMax:0.40, ondaMin:10, ondaMax:26 },
 ];
-let _particelleRAF = null;
-let _particelleStrati = null;   // [{tela, ctx, granelli, ...}]
-let _particelleUltimo = 0;
-let _particelleResize = null;
+// ── v0.77.38 — UN MOTORE, PIU' SCENE ──────────────────────────────────────
+// La polvere serviva a una schermata sola e teneva il suo stato in quattro
+// variabili globali. Adesso la vogliono in tre posti — la schermata d'accesso,
+// il menu principale e i pulsanti selezionati della barra — e tre copie dello
+// stesso codice sarebbero tre copie da correggere ogni volta.
+// Il motore resta uno; a cambiare e' che lo stato sta in una SCENA, cioe' in
+// un oggetto passato da chi la avvia.
+function nuovaScenaPolvere(){ return { raf:null, strati:null, ultimo:0, resize:null }; }
+const _scenaStart = nuovaScenaPolvere();
+const _scenaMenu  = nuovaScenaPolvere();
 
 const _pCaso = (a,b)=> a + Math.random()*(b-a);
 
@@ -11121,7 +11581,13 @@ function _pNuovoGranello(piano, w, h, sparso){
 
 function _pDimensiona(strato){
   const dpr = Math.min(window.devicePixelRatio || 1, 2); // oltre 2x non si vede, si paga e basta
-  const w = window.innerWidth, h = window.innerHeight;
+  // v0.77.38 — la tela di una scena dentro a un pulsante si misura sul
+  // pulsante, non sulla finestra: `misura` e' l'elemento a cui guardare, e
+  // quando manca si torna al comportamento di prima.
+  const rif = strato.misura;
+  const r = rif ? rif.getBoundingClientRect() : null;
+  const w = (r && r.width)  ? r.width  : window.innerWidth;
+  const h = (r && r.height) ? r.height : window.innerHeight;
   strato.w = w; strato.h = h; strato.dpr = dpr;
   strato.tela.width  = Math.max(1, Math.round(w*dpr));
   strato.tela.height = Math.max(1, Math.round(h*dpr));
@@ -11135,32 +11601,40 @@ function _pDimensiona(strato){
 // ciclo di vita, niente dissolvenze: l'alfa e' fissa dalla nascita), e sparisce
 // solo quando e' uscito davvero, cioe' quando l'ultimo pixel del suo raggio ha
 // superato il bordo alto. Solo allora rinasce dal basso.
-function ParticelleAvvia(){
-  ParticelleFerma();
+// `misura` dice a che cosa e' grande la tela: la finestra per una scena a
+// schermo pieno, l'elemento stesso per una che vive dentro a un pulsante.
+function PolvereAvvia(piani, scena, misura){
+  PolvereFerma(scena);
   const strati = [];
-  for(const piano of PARTICELLE_PIANI){
-    const tela = document.getElementById(piano.id);
+  for(const piano of piani){
+    const tela = piano.el || document.getElementById(piano.id);
     if(!tela || !tela.getContext) continue;
     const ctx = tela.getContext('2d');
     if(!ctx) continue;
-    const strato = { piano, tela, ctx, granelli:[], w:0, h:0, dpr:1 };
+    const strato = { piano, tela, ctx, granelli:[], w:0, h:0, dpr:1, misura: misura || null };
     _pDimensiona(strato);
     for(let i=0;i<piano.quante;i++) strato.granelli.push(_pNuovoGranello(piano, strato.w, strato.h, true));
     strati.push(strato);
   }
   if(!strati.length) return;
-  _particelleStrati = strati;
-  _particelleResize = ()=>{ for(const s of _particelleStrati||[]) _pDimensiona(s); };
-  window.addEventListener('resize', _particelleResize);
-  _particelleUltimo = 0;
+  scena.strati = strati;
+  scena.resize = ()=>{ for(const s of scena.strati||[]) _pDimensiona(s); };
+  window.addEventListener('resize', scena.resize);
+  scena.ultimo = 0;
   const passo = (ora)=>{
-    _particelleRAF = requestAnimationFrame(passo);
+    // v0.77.38 — una scena spenta puo' avere un fotogramma GIA' in coda: il
+    // browser lo esegue lo stesso, e a quel punto gli strati non ci sono piu'.
+    // Prima era un difetto latente perche' di scena ce n'era una sola e la si
+    // spegneva quasi mai; con tre scene che si accendono e si spengono passando
+    // da una pagina all'altra, e' una cosa che succede.
+    if(!scena.strati){ scena.raf = null; return; }
+    scena.raf = requestAnimationFrame(passo);
     // Primo giro, o ritorno da una scheda in secondo piano: un dt enorme
     // teletrasporterebbe tutta la polvere. Si taglia a 50ms.
-    const dt = _particelleUltimo ? Math.min((ora-_particelleUltimo)/1000, 0.05) : 0.016;
-    _particelleUltimo = ora;
+    const dt = scena.ultimo ? Math.min((ora-scena.ultimo)/1000, 0.05) : 0.016;
+    scena.ultimo = ora;
     const t = ora/1000;
-    for(const s of _particelleStrati){
+    for(const s of scena.strati){
       const {ctx, w, h} = s;
       ctx.clearRect(0, 0, w, h);
       ctx.fillStyle = PARTICELLE_COLORE;
@@ -11173,8 +11647,22 @@ function ParticelleAvvia(){
           Object.assign(g, _pNuovoGranello(s.piano, w, h, false));
           continue;
         }
+        // v0.77.38 — un piano puo' dare ai suoi granelli una VITA. Serve alle
+        // scintille del pulsante selezionato, che devono nascere e spegnersi
+        // subito invece di attraversare tutta la tela. Chi non la dichiara si
+        // comporta come sempre.
+        let svanisce = 1;
+        if(s.piano.vita){
+          g.eta = (g.eta||0) + dt;
+          if(g.eta >= s.piano.vita){
+            Object.assign(g, _pNuovoGranello(s.piano, w, h, false));
+            continue;
+          }
+          const resta = s.piano.vita - g.eta;
+          svanisce = resta < 1 ? resta : 1;   // l'ultimo secondo e' dissolvenza
+        }
         const x = g.x + Math.sin(t*g.freq*Math.PI*2 + g.fase) * g.onda;
-        ctx.globalAlpha = g.alfa;
+        ctx.globalAlpha = g.alfa * svanisce;
         ctx.beginPath();
         ctx.arc(x, g.y, g.r, 0, Math.PI*2);
         ctx.fill();
@@ -11182,16 +11670,19 @@ function ParticelleAvvia(){
       ctx.globalAlpha = 1;
     }
   };
-  _particelleRAF = requestAnimationFrame(passo);
+  scena.raf = requestAnimationFrame(passo);
 }
-function ParticelleFerma(){
-  if(_particelleRAF){ cancelAnimationFrame(_particelleRAF); _particelleRAF = null; }
-  if(_particelleResize){ window.removeEventListener('resize', _particelleResize); _particelleResize = null; }
-  _particelleStrati = null;
-  _particelleUltimo = 0;
+function PolvereFerma(scena){
+  if(!scena) return;
+  if(scena.raf){ cancelAnimationFrame(scena.raf); scena.raf = null; }
+  if(scena.resize){ window.removeEventListener('resize', scena.resize); scena.resize = null; }
+  scena.strati = null;
+  scena.ultimo = 0;
 }
-// I due nomi di prima restano: sono chiamati da showPage e dagli agganci di
-// pagina, e cambiarli non aggiungerebbe nulla.
+// I nomi di prima restano e valgono per la scena della schermata d'accesso:
+// sono chiamati da showPage e dagli agganci di pagina.
+function ParticelleAvvia(){ PolvereAvvia(PARTICELLE_PIANI, _scenaStart); }
+function ParticelleFerma(){ PolvereFerma(_scenaStart); }
 function loopParticelle(){ ParticelleAvvia(); }
 function fermaLoopParticelle(){ ParticelleFerma(); }
 
@@ -12643,71 +13134,267 @@ function aggiornaValuteAVideo(){
 // I riquadri dei mazzi rapidi: sei, tutti vuoti, tutti inerti. I mazzi non
 // esistono ancora — quando esisteranno, questo e' il punto in cui riempirli.
 const MENU_QUICK_SLOT = 6;
+// ══════════════════════════════════════════════════════════════════════════
+// v0.77.38 — IL MENU PRINCIPALE
+// ══════════════════════════════════════════════════════════════════════════
+// Gli asset si montano una volta sola: rifarlo a ogni entrata farebbe
+// ripartire i caricamenti e sfarfallare le immagini. Cio' che invece cambia da
+// un'entrata all'altra — valute, nome, mazzo scelto, bustine pronte — si
+// riscrive ogni volta.
+// La polvere del menu usa gli stessi piani della schermata d'accesso: non un
+// secondo effetto somigliante, proprio le stesse misure, cosi' passando da una
+// schermata all'altra la scena non cambia aria.
+const MM2_PIANI = PARTICELLE_PIANI.map(pi=>({ ...pi, id: pi.id.replace('start-', 'mm2-') }));
+// Le scintille del pulsante selezionato: stessa polvere, ma piccola, fitta e
+// con una vita breve. `quante` e' basso perche' la tela e' un pulsante, non
+// uno schermo: la stessa densita' a quella misura sarebbe una nebbia.
+const MM2_SCINTILLE = {
+  quante:26, rMin:0.4, rMax:1.2, vMin:14, vMax:34,
+  alfaMin:0.30, alfaMax:0.85, ondaMin:2, ondaMax:8, vita:1.6,
+};
 let _menuMontato = false;
+const _scintilleNav = new Map();   // pulsante -> scena della sua polvere
+
 function montaMenuPrincipale(){
   const radice = document.getElementById('main-menu');
-  if(!radice) return;
-  // Le immagini si mettono una volta sola: rifarlo a ogni entrata vorrebbe
-  // dire far ripartire il caricamento (e sfarfallare) ogni volta che si torna
-  // al menu.
+  // v0.77.38 — e la pagina dev'essere DAVVERO nel documento. Chiamata mentre
+  // e' smontata, questa funzione non trovava niente da vestire ma si segnava
+  // comunque "montata": da li' in poi non avrebbe piu' rimesso un solo asset,
+  // e il menu si sarebbe aperto nudo per il resto della sessione. Il paletto
+  // si alza solo dopo aver visto la radice attaccata.
+  if(!radice || !radice.isConnected) return;
   if(!_menuMontato){
     _menuMontato = true;
-    const img = (id, file)=> impostaImgDaCandidati(document.getElementById(id), menuFileCandidati(file));
-    img('mm-bg', 'main-menu-bg.png');
-    img('mm-radial-a', 'radial-glow.png');
-    img('mm-radial-b', 'radial-glow-flipped.png');
-    img('mm-book-art', 'main-menu-book.png');
-    img('mm-book-glow', 'glow.png');
-    // Il pulsante delle patch notes e' un <button>: l'immagine e' il suo figlio.
-    impostaImgDaCandidati(document.querySelector('#mm-patch img'), menuFileCandidati('patch.png'));
-    // v0.73.58 — i tre nastri prendono la misura dal proprio disegno: vedi
-    // adattaSegnalibroAlDisegno.
-    adattaSegnalibroAlDisegno('mm-store',    'store-button.png');
-    adattaSegnalibroAlDisegno('mm-missions', 'missions-button.png');
-    adattaSegnalibroAlDisegno('mm-packs',    'book-packs-button.png');
-    impostaImgDaCandidati(document.querySelector('#mm-ink .mm-cur-bg'),    menuFileCandidati('magic-ink-wrapper.png'));
-    impostaImgDaCandidati(document.querySelector('#mm-ink .mm-cur-icon'),  menuFileCandidati('magic-ink-icon.png'));
-    impostaImgDaCandidati(document.querySelector('#mm-dust .mm-cur-bg'),   menuFileCandidati('fairy-dust-wrapper.png'));
-    impostaImgDaCandidati(document.querySelector('#mm-dust .mm-cur-icon'), menuFileCandidati('fairy-dust-icon.png'));
-    document.querySelectorAll('.mm-cur-plus img').forEach(el=>{
-      impostaImgDaCandidati(el, menuFileCandidati('plus-icon.png'));
-    });
-    // Il banner del giocatore riusa i pezzi della partita: stesso disegno,
-    // stessa targa, stessa cornice. Se un domani cambiano li', cambiano qui.
-    const base = 'https://hextalegame.com/player-ui/';
-    const banner = document.getElementById('mm-player-banner');
-    if(banner) banner.src = base + 'banner-dark.png';
-    const targa = document.getElementById('mm-player-name');
-    // v0.76.8 — la barra del nome non ha piu' due versioni per fazione: e'
-    // la stessa per tutti e due, coi pezzi opachi (vedi montaGraficaPartita).
-    void targa;
-    const avatar = document.getElementById('mm-player-avatar');
-    if(avatar) avatar.src = base + 'pinocchio-avatar-test.png';
-    const cornice = document.getElementById('mm-player-frame');
-    if(cornice) cornice.src = base + 'avatar-frame.png';
-    // I sei riquadri dei mazzi rapidi. Il riquadro col bordo sfumato e
-    // l'icona sono due elementi separati: il bordo e' ritagliato con una
-    // maschera, e cio' che sta dentro alla maschera verrebbe ritagliato via
-    // insieme al centro (vedi .mm-quick-slot nel CSS).
-    const griglia = document.getElementById('mm-quick-grid');
-    if(griglia && !griglia.childNodes.length){
-      for(let i=0;i<MENU_QUICK_SLOT;i++){
-        const contenitore = document.createElement('div');
-        contenitore.className = 'mm-clic mm-quick-wrap';
-        const bordo = document.createElement('div');
-        bordo.className = 'mm-quick-slot';
-        const icona = document.createElement('img');
-        icona.className = 'mm-quick-slot-icon';
-        icona.alt = ''; icona.draggable = false;
-        impostaImgDaCandidati(icona, menuFileCandidati('add-icon.png'));
-        contenitore.appendChild(bordo);
-        contenitore.appendChild(icona);
-        griglia.appendChild(contenitore);
-      }
+    const img = (sel, file)=>{
+      const el = typeof sel === 'string' ? document.querySelector(sel) : sel;
+      if(el) impostaImgDaCandidati(el, uiFileCandidati(file));
+    };
+    img('#mm2-bg',        'main-menu-bg.jpg');
+    img('#mm2-bg-lit',    'main-menu-bg-lit.jpg');
+    img('#mm2-topbar-bg', 'main-menu-topbar-bg.png');
+    img('#mm2-logo',      'hextale-logo-topbar.png');
+    img('#mm2-arrow',     'matchmaking-arrow.png');
+    img('#mm2-bug img',      'bug-button.png');
+    img('#mm2-news img',     'news-button.png');
+    img('#mm2-settings img', 'settings-button.png');
+    img('#mm2-shop-bg',   'shop-bg.png');
+    img('#mm2-gioca-bg',  'matchmaking-bg.png');
+    img('#mm2-donate-logo','paypal-logo.png');
+    img('#mm2-orb img',   'level-orb.png');
+    img('#mm2-find-glow', 'radial-glow.png');
+    img('#mm2-rank-icona','ranks/bronze-2-rank-icon.png');
+    // Il drappo del giocatore e' un FONDO e non un'immagine nel flusso: il
+    // contenuto ci si appoggia sopra invece di essergli accanto.
+    impostaSfondoDaCandidati(document.getElementById('mm2-drappo'), uiFileCandidati('player-banner.png'));
+    // Il fondo del riquadro della fairy dust; quello dell'inchiostro non ne ha
+    // uno suo — e' la differenza fra i due, e sta tutta qui.
+    const dust = document.getElementById('mm2-box-dust');
+    if(dust){
+      const sfondo = document.createElement('img');
+      sfondo.className = 'mm2-box-sfondo'; sfondo.alt=''; sfondo.draggable=false;
+      dust.insertBefore(sfondo, dust.firstChild);
+      impostaImgDaCandidati(sfondo, uiFileCandidati('fairy-dust-bg.png'));
     }
+    // I due riquadri delle valute tengono i pezzi che avevano prima.
+    impostaImgDaCandidati(document.querySelector('#mm2-box-ink .mm-cur-bg'),    menuFileCandidati('magic-ink-wrapper.png'));
+    impostaImgDaCandidati(document.querySelector('#mm2-box-ink .mm-cur-icon'),  menuFileCandidati('magic-ink-icon.png'));
+    impostaImgDaCandidati(document.querySelector('#mm2-box-dust .mm-cur-bg'),   menuFileCandidati('fairy-dust-wrapper.png'));
+    impostaImgDaCandidati(document.querySelector('#mm2-box-dust .mm-cur-icon'), menuFileCandidati('fairy-dust-icon.png'));
+    radice.querySelectorAll('.mm-cur-plus img').forEach(el=>
+      impostaImgDaCandidati(el, menuFileCandidati('plus-icon.png')));
+    // Le tre icone della fascia in basso, ognuna col suo file.
+    const iconeGiu = { 'mm2-sc-packs':'card-pack-icon.png', 'mm2-sc-library':'library-deck-icon.png', 'mm2-sc-quests':'quests-icon.png' };
+    for(const idScorc in iconeGiu){
+      const el = document.querySelector('#'+idScorc+' .mm2-scorciatoia-icona');
+      if(el) impostaImgDaCandidati(el, uiFileCandidati(iconeGiu[idScorc]));
+    }
+    // La trama dei riquadri e i pezzi di ogni pulsante.
+    radice.querySelectorAll('.mm2-box').forEach(box=>
+      impostaVariabileDaCandidati(box, '--hx-trama', uiFileCandidati('brushed-texture.jpg')));
+    radice.querySelectorAll('.hx-btn').forEach(vestiPulsante);
+    // I tre pezzi dei pulsanti della barra, nei due stati.
+    mm2VestiBarra();
+    // L'avatar del giocatore: la stessa cornice della partita.
+    impostaImgDaCandidati(radice.querySelector('#mm2-avatar .player-avatar-frame'), uiFileCandidati('avatar-frame.png'));
+    const foto = radice.querySelector('#mm2-avatar .player-avatar-photo');
+    if(foto) foto.src = PLAYER_UI_BASE + 'pinocchio-avatar-test.png';
+    mm2Vista('matchmaking');
   }
-  aggiornaDatiMenu();
+  // Da qui in giu' si rifa' a OGNI entrata: sono cose che possono essere
+  // cambiate altrove mentre non si guardava.
+  const nome = document.getElementById('mm2-nome');
+  if(nome) nome.textContent = (typeof nomeGiocatore === 'function' ? nomeGiocatore() : 'Player 1');
+  mm2AggiornaXp(220, 300);
+  mm2AggiornaMazzo();
+  mm2AggiornaBustine();
+  try{ aggiornaValuteAVideo(); }catch(_){}
+  PolvereAvvia(MM2_PIANI, _scenaMenu);
 }
+// La barra in alto: due serie di tre pezzi, una per lo stato normale e una per
+// il selezionato. I tappi vanno scalati all'altezza della barra e non alla
+// loro (100x206): la variabile porta il rapporto, cosi' il numero sta scritto
+// una volta sola e il CSS lo usa per la larghezza dei due tappi.
+function mm2VestiBarra(){
+  const barra = document.getElementById('mm2-topbar');
+  if(!barra) return;
+  const alta = 100, nativa = 206;
+  barra.style.setProperty('--mm2-nav-scala', (alta/nativa).toFixed(4));
+  barra.querySelectorAll('.mm2-nav-btn').forEach(btn=>{
+    const coda = btn.classList.contains('attivo') ? '-1.png' : '.png';
+    const g = (sel,nome)=>{ const el=btn.querySelector(sel); if(el) impostaSfondoDaCandidati(el, uiFileCandidati('main-menu-button-'+nome+coda)); };
+    g('.mm2-nav-sx','left');
+    g('.mm2-nav-mid','center');
+    g('.mm2-nav-dx','right');
+  });
+}
+// Quale delle tre viste e' scelta. Campaign e' spenta, quindi non arriva mai
+// qui; fra le altre due cambia una cosa sola — cosa dice il pulsante grande —
+// ed e' per questo che non c'e' nessun contenuto da mostrare o nascondere.
+let _mm2Vista = 'matchmaking';
+function mm2Vista(quale){
+  if(quale === 'campaign') return;      // non disponibile in questa build
+  _mm2Vista = quale;
+  document.querySelectorAll('#mm2-nav .mm2-nav-btn').forEach(btn=>{
+    const attivo = btn.dataset.vista === quale;
+    btn.classList.toggle('attivo', attivo);
+    const tela = btn.querySelector('.mm2-nav-scintille');
+    if(!tela) return;
+    if(attivo && !_scintilleNav.has(btn)){
+      const scena = nuovaScenaPolvere();
+      _scintilleNav.set(btn, scena);
+      // La tela si misura sul PULSANTE: e' lui la maschera, e `overflow` del
+      // pulsante taglia cio' che esce senza bisogno di disegnarne la sagoma.
+      PolvereAvvia([{ ...MM2_SCINTILLE, el:tela }], scena, btn);
+    } else if(!attivo && _scintilleNav.has(btn)){
+      PolvereFerma(_scintilleNav.get(btn));
+      _scintilleNav.delete(btn);
+      const c = tela.getContext && tela.getContext('2d');
+      if(c) c.clearRect(0,0,tela.width,tela.height);
+    }
+  });
+  mm2VestiBarra();
+  mm2AggiornaPulsanteGioca();
+}
+// Il pulsante grande dice cosa si sta per fare, e cambia solo con la vista.
+function mm2EtichettaGioca(){
+  return _mm2Vista === 'ai' ? 'Start match vs AI' : 'Find opponent';
+}
+function mm2AggiornaPulsanteGioca(){
+  const et = document.querySelector('#mm2-find .hxb-label');
+  if(et && !_mm2Cercando) et.textContent = mm2EtichettaGioca();
+}
+// La barra dei punti esperienza: la stessa maschera della capacita' di un
+// mazzo, cioe' una fascia che si accorcia invece di un'immagine che si stira.
+function mm2AggiornaXp(fatti, servono){
+  const mask = document.getElementById('mm2-xp-mask');
+  const testo = document.getElementById('mm2-xp-testo');
+  const q = servono > 0 ? Math.max(0, Math.min(1, fatti/servono)) : 0;
+  if(mask) mask.style.width = (q*100).toFixed(1)+'%';
+  if(testo) testo.textContent = fatti + '/' + servono + ' XP';
+}
+// Sotto a "Card packs": quante bustine aspettano. Spento quando non ce n'e'
+// nessuna — la riga resta, cosi' il pulsante non si sposta su e giu'.
+function mm2AggiornaBustine(){
+  const el = document.getElementById('mm2-packs-sotto');
+  if(!el) return;
+  let disponibile = false;
+  try{ disponibile = (typeof bustinaDisponibile === 'function') && bustinaDisponibile(); }catch(_){}
+  let attesa = '';
+  try{ attesa = (typeof _bustinaTempoRimasto === 'function') ? _bustinaTempoRimasto() : ''; }catch(_){}
+  el.textContent = disponibile ? 'One pack ready to open!' : ('Next pack in ' + attesa);
+  el.classList.toggle('vuoto', !disponibile);
+}
+
+// ── v0.77.38 — LA SCELTA DEL MAZZO ───────────────────────────────────────
+// Il pulsante nel riquadro gioca mostra il mazzo con cui si scende in campo, e
+// aprendolo si sceglie. Le caselle sono le STESSE della Libreria — stessa
+// funzione, stesso disegno — perche' un mazzo deve avere una faccia sola: due
+// anteprime diverse dello stesso mazzo si scoprono al primo ritocco.
+function mm2AggiornaMazzo(){
+  const dove = document.getElementById('mm2-gioca-deck');
+  if(!dove) return;
+  dove.innerHTML = '';
+  const mazzo = (typeof mazzoPerId === 'function') ? mazzoPerId(MAZZO_SCELTO) : null;
+  const slot = mazzo ? _slotMazzoPieno(mazzo) : null;
+  if(slot){
+    // Qui la casella non si modifica e non si spunta: si preme e si sceglie.
+    // Via anche il pannello di modifica che la casella si porta dietro: nella
+    // Libreria si apre premendo la matita, qui la matita non c'e' — e un
+    // pannello che nessuno puo' aprire e' peso morto con dentro dei gestori di
+    // trascinamento che non devono esistere in questa pagina.
+    slot.querySelectorAll('.deck-slot-check, .deck-slot-edit, .deck-edit').forEach(el=>el.remove());
+    slot.classList.add('mm2-deck-scelto');
+    slot.onclick = mm2ApriSceltaMazzo;
+    dove.appendChild(slot);
+  } else {
+    const vuoto = document.createElement('button');
+    vuoto.type='button'; vuoto.className='mm2-deck-vuoto';
+    vuoto.textContent = 'Select a deck';
+    vuoto.onclick = mm2ApriSceltaMazzo;
+    dove.appendChild(vuoto);
+  }
+}
+function mm2ApriSceltaMazzo(){
+  const lista = document.getElementById('mm2-deck-lista');
+  const overlay = document.getElementById('mm2-deck-overlay');
+  if(!lista || !overlay) return;
+  // La lista si rifa' a ogni apertura: i mazzi possono essere cambiati nella
+  // Libreria un istante fa, e una lista costruita una volta sola mentirebbe.
+  lista.innerHTML = '';
+  (MAZZI||[]).forEach(m=>{
+    const slot = _slotMazzoPieno(m);
+    slot.querySelectorAll('.deck-slot-edit, .deck-edit').forEach(el=>el.remove());
+    slot.onclick = ()=>{ selezionaMazzo(m.id); mm2AggiornaMazzo(); mm2ApriSceltaMazzo(); };
+    lista.appendChild(slot);
+  });
+  document.querySelectorAll('#mm2-deck-overlay .hx-btn').forEach(vestiPulsante);
+  impostaVariabileDaCandidati(document.getElementById('mm2-deck-pannello'), '--hx-trama', uiFileCandidati('brushed-texture.jpg'));
+  const sfondo = (sel,file)=>{ const el=document.querySelector(sel); if(el) impostaSfondoDaCandidati(el, uiFileCandidati(file)); };
+  sfondo('#mm2-deck-titlebar .hx-titlebar-left',   'title-bg-left.png');
+  sfondo('#mm2-deck-titlebar .hx-titlebar-center', 'title-bg-center.png');
+  sfondo('#mm2-deck-titlebar .hx-titlebar-right',  'title-bg-right.png');
+  overlay.classList.add('show');
+}
+function mm2ChiudiSceltaMazzo(){
+  document.getElementById('mm2-deck-overlay')?.classList.remove('show');
+}
+
+// ── v0.77.38 — LA RICERCA DELL'AVVERSARIO ────────────────────────────────
+// Tre stati, un secondo l'uno dall'altro: si cerca, si trova, si parte. Il
+// secondo di attesa non e' una finzione di lentezza — e' il tempo che serve a
+// leggere che qualcosa e' cambiato. Senza, i tre stati sarebbero un lampo solo.
+const MM2_PASSO_MS = 1000;
+let _mm2Cercando = false;
+function mm2CercaAvversario(){
+  if(_mm2Cercando) return;
+  const btn = document.getElementById('mm2-find');
+  const box = document.getElementById('mm2-gioca');
+  const et  = btn && btn.querySelector('.hxb-label');
+  if(!btn || !et) return;
+  _mm2Cercando = true;
+  btn.classList.add('cerca');
+  if(box) box.classList.add('cerca');
+  et.textContent = 'Searching opponent...';
+  setTimeout(()=>{
+    if(!_mm2Cercando) return;
+    et.textContent = 'Match found!';
+    try{ playSfxFile('match-found.mp3'); }catch(_){}
+    setTimeout(()=>{
+      if(!_mm2Cercando) return;
+      mm2FermaRicerca();
+      // Contro l'IA o contro un altro giocatore: lo dice la vista scelta in
+      // alto, che e' l'unico posto in cui quella scelta vive.
+      try{ requestNewGame(_mm2Vista === 'ai'); }catch(_){}
+    }, MM2_PASSO_MS);
+  }, MM2_PASSO_MS);
+}
+function mm2FermaRicerca(){
+  _mm2Cercando = false;
+  document.getElementById('mm2-find')?.classList.remove('cerca');
+  document.getElementById('mm2-gioca')?.classList.remove('cerca');
+  mm2AggiornaPulsanteGioca();
+}
+
 // Nome, valute e numero di versione. Separata dal montaggio perche' questi
 // sono gli unici dati che cambieranno davvero, e devono poter essere
 // riscritti a ogni entrata senza ricaricare niente.
@@ -12733,14 +13420,9 @@ function aggiornaDatiMenu(){
 // Adesso legge lo stesso stato che legge la schermata bustine — bustinaDisponibile()
 // e _bustinaTempoRimasto() — invece di avere una sua idea: due fonti sullo
 // stesso fatto prima o poi si contraddicono, e qui si contraddicevano subito.
-function aggiornaSottotitoloBustine(){
-  const el = document.querySelector('#mm-packs .mm-bookmark-sotto');
-  if(!el) return;
-  if(typeof bustinaDisponibile !== 'function') return;
-  el.textContent = bustinaDisponibile()
-    ? '1 available!'
-    : ('Next in: ' + _bustinaTempoRimasto());
-}
+// v0.77.38 — il segnalibro del libro non c'e' piu': la stessa cosa la dice
+// adesso la riga sotto al pulsante "Card packs" nella fascia in basso.
+function aggiornaSottotitoloBustine(){ mm2AggiornaBustine(); }
 // Il conto alla rovescia va aggiornato mentre si guarda: entrando col tempo
 // scaduto fra un minuto, il segnalibro deve arrivare da solo a "1 available!"
 // invece di restare sull'ultimo numero letto.
@@ -13914,15 +14596,29 @@ function vestiConfermaElimina(){
 }
 // Il vestito dei cinque pezzi, in un posto solo: lo chiedono la finestra dei
 // filtri, quella di conferma e il pulsante di salvataggio del mazzo.
+// ── v0.77.38 — LE FAMIGLIE DEL PULSANTE ───────────────────────────────────
+// Erano due (normale e rossa) e la scelta stava in una riga. Adesso sono
+// cinque, e la regola vive qui: chi aggiunge una classe al markup non deve
+// sapere quali file esistano.
+// La variante rossa non ce l'hanno tutte — shop e important sono colorazioni
+// loro, e chiedere "button-shop-left-warning.png" vorrebbe dire un'immagine
+// rotta. La tabella dichiara chi ce l'ha, cosi' non c'e' un caso da ricordare.
+const FAMIGLIE_PULSANTE = [
+  { classe:'hx-btn-shop',      base:'button-shop-',        rosso:false },
+  { classe:'hx-btn-important', base:'button-important-',   rosso:false },
+  { classe:'hx-btn-opaco',     base:'button-opaque-',      rosso:true  },
+];
+const FAMIGLIA_PREDEFINITA = { base:'button-transparent-', rosso:true };
 function vestiPulsante(btn){
   if(!btn) return;
-  const coda = btn.classList.contains('hx-btn-warning') ? '-warning.png' : '.png';
-  const g = (sel,nome)=>{ const el=btn.querySelector(sel); if(el) impostaSfondoDaCandidati(el, uiFileCandidati(nome+coda)); };
-  g('.hxb-left','button-transparent-left');
-  g('.hxb-center','button-transparent-center');
-  g('.hxb-right','button-transparent-right');
+  const fam = FAMIGLIE_PULSANTE.find(f=>btn.classList.contains(f.classe)) || FAMIGLIA_PREDEFINITA;
+  const coda = (fam.rosso && btn.classList.contains('hx-btn-warning')) ? '-warning.png' : '.png';
+  const g = (sel,nome)=>{ const el=btn.querySelector(sel); if(el) impostaSfondoDaCandidati(el, uiFileCandidati(fam.base+nome+coda)); };
+  g('.hxb-left','left');
+  g('.hxb-center','center');
+  g('.hxb-right','right');
   btn.querySelectorAll('.hxb-fill').forEach(el=>
-    impostaSfondoDaCandidati(el, uiFileCandidati('button-transparent-filler'+coda)));
+    impostaSfondoDaCandidati(el, uiFileCandidati(fam.base+'filler'+coda)));
 }
 function eliminaMazzoInModifica(){
   const id = _mazzoInModificaId;
@@ -16307,7 +17003,9 @@ const SUONI_SFX_EXTRA = Object.values(WHOOSH_PER_RARITA)
            // v0.77.6 — mancava, e un suono non precaricato non e' un suono in
            // ritardo: playSfxFile lo cerca fra i buffer, non lo trova e non
            // suona affatto. Era il motivo per cui la fine partita era muta.
-           'end-game-win.mp3']);
+           'end-game-win.mp3',
+           // v0.77.38 — il suono del match trovato, sulla stessa strada.
+           'match-found.mp3']);
 const SFX_REL = 'audio/sfx/';
 const SFX_BASE = 'https://hextalegame.com/audio/sfx/';
 function registraSuoniExtra(){
