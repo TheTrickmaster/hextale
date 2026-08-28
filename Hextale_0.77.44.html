@@ -410,6 +410,10 @@ body.mouse-down, body.mouse-down *{
    qualunque sia la larghezza. I tappi tengono il rapporto del proprio file
    (100x206) scalato all'altezza della barra. */
 .mm2-nav-btn{
+  /* La larghezza dei due tappi: scritta una volta e usata due volte — per lo
+     spazio che occupano nella fila e per la maschera delle scintille, che deve
+     sapere esattamente dove finisce il tappo e comincia la parte dritta. */
+  --mm2-nav-cap-w:calc(100px * var(--mm2-nav-scala, 0.4854));
   position:relative; flex:0 0 auto; height:100%;
   background:none; border:0; padding:0; margin:0;
   cursor:var(--cursore);
@@ -437,7 +441,7 @@ body.mouse-down, body.mouse-down *{
 .mm2-nav-btn.attivo .mm2-nav-sx { background-image:var(--mm2-cap-sx-on); }
 .mm2-nav-btn.attivo .mm2-nav-mid{ background-image:var(--mm2-mid-on); }
 .mm2-nav-btn.attivo .mm2-nav-dx { background-image:var(--mm2-cap-dx-on); }
-.mm2-nav-cap{ flex:0 0 calc(100px * var(--mm2-nav-scala, 0.4854)); }
+.mm2-nav-cap{ flex:0 0 var(--mm2-nav-cap-w); }
 .mm2-nav-mid{
   flex:1 1 0; min-width:0;
   background-repeat:repeat-x; background-size:auto 100%;
@@ -461,11 +465,37 @@ body.mouse-down, body.mouse-down *{
    granelli piu' piccoli e fitti che si spengono appena nati. La maschera e'
    il pulsante stesso — `overflow:hidden` sul contenitore — cosi' non c'e'
    nessuna forma da tenere allineata al disegno. */
+/* ── v0.77.44 — LE SCINTILLE HANNO LA FORMA DEL PULSANTE ──────────────────
+   La tela e' un rettangolo, e le scintille lo riempivano fino agli angoli: si
+   vedevano bene fuori dalla sagoma, dove il pulsante non c'e'.
+   La maschera si compone degli stessi pezzi con cui il pulsante e' disegnato:
+   il tappo sinistro, il tappo destro, e in mezzo una fascia piena larga quanto
+   lo spazio che resta. I due tappi portano la loro sagoma vera — quella con
+   gli angoli tagliati — mentre la parte centrale del pulsante e' un rettangolo
+   pieno, quindi in mezzo basta un rettangolo. Le tre parti si sommano, ed e'
+   esattamente la silhouette del pulsante.
+   Non si riusa il pezzo centrale come maschera ripetuta: e' opaco su tutta la
+   sua altezza, quindi ripetuto per l'intera larghezza coprirebbe anche gli
+   angoli e la maschera tornerebbe a essere un rettangolo. */
 .mm2-nav-scintille{
   position:absolute; inset:0; z-index:1;
   pointer-events:none; opacity:0;
   mix-blend-mode:plus-lighter;
   transition:opacity 0.3s ease;
+  -webkit-mask-image:var(--mm2-cap-sx), var(--mm2-cap-dx), linear-gradient(#000,#000);
+          mask-image:var(--mm2-cap-sx), var(--mm2-cap-dx), linear-gradient(#000,#000);
+  -webkit-mask-position:left top, right top, var(--mm2-nav-cap-w) top;
+          mask-position:left top, right top, var(--mm2-nav-cap-w) top;
+  -webkit-mask-size:var(--mm2-nav-cap-w) 100%, var(--mm2-nav-cap-w) 100%, calc(100% - var(--mm2-nav-cap-w) * 2) 100%;
+          mask-size:var(--mm2-nav-cap-w) 100%, var(--mm2-nav-cap-w) 100%, calc(100% - var(--mm2-nav-cap-w) * 2) 100%;
+  -webkit-mask-repeat:no-repeat;
+          mask-repeat:no-repeat;
+}
+/* Da selezionato la sagoma e' quella dell'altra serie: stessi tre pezzi, altri
+   due file per i tappi. */
+.mm2-nav-btn.attivo .mm2-nav-scintille{
+  -webkit-mask-image:var(--mm2-cap-sx-on), var(--mm2-cap-dx-on), linear-gradient(#000,#000);
+          mask-image:var(--mm2-cap-sx-on), var(--mm2-cap-dx-on), linear-gradient(#000,#000);
 }
 .mm2-nav-btn.attivo .mm2-nav-scintille{ opacity:1; }
 #mm2-topbar-icone{ display:flex; align-items:center; gap:20px; flex:0 0 auto; }
@@ -9649,7 +9679,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.43</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.44</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -11808,7 +11838,15 @@ function _pNuovoGranello(piano, w, h, sparso){
     x: _pCaso(-20, w+20),
     // Rinascendo entra dal bordo basso, appena fuori: cosi' non si vede
     // comparire dal nulla.
-    y: sparso ? _pCaso(-20, h+20) : h + r + _pCaso(4, 90),
+    // v0.77.44 — QUANTO SOTTO AL BORDO NASCE.
+    // Erano fino a 90px, misurati su una tela alta quanto lo schermo. Su una
+    // tela alta cento pixel — quella dentro a un pulsante della barra — un
+    // granello nato novanta pixel piu' sotto passa quasi tutta la sua vita
+    // fuori dall'inquadratura, e quelli che si vedevano restavano schiacciati
+    // in fondo. La distanza si prende adesso dalla tela: un quarto della sua
+    // altezza, col vecchio tetto di 90 per quelle grandi — dove infatti non
+    // cambia niente.
+    y: sparso ? _pCaso(-20, h+20) : h + r + _pCaso(4, Math.min(90, Math.max(8, h*0.25))),
     r,
     v: _pCaso(piano.vMin, piano.vMax),          // px/s verso l'ALTO
     onda: _pCaso(piano.ondaMin, piano.ondaMax), // ampiezza dell'ondeggiare
@@ -13389,7 +13427,10 @@ const MM2_PIANI = PARTICELLE_PIANI.map(pi=>({ ...pi, id: pi.id.replace('start-',
 // con una vita breve. `quante` e' basso perche' la tela e' un pulsante, non
 // uno schermo: la stessa densita' a quella misura sarebbe una nebbia.
 const MM2_SCINTILLE = {
-  quante:78, rMin:0.4, rMax:1.2, vMin:14, vMax:34,
+  // v0.77.44 — un filo piu' grandi, e piu' svelte: con una vita di un secondo
+  // e mezzo la velocita' decide FIN DOVE arrivano, ed e' quella la leva che le
+  // porta piu' in alto nel pulsante.
+  quante:78, rMin:0.6, rMax:1.8, vMin:46, vMax:92,
   alfaMin:0.30, alfaMax:0.85, ondaMin:2, ondaMax:8,
   // Una vita per granello, non una per piano: con un valore solo tutte le
   // scintille nate insieme morirebbero insieme, e si vedrebbe il battito.
