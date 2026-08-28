@@ -328,8 +328,10 @@ body.mouse-down, body.mouse-down *{
    stessa proprieta' non si sommano, il browser ne terrebbe una sola. */
 #mm2-bg-lit{
   z-index:1; opacity:0.5;
-  animation:mm2Fiaccola 0.9s steps(1,end) infinite,
-            mm2Vampata  2.3s steps(1,end) infinite;
+  /* v0.77.47 — un 30% piu' lente. Restano non multiple fra loro, che e' la
+     ragione per cui la sequenza non si ripete mai uguale. */
+  animation:mm2Fiaccola 1.17s steps(1,end) infinite,
+            mm2Vampata  2.99s steps(1,end) infinite;
 }
 /* v0.77.40 — gli INTERVALLI restano (sono loro a dare l'irregolarita'), i
    salti si stringono: prima si andava da 0.26 a 0.95, cioe' quasi da spento a
@@ -721,14 +723,37 @@ body.mouse-down, body.mouse-down *{
 #mm2-deck-titlebar .hx-titlebar-center{ justify-content:center; }
 #mm2-deck-lista{ display:flex; flex-direction:column; gap:12px; overflow:visible; }
 #mm2-deck-lista .deck-slot{ cursor:var(--cursore); }
+/* La riga del mazzo casuale non ha un'illustrazione da mostrare: al posto
+   della carta, il fondo incassato delle altre caselle vuote. */
+.mm2-slot-casuale{
+  display:flex; align-items:center; gap:12px; padding:0 18px;
+  background:rgba(0,0,0,0.15);
+  border:1px solid rgba(255,255,255,0.2); border-radius:16px;
+  box-shadow:inset 0 4px 10px rgba(0,0,0,0.35);
+}
 #mm2-find{ margin-top:30px; width:100%; height:82px; padding:0; }
 #mm2-find .hxb-label{ font-size:30px; color:#322C1D; }
 /* Cercando un avversario il pulsante si accende, e dietro di lui gira la
    raggiera di sempre. Il riquadro taglia quello che esce: una luce che
    deborda dal riquadro racconterebbe una cosa che succede fuori. */
 #mm2-find.cerca{ filter:drop-shadow(0 0 20px rgba(216,195,149,1)); }
+/* v0.77.47 — TROVATO. Il momento in cui l'avversario c'e' e' l'unico della
+   sequenza in cui succede qualcosa invece di aspettare: il pulsante si accende
+   davvero, con un lampo che sale e poi si assesta su un bagliore piu' largo di
+   quello della ricerca. Non e' un'animazione infinita — dura quanto il momento
+   che racconta, e resta accesa (`forwards`) finche' la partita non parte. */
+#mm2-find.trovato{ animation:mm2Trovato 0.9s cubic-bezier(.2,.9,.3,1) forwards; }
+@keyframes mm2Trovato{
+  0%   { filter:drop-shadow(0 0 20px rgba(216,195,149,1)) brightness(1); }
+  22%  { filter:drop-shadow(0 0 64px rgba(255,244,214,1)) brightness(1.6); }
+  55%  { filter:drop-shadow(0 0 40px rgba(255,236,190,1)) brightness(1.22); }
+  100% { filter:drop-shadow(0 0 46px rgba(240,222,178,1)) brightness(1.3); }
+}
+/* E la raggiera dietro si allarga con lui. */
+#mm2-gioca.trovato #mm2-find-glow{ opacity:1; transform:translate(-50%,-50%) scale(1.18); }
 #mm2-find-glow{
   position:absolute; left:50%; top:50%;
+  transition:opacity 0.4s ease, transform 0.9s cubic-bezier(.2,.9,.3,1);
   width:900px; height:900px; transform:translate(-50%,-50%);
   object-fit:contain; mix-blend-mode:plus-lighter;
   opacity:0; transition:opacity 0.4s ease;
@@ -773,16 +798,32 @@ body.mouse-down, body.mouse-down *{
    riquadro intero, cioe' una ciambella. Senza quella maschera il gradiente
    riempirebbe tutto e sarebbe una macchia che gira, non un filo.
    Il `padding` e' lo spessore del filo: la maschera scava esattamente li'. */
+/* ── v0.77.47 — IL BORDO HA LA FORMA DEL PULSANTE ─────────────────────────
+   Era un rettangolo con gli angoli smussati: somigliava al pulsante senza
+   esserlo, e nei due tappi — dove il disegno si restringe — si vedeva.
+   La sagoma vera si ottiene dagli stessi tre pezzi con cui il pulsante e'
+   fatto: i due tappi portano la loro, e in mezzo basta una fascia piena
+   perche' li' il pulsante e' un rettangolo. E' la stessa composizione della
+   maschera delle scintille nella barra in alto.
+   Due maschere annidate, e per questo servono due elementi: quella esterna
+   ritaglia la SAGOMA, quella interna scava la ciambella che lascia solo il
+   filo. Su un elemento solo la seconda avrebbe sostituito la prima. */
 .mm2-pack-rim{
-  position:absolute; left:0; right:0; top:0; bottom:14px;
-  border-radius:14px; overflow:hidden;
+  position:absolute; inset:0;
   opacity:0; transition:opacity 0.5s ease;
   pointer-events:none; z-index:2;
   filter:blur(1.5px);
+  -webkit-mask-image:var(--hxb-cap-sx), var(--hxb-cap-dx), linear-gradient(#000,#000);
+          mask-image:var(--hxb-cap-sx), var(--hxb-cap-dx), linear-gradient(#000,#000);
+  -webkit-mask-position:left top, right top, var(--hxb-cap-w) top;
+          mask-position:left top, right top, var(--hxb-cap-w) top;
+  -webkit-mask-size:var(--hxb-cap-w) 100%, var(--hxb-cap-w) 100%, calc(100% - var(--hxb-cap-w) * 2) 100%;
+          mask-size:var(--hxb-cap-w) 100%, var(--hxb-cap-w) 100%, calc(100% - var(--hxb-cap-w) * 2) 100%;
+  -webkit-mask-repeat:no-repeat;
+          mask-repeat:no-repeat;
 }
 .mm2-pack-rim-ring{
   position:absolute; inset:0;
-  border-radius:inherit;
   padding:2px; overflow:hidden;
   -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
           mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
@@ -801,7 +842,9 @@ body.mouse-down, body.mouse-down *{
    deformazione lenta dell'alone della bustina che si apre (vedi #pack-glow),
    con il colore che hai chiesto. Spento finche' non c'e' niente da aprire. */
 .mm2-pack-glow{
-  position:absolute; left:0; right:0; top:0; bottom:14px;
+  /* v0.77.47 — la riga sotto al pulsante non c'e' piu': l'alone si stende
+     sull'intera altezza invece di fermarsi quattordici pixel prima. */
+  position:absolute; inset:0;
   margin:-18px -26px;
   background:#7FD4FF;
   filter:blur(26px);
@@ -9297,12 +9340,13 @@ body.prova-senza-willchange #mm-book-rot{
              sopra avrebbe velato l'etichetta. E' lo stesso alone della bustina
              che si sta per aprire, con la stessa deformazione lenta. -->
         <div class="mm2-pack-glow" aria-hidden="true"></div>
-        <!-- Il bordo che gira: stessa costruzione dell'anello attorno a una
-             carta appena sbustata — un gradiente conico che ruota, ritagliato
-             a ciambella da una maschera, cosi' si vede solo il filo. -->
-        <div class="mm2-pack-rim" aria-hidden="true"><div class="mm2-pack-rim-ring"></div></div>
         <button class="hx-btn hx-btn-opaco" type="button" onclick="openPackOverlay()">
           <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
+          <!-- v0.77.47 — il bordo che gira sta DENTRO al pulsante: cosi' ne
+               prende la scatola esatta, e soprattutto eredita le variabili coi
+               disegni dei due tappi, che sono l'unico modo di conoscerne la
+               forma vera. Fuori sarebbe stato un rettangolo che gli somiglia. -->
+          <span class="mm2-pack-rim" aria-hidden="true"><span class="mm2-pack-rim-ring"></span></span>
           <span class="hxb-label mm2-label-doppia">
             <span>Card packs</span>
             <small id="mm2-packs-sotto"></small>
@@ -9498,7 +9542,7 @@ body.prova-senza-willchange #mm-book-rot{
   <div class="player-hp-orb" id="p1-hp-orb">
     <img class="player-hp-orb-bg" alt="" draggable="false">
     <img class="player-hp-orb-lampo" alt="" draggable="false">
-    <div class="player-hp-value" id="p1-hp-value">30</div>
+    <div class="player-hp-value" id="p1-hp-value">0</div>
   </div>
 </div>
 <div class="player-info" id="p2-info">
@@ -9517,7 +9561,7 @@ body.prova-senza-willchange #mm-book-rot{
   <div class="player-hp-orb" id="p2-hp-orb">
     <img class="player-hp-orb-bg" alt="" draggable="false">
     <img class="player-hp-orb-lampo" alt="" draggable="false">
-    <div class="player-hp-value" id="p2-hp-value">30</div>
+    <div class="player-hp-value" id="p2-hp-value">0</div>
   </div>
 </div>
 
@@ -13514,11 +13558,11 @@ const MM2_SCINTILLE = {
   // porta piu' in alto nel pulsante.
   // v0.77.45 — velocita' ridotta del 70%: salgono piano, e a tenerle in vista
   // ci pensa la distanza di nascita, che adesso si misura sulla tela.
-  quante:78, rMin:0.6, rMax:1.8, vMin:14, vMax:28,
+  quante:234, rMin:0.6, rMax:1.8, vMin:14, vMax:28,
   alfaMin:0.30, alfaMax:0.85, ondaMin:2, ondaMax:8,
   // Una vita per granello, non una per piano: con un valore solo tutte le
   // scintille nate insieme morirebbero insieme, e si vedrebbe il battito.
-  vitaMin:1.0, vitaMax:1.5,
+  vitaMin:1.3, vitaMax:1.95,   /* +30% */
 };
 let _menuMontato = false;
 const _scintilleNav = new Map();   // pulsante -> scena della sua polvere
@@ -13734,6 +13778,10 @@ function mm2AggiornaMazzo(){
   const dove = document.getElementById('mm2-gioca-deck');
   if(!dove) return;
   dove.innerHTML = '';
+  if(MAZZO_SCELTO === MAZZO_CASUALE){
+    dove.appendChild(mm2SlotCasuale());
+    return;
+  }
   const mazzo = (typeof mazzoPerId === 'function') ? mazzoPerId(MAZZO_SCELTO) : null;
   const slot = mazzo ? _slotMazzoPieno(mazzo) : null;
   if(slot){
@@ -13754,6 +13802,24 @@ function mm2AggiornaMazzo(){
     dove.appendChild(vuoto);
   }
 }
+// La riga del mazzo casuale: stessa forma delle altre, ma senza illustrazione
+// — non c'e' una prima carta da mostrare, perche' non c'e' ancora un mazzo.
+function mm2SlotCasuale(){
+  const el = document.createElement('div');
+  el.className = 'deck-slot deck-slot-piena mm2-slot-casuale';
+  const check = document.createElement('span');
+  check.className = 'deck-slot-check';
+  const img = document.createElement('img');
+  img.alt=''; img.draggable=false;
+  impostaImgDaCandidati(img, uiFileCandidati(
+    MAZZO_SCELTO === MAZZO_CASUALE ? 'checkbox-round-checked.png' : 'checkbox-round-unchecked.png'));
+  check.appendChild(img);
+  const nome = document.createElement('span');
+  nome.className = 'deck-slot-nome';
+  nome.textContent = 'Random deck';
+  el.append(check, nome);
+  return el;
+}
 function mm2ApriSceltaMazzo(){
   const lista = document.getElementById('mm2-deck-lista');
   const overlay = document.getElementById('mm2-deck-overlay');
@@ -13761,6 +13827,11 @@ function mm2ApriSceltaMazzo(){
   // La lista si rifa' a ogni apertura: i mazzi possono essere cambiati nella
   // Libreria un istante fa, e una lista costruita una volta sola mentirebbe.
   lista.innerHTML = '';
+  // Il casuale in cima: e' la scelta di chi non vuole scegliere, e chiederla
+  // in fondo a un elenco di dodici mazzi vorrebbe dire nasconderla.
+  const casuale = mm2SlotCasuale();
+  casuale.onclick = ()=>{ selezionaMazzo(MAZZO_CASUALE); mm2AggiornaMazzo(); mm2ApriSceltaMazzo(); };
+  lista.appendChild(casuale);
   (MAZZI||[]).forEach(m=>{
     const slot = _slotMazzoPieno(m);
     slot.querySelectorAll('.deck-slot-edit, .deck-edit').forEach(el=>el.remove());
@@ -13806,6 +13877,9 @@ function mm2CercaAvversario(){
   setTimeout(()=>{
     if(!_mm2Cercando) return;
     et.textContent = 'Match found!';
+    // Il lampo arriva nello stesso istante del suono: sono la stessa notizia.
+    btn.classList.add('trovato');
+    if(box) box.classList.add('trovato');
     try{ playSfxFile('match-found.mp3'); }catch(_){}
     setTimeout(()=>{
       if(!_mm2Cercando) return;
@@ -13818,8 +13892,8 @@ function mm2CercaAvversario(){
 }
 function mm2FermaRicerca(){
   _mm2Cercando = false;
-  document.getElementById('mm2-find')?.classList.remove('cerca');
-  document.getElementById('mm2-gioca')?.classList.remove('cerca');
+  document.getElementById('mm2-find')?.classList.remove('cerca','trovato');
+  document.getElementById('mm2-gioca')?.classList.remove('cerca','trovato');
   mm2AggiornaPulsanteGioca();
 }
 
@@ -14067,7 +14141,11 @@ const MAZZI_CHIAVE = 'hextale.mazzi';
 function mazzoPerId(id){
   return MAZZI.find(m=>m.id===id) || null;
 }
-function mazzoSelezionato(){ return MAZZI.find(m=>m.id===MAZZO_SCELTO) || null; }
+// Col mazzo casuale la risposta e' "nessuno": vedi MAZZO_CASUALE.
+function mazzoSelezionato(){
+  if(MAZZO_SCELTO === MAZZO_CASUALE) return null;
+  return MAZZI.find(m=>m.id===MAZZO_SCELTO) || null;
+}
 function mazziOrdinati(){
   const sel = MAZZI.filter(m=>m.id===MAZZO_SCELTO);
   const altri = MAZZI.filter(m=>m.id!==MAZZO_SCELTO);
@@ -14576,7 +14654,19 @@ function _slotMazzoAggiungi(){
 // Uno solo alla volta: sceglierne uno spegne gli altri. Non e' una casella di
 // spunta con piu' risposte, e' una scelta fra dodici — ed e' per questo che
 // l'id sta in una variabile sola invece che in un campo su ogni mazzo.
+// ── v0.77.47 — IL MAZZO CASUALE ───────────────────────────────────────────
+// Non e' un mazzo salvato: e' la richiesta di generarne uno nuovo a ogni
+// partita. Vive come un id finto, cosi' attraversa tutto il codice che gia'
+// esiste — salvataggio, scelta, riga del menu — senza che nessuno di quei
+// punti debba conoscerlo. L'unico posto che lo riconosce e' mazzoSelezionato,
+// che per lui risponde "nessun mazzo": ed e' esattamente cio' che serve,
+// perche' makeBalancedDecks di fronte a nessun mazzo genera i due mazzi con le
+// regole di adesso e sceglie la coppia piu' equilibrata fra trecento tentativi.
+// Un mazzo casuale non e' quindi un caso particolare: e' l'assenza di scelta,
+// dichiarata invece che subita.
+const MAZZO_CASUALE = '__casuale';
 function selezionaMazzo(id){
+  if(id === MAZZO_CASUALE){ MAZZO_SCELTO = id; salvaMazzi(); renderListaMazzi(); return; }
   MAZZO_SCELTO = MAZZI.some(m=>m.id===id) ? id : (MAZZI.length ? MAZZI[0].id : null);
   salvaMazzi();
   renderListaMazzi();
@@ -15045,6 +15135,13 @@ function vestiPulsante(btn){
   g('.hxb-left','left');
   g('.hxb-center','center');
   g('.hxb-right','right');
+  // v0.77.47 — i due tappi restano anche come variabili sul pulsante. Servono
+  // a chi deve RITAGLIARSI sulla sua forma: la sagoma di un pulsante non e' un
+  // rettangolo con gli angoli smussati, e l'unico modo di conoscerla e'
+  // prendere gli stessi disegni con cui e' fatto. Chi non ne ha bisogno non se
+  // ne accorge.
+  impostaVariabileDaCandidati(btn, '--hxb-cap-sx', uiFileCandidati(fam.base+'left'+coda));
+  impostaVariabileDaCandidati(btn, '--hxb-cap-dx', uiFileCandidati(fam.base+'right'+coda));
   btn.querySelectorAll('.hxb-fill').forEach(el=>
     impostaSfondoDaCandidati(el, uiFileCandidati(fam.base+'filler'+coda)));
 }
@@ -23454,20 +23551,23 @@ function makeBalancedDecks(controIA){
     }
     return { d1, d2:migliore, gap:scartoMigliore };
   }
-  // Il Giocatore 1 non ha un mazzo, ma il 2 si': si genera il primo cercando
-  // di pareggiare il secondo. E' lo stesso ragionamento a parti invertite.
-  if(suo){
-    const d2 = carteDalMazzoSalvato(suo, 2);
-    console.info('[Hextale] mazzo del giocatore 2: "'+(suo.nome||suo.id)+'"');
-    let migliore=null, scartoMigliore=Infinity;
-    for(let i=0;i<300;i++){
-      const a = makeDeck(1, DECK_TOTAL);
-      const gap = deckPowerGap(a, d2);
-      if(gap<scartoMigliore){ scartoMigliore=gap; migliore=a; }
-      if(gap<=BALANCE_MAX_GAP) break;
-    }
-    return { d1:migliore, d2, gap:scartoMigliore };
-  }
+  // ── v0.77.47 — QUI C'ERA UN RAMO CHE NON POTEVA FUNZIONARE ──────────────
+  // Diceva: "se il Giocatore 2 ha un mazzo salvato, genera il primo cercando
+  // di pareggiarlo". Il mazzo salvato del Giocatore 2 non esiste piu' come
+  // idea — era il vecchio slot riservato — e con lui e' sparita la variabile
+  // che lo teneva. Il ramo pero' e' rimasto, e continuava a nominarla.
+  // Non falliva sempre: il ramo qui sopra esce prima ogni volta che il
+  // Giocatore 1 ha un mazzo valido, cioe' dodici carte esatte entro i
+  // ventiquattro punti. Bastava non averne uno — mai creato, o incompleto —
+  // perche' l'esecuzione arrivasse fin qui e morisse su un nome che non c'e'.
+  // E morendo dentro initGame si portava dietro tutto: niente carte, niente
+  // tasselli, timer mai avviato, e il punteggio fermo sul valore scritto a
+  // mano nel markup — che sembrava una vecchia regola sopravvissuta e invece
+  // era solo il segnaposto mai sovrascritto.
+  // Il ramo non serve: il codice qui sotto genera GIA' i due mazzi con le
+  // regole di adesso (dodici carte, ventiquattro punti — vedi makeDeck e
+  // _MAZZO_COMPOSIZIONI), scegliendo fra trecento tentativi la coppia piu'
+  // equilibrata. Chi non ha un mazzo ne riceve uno buono, senza casi speciali.
   let best=null, bestGap=Infinity;
   for(let i=0;i<300;i++){
     const a=makeDeck(1,DECK_TOTAL), b=makeDeck(2,DECK_TOTAL);
