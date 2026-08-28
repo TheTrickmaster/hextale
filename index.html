@@ -1,97 +1,150 @@
 <!DOCTYPE html>
 
-<html>
-
+<html lang="en">
 <head>
-
     <meta charset="UTF-8">
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hextale</title>
-    <link rel="icon" type="image/png" href="favicon.png">
+
+```
+<style>
+    body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #1d2d2f;
+        color: #f3e3cb;
+        font-family: Arial, sans-serif;
+    }
+
+    #status {
+        text-align: center;
+        font-size: 18px;
+    }
+</style>
+```
 
 </head>
 
 <body>
 
-    <script>
-    const owner = "TheTrickmaster";
-    const repo = "hextale";
+<div id="status">Loading Hextale...</div>
+
+<script>
+    const OWNER = "TheTrickmaster";
+    const REPO = "hextale";
+    const BRANCH = "main";
+
+    // GitHub REST API endpoint for the repository root
+    const API_URL =
+        `https://api.github.com/repos/${OWNER}/${REPO}/contents/?ref=${BRANCH}`;
 
     async function redirectToLatestVersion() {
+        const status = document.getElementById("status");
+
         try {
-            const response = await fetch(
-                `https://api.github.com/repos/${owner}/${repo}/contents/`
-            );
+            status.textContent = "Finding latest version...";
+
+            const response = await fetch(API_URL, {
+                method: "GET",
+                headers: {
+                    "Accept": "application/vnd.github+json",
+                    "X-GitHub-Api-Version": "2026-03-10"
+                },
+                cache: "no-store"
+            });
 
             if (!response.ok) {
-                throw new Error(
-                    `GitHub API error: ${response.status} ${response.statusText}`
-                );
+                let errorMessage = `HTTP ${response.status}`;
+
+                try {
+                    const errorData = await response.json();
+
+                    if (errorData.message) {
+                        errorMessage += `: ${errorData.message}`;
+                    }
+                } catch {
+                    // Ignore JSON parsing errors
+                }
+
+                throw new Error(errorMessage);
             }
 
             const files = await response.json();
 
-            if (!Array.isArray(files)) {
-                throw new Error("GitHub API did not return a file list.");
-            }
+            // Match:
+            // Hextale_0.77.51.html
+            // Hextale_0.78.0.html
+            // Hextale_1.0.0.html
+            const versionRegex = /^Hextale_(\d+)\.(\d+)\.(\d+)\.html$/i;
 
             const versions = files
                 .filter(file => file.type === "file")
                 .map(file => {
-                    const match = file.name.match(
-                        /^Hextale[-_](\d+)\.(\d+)\.(\d+)\.html$/i
-                    );
+                    const match = file.name.match(versionRegex);
 
-                    if (!match) return null;
+                    if (!match) {
+                        return null;
+                    }
 
                     return {
                         name: file.name,
-                        version: [
-                            Number(match[1]),
-                            Number(match[2]),
-                            Number(match[3])
-                        ]
+                        major: Number(match[1]),
+                        minor: Number(match[2]),
+                        patch: Number(match[3])
                     };
                 })
                 .filter(Boolean);
 
             if (versions.length === 0) {
-                throw new Error("No Hextale version found.");
+                throw new Error(
+                    "No Hextale version files were found in the repository root."
+                );
             }
 
+            // Sort highest version first
             versions.sort((a, b) => {
-                for (let i = 0; i < 3; i++) {
-                    if (a.version[i] !== b.version[i]) {
-                        return b.version[i] - a.version[i];
-                    }
+                if (a.major !== b.major) {
+                    return b.major - a.major;
                 }
-                return 0;
+
+                if (a.minor !== b.minor) {
+                    return b.minor - a.minor;
+                }
+
+                return b.patch - a.patch;
             });
 
-            console.log("Latest Hextale version:", versions[0].name);
+            const latest = versions[0];
 
-            window.location.replace(versions[0].name);
+            status.textContent = `Loading ${latest.name}...`;
+
+            // Redirect to the HTML file in the same GitHub Pages site
+            window.location.replace(`./${latest.name}`);
 
         } catch (error) {
-            console.error("Unable to load Hextale:", error);
+            console.error("Hextale loading error:", error);
 
-            document.body.innerHTML = `
-                <div style="
-                    color:white;
-                    background:#000;
-                    font-family:Arial;
-                    padding:40px;
-                ">
-                    <h2>Unable to load Hextale</h2>
-                    <p>${error.message}</p>
+            status.innerHTML = `
+                <div>
+                    <strong>Unable to load Hextale</strong>
+                    <br><br>
+                    <small>${escapeHtml(error.message)}</small>
                 </div>
             `;
         }
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement("div");
+        div.textContent = text;
+        return div.innerHTML;
     }
 
     redirectToLatestVersion();
 </script>
 
 </body>
-
 </html>
