@@ -805,6 +805,73 @@ serviranno a salire di livello, il posto e' `rpcBustinaRaccogli`.
 
 ---
 
+## La partita in rete — TAPPA 1, solo lato server (dalla v0.77.53)
+
+**STATO: il gestore della partita e' scritto, schierato e collaudato, ma IL
+CLIENT NON LO USA ANCORA.** Chi gioca oggi gioca ancora in locale, esattamente
+come nella v0.77.52. Questa sezione descrive meta' di un lavoro; l'altra meta'
+— agganciare il client — e' il prossimo passo.
+
+**Perche' a tappe.** Il motore di regole e' ~9.600 righe, 270 funzioni e 44
+abilita', tutto nel client. Portarlo di la' in un colpo solo vuol dire settimane
+senza PvP funzionante. Le tappe sono tre: **1)** partita di rete, turni, tempo,
+legalita' del piazzamento; **2)** le conquiste; **3)** le abilita'.
+
+**Cosa possiede il server, adesso** (`registerMatch('hextale', partita)`):
+
+| | |
+|---|---|
+| le carte | mescola i due mazzi e distribuisce le mani |
+| il tabellone | quali caselle sono bloccate, uguali per tutti e due |
+| i turni | di chi e', e quante giocate si sono fatte |
+| la legalita' | e' il tuo turno? la carta e' in mano tua? la casella esiste, non e' un muro, non e' occupata? |
+| il tempo | i sessanta secondi, con un battito ogni cinque per correggere la deriva del client |
+
+**Le carte dell'avversario sono coperte PER COSTRUZIONE.** Non e' un
+accorgimento grafico: la mano dell'altro non attraversa mai la rete. Ogni
+giocatore riceve la propria (`_aUno`, mai `_aTutti`) e dell'altra sa solo
+QUANTE carte contiene. La carta pescata la sa solo chi ha pescato.
+
+**Il mazzo si legge dallo storage, non dal client.** `_mazzoDi` prende il mazzo
+scelto dal profilo: cosi' passa dalle regole gia' scritte (dodici carte,
+ventiquattro punti, e soprattutto carte POSSEDUTE). Un mazzo che arriva dal
+client e' una richiesta, non un fatto. Il codice mazzo nel biglietto del
+matchmaking resta solo per mostrare l'avversario prima che la partita cominci.
+
+**Le opcode** — 1 avvio (personale), 2 gioca, 3 giocata, 4 tempo, 5 rifiuto
+(personale), 6 fine, 7 impronta, 8 disaccordo.
+
+**L'impronta, finche' le regole stanno nel client.** Conquiste e abilita' le
+calcolano ancora i due client. A ogni giocata mandano al server un'impronta del
+proprio stato: se le due non coincidono la partita si ferma. Non impedisce di
+barare — impedisce di barare **senza che si veda**, che e' la differenza fra un
+problema e un problema silenzioso.
+
+### Due trappole gia' pagate
+
+**Le funzioni del match handler devono essere GLOBALI e con un nome.** Scritte
+come funzioni anonime dentro all'oggetto, il runtime non parte:
+`js match handler "matchInit" ... function literal found: javascript functions
+cannot be inlined`. E non e' un errore mite — **Nakama entra in ciclo di
+riavvio e il gioco resta giu'**. E' successo, ed e' durato un paio di minuti.
+Da allora si schiera con `scratchpad/schiera.sh`, che rimette da solo il modulo
+precedente se il nuovo non parte.
+
+**Il salvataggio dei mazzi e' asincrono.** `creaMazzo` avvia un
+`mandaMazziAlServer`, e una scrittura diretta fatta subito dopo puo' essere
+sorpassata da quella gia' in volo. Chi collauda deve passare da `salvaMazzi` e
+ASPETTARE che il server confermi, non dare per scontato di aver scritto.
+
+### Quel che manca alla tappa 1
+
+Agganciare il client: entrare nella partita col `match_id` che arriva
+nell'accoppiamento, far cominciare `startGame` con la mano e il tabellone del
+server, mandare le giocate invece di applicarle da solo, mostrare la mano
+avversaria come dorsi, e prendere la scadenza dal server invece che da
+`startTimer`.
+
+---
+
 ## La ricerca di un avversario (dalla v0.77.51)
 
 Il pulsante **Find opponent** apre un WebSocket verso `wss://api.hextalegame.com/ws`

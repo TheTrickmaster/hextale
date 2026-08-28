@@ -352,6 +352,10 @@ function rpcAvvio(ctx, logger, nk, payload) {
     mazzi: possesso.mazzi,
     livello: possesso.livello,
     valute: valuteDi(possesso),
+    // v0.77.53 — l'avatar dell'account, che i pannelli di partita mostrano
+    // accanto al nome. Sta fra i campi che Nakama tiene da se' (non nei
+    // metadati), quindi si legge di la' e non da un oggetto nostro.
+    avatar: _avatarDi(nk, ctx.userId),
     possedute: possedute,
     carte: invariato ? null : carte
   });
@@ -461,6 +465,14 @@ function cancellaBustina(nk, userId) {
 }
 
 // Il saldo di un possesso, sempre con tutti e due i campi e sempre numeri.
+// L'indirizzo dell'avatar di un account, o stringa vuota se non ne ha uno.
+function _avatarDi(nk, userId) {
+  try {
+    var u = nk.usersGetId([userId]);
+    return (u && u.length && u[0].avatarUrl) ? String(u[0].avatarUrl) : '';
+  } catch (e) { return ''; }
+}
+
 function valuteDi(possesso) {
   var v = (possesso && possesso.valute) || {};
   return {
@@ -786,6 +798,394 @@ function rpcPartita(ctx, logger, nk, payload) {
   });
 }
 
+// ══════════════════════════════════════════════════════════════════════════
+// LA PARTITA IN RETE (dalla v0.77.53) — TAPPA 1
+// ══════════════════════════════════════════════════════════════════════════
+// Fino alla v0.77.52 il matchmaking trovava un avversario, ne scaricava il
+// mazzo, e poi la partita si giocava TUTTA sulla macchina di chi giocava: due
+// mani sullo stesso schermo, due mazzi nella stessa memoria. Chiunque aprisse
+// la console vedeva le carte dell'altro, e nessuno controllava le mosse.
+//
+// Questa e' la prima tappa di tre. Qui il server diventa padrone di:
+//
+//   • LE CARTE      — mescola i due mazzi e distribuisce le mani. Ogni
+//                     giocatore riceve SOLO la propria: dell'altra sa quante
+//                     carte contiene, non quali. Non e' un accorgimento
+//                     grafico, e' che quei dati non attraversano mai la rete.
+//   • IL TABELLONE  — quali caselle sono bloccate lo decide lui, una volta,
+//                     uguale per tutti e due.
+//   • I TURNI       — di chi e' il turno, e quante volte si e' giocato.
+//   • LA LEGALITA'  — e' il tuo turno? la carta e' davvero nella tua mano? la
+//                     casella esiste, non e' un muro, non e' gia' occupata?
+//   • IL TEMPO      — i sessanta secondi li conta lui. Il client mostra un
+//                     conto alla rovescia, ma la scadenza e' quella del
+//                     server, e a deciderla e' sempre lui.
+//
+// COSA NON FA ANCORA, e va detto: le CONQUISTE e le 44 ABILITA' restano
+// calcolate dai client. Sono novemilaseicento righe di regole, e portarle qui
+// e' la tappa 2 e la 3. Nel frattempo il server non e' cieco: a ogni giocata
+// i client gli mandano un'IMPRONTA del proprio stato, e se le due impronte
+// non coincidono la partita si ferma. Non impedisce di barare, ma impedisce
+// di barare SENZA CHE SI VEDA, che e' la differenza fra un problema e un
+// problema silenzioso.
+
+var OP_AVVIO     = 1;   // server -> client, personale: la tua mano, e quante ne ha lui
+var OP_GIOCA     = 2;   // client -> server: voglio mettere questa carta qui
+var OP_GIOCATA   = 3;   // server -> client: e' stata messa (a chi tocca, entro quando)
+var OP_TEMPO     = 4;   // server -> client: la scadenza, ogni tanto, per non andare alla deriva
+var OP_RIFIUTO   = 5;   // server -> client, personale: la tua mossa non vale, ed ecco perche'
+var OP_FINE      = 6;   // server -> client: finita, e come
+var OP_IMPRONTA  = 7;   // client -> server: com'e' il mio stato dopo questa giocata
+var OP_DISACCORDO= 8;   // server -> client: le due impronte non coincidono
+
+var TURNO_MS = 60000;        // i sessanta secondi del turno
+var GRAZIA_MS = 2500;        // quanto si aspetta oltre la scadenza prima di troncare
+var MANO_INIZIALE = 4;
+var ATTESA_INGRESSO_MS = 30000;  // se il secondo non entra, la partita muore da sola
+
+// ── il tabellone ──────────────────────────────────────────────────────────
+// Le stesse diciannove caselle del client: q e r da -2 a 2, con |q+r| <= 2.
+function _caselle() {
+  var out = [];
+  for (var q = -2; q <= 2; q++)
+    for (var r = -2; r <= 2; r++)
+      if (Math.abs(q + r) <= 2) out.push(q + ',' + r);
+  return out;
+}
+
+// Da due a cinque caselle bloccate, mai il centro. Le sceglie il server: se le
+// scegliesse un client, l'altro giocherebbe su un tabellone diverso.
+function _buchi() {
+  var caselle = _caselle().filter(function (k) { return k !== '0,0'; });
+  var quanti = 2 + Math.floor(Math.random() * 4);
+  var presi = {};
+  var out = [];
+  while (out.length < quanti) {
+    var k = caselle[Math.floor(Math.random() * caselle.length)];
+    if (presi[k]) continue;
+    presi[k] = true;
+    out.push(k);
+  }
+  return out;
+}
+
+function _mescola(a) {
+  for (var i = a.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var t = a[i]; a[i] = a[j]; a[j] = t;
+  }
+  return a;
+}
+
+// Il mazzo scelto di un giocatore, in id di carta. Passa dalle stesse regole
+// del resto: se una carta non e' sua, non entra. E' il motivo per cui il mazzo
+// si legge QUI e non si accetta dal client — un mazzo che arriva dal client e'
+// una richiesta, non un fatto.
+function _mazzoDi(nk, logger, userId) {
+  var r = nk.storageRead([{ collection: COLL_PROFILO, key: KEY_MAZZI, userId: userId }]);
+  var dati = (r && r.length && r[0].value) ? r[0].value : null;
+  if (!dati || !dati.mazzi || !dati.mazzi.length) return null;
+  var scelto = null;
+  for (var i = 0; i < dati.mazzi.length; i++) {
+    if (String(dati.mazzi[i].id) === String(dati.scelto)) { scelto = dati.mazzi[i]; break; }
+  }
+  if (!scelto) scelto = dati.mazzi[0];
+  var carte = (scelto.carte || []).map(String);
+  if (carte.length !== MAZZO_CARTE) {
+    logger.warn('mazzo di %s con %d carte invece di %d', userId, carte.length, MAZZO_CARTE);
+    return null;
+  }
+  return { nome: String(scelto.nome || ''), carte: carte };
+}
+
+// Quel che si puo' dire a TUTTI di una mano: quante carte, non quali.
+function _pubblico(stato) {
+  var out = {};
+  for (var i = 0; i < stato.giocatori.length; i++) {
+    var u = stato.giocatori[i];
+    out[i + 1] = { carteInMano: stato.mano[u].length, carteNelMazzo: stato.mazzo[u].length };
+  }
+  return out;
+}
+
+function _indiceDi(stato, userId) {
+  for (var i = 0; i < stato.giocatori.length; i++) if (stato.giocatori[i] === userId) return i;
+  return -1;
+}
+
+function _presenzaDi(stato, userId) {
+  return stato.presenze[userId] || null;
+}
+
+// Manda a UNO solo. Le mani viaggiano sempre di qui: un dispatch a tutti con
+// dentro la mano di uno dei due sarebbe esattamente la cosa da non fare.
+function _aUno(dispatcher, stato, userId, op, dati) {
+  var p = _presenzaDi(stato, userId);
+  if (!p) return;
+  dispatcher.broadcastMessage(op, JSON.stringify(dati), [p]);
+}
+
+function _aTutti(dispatcher, op, dati) {
+  dispatcher.broadcastMessage(op, JSON.stringify(dati), null);
+}
+
+// ── l'avvio ───────────────────────────────────────────────────────────────
+function _comincia(stato, dispatcher, logger, nk) {
+  stato.iniziata = true;
+  stato.buchi = _buchi();
+  // Chi comincia si tira a sorte. Il primo turno vale, e non deve dipendere
+  // da chi ha premuto prima o da chi ha la connessione piu' svelta.
+  stato.turno = Math.floor(Math.random() * 2);
+  stato.numeroTurno = 1;
+  stato.scadenza = Date.now() + TURNO_MS;
+
+  for (var i = 0; i < stato.giocatori.length; i++) {
+    var u = stato.giocatori[i];
+    var mescolato = _mescola(stato.mazzoIniziale[u].slice());
+    stato.mano[u] = mescolato.slice(0, MANO_INIZIALE);
+    stato.mazzo[u] = mescolato.slice(MANO_INIZIALE);
+  }
+
+  for (var j = 0; j < stato.giocatori.length; j++) {
+    var uid = stato.giocatori[j];
+    _aUno(dispatcher, stato, uid, OP_AVVIO, {
+      tu: j + 1,
+      mano: stato.mano[uid],
+      buchi: stato.buchi,
+      turno: stato.turno + 1,
+      scadenza: stato.scadenza,
+      numeroTurno: stato.numeroTurno,
+      avversario: stato.info[stato.giocatori[1 - j]] || {},
+      pubblico: _pubblico(stato)
+    });
+  }
+  logger.info('partita cominciata: %s contro %s, comincia il %d',
+    stato.giocatori[0], stato.giocatori[1], stato.turno + 1);
+}
+
+// Passa il turno e pesca per chi ha appena giocato.
+function _passaTurno(stato, dispatcher, chiHaGiocato) {
+  var pescata = null;
+  if (stato.mazzo[chiHaGiocato].length && stato.mano[chiHaGiocato].length < MANO_INIZIALE) {
+    pescata = stato.mazzo[chiHaGiocato].shift();
+    stato.mano[chiHaGiocato].push(pescata);
+  }
+  stato.turno = 1 - stato.turno;
+  stato.numeroTurno++;
+  stato.scadenza = Date.now() + TURNO_MS;
+  return pescata;
+}
+
+// ── i sette momenti di una partita ──────────────────────────────────────────
+// Funzioni GLOBALI e con un nome, non funzioni anonime dentro all'oggetto:
+// il runtime le cerca per id globale, e di una funzione anonima non ce n'e'
+// uno. Scritte inline il modulo non parte affatto — "javascript functions
+// cannot be inlined" — e Nakama entra in ciclo di riavvio.
+function partitaInit(ctx, logger, nk, params) {
+  var giocatori = JSON.parse(params.giocatori || '[]');
+  var info = JSON.parse(params.info || '{}');
+  var stato = {
+    giocatori: giocatori,       // [userId, userId] — l'ordine E' il numero di giocatore
+    info: info,                 // nome, rank, avatar, per l'altro
+    presenze: {},
+    mazzoIniziale: {},
+    mano: {}, mazzo: {},
+    buchi: [], occupate: {},
+    turno: 0, numeroTurno: 0, scadenza: 0,
+    iniziata: false, finita: false,
+    natoIl: Date.now(),
+    impronte: {}               // per turno: chi ha detto cosa
+  };
+  for (var i = 0; i < giocatori.length; i++) {
+    var m = _mazzoDi(nk, logger, giocatori[i]);
+    if (!m) { logger.error('senza mazzo valido: %s', giocatori[i]); return null; }
+    stato.mazzoIniziale[giocatori[i]] = m.carte;
+    stato.mano[giocatori[i]] = [];
+    stato.mazzo[giocatori[i]] = [];
+  }
+  // Un tick al secondo basta: qui non si anima niente, si guarda un orologio.
+  return { state: stato, tickRate: 1, label: JSON.stringify({ gioco: 'hextale' }) };
+}
+
+function partitaJoinAttempt(ctx, logger, nk, dispatcher, tick, state, presence, metadata) {
+  // Entra solo chi e' stato accoppiato. Un match id che gira non deve essere
+  // un invito per chiunque lo intercetti.
+  if (_indiceDi(state, presence.userId) === -1) return { state: state, accept: false, rejectMessage: 'non sei di questa partita' };
+  if (state.presenze[presence.userId]) return { state: state, accept: false, rejectMessage: 'sei gia\' dentro' };
+  return { state: state, accept: true };
+}
+
+function partitaJoin(ctx, logger, nk, dispatcher, tick, state, presences) {
+  for (var i = 0; i < presences.length; i++) state.presenze[presences[i].userId] = presences[i];
+  var dentro = 0;
+  for (var j = 0; j < state.giocatori.length; j++) if (state.presenze[state.giocatori[j]]) dentro++;
+  if (dentro === state.giocatori.length && !state.iniziata) _comincia(state, dispatcher, logger, nk);
+  return { state: state };
+}
+
+function partitaLeave(ctx, logger, nk, dispatcher, tick, state, presences) {
+  for (var i = 0; i < presences.length; i++) {
+    var u = presences[i].userId;
+    delete state.presenze[u];
+    if (state.iniziata && !state.finita) {
+      state.finita = true;
+      state.motivo = 'abbandono';
+      _aTutti(dispatcher, OP_FINE, { motivo: 'abbandono', chi: _indiceDi(state, u) + 1 });
+      logger.info('partita finita per abbandono di %s', u);
+    }
+  }
+  return { state: state };
+}
+
+function partitaLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
+  // Nessuno e' entrato entro il tempo: la partita non c'e' mai stata.
+  if (!state.iniziata && Date.now() - state.natoIl > ATTESA_INGRESSO_MS) {
+    logger.info('partita mai cominciata: nessuno e\' entrato in tempo');
+    return null;
+  }
+  if (state.finita) return null;
+
+  for (var i = 0; i < messages.length; i++) {
+    var m = messages[i];
+    var chi = m.sender.userId;
+    var idx = _indiceDi(state, chi);
+    if (idx === -1) continue;
+    var corpo = {};
+    try { corpo = JSON.parse(nk.binaryToString(m.data)); } catch (e) { corpo = {}; }
+
+    if (m.opCode === OP_IMPRONTA) {
+      var t = String(corpo.turno);
+      if (!state.impronte[t]) state.impronte[t] = {};
+      state.impronte[t][chi] = String(corpo.impronta || '');
+      var viste = state.impronte[t];
+      var a = viste[state.giocatori[0]], b = viste[state.giocatori[1]];
+      if (a && b && a !== b) {
+        // Non si sa CHI ha torto — solo che i due non stanno giocando alla
+        // stessa partita. Fermarla e' l'unica cosa onesta.
+        state.finita = true;
+        _aTutti(dispatcher, OP_DISACCORDO, { turno: corpo.turno });
+        logger.warn('impronte diverse al turno %s: %s contro %s', t, a, b);
+        return { state: state };
+      }
+      continue;
+    }
+
+    if (m.opCode !== OP_GIOCA) continue;
+    if (!state.iniziata) { _aUno(dispatcher, state, chi, OP_RIFIUTO, { perche: 'la partita non e\' ancora cominciata' }); continue; }
+    if (idx !== state.turno) { _aUno(dispatcher, state, chi, OP_RIFIUTO, { perche: 'non e\' il tuo turno' }); continue; }
+
+    var carta = String(corpo.carta || '');
+    var q = corpo.q, r = corpo.r;
+    var k = q + ',' + r;
+
+    var posto = state.mano[chi].indexOf(carta);
+    if (posto === -1) { _aUno(dispatcher, state, chi, OP_RIFIUTO, { perche: 'quella carta non e\' nella tua mano' }); continue; }
+    if (_caselle().indexOf(k) === -1) { _aUno(dispatcher, state, chi, OP_RIFIUTO, { perche: 'quella casella non esiste' }); continue; }
+    if (state.buchi.indexOf(k) !== -1) { _aUno(dispatcher, state, chi, OP_RIFIUTO, { perche: 'quella casella e\' bloccata' }); continue; }
+    if (state.occupate[k]) { _aUno(dispatcher, state, chi, OP_RIFIUTO, { perche: 'quella casella e\' gia\' occupata' }); continue; }
+
+    state.mano[chi].splice(posto, 1);
+    state.occupate[k] = { carta: carta, di: idx + 1 };
+    var pescata = _passaTurno(state, dispatcher, chi);
+
+    _aTutti(dispatcher, OP_GIOCATA, {
+      giocatore: idx + 1, carta: carta, q: q, r: r,
+      turno: state.turno + 1, scadenza: state.scadenza,
+      numeroTurno: state.numeroTurno, pubblico: _pubblico(state)
+    });
+    // La carta pescata la sa solo chi l'ha pescata.
+    if (pescata) _aUno(dispatcher, state, chi, OP_AVVIO, { pescata: pescata, mano: state.mano[chi] });
+  }
+
+  // ── il tempo ────────────────────────────────────────────────────────────
+  // Scaduto il turno con un po' di grazia (il client puo' aver mandato la
+  // giocata all'ultimo istante e il messaggio essere ancora per strada), si
+  // gioca d'ufficio: la prima carta della mano sulla prima casella libera.
+  // Passare e basta bloccherebbe la partita fra due giocatori fermi.
+  if (state.iniziata && Date.now() > state.scadenza + GRAZIA_MS) {
+    var tocca = state.giocatori[state.turno];
+    var mano = state.mano[tocca];
+    var libera = null;
+    var tutte = _caselle();
+    for (var c = 0; c < tutte.length; c++) {
+      if (state.buchi.indexOf(tutte[c]) === -1 && !state.occupate[tutte[c]]) { libera = tutte[c]; break; }
+    }
+    if (!mano.length || !libera) {
+      state.finita = true;
+      _aTutti(dispatcher, OP_FINE, { motivo: 'tabellone pieno' });
+      return { state: state };
+    }
+    var scelta = mano.shift();
+    var pezzi = libera.split(',');
+    state.occupate[libera] = { carta: scelta, di: state.turno + 1 };
+    var chiEra = tocca;
+    var pescata2 = _passaTurno(state, dispatcher, chiEra);
+    _aTutti(dispatcher, OP_GIOCATA, {
+      giocatore: _indiceDi(state, chiEra) + 1, carta: scelta,
+      q: parseInt(pezzi[0], 10), r: parseInt(pezzi[1], 10),
+      turno: state.turno + 1, scadenza: state.scadenza,
+      numeroTurno: state.numeroTurno, pubblico: _pubblico(state),
+      dOfficio: true
+    });
+    if (pescata2) _aUno(dispatcher, state, chiEra, OP_AVVIO, { pescata: pescata2, mano: state.mano[chiEra] });
+    return { state: state };
+  }
+
+  // Un battito ogni cinque secondi: il client corregge la sua barra invece
+  // di lasciarla scivolare. Una scheda in secondo piano rallenta i timer del
+  // browser, e senza questo il conto alla rovescia mentirebbe.
+  if (state.iniziata && tick % 5 === 0) {
+    _aTutti(dispatcher, OP_TEMPO, { scadenza: state.scadenza, turno: state.turno + 1, numeroTurno: state.numeroTurno });
+  }
+
+  return { state: state };
+}
+
+function partitaTerminate(ctx, logger, nk, dispatcher, tick, state, graceSeconds) {
+  return { state: state };
+}
+
+function partitaSignal(ctx, logger, nk, dispatcher, tick, state, data) {
+  return { state: state, data: data };
+}
+
+var partita = {
+  matchInit: partitaInit,
+  matchJoinAttempt: partitaJoinAttempt,
+  matchJoin: partitaJoin,
+  matchLeave: partitaLeave,
+  matchLoop: partitaLoop,
+  matchTerminate: partitaTerminate,
+  matchSignal: partitaSignal,
+};
+
+// ── dal matchmaker alla partita ───────────────────────────────────────────
+// Accoppiati due giocatori, si crea la partita e Nakama consegna il suo id ai
+// due client dentro allo stesso messaggio che gia' ricevevano. Nessun giro in
+// piu': l'accoppiamento e la partita sono lo stesso momento.
+function accoppiati(ctx, logger, nk, matches) {
+  var giocatori = [];
+  var info = {};
+  for (var i = 0; i < matches.length; i++) {
+    var u = matches[i].presence.userId;
+    giocatori.push(u);
+    var sp = matches[i].properties || {};
+    info[u] = {
+      nome: String(sp.nome || ''),
+      avatar: String(sp.avatar || ''),
+      rank: (typeof sp.rank === 'number') ? sp.rank : null
+    };
+  }
+  if (giocatori.length !== 2) {
+    logger.warn('accoppiamento con %d giocatori: non e\' una partita', giocatori.length);
+    return '';
+  }
+  return nk.matchCreate('hextale', {
+    giocatori: JSON.stringify(giocatori),
+    info: JSON.stringify(info)
+  });
+}
+
 function InitModule(ctx, logger, nk, initializer) {
   initializer.registerRpc('hx_avvio', rpcAvvio);
   initializer.registerRpc('hx_importa', rpcImporta);
@@ -795,6 +1195,12 @@ function InitModule(ctx, logger, nk, initializer) {
   initializer.registerRpc('hx_partita', rpcPartita);
   initializer.registerRpc('hx_bustina_apri', rpcBustinaApri);
   initializer.registerRpc('hx_bustina_raccogli', rpcBustinaRaccogli);
+  // v0.77.53 — la partita in rete. registerMatch da' un nome al gestore;
+  // registerMatchmakerMatched fa in modo che, accoppiati due giocatori, la
+  // partita nasca da sola e il suo id arrivi ai due client dentro allo stesso
+  // messaggio di accoppiamento che gia' ricevevano.
+  initializer.registerMatch('hextale', partita);
+  initializer.registerMatchmakerMatched(accoppiati);
   // Tutte le strade d'ingresso, non solo quella con l'email: chi entra con
   // Google deve ricevere il mazzo esattamente come gli altri.
   initializer.registerAfterAuthenticateEmail(dopoAccesso);
