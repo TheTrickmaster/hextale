@@ -14,7 +14,8 @@ Tutto vive in `game-assets/`, che e' anche il repository GitHub
 
 | Cosa | Dove |
 |---|---|
-| Il gioco | `Hextale_<versione>.html` — un unico file, ~26.000 righe |
+| Il gioco, indirizzo stabile | `play/index.html` — un unico file, ~26.000 righe |
+| Le versioni, archivio | `versions/Hextale_<versione>.html` |
 | Note di aggiornamento | `patch-notes.txt` |
 | Questo documento | `handoff.md` |
 | Banco di prova | `test/` — vedi piu' sotto |
@@ -34,9 +35,11 @@ La copia interna nell'HTML e' l'ultimo ripiego, ed e' vecchia.
 
 **Come si consegna una versione.** Si rinomina il file col numero nuovo, si
 aggiorna il badge `#build-version-badge`, si scrive il blocco in
-`patch-notes.txt`, e Lorenzo carica entrambi su GitHub. Il numero di versione
-sta in DUE posti che devono combaciare: il nome del file e il badge. Se
-esiste anche `desktop/package.json`, il suo `version` va allineato.
+`patch-notes.txt`, e si mette il file al suo posto — `play/index.html` per
+l'ultima, `versions/` per quella prima (vedi la REGOLA FISSA piu' sotto).
+Il numero di versione sta in TRE posti che devono combaciare: il nome del file
+in `versions/`, il badge `#build-version-badge`, e il `version` di
+`desktop/package.json`.
 
 ---
 
@@ -151,6 +154,30 @@ piu' sotto, sezione "Come si aggiunge un'abilita'"). Va riscritto o cancellato
 prima di fidarsi di un suo verde.
 
 ---
+## REGOLA FISSA — dove va il file di gioco quando si pubblica (dal 28/08/2026)
+
+**A ogni push il file di gioco va in DUE posti, e nessuno dei due e' la radice:**
+
+1. La versione **appena chiusa** si copia in `play/index.html`, con quel nome.
+   E' l'indirizzo stabile: chi apre il gioco arriva sempre li', e non cambia
+   mai da una versione all'altra.
+2. La versione **precedente** resta in `versions/`, col suo nome per esteso
+   (`Hextale_0.77.51.html`). E' l'archivio: serve per tornare indietro e per
+   confrontare, non per essere giocata.
+
+Quindi `play/index.html` e `versions/Hextale_<ultima>.html` hanno lo stesso
+contenuto: uno e' l'indirizzo, l'altro e' la copia con la targhetta.
+**Nella radice non ci va nessun `Hextale_*.html`.**
+
+Perche' cosi': prima ogni versione era un file nuovo nella radice, e chi aveva
+salvato il link si ritrovava a giocare una versione vecchia senza accorgersene.
+Un indirizzo fisso toglie il problema alla radice.
+
+Lorenzo ha fatto lo spostamento a mano per la v0.77.51. **Da lì in poi tocca a
+chi pubblica**, e va fatto **prima** del push, non dopo.
+
+---
+
 ## REGOLA FISSA — le patch notes si aggiornano SEMPRE
 
 **A ogni consegna di una nuova versione del file HTML va aggiornato anche
