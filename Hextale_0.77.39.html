@@ -315,12 +315,43 @@ body.mouse-down, body.mouse-down *{
   pointer-events:none; user-select:none; -webkit-user-drag:none;
 }
 #mm2-bg{ z-index:0; }
-#mm2-bg-lit{ z-index:1; opacity:0.35; animation:mm2Candela 5.3s ease-in-out infinite alternate; }
-@keyframes mm2Candela{
-  0%   { opacity:0.18; }
-  38%  { opacity:0.62; }
-  61%  { opacity:0.34; }
+/* v0.77.39 — UNA FIACCOLA, NON UN RESPIRO.
+   Prima erano cinque secondi di andirivieni morbido: leggeva come una luce che
+   pulsa, non come una fiamma. Una fiamma ha scatti brevi e DISUGUALI, e la
+   disuguaglianza e' la cosa che conta — un tremolio regolare, per quanto
+   veloce, si riconosce subito come un'animazione.
+   Da qui due scelte. `steps(1,end)` invece di una curva morbida, cosi' ogni
+   scatto e' uno scatto e non una dissolvenza. E due animazioni sovrapposte su
+   durate che non sono multiple fra loro (0.9s e 2.3s): non tornano mai in
+   fase, quindi la stessa sequenza non si ripete mai uguale.
+   La seconda agisce sul FILTRO e non sull'opacita': due animazioni sulla
+   stessa proprieta' non si sommano, il browser ne terrebbe una sola. */
+#mm2-bg-lit{
+  z-index:1; opacity:0.5;
+  animation:mm2Fiaccola 0.9s steps(1,end) infinite,
+            mm2Vampata  2.3s steps(1,end) infinite;
+}
+@keyframes mm2Fiaccola{
+  0%   { opacity:0.30; }
+  9%   { opacity:0.86; }
+  17%  { opacity:0.44; }
+  26%  { opacity:0.95; }
+  33%  { opacity:0.52; }
+  47%  { opacity:0.72; }
+  55%  { opacity:0.26; }
+  63%  { opacity:0.90; }
+  71%  { opacity:0.40; }
+  84%  { opacity:0.66; }
+  92%  { opacity:0.34; }
   100% { opacity:0.78; }
+}
+@keyframes mm2Vampata{
+  0%   { filter:brightness(1); }
+  21%  { filter:brightness(1.30); }
+  34%  { filter:brightness(0.84); }
+  58%  { filter:brightness(1.18); }
+  73%  { filter:brightness(0.90); }
+  100% { filter:brightness(1.08); }
 }
 /* La polvere: le stesse tre tele della schermata d'accesso, stessi piani e
    stesso `plus-lighter`. Non un secondo effetto simile — proprio le stesse
@@ -345,7 +376,13 @@ body.mouse-down, body.mouse-down *{
   position:absolute; inset:0; width:100%; height:100%;
   object-fit:cover; pointer-events:none; z-index:0;
 }
-#mm2-topbar > *{ position:relative; z-index:1; }
+/* v0.77.39 — il fondo NON e' fra questi. Scritta `#mm2-topbar > *`, questa
+   regola vale un id esattamente come `#mm2-topbar-bg`, e a parita' vince
+   quella dichiarata piu' in basso: il fondo si ritrovava `position:relative`,
+   cioe' NEL FLUSSO, e spingeva a destra il logo e le icone. E' la stessa
+   trappola che aveva fatto cadere nel flusso le raggiere della schermata
+   d'accesso — un elemento che deve stare sotto va escluso, non sperato. */
+#mm2-topbar > *:not(#mm2-topbar-bg){ position:relative; z-index:1; }
 #mm2-logo{ height:82px; width:auto; display:block; flex:0 0 auto; }
 /* I tre pulsanti sono attaccati: nessun gap, e coprono TUTTA l'altezza della
    barra. Il gruppo e' centrato sullo schermo e non fra il logo e le icone —
@@ -456,9 +493,23 @@ body.mouse-down, body.mouse-down *{
   width:310px;
 }
 #mm2-sx .mm2-box{ width:310px; padding:20px; }
-#mm2-box-shop{ opacity:0.4; pointer-events:none; }
+#mm2-box-shop{ opacity:0.4; pointer-events:none; height: 213px }
 #mm2-box-donate{ height:108px; display:flex; align-items:center; }
-#mm2-box-ink, #mm2-box-dust{ height:100px; display:flex; align-items:center; }
+#mm2-box-ink, #mm2-box-dust{ height:100px; display:flex; align-items:center; padding:0 20px; }
+/* v0.77.39 — il riquadro della valuta aveva un fondo suo (magic-ink-wrapper /
+   fairy-dust-wrapper) che qui e' di troppo: il riquadro esterno c'e' gia', e
+   due cornici una dentro l'altra si leggono come un errore. Resta solo cio'
+   che il riquadro non sa dire da se': l'icona, il numero, il piu'. */
+#mm2-sx .mm-cur{ width:100%; height:100%; }
+#mm2-sx .mm-cur-bg{ display:none; }
+/* Senza piu' il fondo proprio, i tre pezzi si dispongono rispetto al riquadro
+   esterno: l'icona a sinistra, il numero e il piu' a destra. Le posizioni di
+   prima erano misurate su un wrapper che qui non c'e' piu'. */
+#mm2-sx .mm-cur-icon{ position:absolute; left:0; top:50%; transform:translateY(-50%); height:78px; width:auto; }
+#mm2-sx .mm-cur-value{ right:64px; }
+/* Il "+" nuovo e' 84x89: quadrato quanto basta per stare in una casella sua,
+   e la misura si ricava dal file invece che dal disegno vecchio (31x33). */
+#mm2-sx .mm-cur-plus{ right:0; width:42px; height:44px; }
 #mm2-sx .hx-btn{ width:100%; padding:0; }
 /* Il pulsante della donazione: il modulo di PayPal resta quello che era, si
    cambia solo il vestito. Il <form> non deve introdurre spazio proprio, o il
@@ -498,8 +549,19 @@ body.mouse-down, body.mouse-down *{
 /* L'avatar con la sua cornice, come in partita. L'orb del livello lo scavalca
    di cinquanta pixel: sta in fondo al gruppo e sporge sotto, quindi il gruppo
    non gli fa spazio — e' una sovrapposizione voluta, non un accostamento. */
-#mm2-avatar{ position:relative; height:185px; width:auto; flex:0 0 auto; }
-#mm2-avatar .player-avatar-photo, #mm2-avatar .player-avatar-frame{ height:185px; width:auto; }
+/* v0.77.39 — .player-avatar e' scritta per il pannello di partita, dove sta in
+   posizione assoluta e si centra con left:50% piu' una traslazione. Qui deve
+   stare nel flusso: senza azzerare anche `left`, `top` e `transform`, quel
+   left:50% ereditato la spostava a destra di meta' della propria larghezza —
+   ed e' per questo che le statistiche erano tutte spostate. Le tre proprieta'
+   vanno rimesse a mano: cambiare `position` non annulla i loro valori. */
+#mm2-avatar{
+  position:relative; left:auto; top:auto; transform:none;
+  height:185px; width:calc(185px * 749 / 834); flex:0 0 auto;
+}
+/* Foto e cornice restano assolute DENTRO all'avatar, com'e' in partita: sono
+   le loro percentuali a incastrare il ritratto nell'esagono della cornice. */
+#mm2-avatar .player-avatar-frame{ inset:0; width:100%; height:100%; }
 #mm2-orb{
   position:absolute; left:50%; bottom:-50px; transform:translateX(-50%);
   width:75px; height:75px;
@@ -514,6 +576,9 @@ body.mouse-down, body.mouse-down *{
 }
 #mm2-xp{ display:flex; flex-direction:column; align-items:center; gap:4px; }
 #mm2-xp .hx-capacity{ width:140px; }
+/* La fascia colorata dev'essere larga quanto la barra: la maschera la scopre
+   accorciandosi, e una fascia piu' stretta non arriverebbe mai in fondo. */
+#mm2-xp .hx-capacity-fill{ --hx-cap-w:140px; }
 #mm2-xp-testo{ font-family:'Rosarivo',serif; font-size:16px; color:#CEDDDF; }
 #mm2-season{
   font-family:'Marcellus',var(--font-display),serif;
@@ -524,13 +589,21 @@ body.mouse-down, body.mouse-down *{
    l'icona. Sta SOPRA al fondo del riquadro e sotto al contenuto. */
 #mm2-rank{
   position:relative; width:100%; height:60px; margin-top:12px;
+  border-radius:16px;
   padding:10px 20px; box-sizing:border-box;
   display:flex; align-items:center;
+  border-radius: 16px;
   overflow:visible;   /* l'icona deve poter sbordare */
 }
 #mm2-rank::after{
   content:''; position:absolute; inset:0; border-radius:inherit;
-  background-image:linear-gradient(90deg, rgba(153,62,1,1) 0%, rgba(153,62,1,0) 100%);
+  /* v0.77.39 — "20% e 0%" letto come le due OPACITA', non come le posizioni
+     dei due estremi: il colore entra da sinistra gia' tenue e si spegne
+     attraversando tutto il riquadro. Muovendo invece la posizione (1 a 0%,
+     0 a 20%) si otteneva una fascia piena e corta sul bordo, che e' un'altra
+     cosa. Se volevi quella, e' un numero solo. */
+  background-image:linear-gradient(90deg, rgba(153,62,1,0.2) 0%, rgba(153,62,1,0) 100%);
+  mix-blend-mode: ;
   pointer-events:none; z-index:1;
 }
 #mm2-rank > *{ position:relative; z-index:2; }
@@ -543,7 +616,7 @@ body.mouse-down, body.mouse-down *{
 
 /* riquadro gioca */
 #mm2-gioca{
-  width:700px; padding:20px;
+  width:700px; padding: 100px 150px 90px;
   display:flex; flex-direction:column; align-items:center; justify-content:flex-end;
 }
 #mm2-gioca-deck{ width:100%; position:relative; z-index:2; }
@@ -597,7 +670,7 @@ body.mouse-down, body.mouse-down *{
 #mm2-quest-titolo{ color:#D4CBB9; }
 #mm2-quest-conta{ color:#AAB6B8; }
 #mm2-quest-corpo{
-  height:330px;
+  height:490px;
   display:flex; align-items:center; justify-content:center;
   font-family:'Marcellus',var(--font-display),serif; font-size:22px; color:#929899;
   background:rgba(0,0,0,0.15);
@@ -614,7 +687,9 @@ body.mouse-down, body.mouse-down *{
 /* L'icona sta DIETRO al pulsante e non dentro: e' un'illustrazione che sbuca
    da sotto, e deve poter essere piu' alta del pulsante senza allargarlo. */
 .mm2-scorciatoia-icona{
-  position:absolute; left:50%; bottom:0; transform:translateX(-50%);
+  /* v0.77.39 — un terzo piu' grandi e calate di cinquanta pixel: sbucano da
+     sotto al pulsante invece di stargli dietro in asse. */
+  position:absolute; left:50%; bottom:-50px; transform:translateX(-50%);
   width:auto; z-index:0;
   pointer-events:none; user-select:none; -webkit-user-drag:none;
 }
@@ -8933,7 +9008,7 @@ body.prova-senza-willchange #mm-book-rot{
       </div>
     <div class="mm2-box mm2-box-sx" id="mm2-box-ink">
       <div class="mm-cur mm-cur-ink">
-        <img class="mm-cur-bg" alt="" draggable="false">
+        
         <img class="mm-cur-icon" alt="" draggable="false">
         <div class="mm-cur-value" id="mm2-ink-value" data-valuta="ink">0</div>
         <button class="mm-cur-plus" aria-label="Compra magic ink"><img alt="" draggable="false"></button>
@@ -8941,7 +9016,7 @@ body.prova-senza-willchange #mm-book-rot{
     </div>
     <div class="mm2-box mm2-box-sx" id="mm2-box-dust">
       <div class="mm-cur mm-cur-premium mm-cur-dust">
-        <img class="mm-cur-bg" alt="" draggable="false">
+       
         <img class="mm-cur-icon" alt="" draggable="false">
         <div class="mm-cur-value" id="mm2-dust-value" data-valuta="dust">0</div>
         <button class="mm-cur-plus" aria-label="Compra fairy dust"><img alt="" draggable="false"></button>
@@ -9001,7 +9076,7 @@ body.prova-senza-willchange #mm-book-rot{
     <!-- ── FASCIA IN BASSO ──────────────────────────────────────────── -->
     <div id="mm2-giu">
       <div class="mm2-scorciatoia" id="mm2-sc-packs">
-        <img class="mm2-scorciatoia-icona" style="height:160px" alt="" draggable="false">
+        <img class="mm2-scorciatoia-icona" style="height:208px" alt="" draggable="false">
       <button class="hx-btn hx-btn-opaco" type="button" onclick="openPackOverlay()">
         <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
         <span class="hxb-label">Card packs</span>
@@ -9009,7 +9084,7 @@ body.prova-senza-willchange #mm-book-rot{
         <div class="mm2-scorciatoia-sotto" id="mm2-packs-sotto"></div>
       </div>
       <div class="mm2-scorciatoia" id="mm2-sc-library">
-        <img class="mm2-scorciatoia-icona" style="height:170px" alt="" draggable="false">
+        <img class="mm2-scorciatoia-icona" style="height:221px" alt="" draggable="false">
       <button class="hx-btn hx-btn-opaco" type="button" onclick="openCardDbOverlay()">
         <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
         <span class="hxb-label">Library &amp; decks</span>
@@ -9017,7 +9092,7 @@ body.prova-senza-willchange #mm-book-rot{
         <div class="mm2-scorciatoia-sotto">&nbsp;</div>
       </div>
       <div class="mm2-scorciatoia spenta" id="mm2-sc-quests">
-        <img class="mm2-scorciatoia-icona" style="height:200px" alt="" draggable="false">
+        <img class="mm2-scorciatoia-icona" style="height:260px; bottom:-80px" alt="" draggable="false">
       <button class="hx-btn hx-btn-opaco" type="button">
         <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
         <span class="hxb-label">Quests</span>
@@ -9414,7 +9489,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.38</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.39</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -13200,8 +13275,11 @@ function montaMenuPrincipale(){
     impostaImgDaCandidati(document.querySelector('#mm2-box-ink .mm-cur-icon'),  menuFileCandidati('magic-ink-icon.png'));
     impostaImgDaCandidati(document.querySelector('#mm2-box-dust .mm-cur-bg'),   menuFileCandidati('fairy-dust-wrapper.png'));
     impostaImgDaCandidati(document.querySelector('#mm2-box-dust .mm-cur-icon'), menuFileCandidati('fairy-dust-icon.png'));
+    // v0.77.39 — il "+" nuovo sta in ui/, non piu' fra gli asset del vecchio
+    // menu. Solo quelli di QUESTA pagina: il disegno vecchio vive ancora nella
+    // schermata delle bustine, che ha i suoi.
     radice.querySelectorAll('.mm-cur-plus img').forEach(el=>
-      impostaImgDaCandidati(el, menuFileCandidati('plus-icon.png')));
+      impostaImgDaCandidati(el, uiFileCandidati('add-button.png')));
     // Le tre icone della fascia in basso, ognuna col suo file.
     const iconeGiu = { 'mm2-sc-packs':'card-pack-icon.png', 'mm2-sc-library':'library-deck-icon.png', 'mm2-sc-quests':'quests-icon.png' };
     for(const idScorc in iconeGiu){
