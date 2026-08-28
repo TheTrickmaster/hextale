@@ -723,14 +723,19 @@ body.mouse-down, body.mouse-down *{
 #mm2-deck-titlebar .hx-titlebar-center{ justify-content:center; }
 #mm2-deck-lista{ display:flex; flex-direction:column; gap:12px; overflow:visible; }
 #mm2-deck-lista .deck-slot{ cursor:var(--cursore); }
-/* La riga del mazzo casuale non ha un'illustrazione da mostrare: al posto
-   della carta, il fondo incassato delle altre caselle vuote. */
+/* La riga del mazzo casuale: stessa forma delle altre, con un fondo suo che
+   riempie tutto il riquadro invece dell'illustrazione della prima carta. */
 .mm2-slot-casuale{
+  position:relative; overflow:hidden;
   display:flex; align-items:center; gap:12px; padding:0 18px;
-  background:rgba(0,0,0,0.15);
   border:1px solid rgba(255,255,255,0.2); border-radius:16px;
-  box-shadow:inset 0 4px 10px rgba(0,0,0,0.35);
 }
+.mm2-casuale-art{
+  position:absolute; inset:0; z-index:0;
+  background-size:cover; background-position:center; background-repeat:no-repeat;
+}
+/* Spunta e nome sopra al fondo. */
+.mm2-slot-casuale > *:not(.mm2-casuale-art){ position:relative; z-index:1; }
 #mm2-find{ margin-top:30px; width:100%; height:82px; padding:0; }
 #mm2-find .hxb-label{ font-size:30px; color:#322C1D; }
 /* Cercando un avversario il pulsante si accende, e dietro di lui gira la
@@ -9766,7 +9771,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.47</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.48</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -10520,6 +10525,32 @@ if(document.readyState==='loading'){
       if(baseVal===undefined) continue; // referenced a name that wasn't declared as a const X_BASE='...' literal — nothing to resolve
       const fullUrl = baseVal + concatMatch[2];
       if(patternAsset().test(fullUrl)) urls.add(fullUrl);
+    }
+    // ── v0.77.48 — 5) L'ARTE DELLE CARTE ────────────────────────────────────
+    // Non sta scritta da nessuna parte in questo file: gli indirizzi li porta
+    // il foglio, e quali esistano davvero lo scopre verificaArtCarte
+    // provandoli uno a uno. Per il preloader erano quindi invisibili — e sono
+    // le immagini piu' grandi e piu' numerose del gioco, quelle che in partita
+    // si vedevano comparire una carta alla volta.
+    // Questo passo gira DOPO verificaArtCarte (vedi l'ordine in
+    // beginLoadingPhase), quindi a questo punto ogni carta sa gia' quali
+    // livelli d'arte ha davvero, in tutte e due le fazioni.
+    if(Array.isArray(typeof FINAL_CARDS !== 'undefined' ? FINAL_CARDS : null)){
+      const aggiungi = (v)=>{
+        if(!v) return;
+        if(typeof v === 'string'){ if(patternAsset().test(v)) urls.add(v); return; }
+        if(Array.isArray(v)){ v.forEach(aggiungi); return; }
+        if(typeof v === 'object'){ Object.values(v).forEach(aggiungi); return; }
+      };
+      for(const entry of FINAL_CARDS){
+        // I livelli sono una pila o una mappa livello->indirizzo, a seconda che
+        // la carta abbia un'arte per livello o una sola: aggiungi le tratta
+        // uguali, cosi' non c'e' un caso da distinguere qui.
+        aggiungi(entry.artLayersDark);
+        aggiungi(entry.artLayersLight);
+        aggiungi(entry.artDark); aggiungi(entry.artLight); aggiungi(entry.artSrc);
+        aggiungi(entry.artNotteDark); aggiungi(entry.artNotteLight);
+      }
     }
     // Background MUSIC tracks are deliberately EXCLUDED from this blocking
     // up-front preload: each mp3 is ~9-10MB, so pulling the whole
@@ -13807,6 +13838,14 @@ function mm2AggiornaMazzo(){
 function mm2SlotCasuale(){
   const el = document.createElement('div');
   el.className = 'deck-slot deck-slot-piena mm2-slot-casuale';
+  // Lo sfondo e' un'immagine sua: non c'e' una prima carta da cui prendere
+  // l'illustrazione, perche' il mazzo non esiste ancora — e un riquadro vuoto
+  // in mezzo a righe illustrate direbbe "manca qualcosa" invece di "sara' una
+  // sorpresa".
+  const art = document.createElement('div');
+  art.className = 'deck-slot-art mm2-casuale-art';
+  impostaSfondoDaCandidati(art, uiFileCandidati('random-deck-bg.png'));
+  el.appendChild(art);
   const check = document.createElement('span');
   check.className = 'deck-slot-check';
   const img = document.createElement('img');
@@ -13827,11 +13866,6 @@ function mm2ApriSceltaMazzo(){
   // La lista si rifa' a ogni apertura: i mazzi possono essere cambiati nella
   // Libreria un istante fa, e una lista costruita una volta sola mentirebbe.
   lista.innerHTML = '';
-  // Il casuale in cima: e' la scelta di chi non vuole scegliere, e chiederla
-  // in fondo a un elenco di dodici mazzi vorrebbe dire nasconderla.
-  const casuale = mm2SlotCasuale();
-  casuale.onclick = ()=>{ selezionaMazzo(MAZZO_CASUALE); mm2AggiornaMazzo(); mm2ApriSceltaMazzo(); };
-  lista.appendChild(casuale);
   (MAZZI||[]).forEach(m=>{
     const slot = _slotMazzoPieno(m);
     slot.querySelectorAll('.deck-slot-edit, .deck-edit').forEach(el=>el.remove());
@@ -13846,6 +13880,14 @@ function mm2ApriSceltaMazzo(){
     };
     lista.appendChild(slot);
   });
+  // Il casuale sta in fondo, staccato: non e' uno dei mazzi, e' l'alternativa
+  // a sceglierne uno. La riga di separazione dice proprio quello.
+  const riga = document.createElement('div');
+  riga.className = 'filters-riga';
+  lista.appendChild(riga);
+  const casuale = mm2SlotCasuale();
+  casuale.onclick = ()=>{ selezionaMazzo(MAZZO_CASUALE); mm2AggiornaMazzo(); mm2ApriSceltaMazzo(); };
+  lista.appendChild(casuale);
   document.querySelectorAll('#mm2-deck-overlay .hx-btn').forEach(vestiPulsante);
   impostaVariabileDaCandidati(document.getElementById('mm2-deck-pannello'), '--hx-trama', uiFileCandidati('brushed-texture.jpg'));
   const sfondo = (sel,file)=>{ const el=document.querySelector(sel); if(el) impostaSfondoDaCandidati(el, uiFileCandidati(file)); };
