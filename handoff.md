@@ -718,6 +718,81 @@ in cui saranno sincronizzate quel giudizio passera' al server.
 
 ---
 
+## Le bustine e le valute (dalla v0.77.52)
+
+**Fino alla v0.77.51 sbustare non lasciava niente.** Le due carte si vedevano,
+si sceglieva, e poi sparivano: il possesso non le riceveva. La polvere, intanto,
+era un numero in `localStorage`. Adesso tutte e due le cose stanno sul server.
+
+**Due RPC, e la ragione per cui sono due.**
+
+| RPC | Cosa fa |
+|---|---|
+| `hx_bustina_apri` | il server SORTEGGIA due carte, se le segna, e torna gli slug e il prezzo della seconda |
+| `hx_bustina_raccogli` | il giocatore dice quali tiene; il server fa pagare e le scrive nel roster |
+
+**Perche' sorteggia il server.** Prima pescava il client (`_pescaCartaBustina`) e
+il server si sarebbe limitato a registrare cio' che gli veniva dichiarato:
+chiunque avesse aperto la console avrebbe potuto raccogliere la carta che
+voleva. Una valuta e un possesso che il client puo' scrivere non sono una
+valuta e un possesso. `_pescaCartaBustina` c'e' ancora, ma **le sue carte non
+entrano nel roster**: la raccolta le rifiuterebbe, perche' il server accetta
+solo gli slug della bustina che ha sorteggiato lui. Serve al menu di debug e a
+non lasciare una busta che non si apre se il server tace.
+
+**Perche' la bustina aperta si scrive.** Fra il sorteggio e la scelta passano
+dieci secondi di animazioni. Tenere le due carte in memoria non basterebbe — il
+runtime e' un pool — e chiederle al client vorrebbe dire tornare a fidarsi di
+lui. Sta in `profilo/bustina`, si riprende se si ricarica la pagina (altrimenti
+ricaricare sarebbe un modo per ripescare finche' non esce quel che si vuole), e
+si **cancella** appena raccolta.
+
+**Il prezzo si fissa all'apertura** e si scrive insieme alla bustina. Alla
+raccolta si riusa quello, non se ne calcola un altro: due conti che devono dare
+lo stesso numero prima o poi non lo danno, e a divergere sarebbero la cifra sul
+pulsante e quella addebitata. La scala resta per rarita' — 50 / 200 / 500 /
+1000 — e **si paga sempre la meno cara delle due**, cosi' l'ordine dei clic non
+cambia il conto. La tabella e' in due posti (client e server) ma **vale quella
+del server**: il client la mostra soltanto.
+
+**Pagamento e possesso in una scrittura sola.** Non "prima paga, poi aggiungi":
+fra due scritture ci sta una connessione che cade, e allora la polvere sarebbe
+andata e le carte no.
+
+**Le valute.** `VALUTE_INIZIALI` nel modulo: **100 polvere e 100 inchiostro**.
+Chi si era registrato prima se le vede assegnare al primo accesso — un saldo
+mancante e' un vuoto della nostra storia, non una scelta sua. Nel client
+`VALUTE_INIZIALI` esiste ancora ma e' solo il segnaposto mostrato finche' la
+risposta non arriva; `applicaValuteDalServer` e' **l'unica porta** da cui il
+saldo entra, e la cache in `localStorage` viene sovrascritta dal server. E'
+voluto: chi giocava prima aveva 300 e 14000 scritti nel browser.
+
+**`spendiFairyDust` non e' piu' una spesa.** Muove il numero a schermo, non il
+saldo. Nessuna spesa vera deve cominciare da li'.
+
+**Una trappola trovata mentre si collaudava.** `caricaCatalogoDaCache`
+leggeva il possesso in un blocco che stava **dopo** il `return true` del ramo
+"catalogo trovato": lo raggiungeva solo chi NON aveva il catalogo in cache,
+cioe' quasi nessuno. Al riavvio `_possessoNoto` restava falso, e con quello
+falso `carteDelGiocatore` mostra l'intero catalogo — la Collezione sembrava
+piena di carte mai ottenute finche' non si premeva Login. Non se n'era accorto
+nessuno perche' il ripiego "mostra tutto" e' silenzioso e sembra generosita'.
+Adesso `caricaPossessoDaCache` si chiama per prima, e la scrittura in cache sta
+in `salvaPossessoInCache`, una sola, invece delle due copie di prima.
+
+**Il roster si chiede al server SOLO dopo il Login.** Con una sessione salvata
+il gioco saluta con "Welcome back… Press Login to continue" e aspetta: prima di
+quel gesto vale la cache. E' voluto, ma va saputo quando si collauda — una
+sonda che ricarica e legge subito `CARTE_POSSEDUTE` non sta guardando il
+server.
+
+**Cosa NON e' ancora protetto.** Il livello di una carta sbustata e' fisso
+(`LIVELLO_SBUSTATA`, oggi 2) e sbustare un doppione non fa niente: tiene il
+livello piu' alto fra quello che c'era e quello nuovo. Quando i doppioni
+serviranno a salire di livello, il posto e' `rpcBustinaRaccogli`.
+
+---
+
 ## La ricerca di un avversario (dalla v0.77.51)
 
 Il pulsante **Find opponent** apre un WebSocket verso `wss://api.hextalegame.com/ws`

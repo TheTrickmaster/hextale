@@ -30,6 +30,10 @@ var COLL_PROFILO = 'profilo';
 var KEY_POSSESSO = 'carte';
 var KEY_MAZZI = 'mazzi';
 var KEY_STAGIONE = 'stagione';
+// La bustina APERTA e non ancora raccolta. Vive fra le due chiamate: il
+// sorteggio e la scelta. E' un oggetto a se' e non un campo del possesso
+// perche' ha una vita sua, cortissima, e va cancellato appena si e' raccolto.
+var KEY_BUSTINA = 'bustina';
 
 // ══════════════════════════════════════════════════════════════════════════
 // LA STAGIONE, IL LIVELLO E IL RANK
@@ -122,6 +126,28 @@ var COSTO_RARITA = { timeless: 4, mythic: 3, rare: 2, common: 1 };
 var MAZZI_STARTER = [1, 2, 3];
 var LIVELLO_NORMALE = 2;
 var LIVELLO_ADMIN = 4;
+
+// ── LE VALUTE (dalla v0.77.52) ────────────────────────────────────────────
+// Stavano in localStorage. Ci stavano male per la ragione di sempre — si
+// perdevano svuotando i dati del sito e non seguivano il giocatore altrove —
+// ma soprattutto perche' una valuta che il client puo' scrivere non e' una
+// valuta: e' un suggerimento. Adesso il saldo vive qui e il client lo legge.
+var VALUTE_INIZIALI = { magicInk: 100, fairyDust: 100 };
+
+// Quanto costa tenere ANCHE la seconda carta di una bustina. Si paga sempre la
+// meno cara delle due: cosi' il prezzo non dipende da quale si e' scelta per
+// prima, e l'ordine dei clic non cambia il conto.
+// Questa tabella e' la copia server di quella del client, ed e' QUESTA che
+// vale: il client la mostra, il server la applica.
+var COSTO_TENERE_PER_RARITA = { common: 50, rare: 200, mythic: 500, timeless: 1000 };
+function costoTenereRarita(chiave) {
+  var v = COSTO_TENERE_PER_RARITA[String(chiave || '').toLowerCase()];
+  return typeof v === 'number' ? v : COSTO_TENERE_PER_RARITA.common;
+}
+
+// Una carta appena sbustata entra al livello dei normali. Se si possedeva
+// gia', il livello non scende: si tiene il piu' alto dei due.
+var LIVELLO_SBUSTATA = LIVELLO_NORMALE;
 
 // Gli amministratori si riconoscono da questi nomi finche' il contrassegno non
 // e' stato scritto nei loro metadati. Dopo, comanda il contrassegno: e' il
@@ -237,13 +263,24 @@ function assicuraPossesso(ctx, nk, logger, userId, username) {
   var attuale = leggiPossesso(nk, userId);
   var admin = eAdmin(nk, userId, username);
   if (attuale && attuale.mazzi && attuale.mazzi.length) {
+    var daRiscrivere = false;
     // Un account che diventa admin dopo aver gia' avuto un mazzo deve passare
     // a "tutte le carte": il contrassegno vince su cio' che era stato scritto.
     if (admin !== !!attuale.admin) {
       attuale.admin = admin;
       attuale.livello = admin ? LIVELLO_ADMIN : LIVELLO_NORMALE;
-      scriviPossesso(nk, userId, attuale);
+      daRiscrivere = true;
     }
+    // Chi si e' registrato prima che le valute esistessero non ha un saldo.
+    // Gliene si da' uno iniziale invece di lasciarlo a zero: il saldo mancante
+    // e' un vuoto della nostra storia, non una scelta sua.
+    if (!attuale.valute || typeof attuale.valute.fairyDust !== 'number') {
+      attuale.valute = { magicInk: VALUTE_INIZIALI.magicInk, fairyDust: VALUTE_INIZIALI.fairyDust };
+      daRiscrivere = true;
+    }
+    // Le carte sbustate, che si aggiungono a quelle dei mazzi starter.
+    if (!attuale.carte) { attuale.carte = {}; daRiscrivere = true; }
+    if (daRiscrivere) scriviPossesso(nk, userId, attuale);
     return attuale;
   }
   var scelto = MAZZI_STARTER[Math.floor(Math.random() * MAZZI_STARTER.length)];
@@ -255,7 +292,10 @@ function assicuraPossesso(ctx, nk, logger, userId, username) {
     livello: admin ? LIVELLO_ADMIN : LIVELLO_NORMALE,
     assegnatoIl: Math.floor(Date.now() / 1000),
     // Perche' quel mazzo: "caso" adesso, "scelta" quando ci sara' la schermata.
-    origine: 'caso'
+    origine: 'caso',
+    // Il saldo di partenza e le carte guadagnate dopo, sbustando.
+    valute: { magicInk: VALUTE_INIZIALI.magicInk, fairyDust: VALUTE_INIZIALI.fairyDust },
+    carte: {}
   };
   scriviPossesso(nk, userId, possesso);
   logger.info('possesso assegnato a %s: mazzo %d, admin=%s', userId, scelto, String(admin));
@@ -311,6 +351,7 @@ function rpcAvvio(ctx, logger, nk, payload) {
     livelloMax: LIVELLO_MAX,
     mazzi: possesso.mazzi,
     livello: possesso.livello,
+    valute: valuteDi(possesso),
     possedute: possedute,
     carte: invariato ? null : carte
   });
@@ -357,6 +398,7 @@ function dopoAccesso(ctx, logger, nk, data, request) {
 // tutto al livello massimo; gli altri le carte dei mazzi starter che hanno.
 function _possedute(carte, possesso, admin) {
   var out = {};
+  var extra = (possesso && possesso.carte) || {};
   for (var j = 0; j < carte.length; j++) {
     var carta = carte[j];
     if (admin) { out[carta.slug] = LIVELLO_ADMIN; continue; }
@@ -366,8 +408,201 @@ function _possedute(carte, possesso, admin) {
       if (possesso.mazzi.indexOf(sd[k]) !== -1) { dentro = true; break; }
     }
     if (dentro) out[carta.slug] = possesso.livello || LIVELLO_NORMALE;
+    // Le carte sbustate si SOMMANO a quelle dei mazzi starter, e fra i due
+    // livelli vince il piu' alto: sbustare una carta che si aveva gia' non
+    // deve poterla far scendere di livello.
+    var liv = extra[carta.slug];
+    if (typeof liv === 'number' && liv > 0) {
+      out[carta.slug] = Math.max(out[carta.slug] || 0, liv);
+    }
   }
   return out;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// LE BUSTINE (dalla v0.77.52)
+// ══════════════════════════════════════════════════════════════════════════
+// Due chiamate, e la ragione per cui sono due e' tutta qui.
+//
+//   hx_bustina_apri      il server SORTEGGIA due carte e se le segna.
+//   hx_bustina_raccogli  il giocatore dice quali tiene; il server fa pagare e
+//                        le scrive nel suo roster.
+//
+// PERCHE' SORTEGGIA IL SERVER. Prima pescava il client, e il server si sarebbe
+// limitato a registrare cio' che gli veniva dichiarato: chiunque avesse aperto
+// la console avrebbe potuto raccogliere la carta che voleva. Una valuta e un
+// possesso che il client puo' scrivere non sono una valuta e un possesso.
+//
+// PERCHE' LA BUSTINA APERTA SI SCRIVE. Fra il sorteggio e la scelta passano
+// dieci secondi di animazioni, ed e' in quella finestra che il server deve
+// ricordarsi cosa e' uscito. Tenerlo in memoria non basterebbe — il runtime e'
+// un pool, la chiamata dopo puo' finire altrove — e chiederlo al client
+// vorrebbe dire tornare a fidarsi di lui, che e' esattamente cio' da cui si
+// sta scappando.
+
+function leggiBustina(nk, userId) {
+  var r = nk.storageRead([{ collection: COLL_PROFILO, key: KEY_BUSTINA, userId: userId }]);
+  return (r && r.length && r[0].value) ? r[0].value : null;
+}
+
+function scriviBustina(nk, userId, valore) {
+  nk.storageWrite([{
+    collection: COLL_PROFILO, key: KEY_BUSTINA, userId: userId,
+    value: valore,
+    // Il giocatore la legge — gli serve sapere cosa e' uscito se ricarica la
+    // pagina a carte gia' scoperte — ma non la scrive.
+    permissionRead: 1, permissionWrite: 0
+  }]);
+}
+
+function cancellaBustina(nk, userId) {
+  try { nk.storageDelete([{ collection: COLL_PROFILO, key: KEY_BUSTINA, userId: userId }]); }
+  catch (e) { /* gia' cancellata: va bene lo stesso */ }
+}
+
+// Il saldo di un possesso, sempre con tutti e due i campi e sempre numeri.
+function valuteDi(possesso) {
+  var v = (possesso && possesso.valute) || {};
+  return {
+    magicInk: (typeof v.magicInk === 'number' && isFinite(v.magicInk)) ? v.magicInk : VALUTE_INIZIALI.magicInk,
+    fairyDust: (typeof v.fairyDust === 'number' && isFinite(v.fairyDust)) ? v.fairyDust : VALUTE_INIZIALI.fairyDust
+  };
+}
+
+// Le carte che possono USCIRE da una bustina: quelle visibili al giocatore e
+// con una probabilita' maggiore di zero. Una carta a dropRate 0 esiste nel
+// gioco ma non si sbusta — e' il modo in cui il foglio dice "questa si ottiene
+// in un altro modo".
+function _sorteggiabili(catalogo, admin) {
+  var out = [];
+  for (var i = 0; i < catalogo.carte.length; i++) {
+    var c = catalogo.carte[i];
+    if (c.soloAdmin && !admin) continue;
+    if (!(typeof c.dropRate === 'number' && c.dropRate > 0)) continue;
+    out.push(c);
+  }
+  return out;
+}
+
+// Una pescata pesata sul dropRate, escludendo cio' che e' gia' uscito: due
+// carte uguali nella stessa bustina sarebbero una delusione, non una rarita'.
+function _pesca(carte, escluse) {
+  var buone = [];
+  var totale = 0;
+  for (var i = 0; i < carte.length; i++) {
+    if (escluse.indexOf(carte[i].slug) !== -1) continue;
+    buone.push(carte[i]);
+    totale += carte[i].dropRate;
+  }
+  if (!buone.length) return null;
+  var r = Math.random() * totale;
+  for (var j = 0; j < buone.length; j++) {
+    r -= buone[j].dropRate;
+    if (r <= 0) return buone[j];
+  }
+  return buone[buone.length - 1];
+}
+
+// ── RPC: apri una bustina ─────────────────────────────────────────────────
+// Torna gli slug delle due carte, non le definizioni: il client ha gia' il
+// catalogo intero dall'avvio, e rimandarlo sarebbe peso per niente.
+function rpcBustinaApri(ctx, logger, nk, payload) {
+  if (!ctx.userId) throw Error('serve un accesso');
+  var catalogo = leggiSistema(nk, KEY_CATALOGO);
+  if (!catalogo || !catalogo.carte) throw Error('catalogo non ancora importato');
+
+  var possesso = assicuraPossesso(ctx, nk, logger, ctx.userId, ctx.username);
+  var admin = !!possesso.admin;
+
+  // Una bustina gia' aperta e non raccolta si RIPRENDE invece di sorteggiarne
+  // un'altra. Senza, ricaricare la pagina a carte scoperte sarebbe un modo per
+  // ripescare finche' non esce quello che si vuole.
+  var aperta = leggiBustina(nk, ctx.userId);
+  if (aperta && aperta.carte && aperta.carte.length === 2) {
+    return JSON.stringify({ carte: aperta.carte, ripresa: true, costo: aperta.costo });
+  }
+
+  var sorteggiabili = _sorteggiabili(catalogo, admin);
+  if (sorteggiabili.length < 2) throw Error('non ci sono abbastanza carte sorteggiabili');
+
+  var a = _pesca(sorteggiabili, []);
+  var b = _pesca(sorteggiabili, [a.slug]);
+
+  // Il prezzo si fissa ADESSO e si scrive insieme alla bustina. Ricalcolarlo
+  // alla raccolta darebbe lo stesso numero, ma scriverlo vuol dire che il
+  // prezzo mostrato e quello addebitato sono lo STESSO dato, non due conti
+  // che si spera coincidano.
+  var costo = Math.min(costoTenereRarita(a.rarity), costoTenereRarita(b.rarity));
+  var bustina = {
+    carte: [a.slug, b.slug],
+    costo: costo,
+    apertaIl: Math.floor(Date.now() / 1000)
+  };
+  scriviBustina(nk, ctx.userId, bustina);
+  logger.info('bustina aperta per %s: %s e %s (seconda a %d)', ctx.userId, a.slug, b.slug, costo);
+  return JSON.stringify({ carte: bustina.carte, ripresa: false, costo: costo });
+}
+
+// ── RPC: raccogli cio' che si e' scelto ───────────────────────────────────
+// Il payload dice quali slug si tengono. Il server controlla che siano
+// davvero quelli della bustina aperta: non se ne accettano altri, ed e' il
+// punto in cui il sorteggio lato server smette di essere una formalita'.
+function rpcBustinaRaccogli(ctx, logger, nk, payload) {
+  if (!ctx.userId) throw Error('serve un accesso');
+  var richiesta = {};
+  try { richiesta = payload ? JSON.parse(payload) : {}; } catch (e) { richiesta = {}; }
+
+  var bustina = leggiBustina(nk, ctx.userId);
+  if (!bustina || !bustina.carte || bustina.carte.length !== 2) throw Error('nessuna bustina aperta');
+
+  // Solo slug della bustina, senza ripetizioni: chiedere due volte la stessa
+  // carta non deve poter valere per due.
+  var tieni = [];
+  var chiesti = richiesta.tieni || [];
+  for (var i = 0; i < chiesti.length; i++) {
+    var s = String(chiesti[i]);
+    if (bustina.carte.indexOf(s) === -1) throw Error('carta non uscita da questa bustina: ' + s);
+    if (tieni.indexOf(s) === -1) tieni.push(s);
+  }
+  if (!tieni.length) throw Error('non hai scelto niente');
+
+  var possesso = assicuraPossesso(ctx, nk, logger, ctx.userId, ctx.username);
+  var valute = valuteDi(possesso);
+
+  // Si paga solo la SECONDA. Il pagamento e il possesso finiscono nello stesso
+  // oggetto e in una sola scrittura: cosi' non esiste l'istante in cui la
+  // polvere e' gia' andata e le carte non sono ancora arrivate.
+  var costo = 0;
+  if (tieni.length >= 2) {
+    costo = (typeof bustina.costo === 'number') ? bustina.costo : 0;
+    if (valute.fairyDust < costo) throw Error('polvere insufficiente');
+    valute.fairyDust -= costo;
+  }
+
+  if (!possesso.carte) possesso.carte = {};
+  for (var j = 0; j < tieni.length; j++) {
+    var avuto = possesso.carte[tieni[j]] || 0;
+    possesso.carte[tieni[j]] = Math.max(avuto, LIVELLO_SBUSTATA);
+  }
+  possesso.valute = valute;
+  scriviPossesso(nk, ctx.userId, possesso);
+  cancellaBustina(nk, ctx.userId);
+
+  var catalogo = leggiSistema(nk, KEY_CATALOGO);
+  var admin = !!possesso.admin;
+  var carte = [];
+  for (var k = 0; k < catalogo.carte.length; k++) {
+    if (catalogo.carte[k].soloAdmin && !admin) continue;
+    carte.push(catalogo.carte[k]);
+  }
+
+  logger.info('bustina raccolta da %s: %d carte, %d di polvere', ctx.userId, tieni.length, costo);
+  return JSON.stringify({
+    tenute: tieni,
+    speso: costo,
+    valute: valute,
+    possedute: _possedute(carte, possesso, admin)
+  });
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -558,6 +793,8 @@ function InitModule(ctx, logger, nk, initializer) {
   initializer.registerRpc('hx_mazzi_leggi', rpcMazziLeggi);
   initializer.registerRpc('hx_mazzi_scrivi', rpcMazziScrivi);
   initializer.registerRpc('hx_partita', rpcPartita);
+  initializer.registerRpc('hx_bustina_apri', rpcBustinaApri);
+  initializer.registerRpc('hx_bustina_raccogli', rpcBustinaRaccogli);
   // Tutte le strade d'ingresso, non solo quella con l'email: chi entra con
   // Google deve ricevere il mazzo esattamente come gli altri.
   initializer.registerAfterAuthenticateEmail(dopoAccesso);
