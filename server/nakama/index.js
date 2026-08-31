@@ -724,20 +724,21 @@ function rpcMazziScrivi(ctx, logger, nk, payload) {
 // del gioco contro persone, ed e' quello su cui si basera' l'accoppiamento.
 // Lasciarlo crescere da soli lo renderebbe una misura di quanto uno ha voglia
 // di battere il computer.
-function rpcPartita(ctx, logger, nk, payload) {
-  if (!ctx.userId) throw Error('serve un accesso');
-  var dati;
-  try { dati = JSON.parse(payload || '{}'); } catch (e) { throw Error('esito illeggibile'); }
-  var vinta = !!dati.vinta;
-  var pari = !!dati.pari;
-  var controIA = !!dati.controIA;
-
-  var letto = leggiStagione(nk, ctx.userId);
+// ── v0.77.55 — L'ESITO DI UNA PARTITA, PER UN GIOCATORE ───────────────────
+// Era il corpo di rpcPartita. E' diventato una funzione a se' perche' adesso
+// ha due chiamanti: la RPC, che serve le partite contro l'IA e resta la strada
+// di prima, e la PARTITA IN RETE, dove l'esito non lo dichiara piu' il client
+// ma lo decide il server quando i due si sono trovati d'accordo su com'e'
+// finito il tabellone. Una regola sola, in un posto solo: se un domani cambia
+// quanto vale una vittoria, cambia per tutti e due i modi di giocare.
+function applicaEsito(nk, userId, vinta, pari, controIA) {
+  var letto = leggiStagione(nk, userId);
   var p = letto.profilo;
   var prima = {
     livello: p.livello, xp: p.xp, rank: p.rank, puntiRank: p.puntiRank,
     xpPerSalire: xpPerSalire(p.livello)
   };
+  vinta = !!vinta; pari = !!pari; controIA = !!controIA;
 
   // ── esperienza ──────────────────────────────────────────────────────────
   // Un pareggio non e' una vittoria: vale come una sconfitta per l'esperienza,
@@ -785,9 +786,9 @@ function rpcPartita(ctx, logger, nk, payload) {
 
   p.partite = (p.partite || 0) + 1;
   if (vinta) p.vittorie = (p.vittorie || 0) + 1;
-  scriviStagione(nk, ctx.userId, p);
+  scriviStagione(nk, userId, p);
 
-  return JSON.stringify({
+  return {
     prima: prima,
     profilo: p,
     salito: salito,
@@ -795,7 +796,16 @@ function rpcPartita(ctx, logger, nk, payload) {
     xpGuadagnata: guadagno,
     xpPerSalire: xpPerSalire(p.livello),
     ranghi: RANGHI
-  });
+  };
+}
+
+// La RPC resta la strada delle partite contro l'IA, dove non c'e' nessun
+// avversario che possa confermare com'e' andata.
+function rpcPartita(ctx, logger, nk, payload) {
+  if (!ctx.userId) throw Error('serve un accesso');
+  var dati;
+  try { dati = JSON.parse(payload || '{}'); } catch (e) { throw Error('esito illeggibile'); }
+  return JSON.stringify(applicaEsito(nk, ctx.userId, !!dati.vinta, !!dati.pari, !!dati.controIA));
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -837,6 +847,7 @@ var OP_RIFIUTO   = 5;   // server -> client, personale: la tua mossa non vale, e
 var OP_FINE      = 6;   // server -> client: finita, e come
 var OP_IMPRONTA  = 7;   // client -> server: com'e' il mio stato dopo questa giocata
 var OP_DISACCORDO= 8;   // server -> client: le due impronte non coincidono
+var OP_ESITO     = 9;   // server -> client, personale: com'e' andata, e cosa hai guadagnato
 
 var TURNO_MS = 60000;        // i sessanta secondi del turno
 var GRAZIA_MS = 2500;        // quanto si aspetta oltre la scadenza prima di troncare
@@ -1000,7 +1011,8 @@ function partitaInit(ctx, logger, nk, params) {
     turno: 0, numeroTurno: 0, scadenza: 0,
     iniziata: false, finita: false,
     natoIl: Date.now(),
-    impronte: {}               // per turno: chi ha detto cosa
+    rapporti: {},              // per turno: cosa ha raccontato ciascuno
+    concordato: null           // l'ultimo tabellone su cui i due erano d'accordo
   };
   for (var i = 0; i < giocatori.length; i++) {
     var m = _mazzoDi(nk, logger, giocatori[i]);
@@ -1060,17 +1072,43 @@ function partitaLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
     try { corpo = JSON.parse(nk.binaryToString(m.data)); } catch (e) { corpo = {}; }
 
     if (m.opCode === OP_IMPRONTA) {
+      // ── v0.77.55 — IL SERVER FA L'ARBITRO ───────────────────────────
+      // Le regole stanno ancora nei client (conquiste e abilita': sono
+      // novemilaseicento righe, e portarle qui e' un lavoro a se'). Ma un
+      // fatto raccontato UGUALE da tutti e due i giocatori e' molto piu' di
+      // un fatto dichiarato da uno solo: per falsificarlo non basta piu'
+      // modificare il proprio client, servirebbe che anche l'avversario
+      // mentisse nello stesso identico modo. Fra due sconosciuti accoppiati
+      // dal matchmaking, quello non e' piu' un attacco: e' un accordo.
+      //
+      // Da questi due racconti concordi il server ricava il punteggio e,
+      // quando la partita finisce, il RISULTATO — che prima ognuno si
+      // dichiarava da solo.
       var t = String(corpo.turno);
-      if (!state.impronte[t]) state.impronte[t] = {};
-      state.impronte[t][chi] = String(corpo.impronta || '');
-      var viste = state.impronte[t];
-      var a = viste[state.giocatori[0]], b = viste[state.giocatori[1]];
-      if (a && b && a !== b) {
+      if (!state.rapporti[t]) state.rapporti[t] = {};
+      state.rapporti[t][chi] = {
+        impronta: String(corpo.impronta || ''),
+        punteggio: corpo.punteggio || null,
+        hp: corpo.hp || null,
+        finita: !!corpo.finita
+      };
+      var uno = state.rapporti[t][state.giocatori[0]];
+      var due = state.rapporti[t][state.giocatori[1]];
+      if (!uno || !due) continue;    // si aspetta l'altro
+
+      if (uno.impronta !== due.impronta) {
         // Non si sa CHI ha torto — solo che i due non stanno giocando alla
         // stessa partita. Fermarla e' l'unica cosa onesta.
         state.finita = true;
         _aTutti(dispatcher, OP_DISACCORDO, { turno: corpo.turno });
-        logger.warn('impronte diverse al turno %s: %s contro %s', t, a, b);
+        logger.warn('racconti diversi al turno %s: %s contro %s', t, uno.impronta, due.impronta);
+        return { state: state };
+      }
+
+      state.concordato = { turno: t, impronta: uno.impronta, punteggio: uno.punteggio, hp: uno.hp };
+
+      if (uno.finita && due.finita) {
+        _chiudiPartita(state, dispatcher, logger, nk, uno);
         return { state: state };
       }
       continue;
@@ -1164,6 +1202,48 @@ var partita = {
   matchTerminate: partitaTerminate,
   matchSignal: partitaSignal,
 };
+
+// ── v0.77.55 — LA PARTITA FINISCE QUI, NON NEL CLIENT ─────────────────────
+// Ci si arriva solo quando TUTTI E DUE hanno detto "finita" raccontando lo
+// stesso tabellone. Da li' il vincitore lo decide il server: vince chi ha fatto
+// piu' punti, e a parita' e' pari. Poi scrive esperienza e rank di tutti e due, con la stessa
+// funzione che serve le partite contro l'IA.
+//
+// Un solo client che dicesse "ho vinto" non basta: senza il racconto uguale
+// dell'altro, qui non ci si arriva nemmeno.
+function _chiudiPartita(state, dispatcher, logger, nk, rapporto) {
+  if (state.finita) return;
+  state.finita = true;
+
+  var hp = rapporto.hp || {};
+  var d1 = (typeof hp['1'] === 'number') ? hp['1'] : 0;
+  var d2 = (typeof hp['2'] === 'number') ? hp['2'] : 0;
+  var pari = d1 === d2;
+  // Vince chi ha fatto PIU' punti. Il campo si chiama 'hp' per ragioni
+  // storiche — una volta erano danni subiti, e vinceva chi ne aveva meno — ma
+  // dalla v0.77.0 sono i PUNTI FATTI e il verso e' rovesciato. Scritto al
+  // contrario, il server avrebbe premiato il perdente a ogni partita.
+  var vincitore = pari ? 0 : (d1 > d2 ? 1 : 2);
+
+  for (var i = 0; i < state.giocatori.length; i++) {
+    var u = state.giocatori[i];
+    var suo = (i + 1) === vincitore;
+    var esito;
+    try {
+      // controIA = false: questa e' una partita fra persone, e muove il rank.
+      esito = applicaEsito(nk, u, suo, pari, false);
+    } catch (e) {
+      logger.error('esito non scritto per %s: %s', u, String(e));
+      continue;
+    }
+    esito.vinta = suo;
+    esito.pari = pari;
+    esito.punteggio = rapporto.punteggio || null;
+    _aUno(dispatcher, state, u, OP_ESITO, esito);
+  }
+  _aTutti(dispatcher, OP_FINE, { motivo: 'finita', vincitore: vincitore, pari: pari });
+  logger.info('partita finita: punti %d contro %d, vincitore %d', d1, d2, vincitore);
+}
 
 // ── dal matchmaker alla partita ───────────────────────────────────────────
 // Accoppiati due giocatori, si crea la partita e Nakama consegna il suo id ai

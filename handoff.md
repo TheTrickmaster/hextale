@@ -914,17 +914,65 @@ successo, ed e' durato un paio di minuti. Da allora si schiera con
 nuovo non parte (l'indirizzo si passa da fuori: `HEXTALE_SRV=root@… bash …`,
 perche' questo repository e' pubblico).
 
+## Il server arbitro — TAPPA 2 (dalla v0.77.55)
+
+**La tappa 2 non e' andata come previsto, e la deviazione e' il punto.** Il
+piano era portare le CONQUISTE sul server. Guardando il codice: la regola di
+conquista e' minuscola — confronta il tuo lato col lato opposto del vicino — ma
+i valori delle carte **cambiano in partita** per effetto delle abilita'
+(`modificaValori`, i quattro `recalc*`, `trasformaCartaIn`, la follia del
+Hatter, la taglia della Regina di Cuori). Un server che calcolasse le conquiste
+senza conoscere le abilita' darebbe un risultato diverso dal client ogni volta
+che una di quelle ha toccato una carta adiacente: le partite si fermerebbero di
+continuo per divergenza. **Le conquiste SONO le abilita'**, e non si separano.
+
+**Cosa si e' fatto invece: il server arbitro.** Le regole restano nel client,
+ma ogni turno **tutti e due** i giocatori raccontano al server com'e' il
+tabellone, e il server va avanti solo se i due racconti coincidono. Un fatto
+raccontato uguale da due sconosciuti e' molto piu' di un fatto dichiarato da
+uno solo: per falsificarlo non basta modificare il proprio client, servirebbe
+che anche l'avversario mentisse nello stesso identico modo — cioe' un accordo,
+non un attacco.
+
+Da quei racconti concordi il server ricava il **risultato**: chi ha vinto,
+l'esperienza e il rank, per tutti e due. Prima era il client a dichiarare "ho
+vinto" con `hx_partita`, che era la cosa piu' facile da falsificare del gioco.
+`applicaEsito` e' la funzione condivisa fra la RPC (partite contro l'IA) e la
+partita in rete: una regola sola, in un posto solo.
+
+### Tre trappole gia' pagate, tutte scoperte collaudando
+
+**L'impronta NON deve contenere il punteggio.** I punti salgono con
+un'animazione a scatti (la coda di `_hpQueueDamage`): due client li fotografano
+in istanti diversi e i numeri non coincidono quasi mai, pur essendo la stessa
+identica partita. Nei log si vedevano due tabelloni **cella per cella
+identici** che finivano con `#103,68` contro `#95,57`, e la partita veniva
+fermata per niente. Si confronta il tabellone, che e' il fatto; i punti sono una
+conseguenza e viaggiano a parte solo alla fine.
+
+**`hp` sono i PUNTI FATTI, e vince chi ne ha di piu'.** Il campo si chiama
+`hp` per ragioni storiche — fino alla v0.75 erano danni subiti e vinceva chi ne
+aveva meno — ma dalla v0.77.0 il verso e' rovesciato (vedi
+`finishGameWithResult`). Scritto al contrario, il server premiava il perdente a
+ogni partita. Era gia' scritto al contrario.
+
+**Il WebSocket grezzo deve rispondere ai ping di Nakama.** Il server manda
+`{"ping":{}}` e si aspetta `{"pong":{}}`; gli SDK ufficiali lo fanno da soli,
+un `new WebSocket` no. Finche' su quel socket passava solo la RICERCA non si
+notava — dura pochi secondi — ma da quando ci passa la PARTITA, dopo qualche
+minuto il server considerava il giocatore sparito: nei log **"partita finita per
+abbandono"** senza che nessuno avesse abbandonato niente.
+
 ### Quel che manca ancora
 
-Le **conquiste** (tappa 2) e le **44 abilita'** (tappa 3). Finche' stanno nel
-client, due client possono calcolare due tabelloni diversi: per questo a ogni
-giocata mandano al server un'**impronta** del proprio stato (`reteImpronta`,
-op 7) e il server ferma la partita se le due non coincidono (op 8). Non
-impedisce di barare — impedisce di barare **senza che si veda**.
+Le **44 abilita'** e con loro il calcolo delle conquiste. Finche' stanno nel
+client, il server non sa COM'E' il tabellone: sa solo che i due giocatori
+raccontano la stessa cosa. Due client modificati d'accordo fra loro
+passerebbero — ma vanno messi d'accordo prima, e il matchmaking accoppia
+sconosciuti.
 
-Manca anche il **risultato**: la partita in rete non chiude ancora con vittoria
-e sconfitta comunicate dal server, quindi XP e rank di una partita PvP passano
-ancora da `riferisciPartita` come prima.
+Il turno, invece, e' gia' del server: lo impone `startTurn` a ogni giro (vedi
+la sezione della tappa 1).
 
 ---
 
