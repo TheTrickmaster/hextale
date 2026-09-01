@@ -3135,6 +3135,18 @@ body.mouse-down, body.mouse-down *{
    added to this hitzone unconditionally in the future. */
 .hand-card-wrap.dragging .hand-card-hitzone{ pointer-events:none; cursor:var(--cursore); }
 .hand-card-wrap.disabled .hand-card-hitzone{ cursor:var(--cursore); }
+/* v0.77.64 — LA CARTA CONGELATA (Regina delle Nevi).
+   Deve dire due cose in un colpo d'occhio: che c'e' e che non si puo' giocare.
+   Il velo azzurro e la desaturazione dicono la prima, il cursore la seconda —
+   e restano scritte qui e non nel disegno della carta perche' il gelo e' uno
+   stato del momento, non un modo diverso di essere quella carta. */
+.hand-card-wrap.congelata{ filter:saturate(.35) brightness(1.06) drop-shadow(0 0 8px rgba(150,215,255,.75)); }
+.hand-card-wrap.congelata .hand-card-hitzone{ cursor:not-allowed; }
+.hand-card-wrap.congelata::after{
+  content:''; position:absolute; inset:0; pointer-events:none; border-radius:inherit;
+  background:linear-gradient(150deg, rgba(190,235,255,.34), rgba(120,190,255,.16) 55%, rgba(255,255,255,.28));
+  mix-blend-mode:screen;
+}
 .hand-card-img{
   position:absolute; inset:0; width:100%; height:100%;
   display:block; border-radius:6px; pointer-events:none; user-select:none;
@@ -9886,7 +9898,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.63</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.64</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -15751,7 +15763,13 @@ var ABILITA_MOTORE = (function () {
 
     var pesca = [];
     if (dove === 'adjacent') pesca = (scena.vicini && scena.vicini(fonte)) || [];
-    else if (dove === 'in_hand') pesca = (scena.manoDi && scena.manoDi(fonte)) || scena.inMano || [];
+    else if (dove === 'in_hand') {
+      // Tutte e due le mani, e poi il filtro ally/opponent qui sotto sceglie.
+      // Prima si guardava solo la mano di chi agisce: bastava per un dono ai
+      // propri (Il Genio), ma un effetto rivolto all'avversario IN MANO non
+      // trovava mai nessuno e non faceva niente in silenzio.
+      pesca = scena.inMano || (scena.manoDi && scena.manoDi(fonte)) || [];
+    }
     else if (dove === 'drawn') return scena.pescata ? [scena.pescata] : [];
     else pesca = scena.inCampo || [];
 
@@ -15777,6 +15795,13 @@ var ABILITA_MOTORE = (function () {
       return [lista[0]];
     }
     if (q === 'random') {
+      // Ripetibile. In rete i due client devono pescare la STESSA carta, o si
+      // troverebbero d'accordo solo per caso: il numero esce dal seme della
+      // partita, come il lato "a caso" di RAND. Math.random resta l'ultima
+      // spiaggia, per chi chiama senza seme.
+      if (scena && scena.seme) {
+        return [lista[_semeDi(String(scena.seme) + '|' + String(scena.turno || 0) + '|' + lista.length) % lista.length]];
+      }
       var i = Math.floor((scena && typeof scena.sorte === 'number' ? scena.sorte : Math.random()) * lista.length);
       return [lista[Math.min(i, lista.length - 1)]];
     }
@@ -15793,9 +15818,24 @@ var ABILITA_MOTORE = (function () {
   }
 
   // Un effetto a scatto, tradotto in cambiamenti.
-  function _cambiamentiDi(fonte, eff, cond, scena, fuori) {
+  function _cambiamentiDi(fonte, eff, cond, scena, fuori, finestra) {
     if (!eff) return;
     var az = eff.azione;
+
+    // ── v0.77.64 — CONGELARE UNA CARTA IN MANO ─────────────────────────────
+    // Non e' un valore che cambia: e' una carta che per un po' non si puo'
+    // giocare. Esce lo stesso da qui perche' il motore decide sempre la stessa
+    // cosa — CHI e PER QUANTO — e lascia a chi chiama il come.
+    // Per quanto lo dice la FINESTRA (`for_turns 2`), non la durata: e' li'
+    // che il foglio scrive "per due turni".
+    if (az === 'freeze' && eff.cosa === 'card') {
+      if (!condizioneVera(cond, fonte, scena)) return;
+      var quante = scelti(candidati(fonte, eff, scena), eff, scena);
+      var turni = (finestra && finestra.tipo === 'for_turns' && typeof finestra.valore === 'number') ? finestra.valore : 1;
+      for (var k = 0; k < quante.length; k++) fuori.push({ carta: quante[k], azione: 'freeze', turni: turni });
+      return;
+    }
+
     if (az !== 'buff' && az !== 'debuff' && az !== 'set' && az !== 'steal') return;
     if (eff.cosa && eff.cosa !== 'power') return;      // i furti di tratti e abilita' non passano di qui
     if (!condizioneVera(cond, fonte, scena)) return;
@@ -15835,20 +15875,20 @@ var ABILITA_MOTORE = (function () {
 
     // Un effetto continuo non scatta: lo calcola deltaContinuo, e farlo anche
     // qui vorrebbe dire applicarlo due volte.
-    if (a.effetto && a.effetto.durata !== 'while_true') _cambiamentiDi(fonte, a.effetto, a.se, scena, fuori);
+    if (a.effetto && a.effetto.durata !== 'while_true') _cambiamentiDi(fonte, a.effetto, a.se, scena, fuori, a.finestra);
 
     if (a.legame === 'and') {
-      if (a.effetto2 && a.effetto2.durata !== 'while_true') _cambiamentiDi(fonte, a.effetto2, a.se2, scena, fuori);
+      if (a.effetto2 && a.effetto2.durata !== 'while_true') _cambiamentiDi(fonte, a.effetto2, a.se2, scena, fuori, a.finestra);
     } else if (a.legame === 'instead') {
       // Il secondo prende il posto del primo quando la sua condizione vale.
       if (a.effetto2 && condizioneVera(a.se2, fonte, scena)) {
         fuori.length = 0;
-        if (a.effetto2.durata !== 'while_true') _cambiamentiDi(fonte, a.effetto2, a.se2, scena, fuori);
+        if (a.effetto2.durata !== 'while_true') _cambiamentiDi(fonte, a.effetto2, a.se2, scena, fuori, a.finestra);
       }
     } else if (a.legame === 'or') {
       // Una delle due, a sorte.
       var testa = (scena && typeof scena.sorte === 'number' ? scena.sorte : Math.random()) < 0.5;
-      if (!testa && a.effetto2) { fuori.length = 0; _cambiamentiDi(fonte, a.effetto2, a.se2, scena, fuori); }
+      if (!testa && a.effetto2) { fuori.length = 0; _cambiamentiDi(fonte, a.effetto2, a.se2, scena, fuori, a.finestra); }
     }
     // Si segna solo se l'abilita' ha davvero prodotto qualcosa: se la
     // condizione era falsa e non e' uscito niente, il colpo unico non e' stato
@@ -28067,6 +28107,7 @@ function selectCard(card,playerIdx){
   // G.currentPlayer alone isn't enough here.
   if(G.turnPlayLocked)return;
   if(playerIdx+1!==G.currentPlayer){toast('Non è il tuo turno!');return;}
+  if(cartaCongelata(card)){toast('Questa carta è congelata!');return;}
   const wasSelected=G.selected&&G.selected.card.id===card.id;
   playSfx(wasSelected?'sfx-drop':'sfx-pick');
   G.selected=wasSelected?null:{card,playerIdx};
@@ -29161,6 +29202,11 @@ function reazioniAlPiazzamento(card, q, r, giocatore){
 // silenzio, che e' peggio di lasciarla vecchia.
 function _effettoSemplice(e){
   if(!e) return true;                                    // niente da fare: va bene
+  // v0.77.64 — il gelo non cambia un numero, ma il motore lo decide per intero
+  // (chi, e per quanti turni) e qui c'e' chi lo esegue: percio' e' fra quelli
+  // che sa fare. La regola resta la stessa — si dichiara di saper fare solo
+  // cio' che qualcuno esegue davvero.
+  if(e.azione === 'freeze' && e.cosa === 'card' && e.quale !== 'selected') return true;
   if(['buff','debuff','set'].indexOf(e.azione) < 0) return false;
   if(e.cosa && e.cosa !== 'power') return false;
   if(e.dove === 'drawn' || e.dove === 'deck') return false;
@@ -29191,9 +29237,28 @@ function _scenaEvento(card, cella, extra){
 
 // I cambiamenti decisi dal motore, applicati passando da modificaValori: e'
 // li' che vivono il lampo verde o rosso e le istantanee, e non si scavalca.
+// ── v0.77.64 — LA REGINA DELLE NEVI, E IL GELO IN MANO ────────────────────
+// Prima di oggi la sua abilita' non esisteva da nessuna parte: non nel motore,
+// non fra quelle scritte a mano, nemmeno nel registro delle descrizioni. Era
+// l'unica carta del mazzo con un potere solo sulla figurina.
+//
+// "Congelata" e' un numero di turno, non una bandiera con un contatore da far
+// scendere: chi scrive una bandiera deve poi ricordarsi di toglierla, e un
+// contatore dimenticato lascerebbe una carta ghiacciata per tutta la partita.
+// Un numero scade da solo.
+function cartaCongelata(card){
+  return !!(card && card.congelataFinoAlTurno && (G.numeroTurno||1) < card.congelataFinoAlTurno);
+}
+
 function applicaCambiamenti(elenco){
   for(const c of (elenco || [])){
-    if(!c || !c.carta || !c.lati || !c.lati.length) continue;
+    if(!c) continue;
+    if(c.azione === 'freeze'){
+      if(!c.carta) continue;
+      c.carta.congelataFinoAlTurno = (G.numeroTurno||1) + (c.turni || 1);
+      continue;
+    }
+    if(!c.carta || !c.lati || !c.lati.length) continue;
     if(c.azione === 'set'){
       for(const l of c.lati){
         const d = c.valore - (c.carta.values[l] || 0);
@@ -33746,6 +33811,7 @@ function aiChooseMove(){
   let best=null, bestNet=-Infinity, bestScore=-1, bestPower=-1, bestCentro=-1;
   const candidates=[];
   for(const card of hand){
+    if(cartaCongelata(card)) continue;   // v0.77.64 — gelata: non e' una mossa
     for(const cell of freeCells){
       const {count:conquests, damage, autolesione}=aiEvaluateConquests(card,cell.q,cell.r);
       const power=SIDES.reduce((s,side)=>s+(card.values[side]||0),0);
@@ -38979,6 +39045,7 @@ function renderHand(containerId,hand,playerIdx){
       +(isSelected?' selected':'')
       +(isBeingDragged?' dragging':'')
       +(!isActive?' disabled':'')
+      +(cartaCongelata(card)?' congelata':'')
       // v0.70.0 FIX: this specific render() was triggered by a card just
       // leaving the hand fan mid-drag (see pointermove's own v0.70.0
       // comment, which sets window.__handReflowActive right before calling
@@ -39639,6 +39706,9 @@ function armDragOrClick(e,card,playerIdx,W,H,fillColor,strokeColor,textColor,glo
 }
 
 function startDrag(e,card,playerIdx,W,H,fillColor,strokeColor,textColor,glowColor,R,wrap){
+  // v0.77.64 — il gelo va fermato anche qui: selectCard copre il tocco, questa
+  // il trascinamento, e sono due strade diverse per la stessa carta.
+  if(cartaCongelata(card)){ toast('Questa carta è congelata!'); return; }
   // v0.70.13: capture the pressed card's CURRENT rotation (used further down
   // to spawn the ghost at the right starting tilt) BEFORE collapsing the
   // expand view below — collapseAllHandExpand()'s render() rebuilds the DOM

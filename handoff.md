@@ -1215,6 +1215,75 @@ arbitro e non calcolatore: non simula la partita, quindi non ha un fine turno
 da agganciare. Il motore e' li' e aspetta la tappa in cui calcolera' le
 conquiste.
 
+### La Regina delle Nevi, e il gelo in mano (v0.77.64)
+
+Facendo il giro delle carte rimaste e' venuta fuori una cosa che non sapevo:
+delle 44 abilita' del registro **tre non venivano mai eseguite** (Shere Khan,
+Unicorn, The Crystal Princess — e le prime due sono regole o UNIQUE, quindi
+stanno bene dove sono), e **una carta non era nemmeno nel registro**: la
+Regina delle Nevi. Il suo potere esisteva solo sulla figurina.
+
+Adesso c'e'. `on_play`, `once_per_game`, `for_turns 2`: congela una carta a
+caso nella mano avversaria, che per due turni non si puo' giocare.
+
+- **"Congelata" e' un numero di turno, non una bandiera.** Chi scrive una
+  bandiera deve poi ricordarsi di toglierla, e un contatore dimenticato
+  lascerebbe una carta ghiacciata per tutta la partita. Un numero scade da solo.
+- **Tre porte, non una**: `selectCard` (il tocco), `startDrag` (il
+  trascinamento) e `aiChooseMove` (l'IA). Chiuderne due su tre voleva dire
+  lasciare una strada aperta.
+- **La scelta "a caso" adesso e' ripetibile.** `scelti` tirava con
+  `Math.random`: in rete i due client avrebbero congelato due carte diverse.
+  Ora il numero esce dal seme della partita, come il lato di `RAND`.
+
+**Un difetto silenzioso trovato qui.** `candidati`, per `in_hand`, guardava
+solo la mano di CHI AGISCE. Bastava per un dono ai propri (Il Genio), ma un
+effetto rivolto all'avversario in mano non trovava mai nessuno e **non faceva
+niente, senza dirlo**. Adesso guarda tutte e due le mani e lascia scegliere al
+filtro `ally`/`opponent`, che e' li' apposta.
+
+**Una scelta da confermare, come per Carabosse:** `for_turns 2` conta i turni
+del CONTATORE (due giocate, una per parte), non due turni di chi subisce il
+gelo. E' la lettura coerente con `from_turn` e `until_turn`, che usano lo
+stesso contatore.
+
+### Le altre venti carte: perche' non passano ancora dal motore
+
+Il giro le ha divise in due gruppi netti, e nessuno dei due si sposta con un
+lavoro meccanico.
+
+**Otto chiedono al giocatore di scegliere** (`quale = selected`): Magic
+Mirror, Mordred, Little Mermaid, The Walrus, 12 Dancing Princesses, Pied Piper,
+March Hare, Nottingham Sheriff. Il motore e' senza stato e senza schermo: non
+puo' fermarsi a fare una domanda. Servirebbe un terzo tipo di uscita — "questi
+sono i candidati, chiedi e poi richiamami con la scelta" — piu' un valutatore
+per l'IA, che oggi ha una funzione dedicata per ognuna (`VALUTAZIONI_IA`).
+
+**Dodici toccano il TABELLONE**, non i valori: spostano una carta o un
+tassello, ne distruggono uno, invocano Excalibur, cambiano proprietario,
+trasformano, annullano una conquista. Il vocabolario dei cambiamenti che il
+motore emette parla solo di lati e numeri; per queste servirebbe una seconda
+lingua (celle, proprietari, mazzo) e chi la esegua da entrambe le parti.
+
+**E soprattutto: funzionano gia'**, con animazioni, suoni, mirino di scelta e
+valutazione per l'IA. Spostarle e' riscrivere codice che gira, e ogni riga
+riscritta e' un'occasione per cambiare di nascosto cosa fa una carta — che e'
+esattamente quel che era successo al Leone Codardo. Vanno spostate una per una,
+confrontando foglio e codice, non in blocco.
+
+### Due discordanze da decidere (non le tocco)
+
+**Alice.** Il foglio le da' DUE effetti: ruotare i valori *e* spostarsi su una
+casella libera a caso. Il codice fa solo la rotazione. La colonna
+`Ability explained` dice "...and the card moves onto a random empty space on
+the board" — che e' pari pari la descrizione del Gatto del Cheshire: sembra un
+copia-incolla finito nella riga sbagliata, ma non e' una cosa che decido io.
+
+**Alice, il momento.** Il foglio dice `while_in_hand`, che per il motore vuol
+dire *continuo* (una sinergia sempre attiva). La rotazione pero' e' un evento:
+il codice la fa **una volta all'inizio di ogni turno**. Cosi' com'e' scritta,
+il motore non la farebbe mai partire.
+
 ### Cosa manca
 
 Gli effetti che **cambiano i valori** li fa il motore: buff, debuff, set,

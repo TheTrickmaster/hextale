@@ -1710,7 +1710,13 @@ var ABILITA_MOTORE = (function () {
 
     var pesca = [];
     if (dove === 'adjacent') pesca = (scena.vicini && scena.vicini(fonte)) || [];
-    else if (dove === 'in_hand') pesca = (scena.manoDi && scena.manoDi(fonte)) || scena.inMano || [];
+    else if (dove === 'in_hand') {
+      // Tutte e due le mani, e poi il filtro ally/opponent qui sotto sceglie.
+      // Prima si guardava solo la mano di chi agisce: bastava per un dono ai
+      // propri (Il Genio), ma un effetto rivolto all'avversario IN MANO non
+      // trovava mai nessuno e non faceva niente in silenzio.
+      pesca = scena.inMano || (scena.manoDi && scena.manoDi(fonte)) || [];
+    }
     else if (dove === 'drawn') return scena.pescata ? [scena.pescata] : [];
     else pesca = scena.inCampo || [];
 
@@ -1736,6 +1742,13 @@ var ABILITA_MOTORE = (function () {
       return [lista[0]];
     }
     if (q === 'random') {
+      // Ripetibile. In rete i due client devono pescare la STESSA carta, o si
+      // troverebbero d'accordo solo per caso: il numero esce dal seme della
+      // partita, come il lato "a caso" di RAND. Math.random resta l'ultima
+      // spiaggia, per chi chiama senza seme.
+      if (scena && scena.seme) {
+        return [lista[_semeDi(String(scena.seme) + '|' + String(scena.turno || 0) + '|' + lista.length) % lista.length]];
+      }
       var i = Math.floor((scena && typeof scena.sorte === 'number' ? scena.sorte : Math.random()) * lista.length);
       return [lista[Math.min(i, lista.length - 1)]];
     }
@@ -1752,9 +1765,24 @@ var ABILITA_MOTORE = (function () {
   }
 
   // Un effetto a scatto, tradotto in cambiamenti.
-  function _cambiamentiDi(fonte, eff, cond, scena, fuori) {
+  function _cambiamentiDi(fonte, eff, cond, scena, fuori, finestra) {
     if (!eff) return;
     var az = eff.azione;
+
+    // ── v0.77.64 — CONGELARE UNA CARTA IN MANO ─────────────────────────────
+    // Non e' un valore che cambia: e' una carta che per un po' non si puo'
+    // giocare. Esce lo stesso da qui perche' il motore decide sempre la stessa
+    // cosa — CHI e PER QUANTO — e lascia a chi chiama il come.
+    // Per quanto lo dice la FINESTRA (`for_turns 2`), non la durata: e' li'
+    // che il foglio scrive "per due turni".
+    if (az === 'freeze' && eff.cosa === 'card') {
+      if (!condizioneVera(cond, fonte, scena)) return;
+      var quante = scelti(candidati(fonte, eff, scena), eff, scena);
+      var turni = (finestra && finestra.tipo === 'for_turns' && typeof finestra.valore === 'number') ? finestra.valore : 1;
+      for (var k = 0; k < quante.length; k++) fuori.push({ carta: quante[k], azione: 'freeze', turni: turni });
+      return;
+    }
+
     if (az !== 'buff' && az !== 'debuff' && az !== 'set' && az !== 'steal') return;
     if (eff.cosa && eff.cosa !== 'power') return;      // i furti di tratti e abilita' non passano di qui
     if (!condizioneVera(cond, fonte, scena)) return;
@@ -1794,20 +1822,20 @@ var ABILITA_MOTORE = (function () {
 
     // Un effetto continuo non scatta: lo calcola deltaContinuo, e farlo anche
     // qui vorrebbe dire applicarlo due volte.
-    if (a.effetto && a.effetto.durata !== 'while_true') _cambiamentiDi(fonte, a.effetto, a.se, scena, fuori);
+    if (a.effetto && a.effetto.durata !== 'while_true') _cambiamentiDi(fonte, a.effetto, a.se, scena, fuori, a.finestra);
 
     if (a.legame === 'and') {
-      if (a.effetto2 && a.effetto2.durata !== 'while_true') _cambiamentiDi(fonte, a.effetto2, a.se2, scena, fuori);
+      if (a.effetto2 && a.effetto2.durata !== 'while_true') _cambiamentiDi(fonte, a.effetto2, a.se2, scena, fuori, a.finestra);
     } else if (a.legame === 'instead') {
       // Il secondo prende il posto del primo quando la sua condizione vale.
       if (a.effetto2 && condizioneVera(a.se2, fonte, scena)) {
         fuori.length = 0;
-        if (a.effetto2.durata !== 'while_true') _cambiamentiDi(fonte, a.effetto2, a.se2, scena, fuori);
+        if (a.effetto2.durata !== 'while_true') _cambiamentiDi(fonte, a.effetto2, a.se2, scena, fuori, a.finestra);
       }
     } else if (a.legame === 'or') {
       // Una delle due, a sorte.
       var testa = (scena && typeof scena.sorte === 'number' ? scena.sorte : Math.random()) < 0.5;
-      if (!testa && a.effetto2) { fuori.length = 0; _cambiamentiDi(fonte, a.effetto2, a.se2, scena, fuori); }
+      if (!testa && a.effetto2) { fuori.length = 0; _cambiamentiDi(fonte, a.effetto2, a.se2, scena, fuori, a.finestra); }
     }
     // Si segna solo se l'abilita' ha davvero prodotto qualcosa: se la
     // condizione era falsa e non e' uscito niente, il colpo unico non e' stato
