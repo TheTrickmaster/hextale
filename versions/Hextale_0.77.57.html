@@ -15524,6 +15524,158 @@ var ABILITA_MOTORE = (function () {
     return !!(r && r.bersaglio === 'adjacent');
   }
 
+  // ══════════════════════════════════════════════════════════════════════
+  // GLI EFFETTI CONTINUI
+  // ══════════════════════════════════════════════════════════════════════
+  // Le sinergie: "+1 ALL per ogni Small in campo", "+2 ALL ai Wild adiacenti".
+  // Non si APPLICANO e basta: si RICALCOLANO dallo stato del tabellone ogni
+  // volta che il tabellone cambia.
+  //
+  // PERCHE' RICALCOLARE invece di sommare e sottrarre. Il sistema vecchio
+  // teneva un'istantanea dei valori per ogni sinergia (hoorayBaseValues,
+  // mischiefBaseValues, nightmareBaseValues, balooBaseValues) e ogni funzione
+  // che toccasse un valore doveva ricordarsi di spostare TUTTE le istantanee,
+  // o quella sinergia avrebbe riportato la carta indietro al ridisegno dopo.
+  // Bastava aggiungere una sinergia e dimenticare una riga. Qui non c'e'
+  // niente da ricordare: si parte dai valori base e si risomma tutto.
+
+  // Quali lati tocca un effetto, dato il suo ambito.
+  // RAND merita una parola: un lato "a caso" che cambia a ogni ricalcolo
+  // sfarfallerebbe, e in rete i due giocatori vedrebbero lati diversi. Si
+  // sceglie quindi in modo RIPETIBILE, dal nome della carta e da un seme che
+  // vale per tutta la partita: casuale da fuori, identico sui due schermi.
+  function _semeDi(testo) {
+    var h = 2166136261, i;
+    for (i = 0; i < testo.length; i++) { h ^= testo.charCodeAt(i); h = (h * 16777619) >>> 0; }
+    return h;
+  }
+  function latiColpiti(ambito, valori, carta, seme) {
+    if (ambito === 'ALL' || !ambito) return SEI_LATI.slice();
+    if (ambito === 'HIGHEST' || ambito === 'LOWEST') {
+      var cerca = estremo(valori, ambito === 'HIGHEST');
+      var out = [], i;
+      for (i = 0; i < SEI_LATI.length; i++) if ((valori[SEI_LATI[i]] || 0) === cerca) out.push(SEI_LATI[i]);
+      return out.length ? [out[0]] : [];
+    }
+    if (ambito === 'RAND' || ambito === 'ONE') {
+      var chiave = String((carta && (carta.id || carta.name)) || '?') + '|' + String(seme || '');
+      return [SEI_LATI[_semeDi(chiave) % SEI_LATI.length]];
+    }
+    return SEI_LATI.slice();
+  }
+
+  function _stessoPadrone(a, b) {
+    return a && b && a.owner !== undefined && b.owner !== undefined && a.owner === b.owner;
+  }
+
+  // L'effetto della FONTE colpisce il BERSAGLIO?
+  function colpisce(fonte, eff, bersaglio, scena) {
+    var chi = eff.chi, dove = eff.dove;
+    if (chi === 'self') return bersaglio === fonte;
+    if (!bersaglio) return false;
+    if (chi === 'ally' && !_stessoPadrone(fonte, bersaglio)) return false;
+    if (chi === 'opponent' && _stessoPadrone(fonte, bersaglio)) return false;
+    // "any" non guarda il padrone.
+    if (dove === 'adjacent') {
+      var vic = (scena.vicini && scena.vicini(fonte)) || [];
+      for (var i = 0; i < vic.length; i++) if (vic[i] === bersaglio) return true;
+      return false;
+    }
+    if (dove === 'board' || !dove) return bersaglio !== fonte || chi === 'self';
+    return false;
+  }
+
+  // Quanto vale l'effetto: il numero scritto, moltiplicato per il conteggio
+  // quando la colonna Per dice di scalare.
+  function quantita(fonte, eff, cond, scena) {
+    var base = 0;
+    if (eff.quanto && typeof eff.quanto.numero === 'number') base = eff.quanto.numero;
+    else if (eff.quanto && typeof eff.quanto.da === 'number') base = eff.quanto.da;
+    if (!eff.per) return base;
+
+    var tratti = (cond && cond.valore && cond.valore.tratti) || [];
+    var quanti = 0, i;
+    if (eff.per === 'board_trait') {
+      var tutte = scena.inCampo || [];
+      for (i = 0; i < tutte.length; i++) {
+        if (tutte[i] === fonte) continue;              // "ogni ALTRO": mai se stessa
+        if (haTratto(tutte[i], tratti)) quanti++;
+      }
+    } else if (eff.per === 'adjacent_trait') {
+      var vic = (scena.vicini && scena.vicini(fonte)) || [];
+      for (i = 0; i < vic.length; i++) if (haTratto(vic[i], tratti)) quanti++;
+    } else if (eff.per === 'hand_trait') {
+      var mano = scena.inMano || [];
+      for (i = 0; i < mano.length; i++) if (haTratto(mano[i], tratti)) quanti++;
+    } else if (eff.per === 'free_side') {
+      quanti = (scena.latiLiberi && scena.latiLiberi(fonte)) || 0;
+    } else if (eff.per === 'power_diff') {
+      quanti = (typeof scena.differenza === 'number') ? scena.differenza : 0;
+    }
+    return base * quanti;
+  }
+
+  // Lo scarto totale che le sinergie in campo fanno su UNA carta.
+  // Torna un oggetto lato -> numero (anche negativo).
+  function deltaContinuo(bersaglio, scena) {
+    scena = scena || {};
+    var d = {}, i;
+    for (i = 0; i < SEI_LATI.length; i++) d[SEI_LATI[i]] = 0;
+    var fonti = scena.inCampo || [];
+    for (i = 0; i < fonti.length; i++) {
+      var fonte = fonti[i];
+      var a = abilitaDi(fonte);
+      if (!a || a.trigger !== 'while_on_board') continue;
+      _unEffetto(fonte, a.effetto, a.se, bersaglio, scena, d);
+      if (a.legame === 'and' || a.legame === 'instead') {
+        // "instead" e' un'eccezione: se la seconda condizione vale, la prima
+        // non si applica a QUEL bersaglio. Si guarda percio' la seconda prima.
+        var vale2 = a.effetto2 && condizioneVera(a.se2, fonte, _scenaPer(fonte, bersaglio, scena));
+        if (a.legame === 'instead' && vale2) {
+          // si toglie quel che ha messo la prima e si mette la seconda
+          _unEffetto(fonte, a.effetto, a.se, bersaglio, scena, d, -1);
+        }
+        _unEffetto(fonte, a.effetto2, a.se2, bersaglio, scena, d);
+      }
+    }
+    return d;
+  }
+
+  function _scenaPer(fonte, bersaglio, scena) {
+    var s = {};
+    for (var k in scena) if (Object.prototype.hasOwnProperty.call(scena, k)) s[k] = scena[k];
+    s.bersaglio = bersaglio;
+    s.adiacenti = (scena.vicini && scena.vicini(fonte)) || [];
+    return s;
+  }
+
+  function _unEffetto(fonte, eff, cond, bersaglio, scena, d, segno) {
+    if (!eff) return;
+    if (eff.durata !== 'while_true') return;
+    if (eff.azione !== 'buff' && eff.azione !== 'debuff') return;
+    if (eff.cosa && eff.cosa !== 'power') return;
+    if (!colpisce(fonte, eff, bersaglio, scena)) return;
+    if (!condizioneVera(cond, fonte, _scenaPer(fonte, bersaglio, scena))) return;
+    var q = quantita(fonte, eff, cond, scena);
+    if (!q) return;
+    if (eff.azione === 'debuff') q = -q;
+    if (segno === -1) q = -q;
+    var lati = latiColpiti(eff.ambito, bersaglio.values || {}, bersaglio, scena.seme);
+    for (var i = 0; i < lati.length; i++) d[lati[i]] += q;
+  }
+
+  // I valori di una carta con le sinergie gia' dentro.
+  function valoriEffettivi(carta, scena) {
+    var base = (carta && carta.values) || {};
+    var d = deltaContinuo(carta, scena);
+    var out = {}, i, l;
+    for (i = 0; i < SEI_LATI.length; i++) {
+      l = SEI_LATI[i];
+      out[l] = Math.max(0, (base[l] || 0) + (d[l] || 0));
+    }
+    return out;
+  }
+
   var MOTORE = {
     SEI_LATI: SEI_LATI,
     abilitaDi: abilitaDi,
@@ -15537,7 +15689,12 @@ var ABILITA_MOTORE = (function () {
     valoreDiAttacco: valoreDiAttacco,
     vince: vince,
     giocabileSuBloccata: giocabileSuBloccata,
-    rendeImmuniIVicini: rendeImmuniIVicini
+    rendeImmuniIVicini: rendeImmuniIVicini,
+    latiColpiti: latiColpiti,
+    colpisce: colpisce,
+    quantita: quantita,
+    deltaContinuo: deltaContinuo,
+    valoriEffettivi: valoriEffettivi
   };
 
   return MOTORE;

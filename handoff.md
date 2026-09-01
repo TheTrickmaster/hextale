@@ -965,7 +965,57 @@ vecchio, le carte non hanno il campo `abilita`: in quel caso vale la vecchia
 chiave. Appena ce l'hanno, vale il foglio. Non esiste un momento in cui il
 gioco non sa rispondere.
 
+### Gli effetti continui (nel motore, non ancora agganciati)
+
+Le sinergie — "+1 ALL per ogni Small in campo", "+2 ALL ai Wild adiacenti" —
+si **ricalcolano** dallo stato del tabellone, non si sommano e sottraggono.
+
+**Perche' ricalcolare.** Il sistema vecchio teneva un'istantanea dei valori per
+ogni sinergia (`hoorayBaseValues`, `mischiefBaseValues`, `nightmareBaseValues`,
+`balooBaseValues`) e **ogni** funzione che toccasse un valore doveva ricordarsi
+di spostarle tutte, o quella sinergia avrebbe riportato la carta indietro al
+ridisegno dopo. Bastava aggiungere una sinergia e dimenticare una riga.
+`deltaContinuo` non ha niente da ricordare: parte dai valori stampati e
+risomma tutto da capo.
+
+**RAND e' ripetibile, non casuale.** Un lato "a caso" che cambia a ogni
+ricalcolo sfarfallerebbe, e in rete i due giocatori vedrebbero lati diversi —
+cioe' due tabelloni diversi, cioe' la partita fermata dall'impronta. Il lato si
+sceglie da un'impronta del nome della carta piu' un seme che vale per tutta la
+partita: casuale da fuori, **identico sui due schermi**.
+
+### La trappola dei tratti, trovata collaudando
+
+Nel foglio il tratto puo' voler dire due cose diverse, e le avevo confuse:
+
+| `If subject` | significato |
+|---|---|
+| `adjacent` / `board` | **un cancello**: "se ESISTE un vicino / una carta in campo con quel tratto" |
+| `target` | **un filtro**: "solo chi HA quel tratto riceve l'effetto" |
+
+Avevo scritto `adjacent` dove serviva `target`, e il risultato era che **Baloo
+buffava qualunque alleato adiacente**, non solo i Wild. Corrette nel foglio sei
+carte: Baloo, Little John, Maid Marian, Dorothy Gale, Geppetto, Lancelot.
+Restano giustamente col cancello Snow White e Pixies (dove il tratto e' cio' che
+si CONTA, non chi riceve) e Cappuccetto Rosso (dove la condizione guarda il
+nemico vicino e il bonus va a lei).
+
+### Cosa manca a questa parte
+
+**L'aggancio.** `deltaContinuo` e' scritto e collaudato ma il gioco non lo usa
+ancora: le sinergie passano tuttora dai quattro `recalc*` scritti a mano. Il
+punto in cui agganciarlo e' `getFactionBonus`, che oggi e' un guscio vuoto e
+che il motore delle conquiste gia' chiama per avere i valori effettivi. Va
+fatto **insieme** allo spegnimento dei `recalc*`, o gli effetti si conterebbero
+due volte.
+
+**La finestra temporale.** `deltaContinuo` non guarda ancora `Window`: Strigoi
+("+2 ALL dal turno 4") da' il bonus da subito. Il collaudo lo dice invece di
+tacerlo.
+
 ### Cosa manca
+
+
 
 Gli **effetti** (buff, debuff, steal, transform, summon…), che sono la parte
 grossa: 47 carte contro le 9 delle regole. Serve un valutatore che sappia
