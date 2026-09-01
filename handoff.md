@@ -1116,21 +1116,117 @@ era mai stata programmata.
 lampo verde o rosso e le istantanee, e scavalcarlo vorrebbe dire un numero che
 cambia senza che si veda perche'.
 
-### Cosa manca a questa parte
+### L'aggancio alla conquista (dalla v0.77.62)
+
+C'e' un punto unico anche qui: l'istante in cui la carta si e' appena girata.
+E' li' che vivono sia "quando vengo conquistata" sia "quando conquisto" — le
+due scene sono la stessa vista dalle due parti, e tenerle separate avrebbe
+voluto dire due orologi da tenere d'accordo.
+
+**Passate al motore:** Baba Yaga e Mad Hatter (`on_conquered`), Big Bad Wolf e
+Cowardly Lion (`on_conquer`). **Restano scritte a mano:** 12 Dancing
+Princesses (sposta), Morgana (annulla), The Caterpillar (mescola e nasconde),
+Phoenix (cambia proprietario).
+
+### Le due discordanze, chiuse da Lorenzo
+
+Portare le abilita' sul foglio aveva fatto emergere due punti in cui il codice
+faceva una cosa diversa da quella scritta sulla carta. **Le ha decise lui, e il
+foglio adesso e' la risposta a tutte e due.**
+
+**Cowardly Lion.** Avevo cambiato la carta per farla scattare alla conquista,
+perche' cosi' diceva il foglio. Andava bene com'era: si infligge -1 RAND
+**quando la cali**, una volta per partita. Il foglio ora dice `on_play` +
+`once_per_game`, e il codice non ha avuto bisogno di una riga — e' il senso
+di tenere le abilita' come dati. Da qui la lezione: il foglio va **chiesto**,
+non dedotto. Il Genio gliel'avevo chiesto, il Leone no, e il Leone e' quello
+che ho sbagliato.
+
+**The Genie.** Adesso e' `end_of_turn` + `once_per_game`: il regalo alle
+carte in mano arriva a fine turno, ma una volta sola nella partita, non a ogni
+turno. Manca ancora **l'aggancio `end_of_turn`** perche' quel momento chiami
+il motore.
+
+### La colonna del riepilogo si rigenera (v0.77.63)
+
+`Complete script` e' un SECONDO deposito della stessa verita': scritta a mano,
+prima o poi dice una cosa mentre le colonne ne dicono un'altra — ed e' successo
+appena Lorenzo ha corretto due carte. `server/importazione/rigenera-riepiloghi.js`
+scarica il foglio, lo rilegge col parser vero e dice quali frasi non tornano.
+Se una frase non torna, **e' la riga a essere sbagliata, non la frase**. Le
+spiegazioni `UNIQUE — ...` scritte a mano non si toccano.
+
+**Una trappola trovata sul foglio.** La convalida dati delle *durate* era stesa
+una colonna di troppo (`BL2:BM1001` invece di `BL2:BL1001`), e cosi' la
+colonna del riepilogo aveva ereditato una tendina che **rifiuta** qualunque
+frase. L'effetto era peggiore di un errore: scrivendoci dentro, la cella si
+svuotava invece di cambiare. Regola corretta; se un giorno una colonna di testo
+libero rifiuta quel che ci scrivi, e' li' che si guarda.
+
+### Quante volte scatta un'abilita' (v0.77.63)
+
+`Frequency` era una promessa scritta e mai mantenuta: il motore faceva
+scattare l'abilita' a ogni evento buono. Adesso la conta la tiene **il motore**,
+non il chiamante — client e server sono due occasioni di dimenticare, e la
+dimenticanza sarebbe silenziosa proprio dove costa di piu'.
+
+- la memoria sta sulla **carta** (`_scatti`), non sull'abilita': due copie
+  della stessa carta hanno ciascuna il suo colpo;
+- si segna **solo se e' uscito qualcosa**: un colpo che non parte perche' la
+  condizione era falsa non e' stato speso;
+- `once_per_turn` con turno ignoto resta **chiusa**, come la finestra
+  temporale: meglio un'abilita' che non parte, e si nota, di una che si ripete
+  di nascosto.
+
+### I due momenti del turno (v0.77.63)
+
+Fino alla v0.77.62 il motore veniva chiamato solo da eventi provocati da una
+giocata: calare una carta, conquistarne una. Ma il foglio ha anche abilita' che
+non aspettano nessuno, e restavano **scritte e mute**. Adesso ci sono due
+agganci: `end_of_turn` in `endTurn` (prima che il numero del turno salga, o
+un `once_per_turn` si troverebbe gia' nel turno dopo) e `start_of_turn` in
+`startTurn`.
+
+Cercano sul **tabellone**, non in mano: una carta in mano non ha ancora un
+posto in partita. Il Genio non fa eccezione — sta in campo e regala alle carte
+in mano: e' il bersaglio a stare in mano, non la fonte.
+
+| carta | momento | chi la fa |
+|---|---|---|
+| The Genie | `end_of_turn`, `once_per_game` | il motore |
+| Carabosse | `end_of_turn`, `every_time` | il motore |
+| Pinocchio | `end_of_turn` | scritta a mano (`protect side`, non e' un valore) |
+| Cheshire Cat | `start_of_turn` | scritta a mano (`move tile`, non e' un valore) |
+
+**Una scelta da confermare: di CHI e' il turno.** Il foglio dice
+`end_of_turn` ma non dice di chi, e per Carabosse — che e' `every_time` — la
+differenza e' il doppio: scattando a entrambi i fini turno colpirebbe due volte
+per giro. Ho preso la lettura corrente nei giochi di carte, **"alla fine del
+TUO turno"**, perche' e' quella che non raddoppia di nascosto. Se la si vuole a
+ogni fine turno, e' una colonna in piu' sul foglio — non una riga di codice.
+
+**La guardia al piazzamento adesso si chiede il momento invece di elencarlo.**
+Prima diceva "se e' conquista, non fare niente qui"; Il Genio, passato a
+`end_of_turn`, le sarebbe scivolato accanto e avrebbe colpito due volte. Ora
+chiede alla carta qual e' il suo trigger.
+
+**Il server non partecipa a questi due momenti**, ed e' voluto: e' ancora
+arbitro e non calcolatore: non simula la partita, quindi non ha un fine turno
+da agganciare. Il motore e' li' e aspetta la tappa in cui calcolera' le
+conquiste.
 
 ### Cosa manca
 
+Gli effetti che **cambiano i valori** li fa il motore: buff, debuff, set,
+steal-di-potenza, con bersagli, ambito (ALL / RAND / HIGHEST), scala (`per`)
+e durata. Restano scritte a mano una ventina di carte i cui effetti non sono
+numeri: rubare o copiare un'abilita', trasformare, spostare, scambiare,
+distruggere, proteggere un lato, cambiare proprietario.
 
-
-Gli **effetti** (buff, debuff, steal, transform, summon…), che sono la parte
-grossa: 47 carte contro le 9 delle regole. Serve un valutatore che sappia
-bersagli, ambito (ALL / RAND / HIGHEST), scala (`per`) e durata.
-
-E finche' gli effetti non ci sono, **il server non puo' calcolare le
-conquiste**: i valori delle carte cambiano in partita per effetto delle
-abilita', e un server che le ignorasse darebbe un tabellone diverso da quello
-dei client. E' la stessa ragione per cui la tappa 2 e' diventata il server
-arbitro invece del server calcolatore.
+E finche' quelle non passano dal motore, **il server non puo' calcolare le
+conquiste**: un tabellone in cui una carta si e' spostata o ha cambiato
+padrone, sul server non esisterebbe. E' la stessa ragione per cui la tappa 2 e'
+diventata il server arbitro invece del server calcolatore.
 
 **L'ultimo interruttore da girare:** il catalogo sul server e' ancora quello
 senza abilita'. Finche' non si rifa' l'importazione

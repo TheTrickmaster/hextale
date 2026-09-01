@@ -50,6 +50,11 @@ non anche l'aggancio.
 
 **`Frequency`** — `once_per_game` · `once_per_turn` · `every_time`
 
+Dalla v0.77.63 la conta la tiene il motore, sulla singola carta: due copie
+della stessa carta hanno ciascuna il suo colpo, e un colpo che non parte perché
+la condizione era falsa non è stato speso. `once_per_turn` senza un numero di
+turno resta chiusa.
+
 **`Window`** — la finestra in cui l'abilità vale.
 
 `always` · `from_turn` · `until_turn` · `for_turns` · `next_only`

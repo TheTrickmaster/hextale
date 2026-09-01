@@ -9886,7 +9886,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.63</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.62</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -15633,45 +15633,6 @@ var ABILITA_MOTORE = (function () {
     return true;
   }
 
-  // ── QUANTE VOLTE (dalla v0.77.63) ────────────────────────────────────────
-  // 'Frequency' diceva una cosa che nessuno leggeva: il motore faceva scattare
-  // l'abilita' a ogni evento buono, e "once_per_game" restava una promessa
-  // scritta sul foglio e mai mantenuta. Adesso la conta la tiene il motore, in
-  // un campo privato della carta, e NON il chiamante: due chiamanti — client e
-  // server — che devono ricordarsi di segnare sono due occasioni di
-  // dimenticare, e la dimenticanza sarebbe silenziosa proprio dove costa di
-  // piu' (una carta che ripete un colpo unico per tutta la partita).
-  //
-  // La memoria sta sulla CARTA e non sull'abilita' perche' "una volta per
-  // partita" vale per quell'esemplare li': due copie della stessa carta hanno
-  // ciascuna il suo colpo.
-  function scattoConsentito(fonte, evento, scena) {
-    var a = abilitaDi(fonte);
-    if (!fonte || !a) return true;
-    var f = a.frequenza || 'every_time';
-    if (f === 'every_time') return true;
-    var m = fonte._scatti && fonte._scatti[evento];
-    if (!m) return true;
-    if (f === 'once_per_game') return false;
-    if (f === 'once_per_turn') {
-      var t = scena ? scena.turno : undefined;
-      // Turno ignoto: si tiene chiusa, come per la finestra temporale. Meglio
-      // un'abilita' che non parte — e si nota — di una che si ripete di
-      // nascosto.
-      return (typeof t === 'number') && m.turno !== t;
-    }
-    return true;
-  }
-
-  function segnaScatto(fonte, evento, scena) {
-    if (!fonte) return;
-    if (!fonte._scatti) fonte._scatti = {};
-    var p = fonte._scatti[evento] || { volte: 0, turno: null };
-    p.volte++;
-    if (scena && typeof scena.turno === 'number') p.turno = scena.turno;
-    fonte._scatti[evento] = p;
-  }
-
   // Lo scarto totale che le sinergie in campo fanno su UNA carta.
   // Torna un oggetto lato -> numero (anche negativo).
   function deltaContinuo(bersaglio, scena) {
@@ -15830,7 +15791,6 @@ var ABILITA_MOTORE = (function () {
     var fuori = [];
     if (!a || a.trigger !== evento) return fuori;
     if (!finestraAperta(a, scena)) return fuori;
-    if (!scattoConsentito(fonte, evento, scena)) return fuori;
     scena = scena || {};
 
     // Un effetto continuo non scatta: lo calcola deltaContinuo, e farlo anche
@@ -15850,10 +15810,6 @@ var ABILITA_MOTORE = (function () {
       var testa = (scena && typeof scena.sorte === 'number' ? scena.sorte : Math.random()) < 0.5;
       if (!testa && a.effetto2) { fuori.length = 0; _cambiamentiDi(fonte, a.effetto2, a.se2, scena, fuori); }
     }
-    // Si segna solo se l'abilita' ha davvero prodotto qualcosa: se la
-    // condizione era falsa e non e' uscito niente, il colpo unico non e' stato
-    // speso e resta da spendere.
-    if (fuori.length) segnaScatto(fonte, evento, scena);
     return fuori;
   }
 
@@ -15891,8 +15847,6 @@ var ABILITA_MOTORE = (function () {
     finestraAperta: finestraAperta,
     candidati: candidati,
     scelti: scelti,
-    scattoConsentito: scattoConsentito,
-    segnaScatto: segnaScatto,
     cambiamentiAllEvento: cambiamentiAllEvento,
     deltaContinuo: deltaContinuo,
     valoriEffettivi: valoriEffettivi
@@ -29205,57 +29159,14 @@ function applicaCambiamenti(elenco){
   }
 }
 
-// ── v0.77.63 — I DUE MOMENTI DEL TURNO ────────────────────────────────────
-// Fino a qui il motore veniva chiamato solo da eventi provocati da una
-// giocata: calare una carta, conquistarne una. Ma il foglio ha anche abilita'
-// che non aspettano nessuno — Il Genio a fine turno, Carabosse, il Gatto del
-// Cheshire a inizio turno — e senza questo aggancio restavano scritte e mute.
-//
-// Cercano sul TABELLONE e non in mano: una carta in mano non ha ancora un
-// posto in partita, e "a fine turno" vuol dire per quel che c'e' in campo.
-// (Il Genio sta in campo e regala alle carte in mano: e' il BERSAGLIO a stare
-// in mano, non la fonte.)
-//
-// In rete ogni client lo calcola per conto suo. Non e' un rischio di
-// divergenza: l'impronta guarda solo il tabellone, e i lati "a caso" escono
-// dal seme della partita, uguale per tutti e due.
-// DI CHI E' IL TURNO. Il foglio dice "end_of_turn" ma non dice di chi, e la
-// differenza non e' piccola: Carabosse e' every_time, quindi scattando a
-// entrambi i fini turno colpirebbe DUE volte per giro invece di una. Si e'
-// scelta la lettura corrente nei giochi di carte — "alla fine del TUO turno" —
-// perche' e' quella che non raddoppia di nascosto; se Lorenzo la vuole a ogni
-// fine turno, e' una colonna in piu' sul foglio, non una riga di codice qui.
-function motoreMomentoDelTurno(evento, diChi){
-  if(!sinergieDalFoglio()) return false;
-  let mosso = false;
-  for(const chiave of Object.keys(G.board)){
-    const posata = G.board[chiave];
-    if(!posata || !posata.card) continue;
-    if(diChi && posata.owner !== diChi) continue;
-    if(!motoreFaLEvento(posata.card, evento)) continue;
-    const cambi = _motore().cambiamentiAllEvento(posata.card, evento, _scenaEvento(posata.card, chiave));
-    if(!cambi.length) continue;
-    // Il lampo va sulle carte COLPITE, non sulla fonte: chi regala non cambia.
-    const prima = new Map();
-    for(const x of cambi) if(x.carta && !prima.has(x.carta)) prima.set(x.carta, {...x.carta.values});
-    applicaCambiamenti(cambi);
-    prima.forEach((valori, carta)=>lampeggiaDifferenzaValori(carta, valori));
-    mosso = true;
-  }
-  return mosso;
-}
-
 function applicaAbilitaPiazzamento(card, q, r, chiave){
-  // v0.77.62 — LA REGOLA E' UNA SOLA: se il foglio mette l'abilita' su un
-  // momento che non e' il piazzamento, e il motore la sa fare, qui non deve
-  // succedere niente. Il vecchio codice scritto a mano la farebbe scattare una
-  // seconda volta, in un istante che la carta non dice piu' — ed e' esattamente
-  // il doppio colpo che stava per capitare al Leone Codardo.
-  // v0.77.63 — prima l'elenco era scritto a mano (conquista e basta) e Il
-  // Genio, passato a end_of_turn, gli sarebbe scivolato accanto: adesso si
-  // chiede alla carta qual e' il suo momento, invece di elencarli.
-  const suaAbilita = _haAbilitaNuova(card) ? _motore().abilitaDi(card) : null;
-  if(suaAbilita && suaAbilita.trigger !== 'on_play' && motoreFaLEvento(card, suaAbilita.trigger)) return;
+  // v0.77.62 — UNA DISCORDANZA TROVATA QUI. Il foglio dice che l'abilita' del
+  // Leone Codardo scatta ALLA CONQUISTA; il codice scritto a mano la eseguiva
+  // al PIAZZAMENTO (era in EFFETTI_PIAZZAMENTO). Adesso che il motore la fa
+  // scattare dove dice la carta, quella vecchia non deve piu' partire, o si
+  // punirebbe due volte: una calando la carta e una conquistando.
+  // Vale per qualunque carta il cui foglio la metta su un altro momento.
+  if(motoreFaLEvento(card, 'on_conquer') || motoreFaLEvento(card, 'on_conquered')) return;
   if(motoreFaLEvento(card, 'on_play')){
     applicaCambiamenti(_motore().cambiamentiAllEvento(card, 'on_play', _scenaEvento(card, key(q, r))));
     return;
@@ -32251,11 +32162,6 @@ function endTurn(player, animationsSettled, dannoFatto){
   // straight to fully lit with no visible wave at all. See cardsGlowSettled
   // and renderHand()'s own big comments for the full picture.
   (player===1?G.p1Hand:G.p2Hand).forEach(c=>cardsGlowSettled.delete(c.id));
-  // v0.77.63 — "fine turno" e' QUI, prima che il numero del turno salga e
-  // prima del cambio di giocatore: la scena che vede il motore deve essere il
-  // turno che sta finendo, o un'abilita' once_per_turn si troverebbe gia' nel
-  // turno dopo e potrebbe scattare due volte di fila.
-  motoreMomentoDelTurno('end_of_turn', player);
   G.currentPlayer=player===1?2:1;
   // v0.73.78 — il turno che comincia adesso. Il conto sale QUI, insieme al
   // cambio di giocatore, perche' e' esattamente lo stesso evento: chi conta i
@@ -32555,12 +32461,6 @@ function startTurn(){
   // top of doPlace(), so the new current player can pick up/drag/place a
   // card again. See doPlace()'s own big comment for the full picture.
   G.turnPlayLocked=false;
-  // v0.77.63 — e "inizio turno" e' qui, appena il turno e' davvero cominciato
-  // e il numero e' quello nuovo. Oggi ci passa solo il Gatto del Cheshire, che
-  // sposta se stesso e non e' un effetto che il motore sappia fare: la
-  // chiamata non gli fa niente. Sta qui lo stesso, perche' il momento va
-  // agganciato una volta sola, non la prima volta che serve.
-  motoreMomentoDelTurno('start_of_turn', G.currentPlayer);
   // Reset timer sound flags for this turn, and stop tictoc.mp3 if it's still
   // playing from a turn that ended early (before the timer reached zero) —
   // it's now a single ~10s one-shot clip (v0.57.0), so unlike the old

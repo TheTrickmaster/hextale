@@ -1592,6 +1592,45 @@ var ABILITA_MOTORE = (function () {
     return true;
   }
 
+  // ── QUANTE VOLTE (dalla v0.77.63) ────────────────────────────────────────
+  // 'Frequency' diceva una cosa che nessuno leggeva: il motore faceva scattare
+  // l'abilita' a ogni evento buono, e "once_per_game" restava una promessa
+  // scritta sul foglio e mai mantenuta. Adesso la conta la tiene il motore, in
+  // un campo privato della carta, e NON il chiamante: due chiamanti — client e
+  // server — che devono ricordarsi di segnare sono due occasioni di
+  // dimenticare, e la dimenticanza sarebbe silenziosa proprio dove costa di
+  // piu' (una carta che ripete un colpo unico per tutta la partita).
+  //
+  // La memoria sta sulla CARTA e non sull'abilita' perche' "una volta per
+  // partita" vale per quell'esemplare li': due copie della stessa carta hanno
+  // ciascuna il suo colpo.
+  function scattoConsentito(fonte, evento, scena) {
+    var a = abilitaDi(fonte);
+    if (!fonte || !a) return true;
+    var f = a.frequenza || 'every_time';
+    if (f === 'every_time') return true;
+    var m = fonte._scatti && fonte._scatti[evento];
+    if (!m) return true;
+    if (f === 'once_per_game') return false;
+    if (f === 'once_per_turn') {
+      var t = scena ? scena.turno : undefined;
+      // Turno ignoto: si tiene chiusa, come per la finestra temporale. Meglio
+      // un'abilita' che non parte — e si nota — di una che si ripete di
+      // nascosto.
+      return (typeof t === 'number') && m.turno !== t;
+    }
+    return true;
+  }
+
+  function segnaScatto(fonte, evento, scena) {
+    if (!fonte) return;
+    if (!fonte._scatti) fonte._scatti = {};
+    var p = fonte._scatti[evento] || { volte: 0, turno: null };
+    p.volte++;
+    if (scena && typeof scena.turno === 'number') p.turno = scena.turno;
+    fonte._scatti[evento] = p;
+  }
+
   // Lo scarto totale che le sinergie in campo fanno su UNA carta.
   // Torna un oggetto lato -> numero (anche negativo).
   function deltaContinuo(bersaglio, scena) {
@@ -1750,6 +1789,7 @@ var ABILITA_MOTORE = (function () {
     var fuori = [];
     if (!a || a.trigger !== evento) return fuori;
     if (!finestraAperta(a, scena)) return fuori;
+    if (!scattoConsentito(fonte, evento, scena)) return fuori;
     scena = scena || {};
 
     // Un effetto continuo non scatta: lo calcola deltaContinuo, e farlo anche
@@ -1769,6 +1809,10 @@ var ABILITA_MOTORE = (function () {
       var testa = (scena && typeof scena.sorte === 'number' ? scena.sorte : Math.random()) < 0.5;
       if (!testa && a.effetto2) { fuori.length = 0; _cambiamentiDi(fonte, a.effetto2, a.se2, scena, fuori); }
     }
+    // Si segna solo se l'abilita' ha davvero prodotto qualcosa: se la
+    // condizione era falsa e non e' uscito niente, il colpo unico non e' stato
+    // speso e resta da spendere.
+    if (fuori.length) segnaScatto(fonte, evento, scena);
     return fuori;
   }
 
@@ -1806,6 +1850,8 @@ var ABILITA_MOTORE = (function () {
     finestraAperta: finestraAperta,
     candidati: candidati,
     scelti: scelti,
+    scattoConsentito: scattoConsentito,
+    segnaScatto: segnaScatto,
     cambiamentiAllEvento: cambiamentiAllEvento,
     deltaContinuo: deltaContinuo,
     valoriEffettivi: valoriEffettivi
