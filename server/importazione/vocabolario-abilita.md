@@ -50,6 +50,12 @@ non anche l'aggancio.
 
 **`Frequency`** — `once_per_game` · `once_per_turn` · `every_time`
 
+I due `while_*` del Trigger dicono **dove** deve stare la carta perché
+l'abilità conti, non quando scatta: il quando lo dice la frequenza.
+`while_on_board` + `every_time` = sempre accesa (le dodici sinergie).
+`while_in_hand` + `once_per_turn` = una volta a turno, finché resta in mano
+(Alice). Senza questa lettura le due colonne sembrano contraddirsi.
+
 Dalla v0.77.63 la conta la tiene il motore, sulla singola carta: due copie
 della stessa carta hanno ciascuna il suo colpo, e un colpo che non parte perché
 la condizione era falsa non è stato speso. `once_per_turn` senza un numero di

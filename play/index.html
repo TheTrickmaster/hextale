@@ -9898,7 +9898,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.64</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.65</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -27790,8 +27790,32 @@ function animaScambioCoppiaValori(elsA, elsB){
 // se ruotassero solo i numeri, un gruppo si ritroverebbe a cavallo di due
 // valori diversi pur dovendone mostrare uno solo, e la carta si disegnerebbe
 // sbagliata. Ruotando entrambi, la carta resta la stessa carta girata.
+// ── v0.77.65 — "WHILE_IN_HAND" DICE DOVE, "FREQUENCY" DICE QUANTO SPESSO ──
+// Alice era il caso che ha fatto emergere la regola. Il suo foglio dice
+// `while_in_hand` + `once_per_turn`, e sembrava una contraddizione: il primo
+// suona come una sinergia sempre accesa, il secondo come un evento.
+// Non lo e'. I due `while_*` dicono DOVE deve stare la carta perche'
+// l'abilita' conti — in mano, sul tabellone — e la frequenza dice quanto
+// spesso succede. `while_on_board` + `every_time` = sempre accesa (le dodici
+// sinergie). `while_in_hand` + `once_per_turn` = una volta a turno, finche'
+// resta in mano. Letta cosi', la riga di Alice e' giusta com'e'.
+//
+// La rotazione resta scritta a mano perche' e' fatta di animazione: il motore
+// decide CHI ruota, non COME. Prima chi ruotava era scritto qui dentro (un
+// confronto con la vecchia sigla); adesso si chiede alla carta, che la
+// risposta ce l'ha gia' addosso.
+function cartaRuotaOgniTurno(card){
+  if(!card) return false;
+  if(_haAbilitaNuova(card)){
+    const a = _motore().abilitaDi(card);
+    return !!(a && a.trigger === 'while_in_hand' && a.effetto
+              && a.effetto.azione === 'rotate' && a.effetto.cosa === 'power');
+  }
+  return abilitaAttivaDi(card) === 'eat_me_drink_me';
+}
+
 function ruotaValoriInMano(card){
-  if(abilitaAttivaDi(card)!=='eat_me_drink_me') return false;
+  if(!cartaRuotaOgniTurno(card)) return false;
   // v0.73.21 — la rotazione vera e' in ruotaGruppiDiUnPosto, condivisa con
   // Exaketededly del Caterpillar (che la applica piu' volte di fila). Ne
   // esistevano due copie identiche e sarebbero divergute alla prima
@@ -27956,7 +27980,7 @@ function ruotaCarteInMano(player, poi){
   const finito = ()=>{ if(typeof poi === 'function') poi(); };
   const mano = player===1 ? G.p1Hand : G.p2Hand;
   const fanId = player===1 ? 'p1-hand-fan' : 'p2-hand-fan';
-  const daRuotare = (mano||[]).filter(c=>abilitaAttivaDi(c)==='eat_me_drink_me');
+  const daRuotare = (mano||[]).filter(c=>cartaRuotaOgniTurno(c));
   if(!daRuotare.length){ finito(); return; }
   const fan = document.getElementById(fanId);
   // Gli esagoni delle carte che stanno per ruotare. Si raccolgono prima:
@@ -29293,12 +29317,21 @@ function applicaCambiamenti(elenco){
 function motoreMomentoDelTurno(evento, diChi){
   if(!sinergieDalFoglio()) return false;
   let mosso = false;
-  for(const chiave of Object.keys(G.board)){
-    const posata = G.board[chiave];
+  // v0.77.65 — a inizio turno si guarda anche la MANO di chi lo apre, per le
+  // abilita' marcate `while_in_hand`: quel trigger dice dove deve stare la
+  // carta, non quando scatta, e senza questo giro non l'avrebbe letto nessuno.
+  const inMano = (evento === 'start_of_turn' && diChi)
+    ? ((diChi === 1 ? G.p1Hand : G.p2Hand) || []).map(c => ({ card:c, owner:diChi, chiave:null }))
+    : [];
+  const posti = Object.keys(G.board).map(k => ({ card:(G.board[k]||{}).card, owner:(G.board[k]||{}).owner, chiave:k }));
+  for(const posata of posti.concat(inMano)){
     if(!posata || !posata.card) continue;
+    const chiave = posata.chiave;
     if(diChi && posata.owner !== diChi) continue;
-    if(!motoreFaLEvento(posata.card, evento)) continue;
-    const cambi = _motore().cambiamentiAllEvento(posata.card, evento, _scenaEvento(posata.card, chiave));
+    const suo = _haAbilitaNuova(posata.card) ? _motore().abilitaDi(posata.card) : null;
+    const momento = (chiave === null && suo && suo.trigger === 'while_in_hand') ? 'while_in_hand' : evento;
+    if(!motoreFaLEvento(posata.card, momento)) continue;
+    const cambi = _motore().cambiamentiAllEvento(posata.card, momento, _scenaEvento(posata.card, chiave));
     if(!cambi.length) continue;
     // Il lampo va sulle carte COLPITE, non sulla fonte: chi regala non cambia.
     const prima = new Map();

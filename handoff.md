@@ -1271,18 +1271,37 @@ riscritta e' un'occasione per cambiare di nascosto cosa fa una carta — che e'
 esattamente quel che era successo al Leone Codardo. Vanno spostate una per una,
 confrontando foglio e codice, non in blocco.
 
-### Due discordanze da decidere (non le tocco)
+### Alice, e la regola che ne e' venuta fuori (v0.77.65)
 
-**Alice.** Il foglio le da' DUE effetti: ruotare i valori *e* spostarsi su una
-casella libera a caso. Il codice fa solo la rotazione. La colonna
-`Ability explained` dice "...and the card moves onto a random empty space on
-the board" — che e' pari pari la descrizione del Gatto del Cheshire: sembra un
-copia-incolla finito nella riga sbagliata, ma non e' una cosa che decido io.
+La riga di Alice sembrava contraddirsi: `while_in_hand` suona come una
+sinergia sempre accesa, `once_per_turn` come un evento. **Non si
+contraddicono.** I due `while_*` dicono DOVE deve stare la carta perche'
+l'abilita' conti; la frequenza dice quanto spesso succede.
 
-**Alice, il momento.** Il foglio dice `while_in_hand`, che per il motore vuol
-dire *continuo* (una sinergia sempre attiva). La rotazione pero' e' un evento:
-il codice la fa **una volta all'inizio di ogni turno**. Cosi' com'e' scritta,
-il motore non la farebbe mai partire.
+| trigger | frequenza | vuol dire |
+|---|---|---|
+| `while_on_board` | `every_time` | sempre accesa — le dodici sinergie |
+| `while_in_hand` | `once_per_turn` | una volta a turno, finche' resta in mano — Alice |
+
+Letta cosi' la riga e' giusta com'e', e non serve un trigger nuovo.
+
+**Cosa e' cambiato nel codice.** Chi ruota non e' piu' scritto dentro la
+funzione (era un confronto con la vecchia sigla `eat_me_drink_me`): adesso lo
+si chiede alla carta, che la risposta ce l'ha gia' addosso
+(`cartaRuotaOgniTurno`). **La rotazione resta scritta a mano perche' e' fatta
+di animazione: il motore decide CHI, non COME** — ed e' il modello da seguire
+per le altre carte con animazione, invece di riscriverle.
+
+Niente doppia rotazione: `rotate` non e' fra gli effetti che il motore
+esegue, quindi l'aggancio di inizio turno la lascia stare e la fa solo la
+funzione animata. L'aggancio adesso guarda anche la MANO di chi apre il turno,
+per le abilita' `while_in_hand`: prima quel trigger non lo leggeva nessuno.
+
+**Resta il blocco copia-incollato sulla riga di Alice** (`Link = and` +
+`Action 2 = move self board tile free 1`, colonne AW6 e BD6:BL6): e' la
+descrizione del Gatto del Cheshire finita nella riga sbagliata — confermato da
+Lorenzo. Va tolto dal foglio, e finche' c'e' l'importazione dara' ad Alice uno
+spostamento che non deve avere.
 
 ### Cosa manca
 
