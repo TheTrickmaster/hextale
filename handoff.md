@@ -1085,6 +1085,37 @@ decisione si puo' rifare identica: nel collaudo si passa un numero fisso, e in
 rete lo passera' il server. Un `Math.random()` dentro al motore avrebbe reso i
 due tabelloni impossibili da tenere d'accordo.
 
+### L'aggancio al piazzamento (dalla v0.77.61)
+
+`applicaAbilitaPiazzamento` era gia' il punto unico da cui passa un'abilita'
+quando la carta viene calata — e da cui l'anteprima sotto il puntatore arriva
+gratis. Adesso, prima di cercare la versione scritta a mano, chiede al motore
+se sa fare da se'.
+
+**"Sa fare da se'" e' una domanda precisa** (`motoreFaLEvento` +
+`_effettoSemplice`): l'effetto cambia dei numeri, e li cambia a qualcuno che in
+questo momento c'e'. Restano scritte a mano:
+
+- quelle che toccano la **prossima** carta pescata o giocata — la Regina di
+  Cuori, il Grillo Parlante;
+- quelle che chiedono al giocatore di **scegliere col mirino**;
+- tutte quelle che **non cambiano un numero**: trasformare, invocare,
+  spostare, distruggere, rubare un'abilita' o un tratto.
+
+**Perche' la domanda dev'essere precisa.** Spegnere a occhi chiusi la versione
+scritta a mano di un'abilita' che il motore non sa fare vorrebbe dire toglierla
+dal gioco **in silenzio** — peggio che lasciarla vecchia. Il collaudo verifica
+tutt'e due i lati: chi e' passato al motore e chi e' rimasto, per nome.
+
+**Passate al motore:** White Rabbit, Captain Hook, Aladdin, Guinevere, Sinbad.
+**"Edgy" di Sinbad funziona per la prima volta**: era scritta sulla carta e non
+era mai stata programmata.
+
+**I cambiamenti si applicano passando da `modificaValori`** (vedi
+`applicaCambiamenti`), non scrivendo dentro a `values`: e' li' che vivono il
+lampo verde o rosso e le istantanee, e scavalcarlo vorrebbe dire un numero che
+cambia senza che si veda perche'.
+
 ### Cosa manca a questa parte
 
 ### Cosa manca
