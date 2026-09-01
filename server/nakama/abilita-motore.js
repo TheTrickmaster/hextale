@@ -350,7 +350,9 @@ var ABILITA_MOTORE = (function () {
 
   // I valori di una carta con le sinergie gia' dentro.
   function valoriEffettivi(carta, scena) {
-    var base = (carta && carta.values) || {};
+    // La base sono i valori al netto delle sinergie: valoriBase se la carta
+    // ce l'ha (la muovono gli effetti permanenti), altrimenti quelli correnti.
+    var base = (carta && (carta.valoriBase || carta.values)) || {};
     var d = deltaContinuo(carta, scena);
     var out = {}, i, l;
     for (i = 0; i < SEI_LATI.length; i++) {
