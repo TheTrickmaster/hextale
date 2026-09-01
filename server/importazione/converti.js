@@ -35,6 +35,23 @@ if (!CSV || !HTML || !USCITA) {
   process.exit(2);
 }
 
+// Un lettore CSV minimo per Node. Quello del gioco (_csvParse) vive nella
+// pagina, e qui fuori non c'e'. Regge virgolette, virgole dentro le celle e
+// righe su piu' linee — cioe' tutto quello che il foglio puo' produrre.
+function _csvGrezzo(s) {
+  const righe = []; let c = [], v = '', q = false;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (q) { if (ch === '"') { if (s[i + 1] === '"') { v += '"'; i++; } else q = false; } else v += ch; }
+    else if (ch === '"') q = true;
+    else if (ch === ',') { c.push(v); v = ''; }
+    else if (ch === '\n') { c.push(v); righe.push(c); c = []; v = ''; }
+    else if (ch !== '\r') v += ch;
+  }
+  if (v !== '' || c.length) { c.push(v); righe.push(c); }
+  return righe;
+}
+
 app.disableHardwareAcceleration();
 app.whenReady().then(async () => {
   const w = new BrowserWindow({ show: false });
@@ -80,6 +97,44 @@ app.whenReady().then(async () => {
 
   const dati = JSON.parse(grezzo);
   if (dati.errore) { console.log('ERRORE: ' + dati.errore); app.exit(1); return; }
+
+  // ── LE ABILITA', LETTE DALLE COLONNE NUOVE ──────────────────────────────
+  // Si fa QUI, in Node, e non dentro alla pagina: nel blocco delle abilita' ci
+  // sono nomi di colonna RIPETUTI (Action, Who, Where... due volte), e cercarli
+  // per nome darebbe sempre il primo. Si prendono per posizione, a partire da
+  // "Is unique". Il parser sta in un file suo perche' lo usa anche chi importa.
+  //
+  // Rifiuta rumorosamente: una riga che non si capisce ferma l'importazione
+  // dicendo carta e colonna, invece di entrare nel database e non fare niente.
+  const P = require('./abilita-parser.js');
+  const righeCsv = _csvGrezzo(csv);
+  const testa = righeCsv[0] || [];
+  const inizio = testa.indexOf('Is unique');
+  if (inizio < 0) { console.log('ERRORE: nel foglio non c\'e\' la colonna "Is unique".'); app.exit(1); return; }
+  const posto = {};
+  P.COLONNE.forEach((c, i) => { posto[c] = inizio + i; });
+
+  const perNome = {};
+  for (const c of dati.carte) perNome[String(c.name || '').trim()] = c;
+  let conAbilita = 0, aMano = 0;
+  const guasti = [];
+  for (let i = 1; i < righeCsv.length; i++) {
+    const r = righeCsv[i];
+    const nome = String(r[5] || '').trim();
+    if (!nome) continue;
+    const carta = perNome[nome];
+    if (!carta) continue;                       // riga scartata dal parser del gioco
+    try {
+      const ab = P.abilitaDaRiga(nome, c => { const j = posto[c]; return j === undefined ? '' : (r[j] || ''); });
+      if (ab) { carta.abilita = ab; if (ab.unica) aMano++; else conAbilita++; }
+    } catch (e) { guasti.push(e.message); }
+  }
+  if (guasti.length) {
+    console.log('ERRORE: ' + guasti.length + ' abilita\' non si leggono. Niente e\' stato importato.');
+    guasti.forEach(g => console.log('  - ' + g));
+    app.exit(1); return;
+  }
+  console.log('abilita\' lette: ' + conAbilita + ' (piu\' ' + aMano + ' scritte a mano)');
 
   fs.writeFileSync(USCITA, JSON.stringify({
     versione: new Date().toISOString(),

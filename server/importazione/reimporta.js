@@ -57,16 +57,42 @@ if (!conf.chiaveHttp || conf.chiaveHttp.indexOf('INCOLLA') === 0) {
     'Leggila dal server con:\n  ssh root@45.59.124.211 "grep NAKAMA_HTTP_KEY /opt/nakama/.env"');
 }
 
-// ── il file del gioco: si prende quello col numero piu' alto ──────────────
+// ── il file del gioco ─────────────────────────────────────────────────────
+// Dal 28/08/2026 il gioco non sta piu' nella radice: l'ultima versione vive in
+// play/index.html e le altre in versions/ (vedi la REGOLA FISSA nell'handoff).
+// Questa funzione cercava un Hextale_*.html nella radice e non lo trovava piu',
+// quindi la reimportazione moriva prima di cominciare.
+//
+// Si guarda in tre posti, in ordine di verita': l'indirizzo stabile, poi
+// l'archivio col numero piu' alto, poi la vecchia radice per i repository che
+// non sono ancora stati riorganizzati.
 function trovaGioco() {
-  const file = fs.readdirSync(RADICE).filter(f => f.indexOf('Hextale_') === 0 && f.slice(-5) === '.html');
-  if (!file.length) muori('non trovo nessun Hextale_*.html in ' + RADICE);
+  const inGioco = path.join(RADICE, 'play', 'index.html');
+  if (fs.existsSync(inGioco)) return inGioco;
+
   const numero = f => {
     const pezzi = f.replace('Hextale_', '').replace('.html', '').split('.').map(Number);
     return (pezzi[0] || 0) * 1e6 + (pezzi[1] || 0) * 1e3 + (pezzi[2] || 0);
   };
-  file.sort((a, b) => numero(b) - numero(a));
-  return path.join(RADICE, file[0]);
+  const cercaIn = cartella => {
+    if (!fs.existsSync(cartella)) return null;
+    const file = fs.readdirSync(cartella)
+      .filter(f => f.indexOf('Hextale_') === 0 && f.slice(-5) === '.html');
+    if (!file.length) return null;
+    file.sort((a, b) => numero(b) - numero(a));
+    return path.join(cartella, file[0]);
+  };
+
+  const archivio = cercaIn(path.join(RADICE, 'versions'));
+  if (archivio) return archivio;
+  const vecchio = cercaIn(RADICE);
+  if (vecchio) return vecchio;
+
+  muori('non trovo il file del gioco.',
+    'L\'ho cercato in:\n' +
+    '  ' + inGioco + '\n' +
+    '  ' + path.join(RADICE, 'versions') + '\\Hextale_*.html\n' +
+    '  ' + RADICE + '\\Hextale_*.html');
 }
 
 // ── un parser CSV INDIPENDENTE, per il controllo del passaggio 3 ──────────
@@ -208,7 +234,17 @@ function leggiCsv(testo) {
     muori(problemi.length + ' problemi nel foglio.',
       problemi.slice(0, 10).join('\n') + (problemi.length > 10 ? '\n... e altri ' + (problemi.length - 10) : ''));
   }
-  const senzaAbilita = catalogo.carte.filter(c => String(c.cardAbility || '').charAt(0) === '!');
+  // Il punto esclamativo davanti alla chiave vuol dire "dichiarata ma non
+  // scritta nel codice". Dalla v0.77.57 pero' un'abilita' puo' funzionare
+  // senza codice, se le colonne del foglio la descrivono: quelle NON vanno
+  // piu' contate fra le mancanti, o l'avviso direbbe il falso proprio sulle
+  // carte appena sistemate.
+  const senzaAbilita = catalogo.carte.filter(c =>
+    String(c.cardAbility || '').charAt(0) === '!' && !(c.abilita && !c.abilita.unica));
+  const abilitaDalFoglio = catalogo.carte.filter(c => c.abilita && !c.abilita.unica).length;
+  const abilitaAMano = catalogo.carte.filter(c => c.abilita && c.abilita.unica).length;
+  console.log('        abilita\' dal foglio: ' + abilitaDalFoglio
+    + ' (piu\' ' + abilitaAMano + ' scritte a mano)');
   console.log('        mazzi starter: 1 -> ' + perMazzo[1] + ' carte, 2 -> ' + perMazzo[2] + ', 3 -> ' + perMazzo[3]);
   if (senzaAbilita.length) {
     // Non e' un errore: la carta entra in gioco e mostra NO_SCRIPT. Si dice e basta.

@@ -914,6 +914,91 @@ successo, ed e' durato un paio di minuti. Da allora si schiera con
 nuovo non parte (l'indirizzo si passa da fuori: `HEXTALE_SRV=root@… bash …`,
 perche' questo repository e' pubblico).
 
+## Le abilità vengono dal foglio (dalla v0.77.57)
+
+**Cosa e' cambiato.** Un'abilita' non e' piu' un pezzo di JavaScript agganciato
+a una chiave (`cardAbility === 'immovable'`): e' un **dato**, scritto in 37
+colonne del foglio `Cards DB` e letto dal gioco. Il vocabolario sta in
+`server/importazione/vocabolario-abilita.md`.
+
+**La catena, in ordine.**
+
+| pezzo | dove | cosa fa |
+|---|---|---|
+| il foglio | `Cards DB`, colonne AC..BM | dove si scrivono le abilita' |
+| il parser | `server/importazione/abilita-parser.js` | legge quelle colonne e ne fa un oggetto. **Gira una volta sola, all'importazione** |
+| il convertitore | `server/importazione/converti.js` | attacca l'abilita' strutturata a ogni carta del catalogo |
+| il motore | `server/nakama/abilita-motore.js` | risponde alle domande del gioco leggendo quell'oggetto |
+| l'iniettore | `server/nakama/inietta-motore.js` | mette il motore **dentro** al gioco e dentro al modulo |
+
+**Perche' il parser gira una volta sola.** Client e server ricevono l'abilita'
+gia' strutturata e gia' verificata: nessuno dei due deve interpretare del
+testo. E' la ragione per cui il parser puo' permettersi di essere severo —
+sbagliare all'importazione costa un errore, sbagliare piu' avanti costa una
+partita. **Rifiuta rumorosamente**, dicendo carta e colonna, e non importa
+niente se anche una sola riga non si capisce.
+
+**Perche' il motore si INIETTA invece di essere copiato.** Le stesse regole
+devono dare la stessa risposta di qua e di la'. Se divergessero, i due client
+racconterebbero due tabelloni diversi e la partita si fermerebbe da sola —
+esattamente cio' che l'impronta della v0.77.55 sorprende. Due copie scritte a
+mano divergono sempre; questa si riscrive da sola con
+`node server/nakama/inietta-motore.js`, che poi **verifica** che le due copie
+siano identiche al sorgente. **Non si modifica il motore dentro all'HTML o
+dentro a index.js**: si modifica `abilita-motore.js` e si rilancia l'iniettore.
+
+**Il motore e' ES5.** Il runtime di Nakama e' goja: niente `let`, niente
+funzioni a freccia. Il prezzo e' qualche `var`; il guadagno e' lo stesso file
+in tutti e due i posti senza una compilazione in mezzo.
+
+### Cosa legge gia' dal foglio
+
+Le **regole** — quelle che non fanno niente ma cambiano cio' che gli altri
+possono fare. Nel client cinque funzioni sono state riscritte per chiedere al
+motore: `cartaIntoccabile`, `latoInconquistabile`, `puoConquistare`,
+`getAttackValueForSide`, `vinceIlConfronto`. Coprono Excalibur, The Crystal
+Princess, Sleeping Beauty, Thumbelina, Merlin, Shere Khan, Peter Pan, Bagheera
+e Babes in the Wood.
+
+**Il ripiego non e' pigrizia.** Finche' il catalogo sul server e' quello
+vecchio, le carte non hanno il campo `abilita`: in quel caso vale la vecchia
+chiave. Appena ce l'hanno, vale il foglio. Non esiste un momento in cui il
+gioco non sa rispondere.
+
+### Cosa manca
+
+Gli **effetti** (buff, debuff, steal, transform, summon…), che sono la parte
+grossa: 47 carte contro le 9 delle regole. Serve un valutatore che sappia
+bersagli, ambito (ALL / RAND / HIGHEST), scala (`per`) e durata.
+
+E finche' gli effetti non ci sono, **il server non puo' calcolare le
+conquiste**: i valori delle carte cambiano in partita per effetto delle
+abilita', e un server che le ignorasse darebbe un tabellone diverso da quello
+dei client. E' la stessa ragione per cui la tappa 2 e' diventata il server
+arbitro invece del server calcolatore.
+
+**L'ultimo interruttore da girare:** il catalogo sul server e' ancora quello
+senza abilita'. Finche' non si rifa' l'importazione
+(`server/importazione/reimporta.cmd`), il gioco gira sul ripiego.
+
+### Due correzioni alla reimportazione (v0.77.57)
+
+**Cercava il gioco dove non sta piu'.** `trovaGioco` guardava un
+`Hextale_*.html` nella radice, e dalla riorganizzazione del 28/08 li' non c'e'
+piu' niente: la reimportazione moriva prima di cominciare. Adesso guarda in tre
+posti, in ordine di verita': `play/index.html`, poi `versions/` col numero piu'
+alto, poi la vecchia radice per i repository non ancora riorganizzati.
+
+**L'avviso sulle abilita' mancanti diceva il falso.** Contava tutte le chiavi
+col punto esclamativo, cioe' "dichiarata ma non scritta nel codice" — ma dalla
+v0.77.57 un'abilita' puo' funzionare senza codice, se il foglio la descrive.
+Elencava fra le mancanti Thumbelina, Peter Pan e Bagheera, che invece
+funzionano. Adesso il passaggio 4 dice quante abilita' vengono dal foglio e
+quante sono scritte a mano, e ne resta **una sola** davvero mancante — Tom
+Thumb, quella dei segnalini sulle caselle.
+
+---
+
 ## Il server arbitro — TAPPA 2 (dalla v0.77.55)
 
 **La tappa 2 non e' andata come previsto, e la deviazione e' il punto.** Il
@@ -1023,7 +1108,43 @@ console. Se una prova sul matchmaking fallisce senza aprire nessuna finestra,
 
 ---
 
-## I mazzi (dalla v0.77.37)
+## I mazzi (dalla v0.77.37, solo dal database dalla v0.77.56)
+
+### I mazzi vengono SOLO dal database (dalla v0.77.56)
+
+**Non si scrivono e non si leggono piu' nella cache del browser.** Fino alla
+v0.77.55 vivevano in due posti — `localStorage` sotto `hextale.mazzi`, e il
+server — con una data (`modificatoIl`) a decidere quale copia vincesse. Due
+depositi della stessa verita' prima o poi discordano, ed era gia' successo: una
+copia locale piu' recente sovrascriveva quella buona del database, e un mazzo
+composto su un altro computer spariva senza dire niente.
+
+Adesso il deposito e' uno solo. `MAZZI` resta in memoria perche' serve a
+disegnare, ma non finisce da nessuna parte che sopravviva alla pagina.
+
+| funzione | cosa fa adesso |
+|---|---|
+| `salvaMazzi` | manda al server, e basta |
+| `sincronizzaMazzi` | LEGGE dal server; non sincronizza piu' niente, copie da confrontare non ce ne sono |
+| `caricaMazzi` | non legge piu': **cancella** la vecchia chiave `hextale.mazzi`, cosi' chi aveva mazzi nel browser non se li porta dietro come fantasmi. Resta perche' tre punti la chiamano ancora |
+
+**La conseguenza va sapita: scollegati non si hanno mazzi.** La Libreria si apre
+vuota e il matchmaking dice che il mazzo non e' pronto. Non e' un ripiego
+mancante, e' la stessa regola detta al contrario — un mazzo che il giocatore
+puo' riscrivere nella console del browser non e' un suo mazzo, e da quando le
+partite sono in rete e' il server a doverli conoscere per giocarli
+(`_mazzoDi` nel modulo li legge da li').
+
+**Un salvataggio fallito e' una PERDITA, e si dice.** Prima la riga in console
+finiva con "(restano in locale)" ed era vera; adesso in locale non resta niente.
+Se la scrittura non riesce — o se non c'e' un accesso — si apre la finestra
+"Deck not saved". Si dice **una volta sola** finche' non si torna a salvare
+bene: comporre un mazzo fa scattare parecchi salvataggi di fila, e otto
+finestre identiche non sarebbero un avviso ma un muro.
+
+---
+
+### Le dodici caselle (dalla v0.77.37)
 
 **Dodici caselle, tutte del giocatore.** Fino alla v0.77.36 la quarta era del
 Giocatore 2 e le altre undici del Giocatore 1. Quella funzione e' stata tolta,
