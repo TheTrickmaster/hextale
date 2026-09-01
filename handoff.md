@@ -965,7 +965,7 @@ vecchio, le carte non hanno il campo `abilita`: in quel caso vale la vecchia
 chiave. Appena ce l'hanno, vale il foglio. Non esiste un momento in cui il
 gioco non sa rispondere.
 
-### Gli effetti continui (nel motore, non ancora agganciati)
+### Gli effetti continui (agganciati dalla v0.77.58)
 
 Le sinergie — "+1 ALL per ogni Small in campo", "+2 ALL ai Wild adiacenti" —
 si **ricalcolano** dallo stato del tabellone, non si sommano e sottraggono.
@@ -1000,18 +1000,92 @@ Restano giustamente col cancello Snow White e Pixies (dove il tratto e' cio' che
 si CONTA, non chi riceve) e Cappuccetto Rosso (dove la condizione guarda il
 nemico vicino e il bonus va a lei).
 
+### Com'e' agganciato (v0.77.58)
+
+`ricalcolaValoriVivi` era gia' il punto unico da cui passavano le quattro
+sinergie: adesso, quando il catalogo porta le abilita' (`sinergieDalFoglio()`),
+fa **un conto solo** col motore e i quattro `recalc*` non si chiamano piu'.
+
+**Tre valori, e non sono la stessa cosa.**
+
+| campo | cos'e' |
+|---|---|
+| `valoriNascita` | il METRO del disegno: dice se un numero e' verde o rosso. Non si tocca mai |
+| `valoriBase` | quanto vale la carta al netto delle sinergie. Lo muovono gli effetti PERMANENTI (un furto, la vendetta di Baba Yaga) |
+| `values` | quello vero: `valoriBase` piu' cio' che le carte vicine stanno regalando o togliendo adesso. Si rifa' da capo a ogni ricalcolo |
+
+**La guardia sta dentro ai recalc, non nei chiamanti.** I chiamanti sono sette,
+sparsi fra il piazzamento, il disegno della mano, la tavola delle abilita' e la
+simulazione dell'IA: bastava dimenticarne uno per contare una sinergia due
+volte, e **un numero che cresce a ogni ridisegno e' il guasto piu' difficile da
+vedere**. Il collaudo lo verifica apposta: quattro ricalcoli di fila devono
+dare lo stesso identico numero.
+
+### La riga che mancava, ed era grossa
+
+`_makeCardDbCardBase` non copiava `abilita` dalla voce di catalogo alla carta
+giocata. L'abilita' restava sulla VOCE, il motore non la vedeva, e **ogni
+regola ricadeva in silenzio sul vecchio sistema**. I collaudi non se ne erano
+accorti perche' provavano le voci di catalogo, non le carte in campo — e una
+carta in campo e' l'unica cosa con cui si gioca davvero. Da allora la carta
+porta con se' `abilita`, `traitNames` e `idFoglio`.
+
+**Se un domani un'abilita' non scatta**, la prima cosa da guardare e' se la
+carta giocata ha il campo `abilita`, non se il foglio e' scritto bene.
+
+### Un cambiamento di comportamento da sapere
+
+Le sinergie `while_on_board` **non valgono piu' mentre la carta e' in mano**.
+Il sistema vecchio le mostrava anche li' (i `recalc*` giravano pure sulla
+mano); il foglio dice "while on board", e adesso si fa quello che dice il
+foglio. Se non e' cio' che si vuole, si cambia il Trigger, non il codice.
+
+### La finestra temporale (dalla v0.77.59)
+
+`from_turn` e `until_turn` valgono: Strigoi prende il suo +2 dal quarto turno,
+non prima.
+
+**Se il turno non si sa, la finestra e' CHIUSA.** E' la scelta scomoda ed e'
+voluta: chi dimentica di passare il turno nella scena vede l'abilita' non fare
+niente — un guasto che si nota — invece di vedere una carta silenziosamente
+piu' forte del dovuto. Questo gioco ha gia' pagato caro il guasto silenzioso
+(le 57 carte con due lati sbagliati, le abilita' bloccate dal livello che non
+dicevano niente). Il collaudo verifica anche questo caso.
+
+`for_turns` e `next_only` non riguardano le sinergie continue: valgono per gli
+effetti che scattano una volta, e quelli sono ancora da fare.
+
+### Gli effetti a scatto: il motore DECIDE, non agisce (dalla v0.77.60)
+
+Una sinergia si **ricalcola**; un effetto a scatto **succede**, una volta, e
+lascia il segno. Sono due modelli diversi e vanno tenuti separati: chi li
+confonde riapplica un furto a ogni ridisegno.
+
+`cambiamentiAllEvento(fonte, evento, scena)` **non cambia niente**. Torna un
+elenco di cambiamenti — `{ carta, lati, delta }` oppure `{ carta, lati, valore }`
+per un "set" — e chi la chiama decide cosa farne:
+
+- il **gioco** li applica passando da `modificaValori`, che si porta dietro il
+  lampo verde o rosso e le animazioni;
+- il **server** li applica al proprio stato senza mostrare niente.
+
+La decisione e' **una sola** e vale per tutti e due. E' l'unico modo perche' i
+due tabelloni restino d'accordo, ed e' il motivo per cui questa funzione non ha
+il permesso di toccare una carta.
+
+**Cosa sa gia' decidere**, provato sulle abilita' vere: Baba Yaga (colpisce chi
+l'ha conquistata, per differenza di potere), Big Bad Wolf, Cowardly Lion, Mad
+Hatter (un valore IMPOSTO fra 1 e 3, lo stesso su tutti i lati, non a
+scacchiera), Carabosse (un nemico, mai un alleato), The Genie, Sinbad (solo sul
+bordo), Aladdin (+3 **invece** di +1, non +4).
+
+**Il caso non si tira dentro al motore.** Dove serve — un bersaglio a caso, un
+valore fra 1 e 3, un "or" — il motore legge `scena.sorte`. Cosi' la stessa
+decisione si puo' rifare identica: nel collaudo si passa un numero fisso, e in
+rete lo passera' il server. Un `Math.random()` dentro al motore avrebbe reso i
+due tabelloni impossibili da tenere d'accordo.
+
 ### Cosa manca a questa parte
-
-**L'aggancio.** `deltaContinuo` e' scritto e collaudato ma il gioco non lo usa
-ancora: le sinergie passano tuttora dai quattro `recalc*` scritti a mano. Il
-punto in cui agganciarlo e' `getFactionBonus`, che oggi e' un guscio vuoto e
-che il motore delle conquiste gia' chiama per avere i valori effettivi. Va
-fatto **insieme** allo spegnimento dei `recalc*`, o gli effetti si conterebbero
-due volte.
-
-**La finestra temporale.** `deltaContinuo` non guarda ancora `Window`: Strigoi
-("+2 ALL dal turno 4") da' il bonus da subito. Il collaudo lo dice invece di
-tacerlo.
 
 ### Cosa manca
 

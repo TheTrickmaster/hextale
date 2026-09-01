@@ -1574,6 +1574,24 @@ var ABILITA_MOTORE = (function () {
     return base * quanti;
   }
 
+  // ── LA FINESTRA TEMPORALE ───────────────────────────────────────────────
+  // "dal turno 4" (Strigoi), "solo nei primi due" (Captain Hook).
+  //
+  // SE IL TURNO NON SI SA, LA FINESTRA E' CHIUSA. E' la scelta scomoda ed e'
+  // voluta: chi dimentica di passare il turno vede l'abilita' non fare niente
+  // — un guasto che si nota — invece di vedere una carta silenziosamente piu'
+  // forte del dovuto. Questo gioco ha gia' pagato caro il guasto silenzioso.
+  function finestraAperta(a, scena) {
+    var f = a && a.finestra;
+    if (!f || !f.tipo || f.tipo === 'always') return true;
+    var t = scena ? scena.turno : undefined;
+    if (f.tipo === 'from_turn') return (typeof t === 'number') && t >= f.valore;
+    if (f.tipo === 'until_turn') return (typeof t === 'number') && t <= f.valore;
+    // for_turns e next_only riguardano effetti che scattano una volta, non le
+    // sinergie continue: qui non hanno niente da chiudere.
+    return true;
+  }
+
   // Lo scarto totale che le sinergie in campo fanno su UNA carta.
   // Torna un oggetto lato -> numero (anche negativo).
   function deltaContinuo(bersaglio, scena) {
@@ -1585,6 +1603,7 @@ var ABILITA_MOTORE = (function () {
       var fonte = fonti[i];
       var a = abilitaDi(fonte);
       if (!a || a.trigger !== 'while_on_board') continue;
+      if (!finestraAperta(a, scena)) continue;
       _unEffetto(fonte, a.effetto, a.se, bersaglio, scena, d);
       if (a.legame === 'and' || a.legame === 'instead') {
         // "instead" e' un'eccezione: se la seconda condizione vale, la prima
@@ -1623,6 +1642,136 @@ var ABILITA_MOTORE = (function () {
     for (var i = 0; i < lati.length; i++) d[lati[i]] += q;
   }
 
+  // ══════════════════════════════════════════════════════════════════════
+  // GLI EFFETTI CHE SCATTANO
+  // ══════════════════════════════════════════════════════════════════════
+  // Una sinergia si RICALCOLA; un effetto a scatto SUCCEDE, una volta, e
+  // lascia il segno. Due modelli diversi, e vanno tenuti separati: chi li
+  // confonde finisce per riapplicare un furto a ogni ridisegno.
+  //
+  // QUESTA FUNZIONE NON CAMBIA NIENTE. Torna un ELENCO DI CAMBIAMENTI, e chi
+  // la chiama decide cosa farne: il gioco li applica passando da modificaValori
+  // (che si porta dietro il lampo verde o rosso e le animazioni), il server li
+  // applica al proprio stato senza mostrare niente. La decisione e' una sola e
+  // vale per tutti e due — che e' l'unico modo perche' i due tabelloni
+  // restino d'accordo.
+  //
+  // Ogni cambiamento e': { carta, lati:[...], delta:n }  oppure
+  //                      { carta, lati:[...], valore:n } per un "set".
+
+  // Chi puo' essere colpito da un effetto a scatto, dato il bersaglio scritto.
+  function candidati(fonte, eff, scena) {
+    scena = scena || {};
+    var chi = eff.chi, dove = eff.dove, out = [], i;
+
+    // I bersagli del momento non si cercano: sono chi sta agendo adesso.
+    if (chi === 'self') return [fonte];
+    if (chi === 'attacker') return scena.attaccante ? [scena.attaccante] : [];
+    if (chi === 'attacked') return scena.attaccato ? [scena.attaccato] : [];
+
+    var pesca = [];
+    if (dove === 'adjacent') pesca = (scena.vicini && scena.vicini(fonte)) || [];
+    else if (dove === 'in_hand') pesca = (scena.manoDi && scena.manoDi(fonte)) || scena.inMano || [];
+    else if (dove === 'drawn') return scena.pescata ? [scena.pescata] : [];
+    else pesca = scena.inCampo || [];
+
+    for (i = 0; i < pesca.length; i++) {
+      var c = pesca[i];
+      if (c === fonte && chi !== 'any') continue;
+      if (chi === 'ally' && !_stessoPadrone(fonte, c)) continue;
+      if (chi === 'opponent' && _stessoPadrone(fonte, c)) continue;
+      out.push(c);
+    }
+    return out;
+  }
+
+  // Fra i candidati, quali si prendono davvero.
+  function scelti(lista, eff, scena) {
+    var q = eff.quale;
+    if (!lista.length) return [];
+    if (!q || q === 'all') return lista;
+    if (q === 'single' || q === 'selected') {
+      // "selected" e' una scelta del giocatore: chi chiama la passa in
+      // scena.scelta. Senza, si prende il primo — e chi chiama deve saperlo.
+      if (scena && scena.scelta && lista.indexOf(scena.scelta) !== -1) return [scena.scelta];
+      return [lista[0]];
+    }
+    if (q === 'random') {
+      var i = Math.floor((scena && typeof scena.sorte === 'number' ? scena.sorte : Math.random()) * lista.length);
+      return [lista[Math.min(i, lista.length - 1)]];
+    }
+    if (q === 'highest' || q === 'lowest') {
+      var meglio = lista[0], j;
+      for (j = 1; j < lista.length; j++) {
+        var a = estremo((lista[j].valoriBase || lista[j].values) || {}, true);
+        var b = estremo((meglio.valoriBase || meglio.values) || {}, true);
+        if (q === 'highest' ? a > b : a < b) meglio = lista[j];
+      }
+      return [meglio];
+    }
+    return lista;
+  }
+
+  // Un effetto a scatto, tradotto in cambiamenti.
+  function _cambiamentiDi(fonte, eff, cond, scena, fuori) {
+    if (!eff) return;
+    var az = eff.azione;
+    if (az !== 'buff' && az !== 'debuff' && az !== 'set' && az !== 'steal') return;
+    if (eff.cosa && eff.cosa !== 'power') return;      // i furti di tratti e abilita' non passano di qui
+    if (!condizioneVera(cond, fonte, scena)) return;
+
+    var lista = scelti(candidati(fonte, eff, scena), eff, scena);
+    var q = quantita(fonte, eff, cond, scena);
+    var i, j, bersaglio, lati;
+    for (i = 0; i < lista.length; i++) {
+      bersaglio = lista[i];
+      lati = latiColpiti(eff.ambito, (bersaglio.valoriBase || bersaglio.values) || {}, bersaglio, scena.seme);
+      if (az === 'set') {
+        // "diventa un valore fra 1 e 3": il numero si tira QUI e vale per
+        // tutti i lati colpiti, cosi' la carta non esce a scacchiera.
+        var v = q;
+        if (eff.quanto && typeof eff.quanto.da === 'number') {
+          var r = (scena && typeof scena.sorte === 'number') ? scena.sorte : Math.random();
+          v = eff.quanto.da + Math.floor(r * (eff.quanto.a - eff.quanto.da + 1));
+        }
+        fuori.push({ carta: bersaglio, lati: lati, valore: v, azione: 'set' });
+      } else {
+        var d = (az === 'debuff' || az === 'steal') ? -q : q;
+        if (!d) continue;
+        fuori.push({ carta: bersaglio, lati: lati, delta: d, azione: az });
+      }
+    }
+  }
+
+  // I cambiamenti che l'abilita' di questa carta produce a un dato evento.
+  // `evento` e' un trigger: 'on_play', 'on_conquer', 'on_conquered', ...
+  function cambiamentiAllEvento(fonte, evento, scena) {
+    var a = abilitaDi(fonte);
+    var fuori = [];
+    if (!a || a.trigger !== evento) return fuori;
+    if (!finestraAperta(a, scena)) return fuori;
+    scena = scena || {};
+
+    // Un effetto continuo non scatta: lo calcola deltaContinuo, e farlo anche
+    // qui vorrebbe dire applicarlo due volte.
+    if (a.effetto && a.effetto.durata !== 'while_true') _cambiamentiDi(fonte, a.effetto, a.se, scena, fuori);
+
+    if (a.legame === 'and') {
+      if (a.effetto2 && a.effetto2.durata !== 'while_true') _cambiamentiDi(fonte, a.effetto2, a.se2, scena, fuori);
+    } else if (a.legame === 'instead') {
+      // Il secondo prende il posto del primo quando la sua condizione vale.
+      if (a.effetto2 && condizioneVera(a.se2, fonte, scena)) {
+        fuori.length = 0;
+        if (a.effetto2.durata !== 'while_true') _cambiamentiDi(fonte, a.effetto2, a.se2, scena, fuori);
+      }
+    } else if (a.legame === 'or') {
+      // Una delle due, a sorte.
+      var testa = (scena && typeof scena.sorte === 'number' ? scena.sorte : Math.random()) < 0.5;
+      if (!testa && a.effetto2) { fuori.length = 0; _cambiamentiDi(fonte, a.effetto2, a.se2, scena, fuori); }
+    }
+    return fuori;
+  }
+
   // I valori di una carta con le sinergie gia' dentro.
   function valoriEffettivi(carta, scena) {
     // La base sono i valori al netto delle sinergie: valoriBase se la carta
@@ -1654,6 +1803,10 @@ var ABILITA_MOTORE = (function () {
     latiColpiti: latiColpiti,
     colpisce: colpisce,
     quantita: quantita,
+    finestraAperta: finestraAperta,
+    candidati: candidati,
+    scelti: scelti,
+    cambiamentiAllEvento: cambiamentiAllEvento,
     deltaContinuo: deltaContinuo,
     valoriEffettivi: valoriEffettivi
   };
