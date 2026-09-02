@@ -9906,7 +9906,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.83</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.84</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -16173,7 +16173,12 @@ var ABILITA_MOTORE = (function () {
 // ─── fine del motore delle abilita ──────────────────────────────────────
 
 function entryDaId(id){ return (FINAL_CARDS||[]).find(e=>String(e.id)===String(id)) || null; }
-function carteDelMazzo(mazzo){ return (mazzo && mazzo.carte || []).map(entryDaId).filter(Boolean); }
+function carteDelMazzo(mazzo){
+  // v0.77.84 — al livello del giocatore, non a quello scritto nel catalogo
+  // (vedi alLivelloDelGiocatore). Vale sia per il conto della capacita' sia
+  // per le carte che scendono in campo: sono la stessa domanda.
+  return (mazzo && mazzo.carte || []).map(entryDaId).filter(Boolean).map(alLivelloDelGiocatore);
+}
 // La capacita' e' la somma dei costi di rarita': timeless 4, mythic 3, rare 2,
 // common 1. E' lo stesso conto che i mazzi generati devono rispettare (vedi
 // COSTO_RARITA e MAZZO_PUNTI): una regola sola per il giocatore e per il gioco.
@@ -17498,16 +17503,14 @@ function playerFactionIsDark(player){
 }
 // Comodo per i punti che ragionano in stringhe invece che in booleani.
 function playerFactionName(player){ return playerFactionIsDark(player) ? 'dark' : 'light'; }
-// v0.72.27 — i due <img class="player-banner"> (#p1-banner/#p2-banner) sono
-// gli UNICI asset di fazione che vivevano hardcoded nel markup HTML invece
-// che in una costante *_DARK/*_LIGHT o in un ternario `player===1`: per
-// questo erano sfuggiti sia all'audit sui ternari sia a quello sulle
-// costanti, e restavano statici (banner-dark a sinistra, banner-light a
-// destra) mentre tutto il resto del pannello seguiva la fazione scelta.
-// Chiamata da startGame() a ogni nuova partita — insieme al toggle di
-// body.human-light copre l'intero pannello giocatore.
-const PLAYER_BANNER_DARK  = 'https://hextalegame.com/player-ui/banner-dark.png';
-const PLAYER_BANNER_LIGHT = 'https://hextalegame.com/player-ui/banner-light.png';
+// ── v0.77.84 — I DUE DRAPPI DI FAZIONE NON ESISTONO PIU' ──────────────────
+// Qui stavano `banner-dark.png` e `banner-light.png` di player-ui, messi su
+// #p1-banner/#p2-banner a ogni nuova partita da applyFactionToPlayerPanels.
+// Il drappo di adesso e' UNO SOLO — `ui/player-banner.png` — e lo mette il
+// giro degli asset all'avvio (vedi img('.player-banner', ...)). Le due cose si
+// sovrascrivevano a vicenda, e a vincere era chi arrivava per ultimo: e' il
+// motivo per cui i drappi vecchi comparivano "raramente" invece che mai.
+// La fazione la raccontano gia' body.human-light e il resto del pannello.
 // ══════════════════════════════════════════════════════════════════════════
 // v0.77.53 — CHI SONO I DUE GIOCATORI
 // ══════════════════════════════════════════════════════════════════════════
@@ -17597,10 +17600,9 @@ function vestiPannelliGiocatori(vsAI){
 
 function applyFactionToPlayerPanels(){
   document.body.classList.toggle('human-light', window.__humanFaction==='light');
-  for(const p of [1,2]){
-    const img=document.getElementById('p'+p+'-banner');
-    if(img) img.src = playerFactionIsDark(p) ? PLAYER_BANNER_DARK : PLAYER_BANNER_LIGHT;
-  }
+  // v0.77.84 — qui i due drappi di fazione venivano riscritti sopra a quello
+  // vero. Non si tocca piu' l'immagine: il drappo lo mette una volta sola il
+  // giro degli asset, ed e' lo stesso per tutti e due i giocatori.
   assegnaAvatarDeiGiocatori();
 }
 // ── v0.76.13 — L'AVATAR E' UNA CARTA, PESCATA A OGNI PARTITA ──────────────
@@ -25369,8 +25371,34 @@ function getSideCornerPairs(corners){
 function soloEvocabile(entry){
   return !!entry && typeof entry.dropRate === 'number' && entry.dropRate <= 0;
 }
+// ── v0.77.84 — CON CHE LIVELLO UNA CARTA SCENDE IN CAMPO ──────────────────
+// All'importazione ogni carta prende il livello dalla colonna del foglio, e
+// se quella colonna e' vuota ne riceve uno CASUALE (stabile, ma casuale: vedi
+// livelloCasualeStabile). Quel numero e' un ripiego per la vetrina, non il
+// livello del giocatore — ma finiva pari pari nelle carte della partita.
+// Cosi' un account nuovo scendeva in campo con carte di livello 2, 3 o 4 a
+// seconda di come cadeva l'hash del nome.
+//
+// La regola vera e' semplice e sta sul server: un account normale possiede
+// ogni carta al livello 1 e la fa salire giocando; un admin le ha tutte al
+// massimo. `CARTE_POSSEDUTE` porta gia' quel numero, ed e' l'unica fonte da
+// guardare — il livello scritto nel catalogo non e' di nessuno.
+function livelloPosseduto(entry){
+  if(!entry) return 1;
+  if(typeof GIOCATORE_ADMIN !== 'undefined' && GIOCATORE_ADMIN) return LIVELLI_MAX;
+  const suo = CARTE_POSSEDUTE && CARTE_POSSEDUTE[entry.slug];
+  return (typeof suo === 'number' && suo > 0) ? suo : 1;
+}
+// La stessa carta, al livello che le spetta. Se coincide gia', si restituisce
+// la voce com'e': ricostruirla per nulla costerebbe a ogni pescata.
+function alLivelloDelGiocatore(entry){
+  const liv = livelloPosseduto(entry);
+  if(!entry || entry.level === liv) return entry;
+  return (typeof cartaAlLivello === 'function') ? cartaAlLivello(entry, liv) : entry;
+}
+
 function carteGiocabili(){
-  return (FINAL_CARDS || []).filter(e => e && !soloEvocabile(e));
+  return (FINAL_CARDS || []).filter(e => e && !soloEvocabile(e)).map(alLivelloDelGiocatore);
 }
 // ── v0.74.8 — IL COSTO DI UN MAZZO ────────────────────────────────────────
 // Ogni carta vale dei punti secondo la sua rarita', e un mazzo ne vale

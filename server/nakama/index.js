@@ -124,7 +124,14 @@ var COSTO_RARITA = { timeless: 4, mythic: 3, rare: 2, common: 1 };
 // volta sola e si scrive, altrimenti il giocatore si ritroverebbe un mazzo
 // diverso a ogni accesso.
 var MAZZI_STARTER = [1, 2, 3];
-var LIVELLO_NORMALE = 2;
+// I nomi dei tre mazzi iniziali. Stanno qui e non nel client perche' e' il
+// server a crearli: il giocatore li trova gia' fatti al primo accesso.
+var NOMI_STARTER = { 1: 'Starter Wild', 2: 'Starter Debuff', 3: 'Starter Princess' };
+// v0.77.84 — LE CARTE PARTONO DA UNO.
+// Era 2, e non per una decisione: si era fermato li'. Su un account normale
+// una carta comincia al primo livello e sale giocando; l'admin le ha tutte al
+// massimo, che e' il senso di quel contrassegno.
+var LIVELLO_NORMALE = 1;
 var LIVELLO_ADMIN = 4;
 
 // ── LE VALUTE (dalla v0.77.52) ────────────────────────────────────────────
@@ -298,7 +305,15 @@ function assicuraPossesso(ctx, nk, logger, userId, username) {
     carte: {}
   };
   scriviPossesso(nk, userId, possesso);
-  logger.info('possesso assegnato a %s: mazzo %d, admin=%s', userId, scelto, String(admin));
+  // v0.77.84 — e il mazzo si crea GIA' FATTO.
+  // Prima il giocatore riceveva le carte ma nessun mazzo: doveva costruirselo
+  // prima di poter giocare, e la prima cosa che vedeva era una libreria vuota.
+  // Le carte sono gia' scelte — sono quelle del mazzo starter — quindi il
+  // mazzo esiste gia' nei fatti: mancava solo scriverlo.
+  try { creaMazzoStarter(nk, logger, userId, scelto, admin); }
+  catch (e) { logger.warn('mazzo starter non creato per %s: %s', userId, String(e)); }
+  logger.info('possesso assegnato a %s: mazzo %d (%s), admin=%s',
+    userId, scelto, NOMI_STARTER[scelto] || '?', String(admin));
   return possesso;
 }
 
@@ -371,6 +386,49 @@ function rpcImporta(ctx, logger, nk, payload) {
   scriviSistema(nk, KEY_CATALOGO, catalogo);
   logger.info('catalogo importato: %d carte, versione %s', catalogo.carte.length, catalogo.versione);
   return JSON.stringify({ ok: true, carte: catalogo.carte.length, versione: catalogo.versione });
+}
+
+// ── IL MAZZO INIZIALE, GIA' COMPILATO ─────────────────────────────────────
+// Si scrive UNA volta sola, alla prima assegnazione: se il giocatore ne ha
+// gia' uno non si tocca niente, o si sovrascriverebbe il suo lavoro.
+// Le carte del mazzo sono quelle che il foglio marca per quel numero di
+// starter deck — le stesse che il giocatore riceve — quindi il mazzo e' fatto
+// di roba che ha davvero.
+function creaMazzoStarter(nk, logger, userId, numero, admin) {
+  var gia = nk.storageRead([{ collection: COLL_PROFILO, key: KEY_MAZZI, userId: userId }]);
+  if (gia && gia.length && gia[0].value && gia[0].value.mazzi && gia[0].value.mazzi.length) return;
+
+  var catalogo = leggiSistema(nk, KEY_CATALOGO);
+  if (!catalogo || !catalogo.carte) { logger.warn('mazzo starter: catalogo non ancora importato'); return; }
+
+  var carte = [], i, k;
+  for (i = 0; i < catalogo.carte.length && carte.length < MAZZO_CARTE; i++) {
+    var carta = catalogo.carte[i];
+    if (!carta || (carta.soloAdmin && !admin)) continue;
+    var sd = carta.starterDecks || [];
+    for (k = 0; k < sd.length; k++) {
+      if (sd[k] === numero) { carte.push(String(carta.id)); break; }
+    }
+  }
+  // Un mazzo con un numero di carte diverso da MAZZO_CARTE il server lo
+  // rifiuta all'inizio della partita (vedi _mazzoDi), e lo farebbe in
+  // silenzio: meglio dirlo adesso, quando si sa ancora perche'.
+  if (carte.length !== MAZZO_CARTE) {
+    logger.warn('mazzo starter %d: il foglio ne marca %d invece di %d — il mazzo NON viene creato',
+      numero, carte.length, MAZZO_CARTE);
+    return;
+  }
+  nk.storageWrite([{
+    collection: COLL_PROFILO, key: KEY_MAZZI, userId: userId,
+    value: {
+      mazzi: [{ id: 'starter-' + numero, nome: NOMI_STARTER[numero] || ('Starter ' + numero), carte: carte }],
+      scelto: 'starter-' + numero,
+      modificatoIl: Math.floor(Date.now() / 1000)
+    },
+    // Come rpcMazziScrivi: il giocatore li legge, non li scrive.
+    permissionRead: 1, permissionWrite: 0
+  }]);
+  logger.info('mazzo starter creato per %s: "%s" con %d carte', userId, NOMI_STARTER[numero], carte.length);
 }
 
 // Ricalcola il possesso di TUTTI gli utenti gia' esistenti. Serve una volta,
