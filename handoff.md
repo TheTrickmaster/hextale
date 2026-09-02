@@ -1611,6 +1611,127 @@ lettura**, ed e' "lo si toglie di mezzo". Se un giorno deve essere il giocatore
 a scegliere anche la casella, il meccanismo c'e' gia' (`modo: 'trascina'`, come
 Ali Baba).
 
+### L'errore intermittente su clientWidth, chiuso (v0.77.73)
+
+Ce lo portavamo dietro da mesi senza sapere QUANDO succedesse:
+`Cannot read properties of null (reading 'clientWidth')`. Succede quando
+qualcuno chiede di ridisegnare la plancia **mentre la plancia non e' a
+schermo**: la rete di sicurezza a 120ms della finestra di scelta, il
+`setTimeout` di un'animazione, la fine di un'abilita' che arriva dopo che si
+e' usciti dal tavolo.
+
+Non e' un guasto — non c'e' niente da disegnare — ma leggere `clientWidth` di
+un elemento che non esiste **faceva morire il disegno a meta', e con lui tutto
+quello che veniva dopo nella stessa chiamata**: e' questo il danno vero, non la
+riga rossa in console. Adesso si esce, e lo si dice UNA volta per sessione:
+silenzioso del tutto sarebbe la porta aperta al giorno in cui il tabellone
+manca per un motivo vero.
+
+Stessa famiglia, stessa cura, un piano piu' in la':
+`hideHandHoverPreviewInstant` (chiamata da `renderHand`, chiamata dal fine
+turno) moriva sullo stesso scenario.
+
+**Cosa NON ho toccato, e perche'.** Scendendo ancora, `renderHand` da' per
+scontato che il ventaglio sia montato (scrive `innerHTML` su elementi che
+prende per id). In una partita vera ci sono sempre; mancano solo nel banco di
+prova e nello stesso scenario "si esce dal tavolo mentre qualcosa deve ancora
+finire". Mettere una guardia su ogni lettura del DOM per far contento un banco
+di prova vorrebbe dire spegnere, in blocco, errori che un giorno saranno veri.
+Se quel caso si presenta in partita, si affronta sapendo COME si riproduce.
+
+### I bersagli vengono dal foglio (v0.77.74)
+
+Fin qui ogni abilita' che chiede un bersaglio aveva la SUA funzione per dire
+chi si puo' indicare (`bersagliHeighHo`, `bersagliMarchHare`, ...): dieci
+funzioni che rispondono alla stessa domanda in dieci modi, e la verita' su chi
+e' un bersaglio lecito scritta due volte — una nel foglio e una nel codice.
+
+**La divisione del lavoro, e vale per tutte:**
+
+| chi decide | cosa decide |
+|---|---|
+| il **foglio** | chi e' IDONEO — `Who`, `Where`, `Which`, e la condizione `If` |
+| il **risolutore** | chi e' INUTILE — un bersaglio su cui l'effetto non farebbe niente non e' un bersaglio |
+
+La seconda meta' **non va scritta sul foglio**, e non e' una scorciatoia: che
+non si possa rubare un tratto a chi non ne ha, copiare l'abilita' di chi non
+ce l'ha, o scambiare il piu' alto col piu' basso di una carta che ha tutti i
+lati uguali, non e' una scelta di progettazione — e' la definizione di quelle
+azioni. Metterla sul foglio vorrebbe dire chiedere di ripetere in ogni riga una
+cosa che discende dall'azione gia' scritta.
+
+**Migrate sei carte**, e non a fiducia: prima ho costruito un banco che genera
+tabelloni a caso e confronta, carta per carta, l'elenco del foglio con quello
+della funzione scritta a mano. **Su 400 tabelloni, per tutte e sei, gli elenchi
+sono risultati identici.** Solo allora ho collegato.
+
+| carta | il filtro che il foglio gia' diceva |
+|---|---|
+| Seven Dwarves | tasselli bloccati adiacenti |
+| Rumpelstiltskin | nemici adiacenti (con tratti da dare) |
+| March Hare | nemici adiacenti (con due gruppi diversi da scambiare) |
+| Mordred | nemici adiacenti `if target has_trait Sovereign,Noble` |
+| Magic Mirror | vicini con un'abilita' da copiare, non un altro specchio |
+| Nottingham Sheriff | vicini con un'abilita' da rubare, non un altro sceriffo |
+
+Le vecchie funzioni **restano come rete**: un catalogo anteriore all'ultima
+importazione ripiega su di loro, perche' meglio il ripiego che un'abilita' che
+sparisce. E l'esecuzione — animazioni, mirino, valutazione dell'IA — non e'
+stata toccata: e' sempre lo stesso patto, il foglio decide CHI, il codice fa
+COME.
+
+**Restano quattro** carte con la scelta: King Arthur (caselle libere), Ali Baba
+(tassello da trascinare), Little Mermaid (scelta sulla MANO, non sul
+tabellone), 12 Dancing Princesses (casella libera adiacente). Il risolutore le
+sa gia' descrivere quasi tutte — mancano il banco di confronto e il
+collegamento.
+
+### Tutte e dieci al ponte (v0.77.75)
+
+Chiuse anche le ultime quattro: **King Arthur** (caselle libere), **Ali Baba**
+(muri spostabili), **Little Mermaid** (la scelta si fa sulla MANO, quindi i
+bersagli sono id di carte e non caselle) e **12 Dancing Princesses** (casella
+libera accanto). Il risolutore ha imparato tre domini nuovi — la mano, i
+tasselli, le caselle libere — e per "libera" chiede a `celleLibere`, che e' gia'
+l'unica voce del gioco su cosa significhi.
+
+Anche queste verificate prima di collegare: **500 tabelloni a caso, elenchi
+identici** per tutte e quattro.
+
+### Una discordanza trovata dal banco: Ali Baba
+
+Avevo scritto il filtro come dice la carta — *"selected blocked tile can be
+moved to an **adjacent** empty space"* — e il banco ha smesso di concordare su
+189 tabelloni su 400. Il motivo: `meteDelTassello` restituisce **tutte** le
+caselle libere del tabellone, non quelle accanto. Il codice permette quindi di
+spostare un muro **ovunque**, e la carta dice a un passo.
+
+Sono due abilita' di forza molto diversa. Nel dubbio il risolutore e' stato
+allineato al CODICE, cosi' la migrazione non cambia niente: la decisione resta
+a Lorenzo. E' esattamente il caso per cui il banco esiste — senza, quella
+differenza sarebbe entrata in gioco travestita da migrazione.
+
+### Il server in ombra: perche' non l'ho iniziato in questo giro
+
+Il disegno e' deciso: il server calcola le conquiste per conto suo, produce la
+stessa impronta dei client (`cella:baseId:proprietario`), la confronta con
+quella concordata e **registra le divergenze senza comandare**. Diventa arbitro
+vero solo dopo un po' di partite in cui concorda.
+
+Guardando cosa gli serve, pero', non e' un ritocco:
+
+- **oggi il server non sa di chi e' una carta dopo la prima giocata.**
+  `state.occupate[k].di` e' chi l'ha CALATA e non cambia mai: le conquiste non
+  le registra nessuno.
+- non ha l'adiacenza (ha solo l'elenco delle caselle), non ha i valori dei lati
+  dentro alla partita, e il catalogo lo legge solo altrove.
+- e tocca il gestore della partita, cioe' il pezzo che ha gia' fatto cadere il
+  server una volta (le funzioni anonime della v0.77.x).
+
+Metterlo insieme alla migrazione, in coda a un giro gia' lungo, vorrebbe dire
+scrivere di fretta il componente che decide chi vince e che puo' spegnere il
+server. Si fa per intero, con le sue prove, non a fine giornata.
+
 ### Cosa manca
 
 Gli effetti che **cambiano i valori** li fa il motore: buff, debuff, set,

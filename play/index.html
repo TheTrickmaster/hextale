@@ -9898,7 +9898,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.72</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.75</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -29726,7 +29726,7 @@ const SCELTE_PIAZZAMENTO = {
       console.info('[Excalibur!] la carta "Excalibur" non e\' nel foglio: l\'abilita\' non fa niente.');
       return null;
     }
-    const libere = celleLibere();
+    const libere = bersagliDi(card, q, r, giocatore, () => celleLibere());
     if(!libere.length) return null; // tabellone pieno: nessuna pausa, si prosegue
     return {
       chiave: 'excalibur',
@@ -29753,7 +29753,7 @@ const SCELTE_PIAZZAMENTO = {
   // accanto: uno circondato da carte non si puo' spostare da nessuna parte, e
   // offrirlo vorrebbe dire promettere un gesto che non si puo' compiere.
   open_celery: (card, q, r, giocatore) => {
-    const spostabili = tasselliBloccatiSpostabili();
+    const spostabili = bersagliDi(card, q, r, giocatore, () => tasselliBloccatiSpostabili());
     if(!spostabili.length) return null; // nessun tassello da muovere: si tira dritto
     // Lo stato si tiene per NOME e non si rilegge da `G.sceltaBersaglio`:
     // chiudiSceltaBersaglio azzera quella variabile PRIMA di chiamare
@@ -29821,7 +29821,7 @@ const SCELTE_PIAZZAMENTO = {
   // Cambia cosa succede scegliendo: l'abilita' passa di mano invece di essere
   // duplicata.
   new_tax: (card, q, r, giocatore) => {
-    const bersagli = bersagliNewTax(q, r);
+    const bersagli = bersagliDi(card, q, r, giocatore, () => bersagliNewTax(q, r));
     if(!bersagli.length) return null; // niente da rubare: si tira dritto
     return {
       chiave: 'new_tax',
@@ -29841,7 +29841,7 @@ const SCELTE_PIAZZAMENTO = {
   // L'icona e' quella dello scambio e non il mirino: il gesto non e' "colpisci
   // questa", e' "girale i numeri".
   swap_values: (card, q, r, giocatore) => {
-    const bersagli = bersagliMarchHare(q, r, giocatore);
+    const bersagli = bersagliDi(card, q, r, giocatore, () => bersagliMarchHare(q, r, giocatore));
     if(!bersagli.length) return null;
     return {
       chiave: 'swap_values',
@@ -29860,7 +29860,7 @@ const SCELTE_PIAZZAMENTO = {
   // vede nulla, ed e' li' che si cambia cio' che c'e' sotto. Stesso trucco del
   // giro delle carte, dove il contenuto si sostituisce a meta' rotazione.
   heigh_ho: (card, q, r, giocatore) => {
-    const bersagli = bersagliHeighHo(q, r);
+    const bersagli = bersagliDi(card, q, r, giocatore, () => bersagliHeighHo(q, r));
     if(!bersagli.length) return null; // nessun muro accanto: si tira dritto
     return {
       chiave: 'heigh_ho',
@@ -29879,7 +29879,7 @@ const SCELTE_PIAZZAMENTO = {
   },
   // ── v0.75.57 — RUMPELSTILTSKIN, "Give me that" ──────────────────────────
   give_me_that: (card, q, r, giocatore) => {
-    const bersagli = bersagliGiveMeThat(q, r, giocatore);
+    const bersagli = bersagliDi(card, q, r, giocatore, () => bersagliGiveMeThat(q, r, giocatore));
     if(!bersagli.length) return null;
     return {
       chiave: 'give_me_that',
@@ -29900,7 +29900,7 @@ const SCELTE_PIAZZAMENTO = {
   // e' tutta qui — quello e' un costo gia' pagato e va riscosso comunque,
   // questo e' un vantaggio offerto e si puo' lasciare sul tavolo.
   kingslayer: (card, q, r, giocatore) => {
-    const bersagli = bersagliKingslayer(q, r, giocatore);
+    const bersagli = bersagliDi(card, q, r, giocatore, () => bersagliKingslayer(q, r, giocatore));
     if(!bersagli.length) return null; // nessun re accanto: nessuna pausa
     return {
       chiave: 'kingslayer',
@@ -29926,7 +29926,7 @@ const SCELTE_PIAZZAMENTO = {
   // gira, quindi non serve escluderla: la mano contiene solo le altre.
   mermaid_discard: (card, q, r, giocatore) => {
     const mano = manoDi(giocatore);
-    const ids = mano.map(c => c && c.id).filter(Boolean);
+    const ids = bersagliDi(card, q, r, giocatore, () => mano.map(c => c && c.id).filter(Boolean));
     // Mano vuota: nessuna finestra e nessuna pausa. Aprirla vorrebbe dire
     // chiedere di scegliere fra niente, e la X per uscire da una finestra che
     // non ha bersagli e' esattamente il genere di vicolo cieco che questo
@@ -29956,7 +29956,7 @@ const SCELTE_PIAZZAMENTO = {
     // altro specchio di prenderla di mira anche dopo che ha copiato qualcosa
     // (vedi bersagliMagicMirror).
     card.eSpecchio = true;
-    const bersagli = bersagliMagicMirror(q, r);
+    const bersagli = bersagliDi(card, q, r, giocatore, () => bersagliMagicMirror(q, r));
     if(!bersagli.length) return null; // nessuno da copiare: si tira dritto
     return {
       chiave: 'magic_mirror',
@@ -31052,6 +31052,143 @@ function sceltaDalFoglio(card, q, r, giocatore){
   return null;
 }
 
+// ══════════════════════════════════════════════════════════════════════════
+// v0.77.74 — I BERSAGLI, LETTI DAL FOGLIO
+// ══════════════════════════════════════════════════════════════════════════
+// Fin qui ogni abilita' che chiede un bersaglio aveva la SUA funzione per
+// dire chi si puo' indicare (bersagliHeighHo, bersagliMarchHare, ...). Sono
+// dieci funzioni che rispondono alla stessa domanda in dieci modi, e la
+// verita' su chi e' un bersaglio lecito finiva scritta due volte: una nel
+// foglio e una qui.
+//
+// La divisione del lavoro e' questa, e vale per tutte:
+//
+//   il FOGLIO dice chi e' IDONEO      — di chi (Who), dove (Where), quali
+//                                       (Which) e a che condizione (If)
+//   il RISOLUTORE toglie chi e' INUTILE — un bersaglio su cui l'effetto non
+//                                       farebbe niente non e' un bersaglio
+//
+// La seconda meta' non va scritta sul foglio, e non e' una scorciatoia: che
+// non si possa rubare un tratto a chi non ne ha, o copiare l'abilita' di chi
+// non ce l'ha, non e' una scelta di progettazione — e' la definizione stessa
+// di quelle azioni. Metterla sul foglio vorrebbe dire chiedere a Lorenzo di
+// ripetere in ogni riga una cosa che discende dall'azione che ha gia' scritto.
+// La porta da cui passano tutte. Il foglio comanda; la vecchia funzione resta
+// come rete per i cataloghi anteriori all'ultima importazione — meglio il
+// ripiego che un'abilita' che sparisce.
+//
+// Verificato prima di collegarle: su 400 tabelloni generati a caso, per tutte
+// e sei le carte migrate, l'elenco del foglio e quello della funzione scritta
+// a mano sono risultati IDENTICI. Non e' una migrazione fatta a fiducia.
+function bersagliDi(card, q, r, giocatore, ripiego){
+  if(_haAbilitaNuova(card)){
+    const a = _motore().abilitaDi(card);
+    const eff = a && [a.effetto, a.effetto2].find(e => e && e.scelta);
+    if(eff) return candidatiDalFoglio(card, q, r, giocatore, a, eff);
+  }
+  return ripiego();
+}
+
+function candidatiDalFoglio(card, q, r, giocatore, a, eff){
+  const origine = key(q, r);
+  const adiacenti = () => DIRS.map(d => key(q + d.dq, r + d.dr));
+  const tutteLeCelle = () => (G.cells || []).map(c => key(c.q, c.r));
+  const zona = (eff.dove === 'adjacent') ? adiacenti() : tutteLeCelle();
+
+  // ── la MANO: qui i bersagli non sono caselle ma CARTE, e si indicano per
+  //    id. E' un dominio diverso, ed e' il motivo per cui queste scelte hanno
+  //    `modo: 'mano'` — i loro comandi stanno nel ventaglio, non sulla plancia.
+  if(eff.dove === 'in_hand'){
+    const suo = (eff.chi === 'opponent') ? (giocatore === 1 ? 2 : 1) : giocatore;
+    return (manoDi(suo) || []).map(x => x && x.id).filter(Boolean);
+  }
+  // ── i TASSELLI ───────────────────────────────────────────────────────────
+  // `blocked` sono i muri; senza quel filtro, "un tassello" vuol dire una
+  // casella su cui si puo' finire, cioe' una libera (le Principesse Danzanti
+  // che si spostano di lato).
+  if(eff.cosa === 'tile'){
+    if(eff.quale === 'blocked'){
+      // Un muro che non ha dove andare non e' un bersaglio: spostarlo non
+      // porterebbe da nessuna parte. Vale solo per chi lo SPOSTA — chi lo
+      // sfonda (i Sette Nani) non ha bisogno che ci sia spazio attorno.
+      //
+      // "Dove andare" lo dice `meteDelTassello`, che e' l'unica voce del gioco
+      // su dove puo' finire un tassello. Avevo scritto "una casella libera
+      // ACCANTO", che e' quel che dice la carta, e il banco ha subito trovato
+      // la differenza: il codice le manda su QUALUNQUE casella libera del
+      // tabellone. E' una discordanza vera fra la carta e il codice, e non la
+      // decido io: qui ci si allinea al codice, cosi' la migrazione non cambia
+      // niente, e la decisione resta in sospeso per Lorenzo.
+      return zona.filter(k => G.holes.has(k)
+        && (eff.azione !== 'move' || meteDelTassello(k).length > 0));
+    }
+    return zona.filter(k => _celleLibereOra().has(k));
+  }
+  // ── le CASELLE LIBERE: dove si evoca ─────────────────────────────────────
+  if(eff.quale === 'free' || eff.azione === 'summon'){
+    return zona.filter(k => _celleLibereOra().has(k));
+  }
+  // ── le CARTE ─────────────────────────────────────────────────────────────
+  const condizione = (a.se && a.se.soggetto === 'target') ? a.se : null;
+  const fuori = [];
+  for(const k of zona){
+    if(k === origine) continue;                    // mai se stessa: vedi Pifferaio
+    const posto = G.board[k];
+    if(!posto || !posto.card) continue;
+    if(posto.card === card) continue;
+    if(eff.chi === 'ally' && posto.owner !== giocatore) continue;
+    if(eff.chi === 'opponent' && posto.owner === giocatore) continue;
+    if(condizione && !_condizioneSulBersaglio(condizione, posto.card)) continue;
+    if(!_effettoHaSensoSu(eff, card, posto.card)) continue;
+    fuori.push(k);
+  }
+  return fuori;
+}
+
+// Le caselle libere ADESSO. Si chiede a `celleLibere`, che e' gia' l'unica
+// voce del gioco su cosa voglia dire "libera" (fuori dai buchi, senza carta,
+// dentro al tabellone): riscrivere qui la stessa domanda vorrebbe dire avere
+// due definizioni di libero e sperare che restino d'accordo.
+function _celleLibereOra(){
+  return new Set((typeof celleLibere === 'function') ? celleLibere() : []);
+}
+
+// La condizione del foglio, chiesta al singolo bersaglio invece che alla
+// scena: e' il motivo per cui non la puo' risolvere il motore, che la valuta
+// una volta sola su quel che c'e' in campo.
+function _condizioneSulBersaglio(cond, bersaglio){
+  const v = cond.valore || {};
+  if(cond.test === 'has_trait') return _motore().haTratto(bersaglio, v.tratti || []);
+  if(cond.test === 'is_character') return String(bersaglio.idFoglio || '') === String(v.carta);
+  return true;   // le condizioni che non parlano del bersaglio non filtrano qui
+}
+
+// "Un bersaglio su cui l'effetto non farebbe niente non e' un bersaglio."
+// Ogni riga qui sotto e' la definizione dell'azione, non una regola in piu'.
+function _effettoHaSensoSu(eff, fonte, bersaglio){
+  if(cartaIntoccabile(bersaglio)) return false;      // Excalibur: non si tocca
+  if(eff.cosa === 'trait'){
+    return ((bersaglio.traits || bersaglio.traitNames || []).length > 0);
+  }
+  if(eff.cosa === 'ability'){
+    const sua = abilitaAttivaDi(bersaglio);
+    if(!sua) return false;                            // non ha niente da dare
+    // e non la stessa che si sta usando: copiare uno specchio con uno
+    // specchio, o derubare uno sceriffo con uno sceriffo, non porta niente.
+    if(sua === abilitaAttivaDi(fonte)) return false;
+    return true;
+  }
+  if(eff.azione === 'swap' && eff.cosa === 'power'){
+    // Servono almeno due gruppi con valori diversi, o non c'e' niente da
+    // scambiare: la carta uscirebbe identica a com'era entrata.
+    const gruppi = (typeof gruppiDiCarta === 'function') ? gruppiDiCarta(bersaglio) : [];
+    if(gruppi.length < 2) return false;
+    const valori = gruppi.map(g => g.val || 0);
+    return Math.max.apply(null, valori) !== Math.min.apply(null, valori);
+  }
+  return true;
+}
+
 // Le carte in campo che l'abilita' puo' toccare. Il filtro del foglio e'
 // `If subject = target`: una condizione che parla del BERSAGLIO, quindi va
 // chiesta a ognuno invece che una volta sola — ed e' il motivo per cui non la
@@ -31431,10 +31568,10 @@ const SCELTE_DOPO_CONQUISTA = {
   // bersagli non vengono mai costruiti guardando altro.
   dancing_around: (card, q, r, giocatore, conquestInfo) => {
     if(!conquestInfo || !conquestInfo.length) return null; // solo dopo aver conquistato qualcosa
-    const libereVicine = new Set(celleLibere());
-    const bersagli = DIRS
-      .map(dir => key(q+dir.dq, r+dir.dr))
-      .filter(vk => libereVicine.has(vk));
+    const bersagli = bersagliDi(card, q, r, giocatore, () => {
+      const libereVicine = new Set(celleLibere());
+      return DIRS.map(dir => key(q+dir.dq, r+dir.dr)).filter(vk => libereVicine.has(vk));
+    });
     if(!bersagli.length) return null; // nessuna casella libera intorno: si tira dritto
     const origine = key(q,r);
     return {
@@ -38220,6 +38357,12 @@ function liftHandCardIntoView(wrap, restTransform, keepZIndex){
 function hideHandHoverPreviewInstant(){
   const preview=document.getElementById('hand-hover-preview');
   clearTimeout(hoverPreviewHideTimer);
+  // v0.77.73 — stessa famiglia del tabellone che non c'e' (vedi renderBoard):
+  // questa viene chiamata anche da renderHand, e renderHand viene chiamata da
+  // fine turno, che puo' arrivare quando il tavolo non e' piu' a schermo.
+  // Nascondere un'anteprima che non esiste e' gia' fatto: non c'e'.
+  // Senza questa riga moriva l'intera catena — il turno non si chiudeva.
+  if(!preview) return;
   preview.classList.remove('show');
   preview.style.display='none';
 }
@@ -42365,6 +42508,9 @@ function controllaFirmaTabellone(firma){
 }
 
 let _firmaTabellonePrecedente = null;
+// Una volta sola per sessione: un avviso ripetuto a ogni fotogramma si legge
+// come un guasto invece che come una nota.
+let _tabelloneAssenteSegnalato = false;
 
 // Tutto cio' che un ventaglio disegna. Vale la stessa regola della plancia: lo
 // stato delle carte si prende intero, cosi' un campo nuovo entra da solo;
@@ -42478,6 +42624,28 @@ function renderBoard(){
   }
   const svg=document.getElementById('board-svg');
   const wrap=document.getElementById('board-wrap');
+  // ── v0.77.73 — IL TABELLONE PUO' NON ESSERCI ──────────────────────────────
+  // Era l'errore intermittente in console (`Cannot read properties of null
+  // (reading 'clientWidth')`) che ci portavamo dietro da mesi senza sapere
+  // quando succedesse. Succede quando qualcuno chiede di ridisegnare la
+  // plancia mentre la plancia non e' a schermo: la rete di sicurezza a 120ms
+  // qui sopra, il `setTimeout` di un'animazione, la fine di un'abilita' che
+  // arriva dopo che si e' usciti dal tavolo. Non e' un guasto — non c'e'
+  // niente da disegnare — ma leggere `clientWidth` di un elemento che non
+  // esiste faceva morire il disegno a meta', e con lui tutto quel che veniva
+  // dopo nella stessa chiamata.
+  //
+  // Si esce, e lo si dice UNA volta: silenzioso del tutto sarebbe la porta
+  // aperta al giorno in cui il tabellone manca per un motivo vero.
+  if(!wrap || !svg){
+    if(!_tabelloneAssenteSegnalato){
+      _tabelloneAssenteSegnalato = true;
+      console.info('[plancia] richiesto un disegno mentre il tabellone non e\' a schermo: '
+        + 'non c\'e\' niente da disegnare e si tira dritto. Normale uscendo dal tavolo '
+        + 'mentre un\'animazione o un\'abilita\' deve ancora finire.');
+    }
+    return;
+  }
   const availW=wrap.clientWidth, availH=wrap.clientHeight;
   if(!availW||!availH)return;
   // v0.73.30 — se lo stato e' identico a quello dell'ultimo disegno, l'SVG che
