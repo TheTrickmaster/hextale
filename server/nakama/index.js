@@ -465,11 +465,21 @@ function cancellaBustina(nk, userId) {
 }
 
 // Il saldo di un possesso, sempre con tutti e due i campi e sempre numeri.
-// L'indirizzo dell'avatar di un account, o stringa vuota se non ne ha uno.
+// ── v0.77.83 — L'AVATAR NON VIENE MAI DALL'ACCOUNT ────────────────────────
+// Leggeva `avatarUrl` dall'utente Nakama. Quel campo, per chi entra con
+// Google, lo riempie Nakama da solo con la FOTO DEL PROFILO GOOGLE: bastava
+// accedere con Google per portarsi in partita un'immagine presa da fuori.
+// Nel gioco sono ammessi solo gli avatar del gioco, e la regola si fa
+// rispettare alla fonte: qui non si guarda piu' l'account.
+//
+// L'avatar sta nel NOSTRO profilo, che e' l'unico posto in cui puo' finirci
+// scegliendolo da dentro. Finche' non c'e' una scelta, il campo e' vuoto e i
+// pannelli usano il ritratto di ripiego — che e' il comportamento giusto:
+// meglio nessun avatar che uno preso da un altro sito.
 function _avatarDi(nk, userId) {
   try {
-    var u = nk.usersGetId([userId]);
-    return (u && u.length && u[0].avatarUrl) ? String(u[0].avatarUrl) : '';
+    var p = leggiPossesso(nk, userId);
+    return (p && typeof p.avatar === 'string') ? p.avatar : '';
   } catch (e) { return ''; }
 }
 
@@ -848,6 +858,13 @@ var OP_FINE      = 6;   // server -> client: finita, e come
 var OP_IMPRONTA  = 7;   // client -> server: com'e' il mio stato dopo questa giocata
 var OP_DISACCORDO= 8;   // server -> client: le due impronte non coincidono
 var OP_ESITO     = 9;   // server -> client, personale: com'e' andata, e cosa hai guadagnato
+// v0.77.81 — le abilita' che chiedono un bersaglio. La finestra si apre da
+// tutte e due le parti (l'abilita' scatta su tutti e due i client, perche' la
+// giocata arriva a tutti e due), ma il bersaglio lo indica UNO SOLO. Se non
+// passasse di qui, l'altro non lo saprebbe e i due tabelloni si separerebbero
+// alla prima carta che chiede qualcosa.
+var OP_SCELGO    = 10;  // client -> server: il bersaglio che ho indicato
+var OP_SCELTA    = 11;  // server -> client: il bersaglio indicato, per tutti e due
 
 var TURNO_MS = 60000;        // i sessanta secondi del turno
 var GRAZIA_MS = 2500;        // quanto si aspetta oltre la scadenza prima di troncare
@@ -1049,7 +1066,43 @@ function ombraPrepara(ctx, nk, logger, state) {
     };
     quante++;
   }
-  logger.info('ombra: pronta con %d carte sulle %d dei due mazzi', quante, Object.keys(servono).length);
+  // ── CHI FARA' DIVERGERE, DETTO PRIMA ────────────────────────────────────
+  // "Quante partite servono?" e' la domanda sbagliata: una partita in cui non
+  // e' successo niente di esotico non dimostra niente. Quella giusta e' QUALI
+  // carte il server non sa ancora rifare — e si sanno gia' all'inizio, dalle
+  // carte dei due mazzi.
+  // Cosi' il registro non dice solo "e' divergente": dice in anticipo chi sono
+  // i sospetti, e una divergenza senza nessun sospetto in campo e' un guasto
+  // vero da guardare subito.
+  var sospetti = [];
+  for (var s in state.ombra.carte) {
+    if (ombraSaRifare(state.ombra.carte[s].abilita)) continue;
+    sospetti.push(state.ombra.carte[s].nome || s);
+  }
+  logger.info('ombra: pronta con %d carte sulle %d dei due mazzi | non so rifare: %s',
+    quante, Object.keys(servono).length, sospetti.length ? sospetti.join(', ') : 'nessuna');
+}
+
+// Il server sa rifare un'abilita'? Sa fare i NUMERI (buff, debuff, set) e le
+// REGOLE, che il motore consulta da se'. Non sa ancora fare tutto il resto:
+// spostare, distruggere, trasformare, evocare, cambiare padrone, rubare un
+// tratto o un'abilita', e ovviamente non sa scegliere al posto del giocatore.
+// Finche' e' cosi', una partita con queste carte diverge — e va bene: e'
+// esattamente cio' che l'ombra deve dirci PRIMA di comandare.
+function ombraSaRifare(a) {
+  if (!a) return true;                     // nessuna abilita': niente da rifare
+  if (a.unica) return false;               // scritta a mano nel client, il server non la vede
+  var effetti = [a.effetto, a.effetto2], i;
+  for (i = 0; i < effetti.length; i++) {
+    var e = effetti[i];
+    if (!e) continue;
+    if (e.scelta) return false;                                  // la sceglie il giocatore
+    if (e.azione !== 'buff' && e.azione !== 'debuff' && e.azione !== 'set') return false;
+    if (e.cosa && e.cosa !== 'power') return false;
+    if (e.dove === 'drawn' || e.dove === 'deck') return false;    // fuori dal tabellone
+    if (e.quale === 'next' || e.quale === 'last') return false;   // aspetta qualcosa che non c'e' ancora
+  }
+  return true;
 }
 
 // Una carta dell'ombra ha la forma che il motore si aspetta.
@@ -1222,7 +1275,14 @@ function ombraConfronta(state, logger, turno, improntaVera) {
   state.ombra.divergenze++;
   if (!state.ombra.primaDivergenza) {
     state.ombra.primaDivergenza = { turno: turno, server: mia, client: improntaVera };
-    logger.warn('ombra: PRIMA divergenza al turno %s\n  server: %s\n  client: %s', turno, mia, improntaVera);
+    // Le carte in campo al momento della divergenza: senza, si sa che i due
+    // tabelloni non coincidono ma non da dove cominciare a guardare.
+    var inCampo = [], kk;
+    for (kk in state.ombra.celle) {
+      if (state.ombra.celle[kk] && state.ombra.celle[kk].carta) inCampo.push(state.ombra.celle[kk].carta.name);
+    }
+    logger.warn('ombra: PRIMA divergenza al turno %s | in campo: %s\n  server: %s\n  client: %s',
+      turno, inCampo.join(', '), mia, improntaVera);
   }
 }
 
@@ -1361,6 +1421,21 @@ function partitaLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
         _chiudiPartita(state, dispatcher, logger, nk, uno);
         return { state: state };
       }
+      continue;
+    }
+
+    if (m.opCode === OP_SCELGO) {
+      // Il server non sa QUALI bersagli fossero leciti — non simula le
+      // abilita' — quindi non puo' verificare la scelta nel merito. Verifica
+      // pero' l'unica cosa che sa, ed e' quella che conta contro un client
+      // scorretto: che a scegliere sia chi ha il turno. Il resto lo prende
+      // l'impronta, che dopo questa giocata deve coincidere.
+      if (idx !== state.turno) {
+        _aUno(dispatcher, state, chi, OP_RIFIUTO, { perche: 'non tocca a te scegliere' });
+        continue;
+      }
+      var scelta = (corpo.cella === null || corpo.cella === undefined) ? null : String(corpo.cella);
+      _aTutti(dispatcher, OP_SCELTA, { cella: scelta, di: idx + 1 });
       continue;
     }
 

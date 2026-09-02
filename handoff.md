@@ -1818,6 +1818,67 @@ quando il file e' aperto in locale, sul sito ne prova uno solo. Guardare la
 lista vera delle richieste invece di spiegarla a memoria ha cambiato la
 risposta — e ha fatto trovare un bagliore che non si era mai visto.
 
+### Quando l'ombra diventera' arbitro: non e' questione di partite
+
+"Quante partite servono?" e' la domanda sbagliata, e il conto lo dice:
+
+**Su 57 carte visibili con un'abilita', il server ne sa rifare 30. Ventisette
+no.** Sono quelle che spostano, distruggono, trasformano, evocano, cambiano
+padrone, rubano un tratto o un'abilita', aspettano la prossima carta — e quelle
+che chiedono al giocatore, che il server non puo' decidere per lui.
+
+Finche' e' cosi', una partita che contenga una qualunque di quelle 27 diverge,
+e giocarne cento non cambia niente. **Non e' il tempo a portarci all'arbitro:
+e' il lavoro.** L'ombra serve a due cose diverse, ed entrambe valgono gia'
+adesso:
+
+1. **confermare le 30 che il server crede di sapere.** Se una partita fatta di
+   sole carte "note" diverge, li' c'e' un guasto vero, ed e' un'informazione
+   che prima non avevamo;
+2. **misurare la strada che resta**, carta per carta, invece che a sensazione.
+
+Per questo il registro adesso dice i SOSPETTI all'inizio della partita —
+`ombra: pronta con N carte ... | non so rifare: Morgana, Ali Baba, ...` — e
+alla prima divergenza scrive **chi c'era in campo**. Una divergenza SENZA
+sospetti in campo e' un guasto da guardare subito; una divergenza con Morgana
+in campo e' solo la strada che resta.
+
+**Come si legge**, dal proprio computer:
+
+```
+ssh -i ~/.ssh/hextale root@INDIRIZZO "cd /opt/nakama && docker compose logs --since 24h nakama 2>&1 | grep ombra"
+```
+
+### Anche la scelta viaggia (v0.77.81)
+
+Otto carte fermano la partita e chiedono un bersaglio. La finestra si apriva su
+**tutti e due** i client — giusto, perche' la giocata arriva a tutti e due e
+l'abilita' scatta da entrambe le parti — ma il bersaglio INDICATO non lo sapeva
+nessun altro. Chi sceglieva applicava l'effetto sul proprio tabellone e basta:
+da quel momento i due raccontavano partite diverse, e la partita si fermava con
+"Match stopped". **Ogni carta che chiede un bersaglio era ingiocabile online.**
+
+Vale la stessa regola delle giocate, ed e' quella che tiene in piedi tutto il
+resto: **in rete non si fa, si chiede.** La scelta parte (`OP_SCELGO`), il
+server la rimbalza a tutti e due (`OP_SCELTA`), e solo allora la si applica —
+**anche chi ha scelto aspetta il proprio messaggio di ritorno**, cosi' i due
+tabelloni cambiano nello stesso ordine.
+
+Tre dettagli che senza si torna al punto di prima:
+
+- **chi non deve scegliere non chiude niente.** Prima `giocatoreUmano` diceva
+  "si" a entrambi (e' scritta per distinguere l'IA, non per distinguere ME), e
+  il timer dell'avversario poteva chiudere la finestra altrui. Adesso c'e'
+  `sceltaMia`, che in rete lo chiede al server (`PARTITA_RETE.io`).
+- **il tempo scaduto passa dalla stessa strada**: se scadesse su tutti e due,
+  partirebbero due scelte per la stessa finestra.
+- **il server controlla l'unica cosa che sa**: che a scegliere sia chi ha il
+  turno. Quali bersagli fossero leciti non lo sa — non simula le abilita' — e
+  quel controllo lo fa gia' l'impronta, che dopo dev'essere identica.
+
+Fuori dalla rete non cambia niente: contro l'IA la scelta si applica subito,
+come prima.
+
 ### Cosa manca
 
 Gli effetti che **cambiano i valori** li fa il motore: buff, debuff, set,

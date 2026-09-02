@@ -1200,12 +1200,19 @@ body.mouse-down, body.mouse-down *{
   0%,100%{ filter:none; }
   50%    { filter:brightness(2.2) drop-shadow(0 0 6px rgba(232,195,106,0.9)); }
 }
-/* Il numero del livello, quando cambia. */
+/* Il numero del livello, quando cambia.
+   v0.77.82 — I FOTOGRAMMI DEVONO RIPETERE ANCHE IL CENTRAGGIO.
+   L'orb sta al centro grazie a transform:translateX(-50%) (vedi #mm2-orb).
+   Questi fotogrammi scrivevano solo scale(), e transform e' UNA proprieta'
+   sola: scriverla di nuovo non aggiunge la scala al centraggio, lo SOSTITUISCE.
+   Risultato: per tutta l'animazione l'orb saltava a destra di mezza larghezza
+   e si ricentrava alla fine, che e' esattamente cio' che si vedeva.
+   La scala va quindi scritta DOPO il translateX, in ogni fotogramma. */
 #mm2-orb.sale{ animation:orb-sale 1.2s ease-out; }
 @keyframes orb-sale{
-  0%  { transform:scale(1); }
-  35% { transform:scale(1.35); filter:brightness(1.6); }
-  100%{ transform:scale(1); }
+  0%  { transform:translateX(-50%) scale(1); }
+  35% { transform:translateX(-50%) scale(1.35); filter:brightness(1.6); }
+  100%{ transform:translateX(-50%) scale(1); }
 }
 #username-box{ width:470px; }
 #username-spiega{
@@ -9899,7 +9906,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.79</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.83</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -12175,9 +12182,22 @@ function _pDimensiona(strato){
   // Le due scene a schermo pieno non se ne accorgevano: usano innerWidth, che
   // e' in pixel di schermo come la tela che le contiene, quindi erano gia'
   // coerenti fra loro.
-  const rif = strato.misura;
+  // v0.77.82 — SI MISURA SEMPRE LA TELA, MAI LA FINESTRA.
+  // Le scene a schermo pieno prendevano innerWidth/innerHeight, cioe' le
+  // proporzioni della FINESTRA. Ma la tela non vive nella finestra: vive
+  // dentro al telaio di gioco, che fitGameRoot scala a proporzioni fisse
+  // lasciando due bande quando la finestra ha una forma diversa.
+  // Il risultato: la bitmap aveva le proporzioni della finestra e il riquadro
+  // CSS quelle del telaio, e il browser stirava l'una sull'altro. I granelli
+  // — che nel disegno sono cerchi perfetti — uscivano ovali, tanto piu' ovali
+  // quanto piu' la finestra si allontanava dalle proporzioni del telaio.
+  // Ed e' il motivo per cui il difetto sembrava dipendere dalla viewport: ci
+  // dipendeva davvero.
+  // Misurando la TELA STESSA le due forme coincidono per costruzione, e un
+  // cerchio resta un cerchio a qualunque dimensione di finestra.
+  const rif = strato.misura || strato.tela;
   const r = rif ? rif.getBoundingClientRect() : null;
-  const scala = (rif && typeof _fit === 'object' && _fit.scale) ? _fit.scale : 1;
+  const scala = (typeof _fit === 'object' && _fit && _fit.scale) ? _fit.scale : 1;
   const w = (r && r.width)  ? r.width/scala  : window.innerWidth;
   const h = (r && r.height) ? r.height/scala : window.innerHeight;
   strato.w = w; strato.h = h; strato.dpr = dpr;
@@ -12869,6 +12889,26 @@ function reteMandaImpronta(finita){
   }});
 }
 
+// ── v0.77.81 — ANCHE LA SCELTA VIAGGIA ────────────────────────────────────
+// La finestra dei bersagli si apriva su tutti e due i client (l'abilita'
+// scatta da tutte e due le parti, perche' la giocata arriva a tutti e due), ma
+// il bersaglio INDICATO non lo sapeva nessun altro. Chi sceglieva applicava
+// l'effetto sul proprio tabellone e basta: da quel momento i due tabelloni
+// raccontavano partite diverse, e la partita si fermava con "Match stopped".
+//
+// Vale la stessa regola delle giocate, ed e' la regola che tiene in piedi
+// tutto il resto: IN RETE NON SI FA, SI CHIEDE. La scelta parte verso il
+// server, il server la rimbalza a tutti e due, e solo allora — insieme — la
+// si applica. Chi ha scelto non fa eccezione: aspetta anche lui il proprio
+// messaggio di ritorno, cosi' i due tabelloni cambiano nello stesso ordine.
+function reteScegli(cella){
+  if(!PARTITA_RETE) return;
+  mmManda({ cid: 's' + Date.now().toString(36), match_data_send: {
+    match_id: PARTITA_RETE.matchId, op_code: 10,
+    data: btoa(JSON.stringify({ cella: (cella === null || cella === undefined) ? null : String(cella) }))
+  }});
+}
+
 // Un messaggio della partita.
 function reteMessaggio(md){
   const op = Number(md.op_code);
@@ -12899,6 +12939,14 @@ function reteMessaggio(md){
   }
 
   if(op === 3){ reteApplicaGiocata(d); return; }
+
+  if(op === 11){
+    // La scelta di uno dei due, rimbalzata dal server: la si applica QUI, su
+    // tutti e due i client, nello stesso momento. `daServer` dice a
+    // chiudiSceltaBersaglio di eseguire invece di rimandare.
+    chiudiSceltaBersaglio(d.cella === null ? null : String(d.cella), true);
+    return;
+  }
 
   if(op === 4){
     // Il battito del tempo: la scadenza vera e' quella del server.
@@ -13811,6 +13859,14 @@ async function confermaUsername(bottone){
   }
   sessioneAccount.username = nome;
   nakamaRiscriviSessione();
+  // v0.77.83 — e lo si dice a chi lo mostra. Il menu principale legge il nome
+  // da qui (mm2AggiornaProfilo -> nomeGiocatore), ma nessuno gli diceva di
+  // rileggerlo: il riquadro restava con "Player" finche' non si cambiava
+  // pagina o non si ricaricava il gioco — cioe' proprio nel momento in cui il
+  // nome appena scelto e' la prima cosa che si va a guardare.
+  // Sta qui e non dentro a chiudiModaleUsername perche' il fatto nuovo e'
+  // QUESTO: il nome e' cambiato. Chi lo mostra si aggiorna di conseguenza.
+  try{ mm2AggiornaProfilo(); }catch(_){}
   // Se questo fallisce la domanda tornera' al prossimo avvio: seccante, non
   // grave. Il nome, che e' la cosa che conta, e' gia' salvato sul server.
   try{ await nakamaScriviOggetto(NAKAMA_COLLEZIONE_PROFILO, 'stato', { usernameScelto: true }); }catch(_){}
@@ -17478,6 +17534,20 @@ let MIO_AVATAR = '';
 const AVATAR_DEI_GIOCATORI = { 1:'', 2:'' };
 const AVATAR_RIPIEGO = 'pinocchio-avatar-test.png';
 
+// Un avatar e' ammesso solo se e' roba nostra: un file di player-ui, oppure
+// un indirizzo sul sito del gioco. Tutto il resto diventa stringa vuota, che
+// vuol dire "usa il ritratto di ripiego".
+function _avatarAmmesso(valore){
+  const v = String(valore || '').trim();
+  if(!v) return '';
+  if(/^https?:/i.test(v)){
+    return /^https?:\/\/hextalegame\.com\//i.test(v) ? v : '';
+  }
+  // Un nome di file: lo risolviamo noi, e non puo' uscire dalla sua cartella.
+  if(/^[A-Za-z0-9_.-]+\.(png|jpg|jpeg|webp)$/i.test(v)) return PLAYER_UI_BASE + v;
+  return '';
+}
+
 function _vestiUnPannello(quale, dati){
   const nome = document.getElementById(quale + '-name-label');
   if(nome) nome.textContent = dati.nome || '';
@@ -17494,8 +17564,14 @@ function _vestiUnPannello(quale, dati){
   }
   // L'avatar si ANNOTA e non si scrive: a scriverlo e' assegnaAvatarDeiGiocatori,
   // che e' l'unico scrittore. Vedi il suo commento per il perche'.
-  AVATAR_DEI_GIOCATORI[quale === 'p1' ? 1 : 2] =
-    (dati.avatar && /^https?:/i.test(dati.avatar)) ? dati.avatar : '';
+  // v0.77.83 — SOLO AVATAR DI CASA.
+  // Prima bastava che fosse un indirizzo http(s) qualunque: un avatar di
+  // Google (lh3.googleusercontent.com) passava senza problemi. Adesso passa
+  // solo cio' che sta sul sito del gioco, o un nome di file che risolviamo noi
+  // dentro a player-ui. Il controllo sta qui E sul server (vedi _avatarDi):
+  // il server e' la fonte, questa e' la porta — e una porta chiusa vale anche
+  // il giorno in cui la fonte sbaglia.
+  AVATAR_DEI_GIOCATORI[quale === 'p1' ? 1 : 2] = _avatarAmmesso(dati.avatar);
 }
 
 function vestiPannelliGiocatori(vsAI){
@@ -26829,6 +26905,9 @@ function autoPlay(player){
     // perche' l'abilita' e' gia' scattata e il turno l'ha gia' pagata. Chi
     // non lo dichiara si comporta come sempre, cioe' rinuncia.
     const scelta = G.sceltaBersaglio;
+    // v0.77.81 — in rete il tempo lo fa scadere solo a CHI deve scegliere: se
+    // lo facesse anche l'altro, manderebbe due scelte per la stessa finestra.
+    if(PARTITA_RETE && !sceltaMia(scelta.giocatore)) return;
     let ripiego = null;
     if(typeof scelta.seScade === 'function'){
       try { ripiego = scelta.seScade(); } catch(_){ ripiego = null; }
@@ -31087,6 +31166,20 @@ function _togliAbilita(card){
 // Il giocatore 2 e' l'IA soltanto in modalita' vsAI. In PvP e' una persona
 // come l'altra, e ha diritto alla stessa interfaccia.
 function giocatoreUmano(p){ return !(G.vsAI && p===2); }
+// ── v0.77.80 — "UMANO" NON VUOL DIRE "IO" ─────────────────────────────────
+// `giocatoreUmano` risponde a una domanda sola: e' una persona o e' l'IA?
+// Serviva a non far decidere al giocatore le scelte dell'avversario
+// artificiale. In una partita ONLINE pero' sono persone tutte e due, quindi
+// rispondeva "si" a entrambi — e la finestra dei bersagli si apriva sui DUE
+// schermi. Chi non aveva giocato la carta si trovava a dover scegliere per
+// una carta che non era sua.
+//
+// La domanda giusta non e' "e' umano", e' "e' MIA". In rete la risposta la
+// da' il server (`PARTITA_RETE.io`); fuori dalla rete resta quella di prima.
+function sceltaMia(giocatore){
+  if(typeof PARTITA_RETE !== 'undefined' && PARTITA_RETE) return PARTITA_RETE.io === giocatore;
+  return giocatoreUmano(giocatore);
+}
 // ── v0.77.68 — UNA SCELTA DESCRITTA DAL FOGLIO ────────────────────────────
 // Le otto abilita' che gia' chiedono un bersaglio hanno una voce loro in
 // SCELTE_PIAZZAMENTO, scritta a mano, e restano dove sono: funzionano, hanno
@@ -31499,9 +31592,17 @@ function apriSceltaBersaglio(card, player, q, r, k, chiaveAbilita){
 // oppure null se si e' rinunciato. Passa da qui SEMPRE, chiunque decida:
 // il giocatore, l'IA o il tempo scaduto — cosi' non esiste un modo di uscire
 // che si dimentichi di far ripartire la partita.
-function chiudiSceltaBersaglio(cella){
+function chiudiSceltaBersaglio(cella, daServer){
   const scelta = G.sceltaBersaglio;
   if(!scelta) return;
+  // ── v0.77.81 — IN RETE NON SI SCEGLIE, SI CHIEDE ───────────────────────
+  // Stessa forma di doPlace. Chi non deve scegliere non chiude niente: se il
+  // suo timer scadesse, chiuderebbe la finestra dell'avversario.
+  if(PARTITA_RETE && !daServer){
+    if(!sceltaMia(scelta.giocatore)) return;   // non e' roba mia: non tocco
+    reteScegli(cella);
+    return;                                     // si applica quando torna
+  }
   // ── v0.77.69 — LE SCELTE CHE VOGLIONO PIU' DI UN BERSAGLIO ──────────────
   // Il Pifferaio ne chiede due. Prima li chiedevo con due finestre in fila:
   // funzionava sulla carta ma non a schermo — dopo il primo clic non c'era
@@ -32110,6 +32211,29 @@ function clonaPerSimulazione(card){
   // carta simulata e' una carta a parte" — ed e' la seconda a reggere anche il
   // giorno in cui qualcuno scrivera' nel registro da un punto nuovo.
   if(card.modificatori) c.modificatori = Object.assign({}, card.modificatori);
+  // ── v0.77.80 — I CAMPI DEL MOTORE NUOVO, CHE MANCAVANO ───────────────────
+  // Questa funzione elencava i campi da duplicare uno per uno, e l'elenco si
+  // era fermato al vecchio sistema. `valoriBase` e' arrivato dopo, col motore,
+  // ed e' rimasto CONDIVISO con la carta vera: modificaValori scrive li'
+  // (riga "if(card.valoriBase) card.valoriBase[s] += applicato"), quindi ogni
+  // anteprima buffava la carta VERA — e l'anteprima si rifa' a ogni tassello
+  // su cui passi trascinando.
+  // Era questo il +2 ALL che White Rabbit e Captain Hook si prendevano a ogni
+  // spostamento del puntatore, e solo sul client di chi trascinava: la carta
+  // vera cambiava davvero, ma solo qui.
+  if(card.valoriBase) c.valoriBase = Object.assign({}, card.valoriBase);
+  if(card.valoriNascita) c.valoriNascita = Object.assign({}, card.valoriNascita);
+  // E la memoria del "una volta per partita". Condivisa era pericolosa in due
+  // modi opposti: se la carta vera l'aveva gia' usata, la copia superficiale
+  // portava con se' l'oggetto e l'anteprima non mostrava niente; se non
+  // l'aveva usata, la simulazione ne creava uno NUOVO sulla copia e la carta
+  // vera restava senza — cioe' l'abilita' scattava di nuovo, ogni volta.
+  // Una copia vera: l'anteprima vede quel che la carta ha gia' fatto, e non
+  // puo' scrivere nulla che le resti addosso.
+  if(card._scatti){
+    c._scatti = {};
+    for(const evento in card._scatti) c._scatti[evento] = Object.assign({}, card._scatti[evento]);
+  }
   return c;
 }
 
@@ -33073,6 +33197,21 @@ function endTurn(player, animationsSettled, dannoFatto){
   // turni e chi li annuncia devono essere d'accordo, o un'abilita' che scatta
   // "dall'ottavo turno" scatterebbe mezza giocata prima o dopo del banner.
   G.numeroTurno = (G.numeroTurno||1) + 1;
+  // ── v0.77.80 — IL TABELLONE SI RIFA' ANCHE QUANDO CAMBIA IL TURNO ────────
+  // `ricalcolaTabellone` veniva chiamata SOLO quando si calava una carta. Ma
+  // ci sono abilita' che non dipendono da cosa c'e' in campo: dipendono da
+  // CHE TURNO E'. Strigoi si rinforza dal quarto, White Rabbit e Captain Hook
+  // valgono fino a un certo turno.
+  //
+  // Il risultato era un ritardo di una giocata: la finestra si apriva, ma i
+  // numeri sulla carta restavano quelli di prima finche' qualcuno non calava
+  // qualcosa. Da fuori si vede esattamente cosi' — "si e' buffato ma non ha
+  // cambiato i valori" — e non e' il buff a mancare, e' il conto a non essere
+  // stato rifatto.
+  //
+  // Sta QUI, subito dopo il numero nuovo e prima del render qui sotto: e' il
+  // primo istante in cui "che turno e'" ha una risposta diversa.
+  try { ricalcolaTabellone(); } catch(_){ }
   // v0.75.41 — Pinocchio sposta il suo scudo, e lo fa QUI: nella riga prima del
   // disegno. Cosi' il lampo e il suono cadono nello stesso istante in cui lo
   // scudo compare a schermo — che e' cio' che vuol dire "sincronizzato".
@@ -36027,12 +36166,25 @@ function finishGameWithResult(){
     // legarlo alla comparsa e non a endGame() vuol dire che arriva insieme a
     // quello che annuncia, mezzo secondo dopo l'ultima carta.
     try{ playSfxFile('end-game-win.mp3'); }catch(_){}
-    // v0.77.6 — e la musica della battaglia scende di 6dB (meta' ampiezza) nello
-    // stesso istante, per lasciargli spazio. Si moltiplica il volume EFFETTIVO
-    // invece di scriverne uno fisso: chi ha la musica a zero deve restare a
-    // zero, e un numero secco qui gliela riaccenderebbe proprio adesso.
+    // ── v0.77.83 — LA BATTAGLIA TACE, NON SI ABBASSA ────────────────────
+    // Fino alla v0.77.6 la musica scendeva di 6dB per lasciare spazio al
+    // jingle. Suonavano insieme, ed erano due musiche sovrapposte: il jingle
+    // e' la chiusura della partita, e una chiusura non si annuncia sopra a
+    // qualcos'altro che continua.
+    // Si ferma tutta la catena e non solo l'elemento: la musica di battaglia
+    // ha una CODA su un secondo elemento (vedi playMusicWithIntroLoop), e
+    // mettere in pausa solo #bgm lascerebbe la coda a suonare da sola — o a
+    // rientrare da sola qualche secondo dopo, sopra alla schermata finale.
+    try{ stopMusicLoopChain(); }catch(_){}
     const bgm=document.getElementById('bgm');
-    if(bgm) bgm.volume = getEffectiveMusicVolume() * 0.501;
+    if(bgm){
+      try{ bgm.pause(); }catch(_){}
+      // Il volume si rimette com'era: e' una proprieta' dell'ELEMENTO, non del
+      // brano, e resterebbe dimezzata sulla musica del menu che parte dopo.
+      // Era gia' stata abbassata a meta' in endGame, e senza questa riga il
+      // menu principale suonava piano finche' non si ricaricava il gioco.
+      try{ bgm.volume = getEffectiveMusicVolume(); }catch(_){}
+    }
   },500);
 }
 
@@ -42578,9 +42730,10 @@ let _tabelloneAssenteSegnalato = false;
 function _sceltaScartoDi(giocatore){
   const s = G && G.sceltaBersaglio;
   if(!s || s.modo !== 'mano' || s.giocatore !== giocatore) return null;
-  // Le croci sono interfaccia per una PERSONA: se la finestra e' dell'IA non
-  // si disegna niente, o si finirebbe per scartare al posto suo.
-  if(!giocatoreUmano(giocatore)) return null;
+  // Le croci sono interfaccia per CHI DEVE SCEGLIERE: se la finestra e' di
+  // qualcun altro — l'IA, o l'avversario online — non si disegna niente, o si
+  // finirebbe per scartare al posto suo.
+  if(!sceltaMia(giocatore)) return null;
   return s;
 }
 function firmaMano(hand, playerIdx){
@@ -43246,7 +43399,7 @@ function renderBoard(){
   // .mermaid_discard), quindi una X che sembra offrire di annullarlo direbbe
   // una cosa falsa. Se il giocatore non sceglie, il timer sceglie per lui.
   if(G.sceltaBersaglio && G.sceltaBersaglio.modo === 'mano'){ /* niente sulla plancia */ }
-  else if(G.sceltaBersaglio && giocatoreUmano(G.sceltaBersaglio.giocatore)){
+  else if(G.sceltaBersaglio && sceltaMia(G.sceltaBersaglio.giocatore)){
     const scelta = G.sceltaBersaglio;
     for(const cella of scelta.bersagli){
       const c = G.cells.find(x=>key(x.q,x.r)===cella);
