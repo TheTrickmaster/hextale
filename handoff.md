@@ -1583,6 +1583,34 @@ Altre due cose sistemate nello stesso giro:
   per rinunciare, e sovrapporle un bersaglio significa due comandi sulla stessa
   cella — uno dei due vince e non si capisce quale.
 
+### L'IA impara le due abilita' nuove (v0.77.72)
+
+Senza una voce in `VALUTAZIONI_IA` l'IA tira a sorte fra i bersagli: e' un
+ripiego dichiarato, ma sul Pifferaio voleva dire scambiare due carte a caso —
+cioe' spesso fare un favore all'avversario.
+
+**Il Pifferaio si valuta sulla COPPIA, non sulle due carte separate.** Spostare
+la propria in un posto migliore vale solo se quel che si riceve in cambio non
+vale di piu' per l'altro. La misura e' posizionale (`aiVicinatoUtile`); se
+nessuna coppia guadagna, si rinuncia. Per questo la valutazione puo' ora
+restituire un ELENCO: la combinazione migliore non e' quasi mai il bersaglio
+migliore preso due volte di fila.
+
+**Il Tricheco sposta solo nemici**, e fra quelli chi occupa la casella piu'
+redditizia: e' quella che gli si toglie.
+
+### Una decisione corretta strada facendo: dove finisce chi viene spostato
+
+Per il Tricheco riusavo la regola dei TASSELLI, che scelgono la casella piu' in
+mezzo: per un muro ha senso (al centro toglie piu' spazio), per una CARTA e' il
+contrario — la si spostava nel posto migliore del tabellone, cioe' le si faceva
+un favore. Adesso va verso il **bordo** (`_menoInMezzo`).
+
+Il foglio dice CHI si sposta, non dove: **la destinazione e' una nostra
+lettura**, ed e' "lo si toglie di mezzo". Se un giorno deve essere il giocatore
+a scegliere anche la casella, il meccanismo c'e' gia' (`modo: 'trascina'`, come
+Ali Baba).
+
 ### Cosa manca
 
 Gli effetti che **cambiano i valori** li fa il motore: buff, debuff, set,

@@ -9898,7 +9898,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.71</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.72</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -31201,7 +31201,14 @@ function _apriSpostaUnVicino(card, cella, eff, poi){
     bersagli: candidati,
     applicaEAspetta: (scelta, fine) => {
       const libere = celleLibereAttornoATassello(scelta);
-      const dove = libere.length ? _piuInMezzo(libere) : null;
+      // v0.77.72 — VERSO IL BORDO, non verso il centro.
+      // Prima riusavo la regola dei tasselli, che scelgono la casella piu' in
+      // mezzo: per un MURO ha senso (al centro toglie piu' spazio), per una
+      // CARTA e' il contrario — la si sposterebbe nel posto migliore del
+      // tabellone, cioe' le si farebbe un favore.
+      // Il foglio dice CHI si sposta, non dove: la destinazione e' una nostra
+      // lettura, e la lettura e' "lo si toglie di mezzo".
+      const dove = libere.length ? _menoInMezzo(libere) : null;
       if(!dove){ fine(); return; }
       spostaCartaConSalto(scelta, dove, fine);
     },
@@ -31212,16 +31219,18 @@ function _apriSpostaUnVicino(card, cella, eff, poi){
   return true;
 }
 
-// Fra piu' caselle libere, quella piu' "in mezzo": e' la stessa idea con cui
-// si decide dove finisce un tassello spostato senza che nessuno scelga.
-function _piuInMezzo(celle){
-  let migliore = celle[0], punteggio = -1;
+// Fra piu' caselle libere, la MENO "in mezzo": quella che vale di meno, cioe'
+// il posto in cui una carta spostata da' meno fastidio. La misura e' la stessa
+// con cui l'IA valuta quanto rende una casella (aiVicinatoUtile), letta al
+// contrario.
+function _menoInMezzo(celle){
+  let peggiore = celle[0], punteggio = Infinity;
   for(const k of celle){
     const [q, r] = k.split(',').map(Number);
     const p = (typeof aiVicinatoUtile === 'function') ? aiVicinatoUtile(q, r) : 0;
-    if(p > punteggio){ punteggio = p; migliore = k; }
+    if(p < punteggio){ punteggio = p; peggiore = k; }
   }
-  return migliore;
+  return peggiore;
 }
 
 function scambiaPosizioniInCampo(unaCella, altraCella){
@@ -31324,10 +31333,14 @@ function chiudiSceltaBersaglio(cella){
       // hanno indicato e si completa con gli altri candidati. Lasciare la
       // finestra aperta aspettando un secondo clic che non arrivera' mai
       // vorrebbe dire fermare la partita.
-      scelta.prese = [cella];
-      for(const k of scelta.bersagli){
-        if(scelta.prese.length >= scelta.richieste) break;
-        if(scelta.prese.indexOf(k) < 0) scelta.prese.push(k);
+      // Se la valutazione ha gia' deciso l'INTERA combinazione (vedi
+      // VALUTAZIONI_IA per le scelte a piu' bersagli) la si rispetta.
+      if(!(scelta.prese && scelta.prese.length >= scelta.richieste)){
+        scelta.prese = [cella];
+        for(const k of scelta.bersagli){
+          if(scelta.prese.length >= scelta.richieste) break;
+          if(scelta.prese.indexOf(k) < 0) scelta.prese.push(k);
+        }
       }
     }
   }
@@ -34491,6 +34504,59 @@ const VALUTAZIONI_IA = {
     return migliore;
   },
 };
+// ── v0.77.72 — IL PIFFERAIO: quale COPPIA scambiare ───────────────────────
+// Uno scambio si giudica sulla coppia, non sulle due carte separate: spostare
+// la propria in un posto migliore vale solo se quel che si riceve in cambio
+// non vale di piu' per l'avversario.
+// La misura e' posizionale (aiVicinatoUtile: quanto rende una casella). Il
+// guadagno e' quanto migliora la posizione delle carte MIE meno quanto
+// migliora quella delle sue. Se nessuna coppia guadagna si rinuncia, che e'
+// una decisione e non una svista.
+// Prima approssimazione dichiarata: non guarda i valori sui lati ne' chi
+// conquisterebbe chi dopo lo scambio.
+VALUTAZIONI_IA.scambio_posizioni = (scelta) => {
+  const mio = scelta.giocatore;
+  const valoreCella = (k) => {
+    const [q, r] = String(k).split(',').map(Number);
+    return (typeof aiVicinatoUtile === 'function') ? aiVicinatoUtile(q, r) : 0;
+  };
+  const segno = (k) => {
+    const posto = G.board[k];
+    return (posto && posto.owner === mio) ? 1 : -1;
+  };
+  let migliore = null, meglio = 0;
+  for(let i = 0; i < scelta.bersagli.length; i++){
+    for(let j = i + 1; j < scelta.bersagli.length; j++){
+      const a = scelta.bersagli[i], b = scelta.bersagli[j];
+      if(!G.board[a] || !G.board[b]) continue;
+      // ognuno finisce dove stava l'altro
+      const guadagno = segno(a) * (valoreCella(b) - valoreCella(a))
+                     + segno(b) * (valoreCella(a) - valoreCella(b));
+      if(guadagno > meglio){ meglio = guadagno; migliore = [a, b]; }
+    }
+  }
+  return migliore;
+};
+
+// ── v0.77.72 — IL TRICHECO: chi togliere di mezzo ─────────────────────────
+// La carta spostata finisce nella casella libera che vale di meno (vedi
+// _menoInMezzo), quindi spostare un NEMICO e' un danno e spostare un proprio
+// alleato e' un autogol. L'IA sceglie percio' fra i soli nemici, e fra quelli
+// chi occupa adesso la casella piu' redditizia: e' quella che gli si toglie.
+// Nessun nemico spostabile: si rinuncia.
+VALUTAZIONI_IA.sposta_un_vicino = (scelta) => {
+  const mio = scelta.giocatore;
+  let migliore = null, meglio = -Infinity;
+  for(const k of scelta.bersagli){
+    const posto = G.board[k];
+    if(!posto || posto.owner === mio) continue;      // i propri si lasciano stare
+    const [q, r] = String(k).split(',').map(Number);
+    const quantoRende = (typeof aiVicinatoUtile === 'function') ? aiVicinatoUtile(q, r) : 0;
+    if(quantoRende > meglio){ meglio = quantoRende; migliore = k; }
+  }
+  return migliore;
+};
+
 // ── v0.73.63 — dove l'IA cala Excalibur ───────────────────────────────────
 // Excalibur non conquista niente e non puo' essere presa: il suo valore non e'
 // quello che fa, e' la CASELLA che toglie all'avversario, per sempre.
@@ -34793,6 +34859,14 @@ function aiResolvePendingAbilityIfAny(){
   let bersaglio = null;
   if(typeof valuta === 'function'){
     try { bersaglio = valuta(scelta); } catch(_){ bersaglio = null; }
+    // v0.77.72 — una scelta a piu' bersagli si valuta INTERA: la combinazione
+    // migliore non e' quasi mai il bersaglio migliore preso due volte di fila.
+    // Chi la sa fare torna un elenco; il primo elemento serve solo a dire
+    // "non sto rinunciando".
+    if(Array.isArray(bersaglio)){
+      scelta.prese = bersaglio.slice(0, scelta.richieste || 1);
+      bersaglio = scelta.prese[0] || null;
+    }
     // Una valutazione che non trova niente di buono ha deciso di rinunciare:
     // e' una scelta, non un errore, e non va sostituita con un sorteggio.
   } else {
