@@ -2487,6 +2487,23 @@ body.mouse-down, body.mouse-down *{
 }
 #p1-info{ left:80px; }    /* v0.76.10: 80px verso il centro */
 #p2-info{ left:1572px; }  /* 1920 - 268 - 80: stessa aritmetica per tutti e due */
+/* ── v0.77.85 — CHI GIOCA STA SEMPRE A SINISTRA ──────────────────────────
+   In rete il server decide chi e' il giocatore 1 e chi il 2, e per meta' delle
+   partite ti toccava il 2: ti ritrovavi le tue carte e il tuo nome a DESTRA,
+   e l'avversario a sinistra. Il numero serve alla partita — turni, proprieta',
+   conquiste — ma a schermo non vuol dire niente: chi gioca deve trovare se
+   stesso sempre nello stesso posto.
+   Si scambiano quindi solo le POSIZIONI, e solo quando io sono il due. I
+   numeri restano quelli del server: nessuna logica cambia, cambia dove si
+   disegnano le due meta'. */
+body.io-sono-2 #p1-info{ left:1572px; }
+body.io-sono-2 #p2-info{ left:80px; }
+body.io-sono-2 #p1-hand-fan{ left:auto; right:50px; }
+body.io-sono-2 #p2-hand-fan{ right:auto; left:50px; }
+/* Il ritratto dell'avversario guarda verso il centro: se i lati si scambiano,
+   si scambia anche lui, o guarderebbe fuori dallo schermo. */
+body.io-sono-2 #p2-info .player-avatar-photo{ transform:none; }
+body.io-sono-2 #p1-info .player-avatar-photo{ transform:scaleX(-1); }
 /* Lo sfondo di legno, appeso al bordo superiore. E' alto 1200 su una tela di
    1080: deborda in basso, ed e' giusto — e' un drappo, non un riquadro. */
 /* v0.76.12 — la sfocatura DIETRO al drappo. Non si puo' mettere sull'immagine
@@ -9906,7 +9923,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.84</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.85</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -12808,6 +12825,18 @@ function mmApriSocket(){
 // tappa 2 e la 3. Il server non le calcola, ma confronta le IMPRONTE dei due
 // client a ogni giocata: se divergono, la partita si ferma.
 let PARTITA_RETE = null;
+// ── v0.77.85 — QUESTA PARTITA ERA ONLINE ──────────────────────────────────
+// `PARTITA_RETE` viene azzerato quando la partita finisce o si interrompe:
+// giusto, perche' da quel momento non c'e' piu' niente da mandare al server.
+// Ma il TAVOLO resta a schermo, e con lui la mano dell'avversario — che
+// smetteva di essere coperta proprio allora, perche' la regola guardava
+// `PARTITA_RETE` e quello era gia' null.
+// Sotto al dorso di quelle carte non c'e' una carta nascosta: c'e' un
+// segnaposto vuoto, perche' del mazzo avversario non ci arriva niente. Ma il
+// giocatore non lo sa, e vedere dodici carte scoprirsi a fine partita sembra
+// esattamente cio' che il gioco promette di non fare mai.
+// Questo flag vive quanto il TAVOLO, non quanto la connessione.
+let PARTITA_ERA_IN_RETE = false;
 
 // La carta di cui non si sa niente. Non e' una carta vera con un velo sopra:
 // non ha valori, non ha abilita', non ha un nome. Serve solo a occupare un
@@ -12929,6 +12958,10 @@ function reteMessaggio(md){
         rank: (typeof d.avversario.rank === 'number') ? d.avversario.rank : null,
         avatar: d.avversario.avatar || ''
       };
+      PARTITA_ERA_IN_RETE = true;
+      // Il numero serve anche dopo che PARTITA_RETE e' sparito: e' l'unico
+      // modo, a partita interrotta, di sapere quale delle due mani e' la mia.
+      try { if(typeof G === 'object' && G) G.ioSonoIlNumero = d.tu; } catch(_){}
       mm2FermaRicerca();
       _mm2Cercando = false;
       try{ requestNewGame(false); }catch(e){ console.error('[rete] la partita non parte: ' + (e && e.stack || e)); }
@@ -12987,8 +13020,16 @@ function reteMessaggio(md){
     // I due client non sono piu' d'accordo su com'e' il tabellone. Non si sa
     // chi ha torto: si sa che continuare vorrebbe dire giocare due partite
     // diverse e chiamarle la stessa.
-    apriAvviso('Match stopped',
-      'The two players stopped agreeing on the board, so the match was stopped.', true);
+    // v0.77.85 — si dice CHE COSA e' successo (il tabellone dei due giocatori
+    // ha perso la sincronia per un problema del server), si conta quanto manca,
+    // e il pulsante porta via subito invece di lasciare il tavolo morto sotto.
+    apriAvvisoConAzione('Match stopped', '', true, {
+      etichetta: 'Back to main menu',
+      azione: () => { try{ backToMainMenu(); }catch(_){ } },
+      secondi: 10,
+      testoConConto: (n) => 'The two players board lost sync because of a server problem. '
+        + 'Returning to main menu... ' + n
+    });
     PARTITA_RETE = null;
     return;
   }
@@ -13234,6 +13275,47 @@ function mmChiudiSocket(){
 // Un avviso: titolo, testo, e se il pulsante e' rosso. Il rosso non e'
 // decorazione — dice "questa cosa non e' andata", ed e' l'unica differenza
 // fra il chiudere una notizia e il chiudere un guasto.
+// ── v0.77.85 — UN AVVISO CHE SI CHIUDE DA SOLO ────────────────────────────
+// Certi avvisi non sono una notizia da leggere e via: sono la fine della
+// partita. Quello del disaccordo lo e' — il tavolo sotto non e' piu' buono, e
+// restarci non serve a niente. Allora l'avviso dice quanto manca e ci porta
+// via da solo, e il pulsante fa la stessa cosa subito invece di chiudere una
+// finestra e lasciare il giocatore su un tavolo morto.
+let _avvisoConto = null;
+function _fermaContoAvviso(){
+  if(_avvisoConto){ clearInterval(_avvisoConto); _avvisoConto = null; }
+}
+// `opzioni`: { etichetta, azione, secondi, testoConConto }
+function apriAvvisoConAzione(titolo, testo, guasto, opzioni){
+  const o = opzioni || {};
+  apriAvviso(titolo, testo, guasto);
+  const b = document.getElementById('avviso-chiudi');
+  const p = document.getElementById('avviso-testo');
+  const et = b && b.querySelector('.hxb-label');
+  if(et && o.etichetta) et.textContent = o.etichetta;
+  const vai = () => {
+    _fermaContoAvviso();
+    chiudiAvviso();
+    // Rimesso com'era: la modale e' una sola per tutto il gioco, e il prossimo
+    // avviso non deve ereditare pulsante e comportamento di questo.
+    if(et) et.textContent = 'Close';
+    if(b) b.onclick = chiudiAvviso;
+    if(typeof o.azione === 'function'){ try{ o.azione(); }catch(_){ } }
+  };
+  if(b) b.onclick = vai;
+  if(typeof o.secondi === 'number' && o.secondi > 0){
+    let restano = o.secondi;
+    const scrivi = () => { if(p && o.testoConConto) p.textContent = o.testoConConto(restano); };
+    scrivi();
+    _fermaContoAvviso();
+    _avvisoConto = setInterval(() => {
+      restano--;
+      if(restano <= 0){ vai(); return; }
+      scrivi();
+    }, 1000);
+  }
+}
+
 function apriAvviso(titolo, testo, guasto){
   const ov = document.getElementById('avviso-overlay');
   if(!ov) return;
@@ -13251,6 +13333,9 @@ function apriAvviso(titolo, testo, guasto){
   ov.classList.add('show');
 }
 function chiudiAvviso(){
+  // v0.77.85 — un conto alla rovescia lasciato acceso porterebbe al menu
+  // qualche secondo dopo, mentre il giocatore sta gia' facendo altro.
+  _fermaContoAvviso();
   const ov = document.getElementById('avviso-overlay');
   if(ov) ov.classList.remove('show');
 }
@@ -17477,6 +17562,11 @@ function requestNewGame(vsAI){
   // resterebbe fatta di segnaposto. Si azzera QUI, che e' la porta da cui
   // passano tutte le partite.
   if(vsAI) PARTITA_RETE = null;
+  // v0.77.85 — e il ricordo di essere stati online si spegne QUI, alla porta da
+  // cui passano tutte le partite. E' un ricordo che deve valere quanto UN
+  // tavolo: se sopravvivesse alla partita dopo, la mano dell'IA resterebbe
+  // coperta col numero di un avversario che non c'e' piu'.
+  PARTITA_ERA_IN_RETE = !vsAI && !!PARTITA_RETE;
   // v0.75.63 — e cominciandone una nuova: il "Play again" a fine partita parte
   // mentre la scena precedente puo' avere ancora qualcosa in canna.
   fermaTuttiISuoni();
@@ -17600,6 +17690,10 @@ function vestiPannelliGiocatori(vsAI){
 
 function applyFactionToPlayerPanels(){
   document.body.classList.toggle('human-light', window.__humanFaction==='light');
+  // v0.77.85 — e da che lato sto io. Fuori dalla rete sono sempre il numero
+  // uno, quindi la classe non si accende mai e non cambia niente.
+  document.body.classList.toggle('io-sono-2',
+    !!(typeof PARTITA_RETE !== 'undefined' && PARTITA_RETE && PARTITA_RETE.io === 2));
   // v0.77.84 — qui i due drappi di fazione venivano riscritti sopra a quello
   // vero. Non si tocca piu' l'immagine: il drappo lo mette una volta sola il
   // giro degli asset, ed e' lo stesso per tutti e due i giocatori.
@@ -25401,9 +25495,15 @@ function carteGiocabili(){
   return (FINAL_CARDS || []).filter(e => e && !soloEvocabile(e)).map(alLivelloDelGiocatore);
 }
 // ── v0.74.8 — IL COSTO DI UN MAZZO ────────────────────────────────────────
-// Ogni carta vale dei punti secondo la sua rarita', e un mazzo ne vale
-// ESATTAMENTE 24, con ESATTAMENTE 12 carte. Sempre: non e' un tetto da non
-// superare, e' un budget da spendere tutto.
+// Ogni carta vale dei punti secondo la sua rarita'. Un mazzo ha ESATTAMENTE 12
+// carte e al MASSIMO 24 punti.
+// v0.77.85 — qui c'era scritto "esattamente 24: non e' un tetto, e' un budget
+// da spendere tutto". Non e' mai stato vero nel codice: sia mazzoValido
+// (`capacita <= MAZZO_PUNTI`) sia il server (`punti > MAZZO_PUNTI` e' l'unico
+// errore) trattano i 24 come un tetto. Se ne e' accorto il conto dei mazzi
+// starter, che ne valgono 15 e 16 e sono validissimi.
+// Un commento che descrive una regola piu' severa di quella vera fa cercare
+// difetti dove non ce ne sono — ed e' esattamente quello che e' successo.
 const COSTO_RARITA = { timeless:4, mythic:3, rare:2, common:1 };
 const MAZZO_CARTE  = 12;
 const MAZZO_PUNTI  = 24;
@@ -39935,9 +40035,22 @@ function renderHand(containerId,hand,playerIdx){
   // v0.77.54 — in rete la mano dell'avversario e' coperta SEMPRE, anche a
   // partita finita: non e' pudore, e' che quelle carte non le abbiamo. Sotto
   // al dorso non c'e' una carta nascosta, c'e' un segnaposto vuoto.
-  const isCovered = (PARTITA_RETE && player !== PARTITA_RETE.io)
-    ? true
-    : (G.vsAI ? (player===2 && !G.gameOver) : (!isActive && !G.gameOver));
+  // v0.77.85 — due correzioni, stessa idea: la mano dell'avversario non si
+  // scopre MAI.
+  //   1. in rete si guarda anche PARTITA_ERA_IN_RETE, perche' a partita
+  //      interrotta PARTITA_RETE e' gia' null e la regola cadeva nel ramo di
+  //      sotto, che a fine partita scopre tutto;
+  //   2. contro l'IA il `&& !G.gameOver` faceva la stessa cosa: a partita
+  //      finita la mano del computer si scopriva. Non c'e' motivo di mostrare
+  //      le carte che non ha giocato, e non e' mai stato chiesto.
+  // Resta scoperta a fine partita solo la mano nel gioco locale a due, dove i
+  // due giocatori sono davanti allo stesso schermo e non c'e' nessun segreto
+  // da mantenere.
+  const inRete = !!PARTITA_RETE || PARTITA_ERA_IN_RETE;
+  const mioNumero = PARTITA_RETE ? PARTITA_RETE.io : (G.ioSonoIlNumero || 1);
+  const isCovered = inRete
+    ? (player !== mioNumero)
+    : (G.vsAI ? (player===2) : (!isActive && !G.gameOver));
   // v0.69.0 REWORK ("la carta deve 'venire dietro' al mouse, uscire dalla
   // mano e le carte nella mano si devono riarrangiare in automatico"): the
   // dragged card (G.dragging) is no longer given a slot/wrap in the fan AT
