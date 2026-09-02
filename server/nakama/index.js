@@ -998,6 +998,234 @@ function _passaTurno(stato, dispatcher, chiHaGiocato) {
 // il runtime le cerca per id globale, e di una funzione anonima non ce n'e'
 // uno. Scritte inline il modulo non parte affatto — "javascript functions
 // cannot be inlined" — e Nakama entra in ciclo di riavvio.
+// ══════════════════════════════════════════════════════════════════════════
+// IL TABELLONE IN OMBRA
+// ══════════════════════════════════════════════════════════════════════════
+// Rifa' i conti della partita sul server e li confronta con quelli dei client.
+// Tutto quel che sta qui sotto e' scritto con funzioni NOMINATE e con `var`:
+// il runtime e' goja, e le funzioni anonime dentro al gestore di partita hanno
+// gia' fatto cadere il server una volta.
+
+var OMBRA_DIR = [
+  { dq: 0, dr: -1, mio: 'NW', suo: 'SE' },
+  { dq: 1, dr: -1, mio: 'NE', suo: 'SW' },
+  { dq: 1, dr: 0, mio: 'E', suo: 'W' },
+  { dq: 0, dr: 1, mio: 'SE', suo: 'NW' },
+  { dq: -1, dr: 1, mio: 'SW', suo: 'NE' },
+  { dq: -1, dr: 0, mio: 'W', suo: 'E' }
+];
+
+// Il catalogo si legge UNA volta per partita, e si tiene solo cio' che serve
+// alle carte dei due mazzi: il catalogo intero pesa una settantina di
+// chilobyte e non c'e' motivo di portarselo dietro tutto in memoria.
+function ombraPrepara(ctx, nk, logger, state) {
+  if (state.ombra.pronta) return;
+  // IL SEME. I lati "a caso" (Scope RAND) escono da un numero ricavato dal
+  // seme della partita, e il client usa il match id che gli e' arrivato. Se il
+  // server ne usasse un altro, quelle carte finirebbero su lati diversi e
+  // l'ombra segnalerebbe divergenze che non esistono.
+  // Se un giorno il registro mostrasse divergenze concentrate sulle carte con
+  // RAND, e' QUESTA la prima cosa da guardare.
+  state.matchId = String((ctx && ctx.matchId) || '');
+  state.ombra.pronta = true;                 // anche se fallisce: non si riprova a ogni giocata
+  var catalogo = leggiSistema(nk, KEY_CATALOGO);
+  if (!catalogo || !catalogo.carte) { logger.warn('ombra: nessun catalogo, il server non ricalcola'); return; }
+  var servono = {};
+  var g, i, j;
+  for (g = 0; g < state.giocatori.length; g++) {
+    var mazzo = state.mazzoIniziale[state.giocatori[g]] || [];
+    for (i = 0; i < mazzo.length; i++) servono[String(mazzo[i])] = true;
+  }
+  var quante = 0;
+  for (j = 0; j < catalogo.carte.length; j++) {
+    var e = catalogo.carte[j];
+    if (!e || !servono[String(e.id)]) continue;
+    var v = e.values || {};
+    state.ombra.carte[String(e.id)] = {
+      nome: e.name || '',
+      valori: { NW: v.NW || 0, NE: v.NE || 0, E: v.E || 0, SE: v.SE || 0, SW: v.SW || 0, W: v.W || 0 },
+      abilita: e.abilita || null,
+      tratti: e.traitNames || e.traits || []
+    };
+    quante++;
+  }
+  logger.info('ombra: pronta con %d carte sulle %d dei due mazzi', quante, Object.keys(servono).length);
+}
+
+// Una carta dell'ombra ha la forma che il motore si aspetta.
+function ombraCarta(state, id, di) {
+  var b = state.ombra.carte[String(id)];
+  if (!b) return null;
+  var v = { NW: b.valori.NW, NE: b.valori.NE, E: b.valori.E, SE: b.valori.SE, SW: b.valori.SW, W: b.valori.W };
+  var vb = { NW: b.valori.NW, NE: b.valori.NE, E: b.valori.E, SE: b.valori.SE, SW: b.valori.SW, W: b.valori.W };
+  return { id: String(id), baseId: String(id), name: b.nome, owner: di,
+           values: v, valoriBase: vb, traitNames: b.tratti, traits: b.tratti, abilita: b.abilita };
+}
+
+// La scena che il motore vuole: chi c'e' in campo, chi e' vicino a chi.
+function ombraScena(state) {
+  var celle = state.ombra.celle;
+  var inCampo = [], dove = {}, k;
+  for (k in celle) {
+    if (!celle[k] || !celle[k].carta) continue;
+    inCampo.push(celle[k].carta);
+    dove[celle[k].carta.id + '@' + k] = k;
+  }
+  return {
+    inCampo: inCampo,
+    inMano: [],
+    turno: state.numeroTurno,
+    seme: state.matchId || '',
+    vicini: function (carta) { return ombraVicini(state, carta); },
+    latiLiberi: function (carta) { return ombraLatiLiberi(state, carta); }
+  };
+}
+
+function ombraCellaDi(state, carta) {
+  var k;
+  for (k in state.ombra.celle) {
+    if (state.ombra.celle[k] && state.ombra.celle[k].carta === carta) return k;
+  }
+  return null;
+}
+
+function ombraVicini(state, carta) {
+  var k = ombraCellaDi(state, carta);
+  if (!k) return [];
+  var qr = k.split(','), q = Number(qr[0]), r = Number(qr[1]);
+  var out = [], i;
+  for (i = 0; i < OMBRA_DIR.length; i++) {
+    var nk = (q + OMBRA_DIR[i].dq) + ',' + (r + OMBRA_DIR[i].dr);
+    if (state.ombra.celle[nk] && state.ombra.celle[nk].carta) out.push(state.ombra.celle[nk].carta);
+  }
+  return out;
+}
+
+function ombraLatiLiberi(state, carta) {
+  var k = ombraCellaDi(state, carta);
+  if (!k) return 0;
+  var qr = k.split(','), q = Number(qr[0]), r = Number(qr[1]);
+  var liberi = 0, i;
+  for (i = 0; i < OMBRA_DIR.length; i++) {
+    var nk = (q + OMBRA_DIR[i].dq) + ',' + (r + OMBRA_DIR[i].dr);
+    if (_caselle().indexOf(nk) === -1) continue;
+    if (!state.ombra.celle[nk] || !state.ombra.celle[nk].carta) liberi++;
+  }
+  return liberi;
+}
+
+// I valori con dentro le sinergie continue: e' quel che il client confronta
+// quando risolve uno scontro.
+function ombraValori(state, carta, scena) {
+  return ABILITA_MOTORE.valoriEffettivi(carta, scena);
+}
+
+// Una giocata, rifatta dal server: si posa la carta, si applica cio' che il
+// motore sa fare al piazzamento, e si risolvono le conquiste.
+function ombraGiocata(state, logger, k, id, di) {
+  if (!state.ombra.pronta) return;
+  var carta = ombraCarta(state, id, di);
+  if (!carta) { ombraRinuncia(state, logger, 'la carta ' + id + ' non e\' nel catalogo'); return; }
+  state.ombra.celle[k] = { id: String(id), di: di, carta: carta };
+
+  var scena = ombraScena(state);
+  try {
+    var cambi = ABILITA_MOTORE.cambiamentiAllEvento(carta, 'on_play', scena);
+    ombraApplica(cambi);
+  } catch (e) { ombraRinuncia(state, logger, 'on_play: ' + e.message); return; }
+
+  try { ombraConquiste(state, k, carta, di); }
+  catch (e2) { ombraRinuncia(state, logger, 'conquiste: ' + e2.message); }
+}
+
+// Solo i cambiamenti fatti di numeri: gli altri il server non li sa ancora
+// eseguire, ed e' proprio quel che l'ombra deve far venire fuori.
+function ombraApplica(cambi) {
+  var i, j;
+  for (i = 0; i < (cambi || []).length; i++) {
+    var c = cambi[i];
+    if (!c || !c.carta || !c.lati || !c.lati.length) continue;
+    for (j = 0; j < c.lati.length; j++) {
+      var l = c.lati[j];
+      if (c.azione === 'set') c.carta.valoriBase[l] = c.valore;
+      else if (c.delta) c.carta.valoriBase[l] = Math.max(0, (c.carta.valoriBase[l] || 0) + c.delta);
+      c.carta.values[l] = c.carta.valoriBase[l];
+    }
+  }
+}
+
+// La stessa regola del client: per ogni lato, il valore d'attacco contro il
+// valore del lato opposto del vicino. Le eccezioni (intoccabile, lato
+// protetto, chi puo' conquistare chi, con che valore attacca) le sa gia' il
+// motore — sono le stesse righe che gira il client.
+function ombraConquiste(state, k, carta, di) {
+  var qr = k.split(','), q = Number(qr[0]), r = Number(qr[1]);
+  var scena = ombraScena(state);
+  var miei = ombraValori(state, carta, scena);
+  var i;
+  for (i = 0; i < OMBRA_DIR.length; i++) {
+    var d = OMBRA_DIR[i];
+    var nk = (q + d.dq) + ',' + (r + d.dr);
+    var posto = state.ombra.celle[nk];
+    if (!posto || !posto.carta || posto.di === di) continue;
+    var suo = posto.carta;
+    if (ABILITA_MOTORE.intoccabile(suo)) continue;
+    if (ABILITA_MOTORE.latoProtetto(suo, d.suo)) continue;
+    var suoi = ombraValori(state, suo, scena);
+    var attacco = ABILITA_MOTORE.valoreDiAttacco(carta, miei, d.mio);
+    if (!ABILITA_MOTORE.conquistabileDa(suo, carta, {
+      differenza: Math.abs(attacco - (suoi[d.suo] || 0)), valoreAttacco: attacco
+    })) continue;
+    if (!ABILITA_MOTORE.vince(carta, attacco, suoi[d.suo] || 0)) continue;
+    posto.di = di;
+    // Le reazioni alla conquista che sono numeri, il server le sa fare.
+    try {
+      var scenaColpo = ombraScena(state);
+      scenaColpo.attaccante = carta; scenaColpo.attaccato = suo;
+      scenaColpo.differenza = Math.abs(attacco - (suoi[d.suo] || 0));
+      ombraApplica(ABILITA_MOTORE.cambiamentiAllEvento(suo, 'on_conquered', scenaColpo));
+      ombraApplica(ABILITA_MOTORE.cambiamentiAllEvento(carta, 'on_conquer', scenaColpo));
+    } catch (e) { /* la nota la lascia il confronto, non serve fermarsi qui */ }
+  }
+}
+
+// L'impronta, nella STESSA forma di quella dei client (vedi reteImpronta):
+// cella:idCarta:proprietario, in ordine di cella.
+function ombraImpronta(state) {
+  var chiavi = [], k;
+  for (k in state.ombra.celle) if (state.ombra.celle[k] && state.ombra.celle[k].carta) chiavi.push(k);
+  chiavi.sort();
+  var pezzi = [], i;
+  for (i = 0; i < chiavi.length; i++) {
+    var c = state.ombra.celle[chiavi[i]];
+    pezzi.push(chiavi[i] + ':' + c.id + ':' + c.di);
+  }
+  return pezzi.join('|');
+}
+
+// Quando l'ombra non ce la fa, smette di provarci per questa partita: un
+// ricalcolo sbagliato che continua a girare produrrebbe divergenze finte, e
+// le divergenze finte sono peggio di nessun controllo — insegnano a non
+// fidarsi dell'unico strumento che dovrebbe dire la verita'.
+function ombraRinuncia(state, logger, perche) {
+  if (!state.ombra.pronta) return;
+  state.ombra.pronta = false;
+  logger.warn('ombra spenta per questa partita: %s', perche);
+}
+
+// Il confronto. NON ferma niente e non cambia niente: prende nota.
+function ombraConfronta(state, logger, turno, improntaVera) {
+  if (!state.ombra.pronta) return;
+  state.ombra.confronti++;
+  var mia = ombraImpronta(state);
+  if (mia === improntaVera) return;
+  state.ombra.divergenze++;
+  if (!state.ombra.primaDivergenza) {
+    state.ombra.primaDivergenza = { turno: turno, server: mia, client: improntaVera };
+    logger.warn('ombra: PRIMA divergenza al turno %s\n  server: %s\n  client: %s', turno, mia, improntaVera);
+  }
+}
+
 function partitaInit(ctx, logger, nk, params) {
   var giocatori = JSON.parse(params.giocatori || '[]');
   var info = JSON.parse(params.info || '{}');
@@ -1012,7 +1240,24 @@ function partitaInit(ctx, logger, nk, params) {
     iniziata: false, finita: false,
     natoIl: Date.now(),
     rapporti: {},              // per turno: cosa ha raccontato ciascuno
-    concordato: null           // l'ultimo tabellone su cui i due erano d'accordo
+    concordato: null,          // l'ultimo tabellone su cui i due erano d'accordo
+    // ── v0.77.76 — IL TABELLONE IN OMBRA ──────────────────────────────────
+    // Il server ricalcola la partita per conto suo e confronta il risultato
+    // con quello su cui i due client si sono trovati d'accordo. NON comanda:
+    // guarda e prende nota. Diventera' arbitro vero quando avra' dimostrato,
+    // su un po' di partite, di dire sempre la stessa cosa.
+    //
+    // Si comincia in ombra e non subito al comando per una ragione precisa:
+    // oggi il server non sa fare TUTTO cio' che fa una carta (spostare,
+    // trasformare, cambiare padrone), e un arbitro che sbaglia e' peggio di
+    // nessun arbitro. L'ombra dice esattamente QUALI carte lo fanno sbagliare,
+    // invece di farlo scoprire a una partita vera.
+    ombra: {
+      pronta: false,
+      carte: {},        // id di catalogo -> { valori, abilita, tratti, nome }
+      celle: {},        // cella -> { id, di, valori }
+      confronti: 0, divergenze: 0, primaDivergenza: null
+    }
   };
   for (var i = 0; i < giocatori.length; i++) {
     var m = _mazzoDi(nk, logger, giocatori[i]);
@@ -1106,6 +1351,11 @@ function partitaLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
       }
 
       state.concordato = { turno: t, impronta: uno.impronta, punteggio: uno.punteggio, hp: uno.hp };
+      // v0.77.76 — i due client sono d'accordo: e' il momento buono per
+      // chiedere al server se avrebbe detto la stessa cosa. Non decide niente:
+      // se sbaglia, lo sapremo dal registro invece che da una partita persa.
+      try { ombraConfronta(state, logger, t, uno.impronta); }
+      catch (ec) { ombraRinuncia(state, logger, 'confronto: ' + ec.message); }
 
       if (uno.finita && due.finita) {
         _chiudiPartita(state, dispatcher, logger, nk, uno);
@@ -1130,6 +1380,10 @@ function partitaLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
 
     state.mano[chi].splice(posto, 1);
     state.occupate[k] = { carta: carta, di: idx + 1 };
+    // v0.77.76 — e la stessa giocata la rifa' il server, per conto suo.
+    // `try` attorno a tutto: l'ombra non deve poter rovinare una partita vera.
+    try { ombraPrepara(ctx, nk, logger, state); ombraGiocata(state, logger, k, carta, idx + 1); }
+    catch (eo) { ombraRinuncia(state, logger, 'giocata: ' + eo.message); }
     var pescata = _passaTurno(state, dispatcher, chi);
 
     _aTutti(dispatcher, OP_GIOCATA, {
@@ -1214,6 +1468,19 @@ var partita = {
 function _chiudiPartita(state, dispatcher, logger, nk, rapporto) {
   if (state.finita) return;
   state.finita = true;
+
+  // v0.77.76 — il consuntivo dell'ombra. E' la riga che dira' quando il server
+  // e' pronto a fare l'arbitro davvero: quando per un po' di partite di fila
+  // dira' "0 divergenze".
+  try {
+    if (state.ombra && state.ombra.confronti) {
+      logger.info('ombra: %d confronti, %d divergenze%s',
+        state.ombra.confronti, state.ombra.divergenze,
+        state.ombra.primaDivergenza ? (' (prima al turno ' + state.ombra.primaDivergenza.turno + ')') : '');
+    } else if (state.ombra && !state.ombra.pronta) {
+      logger.info('ombra: spenta durante questa partita, nessun confronto');
+    }
+  } catch (eo) { /* un consuntivo non deve poter rompere la chiusura */ }
 
   var hp = rapporto.hp || {};
   var d1 = (typeof hp['1'] === 'number') ? hp['1'] : 0;

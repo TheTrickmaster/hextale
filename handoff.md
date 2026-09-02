@@ -1732,6 +1732,52 @@ Metterlo insieme alla migrazione, in coda a un giro gia' lungo, vorrebbe dire
 scrivere di fretta il componente che decide chi vince e che puo' spegnere il
 server. Si fa per intero, con le sue prove, non a fine giornata.
 
+### Il server in ombra (v0.77.76)
+
+Il server rifa' i conti della partita per conto suo e li confronta con
+l'impronta su cui i due client si sono trovati d'accordo. **Non comanda:
+guarda e prende nota.**
+
+Si comincia in ombra e non subito al comando per una ragione precisa: oggi il
+server non sa fare TUTTO cio' che fa una carta — spostare, trasformare,
+cambiare padrone — e **un arbitro che sbaglia e' peggio di nessun arbitro**.
+L'ombra dice esattamente quali carte lo fanno sbagliare, invece di farlo
+scoprire a una partita vera.
+
+**Come funziona.** A ogni giocata `ombraGiocata` posa la carta, applica cio'
+che il motore sa fare al piazzamento e risolve le conquiste con le stesse
+regole del client (`intoccabile`, `latoProtetto`, `conquistabileDa`,
+`valoreDiAttacco`, `vince` — le stesse righe, e' lo stesso motore iniettato).
+Quando i due client concordano, `ombraConfronta` genera l'impronta nella stessa
+forma (`cella:idCarta:proprietario`) e la mette a fianco.
+
+**Tre scelte che contano:**
+
+- **il catalogo si legge una volta per partita**, e si tiene solo cio' che
+  serve alle carte dei due mazzi: il catalogo intero pesa settanta chilobyte e
+  non c'e' motivo di tenerlo tutto in memoria per una partita da 24 carte.
+- **quando l'ombra non ce la fa, si spegne** (`ombraRinuncia`). Un ricalcolo
+  sbagliato che continua a girare produrrebbe divergenze finte, e le divergenze
+  finte sono peggio di nessun controllo: insegnano a non fidarsi dell'unico
+  strumento che dovrebbe dire la verita'.
+- **tutto e' avvolto in `try`**: l'ombra non deve poter rovinare una partita
+  vera. Se esplode, si spegne lei.
+
+**Il seme.** I lati "a caso" escono da un numero ricavato dal seme della
+partita, e il client usa il match id. Il server usa `ctx.matchId`. Se un
+giorno il registro mostrasse divergenze concentrate sulle carte con `RAND`,
+**e' li' che si guarda per primo.**
+
+**Il collaudo** sta in `server/nakama/prova-ombra.js` e gira senza Nakama:
+estrae il blocco da `index.js` e lo fa girare col motore vero e un catalogo
+finto. Nove prove — conquista, regola `invincible`, effetto al piazzamento che
+cambia l'esito, forma dell'impronta, il confronto che non ferma niente, e
+l'ombra che si spegne su una carta sconosciuta invece di sbagliare in silenzio.
+
+**Quando sara' pronto a comandare.** Il consuntivo a fine partita scrive
+`ombra: N confronti, M divergenze`. Quando per un po' di partite di fila dira'
+zero, l'arbitro potra' diventare vero: e' una riga da cambiare, non un lavoro.
+
 ### Cosa manca
 
 Gli effetti che **cambiano i valori** li fa il motore: buff, debuff, set,
