@@ -10665,7 +10665,20 @@ if(document.readyState==='loading'){
     FILE_CANDIDATI_PATTERN.lastIndex = 0;
     while((nomeMatch = FILE_CANDIDATI_PATTERN.exec(scriptText))){
       const cartella = CARTELLA_DEI_CANDIDATI[nomeMatch[1]];
-      if(cartella) urls.add(sito + cartella + nomeMatch[2]);
+      if(!cartella) continue;
+      const indirizzo = sito + cartella + nomeMatch[2];
+      // v0.77.79 — DEVE SEMBRARE UN FILE.
+      // Il nome si legge dal PRIMO pezzo di testo fra parentesi, ma certe
+      // chiamate lo costruiscono al volo — per esempio iconaDelRank, che
+      // scrive 'ranks/' + chiave + '-rank-icon.png', e la gemma del livello,
+      // che scrive 'level-gem-' + rarita + '.png'.
+      // Li' quel pezzo e' solo un PREFISSO, e il precaricatore finiva col
+      // chiedere ui/ranks/ e ui/level-gem-: due indirizzi che non sono file,
+      // e due 404 fissi in console.
+      // Lo stesso controllo lo faceva gia' il ramo qui sotto, quello di
+      // BASE+'nome'. Mancava solo qui — ed e' il motivo per cui questi due si
+      // vedevano e gli altri no.
+      if(patternAsset().test(indirizzo)) urls.add(indirizzo);
     }
     while((concatMatch = BASE_CONCAT_PATTERN.exec(scriptText))){
       const baseVal = baseConsts[concatMatch[1]];
