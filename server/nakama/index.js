@@ -1358,6 +1358,11 @@ function partitaInit(ctx, logger, nk, params) {
     iniziata: false, finita: false,
     natoIl: Date.now(),
     rapporti: {},              // per turno: cosa ha raccontato ciascuno
+    // v0.77.86 — chi ha fatto l'ULTIMA giocata. Serve alle abilita' che
+    // chiedono un bersaglio: la scelta arriva DOPO il piazzamento, e a quel
+    // punto il turno e' gia' passato all'altro (vedi _passaTurno). Chiedere
+    // "tocca a te?" a chi deve scegliere darebbe sempre no.
+    ultimaGiocataDi: -1,
     concordato: null,          // l'ultimo tabellone su cui i due erano d'accordo
     // ── v0.77.76 — IL TABELLONE IN OMBRA ──────────────────────────────────
     // Il server ricalcola la partita per conto suo e confronta il risultato
@@ -1485,10 +1490,20 @@ function partitaLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
     if (m.opCode === OP_SCELGO) {
       // Il server non sa QUALI bersagli fossero leciti — non simula le
       // abilita' — quindi non puo' verificare la scelta nel merito. Verifica
-      // pero' l'unica cosa che sa, ed e' quella che conta contro un client
-      // scorretto: che a scegliere sia chi ha il turno. Il resto lo prende
-      // l'impronta, che dopo questa giocata deve coincidere.
-      if (idx !== state.turno) {
+      // pero' l'unica cosa che sa: che a scegliere sia chi ha appena giocato
+      // la carta. Il resto lo prende l'impronta, che dopo deve coincidere.
+      //
+      // v0.77.86 — QUI GUARDAVO `state.turno`, ED ERA SBAGLIATO.
+      // Il turno passa all'altro nell'istante del piazzamento, mentre la
+      // scelta arriva un momento DOPO: il controllo rifiutava quindi sempre
+      // proprio chi doveva scegliere, e la finestra restava aperta finche' non
+      // scadeva il tempo. Non si guarda di chi e' il turno adesso: si guarda
+      // chi ha calato la carta che sta chiedendo.
+      //
+      // Non si azzera dopo una scelta: un'abilita' puo' aprire una finestra
+      // dentro l'altra (lo sceriffo che usa subito l'abilita' rubata), e
+      // sarebbero due scelte per una sola giocata.
+      if (idx !== state.ultimaGiocataDi) {
         _aUno(dispatcher, state, chi, OP_RIFIUTO, { perche: 'non tocca a te scegliere' });
         continue;
       }
@@ -1513,6 +1528,9 @@ function partitaLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
 
     state.mano[chi].splice(posto, 1);
     state.occupate[k] = { carta: carta, di: idx + 1 };
+    // v0.77.86 — da adesso, se quella carta chiede un bersaglio, a rispondere
+    // puo' essere solo lui (vedi OP_SCELGO).
+    state.ultimaGiocataDi = idx;
     // v0.77.76 — e la stessa giocata la rifa' il server, per conto suo.
     // `try` attorno a tutto: l'ombra non deve poter rovinare una partita vera.
     try { ombraPrepara(ctx, nk, logger, state); ombraGiocata(state, logger, k, carta, idx + 1); }
@@ -1549,6 +1567,9 @@ function partitaLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
     var scelta = mano.shift();
     var pezzi = libera.split(',');
     state.occupate[libera] = { carta: scelta, di: state.turno + 1 };
+    // Anche la giocata d'ufficio e' una giocata: se quella carta chiede un
+    // bersaglio, la rinuncia deve poter arrivare da chi l'ha "giocata".
+    state.ultimaGiocataDi = state.turno;
     var chiEra = tocca;
     var pescata2 = _passaTurno(state, dispatcher, chiEra);
     _aTutti(dispatcher, OP_GIOCATA, {
