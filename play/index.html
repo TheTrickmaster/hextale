@@ -9898,7 +9898,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.70</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.71</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -31056,12 +31056,18 @@ function sceltaDalFoglio(card, q, r, giocatore){
 // `If subject = target`: una condizione che parla del BERSAGLIO, quindi va
 // chiesta a ognuno invece che una volta sola — ed e' il motivo per cui non la
 // puo' risolvere il motore, che la valuta sulla scena e non sul candidato.
-function _celleIdonee(card, a, eff){
+function _celleIdonee(card, a, eff, cellaPropria){
   const fuori = [];
   const chiede = a.se && a.se.soggetto === 'target' ? a.se : null;
   for(const k in G.board){
     const posto = G.board[k];
     if(!posto || !posto.card) continue;
+    // v0.77.71 — mai se stessa. `Who = any` vuol dire "di chiunque", non
+    // "compresa io": sulla carta che sta usando l'abilita' c'e' gia' la X per
+    // rinunciare, e mettergli sopra anche un bersaglio significa due comandi
+    // sovrapposti sulla stessa cella — uno dei due vince, e non si capisce
+    // quale.
+    if(k === cellaPropria || posto.card === card) continue;
     if(eff.chi === 'ally' && posto.owner !== card.owner) continue;
     if(eff.chi === 'opponent' && posto.owner === card.owner) continue;
     if(chiede && chiede.test === 'has_trait'
@@ -31079,7 +31085,7 @@ function _celleIdonee(card, a, eff){
 // della prima come `alTermine`: cosi' il turno riprende una volta sola, alla
 // fine di tutte e due, e non a meta'.
 function _sceltaScambioPosizioni(card, q, r, giocatore, a, eff){
-  const idonei = _celleIdonee(card, a, eff);
+  const idonei = _celleIdonee(card, a, eff, key(q, r));
   // Meno di due: non c'e' niente da scambiare. Si torna null e la finestra non
   // si apre nemmeno — nessuna pausa, nessuna X da cliccare a vuoto.
   if(idonei.length < 2) return null;
@@ -42206,8 +42212,16 @@ function firmaTabellone(){
     turno: G.currentPlayer,
     finita: !!G.gameOver,
     // La scelta di un bersaglio disegna mirini, X ed evidenziazioni.
+    // v0.77.71 — e ANCHE quali sono gia' stati presi. Mancavano, e la firma
+    // restava identica dopo un clic: renderBoard concludeva che non c'era
+    // niente da ridisegnare, e a schermo non succedeva NULLA. Da fuori
+    // sembrava che le carte non fossero cliccabili — il clic invece arrivava
+    // eccome, era il disegno a non tornare mai.
+    // E' la stessa lezione di sempre: una firma che dimentica un pezzo di
+    // stato non fa sbagliare il disegno, lo fa sparire.
     bersagli: G.sceltaBersaglio ? _statoSerializzabile({
-      g: G.sceltaBersaglio.giocatore, o: G.sceltaBersaglio.cellaOrigine, b: G.sceltaBersaglio.bersagli
+      g: G.sceltaBersaglio.giocatore, o: G.sceltaBersaglio.cellaOrigine, b: G.sceltaBersaglio.bersagli,
+      n: G.sceltaBersaglio.richieste || 1, p: (G.sceltaBersaglio.prese || []).slice()
     }) : null,
     // La carta che sta girando viene dipinta col proprietario di prima.
     girata: G.girataInCorso ? _statoSerializzabile(G.girataInCorso) : null,
@@ -42966,7 +42980,14 @@ function renderBoard(){
         // un gesto diverso puo' mostrarlo: March Hare scambia due valori, e uno
         // scambio ha un segno suo.
         const preso = !!(scelta.prese && scelta.prese.indexOf(cella) >= 0);
-        buildSvgIconBtn(scelta.icona || ICONA_MIRINO, bx, by, R*0.62, ()=>scegliBersaglio(cella));
+        const bottone = buildSvgIconBtn(scelta.icona || ICONA_MIRINO, bx, by, R*0.62, ()=>scegliBersaglio(cella));
+        // v0.77.71 — anello e contatore vanno nello STRATO DEI COMANDI, quello
+        // in cui vive il bottone, e non nella radice dell'SVG. Appesi alla
+        // radice finivano sopra a tutto: si vedevano dove capitava e, peggio,
+        // potevano intercettare il clic destinato all'icona sotto — che e'
+        // esattamente il sintomo visto in partita ("le icone ci sono ma le
+        // carte non si cliccano").
+        const strato = bottone && bottone.parentNode;
         // ── v0.77.69 — QUANTI NE MANCANO ────────────────────────────────
         // Una scelta che ne vuole due deve dirlo: senza, dopo il primo clic
         // sembra che non sia successo niente. Il numerino sta SOTTO l'icona
@@ -42984,7 +43005,8 @@ function renderBoard(){
             anello.setAttribute('stroke','#FFE991');
             anello.setAttribute('stroke-width', Math.max(2, R*0.06).toFixed(1));
             anello.setAttribute('pointer-events','none');
-            svg.appendChild(anello);
+            anello.style.pointerEvents = 'none';   // e nemmeno il CSS lo rimetta
+            if(strato) strato.appendChild(anello);
           }
           const quanti = svgEl('text');
           quanti.setAttribute('x', bx.toFixed(1));
@@ -42997,8 +43019,9 @@ function renderBoard(){
           quanti.setAttribute('stroke-width','3');
           quanti.setAttribute('paint-order','stroke');
           quanti.setAttribute('pointer-events','none');
+          quanti.style.pointerEvents = 'none';
           quanti.textContent = ((scelta.prese && scelta.prese.length) || 0) + '/' + scelta.richieste;
-          svg.appendChild(quanti);
+          if(strato) strato.appendChild(quanti);
         }
       }
     }

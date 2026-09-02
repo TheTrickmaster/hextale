@@ -1558,6 +1558,31 @@ indicato e si completa con gli altri candidati. Lasciare la finestra aperta ad
 aspettare un secondo clic che non arrivera' mai vorrebbe dire fermare la
 partita.
 
+### La firma che dimenticava un pezzo (v0.77.71)
+
+Il Pifferaio mostrava le icone ma "le carte non erano cliccabili". Il clic
+arrivava eccome: era il DISEGNO a non tornare mai.
+
+`renderBoard` salta il ridisegno quando la firma del tabellone non e'
+cambiata, e nella firma c'erano i bersagli (`b`) ma **non quali fossero gia'
+stati presi**. Dopo il primo clic `prese` cambiava e la firma restava identica:
+niente anello, niente contatore, nessun segno che qualcosa fosse successo.
+
+**Una firma che dimentica un pezzo di stato non fa sbagliare il disegno: lo fa
+sparire.** E' un guasto che si presenta come "l'interfaccia non risponde", che
+e' il posto piu' lontano da dove sta davvero.
+
+Altre due cose sistemate nello stesso giro:
+
+- **anello e contatore stavano nello strato sbagliato.** Li appendevo alla
+  radice dell'SVG invece che allo strato dei comandi, quello in cui vivono i
+  bottoni: finivano sopra a tutto e potevano intercettare il clic destinato
+  all'icona sotto.
+- **chi usa l'abilita' non e' bersaglio di se stesso.** `Who = any` vuol dire
+  "di chiunque", non "compresa io": sulla cella di chi sceglie c'e' gia' la X
+  per rinunciare, e sovrapporle un bersaglio significa due comandi sulla stessa
+  cella — uno dei due vince e non si capisce quale.
+
 ### Cosa manca
 
 Gli effetti che **cambiano i valori** li fa il motore: buff, debuff, set,
