@@ -703,6 +703,10 @@ function rpcBustinaRaccogli(ctx, logger, nk, payload) {
 // COSA NON SI CONTROLLA, di proposito: che un mazzo sia COMPLETO. Un mazzo
 // appena creato e' vuoto, e il gioco lo salva com'e'. La regola "dodici carte"
 // vale per SCENDERE IN CAMPO, non per esistere.
+// La sigla del "mazzo casuale". Non e' l'id di nessun mazzo: e' la richiesta
+// di sceglierne uno a caso al momento di scendere in campo. Deve combaciare
+// con MAZZO_CASUALE del client.
+var MAZZO_CASUALE = '__casuale';
 function _mazziPuliti(ctx, nk, dati) {
   var catalogo = leggiSistema(nk, KEY_CATALOGO);
   if (!catalogo || !catalogo.carte) throw Error('catalogo non ancora importato');
@@ -749,8 +753,17 @@ function _mazziPuliti(ctx, nk, dati) {
     fuori.push({ id: id, nome: nome, carte: carte });
   }
 
+  // ── v0.77.89 — IL MAZZO CASUALE E' UNA SCELTA, NON UN MAZZO ─────────────
+  // Qui si buttava via qualunque `scelto` che non fosse l'id di un mazzo, e
+  // il "mazzo casuale" del menu non lo e': e' un valore a parte, la richiesta
+  // di pescarne uno a caso. Chi lo sceglieva se lo ritrovava sostituito dal
+  // primo mazzo della lista al rientro successivo, e la scelta sembrava non
+  // essere mai stata salvata — mentre invece era stata scartata qui.
+  // La sigla deve restare uguale a quella del client (MAZZO_CASUALE): sono le
+  // due meta' dello stesso accordo, e se un giorno cambia va cambiata in tutti
+  // e due i posti.
   var scelto = dati && dati.scelto ? String(dati.scelto) : null;
-  if (scelto && !visti[scelto]) scelto = null;
+  if (scelto && scelto !== MAZZO_CASUALE && !visti[scelto]) scelto = null;
   if (!scelto && fuori.length) scelto = fuori[0].id;
 
   return {

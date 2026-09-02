@@ -2500,6 +2500,22 @@ body.io-sono-2 #p1-info{ left:1572px; }
 body.io-sono-2 #p2-info{ left:80px; }
 body.io-sono-2 #p1-hand-fan{ left:auto; right:50px; }
 body.io-sono-2 #p2-hand-fan{ right:auto; left:50px; }
+/* v0.77.89 — MANCAVANO DUE PEZZI, E STAVANO DALLA PARTE SBAGLIATA.
+   Lo scambio dei lati elencava i pannelli e i ventagli, e si fermava li'.
+   Ma dal lato di un giocatore non c'e' solo la sua mano: c'e' anche la sua
+   PILA DEL MAZZO, da cui pesca, e il suggerimento che spiega come aprire la
+   mano. Chi giocava da numero due se li ritrovava tutti e due dall'altra
+   parte dello schermo, staccati dalle proprie carte.
+   La regola per chi aggiunge qualcosa di nuovo: se un elemento appartiene a
+   UNO dei due giocatori, la sua riga va anche qui dentro. Il pannello, la
+   mano, il mazzo e il suggerimento sono quattro cose diverse che raccontano
+   la stessa: da che parte sto. */
+body.io-sono-2 #p1-deck-pile{ left:calc(1544px + 163px - var(--card-w)/2); }
+body.io-sono-2 #p2-deck-pile{ left:calc(50px + 163px - var(--card-w)/2); }
+/* Il suggerimento si specchia anche nel VERSO: l'icona resta sul bordo esterno
+   e il testo cresce verso il centro, come gia' faceva quello di destra. */
+body.io-sono-2 #p1-hand-expand-hint{ left:auto; right:30px; flex-direction:row-reverse; }
+body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; }
 /* Il ritratto dell'avversario guarda verso il centro: se i lati si scambiano,
    si scambia anche lui, o guarderebbe fuori dallo schermo. */
 body.io-sono-2 #p2-info .player-avatar-photo{ transform:none; }
@@ -9923,7 +9939,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.88</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.89</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -11185,6 +11201,30 @@ if(document.readyState==='loading'){
     }));
   }
 
+  // Vedi il commento dentro beginLoadingPhase. Risolve SEMPRE, e non lancia
+  // mai: un caricamento che si ferma perche' il server tace sarebbe peggio del
+  // difetto che questa funzione chiude.
+  function _scaldaDatiDelGiocatore(){
+    if(typeof nakamaSessionePronta !== 'function' || typeof caricaCarteDalServer !== 'function')
+      return Promise.resolve(false);
+    return nakamaSessionePronta()
+      .then(s => {
+        if(!s || !s.token){
+          console.info("[avvio] nessuna sessione salvata: il catalogo si chiedera' dopo il Login.");
+          return false;
+        }
+        return caricaCarteDalServer().then(esito => {
+          console.info('[avvio] catalogo, possesso e profilo pronti prima del menu.');
+          return !!(esito && esito.cambiato);
+        });
+      })
+      .catch(e => {
+        console.warn('[avvio] il database non ha risposto adesso: si riprova dopo il Login ('
+          + (e && e.message) + ').');
+        return false;
+      });
+  }
+
   function beginLoadingPhase(){
     setTimeout(revealLoadingBar, STD_STAGGER_MS);
     // v0.72.60 — le carte dal foglio si leggono QUI, prima di
@@ -11204,8 +11244,30 @@ if(document.readyState==='loading'){
     // ancora: si parte dalla copia locale dell'ultima volta, cosi' gli
     // indirizzi dell'arte si possono scoprire come prima, e appena fatto
     // l'accesso si chiede al server (vedi aggiornaCarteDopoAccesso).
-    const carteProntePer = Promise.resolve(
-      (typeof caricaCatalogoDaCache === 'function') ? caricaCatalogoDaCache() : false);
+    // ── v0.77.89 — IL CARICAMENTO LAVORAVA SULLE CARTE SBAGLIATE ──────────
+    // Qui si partiva dalla "copia locale dell'ultima volta". Da v0.77.70 quella
+    // copia non esiste piu': caricaCatalogoDaCache cancella e torna false,
+    // sempre. Il seguito di questa catena — la verifica dell'arte e la scoperta
+    // degli asset da precaricare — girava percio' sulla tabella di RIPIEGO
+    // scritta nel file, non sulle carte vere.
+    // Le conseguenze erano tutte e tre quelle che si vedevano:
+    //   - la barra precaricava arte che non sarebbe stata usata, e non
+    //     precaricava quella che serviva davvero;
+    //   - entrati nel menu, il catalogo vero arrivava e si ripeteva TUTTO —
+    //     verifica dell'arte compresa, che e' il pezzo lungo — e sono i dieci
+    //     secondi in cui avatar, livello, mazzi e illustrazioni si riempivano
+    //     uno dopo l'altro sotto gli occhi;
+    //   - e chi arrivava al menu prima che finisse si trovava le carte senza
+    //     immagine, da cui il ricaricare la pagina per rimediare.
+    // Adesso, se su questa macchina c'e' una sessione ancora buona, il catalogo
+    // vero si chiede QUI: e' una risposta sola (hx_avvio) e porta con se' anche
+    // possesso, profilo, valute e avatar, cioe' esattamente cio' che il menu
+    // deve mostrare. La barra ha quindi qualcosa di vero da precaricare, e al
+    // Login non resta niente di lento da fare.
+    // NON e' un accesso automatico: non si entra in nessun menu e non si tocca
+    // `giocatoreOnline`. Si scalda cio' che si sa gia'. Senza sessione, o col
+    // server muto, si torna esattamente al comportamento di prima.
+    const carteProntePer = _scaldaDatiDelGiocatore();
     carteProntePer
       // v0.75.84 — i mazzi salvati si rileggono QUI, non prima: dentro c'e'
       // solo un elenco di id, e per sapere quali di quegli id esistono ancora
@@ -11220,7 +11282,8 @@ if(document.readyState==='loading'){
       // nella fase dopo, che e' corta. Con la coda della v0.75.11 la fase muta
       // e' diventata la piu' lunga delle due, e il difetto si e' visto.
       .then(()=> (typeof verificaArtCarte === 'function')
-        ? verificaArtCarte(_avanzamentoSonde) : null)
+        ? verificaArtCarte(_avanzamentoSonde).then(()=>{ _arteVerificataPer = _catalogoVersione; })
+        : null)
       .then(()=> (typeof verificaIconeTratti === 'function') ? verificaIconeTratti() : null)
       .then(_proseguiCaricamento, _proseguiCaricamento);
   }
@@ -13567,6 +13630,11 @@ let GIOCATORE_ADMIN = false;
 // della Collezione di prima.
 let _possessoNoto = false;
 let _catalogoVersione = '';
+// v0.77.89 — la versione del catalogo per cui l'arte e' gia' stata cercata.
+// Cercarla vuol dire bussare a una porta per ogni variante di ogni carta: e'
+// il pezzo piu' lento dell'avvio, e va fatto una volta per catalogo, non una
+// volta per chiamata. Vuota vuol dire "mai fatta".
+let _arteVerificataPer = null;
 
 function nakamaRpc(nome, corpo){
   const s = sessioneAccount;
@@ -13711,7 +13779,16 @@ async function aggiornaCarteDopoAccesso(){
   try{
     // L'arte si riverifica solo se il catalogo e' cambiato davvero: e' un giro
     // lungo, e rifarlo a ogni accesso allungherebbe l'attesa per niente.
-    if(esito.cambiato && typeof verificaArtCarte === 'function') await verificaArtCarte();
+    // v0.77.89 — "cambiato" non basta piu' a dirlo. Da v0.77.70 il server manda
+    // sempre il catalogo intero, quindi `cambiato` e' vero a ogni chiamata: la
+    // verifica si rifaceva ogni volta, ed era proprio lei l'attesa lunga dopo
+    // il Login. La domanda giusta e' un'altra: l'arte di QUESTO catalogo l'ho
+    // gia' verificata? Si tiene da parte la versione per cui e' stata fatta.
+    if(esito.cambiato && _catalogoVersione !== _arteVerificataPer
+       && typeof verificaArtCarte === 'function'){
+      await verificaArtCarte();
+      _arteVerificataPer = _catalogoVersione;
+    }
     if(typeof caricaMazzi === 'function') caricaMazzi();
     // v0.77.37 — i mazzi si confrontano col database SOLO ADESSO: potarli vuole
     // il roster gia' letto, altrimenti butterebbe ogni carta di ogni mazzo.
@@ -15540,8 +15617,16 @@ async function sincronizzaMazzi(){
   // quale copia vincesse; adesso di copie ce n'e' una.
   const suoi = (dalServer && dalServer.mazzi) || [];
   MAZZI = suoi.map(m => ({ id:String(m.id), nome:String(m.nome||'Untitled deck'), carte:(m.carte||[]).map(String) }));
-  MAZZO_SCELTO = (dalServer.scelto && MAZZI.some(m=>m.id===dalServer.scelto))
-    ? dalServer.scelto : (MAZZI.length ? MAZZI[0].id : null);
+  // ── v0.77.89 — LA SCELTA TORNA COM'ERA, CASUALE COMPRESO ───────────────
+  // "MAZZI.some(...)" chiede se `scelto` e' l'id di un mazzo vero, e per il
+  // mazzo casuale la risposta e' no — non e' un mazzo, e' la richiesta di
+  // pescarne uno. Chi scendeva in campo col casuale se lo ritrovava quindi
+  // sostituito dal primo mazzo della lista alla riapertura del gioco.
+  // Il ripiego sul primo mazzo resta, ma per il caso che lo merita: quando la
+  // scelta di prima punta a un mazzo che non c'e' piu'.
+  const sceltaValida = dalServer.scelto
+    && (dalServer.scelto === MAZZO_CASUALE || MAZZI.some(m=>m.id===dalServer.scelto));
+  MAZZO_SCELTO = sceltaValida ? dalServer.scelto : (MAZZI.length ? MAZZI[0].id : null);
   _mazziModificatoIl = (dalServer && dalServer.modificatoIl) || 0;
   // Le carte che non esistono piu' si buttano lo stesso: la regola non cambia
   // perche' cambia la provenienza.
@@ -33179,6 +33264,20 @@ function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLa
         // apposta dopo (vedi landDelayMs).
         placedEl.classList.remove('card-land','card-hop-a','card-hop-b');
         placedEl.style.animationDelay='';
+        // ── v0.77.89 — E SI SPEGNE ANCHE LA MEMORIA DELLA CADUTA ───────────
+        // Il v0.77.6 toglie qui la CLASSE dell'atterraggio, ed e' meta' del
+        // lavoro: resta acceso `_cardLand`, che e' cio' da cui la caduta
+        // RINASCE. A ogni ridisegno cardLandReattach lo legge e, se la caduta
+        // secondo lui non e' ancora finita, rimette la classe sull'elemento —
+        // e per farlo sposta il nodo, che azzera l'animazione in corso.
+        // Il colpo si trova quindi sopra un atterraggio riacceso: la carta
+        // rimbalza, e subito dopo rimbalza di nuovo. Basta un ridisegno che
+        // capiti nei 420ms del colpo, e in quei 420ms di ridisegni ne passano
+        // parecchi (il giro del difensore, i lampi, le abilita' alla conquista).
+        // Da qui in avanti quella carta sta colpendo, non cadendo: la caduta e'
+        // finita per definizione, visto che il colpo parte apposta dopo di lei
+        // (vedi landDelayMs). Dichiararlo chiude la porta da cui rientrava.
+        if(_cardLand && _cardLand.k === k) _cardLand = null;
         riavviaAnimazione(placedEl, ['card-lunge-a','card-lunge-b'], idx%2!==0);
       },stepStart);
 
@@ -43865,8 +43964,72 @@ function toast(msg){
 // colori, allineamento e filo separatore arrivano gia' giusti e non c'e' un
 // secondo aspetto da tenere allineato al primo. Il tooltip ripete le stesse
 // regole sotto il proprio contenitore, per lo stesso motivo.
+// ── v0.77.89 — LE SINERGIE DEL FOGLIO NON DICEVANO PIU' DA DOVE VENGONO ───
+// Il registro `card.modificatori` lo scrivono annotaModificatore e
+// sommaModificatore, cioe' la strada VECCHIA degli effetti. Da v0.77.58 le
+// sinergie continue passano dal motore — valoriEffettivi rifa' i numeri a ogni
+// disegno partendo da valoriBase — e il motore nel registro non scrive niente.
+// Il risultato: la riga "Bonus/Malus" era rimasta accesa nel codice ma usciva
+// vuota per quasi tutte le carte, e chi guardava una carta con numeri diversi
+// da quelli stampati non aveva piu' modo di sapere chi gliel'aveva fatto.
+//
+// Ricostruirla e' possibile senza toccare il motore: `deltaContinuo` somma i
+// contributi di tutte le carte in campo, quindi chiamandolo con una scena in
+// cui in campo c'e' UNA carta sola si ottiene il contributo di quella sola.
+// Si fa qui e non nel ricalcolo perche' questa risposta serve solo quando
+// qualcuno guarda una carta — al passaggio del mouse e nella scheda espansa —
+// mentre il ricalcolo gira decine di volte al secondo.
+//
+// Il segno decide il colore, come gia' per le righe vecchie: sopra il valore
+// base verde, sotto rosso (.ct-mod.su / .ct-mod.giu).
+function _modificatoriDalMotore(card){
+  if(typeof sinergieDalFoglio !== 'function' || !sinergieDalFoglio()) return [];
+  const motore = (typeof _motore === 'function') ? _motore() : null;
+  if(!motore || typeof motore.deltaContinuo !== 'function') return [];
+  if(typeof _scenaTabellone !== 'function') return [];
+  let scena;
+  try{ scena = _scenaTabellone(); }catch(_){ return []; }
+  const fonti = (scena && scena.inCampo) || [];
+  const righe = [];
+  for(const fonte of fonti){
+    let d;
+    // Una scena identica in tutto tranne che per chi sta in campo: cosi'
+    // adiacenze, turno e seme restano quelli veri e cambia solo CHI contribuisce.
+    try{ d = motore.deltaContinuo(card, Object.assign({}, scena, {inCampo:[fonte]})); }
+    catch(_){ continue; }
+    if(!d) continue;
+    let minimo = null, massimo = null, tutti = true;
+    for(const lato of SIDES){
+      const v = d[lato] || 0;
+      if(!v) tutti = false;
+      if(minimo === null || v < minimo) minimo = v;
+      if(massimo === null || v > massimo) massimo = v;
+    }
+    if(!minimo && !massimo) continue;      // questa fonte non le fa niente
+    // Un contributo uguale su tutti i lati si legge "+2 ALL"; uno disuguale si
+    // riassume con l'estremo piu' grande in modulo, che e' quello che si nota.
+    const uniforme = tutti && minimo === massimo;
+    const delta = uniforme ? massimo
+                : (Math.abs(massimo) >= Math.abs(minimo) ? massimo : minimo);
+    if(!delta) continue;
+    const segno = delta > 0 ? '+' : '−';
+    // Il nome dell'abilita' quando la fonte e' la carta stessa: "da se stessa"
+    // non dice niente, il nome dell'abilita' si'.
+    const da = (fonte === card)
+      ? (card.abilityNameSheet || card.name || 'its own ability')
+      : (fonte.name || 'another card');
+    righe.push({
+      testo: segno + Math.abs(delta) + (uniforme ? ' ALL' : '') + ' from ' + da,
+      positivo: delta > 0
+    });
+  }
+  return righe;
+}
 function bloccoModificatoriHTML(card){
-  const righe = elencoModificatori(card);
+  // Prima quelle del motore (le sinergie vive, che valgono adesso), poi quelle
+  // del registro (i colpi una tantum gia' successi): e' l'ordine in cui chi
+  // guarda se le aspetta, dal permanente all'accaduto.
+  const righe = _modificatoriDalMotore(card).concat(elencoModificatori(card));
   if(!righe.length) return '';
   return '<div class="cm-riga cm-mods"><span class="cm-et">Bonus/Malus:</span>'
     + '<span class="cm-val"><span class="ct-mods">'
