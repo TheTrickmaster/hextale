@@ -9923,7 +9923,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.86</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.88</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -12860,9 +12860,27 @@ function _cartaSconosciuta(owner, i){
 
 // Una carta vera, dal suo id di catalogo. Serve quando l'avversario gioca:
 // fino a quel momento quella carta era un segnaposto, e adesso si sa.
+// ── v0.77.87 — ANCHE IN RETE LE CARTE HANNO UN LIVELLO ────────────────────
+// Qui si prendeva la voce di catalogo COM'E', cioe' al livello che le ha dato
+// l'importazione (dal foglio, o a caso quando la colonna e' vuota). Fuori dalla
+// rete quel livello lo correggeva gia' alLivelloDelGiocatore; su questa strada
+// no, ed e' esattamente la discrepanza fra la Libreria — che mostra il livello
+// vero — e la partita, che ne mostrava un altro.
+// Ogni carta va al livello del SUO proprietario: le mie a quello che dice il
+// mio possesso, le sue a quello che il server ha dichiarato per lei.
+function _livelloDiRete(owner){
+  if(!PARTITA_RETE) return null;
+  if(owner === PARTITA_RETE.io) return null;          // le mie: decide il possesso
+  const suo = PARTITA_RETE.livelloAvversario;
+  return (typeof suo === 'number' && suo > 0) ? suo : 1;
+}
 function _cartaDaIdRete(idCatalogo, owner, i){
-  const entry = entryDaId(idCatalogo);
+  let entry = entryDaId(idCatalogo);
   if(!entry) return _cartaSconosciuta(owner, i);
+  const suo = _livelloDiRete(owner);
+  entry = (suo === null)
+    ? alLivelloDelGiocatore(entry)
+    : ((entry.level === suo || typeof cartaAlLivello !== 'function') ? entry : cartaAlLivello(entry, suo));
   const carta = _makeCardDbCard(entry, owner);
   carta.id = idCatalogo + '-' + owner + '-r' + i;
   carta.baseId = entry.id;
@@ -12958,6 +12976,11 @@ function reteMessaggio(md){
         rank: (typeof d.avversario.rank === 'number') ? d.avversario.rank : null,
         avatar: d.avversario.avatar || ''
       };
+      // v0.77.87 — il livello con cui le SUE carte scendono in campo. Lo dice
+      // il server (vedi accoppiati): non e' una cosa che il suo client possa
+      // dichiarare, perche' decide i numeri sui lati.
+      PARTITA_RETE.livelloAvversario =
+        (d.avversario && typeof d.avversario.livello === 'number') ? d.avversario.livello : 1;
       PARTITA_ERA_IN_RETE = true;
       // Il numero serve anche dopo che PARTITA_RETE e' sparito: e' l'unico
       // modo, a partita interrotta, di sapere quale delle due mani e' la mia.
@@ -12997,10 +13020,18 @@ function reteMessaggio(md){
 
   if(op === 6){
     const suo = d.chi && PARTITA_RETE && d.chi !== PARTITA_RETE.io;
-    apriAvviso('Match over',
-      d.motivo === 'abbandono'
-        ? (suo ? 'Your opponent left the match.' : 'You left the match.')
-        : 'The match has ended.', d.motivo === 'abbandono');
+    // ── v0.77.87 — NIENTE MODALE SU UNA PARTITA FINITA NORMALMENTE ────────
+    // C'e' gia' la schermata di fine partita, che dice chi ha vinto e con che
+    // punteggio: una finestra sopra di lei ripeteva "the match has ended" e
+    // andava chiusa prima di poter leggere la cosa vera.
+    // Resta per l'ABBANDONO, che e' l'unico caso in cui quella schermata non
+    // arriva: la partita si interrompe senza un vincitore e senza il conto
+    // finale, e senza una riga il giocatore resterebbe su un tavolo fermo
+    // senza sapere perche'.
+    if(d.motivo === 'abbandono'){
+      apriAvviso('Match over',
+        suo ? 'Your opponent left the match.' : 'You left the match.', true);
+    }
     PARTITA_RETE = null;
     return;
   }
@@ -17587,9 +17618,18 @@ function requestNewGame(vsAI){
 // window.__humanFaction (scelta nel popup di inizio partita) dice quale
 // fazione veste il GIOCATORE UMANO, che e' sempre il giocatore 1. Se sceglie
 // light, la mappa si inverte e il giocatore 2 diventa dark.
+// ── v0.77.87 — LA FAZIONE E' DI CHI GIOCA, NON DEL NUMERO UNO ─────────────
+// Il commento qui sopra lo dice da se': "il giocatore umano, che e' SEMPRE il
+// giocatore 1". Fuori dalla rete e' vero. Online no — il server decide chi e'
+// il uno e chi il due, e per meta' delle partite l'umano e' il due. In quelle
+// partite la fazione scelta finiva addosso all'AVVERSARIO: chi aveva scelto
+// light si vedeva il mazzo dark dal proprio lato, e viceversa.
+// La domanda giusta non e' "sei il numero uno?", e' "sei IO?".
 function playerFactionIsDark(player){
   const humanIsLight = (typeof window!=='undefined' && window.__humanFaction==='light');
-  return humanIsLight ? (player===2) : (player!==2);
+  const io = (typeof PARTITA_RETE !== 'undefined' && PARTITA_RETE) ? PARTITA_RETE.io : 1;
+  const eIlMio = (player === io);
+  return humanIsLight ? !eIlMio : eIlMio;
 }
 // Comodo per i punti che ragionano in stringhe invece che in booleani.
 function playerFactionName(player){ return playerFactionIsDark(player) ? 'dark' : 'light'; }
@@ -31137,7 +31177,14 @@ function _usaAbilitaPresa(carta, chiave, q, r, giocatore, finito){
   // non deve fermare il turno.
   const chiPuoScegliere = (giocatore != null) ? giocatore : G.currentPlayer;
   const k = key(q,r);
-  if(SCELTE_PIAZZAMENTO[chiave] && apriSceltaBersaglio(carta, chiPuoScegliere, q, r, k, chiave)){
+  // v0.77.88 — la porta era una sola, la tabella scritta a mano. Un'abilita'
+  // che chiede un bersaglio e vive solo nel foglio non aveva quindi modo di
+  // aprire la sua finestra una volta rubata o copiata: veniva presa, e poi
+  // taceva. Adesso si chiede a tutte e due le strade, nello stesso ordine in
+  // cui lo chiede apriSceltaBersaglio quando la carta viene giocata davvero.
+  const chiedeUnBersaglio = !!SCELTE_PIAZZAMENTO[chiave]
+    || (typeof sceltaDalFoglio === 'function' && !!sceltaDalFoglio(carta, q, r, chiPuoScegliere));
+  if(chiedeUnBersaglio && apriSceltaBersaglio(carta, chiPuoScegliere, q, r, k, chiave)){
     G.sceltaBersaglio.alTermine = finito;
     // Le scelte che si fanno sulla MANO hanno i comandi nel ventaglio, quelle
     // sul tabellone nella plancia: stessa distinzione di doPlace.
@@ -31162,6 +31209,27 @@ function _prendiAbilita(donatore, ricevente, chiave){
   ricevente.cardAbility = chiave;
   ricevente.activatedTileAbility = chiave;
   ricevente.abilityLocked = false;
+  // ── v0.77.88 — E LA RIGA DEL FOGLIO, CHE E' CIO' CHE COMANDA ────────────
+  // Questa funzione passava la chiave vecchia e i testi, e si fermava li'.
+  // Era completa quando la chiave ERA l'abilita'; da v0.77 non lo e' piu':
+  // chi decide cosa fa una carta e' `card.abilita`, la riga strutturata che
+  // arriva dal foglio. Tutto il resto la interroga — applicaAbilitaPiazzamento,
+  // sceltaDalFoglio, deltaContinuo, motoreFaLEvento — e nessuno di loro guarda
+  // piu' la chiave se la riga c'e'.
+  // Lo specchio quindi copiava il NOME dell'abilita' e la sua descrizione,
+  // restando pero' con la propria riga addosso: mostrava di aver copiato e non
+  // eseguiva niente. Lo sceriffo aveva lo stesso difetto, nascosto solo dal
+  // fatto che ruba soprattutto a carte vecchie.
+  // Si copia, non si condivide: due carte che puntano allo stesso oggetto si
+  // scambierebbero anche la memoria del "una volta per partita".
+  if(donatore.abilita) ricevente.abilita = JSON.parse(JSON.stringify(donatore.abilita));
+  else delete ricevente.abilita;
+  // E si riparte da zero coi colpi gia' sparati: l'abilita' presa dev'essere
+  // come appena giocata, quindi un `once_per_game` che il donatore aveva gia'
+  // speso — o che il ricevente aveva speso con la PROPRIA abilita' un istante
+  // fa, visto che `_scatti` e' per momento e non per abilita' — non deve
+  // impedirle di partire.
+  ricevente._scatti = {};
   // v0.73.18 — insieme all'abilita' si prende anche il suo TESTO.
   // Chi disegna una carta preferisce sempre il nome e la descrizione scritti
   // nel foglio (vedi testiAbilitaDi: e' li' che il testo viene curato), e
@@ -31281,6 +31349,12 @@ function rubaAbilitaDa(sceriffo, cellaBersaglio, q, r, giocatore, poi){
 // dall'altra parte.
 function _togliAbilita(card){
   if(!card) return;
+  // v0.77.88 — anche la riga del foglio, per la stessa ragione di
+  // _prendiAbilita: azzerare la sola chiave lasciava il derubato con l'abilita'
+  // ancora attiva e senza piu' il testo che la spiega. Le sue sinergie continue
+  // avrebbero continuato a girare in silenzio, e la carta avrebbe raccontato di
+  // non avere niente mentre continuava a fare qualcosa.
+  delete card.abilita;
   card.cardAbility = '';
   card.activatedTileAbility = null;
   card.abilityNameSheet = '';
@@ -31421,16 +31495,49 @@ function candidatiDalFoglio(card, q, r, giocatore, a, eff){
   // ── le CARTE ─────────────────────────────────────────────────────────────
   const condizione = (a.se && a.se.soggetto === 'target') ? a.se : null;
   const fuori = [];
+  // ── v0.77.88 — PERCHE' NON HA CHIESTO NIENTE ────────────────────────────
+  // Quando questa lista esce vuota l'abilita' non apre nessuna finestra, e da
+  // fuori e' identica a un'abilita' rotta: la carta scende, non succede
+  // niente, e nessuna riga da nessuna parte dice se il gioco ha deciso o si e'
+  // dimenticato. La vecchia bersagliNewTax questa cortesia ce l'aveva gia' —
+  // elencava i vicini esaminati e il motivo di ognuno — e passando al foglio
+  // l'abbiamo persa proprio mentre il numero di carte che passano di qui
+  // saliva da una a dodici.
+  // Il motivo si annota mentre si scarta, non ricostruendolo dopo: dopo non si
+  // saprebbe piu' quale dei sei controlli ha detto di no.
+  const scartati = [];
+  const scarta = (k, perche) => {
+    const p = G.board[k];
+    scartati.push(((p && p.card && p.card.name) || k) + ': ' + perche);
+  };
   for(const k of zona){
     if(k === origine) continue;                    // mai se stessa: vedi Pifferaio
     const posto = G.board[k];
     if(!posto || !posto.card) continue;
     if(posto.card === card) continue;
-    if(eff.chi === 'ally' && posto.owner !== giocatore) continue;
-    if(eff.chi === 'opponent' && posto.owner === giocatore) continue;
-    if(condizione && !_condizioneSulBersaglio(condizione, posto.card)) continue;
-    if(!_effettoHaSensoSu(eff, card, posto.card)) continue;
+    if(eff.chi === 'ally' && posto.owner !== giocatore){ scarta(k, "e' dell'avversario, e l'abilita' vuole un alleato"); continue; }
+    if(eff.chi === 'opponent' && posto.owner === giocatore){ scarta(k, "e' mia, e l'abilita' vuole una carta avversaria"); continue; }
+    if(condizione && !_condizioneSulBersaglio(condizione, posto.card)){ scarta(k, 'non soddisfa la condizione "If" della riga'); continue; }
+    if(!_effettoHaSensoSu(eff, card, posto.card)){
+      // Il caso piu' frequente, e il piu' difficile da indovinare da fuori:
+      // l'abilita' c'e' ma il livello della carta non la sblocca ancora.
+      var perche = "l'effetto non farebbe niente su di lei";
+      if(eff.cosa === 'ability'){
+        if(!posto.card.cardAbility && !posto.card.abilita) perche = "non ha abilita'";
+        else if(!abilitaAttivaDi(posto.card)) perche = "ha un'abilita' ma e' chiusa a chiave dal livello"
+          + " (e' di livello " + (posto.card.level != null ? posto.card.level : '?')
+          + " e si sblocca al " + (posto.card.abilityUnlockLevel != null ? posto.card.abilityUnlockLevel : '?') + ')';
+        else perche = "ha la stessa abilita' di chi la sta usando";
+      }
+      scarta(k, perche);
+      continue;
+    }
     fuori.push(k);
+  }
+  if(!fuori.length && eff.scelta){
+    console.info('[' + (card.name || card.id) + '] non ha nessun bersaglio da indicare in ' + origine
+      + ' per "' + (a.riepilogo || eff.azione) + '". Esaminate: '
+      + (scartati.length ? scartati.join(' | ') : 'nessuna carta nella zona'));
   }
   return fuori;
 }
@@ -31994,7 +32101,24 @@ function effettiDopoLoScontro(card, q, r){
 // L'elenco delle istantanee sta scritto UNA volta: chi domani ne aggiungera'
 // una per una sinergia nuova la mette qui, e ogni spostamento di valori la
 // rispetta senza saperne niente.
-const METRI_DELLA_CARTA = ['valoriNascita','tileAbilityBaseValues','hoorayBaseValues',
+// ── v0.77.88 — MANCAVA IL METRO PIU' IMPORTANTE, `valoriBase` ────────────
+// Questo elenco dice quali tabelle di numeri viaggiano insieme ai valori quando
+// una carta li scambia (March Hare) o li ruota (Alice, Cheshire, Brucaliffo).
+// Se una tabella manca, il gesto dura il tempo di un disegno: al ridisegno
+// successivo qualcuno riparte da quella rimasta indietro e rimette tutto com'era.
+// E' esattamente cio' che diceva il commento del v0.75.69 tre righe piu' sotto,
+// scritto quando ne mancavano tre.
+//
+// Ne mancava una quarta, arrivata dopo quel commento: `valoriBase`, la tabella
+// del motore nuovo. Da v0.77.58 e' LEI la sorgente — ricalcolaValoriVivi rifa'
+// `values` da `valoriBase` piu' le sinergie a ogni disegno — quindi lasciarla
+// fuori non "perdeva un dettaglio": annullava lo scambio un istante dopo averlo
+// fatto. La Lepre Marzolina faceva la sua animazione, i due numeri si
+// scambiavano davvero, e poi tornavano al loro posto come se niente fosse.
+//
+// La regola, per la prossima tabella che nascera': se contiene numeri per lato
+// e qualcuno la usa come base, va qui dentro. Non altrove.
+const METRI_DELLA_CARTA = ['valoriBase','valoriNascita','tileAbilityBaseValues','hoorayBaseValues',
                            'mischiefBaseValues','nightmareBaseValues','balooBaseValues'];
 function _scambiaLatiOvunque(card, latiA, latiB){
   if(!card || !latiA || !latiB || !latiA.length || !latiB.length) return;
@@ -32433,6 +32557,28 @@ function simulaPiazzamento(card, q, r){
     // mostra il +3 che arriverebbe posando un Trickster accanto alle Pixies.
     // Il gruppo premiato coincide con quello che si accendera' davvero perche'
     // il sorteggio e' stabile (vedi recalcMischief), non casuale.
+    // ── v0.77.88 — L'ANTEPRIMA RICALCOLAVA SOLO LE SINERGIE VECCHIE ───────
+    // Qui sotto girano i quattro recalc scritti a mano, e da v0.77.58 quei
+    // quattro non fanno piu' niente quando le sinergie vengono dal foglio: la
+    // guardia dentro ognuno di essi esce subito. Nella partita vera non e' un
+    // problema, perche' li' ci pensa ricalcolaValoriVivi; QUI nessuno lo
+    // chiamava, e quindi nella simulazione le abilita' continue del foglio non
+    // esistevano.
+    // Si vedeva cosi': trascinando la Principessa sul pisello — il cui bonus
+    // dipende dai lati liberi della casella, cioe' proprio da DOVE la posi —
+    // i numeri non si muovevano di un'unghia, e l'anteprima taceva esattamente
+    // sulla carta che ne aveva piu' bisogno.
+    // La simulazione gira su G.board sostituito col clone (vedi sopra), quindi
+    // ricalcolaValoriVivi legge da se' il tabellone finto: si chiama la STESSA
+    // funzione della partita vera, e non c'e' modo che le due strade dicano
+    // due cose diverse.
+    if(typeof sinergieDalFoglio === 'function' && sinergieDalFoglio()){
+      for(const k in clone) ricalcolaValoriVivi(clone[k].card, k);
+      // Le carte in mano passano di li' anche nella partita vera, con la
+      // cella a null (vedi renderHand): stessa chiamata, stesso risultato.
+      mano1.forEach(c=>ricalcolaValoriVivi(c, null));
+      mano2.forEach(c=>ricalcolaValoriVivi(c, null));
+    } else {
     for(const k in clone){ recalcHoorayShesStays(clone[k].card); recalcMischief(clone[k].card); recalcNightmare(clone[k].card); }
     // v0.73.97 — Baloo per ultimo e in un giro suo: il suo dono dipende dai
     // VICINI, quindi va calcolato quando tutte le altre sinergie hanno gia'
@@ -32440,6 +32586,7 @@ function simulaPiazzamento(card, q, r){
     for(const k in clone) recalcBearNecessities(clone[k].card, k);
     mano1.forEach(c=>{ recalcHoorayShesStays(c); recalcMischief(c); recalcNightmare(c); });
     mano2.forEach(c=>{ recalcHoorayShesStays(c); recalcMischief(c); recalcNightmare(c); });
+    }
 
     const esito = { cellaGiocata: cella, tabellone: {}, mani: {1:{}, 2:{}} };
     for(const k in clone) esito.tabellone[k] = Object.assign({}, clone[k].card.values);
@@ -40220,12 +40367,27 @@ function renderHand(containerId,hand,playerIdx){
     // index — see the big comment above hand.forEach for why. When no drag
     // is in progress, visualIndex===index for every card, so this is a
     // strict no-op change to the resting layout.
+    // ── v0.77.87 — "SONO IL NUMERO UNO" NON VUOL DIRE "STO A SINISTRA" ────
+    // Tutto il conto di questo ventaglio — rotazione, scorrimento, ancoraggio,
+    // ordine dei posti, zona cliccabile — nasce da una domanda sola: da che
+    // lato dello schermo sta? Finora la si chiedeva scrivendo `playerIdx===0`,
+    // che e' la stessa cosa SOLO finche' il uno sta a sinistra.
+    // Da quando il giocatore locale sta sempre a sinistra (v0.77.85), online
+    // quel lato puo' essere del DUE: il conto restava quello del ventaglio
+    // destro mentre il ventaglio era ormai a sinistra, e la mano espansa
+    // finiva fuori dallo schermo.
+    // Si chiede una volta, qui, e tutto il resto la usa.
+    // Il lato lo decide una regola sola, la stessa del CSS io-sono-2: a
+    // sinistra c'e' il MIO numero. Non si passa da sceltaMia, che risponde
+    // "chi comanda" e in una partita locale direbbe di si' a tutti e due.
+    const mioNumero = (typeof PARTITA_RETE !== 'undefined' && PARTITA_RETE) ? PARTITA_RETE.io : 1;
+    const aSinistra = (playerIdx + 1) === mioNumero;
     const baseRotation = HAND_SLOT_ROTATIONS[Math.min(visualIndex,HAND_SLOT_ROTATIONS.length-1)];
-    const rotation = playerIdx===0 ? baseRotation : -baseRotation;
+    const rotation = aSinistra ? baseRotation : -baseRotation;
     // P1's fan grows rightward from its left anchor (index 0 = leftmost, per
     // spec); P2's fan is anchored to the RIGHT edge and grows leftward as a
     // mirror image, so both hands visually "lean toward" the board's center.
-    const x = playerIdx===0 ? handSlotX(visualIndex) : -handSlotX(visualIndex);
+    const x = aSinistra ? handSlotX(visualIndex) : -handSlotX(visualIndex);
     // v0.67.0: the two CENTER cards (index 1 and 2 of the 4-slot hand) sit
     // 7px higher than the two outer cards, per explicit spec — a plain
     // translateY baked into the same "resting" transform as the rotation
@@ -40262,7 +40424,7 @@ function renderHand(containerId,hand,playerIdx){
       // in-hand) card into the LEFTMOST expanded slot, reversing/mirroring
       // the visual order the player sees. Mirroring the index for P2 restores
       // the same left-to-right on-screen order the normal fan already shows.
-      const slotIndex = playerIdx===0 ? visualIndex : (visualHand.length-1-visualIndex);
+      const slotIndex = aSinistra ? visualIndex : (visualHand.length-1-visualIndex);
       // v0.71.7: expandedHandSlotLeft now returns the slot's VISUAL (post-
       // 1.5x-scale) left edge — convert back to the wrap's own UNSCALED box
       // left, since scale(1.5) with transform-origin:50% 100% expands the
@@ -40282,7 +40444,7 @@ function renderHand(containerId,hand,playerIdx){
       // 1920-canvasLeft-210, and container's own right:50px anchor means
       // right-style = (1920-canvasLeft-210) - 50; effX is the negation of
       // that so -effX below reproduces it correctly.
-      effX = playerIdx===0 ? (canvasLeft - fanAnchorPx) : (AUTHORED_CANVAS_W - 210 - fanAnchorPx - canvasLeft) * -1;
+      effX = aSinistra ? (canvasLeft - fanAnchorPx) : (AUTHORED_CANVAS_W - 210 - fanAnchorPx - canvasLeft) * -1;
       effRotation = 0; // flat row, no fan tilt, per spec ("in fila... senza sovrapposizioni")
       // Vertically center the row on the 1080px canvas, accounting for the
       // card's EXPANDED (1.5x) visual height (540px, was 360px) — v0.71.7
@@ -40305,8 +40467,8 @@ function renderHand(containerId,hand,playerIdx){
     } else {
       effX = x; effRotation = rotation; effRestY = restY;
     }
-    wrap.style.left = playerIdx===0 ? effX+'px' : '';
-    wrap.style.right = playerIdx===1 ? (-effX)+'px' : '';
+    wrap.style.left  = aSinistra ? effX+'px' : '';
+    wrap.style.right = aSinistra ? '' : (-effX)+'px';
     // v0.71.7: expanded cards are scaled 1.5x visually (EXPANDED_SCALE) via
     // this extra scale() term — applied AFTER translateY/rotate so it grows
     // uniformly from the wrap's own transform-origin (50% 100%, bottom-
@@ -40357,12 +40519,12 @@ function renderHand(containerId,hand,playerIdx){
         // Was expanded, now collapsing: old = expanded position (recompute
         // the same way effX/effRotation/effRestY above did).
         // v0.70.19: same P2 index-mirroring fix as the effX computation above.
-        const slotIndex = playerIdx===0 ? visualIndex : (visualHand.length-1-visualIndex);
+        const slotIndex = aSinistra ? visualIndex : (visualHand.length-1-visualIndex);
         // v0.71.7: same visual-left-edge-to-box-left conversion as the
         // effX/canvasLeft computation above (see its own v0.71.7 comment).
         const canvasLeft = expandedHandSlotLeft(slotIndex, visualHand.length) + (EXPANDED_SCALE-1)*105;
         // v0.70.12: mirrors the same sign fix applied to effX above.
-        oldX = playerIdx===0 ? (canvasLeft - HAND_FAN_ANCHOR_PX) : (AUTHORED_CANVAS_W - 210 - HAND_FAN_ANCHOR_PX - canvasLeft) * -1;
+        oldX = aSinistra ? (canvasLeft - HAND_FAN_ANCHOR_PX) : (AUTHORED_CANVAS_W - 210 - HAND_FAN_ANCHOR_PX - canvasLeft) * -1;
         // v0.71.7 FIX: use the same corrected derivation as effRestY above
         // (ty = finalTop - unscaledTop + height*(EXPANDED_SCALE-1)).
         oldRotation = 0; oldRestY = 270 - 806 + 360*(EXPANDED_SCALE-1); oldScale = EXPANDED_SCALE;
@@ -40383,8 +40545,8 @@ function renderHand(containerId,hand,playerIdx){
       requestAnimationFrame(()=>{ wrap.style.transform=restTransform; });
     } else if(oldVisualIndex!==null && oldVisualIndex!==visualIndex){
       const oldBaseRotation = HAND_SLOT_ROTATIONS[Math.min(oldVisualIndex,HAND_SLOT_ROTATIONS.length-1)];
-      const oldRotation = playerIdx===0 ? oldBaseRotation : -oldBaseRotation;
-      const oldX = playerIdx===0 ? handSlotX(oldVisualIndex) : -handSlotX(oldVisualIndex);
+      const oldRotation = aSinistra ? oldBaseRotation : -oldBaseRotation;
+      const oldX = aSinistra ? handSlotX(oldVisualIndex) : -handSlotX(oldVisualIndex);
       const oldRestY = (oldVisualIndex===1 || oldVisualIndex===2) ? -7 : 0;
       // left/right (horizontal position) are ordinary layout properties, not
       // part of `transform` — they're always set directly to the FINAL x
@@ -40420,7 +40582,7 @@ function renderHand(containerId,hand,playerIdx){
     // (visualHand.length-1-visualIndex) makes the rightmost card the topmost
     // one for player 2, with the rest descending further left — matching
     // player 1's own left-anchored "rightmost/topmost" convention, mirrored.
-    const zIndexRank = playerIdx===0 ? visualIndex : (visualHand.length-1-visualIndex);
+    const zIndexRank = aSinistra ? visualIndex : (visualHand.length-1-visualIndex);
     wrap.style.zIndex = String(zIndexRank);
     // Turn-indicator glow — sits behind the card art (see .hand-card-glow's
     // negative z-index), only actually visible while .my-turn is set (CSS
@@ -40564,7 +40726,7 @@ function renderHand(containerId,hand,playerIdx){
       // OTHER card, so every card's hitzone can safely claim its FULL width,
       // same treatment the fan's own last/topmost card already gets.
       hitzone.style.left='0'; hitzone.style.width='100%';
-    } else if(playerIdx===0){
+    } else if(aSinistra){
       // P1: fan grows rightward, each card overlapped by the NEXT one on
       // its RIGHT side — exposed sliver is the LEFT portion, width = the
       // per-slot step distance (handSlotX's own spacing).

@@ -1677,10 +1677,19 @@ function accoppiati(ctx, logger, nk, matches) {
     var u = matches[i].presence.userId;
     giocatori.push(u);
     var sp = matches[i].properties || {};
+    // v0.77.87 — IL LIVELLO LO DICE IL SERVER, NON IL CLIENT.
+    // Nome, avatar e rank arrivano dalle proprieta' del biglietto, cioe' da
+    // quel che il client DICHIARA: se anche mentisse cambierebbe solo cio' che
+    // si legge accanto al ritratto. Il livello no — decide i valori sui lati
+    // delle carte, cioe' chi conquista chi. Si legge quindi dal possesso, che
+    // e' l'unica fonte che il giocatore non tocca.
+    var pos = null;
+    try { pos = leggiPossesso(nk, u); } catch (e) { pos = null; }
     info[u] = {
       nome: String(sp.nome || ''),
       avatar: String(sp.avatar || ''),
-      rank: (typeof sp.rank === 'number') ? sp.rank : null
+      rank: (typeof sp.rank === 'number') ? sp.rank : null,
+      livello: (pos && typeof pos.livello === 'number') ? pos.livello : LIVELLO_NORMALE
     };
   }
   if (giocatori.length !== 2) {
