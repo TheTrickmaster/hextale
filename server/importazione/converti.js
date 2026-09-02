@@ -109,10 +109,14 @@ app.whenReady().then(async () => {
   const P = require('./abilita-parser.js');
   const righeCsv = _csvGrezzo(csv);
   const testa = righeCsv[0] || [];
-  const inizio = testa.indexOf('Is unique');
-  if (inizio < 0) { console.log('ERRORE: nel foglio non c\'e\' la colonna "Is unique".'); app.exit(1); return; }
-  const posto = {};
-  P.COLONNE.forEach((c, i) => { posto[c] = inizio + i; });
+  // v0.77.67 — le colonne si cercano per NOME, non contando da "Is unique".
+  // Contare funzionava finche' il foglio non cambiava: il giorno in cui ne
+  // sono arrivate due nuove ("Player selection"), il vecchio conteggio avrebbe
+  // continuato a leggere sicuro di se' dalla cella sbagliata. Adesso, se una
+  // colonna manca, l'importazione si ferma e dice quale.
+  let posto;
+  try { posto = P.posizioni(testa); }
+  catch (e) { console.log('ERRORE: ' + e.message); app.exit(1); return; }
 
   const perNome = {};
   for (const c of dati.carte) perNome[String(c.name || '').trim()] = c;

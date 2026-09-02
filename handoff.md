@@ -1297,11 +1297,157 @@ esegue, quindi l'aggancio di inizio turno la lascia stare e la fa solo la
 funzione animata. L'aggancio adesso guarda anche la MANO di chi apre il turno,
 per le abilita' `while_in_hand`: prima quel trigger non lo leggeva nessuno.
 
-**Resta il blocco copia-incollato sulla riga di Alice** (`Link = and` +
-`Action 2 = move self board tile free 1`, colonne AW6 e BD6:BL6): e' la
-descrizione del Gatto del Cheshire finita nella riga sbagliata — confermato da
-Lorenzo. Va tolto dal foglio, e finche' c'e' l'importazione dara' ad Alice uno
-spostamento che non deve avere.
+Il blocco copia-incollato sulla riga di Alice (la descrizione del Gatto del
+Cheshire finita nella riga sbagliata) **l'ha tolto Lorenzo**, e ha rifatto
+l'importazione: adesso il foglio dice `while in hand, rotate self power ALL 1`
+e basta. Le 62 abilita' del foglio si leggono tutte, zero guaste.
+
+### Due abilita' morte, tornate vive dal foglio
+
+Vale la pena scriverlo perche' e' la prima volta che il foglio *aggiunge*
+qualcosa invece di descrivere. Nel vecchio sistema tre abilita' stavano nel
+registro ma **non le eseguiva nessuno**: nessun codice le nominava. Due sono
+regole, e le regole il motore le legge dal foglio senza bisogno di codice
+dedicato:
+
+| carta | regola sul foglio | stato |
+|---|---|---|
+| Shere Khan | `conquers_when self equal_or_higher` | viva col motore |
+| The Crystal Princess | `side_protected self highest` | viva col motore |
+| Unicorn | `UNIQUE` | scritta a mano apposta, sta bene com'e' |
+
+Tutti e otto i nomi di regola del vocabolario sono implementati nel motore,
+quindi non serve altro: bastava l'importazione.
+
+### "Ogni turno" vuol dire ogni turno (v0.77.66)
+
+Deciso da Lorenzo, e vale sempre: `end_of_turn` e `start_of_turn` scattano
+alla fine (e all'inizio) di **ogni** turno, quindi due volte per giro, e non
+guardano di chi e' la carta. Il dubbio era Carabosse, che essendo
+`every_time` cosi' colpisce due volte per giro: e' voluto. Il giorno in cui
+servira' "una volta per giro" nascera' un selettore suo, `end_of_round`,
+invece di dare due letture allo stesso. **Una parola, un significato.**
+
+### Il ponte verso il foglio (v0.77.66)
+
+Il vecchio sistema riconosce un'abilita' da una SIGLA (`true_story`,
+`rise_from_the_ashes`, ...) che nasce accoppiando il NOME della carta a una
+voce del registro `TILE_ABILITIES_DEF`. Funziona — e infatti la
+reimportazione non ha rotto niente — ma vuol dire che la verita' su cosa fa
+una carta sta in **due** posti, che possono divergere. E' gia' successo.
+
+`foglioFa(card, evento, azione, cosa)` sposta la decisione su uno solo:
+
+- se la carta porta con se' l'abilita' del foglio, **comanda il foglio**;
+- se non ce l'ha (catalogo vecchio, partita cominciata prima di una
+  reimportazione) si ripiega sulla sigla — meglio del ripiego e' solo il
+  foglio, ma peggio di tutto sarebbe un'abilita' che sparisce;
+- **non tocca l'esecuzione**: animazioni, suoni e mirino restano dove sono.
+
+Passate al ponte: **Pinocchio** (lo scudo di fine turno) e **la Fenice** (la
+rinascita, e adesso anche QUANTI turni aspetta, che esce dalla finestra
+`for_turns` invece di essere un 1 scritto nel codice — l'IA compresa, che
+sconta la conquista di una Fenice).
+
+### Le venti carte: dove siamo davvero
+
+Il giro completo ha cambiato il quadro, e in meglio: **il grosso non era da
+scrivere, era da collegare.**
+
+**C'e' gia' un protocollo unico per le scelte.** `SCELTE_PIAZZAMENTO[chiave]`
+restituisce bersagli leciti, cosa fare quando se ne sceglie uno e cosa fare se
+si rinuncia; il mirino, il comportamento dell'IA e la scadenza del tempo
+arrivano gratis. Le otto carte "con la scelta" sono gia' li' dentro. Portarle
+al foglio non vuol dire riscriverle: vuol dire far arrivare **l'elenco dei
+bersagli** dal motore invece che da una funzione dedicata per carta.
+
+**Il motore adesso sa DESCRIVERE cio' che non e' un numero.**
+`AZIONI_DESCRITTE` — freeze, rotate, shuffle, hide, protect, flip, cancel,
+destroy, move, swap, transform, summon, copy, draw, discard — esce da
+`cambiamentiAllEvento` come cambiamento descritto: chi, quanto, per quanti
+turni. Due regole:
+
+- quando il foglio dice `selected` il motore **non sceglie**: consegna
+  `candidati` e lascia indicare al giocatore. Prendere il primo della lista
+  sarebbe giocare al posto suo.
+- un TASSELLO non e' una carta: per `What = tile` (e per `summon`) esce solo
+  la descrizione, e le caselle le trova chi esegue, che il tabellone ce l'ha
+  davanti.
+
+**Cosa resta**, ed e' collegamento, non invenzione: agganciare i restanti
+esecutori al ponte, una carta alla volta, confrontando foglio e codice prima di
+spostare. Il rischio non e' tecnico — e' cambiare di nascosto cosa fa una
+carta, come al Leone Codardo.
+
+### Una discordanza trovata nel giro (non la tocco)
+
+**Rumpelstiltskin.** Il foglio dice `steal trait` su `opponent adjacent` con
+`Which = all`: ruba i tratti di **tutti** i nemici adiacenti, senza scelta. Il
+codice invece **apre il mirino e ne fa scegliere uno**
+(`SCELTE_PIAZZAMENTO.give_me_that`), e la descrizione della carta dice "adjacent
+enemy characters" al plurale ma la spiegazione italiana dice "Seleziona una
+carta nemica". Le due letture hanno forza molto diversa. Va decisa.
+
+### Il confronto foglio-contro-codice (v0.77.67)
+
+`node server/importazione/discordanze.js` mette in fila tutte le carte e dice
+dove le due fonti non concordano. Il "cosa fa il codice" non lo legge: lo
+RICAVA da dove sta la sigla — le tabelle di smistamento dicono gia' il momento
+(piazzamento, conquista) e se l'abilita' ferma la partita per chiedere un
+bersaglio. Cinque famiglie: riga guasta, muta, momento, scelta, codice morto,
+piu' il testo mostrato al giocatore.
+
+Serve a guardare PRIMA di spostare una carta sul motore. Il Leone Codardo e'
+costato una modifica al contrario perche' nessuno aveva confrontato.
+
+Primo giro: **11 discordanze**. Dopo che Lorenzo ha sistemato il foglio: **3**,
+e sono le tre carte mute — lavoro da fare, non righe sbagliate.
+
+### La colonna che mancava: chi sceglie (v0.77.67)
+
+`Which` faceva due mestieri: il filtro (`free`, `blocked`, `highest`) e chi
+indica il bersaglio (`selected`). Finche' una carta ne chiedeva uno solo
+funzionava; i Sette Nani ne chiedono due — *un tassello **bloccato**, e lo
+indica il giocatore* — e la colonna non ci stava.
+
+Adesso ci sono **`Player selection`** e **`Player selection 2`** (`yes`/`no`),
+e `selected` non esiste piu' fra i valori di `Which`. Sistemate cosi' anche
+Re Artu', Ali Baba e Rumpelstiltskin.
+
+**Le colonne adesso si cercano per NOME, non contando da "Is unique".**
+Contare funzionava finche' il foglio non cambiava: sono arrivate due colonne
+nuove in mezzo e il vecchio conteggio avrebbe continuato a leggere sicuro di
+se' dalla cella sbagliata — lo stesso guasto che aveva messo 57 carte nel
+database con numeri plausibili e falsi. `P.posizioni(intestazione)` cerca ogni
+colonna per nome e si ferma dicendo quali mancano. Ci passano converti,
+rigenera-riepiloghi e discordanze.
+
+### La moneta la tira il server (v0.77.67)
+
+La condizione `chance` rispondeva sempre "si" e lasciava tirare il dado a chi
+eseguiva, con `Math.random`: due volte, e in modo diverso sui due client. Con
+Morgana voleva dire che uno vedeva la conquista annullata e l'altro no.
+
+Adesso il numero esce dal **seme della partita**, che e' l'id assegnato dal
+server: la moneta la tira lui una volta sola e i due client leggono lo stesso
+risultato, senza doverselo chiedere a vicenda e senza un giro in rete in mezzo
+a un'animazione. Fuori dalla rete il seme e' quello locale, e va bene: li' non
+c'e' nessuno con cui essere d'accordo.
+
+### Il Genio: tolto il codice morto (v0.77.67)
+
+`attivaEveryoneGetsAWish` faceva il regalo al piazzamento, con `Math.random`
+e a ogni giocata. Il foglio dice `end_of_turn` + `once_per_game`, e a farlo e'
+il motore: la funzione era tenuta in vita solo dalla guardia che le impediva di
+partire. **Codice morto tenuto per prudenza e' la premessa del giorno in cui
+qualcuno toglie la guardia** e il regalo torna a farsi due volte. Via la
+funzione, l'aggancio e la stima dell'IA — che stimava un guadagno al
+piazzamento, cioe' faceva sopravvalutare la carta proprio quando non rende
+niente.
+
+Aggiornati anche i due testi mostrati al giocatore, rimasti indietro rispetto
+alle colonne: **Il Genio** ("When *Played*") e **March Hare** ("After
+*Conquering*", mentre agisce al piazzamento dalla v0.75.58).
 
 ### Cosa manca
 

@@ -42,8 +42,14 @@ var VOCE = {
   'Who': ['self', 'ally', 'opponent', 'any', 'attacker', 'attacked'],
   'Where': ['adjacent', 'board', 'in_hand', 'edge', 'drawn', 'deck'],
   'What': ['card', 'side', 'power', 'trait', 'ability', 'position', 'tile'],
-  'Which': ['all', 'single', 'random', 'selected', 'highest', 'lowest', 'free',
+  // "Which" e' un FILTRO: quali fra i possibili. Non dice piu' chi sceglie —
+  // quello lo dice "Player selection", che e' una colonna sua. Prima le due
+  // cose stavano insieme ("selected") e non si poteva scrivere "un tassello
+  // BLOCCATO, e lo indica il giocatore": la colonna era gia' occupata dal
+  // filtro. I Sette Nani sono la carta che l'ha fatto vedere.
+  'Which': ['all', 'single', 'random', 'highest', 'lowest', 'free',
             'blocked', 'next', 'last'],
+  'Player selection': ['yes', 'no'],
   'Scope': ['ALL', 'RAND', 'HIGHEST', 'LOWEST', 'ONE'],
   'Per': ['adjacent_trait', 'board_trait', 'hand_trait', 'free_side', 'power_diff'],
   'Duration': ['permanent', 'end_of_turn', 'n_turns', 'while_true'],
@@ -61,13 +67,49 @@ var COLONNE = [
   'Trigger', 'Frequency', 'Window', 'Window value',
   'If subject', 'If test', 'If value',
   'Rule', 'Rule target', 'Rule value',
-  'Action', 'Who', 'Where', 'What', 'Which', 'Scope', 'Amount', 'Per', 'Duration',
+  'Player selection',
+  'Action', 'Who', 'Which', 'Where', 'What', 'Scope', 'Amount', 'Per', 'Duration',
   'Link',
   'If subject 2', 'If test 2', 'If value 2',
   'Rule 2', 'Rule target 2', 'Rule value 2',
+  'Player selection 2',
   'Action 2', 'Who 2', 'Where 2', 'What 2', 'Which 2', 'Scope 2', 'Amount 2', 'Per 2', 'Duration 2',
   'Complete script'
 ];
+
+// ── DOVE STA OGNI COLONNA, CHIESTO ALL'INTESTAZIONE ──────────────────────
+// Prima le posizioni si contavano a partire da "Is unique" seguendo l'ordine
+// di COLONNE. Funzionava finche' il foglio non cambiava: il giorno in cui una
+// colonna si e' spostata, il parser ha continuato a leggere sicuro di se' —
+// dalla cella sbagliata. E' lo stesso guasto che nel 2026 ha messo 57 carte
+// nel database con numeri plausibili e falsi.
+// Adesso ogni colonna si cerca per NOME (i nomi del blocco 2 finiscono per
+// " 2", quindi sono tutti distinti) e chi manca lo si dice subito.
+function posizioni(intestazione) {
+  var inizio = intestazione.indexOf('Is unique');
+  if (inizio < 0) throw new Error('nel foglio non c\'e\' la colonna "Is unique"');
+  var posto = {}, mancanti = [], i, j;
+  for (i = 0; i < COLONNE.length; i++) {
+    var trovata = -1;
+    for (j = inizio; j < intestazione.length; j++) {
+      if (String(intestazione[j] || '').trim() === COLONNE[i]) { trovata = j; break; }
+    }
+    if (trovata < 0) mancanti.push(COLONNE[i]); else posto[COLONNE[i]] = trovata;
+  }
+  if (mancanti.length) throw new Error('nel foglio mancano le colonne: ' + mancanti.join(', '));
+  return posto;
+}
+
+// La funzione di lettura pronta all'uso, per una riga.
+function lettoreDi(intestazione) {
+  var posto = posizioni(intestazione);
+  return function (riga) {
+    return function (colonna) {
+      var j = posto[colonna];
+      return j === undefined ? '' : (riga[j] || '');
+    };
+  };
+}
 
 function _vuoto(v) {
   return v === undefined || v === null || String(v).trim() === '' || String(v).trim() === VUOTO;
@@ -178,13 +220,21 @@ function _effetto(carta, g, suff) {
     // effetto scritto a meta' che nessuno eseguirebbe.
     var sporche = [];
     ['Who', 'Where', 'What', 'Which', 'Scope', 'Amount', 'Per'].forEach(function (c) {
+      // (Player selection resta fuori: "no" e' il suo valore di riposo, e una
+      // riga senza azione ce l'ha legittimamente scritto.)
       if (!_vuoto(g(c + s))) sporche.push(c + s);
     });
     if (sporche.length) throw Guasto(carta, sporche[0], 'c\'e\' un bersaglio ma non c\'e\' nessuna azione' + (suff ? ' (Action ' + suff + ')' : ' (Action)') + ' che lo usi');
     return null;
   }
+  // v0.77.67 — chi indica il bersaglio: il giocatore, o nessuno.
+  // Sta in una colonna a parte perche' e' una domanda diversa da "quali fra i
+  // possibili": un tassello BLOCCATO scelto dal giocatore ha bisogno di dire
+  // tutte e due le cose, e una colonna sola non ci stava.
+  var sceglie = _termine(carta, 'Player selection' + s, g('Player selection' + s), 'Player selection', false);
   return {
     azione: azione,
+    scelta: sceglie === 'yes',
     chi: _termine(carta, 'Who' + s, g('Who' + s), 'Who', false),
     dove: _termine(carta, 'Where' + s, g('Where' + s), 'Where', false),
     cosa: _termine(carta, 'What' + s, g('What' + s), 'What', false),
@@ -284,4 +334,7 @@ function abilitaDaRiga(nomeCarta, leggi) {
   };
 }
 
-module.exports = { abilitaDaRiga: abilitaDaRiga, COLONNE: COLONNE, VOCE: VOCE, TRATTI: TRATTI, VUOTO: VUOTO };
+module.exports = {
+  abilitaDaRiga: abilitaDaRiga, COLONNE: COLONNE, VOCE: VOCE, TRATTI: TRATTI, VUOTO: VUOTO,
+  posizioni: posizioni, lettoreDi: lettoreDi
+};

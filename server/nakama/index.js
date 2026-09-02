@@ -1392,7 +1392,22 @@ var ABILITA_MOTORE = (function () {
     }
     if (cond.test === 'on_edge') return !!scena.sulBordo;
     if (cond.test === 'did_not_conquer') return scena.haConquistato === false;
-    if (cond.test === 'chance') return true;      // il caso si tira quando serve, non qui
+    // ── v0.77.67 — LA MONETA LA TIRA IL SERVER ─────────────────────────────
+    // Prima questo rispondeva sempre "si", e il caso lo tirava chi eseguiva —
+    // con Math.random, cioe' due volte e in modo diverso sui due client: uno
+    // vedeva la conquista annullata e l'altro no.
+    // Adesso il numero esce dal SEME della partita, che e' l'id assegnato dal
+    // server: la moneta la tira lui una volta sola, e i due client leggono lo
+    // stesso risultato senza doverselo chiedere a vicenda. Fuori da una
+    // partita in rete (contro l'IA) il seme e' quello locale, e va bene lo
+    // stesso: li' non c'e' nessuno con cui essere d'accordo.
+    if (cond.test === 'chance') {
+      var soglia = (v && typeof v.numero === 'number') ? v.numero : 50;
+      var chiave = String((chi && (chi.id || chi.name)) || '?') + '|'
+        + String((scena && scena.seme) || '') + '|' + String((scena && scena.turno) || 0)
+        + '|' + String(cond.soggetto || '');
+      return (_semeDi(chiave) % 100) < soglia;
+    }
     if (cond.test === 'free_sides_at_least') {
       return (scena.latiLiberi || 0) >= v.numero;
     }
@@ -1735,9 +1750,9 @@ var ABILITA_MOTORE = (function () {
     var q = eff.quale;
     if (!lista.length) return [];
     if (!q || q === 'all') return lista;
-    if (q === 'single' || q === 'selected') {
-      // "selected" e' una scelta del giocatore: chi chiama la passa in
-      // scena.scelta. Senza, si prende il primo — e chi chiama deve saperlo.
+    if (q === 'single') {
+      // Uno solo, e non importa quale. Se chi chiama ha gia' una scelta in
+      // mano (il giocatore ha indicato) si usa quella; senza, il primo.
       if (scena && scena.scelta && lista.indexOf(scena.scelta) !== -1) return [scena.scelta];
       return [lista[0]];
     }
@@ -1765,26 +1780,98 @@ var ABILITA_MOTORE = (function () {
   }
 
   // Un effetto a scatto, tradotto in cambiamenti.
+  // Le azioni che il motore DESCRIVE invece di calcolare. Stanno in un elenco
+  // e non sparse in una catena di if perche' chi aggiunge un'azione al
+  // vocabolario deve trovarne una sola, di lista.
+  // `buff`, `debuff` e `set` non ci sono: quelli il motore li calcola per
+  // intero, perche' il risultato e' un numero e un numero non ha bisogno di
+  // nessuno che lo interpreti.
+  var AZIONI_DESCRITTE = {
+    freeze: true, rotate: true, shuffle: true, hide: true, protect: true,
+    flip: true, cancel: true, destroy: true, move: true, swap: true,
+    transform: true, summon: true, copy: true, draw: true, discard: true
+  };
+
   function _cambiamentiDi(fonte, eff, cond, scena, fuori, finestra) {
     if (!eff) return;
     var az = eff.azione;
 
-    // ── v0.77.64 — CONGELARE UNA CARTA IN MANO ─────────────────────────────
-    // Non e' un valore che cambia: e' una carta che per un po' non si puo'
-    // giocare. Esce lo stesso da qui perche' il motore decide sempre la stessa
-    // cosa — CHI e PER QUANTO — e lascia a chi chiama il come.
-    // Per quanto lo dice la FINESTRA (`for_turns 2`), non la durata: e' li'
-    // che il foglio scrive "per due turni".
-    if (az === 'freeze' && eff.cosa === 'card') {
+    // ── v0.77.66 — QUEL CHE NON E' UN NUMERO ───────────────────────────────
+    // Congelare, ruotare, mescolare, trasformare, spostare, distruggere,
+    // rubare: nessuna di queste cambia un valore, e per questo il motore le
+    // ignorava. Ma la parte che il motore fa bene e' sempre la stessa — SE
+    // scatta, su CHI, e QUANTO — ed e' indipendente dal fatto che il risultato
+    // sia un numero o una carta che sparisce.
+    //
+    // Quindi da qui esce un cambiamento DESCRITTO, e chi chiama lo esegue col
+    // codice che ha gia': animazioni, suoni e mirino restano dove sono. Il
+    // motore decide CHI, il client fa COME. E' lo stesso patto di Alice.
+    //
+    // QUANDO IL FOGLIO DICE `Player selection = yes` non si sceglie: si
+    // consegna l'elenco dei candidati e si lascia che sia il giocatore a
+    // indicare. Prendere il primo della lista vorrebbe dire giocare al posto
+    // suo.
+    // (Prima questo si scriveva "selected" nella colonna Which, che pero' e'
+    // un filtro: cosi' non si poteva dire "un tassello BLOCCATO, e lo sceglie
+    // il giocatore" — le due cose litigavano per la stessa cella.)
+    if (AZIONI_DESCRITTE[az]) {
       if (!condizioneVera(cond, fonte, scena)) return;
-      var quante = scelti(candidati(fonte, eff, scena), eff, scena);
-      var turni = (finestra && finestra.tipo === 'for_turns' && typeof finestra.valore === 'number') ? finestra.valore : 1;
-      for (var k = 0; k < quante.length; k++) fuori.push({ carta: quante[k], azione: 'freeze', turni: turni });
+      // Un TASSELLO non e' una carta: chi lo cerca sono le caselle, e quelle
+      // il motore non le ha. Per queste (e per l'evocazione, che di bersagli
+      // non ne ha affatto) esce solo la descrizione, e le caselle le trova chi
+      // esegue — che il tabellone ce l'ha davanti.
+      var senzaBersagli = (eff.cosa === 'tile' || az === 'summon');
+      var possibili = senzaBersagli ? [] : candidati(fonte, eff, scena);
+      if (!possibili.length && !senzaBersagli) return;
+      var pezzo = {
+        azione: az,
+        cosa: eff.cosa || null,
+        fonte: fonte,
+        quanto: eff.quanto || null,
+        ambito: eff.ambito || null,
+        dove: eff.dove || null,
+        quale: eff.quale || null,
+        scelta: !!eff.scelta
+      };
+      // Per quanto dura lo dice la FINESTRA (`for_turns 2`), non la durata:
+      // e' li' che il foglio scrive "per due turni".
+      if (finestra && finestra.tipo === 'for_turns' && typeof finestra.valore === 'number') pezzo.turni = finestra.valore;
+      if (eff.scelta) {
+        pezzo.candidati = possibili;                 // chiedilo al giocatore
+        fuori.push(pezzo);
+        return;
+      }
+      var presi = scelti(possibili, eff, scena);
+      for (var k = 0; k < presi.length; k++) {
+        var uno = {}; for (var kk in pezzo) uno[kk] = pezzo[kk];
+        uno.carta = presi[k];
+        if (az === 'protect' || az === 'swap' || az === 'shuffle' || az === 'rotate') {
+          uno.lati = latiColpiti(eff.ambito, (presi[k].valoriBase || presi[k].values) || {}, presi[k], scena.seme);
+        }
+        fuori.push(uno);
+      }
+      if (senzaBersagli && !presi.length) fuori.push(pezzo);
       return;
     }
 
+    if (az === 'steal' && eff.cosa && eff.cosa !== 'power') {
+      // Rubare un tratto o un'abilita' non e' una sottrazione: e' un travaso.
+      // Passa dalla stessa porta delle altre azioni descritte.
+      if (!condizioneVera(cond, fonte, scena)) return;
+      var daCui = candidati(fonte, eff, scena);
+      if (!daCui.length) return;
+      if (eff.scelta) {
+        fuori.push({ azione: 'steal', cosa: eff.cosa, fonte: fonte, candidati: daCui, quale: eff.quale, dove: eff.dove });
+        return;
+      }
+      var scelte = scelti(daCui, eff, scena);
+      for (var s = 0; s < scelte.length; s++) {
+        fuori.push({ azione: 'steal', cosa: eff.cosa, fonte: fonte, carta: scelte[s], quale: eff.quale, dove: eff.dove });
+      }
+      return;
+    }
     if (az !== 'buff' && az !== 'debuff' && az !== 'set' && az !== 'steal') return;
-    if (eff.cosa && eff.cosa !== 'power') return;      // i furti di tratti e abilita' non passano di qui
+    if (eff.cosa && eff.cosa !== 'power') return;      // un furto di potenza, e nient'altro
     if (!condizioneVera(cond, fonte, scena)) return;
 
     var lista = scelti(candidati(fonte, eff, scena), eff, scena);

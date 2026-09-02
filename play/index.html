@@ -9898,7 +9898,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.65</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.67</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -15445,7 +15445,22 @@ var ABILITA_MOTORE = (function () {
     }
     if (cond.test === 'on_edge') return !!scena.sulBordo;
     if (cond.test === 'did_not_conquer') return scena.haConquistato === false;
-    if (cond.test === 'chance') return true;      // il caso si tira quando serve, non qui
+    // ── v0.77.67 — LA MONETA LA TIRA IL SERVER ─────────────────────────────
+    // Prima questo rispondeva sempre "si", e il caso lo tirava chi eseguiva —
+    // con Math.random, cioe' due volte e in modo diverso sui due client: uno
+    // vedeva la conquista annullata e l'altro no.
+    // Adesso il numero esce dal SEME della partita, che e' l'id assegnato dal
+    // server: la moneta la tira lui una volta sola, e i due client leggono lo
+    // stesso risultato senza doverselo chiedere a vicenda. Fuori da una
+    // partita in rete (contro l'IA) il seme e' quello locale, e va bene lo
+    // stesso: li' non c'e' nessuno con cui essere d'accordo.
+    if (cond.test === 'chance') {
+      var soglia = (v && typeof v.numero === 'number') ? v.numero : 50;
+      var chiave = String((chi && (chi.id || chi.name)) || '?') + '|'
+        + String((scena && scena.seme) || '') + '|' + String((scena && scena.turno) || 0)
+        + '|' + String(cond.soggetto || '');
+      return (_semeDi(chiave) % 100) < soglia;
+    }
     if (cond.test === 'free_sides_at_least') {
       return (scena.latiLiberi || 0) >= v.numero;
     }
@@ -15788,9 +15803,9 @@ var ABILITA_MOTORE = (function () {
     var q = eff.quale;
     if (!lista.length) return [];
     if (!q || q === 'all') return lista;
-    if (q === 'single' || q === 'selected') {
-      // "selected" e' una scelta del giocatore: chi chiama la passa in
-      // scena.scelta. Senza, si prende il primo — e chi chiama deve saperlo.
+    if (q === 'single') {
+      // Uno solo, e non importa quale. Se chi chiama ha gia' una scelta in
+      // mano (il giocatore ha indicato) si usa quella; senza, il primo.
       if (scena && scena.scelta && lista.indexOf(scena.scelta) !== -1) return [scena.scelta];
       return [lista[0]];
     }
@@ -15818,26 +15833,98 @@ var ABILITA_MOTORE = (function () {
   }
 
   // Un effetto a scatto, tradotto in cambiamenti.
+  // Le azioni che il motore DESCRIVE invece di calcolare. Stanno in un elenco
+  // e non sparse in una catena di if perche' chi aggiunge un'azione al
+  // vocabolario deve trovarne una sola, di lista.
+  // `buff`, `debuff` e `set` non ci sono: quelli il motore li calcola per
+  // intero, perche' il risultato e' un numero e un numero non ha bisogno di
+  // nessuno che lo interpreti.
+  var AZIONI_DESCRITTE = {
+    freeze: true, rotate: true, shuffle: true, hide: true, protect: true,
+    flip: true, cancel: true, destroy: true, move: true, swap: true,
+    transform: true, summon: true, copy: true, draw: true, discard: true
+  };
+
   function _cambiamentiDi(fonte, eff, cond, scena, fuori, finestra) {
     if (!eff) return;
     var az = eff.azione;
 
-    // ── v0.77.64 — CONGELARE UNA CARTA IN MANO ─────────────────────────────
-    // Non e' un valore che cambia: e' una carta che per un po' non si puo'
-    // giocare. Esce lo stesso da qui perche' il motore decide sempre la stessa
-    // cosa — CHI e PER QUANTO — e lascia a chi chiama il come.
-    // Per quanto lo dice la FINESTRA (`for_turns 2`), non la durata: e' li'
-    // che il foglio scrive "per due turni".
-    if (az === 'freeze' && eff.cosa === 'card') {
+    // ── v0.77.66 — QUEL CHE NON E' UN NUMERO ───────────────────────────────
+    // Congelare, ruotare, mescolare, trasformare, spostare, distruggere,
+    // rubare: nessuna di queste cambia un valore, e per questo il motore le
+    // ignorava. Ma la parte che il motore fa bene e' sempre la stessa — SE
+    // scatta, su CHI, e QUANTO — ed e' indipendente dal fatto che il risultato
+    // sia un numero o una carta che sparisce.
+    //
+    // Quindi da qui esce un cambiamento DESCRITTO, e chi chiama lo esegue col
+    // codice che ha gia': animazioni, suoni e mirino restano dove sono. Il
+    // motore decide CHI, il client fa COME. E' lo stesso patto di Alice.
+    //
+    // QUANDO IL FOGLIO DICE `Player selection = yes` non si sceglie: si
+    // consegna l'elenco dei candidati e si lascia che sia il giocatore a
+    // indicare. Prendere il primo della lista vorrebbe dire giocare al posto
+    // suo.
+    // (Prima questo si scriveva "selected" nella colonna Which, che pero' e'
+    // un filtro: cosi' non si poteva dire "un tassello BLOCCATO, e lo sceglie
+    // il giocatore" — le due cose litigavano per la stessa cella.)
+    if (AZIONI_DESCRITTE[az]) {
       if (!condizioneVera(cond, fonte, scena)) return;
-      var quante = scelti(candidati(fonte, eff, scena), eff, scena);
-      var turni = (finestra && finestra.tipo === 'for_turns' && typeof finestra.valore === 'number') ? finestra.valore : 1;
-      for (var k = 0; k < quante.length; k++) fuori.push({ carta: quante[k], azione: 'freeze', turni: turni });
+      // Un TASSELLO non e' una carta: chi lo cerca sono le caselle, e quelle
+      // il motore non le ha. Per queste (e per l'evocazione, che di bersagli
+      // non ne ha affatto) esce solo la descrizione, e le caselle le trova chi
+      // esegue — che il tabellone ce l'ha davanti.
+      var senzaBersagli = (eff.cosa === 'tile' || az === 'summon');
+      var possibili = senzaBersagli ? [] : candidati(fonte, eff, scena);
+      if (!possibili.length && !senzaBersagli) return;
+      var pezzo = {
+        azione: az,
+        cosa: eff.cosa || null,
+        fonte: fonte,
+        quanto: eff.quanto || null,
+        ambito: eff.ambito || null,
+        dove: eff.dove || null,
+        quale: eff.quale || null,
+        scelta: !!eff.scelta
+      };
+      // Per quanto dura lo dice la FINESTRA (`for_turns 2`), non la durata:
+      // e' li' che il foglio scrive "per due turni".
+      if (finestra && finestra.tipo === 'for_turns' && typeof finestra.valore === 'number') pezzo.turni = finestra.valore;
+      if (eff.scelta) {
+        pezzo.candidati = possibili;                 // chiedilo al giocatore
+        fuori.push(pezzo);
+        return;
+      }
+      var presi = scelti(possibili, eff, scena);
+      for (var k = 0; k < presi.length; k++) {
+        var uno = {}; for (var kk in pezzo) uno[kk] = pezzo[kk];
+        uno.carta = presi[k];
+        if (az === 'protect' || az === 'swap' || az === 'shuffle' || az === 'rotate') {
+          uno.lati = latiColpiti(eff.ambito, (presi[k].valoriBase || presi[k].values) || {}, presi[k], scena.seme);
+        }
+        fuori.push(uno);
+      }
+      if (senzaBersagli && !presi.length) fuori.push(pezzo);
       return;
     }
 
+    if (az === 'steal' && eff.cosa && eff.cosa !== 'power') {
+      // Rubare un tratto o un'abilita' non e' una sottrazione: e' un travaso.
+      // Passa dalla stessa porta delle altre azioni descritte.
+      if (!condizioneVera(cond, fonte, scena)) return;
+      var daCui = candidati(fonte, eff, scena);
+      if (!daCui.length) return;
+      if (eff.scelta) {
+        fuori.push({ azione: 'steal', cosa: eff.cosa, fonte: fonte, candidati: daCui, quale: eff.quale, dove: eff.dove });
+        return;
+      }
+      var scelte = scelti(daCui, eff, scena);
+      for (var s = 0; s < scelte.length; s++) {
+        fuori.push({ azione: 'steal', cosa: eff.cosa, fonte: fonte, carta: scelte[s], quale: eff.quale, dove: eff.dove });
+      }
+      return;
+    }
     if (az !== 'buff' && az !== 'debuff' && az !== 'set' && az !== 'steal') return;
-    if (eff.cosa && eff.cosa !== 'power') return;      // i furti di tratti e abilita' non passano di qui
+    if (eff.cosa && eff.cosa !== 'power') return;      // un furto di potenza, e nient'altro
     if (!condizioneVera(cond, fonte, scena)) return;
 
     var lista = scelti(candidati(fonte, eff, scena), eff, scena);
@@ -25739,11 +25826,16 @@ const TILE_ABILITIES_DEF = {
   rush_hour:    { carta:'White Rabbit',        name:'Rush Hour',     desc:'Starts the game in hand. *Gains* +3 ALL if *Played* on the first turn.' },
   heigh_ho:     { carta:'Seven Dwarves',       name:'Heigh-ho',      desc:'When *Played*, can *Destroy* an adjacent blocked tile.' },
   give_me_that: { carta:'Rumpelstiltskin',     name:'Give me that',  desc:'When *Played*, *Steals* the Traits of an adjacent enemy character.' },
-  swap_values:  { carta:'March Hare',          name:'Mad Swap',      desc:'After *Conquering*, can *Swap* an adjacent enemy\'s highest and lowest Power values.' },
+  // v0.77.67 — diceva "After Conquering", ma foglio e codice sono d'accordo da
+  // v0.75.58 che agisce al PIAZZAMENTO. Era rimasto indietro solo il testo,
+  // cioe' l'unica cosa che il giocatore legge.
+  swap_values:  { carta:'March Hare',          name:'Tea-Time Frenzy', desc:'Can *Swap* an adjacent enemy highest and lowest Power values.' },
   kiss:         { carta:'Frog Prince',      name:'Kiss',      desc:'If *Played* adjacent to a /Princess/, *Transforms* into The Green Prince.' },
   rise_from_the_ashes: { carta:'Phoenix', name:'Rise from the Ashes', desc:'If *Conquered*, returns to its original faction after 1 turn. Once per game.' },
   unicorn_hunt: { carta:'Unicorn',         name:'Unicorn Hunt',  desc:'Every time it is *Played*, its drop rate increases by 0.1%.' },
-  everyone_gets_a_wish: { carta:'The Genie',    name:'Everyone gets a wish', desc:'When *Played*, every character in your hand *Gains* +2 RAND.' },
+  // v0.77.67 — testo allineato al foglio: non e' piu' "quando la giochi", ed
+  // e' una volta per partita a fine turno.
+  everyone_gets_a_wish: { carta:'The Genie',    name:'Everyone Gets a Wish', desc:'Each character in hand *Gains* +2 RAND.' },
   // v0.75.43 — RAPUNZEL. La treccia arriva lontano ma in linea retta, e solo
   // se la strada e' sgombra: tira a se' una carta non adiacente lungo una delle
   // sei direzioni, purche' fra le due non ci siano ne' carte ne' tasselli
@@ -27804,6 +27896,35 @@ function animaScambioCoppiaValori(elsA, elsB){
 // decide CHI ruota, non COME. Prima chi ruotava era scritto qui dentro (un
 // confronto con la vecchia sigla); adesso si chiede alla carta, che la
 // risposta ce l'ha gia' addosso.
+// ── v0.77.66 — CHIEDERE AL FOGLIO INVECE DI RICONOSCERE UNA SIGLA ─────────
+// Il vecchio sistema riconosce le abilita' da una SIGLA (`true_story`,
+// `rise_from_the_ashes`, ...) che nasce accoppiando il nome della carta a una
+// voce del registro. Funziona, ma vuol dire che la verita' su cosa fa una
+// carta sta in due posti: il foglio e quel registro. Due posti che possono
+// dire cose diverse — ed e' gia' successo.
+//
+// `foglioFa` sposta la decisione su uno solo: se la carta porta con se'
+// l'abilita' del foglio, comanda quella; se non ce l'ha (catalogo vecchio,
+// partita cominciata prima di una reimportazione) si ripiega sulla sigla, che
+// e' meglio di un'abilita' che sparisce.
+//
+// Non tocca l'ESECUZIONE: animazioni, suoni e mirino restano dove sono. E'
+// sempre lo stesso patto — il motore decide CHI, il codice fa COME.
+function foglioFa(card, evento, azione, cosa){
+  if(!_haAbilitaNuova(card)) return null;      // null = "il foglio non parla"
+  const a = _motore().abilitaDi(card);
+  if(!a || a.trigger !== evento) return false;
+  for(const e of [a.effetto, a.effetto2]){
+    if(e && e.azione === azione && (!cosa || e.cosa === cosa)) return true;
+  }
+  return false;
+}
+// Come sopra, ma con la sigla come rete di sicurezza.
+function foglioFaOSigla(card, evento, azione, cosa, sigla){
+  const dice = foglioFa(card, evento, azione, cosa);
+  return dice === null ? (abilitaAttivaDi(card) === sigla) : dice;
+}
+
 function cartaRuotaOgniTurno(card){
   if(!card) return false;
   if(_haAbilitaNuova(card)){
@@ -28614,28 +28735,14 @@ function attivaDarkPact(card){
 // non e' quello che l'abilita' racconta. Con 4, ognuno dei due ne ha due — i
 // turni 1 e 3 per chi comincia, il 2 e il 4 per l'altro — e la finestra resta
 // identica per entrambi, che e' la lettura che rende l'abilita' onesta.
-// ── v0.75.56 — THE GENIE, "Everyone gets a wish" ──────────────────────────
-// Giocandolo, ogni carta rimasta in mano riceve +2 su UN gruppo a sorte. Un
-// gruppo e non un lato: su queste carte i lati sono riuniti in gruppi che
-// condividono un numero, e premiarne uno solo lasciando fuori i gemelli
-// darebbe mezzo desiderio.
-// Il sorteggio e' vero e non `sorteggioStabile`: questo effetto non ha
-// anteprima da far combaciare (tocca la mano, vedi Dark Pact), quindi il caso
-// puo' essere caso.
-const BONUS_GENIO = 2;
-function attivaEveryoneGetsAWish(card){
-  const proprietario = (card && card.owner) || G.currentPlayer;
-  const mano = manoDi(proprietario).filter(c => c && c !== card && c.id !== card.id);
-  let esauditi = 0;
-  for(const c of mano){
-    const gruppi = gruppiDiCarta(c);
-    if(!gruppi.length) continue;
-    const scelto = gruppi[Math.floor(Math.random()*gruppi.length)];
-    modificaValori(c, scelto.sides, BONUS_GENIO, undefined, {chiave:'the_genie:'+card.id, da:card.name||'The Genie'});
-    esauditi++;
-  }
-  if(esauditi) console.info('[Everyone gets a wish] +'+BONUS_GENIO+' a un gruppo di '+esauditi+' carte in mano.');
-}
+// ── v0.77.67 — IL GENIO NON STA PIU' QUI ──────────────────────────────────
+// `attivaEveryoneGetsAWish` faceva il regalo AL PIAZZAMENTO, con
+// `Math.random` e a ogni giocata. Il foglio adesso dice `end_of_turn` +
+// `once_per_game`, e a farlo e' il motore (vedi motoreMomentoDelTurno): la
+// funzione era codice morto, tenuto in vita solo dalla guardia in
+// applicaAbilitaPiazzamento che le impediva di partire.
+// Codice morto tenuto per prudenza e' la premessa del giorno in cui qualcuno
+// toglie la guardia e il regalo torna a farsi due volte.
 // ── v0.75.57 — WHITE RABBIT, il +3 di chi arriva per primo ────────────────
 // "Primo turno" e' il primo turno DI CHI LA GIOCA, non il turno 1 della
 // partita: quello e' solo di chi comincia, e l'altro non potrebbe mai
@@ -28651,10 +28758,17 @@ function attivaEveryoneGetsAWish(card){
 // un numero assoluto non puo' sfasarsi se un turno viene saltato o se la carta
 // cambia mano nel frattempo.
 function segnaRinascitaFenice(card, proprietarioOriginale){
-  if(!card || abilitaAttivaDi(card) !== 'rise_from_the_ashes') return;
+  // v0.77.66 — `on_conquered, flip self card owner` sul foglio, con finestra
+  // `for_turns 1`: e' da li' che esce il turno in cui rinasce, qui sotto.
+  if(!card || !foglioFaOSigla(card, 'on_conquered', 'flip', 'card', 'rise_from_the_ashes')) return;
   if(card.feniceGiaRinata) return;          // una volta sola per partita
   if(card.fenicePronta) return;             // gia' in attesa
-  card.fenicePronta = (G.numeroTurno||1) + 1;
+  // v0.77.66 — quanti turni aspetta lo dice la FINESTRA del foglio
+  // (`for_turns 1`), non piu' un 1 scritto qui. Senza foglio resta 1.
+  const suaAb = _haAbilitaNuova(card) ? _motore().abilitaDi(card) : null;
+  const attesa = (suaAb && suaAb.finestra && suaAb.finestra.tipo === 'for_turns'
+                  && typeof suaAb.finestra.valore === 'number') ? suaAb.finestra.valore : 1;
+  card.fenicePronta = (G.numeroTurno||1) + attesa;
   card.feniceFazione = proprietarioOriginale;
 }
 // Il momento della rinascita: lampo, suono, e subito dopo il giro della carta.
@@ -29176,7 +29290,8 @@ function giraScudiDiFineTurno(){
   for(const k in G.board){
     const posto = G.board[k];
     if(!posto || !posto.card) continue;
-    if(abilitaAttivaDi(posto.card) !== 'true_story') continue;
+    // v0.77.66 — `end_of_turn, protect self side RAND 1` sul foglio.
+    if(!foglioFaOSigla(posto.card, 'end_of_turn', 'protect', 'side', 'true_story')) continue;
     giraScudoTrueStory(posto.card);
     quanti++;
   }
@@ -29230,11 +29345,13 @@ function _effettoSemplice(e){
   // (chi, e per quanti turni) e qui c'e' chi lo esegue: percio' e' fra quelli
   // che sa fare. La regola resta la stessa — si dichiara di saper fare solo
   // cio' che qualcuno esegue davvero.
-  if(e.azione === 'freeze' && e.cosa === 'card' && e.quale !== 'selected') return true;
+  // v0.77.67 — chi sceglie lo dice "Player selection", non piu' "Which".
+  if(e.scelta) return false;                             // la sceglie il giocatore: non e' roba da motore
+  if(e.azione === 'freeze' && e.cosa === 'card') return true;
   if(['buff','debuff','set'].indexOf(e.azione) < 0) return false;
   if(e.cosa && e.cosa !== 'power') return false;
   if(e.dove === 'drawn' || e.dove === 'deck') return false;
-  if(e.quale === 'next' || e.quale === 'last' || e.quale === 'selected') return false;
+  if(e.quale === 'next' || e.quale === 'last') return false;
   return true;
 }
 function motoreFaLEvento(card, evento){
@@ -29308,12 +29425,17 @@ function applicaCambiamenti(elenco){
 // In rete ogni client lo calcola per conto suo. Non e' un rischio di
 // divergenza: l'impronta guarda solo il tabellone, e i lati "a caso" escono
 // dal seme della partita, uguale per tutti e due.
-// DI CHI E' IL TURNO. Il foglio dice "end_of_turn" ma non dice di chi, e la
-// differenza non e' piccola: Carabosse e' every_time, quindi scattando a
-// entrambi i fini turno colpirebbe DUE volte per giro invece di una. Si e'
-// scelta la lettura corrente nei giochi di carte — "alla fine del TUO turno" —
-// perche' e' quella che non raddoppia di nascosto; se Lorenzo la vuole a ogni
-// fine turno, e' una colonna in piu' sul foglio, non una riga di codice qui.
+// ── v0.77.66 — "OGNI TURNO" VUOL DIRE OGNI TURNO ──────────────────────────
+// Deciso da Lorenzo, e vale sempre: `end_of_turn` e `start_of_turn` scattano
+// alla fine (e all'inizio) di OGNI turno, quindi due volte per giro. Non
+// guardano di chi e' la carta.
+// Il dubbio era Carabosse, che essendo `every_time` cosi' colpisce due volte
+// per giro: e' voluto. Il giorno in cui servira' "una volta per giro" nascera'
+// un selettore suo, `end_of_round`, invece di dare due letture allo stesso.
+// Una parola, un significato.
+//
+// `diChi` resta, ma serve solo a sapere di CHI e' la mano da guardare per le
+// abilita' `while_in_hand`: quelle riguardano chi apre il turno.
 function motoreMomentoDelTurno(evento, diChi){
   if(!sinergieDalFoglio()) return false;
   let mosso = false;
@@ -29327,7 +29449,6 @@ function motoreMomentoDelTurno(evento, diChi){
   for(const posata of posti.concat(inMano)){
     if(!posata || !posata.card) continue;
     const chiave = posata.chiave;
-    if(diChi && posata.owner !== diChi) continue;
     const suo = _haAbilitaNuova(posata.card) ? _motore().abilitaDi(posata.card) : null;
     const momento = (chiave === null && suo && suo.trigger === 'while_in_hand') ? 'while_in_hand' : evento;
     if(!motoreFaLEvento(posata.card, momento)) continue;
@@ -29403,7 +29524,6 @@ const EFFETTI_PIAZZAMENTO_REALI = {
   dark_pact:         (card) => attivaDarkPact(card),
   // Stessa ragione di Dark Pact: tocca le carte in MANO, e l'anteprima gira sul
   // tabellone clonato ma sulla mano vera.
-  everyone_gets_a_wish: (card) => attivaEveryoneGetsAWish(card),
   // Non tocca nessun valore: scrive un dato che sopravvive alla partita. Sta
   // quindi qui e non fra gli effetti simulabili, o ogni passaggio del puntatore
   // farebbe salire il drop rate di un decimo.
@@ -33390,7 +33510,7 @@ function aiEvaluateConquests(card, q, r){
       // Vale ancora qualcosa — un turno di possesso e' un turno di danno in
       // meno — quindi si sconta invece di annullarla. E solo se non e' gia'
       // rinata: la seconda volta e' una conquista come tutte le altre.
-      if(abilitaAttivaDi(nb.card)==='rise_from_the_ashes' && !nb.card.feniceGiaRinata){
+      if(foglioFaOSigla(nb.card, 'on_conquered', 'flip', 'card', 'rise_from_the_ashes') && !nb.card.feniceGiaRinata){
         count -= SCONTO_FENICE;
         damage -= (myVal-theirVal) * SCONTO_FENICE;
       }
@@ -33726,14 +33846,17 @@ const BONUS_STRATEGICO_IA = {
       && SIDES.some(s => (c.values[s]||0) > 0));
     return derubabili.length * SIDES.length * VALORE_PUNTO_POTERE * 0.5;
   },
-  // IL GENIO: +2 a un gruppo per ogni carta in mano. Il gruppo e' a sorte,
-  // quindi si stima con la dimensione MEDIA di un gruppo su queste carte —
+  // IL GENIO NON C'E' PIU' (v0.77.67): stimava un regalo AL PIAZZAMENTO, e il
+  // foglio lo mette a fine turno, una volta per partita. Una stima giusta per
+  // il momento sbagliato fa giocare male piu' di nessuna stima: l'IA
+  // sopravvalutava la carta esattamente quando non rendeva niente.
+  // Quando il valutatore sapra' leggere le abilita' di fine turno, tornera' —
+  // dal foglio, non da qui.
+  // La vecchia stima diceva: +2 a un gruppo per ogni carta in mano, con la
+  // dimensione MEDIA di un gruppo su queste carte —
   // due lati — invece di fingere di sapere quale uscira'. Resta in mano, e
   // quindi vale meno di altrettanto potere gia' in campo.
-  everyone_gets_a_wish: (card, q, r, giocatore) => {
-    const inMano = manoDi(giocatore).filter(c => c && c.id !== card.id).length;
-    return inMano * BONUS_GENIO * 2 * VALORE_PUNTO_POTERE * 0.5;
-  },
+  // (era: numero di carte in mano x BONUS_GENIO x 2 x mezzo punto potere.)
 
   // La prossima carta pescata nasce con +2 su tutti e sei i lati: dodici punti
   // di potere. Vale solo se c'e' ancora qualcosa da pescare.

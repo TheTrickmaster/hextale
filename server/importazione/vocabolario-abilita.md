@@ -136,11 +136,20 @@ regola non ne ha bisogno.
 
 **`What`** — `card` · `side` · `power` · `trait` · `ability` · `position` · `tile`
 
-**`Which`** — come si sceglie fra i candidati:
-`all` · `single` · `random` · `selected` · `highest` · `lowest` · `free` ·
-`blocked` · `next` · `last`
+**`Which`** — il filtro: **quali** fra i candidati.
+`all` · `single` · `random` · `highest` · `lowest` · `free` · `blocked` ·
+`next` · `last`
 
-> `selected` è quello che il giocatore sceglie col mirino.
+**`Player selection`** (e `Player selection 2`) — **chi** indica il bersaglio:
+`yes` = lo sceglie il giocatore col mirino · `no` = si compie da sola appena le
+condizioni si avverano.
+
+> **Sono due domande diverse, e prima stavano nella stessa cella.**
+> `Which` aveva un valore `selected` che rispondeva alla seconda domanda
+> occupando la casella della prima: così non si poteva scrivere *"un tassello
+> **bloccato**, e lo indica il giocatore"* — le due cose litigavano per la
+> stessa colonna. I Sette Nani sono la carta che l'ha fatto vedere.
+> Da lì la colonna a parte: `Which = blocked`, `Player selection = yes`.
 
 **`Scope`** — quanta parte della carta tocca: `ALL` · `RAND` · `HIGHEST` ·
 `LOWEST` · `ONE`

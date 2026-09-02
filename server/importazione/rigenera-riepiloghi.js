@@ -95,7 +95,11 @@ function frase(a, gia) {
   };
   const eff = e => {
     if (!e) return '';
+    // v0.77.67 — chi indica il bersaglio sta in una colonna sua: se e' il
+    // giocatore, la frase deve dirlo, altrimenti due righe diverse si
+    // riassumerebbero uguali.
     const s = [e.azione];
+    if (e.scelta) s.push('chosen');
     ['chi', 'dove', 'cosa', 'quale', 'ambito'].forEach(k => { if (q(e[k])) s.push(e[k]); });
     const n = quanto(e.quanto); if (n) s.push(n);
     if (q(e.per)) s.push('per ' + e.per);
@@ -116,7 +120,7 @@ function frase(a, gia) {
   const H = R[0];
   const inizio = H.indexOf('Is unique');
   if (inizio < 0) { console.error('nel foglio non c\'e\' la colonna "Is unique".'); process.exit(1); }
-  const posto = {}; P.COLONNE.forEach((c, i) => posto[c] = inizio + i);
+  const posto = P.posizioni(H);   // per nome, non per posizione (v0.77.67)
   const colonnaRiepilogo = posto['Complete script'];
 
   let primo = -1, ultimo = -1;
