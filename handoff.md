@@ -1778,6 +1778,46 @@ l'ombra che si spegne su una carta sconosciuta invece di sbagliare in silenzio.
 `ombra: N confronti, M divergenze`. Quando per un po' di partite di fila dira'
 zero, l'arbitro potra' diventare vero: e' una riga da cambiare, non un lavoro.
 
+### I 404 in console (v0.77.78)
+
+Non erano "un sacco di errori": erano **otto file**, con tre cause diverse.
+
+**1. Il precaricatore si mangiava gli esempi scritti nei commenti.** Scopre gli
+asset cercando `BASE + 'file'` e `xFileCandidati('file')` nel sorgente — ma li
+cercava nel sorgente INTERO, commenti compresi. Cosi' un commento che spiega
+*come si aggiunge un asset* aggiungeva davvero un asset:
+
+| 404 | veniva da |
+|---|---|
+| `ui/nome.png` | "Scritte come `UI_BASE+'nome'`..." |
+| `player-ui/new-asset.png` | "a new `PLAYER_UI_BASE+'new-asset.png'` line" |
+| `cards/card-template.png` | un commento CSS che la nomina |
+
+Adesso si tolgono i blocchi `/* */` e le righe che cominciano con `//` prima
+di scandire: **quel che resta e' codice, ed e' l'unica cosa da prendere alla
+lettera.**
+
+**2. Un indirizzo sbagliato, con due sintomi.**
+`['#mm2-find-glow', UI_BASE+'radial-glow.png']` — il file vive in
+`main-menu/`, non in `ui/`. Quindi il bagliore del matchmaking **non si e' mai
+visto**, e lasciava un 404 fisso. Una riga sbagliata, due sintomi che
+sembravano scollegati. Nasce anche `MENU_BASE`, che mancava: `menuFileCandidati`
+si riscriveva l'indirizzo per esteso.
+
+**3. Quattro file che davvero non ci sono sul sito**, e non li invento io:
+`cards/tile-parts/art-placeholder-dark.png`, `...-light.png`,
+`painted-noise.png`, `generic-bg.png`. I primi due sono il ripiego per le carte
+senza arte; gli altri due sono fondali CSS. O si caricano, o si tolgono i
+riferimenti.
+
+### Una nota su come si e' arrivati qui
+
+Il primo istinto era rispondere "sono le sonde del caricamento arte, e' per
+disegno". Sarebbe stato sbagliato: `_candidati` restituisce due indirizzi solo
+quando il file e' aperto in locale, sul sito ne prova uno solo. Guardare la
+lista vera delle richieste invece di spiegarla a memoria ha cambiato la
+risposta — e ha fatto trovare un bagliore che non si era mai visto.
+
 ### Cosa manca
 
 Gli effetti che **cambiano i valori** li fa il motore: buff, debuff, set,

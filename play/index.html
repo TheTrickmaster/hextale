@@ -9898,7 +9898,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.75</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.78</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -10602,11 +10602,27 @@ if(document.readyState==='loading'){
   const CARTELLA_DEI_CANDIDATI = { ui:'ui/', menu:'main-menu/', pack:'cards/packs/' };
   const FILE_CANDIDATI_PATTERN = /(\w+)FileCandidati\(\s*['"]([^'"]+)['"]/g;
 
+  // ── v0.77.78 — SI SCANDISCE IL CODICE, NON LA PROSA ──────────────────────
+  // Il precaricatore scopre gli asset cercando `BASE + 'file'` e
+  // `xFileCandidati('file')` nel sorgente. Cercandoli nel sorgente INTERO
+  // trovava anche gli ESEMPI SCRITTI NEI COMMENTI — e li scaricava.
+  // Da li' venivano `ui/nome.png`, `player-ui/new-asset.png` e
+  // `cards/card-template.png`: tre 404 fissi in console, causati da tre frasi
+  // di documentazione. Un commento che spiega come si aggiunge un asset non
+  // deve aggiungere un asset.
+  // Si tolgono i blocchi /* */ e le righe che cominciano con //: quel che
+  // resta e' codice, ed e' l'unica cosa che deve essere presa alla lettera.
+  function _senzaCommenti(testo){
+    return String(testo || '')
+      .replace(/\/\*[\s\S]*?\*\//g, ' ')
+      .replace(/^[ \t]*\/\/.*$/gm, ' ');
+  }
+
   function discoverAssetUrls(){
     const urls = new Set();
     // 1) Every <style> block (covers @font-face src, background-image, cursor url()).
     document.querySelectorAll('style').forEach(styleEl=>{
-      const matches = styleEl.textContent.match(patternAsset());
+      const matches = _senzaCommenti(styleEl.textContent).match(patternAsset());
       if(matches) matches.forEach(u=>urls.add(u));
     });
     // 2) The raw text of THIS <script> tag itself (covers JS string constants
@@ -10633,6 +10649,9 @@ if(document.readyState==='loading'){
     //    structurally can't see), never replaces them.
     let scriptText = '';
     document.querySelectorAll('script').forEach(scriptEl=>{ scriptText += scriptEl.textContent + '\n'; });
+    // v0.77.78 — via i commenti prima di scandire: un esempio di
+    // documentazione non e' un asset da scaricare (vedi _senzaCommenti).
+    scriptText = _senzaCommenti(scriptText);
     const baseConsts = {};
     let baseMatch;
     while((baseMatch = BASE_CONST_PATTERN.exec(scriptText))){
@@ -14320,8 +14339,7 @@ if(document.readyState==='loading'){
 // vedere mai un disegno appena fatto finche' non e' pubblicato — errore gia'
 // commesso col fascio di luce del libro delle bustine.
 function menuFileCandidati(nome){
-  return _candidati('main-menu/' + nome,
-                    'https://hextalegame.com/main-menu/' + nome);
+  return _candidati('main-menu/' + nome, MENU_BASE + nome);
 }
 // Mette sull'<img> il primo indirizzo che esiste davvero.
 // ═══════════════════════════════════════════════════════════════════════════
@@ -14534,7 +14552,11 @@ function mm2Immagini(){ return [
   ['#mm2-gioca-bg',      UI_BASE+'matchmaking-bg.png'],
   ['#mm2-donate-logo',   UI_BASE+'paypal-logo.png'],
   ['#mm2-orb img',       UI_BASE+'level-orb.png'],
-  ['#mm2-find-glow',     UI_BASE+'radial-glow.png'],
+  // v0.77.78 — stava in ui/, dove non c'e' mai stato: il file vive in
+  // main-menu/ (lo usano gia' i due bagliori della schermata iniziale). Il
+  // bagliore del matchmaking quindi non si e' mai visto, e lasciava un 404
+  // fisso in console. Due sintomi, una riga sbagliata.
+  ['#mm2-find-glow',     MENU_BASE+'radial-glow.png'],
   ['#mm2-rank-icona',    UI_BASE+'ranks/bronze-2-rank-icon.png'],
   ['#mm2-box-dust .mm2-box-sfondo', UI_BASE+'fairy-dust-bg.png'],
   ['#mm2-sc-packs .mm2-scorciatoia-icona',   UI_BASE+'card-pack-icon.png'],
@@ -14913,6 +14935,10 @@ function montaSfondoCollezione(){
 // in Esplora risorse: git ha registrato "ui" e la tiene cosi' anche se la
 // cartella locale si mostra maiuscola.
 const UI_BASE = 'https://hextalegame.com/ui/';
+// v0.77.78 — la cartella del menu principale come costante. C'era gia' scritta
+// per esteso dentro a menuFileCandidati, e il precaricatore la riconosce nella
+// forma BASE+'nome': averla qui vuol dire che i suoi file si contano da soli.
+const MENU_BASE = 'https://hextalegame.com/main-menu/';
 // ── v0.77.15 — LE ICONE DELLE AZIONI IN CAMPO ─────────────────────────────
 // Stavano in cards/card-parts/, insieme ai pezzi con cui si disegna una carta.
 // Non e' il loro posto: non sono parti di una carta, sono comandi — il mirino
