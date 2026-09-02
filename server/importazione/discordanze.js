@@ -66,7 +66,10 @@ const usata = s => (HTML.split(s).length - 1) > 2;
 // Le carte gia' passate al PONTE (foglioFa): la decisione la prende il foglio e
 // l'esecuzione resta al codice animato. La sigla non compare piu' in nessuna
 // tabella, quindi il conteggio qui sopra non le vedrebbe.
-const SUL_PONTE = ['Alice', 'Pinocchio', 'Phoenix'];
+const SUL_PONTE = [
+  'Alice', 'Pinocchio', 'Phoenix',          // decide il foglio, esegue il codice animato
+  'Jiminy Cricket', 'Pied Piper', 'The Walrus' // scritte da zero leggendo le colonne (v0.77.68)
+];
 
 // La stessa regola di _effettoSemplice nel gioco: cosa il MOTORE sa eseguire.
 function semplice(e) {

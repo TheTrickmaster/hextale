@@ -9898,7 +9898,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.67</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.68</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -26289,6 +26289,11 @@ function initGame(vsAI){
     // La taglia della Regina di Cuori sulla prossima carta pescata, invece,
     // deve sopravvivere fino alla pescata: sta qui, uno per giocatore.
     bonusProssimaPescata:{1:0,2:0},
+    // v0.77.68 — la promessa del Grillo Parlante sulla PROSSIMA carta giocata.
+    // Non e' un numero come la taglia qui sopra ma un oggetto, perche' deve
+    // ricordarsi anche a che condizione vale e da chi viene: la carta premiata
+    // dev'essere in grado di dire chi l'ha premiata.
+    premioProssimaGiocata:{1:null,2:null},
     // L'ultima conquista di ciascun giocatore, per Morgana: {cella, exProprietario}.
     ultimaConquista:{1:null,2:null},
     // v0.73.78 — che turno e'. Serve alle abilita' che scattano a un certo
@@ -29464,6 +29469,65 @@ function motoreMomentoDelTurno(evento, diChi){
   return mosso;
 }
 
+// ── v0.77.68 — GLI EFFETTI CHE IL MOTORE DESCRIVE MA NON PUO' ESEGUIRE ────
+// Il motore sa dire SE un'abilita' scatta, su CHI e QUANTO. Certe cose pero'
+// non puo' farle: toccano il tabellone, aspettano una carta che non e' ancora
+// stata giocata, o chiedono al giocatore. Quelle le fa il client — ma
+// leggendo i numeri dal foglio, non riscrivendoli qui.
+//
+// Torna true se ha fatto qualcosa: chi chiama non deve allora ripiegare sulla
+// vecchia funzione scritta a mano, o l'abilita' partirebbe due volte.
+function eseguiDalFoglio(card, evento, dove){
+  if(!_haAbilitaNuova(card)) return false;
+  const a = _motore().abilitaDi(card);
+  if(!a || a.trigger !== evento) return false;
+  let fatto = false;
+  for(const eff of [a.effetto, a.effetto2]){
+    if(!eff) continue;
+    // "la prossima carta che giochi": non c'e' ancora, quindi non si puo'
+    // premiare adesso. Si lascia un segno, e lo riscuote chi arriva.
+    if((eff.azione === 'buff' || eff.azione === 'debuff') && eff.quale === 'next' && eff.dove === 'board'){
+      preparaPremioProssimaGiocata(card, a, eff);
+      fatto = true;
+    }
+  }
+  return fatto;
+}
+
+// Il segno lasciato sulla prossima carta giocata da questo giocatore.
+function preparaPremioProssimaGiocata(card, a, eff){
+  const chi = card.owner || G.currentPlayer;
+  const segno = (eff.azione === 'debuff' ? -1 : 1) * ((eff.quanto && eff.quanto.numero) || 0);
+  G.premioProssimaGiocata[chi] = {
+    quanto: segno,
+    ambito: eff.ambito || 'ALL',
+    da: card.name || 'Moral Compass',
+    chiave: 'premio_prossima:' + card.id,
+    // Non premia se stessa: il segno viene lasciato mentre QUESTA carta si sta
+    // ancora calando, e senza questo il Grillo si premierebbe da solo.
+    postoDa: card.id,
+    soloSeNonConquista: !!(a.se && a.se.test === 'did_not_conquer')
+  };
+}
+
+// Si riscuote nel primo istante in cui si sa se la carta ha conquistato: prima
+// non lo sa nessuno, dopo il tabellone e' gia' cambiato.
+// La promessa vale per UNA carta comunque vada: se quella conquista, il premio
+// non arriva E non resta in attesa della prossima. E' la lettura di "la
+// prossima carta che giochi" — la prossima, non la prima che si comporta bene.
+function riscuotiPremioProssimaGiocata(card, giocatore, quanteConquiste){
+  const p = G.premioProssimaGiocata && G.premioProssimaGiocata[giocatore];
+  if(!p || !card) return false;
+  if(p.postoDa === card.id) return false;
+  G.premioProssimaGiocata[giocatore] = null;
+  if(p.soloSeNonConquista && quanteConquiste > 0) return false;
+  if(!p.quanto) return false;
+  const lati = _motore().latiColpiti(p.ambito, (card.valoriBase || card.values) || {}, card, G._semeSinergie || '');
+  if(!lati.length) return false;
+  modificaValori(card, lati, p.quanto, undefined, {chiave: p.chiave, da: p.da});
+  return true;
+}
+
 function applicaAbilitaPiazzamento(card, q, r, chiave){
   // v0.77.62 — LA REGOLA E' UNA SOLA: se il foglio mette l'abilita' su un
   // momento che non e' il piazzamento, e il motore la sa fare, qui non deve
@@ -29475,6 +29539,9 @@ function applicaAbilitaPiazzamento(card, q, r, chiave){
   // chiede alla carta qual e' il suo momento, invece di elencarli.
   const suaAbilita = _haAbilitaNuova(card) ? _motore().abilitaDi(card) : null;
   if(suaAbilita && suaAbilita.trigger !== 'on_play' && motoreFaLEvento(card, suaAbilita.trigger)) return;
+  // v0.77.68 — prima del motore: cio' che il foglio descrive e il client sa
+  // fare, ma il motore no (vedi eseguiDalFoglio).
+  if(eseguiDalFoglio(card, 'on_play', {q, r})) return;
   if(motoreFaLEvento(card, 'on_play')){
     applicaCambiamenti(_motore().cambiamentiAllEvento(card, 'on_play', _scenaEvento(card, key(q, r))));
     return;
@@ -30933,10 +31000,212 @@ function _togliAbilita(card){
 // Il giocatore 2 e' l'IA soltanto in modalita' vsAI. In PvP e' una persona
 // come l'altra, e ha diritto alla stessa interfaccia.
 function giocatoreUmano(p){ return !(G.vsAI && p===2); }
+// ── v0.77.68 — UNA SCELTA DESCRITTA DAL FOGLIO ────────────────────────────
+// Le otto abilita' che gia' chiedono un bersaglio hanno una voce loro in
+// SCELTE_PIAZZAMENTO, scritta a mano, e restano dove sono: funzionano, hanno
+// animazioni e una stima per l'IA, e riscriverle vorrebbe dire rischiare di
+// cambiarle di nascosto.
+// Questa e' la strada per le carte che una voce NON ce l'hanno: la finestra si
+// costruisce leggendo le colonne. Si prova DOPO la tabella, mai prima, cosi'
+// nessuna abilita' che oggi funziona cambia strada sotto i piedi.
+function sceltaDalFoglio(card, q, r, giocatore){
+  if(!_haAbilitaNuova(card)) return null;
+  const a = _motore().abilitaDi(card);
+  if(!a || a.trigger !== 'on_play') return null;
+  for(const eff of [a.effetto, a.effetto2]){
+    if(!eff || !eff.scelta) continue;
+    if(eff.azione === 'swap' && eff.cosa === 'position') return _sceltaScambioPosizioni(card, q, r, giocatore, a, eff);
+  }
+  return null;
+}
+
+// Le carte in campo che l'abilita' puo' toccare. Il filtro del foglio e'
+// `If subject = target`: una condizione che parla del BERSAGLIO, quindi va
+// chiesta a ognuno invece che una volta sola — ed e' il motivo per cui non la
+// puo' risolvere il motore, che la valuta sulla scena e non sul candidato.
+function _celleIdonee(card, a, eff){
+  const fuori = [];
+  const chiede = a.se && a.se.soggetto === 'target' ? a.se : null;
+  for(const k in G.board){
+    const posto = G.board[k];
+    if(!posto || !posto.card) continue;
+    if(eff.chi === 'ally' && posto.owner !== card.owner) continue;
+    if(eff.chi === 'opponent' && posto.owner === card.owner) continue;
+    if(chiede && chiede.test === 'has_trait'
+       && !_motore().haTratto(posto.card, (chiede.valore && chiede.valore.tratti) || [])) continue;
+    fuori.push(k);
+  }
+  return fuori;
+}
+
+// ── IL PIFFERAIO, "Follow the music" ──────────────────────────────────────
+// Scambia di posto due personaggi /Wild/, ovunque sul tabellone. Due bersagli
+// e non uno: e' la prima abilita' che ne chiede due, e il protocollo lo
+// reggeva gia' — lo sceriffo apre una finestra dentro l'altra da v0.75.53.
+// La seconda finestra si apre dentro `applicaEAspetta` e riceve il `poi`
+// della prima come `alTermine`: cosi' il turno riprende una volta sola, alla
+// fine di tutte e due, e non a meta'.
+function _sceltaScambioPosizioni(card, q, r, giocatore, a, eff){
+  const idonei = _celleIdonee(card, a, eff);
+  // Meno di due: non c'e' niente da scambiare. Si torna null e la finestra non
+  // si apre nemmeno — nessuna pausa, nessuna X da cliccare a vuoto.
+  if(idonei.length < 2) return null;
+  return {
+    chiave: 'scambio_posizioni',
+    giocatore,
+    cellaOrigine: key(q, r),
+    bersagli: idonei,
+    applicaEAspetta: (primo, poi) => {
+      const restanti = idonei.filter(x => x !== primo);
+      if(!restanti.length){ poi(); return; }
+      G.sceltaBersaglio = {
+        chiave: 'scambio_posizioni', chiaveAbilita: 'scambio_posizioni',
+        card, q, r, k: key(q, r), giocatore,
+        cellaOrigine: primo,
+        bersagli: restanti,
+        applica: (secondo) => scambiaPosizioniInCampo(primo, secondo),
+        rinuncia: () => {},
+        alTermine: poi
+      };
+      try { render(); } catch(_){ }
+    },
+    rinuncia: () => {},
+  };
+}
+
+// Due caselle si scambiano quel che hanno sopra: la carta E il proprietario,
+// perche' il personaggio si sposta con la sua fazione addosso.
+// I valori non si toccano — cambia dove sono, non quanto valgono — ma le
+// sinergie di vicinato si', e per quelle si rifa' il conto del tabellone.
+// ── v0.77.68 — "QUANDO VENGO SPOSTATA" ────────────────────────────────────
+// `on_moved` era nel vocabolario dal primo giorno e non lo leggeva nessuno:
+// una sola carta lo usa, il Tricheco, e la sua abilita' non era mai stata
+// scritta. L'aggancio sta nei DUE punti da cui passa ogni spostamento di una
+// carta gia' in campo — il salto (`spostaCartaConSalto`) e il trascinamento
+// (`trascinaCarta`) — e non dentro alle abilita' che spostano: quelle sono
+// quattro oggi e saranno di piu' domani.
+//
+// LA CONTINUAZIONE. Chi sposta passa un `poi` e aspetta. Se l'abilita' deve
+// aprire una finestra di scelta, il turno non puo' riprendere prima che sia
+// chiusa: allora questa funzione SI PRENDE il `poi` (lo mette in `alTermine`)
+// e torna true, e chi ha chiamato non lo esegue. Senza, il turno ripartirebbe
+// mentre il giocatore sta ancora scegliendo, e lo scontro guarderebbe un
+// tabellone che sta per cambiare.
+function avvisaCartaSpostata(card, daCella, aCella, poi){
+  if(!card || !_haAbilitaNuova(card)) return false;
+  const a = _motore().abilitaDi(card);
+  if(!a || a.trigger !== 'on_moved') return false;
+
+  // 1) quel che il motore sa fare da solo (il +2 ALL del Tricheco)
+  if(motoreFaLEvento(card, 'on_moved')){
+    const cambi = _motore().cambiamentiAllEvento(card, 'on_moved', _scenaEvento(card, aCella));
+    if(cambi.length){
+      const prima = new Map();
+      for(const x of cambi) if(x.carta && !prima.has(x.carta)) prima.set(x.carta, {...x.carta.values});
+      applicaCambiamenti(cambi);
+      prima.forEach((v, c2)=>lampeggiaDifferenzaValori(c2, v));
+      try { render(); } catch(_){ }
+    }
+  } else {
+    // Il motore non sa fare TUTTO cio' che c'e' sulla riga (il Tricheco ha due
+    // effetti, e il secondo sposta): il primo lo si applica lo stesso, uno per
+    // uno, invece di rinunciare a entrambi.
+    for(const eff of [a.effetto, a.effetto2]){
+      if(!eff || !_effettoSemplice(eff)) continue;
+      const finto = { trigger:'on_moved', frequenza:a.frequenza, finestra:a.finestra,
+                      se:a.se, regola:null, legame:null, se2:null, regola2:null, effetto2:null, effetto:eff };
+      const copia = { values:card.values, valoriBase:card.valoriBase, valoriNascita:card.valoriNascita,
+                      id:card.id, name:card.name, owner:card.owner, traits:card.traits,
+                      traitNames:card.traitNames, abilita:finto, _scatti:card._scatti };
+      const cambi = _motore().cambiamentiAllEvento(copia, 'on_moved', _scenaEvento(card, aCella));
+      card._scatti = copia._scatti;
+      if(!cambi.length) continue;
+      for(const x of cambi) if(x.carta === copia) x.carta = card;
+      const prima = {...card.values};
+      applicaCambiamenti(cambi);
+      lampeggiaDifferenzaValori(card, prima);
+      try { render(); } catch(_){ }
+    }
+  }
+
+  // 2) e quel che chiede al giocatore
+  for(const eff of [a.effetto, a.effetto2]){
+    if(!eff || !eff.scelta) continue;
+    if(eff.azione === 'move' && eff.cosa === 'card' && eff.dove === 'adjacent'){
+      return _apriSpostaUnVicino(card, aCella, eff, poi);
+    }
+  }
+  return false;
+}
+
+// "Puo' spostare un personaggio adiacente". Il giocatore indica CHI; dove va a
+// finire lo decide il tabellone — la casella libera piu' in mezzo fra quelle
+// che gli stanno attorno — perche' il foglio dice chi si sposta e non dove.
+// Se non c'e' nessun vicino spostabile la finestra non si apre: nessuna pausa.
+function _apriSpostaUnVicino(card, cella, eff, poi){
+  const [q, r] = String(cella).split(',').map(Number);
+  const candidati = [];
+  for(const dir of DIRS){
+    const nk = key(q+dir.dq, r+dir.dr);
+    const posto = G.board[nk];
+    if(!posto || !posto.card) continue;
+    if(eff.chi === 'ally' && posto.owner !== card.owner) continue;
+    if(eff.chi === 'opponent' && posto.owner === card.owner) continue;
+    if(cartaIntoccabile(posto.card)) continue;          // Excalibur non si sposta
+    if(!celleLibereAttornoATassello(nk).length) continue; // non ha dove andare
+    candidati.push(nk);
+  }
+  if(!candidati.length) return false;
+  G.sceltaBersaglio = {
+    chiave: 'sposta_un_vicino', chiaveAbilita: 'sposta_un_vicino',
+    card, q, r, k: cella, giocatore: card.owner || G.currentPlayer,
+    cellaOrigine: cella,
+    bersagli: candidati,
+    applicaEAspetta: (scelta, fine) => {
+      const libere = celleLibereAttornoATassello(scelta);
+      const dove = libere.length ? _piuInMezzo(libere) : null;
+      if(!dove){ fine(); return; }
+      spostaCartaConSalto(scelta, dove, fine);
+    },
+    rinuncia: () => {},
+    alTermine: (typeof poi === 'function') ? poi : undefined
+  };
+  try { render(); } catch(_){ }
+  return true;
+}
+
+// Fra piu' caselle libere, quella piu' "in mezzo": e' la stessa idea con cui
+// si decide dove finisce un tassello spostato senza che nessuno scelga.
+function _piuInMezzo(celle){
+  let migliore = celle[0], punteggio = -1;
+  for(const k of celle){
+    const [q, r] = k.split(',').map(Number);
+    const p = (typeof aiVicinatoUtile === 'function') ? aiVicinatoUtile(q, r) : 0;
+    if(p > punteggio){ punteggio = p; migliore = k; }
+  }
+  return migliore;
+}
+
+function scambiaPosizioniInCampo(unaCella, altraCella){
+  if(!unaCella || !altraCella || unaCella === altraCella) return false;
+  const A = G.board[unaCella], B = G.board[altraCella];
+  if(!A || !B || !A.card || !B.card) return false;
+  G.board[unaCella] = B;
+  G.board[altraCella] = A;
+  try { ricalcolaTabellone(); } catch(_){ }
+  // Un lampo su tutti e due: e' l'unico modo per accorgersene, visto che non
+  // c'e' nessun colpo a raccontarlo.
+  try { lampeggiaSpostamentoValori(A.card); lampeggiaSpostamentoValori(B.card); } catch(_){ }
+  try { render(); } catch(_){ }
+  return true;
+}
+
 function apriSceltaBersaglio(card, player, q, r, k, chiaveAbilita){
   const costruisci = SCELTE_PIAZZAMENTO[chiaveAbilita];
-  if(typeof costruisci !== 'function') return false;
-  const scelta = costruisci(card, q, r, player);
+  // v0.77.68 — prima la tabella (le otto che gia' funzionano), poi il foglio.
+  const scelta = (typeof costruisci === 'function')
+    ? costruisci(card, q, r, player)
+    : sceltaDalFoglio(card, q, r, player);
   if(!scelta) return false;
   scelta.card = card; scelta.q = q; scelta.r = r; scelta.k = k;
   scelta.chiaveAbilita = chiaveAbilita;
@@ -32032,6 +32301,13 @@ function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLa
       // Anche lei e' agganciata alla fine del giro, insieme al Hatter.
     }
   }
+  // v0.77.68 — IL GRILLO PARLANTE, "Moral Compass". Questo e' il primo
+  // istante in cui si sa se la carta appena calata ha conquistato qualcosa, ed
+  // e' percio' l'unico posto onesto in cui riscuotere la promessa che il
+  // Grillo ha lasciato. Sta prima del disegno qui sotto, cosi' il +2 si vede
+  // sulla carta appena atterra invece di comparire un istante dopo.
+  riscuotiPremioProssimaGiocata(card, player, conquered.length);
+
   // Neither placeCard() nor the drag-drop mouseup handler render the board
   // after calling doPlace() — the board only used to get painted by
   // endTurn()'s render(). Now that endTurn() (and its render) is deferred
@@ -41662,6 +41938,10 @@ function trascinaCarta(daCella, aCella, poi){
     setTimeout(()=>{
       _cardSlide = null;
       renderBoard();   // toglie la classe, che altrimenti resterebbe addosso
+      // v0.77.68 — anche il trascinamento e' uno spostamento: `on_moved` deve
+      // scattare da tutte e due le strade, o l'abilita' funzionerebbe a
+      // seconda di CHI ha spostato la carta.
+      if(avvisaCartaSpostata(contenuto.card, daCella, aCella, finito)) return;
       finito();
     }, CARD_SLIDE_MS);
   };
@@ -41745,7 +42025,13 @@ function spostaCartaConSalto(daCella, aCella, poi){
     _cardJump=null;
     renderBoard();
     startCardLandAnim(aCella);
-    setTimeout(finito, CARD_LAND_MS);
+    // v0.77.68 — la carta e' arrivata: se la sua riga dice `on_moved`, e'
+    // adesso che scatta. Se si prende la continuazione (una finestra da
+    // aprire), qui non si chiude piu' niente: ci pensa lei.
+    setTimeout(()=>{
+      if(avvisaCartaSpostata(contenuto.card, daCella, aCella, finito)) return;
+      finito();
+    }, CARD_LAND_MS);
   };
   if(partito) setTimeout(atterra, CARD_JUMP_MS);
   else atterra();

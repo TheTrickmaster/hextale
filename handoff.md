@@ -1449,6 +1449,57 @@ Aggiornati anche i due testi mostrati al giocatore, rimasti indietro rispetto
 alle colonne: **Il Genio** ("When *Played*") e **March Hare** ("After
 *Conquering*", mentre agisce al piazzamento dalla v0.75.58).
 
+### Le tre carte mute, scritte (v0.77.68)
+
+Erano le uniche tre che il foglio descriveva e che non eseguiva nessuno: non
+avevano codice, non avevano sigla, e il motore non le sapeva fare. Adesso ci
+sono, e sono state scritte **leggendo le colonne**: i numeri stanno sul foglio,
+qui c'e' solo il come.
+
+**Jiminy Cricket — "Moral Compass".** Se la prossima carta che giochi non
+conquista, prende +2 ALL. Il premio si riscuote nel primo istante in cui si sa
+se ha conquistato — prima non lo sa nessuno, dopo il tabellone e' gia'
+cambiato. Tre cose che valgono la pena di essere dette:
+- il segno e' un OGGETTO e non un numero (come la taglia della Regina di
+  Cuori): cosi' la carta premiata sa **da chi** le viene il bonus;
+- non premia se stesso — il segno viene lasciato mentre il Grillo si sta
+  ancora calando, e senza la guardia si premierebbe da solo;
+- la promessa vale per UNA carta comunque vada: se quella conquista, il premio
+  non arriva e **non resta in attesa della prossima**. E' la lettura di "la
+  prossima carta che giochi" — la prossima, non la prima che si comporta bene.
+
+**Pied Piper — "Follow the music".** Scambia di posto due personaggi /Wild/,
+ovunque sul tabellone. E' la prima abilita' che chiede **due** bersagli, e il
+protocollo lo reggeva gia': la seconda finestra si apre dentro
+`applicaEAspetta` e riceve il `poi` della prima come `alTermine`, cosi' il
+turno riprende una volta sola alla fine di tutte e due. Con meno di due /Wild/
+in campo la finestra non si apre nemmeno: nessuna pausa, nessuna X da cliccare
+a vuoto.
+
+**The Walrus — "Follow me".** `on_moved` era nel vocabolario dal primo giorno
+e non lo leggeva nessuno. L'aggancio sta nei **due** punti da cui passa ogni
+spostamento di una carta gia' in campo — il salto e il trascinamento — e non
+dentro alle abilita' che spostano: quelle sono quattro oggi e saranno di piu'
+domani.
+  **La continuazione.** Chi sposta passa un `poi` e aspetta. Se l'abilita'
+  deve aprire una finestra, `avvisaCartaSpostata` **si prende** quel `poi` e
+  torna true: senza, il turno ripartirebbe mentre il giocatore sta ancora
+  scegliendo, e lo scontro guarderebbe un tabellone che sta per cambiare.
+
+### La scelta descritta dal foglio (v0.77.68)
+
+Le otto abilita' che gia' chiedono un bersaglio restano nella loro voce di
+`SCELTE_PIAZZAMENTO`: funzionano, hanno animazioni e una stima per l'IA, e
+riscriverle vorrebbe dire rischiare di cambiarle di nascosto. `sceltaDalFoglio`
+e' la strada per quelle che una voce non ce l'hanno, e si prova **dopo** la
+tabella, mai prima: cosi' nessuna abilita' che oggi funziona cambia strada
+sotto i piedi.
+
+Stessa forma per gli effetti senza scelta: `eseguiDalFoglio` fa cio' che il
+motore descrive ma non puo' eseguire (aspetta una carta non ancora giocata,
+tocca il tabellone), e torna true perche' chi chiama non ripieghi sulla vecchia
+funzione facendo partire l'abilita' due volte.
+
 ### Cosa manca
 
 Gli effetti che **cambiano i valori** li fa il motore: buff, debuff, set,
