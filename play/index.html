@@ -9898,7 +9898,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.68</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.70</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -13388,8 +13388,20 @@ function _applicaCatalogo(carte){
   FINAL_CARDS.length = 0;
   FINAL_CARDS.push.apply(FINAL_CARDS, carte);
 }
+// ── v0.77.70 — IL CATALOGO NON STA IN CACHE ───────────────────────────────
+// Regola di Lorenzo, la stessa gia' valsa per i mazzi: niente deve restare in
+// cache. Le carte vengono dal database e basta.
+//
+// Non e' pulizia astratta: e' costato una serata. Dopo una reimportazione il
+// gioco continuava a girare sulla copia locale, e le abilita' nuove — il
+// Pifferaio, il Tricheco — non chiedevano niente senza che si capisse
+// perche'. Una copia locale di una verita' che sta altrove e' una verita' che
+// prima o poi diverge, e diverge in silenzio.
+//
+// Resta la CANCELLAZIONE di quel che c'era: chi ha giocato prima di oggi ha
+// un catalogo vecchio nel browser, e va tolto di mezzo una volta per tutte.
 function catalogoInCache(versione, carte){
-  try{ localStorage.setItem(CHIAVE_CATALOGO, JSON.stringify({ versione: versione, carte: carte })); }catch(_){}
+  try{ localStorage.removeItem(CHIAVE_CATALOGO); }catch(_){}
 }
 // Torna true se ha davvero messo delle carte: chi chiama deve poter sapere se
 // il caricamento e' partito da qualcosa o dal niente.
@@ -13401,33 +13413,29 @@ function caricaCatalogoDaCache(){
   // l'intero catalogo: la Collezione sembrava piena di carte mai ottenute,
   // finche' non si premeva Login. Due letture indipendenti da due chiavi
   // indipendenti non devono stare una dentro al ramo dell'altra.
-  caricaPossessoDaCache();
-  try{
-    const g = JSON.parse(localStorage.getItem(CHIAVE_CATALOGO) || 'null');
-    if(g && g.carte && g.carte.length){
-      _applicaCatalogo(g.carte);
-      _catalogoVersione = g.versione || '';
-      console.info('[carte] ' + g.carte.length + ' carte dalla copia locale (in attesa del server)');
-      return true;
-    }
-  }catch(_){}
+  // v0.77.70 — il possesso viene dal server come il resto: qui si toglie solo
+  // quel che era rimasto nel browser dalle versioni vecchie.
+  try{ localStorage.removeItem(CHIAVE_CATALOGO); }catch(_){}
+  try{ localStorage.removeItem(CHIAVE_POSSESSO); }catch(_){}
   return false;
 }
-// Scrive in cache cio' che si possiede. Una funzione e non due righe copiate:
-// la scrittura avviene in due momenti diversi — quando il server risponde
-// all'avvio e quando si raccoglie una bustina — e due copie della stessa riga
-// sono due occasioni perche' un domani ne venga aggiornata una sola.
+// v0.77.70 — NON SCRIVE PIU' NIENTE, e il nome resta perche' i due punti che
+// la chiamano (la risposta del server all'avvio, e la raccolta di una bustina)
+// continuano ad avere un posto solo dove passare. Quello che fa oggi e'
+// cancellare: chi ha giocato prima di oggi ha un possesso vecchio nel browser,
+// e va tolto una volta per tutte.
+// Il possesso e' verita' del database, come il catalogo e i mazzi: una copia
+// locale e' una verita' che prima o poi diverge, e diverge in silenzio.
 function salvaPossessoInCache(){
-  try{ localStorage.setItem(CHIAVE_POSSESSO, JSON.stringify({
-    possedute: CARTE_POSSEDUTE, admin: GIOCATORE_ADMIN
-  })); }catch(_){}
+  try{ localStorage.removeItem(CHIAVE_POSSESSO); }catch(_){}
 }
 // Il possesso si rilegge anche quando il catalogo c'era gia': sono due chiavi
 // separate e la seconda vale pure da sola. La chiama caricaCatalogoDaCache
 // come prima cosa — vedi li' perche'.
 function caricaPossessoDaCache(){
   try{
-    const p = JSON.parse(localStorage.getItem(CHIAVE_POSSESSO) || 'null');
+    // v0.77.70 — niente cache: finche' il server non risponde, non si sa.
+    const p = null;
     if(p){ CARTE_POSSEDUTE = p.possedute || {}; GIOCATORE_ADMIN = !!p.admin; _possessoNoto = true; return true; }
   }catch(_){}
   return false;
@@ -13435,13 +13443,32 @@ function caricaPossessoDaCache(){
 
 // Una chiamata sola: catalogo (se cambiato) e possesso.
 async function caricaCarteDalServer(){
-  const risposta = await nakamaRpc('hx_avvio', { versioneNota: _catalogoVersione || '' });
+  // v0.77.70 — NON si dichiara piu' quale versione si ha gia': non se ne ha
+  // nessuna, e il server deve rispondere sempre col catalogo intero. Mandare
+  // `versioneNota` era il modo di dire "risparmiami i settanta chilobyte se
+  // non e' cambiato niente", e finche' c'era una cache aveva senso. Senza
+  // cache, quel risparmio sarebbe una partita giocata con carte che non
+  // esistono piu'.
+  const risposta = await nakamaRpc('hx_avvio', {});
   const cambiato = !risposta.invariato && risposta.carte && risposta.carte.length;
   if(cambiato){
     _applicaCatalogo(risposta.carte);
     _catalogoVersione = risposta.versione || '';
     catalogoInCache(_catalogoVersione, risposta.carte);
     console.info('[carte] ' + risposta.carte.length + ' carte dal database (versione ' + _catalogoVersione + ')');
+    // v0.77.69 — e QUANTE portano l'abilita' del foglio. Un catalogo importato
+    // prima dell'ultima modifica alle colonne non se ne accorge da solo: le
+    // abilita' semplicemente non partono, in silenzio. Questa riga rende la
+    // cosa visibile al primo sguardo alla console, invece che dopo una
+    // partita passata a chiedersi perche' il Pifferaio non chiede niente.
+    try {
+      const conAb = risposta.carte.filter(c => c && c.abilita).length;
+      const conScelta = risposta.carte.filter(c => c && c.abilita
+        && [c.abilita.effetto, c.abilita.effetto2].some(e => e && 'scelta' in e)).length;
+      console.info('[carte] con abilita\' dal foglio: ' + conAb
+        + ' | con la colonna "Player selection": ' + conScelta
+        + (conAb && !conScelta ? '  ATTENZIONE: il catalogo e\' anteriore alla colonna "Player selection": rilancia reimporta.cmd, o le abilita\' che chiedono un bersaglio non chiederanno niente.' : ''));
+    } catch(_){ }
   }
   CARTE_POSSEDUTE = risposta.possedute || {};
   GIOCATORE_ADMIN = !!risposta.admin;
@@ -13485,12 +13512,18 @@ async function aggiornaCarteDopoAccesso(){
 // ── LE CARTE DEL GIOCATORE ────────────────────────────────────────────────
 // Quelle che la Collezione e i mazzi devono mostrare: cio' che possiede, al
 // livello che il server dice. Un admin ha tutto, al massimo.
-// Se il possesso NON e' noto (si gioca scollegati, oppure la chiamata non e'
-// ancora tornata) si mostra tutto il catalogo: una Collezione vuota sembra un
-// gioco rotto, mentre una Collezione completa in locale e' solo generosa.
+// ── v0.77.70 — "NON SI SA ANCORA" NON VUOL DIRE "HAI TUTTO" ───────────────
+// Prima, finche' il server non aveva risposto, si mostrava l'intero catalogo:
+// "una Collezione vuota sembra un gioco rotto, una completa e' solo generosa".
+// Con la cache quel momento durava un istante. Senza cache dura finche' non
+// arriva la risposta, e mostrare carte mai ottenute per tutto quel tempo non
+// e' generoso: e' falso, e da li' si costruiscono mazzi che il server
+// rifiutera'.
+// Adesso finche' non si sa, non si mostra niente. La differenza fra "vuota" e
+// "non ancora caricata" la deve raccontare l'interfaccia, non un elenco finto.
 function carteDelGiocatore(){
   const tutte = (typeof carteGiocabili === 'function') ? carteGiocabili() : [];
-  if(!_possessoNoto) return tutte;
+  if(!_possessoNoto) return [];
   if(GIOCATORE_ADMIN) return tutte.map(c => _cartaAlSuoLivello(c, 4));
   return tutte.filter(c => CARTE_POSSEDUTE[c.slug])
               .map(c => _cartaAlSuoLivello(c, CARTE_POSSEDUTE[c.slug]));
@@ -31053,21 +31086,18 @@ function _sceltaScambioPosizioni(card, q, r, giocatore, a, eff){
   return {
     chiave: 'scambio_posizioni',
     giocatore,
+    // Due bersagli, non uno: il contatore sotto l'icona lo dice, e la finestra
+    // si chiude da sola quando sono stati presi tutti e due.
+    richieste: (eff.quanto && eff.quanto.numero) || 2,
+    // Non il mirino: il gesto non e' "colpisci questa", e' "scambiatevi di
+    // posto". E' la stessa icona della Lepre Marzolina, per la stessa ragione.
+    icona: ICONA_SCAMBIO,
     cellaOrigine: key(q, r),
     bersagli: idonei,
-    applicaEAspetta: (primo, poi) => {
-      const restanti = idonei.filter(x => x !== primo);
-      if(!restanti.length){ poi(); return; }
-      G.sceltaBersaglio = {
-        chiave: 'scambio_posizioni', chiaveAbilita: 'scambio_posizioni',
-        card, q, r, k: key(q, r), giocatore,
-        cellaOrigine: primo,
-        bersagli: restanti,
-        applica: (secondo) => scambiaPosizioniInCampo(primo, secondo),
-        rinuncia: () => {},
-        alTermine: poi
-      };
-      try { render(); } catch(_){ }
+    applica: (prese) => {
+      const elenco = Array.isArray(prese) ? prese : [prese];
+      if(elenco.length < 2) return false;
+      return scambiaPosizioniInCampo(elenco[0], elenco[1]);
     },
     rinuncia: () => {},
   };
@@ -31159,6 +31189,8 @@ function _apriSpostaUnVicino(card, cella, eff, poi){
   G.sceltaBersaglio = {
     chiave: 'sposta_un_vicino', chiaveAbilita: 'sposta_un_vicino',
     card, q, r, k: cella, giocatore: card.owner || G.currentPlayer,
+    // La mano: qui non si colpisce nessuno, si prende qualcuno e lo si sposta.
+    icona: ICONA_MANO,
     cellaOrigine: cella,
     bersagli: candidati,
     applicaEAspetta: (scelta, fine) => {
@@ -31200,13 +31232,56 @@ function scambiaPosizioniInCampo(unaCella, altraCella){
   return true;
 }
 
+// ── v0.77.69 — UNA SCELTA CHE NON SI APRE DEVE DIRLO ──────────────────────
+// Il Pifferaio e il Tricheco non chiedevano niente e non si capiva perche':
+// nessun errore, nessun avviso, solo un'abilita' che non succedeva. E' il
+// guasto silenzioso che questo gioco ha gia' pagato caro piu' volte.
+// Adesso, se il foglio dice che quella carta deve CHIEDERE un bersaglio e la
+// finestra non si apre, la console dice quale dei passaggi ha detto di no.
+// Una volta per carta: ripetuto a ogni giocata sarebbe rumore.
+const _sceltePerseSegnalate = new Set();
+function _avvisaSceltaMancata(card, chiaveAbilita){
+  if(!card) return;
+  const a = _haAbilitaNuova(card) ? _motore().abilitaDi(card) : null;
+  const vuoleScelta = a && [a.effetto, a.effetto2].some(e => e && e.scelta);
+  if(!vuoleScelta) return;                     // non doveva chiedere niente
+  const marchio = card.id || card.name || '?';
+  if(_sceltePerseSegnalate.has(marchio)) return;
+  _sceltePerseSegnalate.add(marchio);
+  const eff = [a.effetto, a.effetto2].find(e => e && e.scelta);
+  console.warn('[scelta non aperta] "' + (card.name||card.id) + '": il foglio dice '
+    + '"' + eff.azione + ' ' + (eff.cosa||'') + '" con Player selection = yes, ma la finestra '
+    + 'non si e\' aperta. Motivo probabile: ' + (
+      (typeof SCELTE_PIAZZAMENTO[chiaveAbilita] === 'function')
+        ? 'la voce scritta a mano "' + chiaveAbilita + '" non ha trovato bersagli leciti'
+        : 'nessun bersaglio idoneo in campo, oppure questa famiglia di effetti ('
+          + eff.azione + ' ' + (eff.cosa||'') + ') non e\' ancora fra quelle che sceltaDalFoglio sa costruire'
+    ) + '.');
+}
+
+// Serve a chi debug-a: dice se la carta porta con se' l'abilita' del FOGLIO
+// (cioe' se il catalogo e' stato reimportato dopo l'ultima modifica alle
+// colonne) o se sta ancora girando sul vecchio sistema a sigle.
+function diagnosticaAbilita(nomeOId){
+  const dove = (typeof FINAL_CARDS !== 'undefined' && FINAL_CARDS) ? FINAL_CARDS : [];
+  const e = dove.find(c => c && (c.name === nomeOId || c.id === nomeOId));
+  if(!e) return 'nel catalogo non c\'e\' nessuna carta "' + nomeOId + '"';
+  const a = e.abilita;
+  if(!a) return '"' + e.name + '": NON ha l\'abilita\' del foglio. Il catalogo e\' precedente '
+    + 'all\'ultima importazione: rilancia reimporta.cmd.';
+  const scelte = [a.effetto, a.effetto2].filter(Boolean).map(x => x.azione + (x.scelta ? ' (scelta del giocatore)' : ''));
+  return '"' + e.name + '": trigger=' + a.trigger + ', frequenza=' + a.frequenza
+    + ', effetti=[' + scelte.join(', ') + ']'
+    + (('scelta' in ((a.effetto)||{})) ? '' : '  ATTENZIONE: manca il campo "scelta" — il catalogo e\' stato importato PRIMA della colonna "Player selection".');
+}
+
 function apriSceltaBersaglio(card, player, q, r, k, chiaveAbilita){
   const costruisci = SCELTE_PIAZZAMENTO[chiaveAbilita];
   // v0.77.68 — prima la tabella (le otto che gia' funzionano), poi il foglio.
   const scelta = (typeof costruisci === 'function')
     ? costruisci(card, q, r, player)
     : sceltaDalFoglio(card, q, r, player);
-  if(!scelta) return false;
+  if(!scelta){ _avvisaSceltaMancata(card, chiaveAbilita); return false; }
   scelta.card = card; scelta.q = q; scelta.r = r; scelta.k = k;
   scelta.chiaveAbilita = chiaveAbilita;
   G.sceltaBersaglio = scelta;
@@ -31221,6 +31296,35 @@ function apriSceltaBersaglio(card, player, q, r, k, chiaveAbilita){
 function chiudiSceltaBersaglio(cella){
   const scelta = G.sceltaBersaglio;
   if(!scelta) return;
+  // ── v0.77.69 — LE SCELTE CHE VOGLIONO PIU' DI UN BERSAGLIO ──────────────
+  // Il Pifferaio ne chiede due. Prima li chiedevo con due finestre in fila:
+  // funzionava sulla carta ma non a schermo — dopo il primo clic non c'era
+  // modo di ripensarci, e non si capiva che ne mancava un altro.
+  // Adesso la finestra e' UNA e raccoglie: il contatore sotto l'icona dice a
+  // che punto si e', e ricliccare una carta gia' presa la lascia andare.
+  // Si chiude da sola quando il conto e' pieno.
+  if(scelta.richieste > 1 && cella && scelta.bersagli.indexOf(cella) >= 0){
+    scelta.prese = scelta.prese || [];
+    if(giocatoreUmano(scelta.giocatore)){
+      const gia = scelta.prese.indexOf(cella);
+      if(gia >= 0) scelta.prese.splice(gia, 1);   // ci si e' ripensato
+      else scelta.prese.push(cella);
+      if(scelta.prese.length < scelta.richieste){
+        try { renderBoard(); } catch(_){ }
+        return;                                    // la finestra resta aperta
+      }
+    } else {
+      // L'IA e il tempo scaduto chiudono in un colpo solo: si prende quello che
+      // hanno indicato e si completa con gli altri candidati. Lasciare la
+      // finestra aperta aspettando un secondo clic che non arrivera' mai
+      // vorrebbe dire fermare la partita.
+      scelta.prese = [cella];
+      for(const k of scelta.bersagli){
+        if(scelta.prese.length >= scelta.richieste) break;
+        if(scelta.prese.indexOf(k) < 0) scelta.prese.push(k);
+      }
+    }
+  }
   G.sceltaBersaglio = null;
   // v0.75.43 — UN'ABILITA' PUO' CHIEDERE DI ESSERE ASPETTATA.
   // Fino a qui `applica` era per forza istantanea: si eseguiva e un istante
@@ -31258,18 +31362,21 @@ function chiudiSceltaBersaglio(cella){
     resolveConquestAndEndTurn(scelta.card, scelta.giocatore, scelta.q, scelta.r, scelta.k, scelta.chiaveAbilita, true);
   };
   const scelto = cella && scelta.bersagli.indexOf(cella) >= 0;
+  // Chi ne ha chiesti piu' d'uno riceve l'ELENCO di quel che e' stato preso,
+  // non l'ultimo clic: e' l'unica forma in cui la scelta ha un senso.
+  const consegna = (scelta.richieste > 1) ? (scelta.prese || []) : cella;
   if(scelto && typeof scelta.applicaEAspetta === 'function'){
     let proseguito = false;
     // La rete: se l'abilita' non richiamasse mai, il turno resterebbe fermo per
     // sempre. Il guscio garantisce che si vada avanti UNA volta sola, e che si
     // vada avanti comunque.
     const unaVoltaSola = () => { if(proseguito) return; proseguito = true; prosegui(); };
-    try { scelta.applicaEAspetta(cella, unaVoltaSola); }
+    try { scelta.applicaEAspetta(consegna, unaVoltaSola); }
     catch(_){ unaVoltaSola(); }
     return;
   }
   try {
-    if(scelto) scelta.applica(cella);
+    if(scelto) scelta.applica(consegna);
     else if(typeof scelta.rinuncia === 'function') scelta.rinuncia();
   } catch(_){ /* un'abilita' che lancia non deve comunque bloccare il turno */ }
   prosegui();
@@ -42858,7 +42965,41 @@ function renderBoard(){
         // — vuol dire "indica un bersaglio" e vale per quasi tutte — ma chi fa
         // un gesto diverso puo' mostrarlo: March Hare scambia due valori, e uno
         // scambio ha un segno suo.
+        const preso = !!(scelta.prese && scelta.prese.indexOf(cella) >= 0);
         buildSvgIconBtn(scelta.icona || ICONA_MIRINO, bx, by, R*0.62, ()=>scegliBersaglio(cella));
+        // ── v0.77.69 — QUANTI NE MANCANO ────────────────────────────────
+        // Una scelta che ne vuole due deve dirlo: senza, dopo il primo clic
+        // sembra che non sia successo niente. Il numerino sta SOTTO l'icona
+        // — dove non copre la carta — e conta quelli gia' presi.
+        // Chi e' gia' stato preso si riconosce dall'anello: e ricliccandolo
+        // lo si lascia andare, cosi' ci si puo' ripensare senza aspettare il
+        // timer (vedi chiudiSceltaBersaglio).
+        if(scelta.richieste > 1){
+          if(preso){
+            const anello = svgEl('circle');
+            anello.setAttribute('cx', bx.toFixed(1));
+            anello.setAttribute('cy', by.toFixed(1));
+            anello.setAttribute('r', (R*0.46).toFixed(1));
+            anello.setAttribute('fill','none');
+            anello.setAttribute('stroke','#FFE991');
+            anello.setAttribute('stroke-width', Math.max(2, R*0.06).toFixed(1));
+            anello.setAttribute('pointer-events','none');
+            svg.appendChild(anello);
+          }
+          const quanti = svgEl('text');
+          quanti.setAttribute('x', bx.toFixed(1));
+          quanti.setAttribute('y', (by + R*0.58).toFixed(1));
+          quanti.setAttribute('text-anchor','middle');
+          quanti.setAttribute('font-family',"'Marcellus SC','Marcellus',serif");
+          quanti.setAttribute('font-size', Math.max(10, R*0.30).toFixed(1));
+          quanti.setAttribute('fill', preso ? '#FFE991' : '#FFFFFF');
+          quanti.setAttribute('stroke','rgba(0,0,0,.75)');
+          quanti.setAttribute('stroke-width','3');
+          quanti.setAttribute('paint-order','stroke');
+          quanti.setAttribute('pointer-events','none');
+          quanti.textContent = ((scelta.prese && scelta.prese.length) || 0) + '/' + scelta.richieste;
+          svg.appendChild(quanti);
+        }
       }
     }
     const orig = G.cells.find(x=>key(x.q,x.r)===scelta.cellaOrigine);

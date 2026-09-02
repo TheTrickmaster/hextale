@@ -1500,6 +1500,64 @@ motore descrive ma non puo' eseguire (aspetta una carta non ancora giocata,
 tocca il tabellone), e torna true perche' chi chiama non ripieghi sulla vecchia
 funzione facendo partire l'abilita' due volte.
 
+### Niente resta in cache (v0.77.70)
+
+Regola di Lorenzo, la stessa gia' valsa per i mazzi, adesso estesa a tutto: **le
+carte e il possesso vengono dal database e basta.**
+
+Non e' pulizia astratta, e' la causa di una serata persa. Dopo una
+reimportazione il gioco continuava a girare sulla copia locale del catalogo, e
+le abilita' nuove — il Pifferaio, il Tricheco — non chiedevano niente senza che
+si capisse perche'. Nessun errore: le carte semplicemente non portavano con se'
+l'abilita' del foglio. **Una copia locale di una verita' che sta altrove e' una
+verita' che prima o poi diverge, e diverge in silenzio.**
+
+- `catalogoInCache` e `salvaPossessoInCache` adesso **cancellano** invece di
+  scrivere: chi ha giocato prima di oggi ha roba vecchia nel browser e va
+  tolta una volta per tutte. I nomi restano perche' i punti che le chiamano
+  continuino ad avere un posto solo dove passare.
+- `hx_avvio` non manda piu' `versioneNota`: il server risponde **sempre** col
+  catalogo intero. Quel campo serviva a risparmiare settanta chilobyte quando
+  una cache c'era; senza cache, quel risparmio sarebbe una partita giocata con
+  carte che non esistono piu'.
+- **"Non si sa ancora" non vuol dire "hai tutto".** `carteDelGiocatore`
+  mostrava l'intero catalogo finche' il server non aveva risposto — con la
+  cache durava un istante, senza dura finche' non arriva la risposta. Adesso
+  finche' non si sa non si mostra niente: mostrare carte mai ottenute non e'
+  generoso, e' falso, e da li' si costruiscono mazzi che il server rifiutera'.
+
+### Quando una scelta non si apre, si deve sapere (v0.77.69)
+
+Il Pifferaio e il Tricheco non chiedevano niente e non si capiva perche':
+nessun errore, nessun avviso, solo un'abilita' che non succedeva. E' il guasto
+silenzioso che questo gioco ha gia' pagato caro piu' volte.
+
+- `_avvisaSceltaMancata`: se il foglio dice `Player selection = yes` e la
+  finestra non si apre, la console dice **quale passaggio** ha detto di no.
+  Una volta per carta — ripetuto a ogni giocata sarebbe rumore.
+- `diagnosticaAbilita('Nome carta')` da console: dice se la carta porta
+  l'abilita' del foglio, e avvisa se il catalogo e' anteriore alla colonna
+  `Player selection`.
+- All'avvio, il conto delle carte che portano l'abilita' e di quelle che hanno
+  la colonna nuova: un catalogo vecchio si vede al primo sguardo.
+
+### Le scelte a piu' bersagli (v0.77.69)
+
+Il Pifferaio ne chiede due. Prima li chiedevo con **due finestre in fila**:
+funzionava sulla carta ma non a schermo — dopo il primo clic non c'era modo di
+ripensarci, e non si capiva che ne mancava un altro.
+
+Adesso la finestra e' **una** e raccoglie: `richieste` dice quanti ne servono,
+`prese` tiene quelli presi, il **contatore sotto l'icona** dice a che punto si
+e' (1/2) e l'**anello** segna chi e' gia' stato scelto. Ricliccare una carta
+gia' presa la lascia andare. La finestra si chiude da sola quando il conto e'
+pieno.
+
+L'IA e il tempo scaduto chiudono **in un colpo solo**: si prende quel che hanno
+indicato e si completa con gli altri candidati. Lasciare la finestra aperta ad
+aspettare un secondo clic che non arrivera' mai vorrebbe dire fermare la
+partita.
+
 ### Cosa manca
 
 Gli effetti che **cambiano i valori** li fa il motore: buff, debuff, set,
