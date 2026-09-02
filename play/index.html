@@ -13463,11 +13463,25 @@ async function caricaCarteDalServer(){
     // partita passata a chiedersi perche' il Pifferaio non chiede niente.
     try {
       const conAb = risposta.carte.filter(c => c && c.abilita).length;
-      const conScelta = risposta.carte.filter(c => c && c.abilita
+      // v0.77.77 — QUANTE CHIEDONO un bersaglio: e' il numero che interessa.
+      // Prima qui contavo quante PORTANO il campo, che e' un'altra cosa —
+      // serve solo a capire se il catalogo e' stato importato dopo l'arrivo
+      // della colonna — e la riga non lo diceva. Il risultato: numeri giusti
+      // che sembravano casuali. Una diagnostica che si fa leggere male e'
+      // peggio di nessuna diagnostica, perche' fa dubitare di dati sani.
+      const chiedono = risposta.carte.filter(c => c && c.abilita
+        && [c.abilita.effetto, c.abilita.effetto2].some(e => e && e.scelta)).length;
+      // Le carte che hanno solo una REGOLA (Merlin, Shere Khan, Excalibur...)
+      // il campo non ce l'hanno, ed e' giusto: non avendo un effetto, non c'e'
+      // niente da scegliere. Per questo l'allarme scatta solo se non ce l'ha
+      // NESSUNA — quello si' vorrebbe dire catalogo vecchio.
+      const conEffetto = risposta.carte.filter(c => c && c.abilita
         && [c.abilita.effetto, c.abilita.effetto2].some(e => e && 'scelta' in e)).length;
-      console.info('[carte] con abilita\' dal foglio: ' + conAb
-        + ' | con la colonna "Player selection": ' + conScelta
-        + (conAb && !conScelta ? '  ATTENZIONE: il catalogo e\' anteriore alla colonna "Player selection": rilancia reimporta.cmd, o le abilita\' che chiedono un bersaglio non chiederanno niente.' : ''));
+      console.info('[carte] ' + conAb + ' con abilita\' dal foglio, di cui '
+        + chiedono + ' chiedono un bersaglio al giocatore'
+        + (conAb && !conEffetto
+            ? '  ATTENZIONE: nessuna porta la colonna "Player selection": il catalogo e\' anteriore a quella colonna. Rilancia reimporta.cmd, o le abilita\' che devono chiedere non chiederanno niente.'
+            : ''));
     } catch(_){ }
   }
   CARTE_POSSEDUTE = risposta.possedute || {};
