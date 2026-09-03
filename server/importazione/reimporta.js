@@ -155,6 +155,24 @@ function leggiCsv(testo) {
   // ── 2. converti ─────────────────────────────────────────────────────────
   const gioco = trovaGioco();
   passo(2, 'converto col parser di ' + path.basename(gioco) + '...');
+  // ── v0.77.96 — SI CONTROLLA PRIMA CHE IL GIOCO OFFRA ANCORA IL PARSER ───
+  // Questo passo apre il gioco dentro Electron e ne chiama due funzioni. Se
+  // quelle funzioni non ci sono piu', l'errore che arriva e' "il gioco non ha
+  // finito di caricarsi" — che manda a cercare un problema di caricamento
+  // mentre il problema e' un altro: qualcuno le ha tolte.
+  // E' successo davvero, e il messaggio ha portato dalla parte sbagliata.
+  // Adesso si guarda prima, e si dice cosa manca e perche'.
+  for (const nome of ['_csvParse', '_cardaDaRiga']) {
+    const dentro = new RegExp('^(?:function|const|let|var)\\s+' + nome + '\\b', 'm');
+    if (!dentro.test(fs.readFileSync(gioco, 'utf8'))) {
+      muori('il gioco non offre piu\' ' + nome + '.',
+        'L\'importazione non riscrive il parser del foglio: usa quello del gioco\n' +
+        '(vedi il commento in cima a converti.js). Se ' + nome + ' e\' stata tolta da\n' +
+        'play/index.html credendola inutilizzata, va rimessa: il suo chiamante non\n' +
+        'sta in quel file, sta qui.\n' +
+        'Per verificarlo:  node server/importazione/prova-aggancio.js');
+    }
+  }
   // Si punta all'ESEGUIBILE, non al .cmd: da Node 20 lanciare un .cmd senza
   // shell viene rifiutato, e passare da una shell aggiungerebbe un guscio in
   // mezzo che si mangia i codici d'uscita.

@@ -1527,167 +1527,17 @@ body.mouse-down, body.mouse-down *{
    blend-mode are referenced, so the two variants can't drift out of sync
    structurally. */
 #start-buttons{display:flex;flex-direction:column;align-items:center;gap:32px;}
-.start-art-btn{
-  position:relative;
-  display:inline-flex;align-items:center;justify-content:center;
-  height:68px;
-  /* v0.43.0 FIX: 49px+49px caps + 160px center minimum, per explicit spec
-     ("la width minima della parte centrale dei pulsanti deve essere
-     160px") — was hardcoded to 150px (the center art's own native width)
-     with no enforced minimum, so a short label could shrink the button
-     below the point where the center block's flourishes had room to
-     breathe. min-width now reserves the full 49+160+49 so the two fillers
-     never go negative/near-zero even at the button's smallest natural size. */
-  min-width:258px;
-  /* 49px end cap + a small guaranteed minimum sliver of filler on each
-     side, so the label is always clear of BOTH the end cap art and the
-     center block's own decorative flourishes, however long/short it is. */
-  padding:0 61px;
-  border:none;background:none;
-  font-family:var(--font-display, serif);font-weight:normal;font-size:22px;letter-spacing:.02em;
-  white-space:nowrap;
-  cursor:var(--cursore);
-  /* v0.38.0 FIX (kept): opacity must be explicit here, not just inherited
-     from .start-fade, because this class has higher specificity and would
-     otherwise silently drop .start-fade's own opacity transition, making
-     the button "pop" in instead of fading. */
-  transition:transform .2s ease, filter .2s ease, opacity .5s ease;
-  /* v0.44.0: drop shadow per explicit spec (y:4px, blur:15px, black 40%).
-     Uses `filter:drop-shadow()` rather than `box-shadow` because the
-     button's real silhouette is the tapered/pointed art shape, not its
-     rectangular box — box-shadow would draw a shadow with square corners
-     bleeding past the art's point, while drop-shadow follows the actual
-     rendered alpha shape (caps' tapered edges included). */
-  filter:drop-shadow(0 4px 15px rgba(0,0,0,0.4));
-  /* v0.60.0 FIX ("i pulsanti dello start screen sono cliccabili anche se
-     non sono visibili"): the old "MOBILE TOUCH FIX" `pointer-events:auto`
-     here unconditionally overrode `.start-fade`'s own `pointer-events:none`
-     (same specificity, but this rule comes later in the stylesheet, so it
-     won — confirmed via a direct Playwright repro: clicking #btn-start's
-     screen position at opacity:0/no .show class, before ANY fade-in had
-     started, still fired startGame()). The button is meant to be
-     hit-testable ONLY once `.show` is applied (`.start-fade.show{...
-     pointer-events:auto}` already handles that correctly on its own) — this
-     line defeated that gating entirely, for the button's whole lifetime,
-     not just during the brief opacity-transition window. Removed; no
-     mobile-touch regression expected since `.show`'s own pointer-events:auto
-     already makes the button tappable/clickable identically on touch and
-     mouse once it's actually visible. */
-}
-/* v0.75.5 — al passaggio del mouse il pulsante si ILLUMINA invece di
-   ingrandirsi. Lo scale(1.01) c'era da sempre ("si ingrandiscono, ease 200ms,
-   1%") ma su un pulsante fatto di tappi e riempimenti PNG affiancati un
-   ingrandimento dell'1% cade a meta' pixel e lascia intravedere le
-   giunture fra un pezzo e l'altro; e con la promozione a livello di
-   composizione (vedi will-change piu' sotto) e' anche un ricampionamento in
-   piu' per niente.
-   `filter:brightness` non tocca la geometria: nessuna giuntura si muove,
-   nessun pixel viene ricampionato, e la risposta al mouse resta immediata.
-   La transizione NON si ridichiara qui: la regola base qui sopra ha gia'
-   `transition:transform .2s ease, filter .2s ease, opacity .5s ease`, quindi
-   il filter e' gia' animato con lo stesso ritmo di prima. Riscriverla qui
-   avrebbe sostituito l'intera lista, spegnendo la dissolvenza dell'opacita'
-   su cui si regge il fade-in di .start-fade (vedi il suo commento sopra). */
-.start-art-btn:hover{ filter:brightness(1.14); }
-.start-art-btn:active{ filter:brightness(1.02); }
-/* Un pulsante disattivato non risponde: non si illumina e non finge di
-   poterlo fare. */
-.start-art-btn[disabled]:hover, .start-art-btn.mm-inerte:hover{ filter:none; }
-.start-art-btn .sab-caps, .start-art-btn .sab-fill-l, .start-art-btn .sab-fill-r, .start-art-btn .sab-center, .start-art-btn .sab-noise{
-  position:absolute; top:0; height:100%;
-  pointer-events:none; user-select:none; z-index:0;
-  /* v0.44.0: explicit high-quality smoothing on every art layer — the
-     game's canvas is scaled up to 2x+ on large/4K screens via
-     fitGameRoot()'s transform:scale(), which can push these low-res
-     source assets (49-160px native) well past their native resolution on
-     screen. This doesn't add real detail the source doesn't have, but it
-     keeps the browser from ever falling back to a cruder/nearest-neighbor
-     resample on top of that unavoidable upscale. Lorenzo is separately
-     providing 2x/3x source assets to fix the underlying resolution
-     shortfall — this is the CSS-side half of that mitigation. */
-  image-rendering:-webkit-optimize-contrast;
-  image-rendering:high-quality;
-}
-.start-art-btn .sab-caps{
-  /* Left+right end caps only, painted via two background-images so this
-     single layer doesn't need extra DOM nodes; each is fixed at its own
-     native 49px width and pinned to its respective edge, never stretched. */
-  left:0; width:100%;
-  background-repeat:no-repeat, no-repeat;
-  background-position:left center, right center;
-  background-size:49px 68px, 49px 68px;
-  z-index:1; /* above the fillers/center so its tapered edge always wins the seam */
-}
-.start-art-btn .sab-fill-l, .start-art-btn .sab-fill-r{
-  /* v0.43.0: 160px center (was 150px) — half the remaining space after
-     both 49px caps + 160px center, plus a 1px overlap into the neighbor so
-     subpixel rounding never leaves a hairline gap at a seam (the opaque
-     neighbor art paints over the 1px overlap with no visible difference,
-     same fix as v0.41.0's single-filler seam). */
-  width:calc(50% - 80px + 1px);
-  background-repeat:no-repeat; background-size:100% 100%;
-}
-.start-art-btn .sab-fill-l{ left:48px; }
-.start-art-btn .sab-fill-r{ right:48px; }
-.start-art-btn .sab-center{
-  left:50%; transform:translateX(-50%);
-  width:160px; /* v0.43.0: bumped from 150px per explicit min-width spec */
-  background-repeat:no-repeat; background-size:160px 68px; background-position:center;
-}
-.start-art-btn .sab-noise{
-  left:0; width:100%;
-  background-image:url('https://hextalegame.com/buttons/noise.png');
-  /* v0.43.0 FIX: was `background-size:cover`, which force-scales the
-     1024×1024 source to fit whatever the button's current width/height
-     is — on a ~68px-tall button that's a ~15x downscale, and the amount
-     of downscale (and thus how grainy/blurry the result looks) changed
-     with every label-length-driven resize, which is why the art looked
-     "sgranato"/low-res and inconsistent. Tiling at native resolution
-     instead keeps the grain a constant, fine, correct size regardless of
-     button width. */
-  background-repeat:repeat; background-size:auto;
-  opacity:0.5;
-  z-index:2;
-  /* v0.43.0 FIX: masked across the button's FULL width now (not just the
-     three fixed-size end/center pieces at their fixed positions), because
-     the previous 3-stop mask left the mask fully transparent (i.e. noise
-     invisible) over the STRETCHED FILLER REGIONS — those regions have no
-     fixed width, so a `mask-size` tied to fixed px values couldn't cover
-     them, which is exactly why certain label lengths (i.e. certain filler
-     widths) made the noise vanish over parts of the button. The fix
-     mirrors the real 5-piece layout 1:1: left cap mask pinned left, right
-     cap mask pinned right, center mask centered — all three at their true
-     rendered size — PLUS the two filler masks now included in the same
-     multi-layer mask, each stretched with `mask-size:100% 100%` across the
-     exact same left/right regions the visible sab-fill-l/sab-fill-r layers
-     occupy, so the mask always has 100% coverage across the whole button
-     no matter how wide the fillers grow. */
-  -webkit-mask-repeat:no-repeat, no-repeat, no-repeat, no-repeat, no-repeat;
-  -webkit-mask-position:left center, calc(48px) center, center, calc(100% - 48px) center, right center;
-  -webkit-mask-size:49px 68px, calc(50% - 80px + 1px) 68px, 160px 68px, calc(50% - 80px + 1px) 68px, 49px 68px;
-  mask-repeat:no-repeat, no-repeat, no-repeat, no-repeat, no-repeat;
-  mask-position:left center, calc(48px) center, center, calc(100% - 48px) center, right center;
-  mask-size:49px 68px, calc(50% - 80px + 1px) 68px, 160px 68px, calc(50% - 80px + 1px) 68px, 49px 68px;
-}
-.start-art-btn .sab-label{ position:relative; z-index:3; }
-.start-art-btn.sab-primary .sab-fill-l, .start-art-btn.sab-primary .sab-fill-r{ background-image:url('https://hextalegame.com/buttons/filler-button-primary.png'); }
-.start-art-btn.sab-primary .sab-caps{ background-image:url('https://hextalegame.com/buttons/left-button-primary.png'), url('https://hextalegame.com/buttons/right-button-primary.png'); }
-.start-art-btn.sab-primary .sab-center{ background-image:url('https://hextalegame.com/buttons/center-button-primary.png'); }
-.start-art-btn.sab-primary .sab-noise{
-  mix-blend-mode:color-burn; /* per explicit spec: primary uses color-burn */
-  -webkit-mask-image:url('https://hextalegame.com/buttons/left-button-primary.png'), url('https://hextalegame.com/buttons/filler-button-primary.png'), url('https://hextalegame.com/buttons/center-button-primary.png'), url('https://hextalegame.com/buttons/filler-button-primary.png'), url('https://hextalegame.com/buttons/right-button-primary.png');
-  mask-image:url('https://hextalegame.com/buttons/left-button-primary.png'), url('https://hextalegame.com/buttons/filler-button-primary.png'), url('https://hextalegame.com/buttons/center-button-primary.png'), url('https://hextalegame.com/buttons/filler-button-primary.png'), url('https://hextalegame.com/buttons/right-button-primary.png');
-}
-.start-art-btn.sab-primary .sab-label{ color:#32454C; }
-.start-art-btn.sab-secondary .sab-fill-l, .start-art-btn.sab-secondary .sab-fill-r{ background-image:url('https://hextalegame.com/buttons/filler-button-secondary.png'); }
-.start-art-btn.sab-secondary .sab-caps{ background-image:url('https://hextalegame.com/buttons/left-button-secondary.png'), url('https://hextalegame.com/buttons/right-button-secondary.png'); }
-.start-art-btn.sab-secondary .sab-center{ background-image:url('https://hextalegame.com/buttons/center-button-secondary.png'); }
-.start-art-btn.sab-secondary .sab-noise{
-  mix-blend-mode:overlay; /* per explicit spec: secondary uses overlay, not color-burn */
-  -webkit-mask-image:url('https://hextalegame.com/buttons/left-button-secondary.png'), url('https://hextalegame.com/buttons/filler-button-secondary.png'), url('https://hextalegame.com/buttons/center-button-secondary.png'), url('https://hextalegame.com/buttons/filler-button-secondary.png'), url('https://hextalegame.com/buttons/right-button-secondary.png');
-  mask-image:url('https://hextalegame.com/buttons/left-button-secondary.png'), url('https://hextalegame.com/buttons/filler-button-secondary.png'), url('https://hextalegame.com/buttons/center-button-secondary.png'), url('https://hextalegame.com/buttons/filler-button-secondary.png'), url('https://hextalegame.com/buttons/right-button-secondary.png');
-}
-.start-art-btn.sab-secondary .sab-label{ color:#DDCAA1; }
+/* ── v0.77.95 — LA FAMIGLIA DI PULSANTI VECCHIA NON C'E' PIU' ────────────
+   Qui vivevano .start-art-btn e le sue varianti .sab-primary/.sab-secondary:
+   il pulsante a cinque fette del primo start screen. Dalla v0.77.34 lo
+   standard e' la famiglia .hx-btn (vedi il blocco sopra .hx-overlay, che la
+   descrive per esteso), e con la v0.77.95 l'ultimo pulsante rimasto — nella
+   modale del gioca, nella scelta del mazzo di prova e nella pagina delle
+   bustine — e' passato di la'.
+   Non restava quindi un solo elemento che portasse queste classi, ne' nel
+   markup ne' aggiunto dal codice: centosessanta righe che il browser leggeva
+   a ogni caricamento e non applicava mai a niente. */
+
 
 /* Brief shake on the HP avatar itself the instant a hit actually registers
    (same moment the "-N" popup appears and the countdown starts — see
@@ -5461,7 +5311,7 @@ body.prova-senza-willchange #mm-book-rot{
   margin-bottom:10px;
 }
 #patch-notes-update-msg b{ color:#E8C36A; }
-#patch-notes-update .start-art-btn{ margin:0 auto; }
+#patch-notes-update .hx-btn{ margin:0 auto; }
 #patch-notes-update-fallback{
   display:none; margin-top:8px;
   font-family:var(--font-body); font-size:12px; color:#C9C2B0;
@@ -5516,7 +5366,7 @@ body.prova-senza-willchange #mm-book-rot{
    widening the button here just grows those two filler regions; the fixed
    49px caps and 160px center art stay pinned at their real native size,
    never scaled. */
-.hx-modal-box .start-art-btn{ width:100%; }
+.hx-modal-box .hx-btn{ width:100%; }
 .settings-divider{
   width:240px; height:1px; align-self:center;
   margin:10px 0; /* on top of the flex `gap` already separating it from its neighbors, per spec's own explicit top/bottom margin */
@@ -6698,8 +6548,8 @@ body.prova-senza-willchange #mm-book-rot{
 }
 .pack-scelta-btn.pack-nascosto{ opacity:0; visibility:hidden; pointer-events:none; }
 /* L'icona della polvere dentro all'etichetta "Keep for 200". */
-.pack-scelta-btn .sab-label img,
-#pack-collect .sab-label img{
+.pack-scelta-btn .hxb-label img,
+#pack-collect .hxb-label img{
   height:1.15em; width:auto; vertical-align:-0.18em; margin:0 .18em 0 .1em;
 }
 /* LA CARTA TENUTA. L'ingrandimento sta su .pack-card-pop e non sulla carta
@@ -6863,13 +6713,13 @@ body.prova-senza-willchange #mm-book-rot{
 }
 
 #pack-actions{ display:flex; gap:14px; align-items:center; justify-content:center; min-height:56px; }
-#pack-actions .start-art-btn{ min-width:220px; }
+#pack-actions .hx-btn{ min-width:220px; }
 /* v0.73.31 — i pulsanti della pagina compaiono e spariscono in dissolvenza.
    `visibility` accanto a `opacity` perche' un pulsante trasparente resta
    cliccabile: e' proprio il click per sbaglio che si vuole impedire mentre si
    sta aprendo un libro. */
-#pack-actions .start-art-btn{ transition:opacity .22s ease, visibility .22s; }
-#pack-actions .start-art-btn.pack-nascosto{ opacity:0; visibility:hidden; pointer-events:none; }
+#pack-actions .hx-btn{ transition:opacity .22s ease, visibility .22s; }
+#pack-actions .hx-btn.pack-nascosto{ opacity:0; visibility:hidden; pointer-events:none; }
 
 /* v0.73.31 — IL LAMPO DELL'APERTURA.
    Arriva praticamente istantaneo (10ms) e se ne va con calma: e' il modo in
@@ -8941,11 +8791,17 @@ body.prova-senza-willchange #mm-book-rot{
   display:flex; flex-direction:column; align-items:center;
   gap:calc(var(--azioni-passo) - 44px);
 }
-#mm-actions .start-art-btn{ width:var(--azioni-larghezza); pointer-events:auto; }
-/* Edit Decks non porta ancora da nessuna parte: si vede che c'e' ma non
-   finge di funzionare. */
-#mm-actions .start-art-btn.mm-inerte{ opacity:0.55; }
-#mm-actions .start-art-btn.mm-inerte:hover{ filter:none; }
+/* ── v0.77.95 — "SPENTO" AVEVA PERSO IL SUO VESTITO ─────────────────────
+   Queste tre regole parlavano di #mm-actions, il vecchio menu principale, e
+   della famiglia di pulsanti vecchia: due cose che non esistono piu'. Ma
+   `mm-inerte` — il segno che dice "questo pulsante c'e' ma non si puo'
+   premere" — e' rimasto in uso, su pulsanti .hx-btn (i tre in fondo alle
+   impostazioni, e i pulsanti della bustina quando non c'e' niente da
+   scegliere: vedi il toggle in _aggiornaSceltaBustina).
+   Il risultato era un pulsante marcato spento che si vedeva acceso, perche'
+   la sua unica regola era scritta per una classe che non porta piu'. */
+.hx-btn.mm-inerte{ opacity:0.55; }
+.hx-btn.mm-inerte:hover{ filter:none; }
 
 /* ── PAGINA DESTRA ───────────────────────────────────────────────────────*/
 #mm-quick-title{
@@ -9569,11 +9425,11 @@ body.prova-senza-willchange #mm-book-rot{
   <div class="hx-modal-box">
     <button class="hx-modal-close" aria-label="Close" onclick="mmChiudiSceltaPartita()"><img src="https://hextalegame.com/ui/close-icon.png" alt="" draggable="false"></button>
     <h2>Start Game</h2>
-    <button class="start-art-btn sab-primary" onclick="mmAvviaPartita(true)">
-      <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Play vs AI</span>
+    <button class="hx-btn hx-azione hx-btn-opaco" type="button" onclick="mmAvviaPartita(true)">
+      <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span><span class="hxb-label">Play vs AI</span>
     </button>
-    <button class="start-art-btn sab-secondary" onclick="mmAvviaPartita(false)">
-      <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Play vs Player</span>
+    <button class="hx-btn hx-azione" type="button" onclick="mmAvviaPartita(false)">
+      <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span><span class="hxb-label">Play vs Player</span>
     </button>
   </div>
 </div>
@@ -9982,7 +9838,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.94</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.96</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -10013,11 +9869,11 @@ body.prova-senza-willchange #mm-book-rot{
     <button class="hx-modal-close" aria-label="Close" onclick="chiudiSceltaMazzoAvversario()"><img src="https://hextalegame.com/ui/close-icon.png" alt="" draggable="false"></button>
     <h2>Il mazzo dell'avversario</h2>
     <div id="prova-carta-nome" style="text-align:center;margin-bottom:4px;opacity:0.75;font-size:15px;"></div>
-    <button class="start-art-btn sab-primary" onclick="confermaSceltaMazzoAvversario(true)">
-      <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">La stessa carta</span>
+    <button class="hx-btn hx-azione hx-btn-opaco" type="button" onclick="confermaSceltaMazzoAvversario(true)">
+      <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span><span class="hxb-label">The same card</span>
     </button>
-    <button class="start-art-btn sab-secondary" onclick="confermaSceltaMazzoAvversario(false)">
-      <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Carte casuali</span>
+    <button class="hx-btn hx-azione" type="button" onclick="confermaSceltaMazzoAvversario(false)">
+      <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span><span class="hxb-label">Random cards</span>
     </button>
   </div>
 </div>
@@ -10353,8 +10209,8 @@ body.prova-senza-willchange #mm-book-rot{
            momento: quando le carte sono uscite ma ancora di dorso. Prima stava
            in alto ed era sempre acceso, anche davanti a una bustina chiusa,
            dove non c'e' nessuna carta di cui cambiare versione. -->
-      <button class="start-art-btn sab-secondary" id="pack-toggle-variant" style="display:none;" onclick="packToggleVariant()">
-        <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label" id="pack-toggle-variant-label">Show dark version</span>
+      <button class="hx-btn" type="button" id="pack-toggle-variant" style="display:none;" onclick="packToggleVariant()">
+        <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span><span class="hxb-label" id="pack-toggle-variant-label">Show dark version</span>
       </button>
       <div id="pack-beam"><div id="pack-beam-shape"></div></div>
       <!-- v0.73.46 — le scintille dell'apertura: il contenitore e' un punto
@@ -10400,11 +10256,11 @@ body.prova-senza-willchange #mm-book-rot{
            due carte, se ne raccoglie una (o due, pagando). Stesso posto, stesso
            stile, stessa dissolvenza; cambia l'etichetta, che la riscrive
            aggiornaSceltaBustina. -->
-      <button class="start-art-btn sab-secondary" id="pack-collect" style="display:none;" onclick="raccogliCarte()">
-        <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Collect</span>
+      <button class="hx-btn" type="button" id="pack-collect" style="display:none;" onclick="raccogliCarte()">
+        <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span><span class="hxb-label">Collect</span>
       </button>
-      <button class="start-art-btn sab-primary" id="pack-back" onclick="closePackOverlay()">
-        <span class="sab-caps"></span><span class="sab-fill-l"></span><span class="sab-center"></span><span class="sab-fill-r"></span><span class="sab-noise"></span><span class="sab-label">Back</span>
+      <button class="hx-btn hx-btn-opaco" type="button" id="pack-back" onclick="closePackOverlay()">
+        <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span><span class="hxb-label">Back</span>
       </button>
     </div>
   </div>
@@ -17525,6 +17381,24 @@ const FAMIGLIE_PULSANTE = [
   { classe:'hx-btn-opaco',     base:'button-opaque-',      rosso:true  },
 ];
 const FAMIGLIA_PREDEFINITA = { base:'button-transparent-', rosso:true };
+// ── v0.77.95 — VESTIRE I PULSANTI DI UNA FINESTRA ────────────────────────
+// I pulsanti della famiglia .hx-btn non portano le proprie immagini nel
+// markup: se le fanno mettere da vestiPulsante quando la finestra si apre. E'
+// una scelta e non una dimenticanza — cosi' il giorno in cui i disegni dei
+// pulsanti cambiano nome non c'e' un solo indirizzo scritto a mano nel corpo
+// della pagina da rincorrere.
+// Il giro "prendi il contenitore, trova i suoi .hx-btn, vestili" era ripetuto
+// otto volte con otto contenitori diversi. Da qui in avanti si chiama questa,
+// che si ricorda anche cio' che ha gia' fatto: vestire due volte non rompe
+// niente, ma sono richieste inutili a ogni apertura.
+const _finestreVestite = new Set();
+function vestiPulsantiDi(id){
+  if(_finestreVestite.has(id)) return;
+  const el = document.getElementById(id);
+  if(!el) return;
+  _finestreVestite.add(id);
+  el.querySelectorAll('.hx-btn').forEach(vestiPulsante);
+}
 function vestiPulsante(btn){
   if(!btn) return;
   const fam = FAMIGLIE_PULSANTE.find(f=>btn.classList.contains(f.classe)) || FAMIGLIA_PREDEFINITA;
@@ -17903,6 +17777,7 @@ function apriPatchNotesDalMenu(){
   else if(typeof caricaPatchNotes === 'function') caricaPatchNotes();
 }
 function mmApriSceltaPartita(){
+  try{ vestiPulsantiDi('mm-play-overlay'); }catch(_){}   // v0.77.95
   const ov = document.getElementById('mm-play-overlay');
   if(ov) ov.classList.add('show');
 }
@@ -18887,6 +18762,427 @@ const FINAL_CARDS = [
 //
 // SLOT GEMME: quanti incastonatori mostra la carta, per rarita' e livello.
 // Un indice per livello, da 1 a 4.
+// ══════════════════════════════════════════════════════════════════════════
+// LA LETTURA DI UNA RIGA DEL FOGLIO — SERVE ALL'IMPORTAZIONE, NON AL GIOCO
+// ══════════════════════════════════════════════════════════════════════════
+// ATTENZIONE A CHI CERCA CODICE MORTO: qui sotto non c'e' una sola chiamata
+// che parta da dentro questo file, ed e' normale. Il chiamante e' un ALTRO
+// PROGRAMMA — server/importazione/converti.js — che apre questa pagina dentro
+// Electron e chiama `_csvParse` e `_cardaDaRiga` da fuori.
+//
+// E' una scelta scritta nel suo commento: usare il parser del gioco invece di
+// riscriverlo, perche' la regola dei valori, i tratti, l'aggancio delle
+// abilita' per nome e il drop rate con la virgola sono gia' scritti qui, e due
+// copie di quelle regole diventerebbero due verita' che col tempo divergono.
+//
+// v0.77.96 — QUESTO CAPPELLO ESISTE PERCHE' L'HO GIA' SBAGLIATO.
+// Nella v0.77.91 ho cancellato queste funzioni insieme al codice che scaricava
+// il foglio, dopo aver verificato che dentro a index.html nessuno le chiamasse.
+// La verifica era giusta e la conclusione sbagliata: cercavo il chiamante nel
+// file sbagliato. La reimportazione si e' fermata al secondo passo con "il
+// gioco non ha finito di caricarsi: _csvParse o _cardaDaRiga non ci sono".
+// Prima di togliere qualcosa da qui, si cerca in TUTTA la cartella:
+//     grep -rn "_cardaDaRiga" .
+//
+// Il TRASPORTO invece e' rimasto cancellato, e li' la conclusione era giusta:
+// le due strade che scaricavano il foglio (JSONP e CSV) non le chiamava piu'
+// nessuno dalla v0.77.36, perche' le carte vengono dal database. Il foglio si
+// scarica adesso dall'importazione, che ha il suo modo.
+// Parser CSV minimale ma corretto sulle virgolette: i flavour text contengono
+// virgole dentro le citazioni, quindi split(',') romperebbe le righe.
+function _csvParse(testo){
+  const righe=[]; let campo='', riga=[], inVirgolette=false;
+  for(let i=0;i<testo.length;i++){
+    const c=testo[i];
+    if(inVirgolette){
+      if(c==='"'){ if(testo[i+1]==='"'){ campo+='"'; i++; } else inVirgolette=false; }
+      else campo+=c;
+    } else if(c==='"') inVirgolette=true;
+    else if(c===','){ riga.push(campo); campo=''; }
+    else if(c==='\n'){ riga.push(campo); righe.push(riga); riga=[]; campo=''; }
+    else if(c!=='\r') campo+=c;
+  }
+  if(campo!=='' || riga.length){ riga.push(campo); righe.push(riga); }
+  return righe;
+}
+
+// Legge una cella di valore. Restituisce sempre quattro numeri — uno per
+// livello — o null se non c'e' niente di leggibile.
+// `esplicita` dice quale delle due forme era scritta: serve a non confondere
+// una scaletta scritta a mano con quella ricavata dalla regola, perche' solo la
+// prima va conservata.
+function _scalettaDiLivelli(cella, nomeCarta, nomeLato){
+  const grezzo = String(cella==null ? '' : cella).trim();
+  if(!grezzo) return null;
+  // Il separatore accetta il trattino normale e quello lungo, che un foglio di
+  // calcolo inserisce da solo mentre si scrive.
+  const pezzi = grezzo.split(/\s*[-\u2013\u2014]\s*/).filter(x=>x!=='');
+  const numeri = pezzi.map(x=>parseInt(x,10)).filter(n=>isFinite(n));
+  if(!numeri.length) return null;
+  if(numeri.length !== 1 && numeri.length !== LIVELLI_MAX){
+    console.warn('[carte] "'+(nomeCarta||'?')+'", lato '+(nomeLato||'?')+': "'+grezzo
+      + '" ha '+numeri.length+' numeri. Le forme accettate sono DUE: un numero solo'
+      + '\n(il livello 1, e ogni livello successivo aggiunge +1) oppure quattro'
+      + '\n(un valore per livello, es. "4-6-7-7"). Per ora vale il primo numero'
+      + '\ncol +1 a livello.');
+  }
+  const esplicita = numeri.length === LIVELLI_MAX;
+  const fuori = [];
+  for(let i=0;i<LIVELLI_MAX;i++){
+    fuori.push(esplicita ? numeri[i] : numeri[0] + i);
+  }
+  fuori.esplicita = esplicita;
+  return fuori;
+}
+
+// Legge la prima colonna disponibile fra piu' nomi possibili. Serve perche' i
+// titoli del foglio condiviso cambiano nel tempo (es. "Level (Temp)", che un
+// giorno diventera' "Level"): accettarne piu' d'uno evita che una rinomina
+// innocua svuoti silenziosamente un campo.
+function getAlt(get, nomi){
+  for(const n of nomi){ const v=get(n); if(v && v.trim()) return v; }
+  return '';
+}
+
+// Da riga del foglio a voce di FINAL_CARDS. Ritorna null se la riga non e'
+// utilizzabile (manca il nome o mancano i sei valori): meglio saltare una
+// carta incompleta che immetterne una rotta nel mazzo.
+// v0.75.81 — vedi l'avviso sulle colonne dei tratti, dentro alla funzione.
+let _trattiMancantiSegnalato = false;
+
+function _cardaDaRiga(col, get, haColonna){
+  const nome=(get('Name')||'').trim();
+  if(!nome) return null;
+  // v0.72.73 — E' LA COLONNA "VISIBLE" A DIRE SE UNA RIGA E' UNA CARTA.
+  // Il foglio contiene oltre cento nomi, ma la maggior parte sono ancora idee.
+  // Chi lo cura marca con Yes le righe pronte a entrare in gioco: e' una
+  // decisione esplicita, presa da una persona, e vale piu' di qualunque
+  // criterio indiretto. Prima si guardava la Rarity, e prima ancora i valori
+  // dei lati — entrambi indovinavano l'intenzione invece di leggerla.
+  // Se la colonna non c'e' proprio (schede piu' vecchie), si ripiega sul
+  // criterio precedente invece di dichiarare che non esiste nessuna carta.
+  const AFFERMATIVI=['yes','y','si','sì','true','vero','x','1'];
+  // v0.73.37 — il controllo passa dallo stesso confronto tollerante di tutto
+  // il resto (vedi haColonna). Il ripiego serve a chi chiama questa funzione
+  // da una prova isolata, senza indice delle colonne.
+  const haColonnaVisible = (typeof haColonna === 'function')
+    ? haColonna('Visible')
+    : (Array.isArray(col) && col.some(x=>String(x||'').toLowerCase().trim()==='visible'));
+  // ── LE DUE COLONNE CHE DECIDONO DOVE UNA CARTA APPARE ───────────────────
+  // Sono due domande diverse e non vanno confuse:
+  //   "Visible"        — questa carta e' PRONTA per il gioco? Se non lo e', non
+  //                      viene proprio caricata: non e' una carta, e' una riga
+  //                      di lavoro.
+  //   "Drop rate (%)" a 0 — questa carta e' pronta, ma non si ottiene: fuori
+  //                      dalla Collezione, dai mazzi e dalle bustine (vedi
+  //                      soloEvocabile). E' il modo di dichiarare una carta che
+  //                      esiste solo perche' qualcun'altra la evoca o ci si
+  //                      trasforma — Excalibur, The Crystal Princess, The Green
+  //                      Prince.
+  // v0.75.71 — la v0.75.70 aveva provato a far fare a Visible il mestiere del
+  // drop rate, tenendo da parte le righe non visibili perche' le evocazioni le
+  // trovassero lo stesso. Sbagliato: due colonne che dicono la stessa cosa in
+  // due modi sono due posti in cui cercare quando qualcosa non appare.
+  if(haColonnaVisible && !AFFERMATIVI.includes((get('Visible')||'').trim().toLowerCase())) return null;
+  // La rarita' resta necessaria a gemme, drop rate e colore della gemma di
+  // livello: se manca si assume la piu' comune, che e' il default meno
+  // sorprendente.
+  const RARITA_VALIDE=['common','rare','mythic','timeless'];
+  let rarita=(get('Rarity')||'').trim().toLowerCase();
+  if(!RARITA_VALIDE.includes(rarita)){
+    if(!haColonnaVisible) return null; // vecchio criterio: senza rarita' non e' una carta
+    rarita='common';
+  }
+  // I valori si prendono dal foglio quando ci sono TUTTI E SEI. Se ne manca
+  // anche uno solo la carta non e' mezza compilata: e' da compilare, e mettere
+  // in gioco tre lati veri e tre inventati sarebbe peggio che inventarli
+  // tutti, perche' il risultato sembrerebbe intenzionale. Vedi la regola dei
+  // valori sopra per come vengono generati quelli provvisori.
+  // Livello e slot gemme: indipendenti dai valori dei lati, si calcolano qui
+  // perche' servono entrambi piu' sotto.
+  const liv=parseInt(getAlt(get,['Level','Level (Temp)']),10);
+  const livello=isFinite(liv)?Math.max(1,Math.min(4,liv)):livelloCasualeStabile(nome);
+  const gemmeDaFoglio=parseInt(get('Gem slots'),10);
+  const slotGemmeDalFoglio=isFinite(gemmeDaFoglio) && gemmeDaFoglio>=0;
+  const slotGemme = slotGemmeDalFoglio
+    ? gemmeDaFoglio
+    : ((GEMME_STANDARD[rarita] || GEMME_STANDARD.common)[livello-1] || 0);
+
+  // ── v0.75.64 — UN LATO PUO' AVERE UN VALORE PER LIVELLO ─────────────────
+  // Nella cella di un lato si puo' scrivere un numero solo — "4" — e allora
+  // vale la regola di sempre: quello e' il livello 1, e ogni livello oltre
+  // aggiunge +1. Oppure una scaletta — "4-6-7-7" — e allora quei numeri SONO i
+  // livelli, uno per uno: 4 al primo, 6 al secondo, 7 al terzo e al quarto.
+  // Le forme sono DUE e solo due: un numero, o quattro. Una scaletta di due o
+  // tre numeri non e' una scrittura piu' corta, e' una riga incompleta — e
+  // indovinare cosa volesse dire vorrebbe dire far giocare una carta diversa da
+  // quella che il foglio dichiara. Si segnala in console e si torna alla regola
+  // del +1 sul primo numero, che e' il comportamento di sempre.
+  const lati=['NW','NE','E','SE','SW','W'];
+  let values={};
+  let scalette=null;   // {lato: [v1,v2,v3,v4]} solo per i lati scritti a scaletta
+  let completa=true;
+  let latoMancante=null;
+  for(const s of lati){
+    const scala=_scalettaDiLivelli(get(s), nome, s);
+    if(!scala){ completa=false; latoMancante=s; break; }
+    values[s]=scala[0];
+    if(scala.esplicita){ (scalette || (scalette={}))[s]=scala; }
+  }
+  if(!completa){
+    values = valoriProvvisori(nome);
+    // v0.75.65 — E LO SI DICE. Questo ripiego inventa i sei valori di una carta,
+    // ed era muto: una carta con una cella vuota entrava in partita con numeri
+    // che non stanno scritti da nessuna parte, e dal gioco sembrava un errore
+    // del codice. E' successo con Excalibur — che nel foglio ha 0-0-0-0 su ogni
+    // lato ma che il gioco aveva letto prima di quella modifica — ed e' costato
+    // un'indagine che questa riga avrebbe chiuso in dieci secondi.
+    console.warn('[carte] "'+nome+'": la colonna '+latoMancante+' e\' vuota o illeggibile,'
+      + '\nquindi TUTTI e sei i valori di questa carta sono INVENTATI dal codice'
+      + '\n(valori provvisori, stabili per nome). Quelli scritti nel foglio negli altri'
+      + '\nlati vengono ignorati: bastano sei celle leggibili perche\' valgano i suoi.'
+      + (_daFileLocale
+        ? '\n\nATTENZIONE: il gioco e\' aperto DAL DISCO, e da li\' il foglio si legge via'
+          + '\ngviz, che decide un tipo per ogni colonna e SCARTA le celle che non ci'
+          + '\nrientrano: se in questa hai scritto un valore per livello ("4-6-7-7"), in'
+          + '\nuna colonna di numeri quel testo non arriva affatto. Aprendo il gioco dal'
+          + '\nlink di GitHub Pages viene letta la copia pubblicata, che le celle le'
+          + '\nconsegna com\'e\' scritte, e il problema non si presenta.'
+        : ''));
+  } else if(!valoriRispettanoLaRegola(values)){
+    // I valori scritti a mano nel foglio NON vengono corretti: chi li ha messi
+    // avra' avuto le sue ragioni, e riscriverli dal codice significherebbe far
+    // giocare una carta diversa da quella che il foglio dichiara. Si segnala e
+    // basta — cosi' chi cura il foglio sa dove guardare. (Alla scrittura di
+    // questa versione, Alice ha 3 6 6 6 3 3, che somma 27.)
+    const somma = SIDES.reduce((t,l)=>t+(values[l]||0), 0);
+    console.warn('[carte] "'+nome+'" non rispetta la regola dei valori: somma '+somma
+      +' (ammesso '+VALORI_SOMMA_MIN+'-'+VALORI_SOMMA_MAX+'), '
+      +getGroups(values).length+' gruppi (massimo '+VALORI_GRUPPI_MAX+')');
+  }
+  // v0.72.61 — il foglio e' quello condiviso del team, che ha colonne PROPRIE
+  // e non le tre che avevo aggiunto io. Invece di chiedere a chi ci lavora di
+  // aggiungerne, il lettore si adatta a quelle esistenti:
+  //   - "Level (Temp)" invece di "Level" (getAlt accetta piu' nomi possibili,
+  //      cosi' se un domani la colonna viene rinominata "Level" funziona lo
+  //      stesso senza toccare il codice);
+  //   - lo slug dell'arte si DERIVA dal nome ("Robin Hood" -> "robinhood"),
+  //     che e' esattamente la convenzione dei file gia' presenti in cards/art/;
+  //   - l'abilita' si ricava dal nome leggibile ("Eat the Rich" ->
+  //     eat_the_rich), sempre normalizzando allo stesso modo. Cosi' la colonna
+  //     "Ability name", che nel foglio c'e' gia' ed e' compilata, fa da chiave
+  //     senza doverne aggiungere una tecnica accanto.
+  const norm=s=>(s||'').trim().toLowerCase().replace(/[^a-z0-9]+/g,'');
+  // v0.72.68 — DUE normalizzazioni diverse, e non e' una svista. `norm` toglie
+  // ogni separatore e serve a riconoscere le abilita' ("A Kind of Magic" ->
+  // akindofmagic); lo slug dei file tiene invece i trattini, perche' e' cosi'
+  // che si chiamano cartelle e file sul disco ("Robin Hood" -> robin-hood).
+  // Usare `norm` anche per i file — come faceva la v0.72.67 — fa cercare
+  // "robinhood/" dove c'e' "robin-hood/": nessun errore in console, solo la
+  // rana al posto dell'illustrazione.
+  const slug=slugPersonaggio(nome);
+  const arte=(get('Art slug')||slug).trim();
+  // v0.72.72 — "None" nel foglio vale come casella vuota: nessuna icona
+  // tratto sulla carta. Chi compila scrive "None" per dire esplicitamente
+  // "questa carta non ha un Tratto", che e' un'informazione diversa dal
+  // non aver ancora deciso ma porta allo stesso risultato a schermo. Senza
+  // questo filtro diventava un tratto di nome "none", che non ha icona e
+  // non corrisponde a nessun filtro della Collezione: la carta finiva fuori
+  // da ogni ricerca per tratto senza che si capisse perche'.
+  // Si scarta anche "/", il segno che il foglio usa altrove per "niente".
+  const TRATTI_VUOTI=['none','/','-','n/a'];
+  // (vedi piu' sotto: l'avviso sulle colonne mancanti si dice una volta sola)
+  // v0.73.3 — si conserva anche la GRAFIA DEL FOGLIO, non solo la chiave
+  // normalizzata. La chiave minuscola serve a confrontare e a comporre i nomi
+  // dei file; il nome da mostrare deve essere quello scritto nel foglio, non
+  // una ricostruzione. Rimettere la maiuscola a mano funziona finche' gli
+  // tratti sono parole singole, ma il giorno in cui qualcuno scrivera'
+  // "Wise Man" o "McGuffin" la ricostruzione darebbe "Wise man" e "Mcguffin".
+  // ── v0.75.81 — LE DUE COLONNE SI CHIAMANO "Trait 1" E "Trait 2" ──────────
+  // Erano "Archetype (Role)" e "Archetype (Trait)". Il nome nuovo dice anche
+  // una cosa che il vecchio negava: le due colonne pescano dalla STESSA lista,
+  // non ci sono piu' un ruolo e un tratto ma due tratti alla pari. Il codice
+  // gia' le fondeva in un elenco solo (`card.traits`), quindi non c'e' niente
+  // da cambiare oltre ai nomi — nessuna regola guardava mai "il ruolo" o "il
+  // tratto" separatamente, solo l'elenco intero.
+  //
+  // I nomi vecchi restano come ripiego, e non per nostalgia: un'intestazione
+  // che non si trova non fa rumore. La carta uscirebbe semplicemente SENZA
+  // TRATTI, e a quel punto Power Nap non protegge piu' nessuno, Kingslayer non
+  // trova bersagli, Cappuccetto non riconosce le sue prede e i filtri della
+  // Collezione la perdono — tutto in silenzio, senza un solo avviso. Se non si
+  // trova ne' il nome nuovo ne' il vecchio, si dice ad alta voce.
+  const _cella = (...nomi)=>{
+    for(const n of nomi){ if(haColonna(n)) return get(n); }
+    return '';
+  };
+  // Una volta sola: questa funzione gira su ogni riga del foglio, e un avviso
+  // ripetuto duecento volte si legge come un guasto invece che come un avviso.
+  if(!_trattiMancantiSegnalato
+     && !haColonna('Trait 1') && !haColonna('Trait 2')
+     && !haColonna('Archetype (Role)') && !haColonna('Archetype (Trait)')){
+    _trattiMancantiSegnalato = true;
+    console.warn('[carte] nessuna colonna dei tratti trovata ("Trait 1"/"Trait 2"): '
+      + 'ogni carta entrera\' in gioco SENZA TRATTI, e le abilita\' che li leggono '
+      + '(Power Nap, Kingslayer, Fearless, Power of Love...) non faranno niente. '
+      + 'RIMEDIO: controlla le intestazioni del foglio.');
+  }
+  const trattiGrezzi=[_cella('Trait 1','Archetype (Role)'), _cella('Trait 2','Archetype (Trait)')]
+    .map(x=>(x||'').trim())
+    .filter(x=>x && !TRATTI_VUOTI.includes(x.toLowerCase()));
+  const tratti=trattiGrezzi.map(x=>x.toLowerCase());
+  for(const nome of trattiGrezzi) registraNomeTratto(nome);
+  // ABILITA': si risolve il NOME MOSTRATO del foglio contro il registro vero.
+  // Derivare la chiave dal nome con una semplice normalizzazione NON funziona,
+  // ed e' un errore che avevo gia' commesso: su 17 abilita' solo 12 combaciano.
+  // "Smol Friends" ha chiave `smol_friends`, "A Kind of Magic" ha
+  // `a_kind_of_magic`, "Riparare" ha `riparare`. Chi compila il foglio scrive il
+  // nome leggibile, non la chiave interna — quindi si cerca per nome nel
+  // registro e si usa la normalizzazione solo come ripiego, per il caso in cui
+  // qualcuno scriva direttamente la chiave tecnica.
+  // v0.72.74 — "Ability unlocked at level": il livello a cui la carta sblocca
+  // la propria abilita'. Sotto quel livello l'abilita' c'e' — si vede, si sa
+  // cosa fara' — ma non agisce. Colonna vuota o non numerica significa
+  // sbloccata da subito, che e' il comportamento di prima e quindi il default
+  // che non sorprende nessuno.
+  const sbloccoGrezzo=parseInt(getAlt(get,['Ability unlocked at level','Ability unlock level']),10);
+  const abilityUnlockLevel=isFinite(sbloccoGrezzo)?Math.max(1,Math.min(4,sbloccoGrezzo)):1;
+  // ── v0.75.45 — IL LEGAME E' IL NOME DEL PERSONAGGIO ──────────────────────
+  // Prima era il nome dell'ABILITA' (v0.73.49). Il cambio ha una ragione sola,
+  // ed e' il numero di volte che quelle due celle vengono toccate: il nome di
+  // un'abilita' cambia spesso — si limano, si riscrivono, si spostano da una
+  // carta all'altra — mentre il nome di un personaggio, una volta scelto, non
+  // si tocca quasi mai. Agganciarsi alla cella che cambia significa scollegare
+  // l'abilita' ogni volta che la si rinomina, e succede in silenzio: la carta
+  // non si rompe, mostra NO_SCRIPT, e ci si accorge del guasto solo giocando.
+  // v0.75.44 e' costata proprio questo — "Braaaaaaaids" contro
+  // "Braaaaaaaaaaaids", quattro "a" di differenza invisibili a occhio.
+  // Adesso il nome dell'abilita' e la sua descrizione sono SOLO testo da
+  // mostrare: si possono riscrivere liberamente nel foglio senza toccare
+  // niente, ed e' il comportamento che ci si aspetta da una colonna di testo.
+  // Cio' che comanda e' il campo `carta` di ogni voce del registro.
+  //
+  // Il confronto passa da `norm`, quindi maiuscole, spazi e punteggiatura non
+  // contano: "Nottingham Sheriff", "nottingham sheriff" e "NottinghamSheriff"
+  // agganciano la stessa voce.
+  //
+  // COME SI SPEGNE UN'ABILITA' adesso: Trigger = "None", che e' la parola che
+  // il foglio usa gia' per dire "questa carta non ne ha". Svuotare "Ability
+  // name" non basta piu' — ed e' esattamente il punto, visto che quella cella
+  // deve poter essere modificata senza conseguenze.
+  const triggerGrezzo=(get('Trigger')||'').trim().toLowerCase();
+  const abilitaSpenta = triggerGrezzo === 'none';
+  const abGrezza=(get('Ability name')||'').trim();
+  const nomePersonaggio=norm(nome);
+  let abilita='';
+  if(nomePersonaggio && !abilitaSpenta){
+    let reg=null; try{ reg=TILE_ABILITIES_DEF; }catch(_){ reg=null; }
+    if(reg){
+      for(const k in reg){
+        if(reg[k].carta && norm(reg[k].carta) === nomePersonaggio){ abilita=k; break; }
+      }
+    }
+    // Nessuna voce per questo personaggio. Se il foglio dichiara comunque
+    // un'abilita' — un nome, o anche solo una descrizione — si tiene una chiave
+    // segnaposto: non aggancia niente (nel registro non esiste) e serve solo a
+    // far arrivare la carta al controllo piu' sotto, quello che la marca
+    // NO_SCRIPT. Senza, una carta con un'abilita' scritta ma non programmata
+    // uscirebbe muta, senza che nessuno lo dica.
+    // Il punto esclamativo davanti rende impossibile che un segnaposto
+    // coincida per caso con una chiave vera del registro.
+    if(!abilita && (abGrezza && abGrezza!=='/')){
+      abilita='!'+nomePersonaggio;
+    }
+  }
+  // Il drop rate accetta sia "3" sia "3%" sia "3,5", perche' in un foglio
+  // compilato a mano compaiono tutte e tre.
+  const dropDaFoglio=parseFloat(String(get('Drop rate (%)')||'').replace('%','').replace(',','.'));
+  const dropRateDalFoglio=isFinite(dropDaFoglio) && dropDaFoglio>=0;
+  const dropRate = dropRateDalFoglio ? dropDaFoglio : (DROP_RATE_STANDARD[rarita] ?? 0);
+
+  // v0.76.0 — IL NUMERO DELLA CARTA NEL FOGLIO. Fin qui non veniva letto: al
+  // gioco bastava lo slug ricavato dal nome. Serve ai codici mazzo, dove due
+  // caratteri al posto di venti sono la differenza fra un codice che si passa
+  // e uno che non si passa (vedi codiceDelMazzo).
+  const numeroDalFoglio = parseInt(String(get('ID')||'').replace(/[^0-9]/g,''), 10);
+  return {
+    id:'final-'+slug,
+    numero: isFinite(numeroDalFoglio) ? numeroDalFoglio : null,
+    name:nome,
+    quote:(get('Flavour text')||'').trim(),
+    // v0.73.0 — I VALORI DEL FOGLIO SONO LA BASE DI LIVELLO 1: ogni livello
+    // oltre il primo aggiunge +1 a ogni lato, piatto. Una carta di livello 4
+    // gioca quindi con +3 su tutti e sei. Il foglio resta la base e non va
+    // ricalcolato a mano quando una carta sale: il numero scritto li' significa
+    // sempre la stessa cosa, indipendentemente dal livello.
+    values: valoriAlLivello(values, livello, scalette),
+    // v0.73.1 — la divisione in gruppi, decisa qui una volta sola. Il bonus di
+    // livello somma lo stesso numero a tutti i lati, quindi non cambia quali
+    // lati stanno insieme: si puo' ricavare indifferentemente dai valori base.
+    groupSides: gruppiIniziali(values),
+    // I valori come stanno nel foglio, prima del bonus. Servono a sapere da
+    // dove si e' partiti senza doverlo ricavare per sottrazione.
+    valuesBase: values,
+    // v0.75.64 — i lati che nel foglio hanno una scaletta di livelli. Viaggia
+    // con la riga perche' e' la riga a dichiararlo: chi ricostruisce la carta a
+    // un livello diverso (la vetrina della scheda) deve poterlo chiedere alla
+    // stessa fonte, non ricavarlo per sottrazione.
+    valuesPerLivello: scalette,
+    // v0.72.73 — SLOT GEMME. Standard per rarita' e livello (vedi
+    // GEMME_STANDARD), scavalcato dalla colonna "Gem slots" quando c'e' scritto
+    // un numero. Le carte del foglio avevano groupGems sempre vuoto, ed e' per
+    // questo che gli incastonatori non si vedevano mai.
+    groupGems: slotGemmeDaConteggio(slotGemme),
+    activatedGroups:{},
+    // Probabilita' che la carta esca da una bustina. Non c'e' ancora niente da
+    // aprire, quindi per ora e' solo un dato che la carta si porta dietro:
+    // standard per rarita', scavalcato dalla colonna "Drop rate (%)".
+    dropRate: dropRate,
+    dropRateProvvisorio: !dropRateDalFoglio,
+    gemSlots: slotGemme,
+    gemSlotsProvvisori: !slotGemmeDalFoglio,
+    // v0.72.67 — niente piu' arte piatta: l'illustrazione e' SEMPRE la pila
+    // di 4 livelli in cards/art/<slug>/, riempita dopo la verifica di
+    // esistenza (vedi verificaArtCarte). artDark/artLight restano nulli
+    // apposta: cosi' getCardArtVariants ripiega da se' sui due segnaposto
+    // condivisi, che sono esattamente cio' che deve vedere una carta senza
+    // cartella d'arte.
+    slug: arte,
+    artDark: null,
+    artLight: null,
+    artLayersDark: null,
+    artLayersLight: null,
+    cardAbility:abilita,
+    // v0.72.62 — nome e descrizione dell'abilita' COSI' COME STANNO NEL
+    // FOGLIO. Servono alle abilita' non ancora programmate: quelle non hanno
+    // una voce in TILE_ABILITIES_DEF da cui pescare i testi, quindi senza
+    // questi due campi la carta mostrerebbe uno spazio vuoto. Con questi,
+    // mostra il nome vero seguito dal marcatore NO_SCRIPT.
+    abilityNameSheet:(get('Ability name')||'').trim().replace(/^\/$/,''),
+    abilityDescSheet:(get('Ability description')||'').trim().replace(/^\/$/,''),
+    // Il trigger dichiarato nel foglio (On play, Synergy, Passive, End of
+    // Turn, Conquest, Reaction). Per ora e' solo informativo: la logica dei
+    // trigger vive nel codice dell'abilita'. "In hand" e' escluso su richiesta.
+    abilityTrigger:(get('Trigger')||'').trim().replace(/^\/$/,''),
+    abilityUnlockLevel,
+    // Comodita' di lettura: l'abilita' e' ancora chiusa a chiave?
+    abilityLocked: livello < abilityUnlockLevel,
+    traits:tratti,
+    traitNames:trattiGrezzi,
+    rarity:rarita,
+    // Segna le carte i cui valori se li e' inventati il gioco. Per ora serve a
+    // saperlo dalla console; e' anche l'aggancio pronto se un domani si
+    // volesse marcarle visivamente in Collezione.
+    valoriProvvisori: !completa,
+    // v0.72.67 — livello mancante nel foglio: se ne assegna uno fra 1 e 3,
+    // ricavato dal NOME della carta e non da Math.random(). Deve restare lo
+    // stesso a ogni avvio: il livello governa gemme e tier degli effetti foil
+    // in Collezione, e vederli cambiare da soli fra una partita e l'altra
+    // sembrerebbe un bug. Stessa carta, stesso livello, sempre.
+    level:livello,
+  };
+}
+
 // ── v0.77.91 — IL FOGLIO GOOGLE NON SI LEGGE PIU' DA QUI ─────────────────
 // Qui vivevano cinquecento righe che scaricavano il foglio delle carte (per
 // JSONP e per CSV), lo interpretavano e ne ricavavano FINAL_CARDS. Dalla
@@ -20559,7 +20855,7 @@ function aggiornaSceltaBustina(){
     c.classList.toggle('scartata', !tenuta && quante > 0);
     const b = c.__sceltaBtn;
     if(!b) continue;
-    const et = b.querySelector('.sab-label');
+    const et = b.querySelector('.hxb-label');
     let testo, spento = false;
     if(tenuta){
       // v0.75.75 — "Cancel" e non "Discard". Il pulsante sotto alla carta che si
@@ -20587,7 +20883,7 @@ function aggiornaSceltaBustina(){
   // Il pulsante in fondo compare appena c'e' qualcosa da raccogliere.
   const raccogli = document.getElementById('pack-collect');
   if(raccogli){
-    const et = raccogli.querySelector('.sab-label');
+    const et = raccogli.querySelector('.hxb-label');
     // v0.75.22 — il prezzo si legge anche QUI, non solo sul pulsante della
     // carta: e' l'ultimo momento prima di pagare, ed e' il posto in cui una
     // cifra non detta diventa una sorpresa.
@@ -20931,11 +21227,17 @@ function _costruisciCartaBustina(entry, dir, indice){
   // (vedi giraCartaBustina). Figlio della carta, cosi' la segue mentre
   // galleggia.
   const sceltaBtn = document.createElement('button');
-  sceltaBtn.className = 'start-art-btn sab-primary pack-scelta-btn pack-nascosto';
+  sceltaBtn.className = 'hx-btn hx-btn-opaco pack-scelta-btn pack-nascosto';
+  sceltaBtn.type = 'button';
   sceltaBtn.style.display = 'none';
-  sceltaBtn.innerHTML = '<span class="sab-caps"></span><span class="sab-fill-l"></span>'
-    + '<span class="sab-center"></span><span class="sab-fill-r"></span>'
-    + '<span class="sab-noise"></span><span class="sab-label"></span>';
+  // v0.77.95 — la striscia a cinque pezzi della famiglia .hx-btn. Le immagini
+  // non stanno qui: le mette vestiPulsante, che sceglie i file giusti per la
+  // famiglia — ed e' anche il motivo per cui la riga dopo non si puo' saltare.
+  sceltaBtn.innerHTML = '<span class="hxb-strip"><span class="hxb-left"></span>'
+    + '<span class="hxb-fill"></span><span class="hxb-center"></span>'
+    + '<span class="hxb-fill"></span><span class="hxb-right"></span></span>'
+    + '<span class="hxb-label"></span>';
+  try{ vestiPulsante(sceltaBtn); }catch(_){}
   sceltaBtn.addEventListener('click', (ev)=>{
     ev.stopPropagation();   // sotto c'e' la carta, che al click si girerebbe
     scegliCartaBustina(carta);
@@ -21827,6 +22129,7 @@ function openPackOverlay(){
   // partita invece di lasciarla viva sotto.
   abandonCurrentGame();
   showPage('packs');
+  try{ vestiPulsantiDi('pack-overlay'); }catch(_){}   // v0.77.95
   document.getElementById('pack-overlay').classList.add('show');
   initPackTilt();
   impostaImmagineFascio();
@@ -24139,7 +24442,11 @@ function debugCercaUltimaVersione(){
       // Lo `sha` serve a scaricare i BYTE del file (vedi
       // debugScaricaUltimaVersione), non solo a linkarlo.
       _ultimaVersioneTrovata = {nome:file.name, url:file.download_url, sha:file.sha};
-      const etichetta = document.querySelector('#debug-update-download .sab-label');
+      // v0.77.95 — .hxb-label: questo pulsante e' passato alla famiglia nuova
+      // col rifacimento del menu di debug, e questa riga era rimasta indietro.
+      // Cercava un elemento che non c'e' piu', quindi il pulsante non diceva
+      // piu' quale file avrebbe scaricato — in silenzio, come sempre.
+      const etichetta = document.querySelector('#debug-update-download .hxb-label');
       if(etichetta) etichetta.textContent = 'Scarica ' + file.name;
       const ripiego = document.getElementById('debug-update-fallback');
       if(ripiego){ ripiego.href = file.download_url; ripiego.style.display = 'none'; }
@@ -25047,6 +25354,7 @@ function debugStartMatchWithCard(){
   closeDebugModal();
   const eti = document.getElementById('prova-carta-nome');
   if(eti) eti.textContent = 'Prova di: ' + (entry.name||'');
+  try{ vestiPulsantiDi('prova-carta-overlay'); }catch(_){}   // v0.77.95
   const ov = document.getElementById('prova-carta-overlay');
   if(ov) ov.classList.add('show');
 }
@@ -26477,6 +26785,21 @@ function initGame(vsAI){
     window.__debugForcedAncheAvversario = false;
   }
 
+  // ── v0.77.95 — IL METRO DEL VERDE E DEL ROSSO, TIMBRATO ALLA PARTENZA ──
+  // `valoriNascita` e' il numero con cui ogni gruppo entra in partita, ed e'
+  // l'unica cosa con cui il disegno decide se colorare (vedi
+  // scartoDallaNascita). Le fabbriche di carte lo mettono gia' — sia quella
+  // del catalogo sia cartaAlLivello — ma il metro e' troppo importante per
+  // dipendere dal fatto che ogni strada futura si ricordi di metterlo: una
+  // carta che arrivasse senza non sarebbe colorata mai, e sarebbe un silenzio,
+  // non un errore.
+  // Si timbra qui, alla porta da cui passano tutte le partite, e solo a chi non
+  // ce l'ha: chi lo porta gia' se lo tiene, perche' il suo e' quello giusto.
+  for(const mazzo of [d1, d2]){
+    for(const carta of (mazzo || [])){
+      if(carta && carta.values && !carta.valoriNascita) carta.valoriNascita = {...carta.values};
+    }
+  }
   G={
     cells,holes,board:{},
     p1Hand:[],p2Hand:[],   // hands start empty; first turn draws HAND_SIZE cards
@@ -37392,6 +37715,38 @@ const CARTE_SENZA_NUMERI = ['Excalibur'];
 function valoriNascosti(card){
   return !!card && CARTE_SENZA_NUMERI.includes(card.name);
 }
+// ── v0.77.95 — IL VERDE E IL ROSSO SI MISURANO DALLA PARTENZA ────────────
+// Il colore del numero di un gruppo dice una cosa sola: quel gruppo adesso
+// vale piu' o meno di quanto valeva quando la carta e' entrata in partita.
+// Non "e' appena stato buffato", non "l'ultimo effetto lo ha alzato" — quelli
+// sono fatti che passano, e il colore invece resta.
+//
+// La differenza si vedeva cosi': una carta buffata due volte e poi debuffata
+// una sola restava rossa, perche' il colore seguiva l'ultimo movimento invece
+// del bilancio. Il bilancio e' l'unica cosa che chi guarda puo' usare per
+// decidere una mossa: quel numero e' meglio o peggio di quello stampato?
+//
+// UN CONFRONTO SOLO, e per GRUPPO. Il tabellone costruiva il suo verdetto
+// sommando tre pezzi — bonus di fazione, scarto dall'abilita', anteprima del
+// trascinamento — e ogni pezzo era un'occasione di sommarne uno di troppo o
+// di dimenticarne uno. Qui invece si guarda cio' che si sta DISEGNANDO e lo si
+// confronta con la nascita: qualunque cosa abbia mosso quel numero, di
+// qualunque effetto si tratti, il colore viene giusto senza che nessuno debba
+// dichiararsi. Anche gli effetti che nasceranno domani.
+//
+// Si legge il PRIMO LATO del gruppo perche' un gruppo porta un numero solo
+// (vedi gruppiDiCarta) — e da v0.77.91 nessun effetto puo' piu' spaccarlo.
+// Il ripiego sui delta passati da fuori serve alle carte senza `valoriNascita`:
+// le anteprime e le sonde, che non sono carte di una partita.
+function scartoDallaNascita(card, valoriMostrati, gruppo, ripiego){
+  const lato = (gruppo && gruppo.sides && gruppo.sides[0]) || null;
+  if(!lato) return 0;
+  const nati = card && card.valoriNascita;
+  if(nati && typeof nati[lato] === 'number'){
+    return ((valoriMostrati && valoriMostrati[lato]) || 0) - (nati[lato] || 0);
+  }
+  return ripiego ? (ripiego[lato] || 0) : 0;
+}
 function drawHexCard(svg,cx,cy,R,card,fillColor,strokeColor,textColor,nameText,isSelected,glowColor,onClick,onBoard,displayValues,factionDeltas,uncertainBonus,displayFortifiedSides){
   const cardValues = displayValues || card.values || card;
   // ── v0.75.50 — IL VERDE E IL ROSSO SE LI CALCOLA LA CARTA ────────────────
@@ -37402,23 +37757,10 @@ function drawHexCard(svg,cx,cy,R,card,fillColor,strokeColor,textColor,nameText,i
   // Witch restavano bianche: il furto era avvenuto, il -1 c'era, ma nessuno
   // aveva calcolato la differenza da mostrare, perche' in mano non la calcola
   // nessuno.
-  // Adesso, quando i delta non arrivano da fuori, se li ricava da qui
-  // confrontando i valori mostrati con `valoriNascita` — i valori con cui la
-  // carta e' nata, al suo livello. E' la stessa base che il tabellone usa gia'
-  // (vedi il suo baseColore), quindi le due strade non possono dire cose
-  // diverse, e vale per QUALUNQUE effetto: chi ne aggiungera' uno nuovo avra'
-  // i colori senza doverli chiedere. Che era la richiesta.
-  if(!factionDeltas && card && card.valoriNascita){
-    const nati = card.valoriNascita;
-    const automatici = {};
-    let qualcosa = false;
-    for(const s of SIDES){
-      const d = (cardValues[s]||0) - (nati[s]||0);
-      automatici[s] = d;
-      if(d) qualcosa = true;
-    }
-    if(qualcosa) factionDeltas = automatici;
-  }
+  // v0.77.95 — QUI SI RICOSTRUIVANO I DELTA, e non serve piu': il confronto
+  // con la nascita lo fa adesso scartoDallaNascita, per ogni strada e per ogni
+  // gruppo, al momento di scrivere il numero. `factionDeltas` resta solo come
+  // ripiego per chi non ha una nascita da confrontare.
   // Fortifica preview: when hovering a card over a Fortifica tile, the shield
   // icon should already show on the group that WOULD become fortified (the
   // card isn't actually placed yet, so card.isFortificaActive isn't set).
@@ -38264,7 +38606,7 @@ function drawHexCard(svg,cx,cy,R,card,fillColor,strokeColor,textColor,nameText,i
       // printed value, strictly less than 0 means it's being reduced below
       // it. Fixed flat colors per explicit spec (no more HSL-saturation
       // scaling by magnitude like the old design had).
-      const groupDelta = factionDeltas ? (factionDeltas[groupKey] || 0) : 0;
+      const groupDelta = scartoDallaNascita(card, cardValues, g, factionDeltas);
       let valueFill = V.valText;
       if(groupDelta>0) valueFill = '#00A349';
       else if(groupDelta<0) valueFill = '#C43F3F';
@@ -43256,23 +43598,12 @@ function renderBoard(){
       const bonusInfo=getFactionBonus(placed.card,q,r,G.board);
       let factionDeltas={};
       for(const s of SIDES) factionDeltas[s]=bonusInfo.values[s]-placed.card.values[s];
-      // v0.73.99 — IL VERDE E IL ROSSO SI CALCOLANO DALLA NASCITA.
-      // Il confronto e' con i valori che la carta aveva quando e' nata (vedi
-      // valoriNascita), non con un'istantanea presa al piazzamento: quella
-      // veniva riscritta da ogni ricalcolo di sinergia, e ogni volta che
-      // qualcuno la aggiornava i numeri gia' potenziati tornavano bianchi.
-      // Cosi' invece la regola vale per TUTTO e per sempre, senza che nessuna
-      // abilita' debba dichiararsi: se il numero non e' piu' quello di
-      // partenza, si colora. Una carta nuova che dia o tolga potere in un modo
-      // che oggi non esiste ancora sara' colorata correttamente il giorno in
-      // cui verra' scritta, senza toccare questa riga.
-      const baseColore = placed.card.valoriNascita || placed.card.tileAbilityBaseValues;
-      if(baseColore){
-        for(const s of SIDES){
-          const abilityDelta = placed.card.values[s] - (baseColore[s]||0);
-          if(abilityDelta!==0) factionDeltas[s]=(factionDeltas[s]||0)+abilityDelta;
-        }
-      }
+      // v0.77.95 — QUI SI SOMMAVA IL COLORE A MANO, e adesso non piu'.
+      // Il confronto con la nascita lo fa scartoDallaNascita dentro al disegno,
+      // guardando cio' che viene davvero scritto sul tassello: un conto solo,
+      // che non si puo' sbagliare per eccesso ne' per difetto. `factionDeltas`
+      // resta perche' porta il bonus di fazione ai NUMERI (non al colore), ed
+      // e' l'unica cosa che questa riga qui sopra calcola ancora.
       let displayValuesForCell = bonusInfo.values;
       // v0.73.5 — anteprima di quello che sta per succedere a QUESTA carta.
       // Mentre si trascina una carta sopra una cella, ogni carta gia' in campo
