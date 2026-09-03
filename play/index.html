@@ -9842,7 +9842,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.99</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.78.0</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -26458,7 +26458,7 @@ const TILE_ABILITIES_DEF = {
   // v0.73.98 — Cowardly Lion. Entrando in campo si spaventa da solo.
   scaredy_cat:       { carta:'Cowardly Lion', name:'Scaredy cat',           desc:'When played, *Afflicts* -1 RAND to itself.' },
   // v0.74.0 — Cenerentola. Giocandola accanto a un /Guardian/ diventa The
-  // Crystal Princess (vedi TRASFORMAZIONI_AL_PIAZZAMENTO).
+  // Crystal Princess (la trasformazione la descrive il foglio: v0.78.0).
   // v0.75.77 — prima la condizione era "la Fata Madrina in campo", ma quella
   // carta ha Visible = No: non e' mai entrata in un mazzo, quindi l'abilita'
   // non poteva scattare mai. La regola nuova sta in piedi da sola.
@@ -29200,7 +29200,7 @@ const EFFETTI_PIAZZAMENTO = {
   // trasformazione deve invece passare dal lampo e far aspettare lo scontro
   // (vedi doPlace), quindi qui non deve succedere niente: farla due volte
   // trasformerebbe la carta prima che il lampo abbia qualcosa da nascondere.
-  // v0.75.77 — due carte, stessa riga: vedi TRASFORMAZIONI_AL_PIAZZAMENTO.
+  // v0.75.77 — due carte, stessa riga. v0.78.0: e la riga e' quella del foglio.
   kiss:             (card, q, r) => { if(_simulazioneInCorso) attivaTrasformazioneAlPiazzamento(card, q, r); },
   bell_of_the_ball: (card, q, r) => { if(_simulazioneInCorso) attivaTrasformazioneAlPiazzamento(card, q, r); },
   scaredy_cat: (card) => attivaScaredyCat(card),
@@ -29439,24 +29439,20 @@ function rinasciteDiQuestoTurno(onDone){
 // gemelle, aggiungere la terza carta domani vorrebbe dire ritrovare tutti e
 // cinque quei punti da capo, e dimenticarne uno vuol dire una carta che si
 // trasforma davvero ma che l'IA continua a valutare come se non lo facesse.
-const TRASFORMAZIONI_AL_PIAZZAMENTO = {
-  kiss: {
-    diventa:   'The Green Prince',
-    etichetta: 'Kiss',
-    vicino:    'princess',
-    voce:      'the-green-prince-transform',
-  },
-  bell_of_the_ball: {
-    diventa:   'The Crystal Princess',
-    etichetta: 'Bell of the Ball',
-    vicino:    'guardian',
-    // Per Cenerentola non c'e' (ancora) una voce di trasformazione. Il lampo
-    // funziona lo stesso e il grido di battaglia arriva subito dopo; il giorno
-    // in cui il file esistesse, basta scrivere qui il suo nome e mettere
-    // 'the-crystal-princess-transform.mp3' in audio/voices — nient'altro.
-    voce:      null,
-  },
-};
+// ── v0.78.0 — QUI C'ERA LA TABELLA DELLE TRASFORMAZIONI, SCRITTA A MANO ──
+// Due voci — `kiss` e `bell_of_the_ball` — agganciate alla CHIAVE VECCHIA
+// dell'abilita', ciascuna con dentro in chi si diventa, quale tratto cercare
+// accanto, e quale voce far partire.
+// Era la ragione per cui il Frog Prince si trasformava e nessun'altra carta
+// poteva farlo: non funzionava per cio' che c'era scritto sulla sua riga del
+// foglio, funzionava perche' il suo nome stava qui. Copiare quella sintassi su
+// un'altra carta non aggiungeva una riga a questa tabella, e quindi non faceva
+// succedere niente — senza un errore, perche' non c'era niente di sbagliato.
+// Adesso la trasformazione la descrive il foglio, come ogni altra abilita':
+//     transform self card #144      in chi si diventa
+//     if adjacent has_trait Princess a che condizione
+//     on_play / while_on_board / always   quando
+// e questo file non ha piu' un elenco di carte da tenere aggiornato.
 // C'e' un tratto <arch> su una delle sei caselle intorno? Non guarda la
 // fazione: ne' un bacio ne' una carrozza chiedono di che colore sei.
 function cAccantoTratto(q, r, arch){
@@ -29470,11 +29466,51 @@ function cAccantoTratto(q, r, arch){
 // posto che risponde a "questa carta, qui, si trasformerebbe?": lo chiedono il
 // piazzamento, l'anteprima e il lampo, e per questo non possono rispondere in
 // modo diverso l'uno dall'altro.
+// La trasformazione descritta dalla riga di questa carta, se c'e' e se e' del
+// momento chiesto. Torna null anche quando la carta d'arrivo non esiste nel
+// foglio: meglio niente che una trasformazione a meta'.
+function _trasformazioneDelFoglio(card, momento){
+  const a = _haAbilitaNuova(card) ? _motore().abilitaDi(card) : null;
+  if(!a || a.trigger !== momento) return null;
+  const eff = [a.effetto, a.effetto2].find(e => e && e.azione === 'transform');
+  if(!eff) return null;
+  if(eff.cosa && eff.cosa !== 'card') return null;
+  if(eff.chi && eff.chi !== 'self') return null;
+  const entry = cartaIndicataDa(eff.quanto && eff.quanto.carta);
+  if(!entry) return null;
+  return { a, eff, entry };
+}
+// La condizione della riga, valutata su una casella che la carta non occupa
+// ancora. Il motore non puo' rispondere — la sua scena parte dal tabellone, e
+// li' questa carta non c'e' — quindi la si guarda qui, dove le coordinate ci
+// sono. Oggi le trasformazioni chiedono tutte un tratto su un vicino; se un
+// domani ne servisse un'altra forma, e' questo il punto da allargare.
+// La stessa condizione, ma per una carta che sta gia' dove sta: qui il motore
+// puo' rispondere da se', perche' la sua scena la trova.
+function _condizioneVeraQui(se, card, scena){
+  if(!se) return true;
+  try{ return !!_motore().condizioneVera(se, card, scena); }
+  catch(_){ return false; }
+}
+function _condizioneAlPiazzamento(se, q, r){
+  if(!se) return true;
+  if(se.soggetto !== 'adjacent' || se.test !== 'has_trait') return false;
+  const tratti = (se.valore && se.valore.tratti) || [];
+  return tratti.some(x => cAccantoTratto(q, r, String(x).toLowerCase()));
+}
 function trasformazioneAlPiazzamento(card, q, r){
-  const t = TRASFORMAZIONI_AL_PIAZZAMENTO[abilitaAttivaDi(card)];
-  if(!t) return null;
   if(isNaN(q) || isNaN(r)) return null;
-  return cAccantoTratto(q, r, t.vicino) ? t : null;
+  const T = _trasformazioneDelFoglio(card, 'on_play');
+  if(!T) return null;
+  if(!_condizioneAlPiazzamento(T.a.se, q, r)) return null;
+  return {
+    diventa:   T.entry.name,
+    etichetta: card.abilityNameSheet || T.entry.name,
+    // La voce della trasformazione la scopre l'importazione insieme all'arte
+    // (vedi v0.77.99): se il file non c'e', qui e' null e non parte niente —
+    // che e' il comportamento giusto e non un ripiego.
+    voce:      T.entry.voceTrasformazione || null,
+  };
 }
 function attivaTrasformazioneAlPiazzamento(card, q, r){
   const t = trasformazioneAlPiazzamento(card, q, r);
@@ -29538,7 +29574,7 @@ function trasformaConLampo(cella, card, q, r, poi){
   // v0.75.77 — la voce e' quella scritta nel registro, e puo' non esserci
   // (Cenerentola): senza voce non c'e' niente da aspettare e il grido arriva
   // subito dopo il cambio, che e' il comportamento giusto e non un ripiego.
-  const scena = TRASFORMAZIONI_AL_PIAZZAMENTO[abilitaAttivaDi(card)] || {};
+  const scena = trasformazioneAlPiazzamento(card, q, r) || {};
   let voce = null, chiaveVoce = null;
   if(scena.voce){
     chiaveVoce = assicuraSuonoDaVoce(scena.voce,'mp3');
@@ -29670,7 +29706,7 @@ function abilitaAConSorteAlPiazzamento(card){
 // ═══════════════════════════════════════════════════════════════════════════
 // Giocata accanto a un /Guardian/, Cenerentola diventa The Crystal Princess:
 // nome, illustrazione, valori e abilita' della carta nuova.
-// v0.75.77 — la condizione e la scena vivono ora in TRASFORMAZIONI_AL_PIAZZAMENTO,
+// v0.75.77 — la condizione e la scena vivono ora nel FOGLIO (v0.78.0),
 // insieme a quelle del Principe Ranocchio: qui resta solo la spiegazione di
 // COSA vuol dire trasformarsi, che vale per tutte e due.
 //
@@ -29692,6 +29728,24 @@ function abilitaAConSorteAlPiazzamento(card){
 // ricopiare quelle venti righe voleva dire venti occasioni di dimenticarne una
 // nella copia — di solito una delle istantanee da buttare, che e' il genere di
 // dimenticanza che si manifesta tre mosse dopo.
+// ── v0.78.0 — LA CARTA INDICATA CON UN NUMERO ────────────────────────────
+// Nel foglio una trasformazione dice in CHI si diventa scrivendo "#174", cioe'
+// il numero della riga d'arrivo. E' piu' solido di un nome: rinominare una
+// carta non spezza chi la indica.
+// Si accetta anche il nome per esteso, perche' le due trasformazioni scritte a
+// mano prima di oggi lo usavano e non c'e' ragione di romperle.
+function cartaIndicataDa(sigla){
+  const s = String(sigla || '').trim();
+  if(!s) return null;
+  if(s.charAt(0) === '#'){
+    const n = parseInt(s.slice(1), 10);
+    if(!isFinite(n)) return null;
+    const e = (FINAL_CARDS || []).find(x => x && Number(x.numero) === n);
+    if(!e) console.info('[trasformazione] nel foglio non c\'e\' nessuna carta numero ' + n + '.');
+    return e || null;
+  }
+  return (typeof cartaEvocabilePerNome === 'function') ? cartaEvocabilePerNome(s) : null;
+}
 function trasformaCartaIn(card, nomeCarta, etichetta){
   const entry = cartaEvocabilePerNome(nomeCarta);
   if(!entry){
@@ -30020,9 +30074,94 @@ function applicaCambiamenti(elenco){
 //
 // `diChi` resta, ma serve solo a sapere di CHI e' la mano da guardare per le
 // abilita' `while_in_hand`: quelle riguardano chi apre il turno.
+// ── v0.78.0 — "ALWAYS": DOVUNQUE SIA LA CARTA ────────────────────────────
+// Il foglio puo' scrivere `always` nella colonna del momento. Vuol dire quel
+// che dice: non "quando la giochi" ne' "quando conquista", ma SEMPRE — e
+// quindi anche mentre la carta e' nel mazzo o in mano, dove nessuno dei momenti
+// esistenti passa mai. Strigoi lo usa con una finestra `from turn 8`: dall'
+// ottavo turno in poi diventa Dark Strigoi, che la si stia giocando o no.
+//
+// Si guarda a ogni confine di turno, che e' l'unico istante in cui il numero
+// del turno cambia — e la finestra dipende proprio da quello. Guardare piu'
+// spesso non troverebbe niente di nuovo.
+//
+// Si passa su TUTTE E TRE le case della carta: campo, mani, mazzi. Le due mani
+// e i due mazzi, non solo quelli di chi ha il turno: una carta nel mazzo
+// dell'avversario compie l'ottavo turno insieme a tutte le altre.
+// Il turno lo legge la scena (`turno`), quindi la finestra la valuta il motore
+// come per ogni altra abilita': qui non si decide niente, si va solo a
+// cercare le carte dove i momenti normali non arrivano.
+function motoreMomentoSempre(){
+  if(!sinergieDalFoglio()) return false;
+  let mosso = false;
+  const ovunque = [];
+  for(const k in (G.board||{})){
+    const p = G.board[k];
+    if(p && p.card) ovunque.push({ card:p.card, chiave:k });
+  }
+  for(const mazzo of [G.p1Hand, G.p2Hand, G.p1Deck, G.p2Deck]){
+    for(const carta of (mazzo || [])) if(carta) ovunque.push({ card:carta, chiave:null });
+  }
+  for(const posto of ovunque){
+    const suo = _haAbilitaNuova(posto.card) ? _motore().abilitaDi(posto.card) : null;
+    if(!suo) continue;
+    // v0.78.0 — due momenti passano di qui, e per la stessa ragione: nessun
+    // altro li chiama mai.
+    //   `always`         vale dovunque sia la carta, mazzo compreso;
+    //   `while_on_board` vale solo per chi e' in campo, e finora scattava solo
+    //                    nell'istante del piazzamento — quindi Cenerentola si
+    //                    trasformava se la Guardiana c'era GIA', e mai se
+    //                    arrivava un momento dopo. La sua riga dice altro.
+    const soloInCampo = (suo.trigger === 'while_on_board');
+    if(suo.trigger !== 'always' && !soloInCampo) continue;
+    if(soloInCampo && posto.chiave === null) continue;
+    if(!_motore().finestraAperta(suo, _scenaEvento(posto.card, posto.chiave))) continue;
+    if(!_motore().scattoConsentito(posto.card, suo.trigger, suo, _scenaEvento(posto.card, posto.chiave))) continue;
+    const momento = suo.trigger;
+    const scena = _scenaEvento(posto.card, posto.chiave);
+    // ── LA TRASFORMAZIONE, CON IL SUO LAMPO ────────────────────────────────
+    // Se la carta e' in campo si vede diventare l'altra, come al piazzamento.
+    // Se sta in mano o nel mazzo si trasforma e basta: un'animazione su una
+    // carta che nessuno sta guardando e' solo un'attesa.
+    const T = _trasformazioneDelFoglio(posto.card, momento);
+    if(T && _condizioneVeraQui(T.a.se, posto.card, scena)){
+      _motore().segnaScatto(posto.card, momento, scena);
+      const dove = posto.chiave;
+      if(dove){
+        const [tq, tr] = String(dove).split(',').map(Number);
+        try{ trasformaConLampo(dove, posto.card, tq, tr, ()=>{}); }
+        catch(_){ _trasformaDalFoglio(posto.card, T.eff, T.a); }
+      } else {
+        _trasformaDalFoglio(posto.card, T.eff, T.a);
+      }
+      mosso = true;
+      continue;
+    }
+    // Cio' che il motore non sa fare lo fa il client, leggendo il foglio.
+    if(eseguiDalFoglio(posto.card, momento, posto.chiave)){
+      _motore().segnaScatto(posto.card, momento, scena);
+      mosso = true;
+      continue;
+    }
+    // E cio' che sa fare, lo fa lui.
+    if(motoreFaLEvento(posto.card, momento)){
+      const cambi = _motore().cambiamentiAllEvento(posto.card, momento, scena);
+      if(cambi.length){
+        const prima = new Map();
+        for(const x of cambi) if(x.carta && !prima.has(x.carta)) prima.set(x.carta, {...x.carta.values});
+        applicaCambiamenti(cambi);
+        prima.forEach((valori, carta)=>lampeggiaDifferenzaValori(carta, valori));
+        mosso = true;
+      }
+    }
+  }
+  return mosso;
+}
 function motoreMomentoDelTurno(evento, diChi){
   if(!sinergieDalFoglio()) return false;
   let mosso = false;
+  // v0.78.0 — e le abilita' che non aspettano nessun momento (vedi sopra).
+  if(motoreMomentoSempre()) mosso = true;
   // v0.77.65 — a inizio turno si guarda anche la MANO di chi lo apre, per le
   // abilita' marcate `while_in_hand`: quel trigger dice dove deve stare la
   // carta, non quando scatta, e senza questo giro non l'avrebbe letto nessuno.
@@ -30056,11 +30195,34 @@ function motoreMomentoDelTurno(evento, diChi){
 //
 // Torna true se ha fatto qualcosa: chi chiama non deve allora ripiegare sulla
 // vecchia funzione scritta a mano, o l'abilita' partirebbe due volte.
+// ── v0.78.0 — LA TRASFORMAZIONE, DAL FOGLIO ──────────────────────────────
+// Fino a oggi una carta si trasformava solo se il suo nome stava in una tabella
+// scritta a mano (due voci sole), agganciata alla
+// CHIAVE VECCHIA dell'abilita' e non alla riga del foglio. Il Frog Prince
+// funzionava per quello, non per cio' che c'e' scritto sulla sua riga — e
+// copiando la sua sintassi su un'altra carta non succedeva niente, perche' la
+// sintassi non era mai stata la causa.
+// Adesso lo fa il foglio: "transform self card #174" si esegue, e la tabella
+// scritta a mano resta solo per le due che hanno anche una condizione sul
+// vicino e un'animazione dedicata.
+function _trasformaDalFoglio(card, eff, a){
+  if(!eff || eff.azione !== 'transform') return false;
+  if(eff.cosa && eff.cosa !== 'card') return false;
+  if(eff.chi && eff.chi !== 'self') return false;      // per ora si trasforma se stessa
+  const entry = cartaIndicataDa(eff.quanto && eff.quanto.carta);
+  if(!entry) return false;
+  if(card.baseId === entry.id) return false;           // gia' trasformata
+  const etichetta = (a && a.nome) || card.abilityNameSheet || 'Transform';
+  return trasformaCartaIn(card, entry.name, etichetta);
+}
 function eseguiDalFoglio(card, evento, dove){
   if(!_haAbilitaNuova(card)) return false;
   const a = _motore().abilitaDi(card);
   if(!a || a.trigger !== evento) return false;
   let fatto = false;
+  for(const eff of [a.effetto, a.effetto2]){
+    if(eff && eff.azione === 'transform' && _trasformaDalFoglio(card, eff, a)) fatto = true;
+  }
   for(const eff of [a.effetto, a.effetto2]){
     if(!eff) continue;
     // "la prossima carta che giochi": non c'e' ancora, quindi non si puo'
@@ -30153,7 +30315,7 @@ const EFFETTI_PIAZZAMENTO_REALI = {
   // cambio all'istante, cioe' mentre la carta stava ancora atterrando, e senza
   // anteprima: da fuori Cenerentola non si vedeva mai. Ora segue la stessa
   // scena del Principe Ranocchio (caduta, respiro, lampo, poi lo scontro):
-  // vedi TRASFORMAZIONI_AL_PIAZZAMENTO e doPlace.
+  // vedi _trasformazioneDelFoglio e doPlace.
 
   off_with_the_head: (card) => attivaOffWithTheHead(card),
   smoke_and_mirrors: (card) => attivaSmokeAndMirrors(card),

@@ -119,6 +119,22 @@ app.whenReady().then(async () => {
     }
     _applicaCatalogo(${JSON.stringify(dati.carte)});
     await verificaArtCarte();
+    // v0.78.0 — e la voce della TRASFORMAZIONE, che vive accanto alle altre e
+    // si chiama <slug>-transform.mp3. Serve a chi si trasforma IN questa carta:
+    // il Ranocchio che diventa Principe fa partire la voce del Principe, non la
+    // propria. Si cerca per tutte, perche' domani una carta qualsiasi puo'
+    // diventare il bersaglio di una trasformazione nuova senza che questo file
+    // debba saperlo.
+    // Come per l'arte: si bussa QUI una volta, e il gioco poi legge. Chi non ha
+    // il file resta a null, e al suo posto non parte niente — che e' giusto, e
+    // soprattutto non e' una richiesta a vuoto a ogni partita.
+    await Promise.all(FINAL_CARDS.map(async e => {
+      const slug = e.slug;
+      if(!slug){ e.voceTrasformazione = null; return; }
+      const coda = slug + '-transform.mp3';
+      const trovata = await _primoCheEsiste(_candidati(VOCI_REL + coda, VOCI_BASE + coda), _provaAudio);
+      e.voceTrasformazione = trovata ? (slug + '-transform') : null;
+    }));
     return JSON.stringify({ arte: FINAL_CARDS.map(e => ({
       id: e.id,
       artLayersDark: e.artLayersDark || null,
@@ -126,7 +142,8 @@ app.whenReady().then(async () => {
       artDark: e.artDark || null,
       artLight: e.artLight || null,
       voci: e.voci || null,
-      battlecry: e.battlecry || null
+      battlecry: e.battlecry || null,
+      voceTrasformazione: e.voceTrasformazione || null
     })) });
   } catch(e){ return JSON.stringify({ errore: String(e && e.stack || e) }); }
   })()`);
@@ -147,6 +164,7 @@ app.whenReady().then(async () => {
       c.artLight = a.artLight;
       if (a.voci) c.voci = a.voci;
       if (a.battlecry) c.battlecry = a.battlecry;
+      c.voceTrasformazione = a.voceTrasformazione;
       if (a.artLayersDark || a.artLayersLight || a.artDark || a.artLight) quante++;
     }
     console.log('        ' + quante + ' carte su ' + dati.carte.length + ' hanno un\'illustrazione');
