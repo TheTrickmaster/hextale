@@ -154,7 +154,12 @@ function costoTenereRarita(chiave) {
 
 // Una carta appena sbustata entra al livello dei normali. Se si possedeva
 // gia', il livello non scende: si tiene il piu' alto dei due.
-var LIVELLO_SBUSTATA = LIVELLO_NORMALE;
+// v0.78.3 — UNO, e non "quello con cui si comincia". Erano lo stesso numero e
+// per questo stavano insieme, ma sono due regole diverse: il livello di
+// partenza di un account puo' cambiare domani, mentre una carta appena
+// ottenuta comincia da uno per definizione. Tenerle legate voleva dire che
+// alzando l'una si alzava l'altra senza accorgersene.
+var LIVELLO_SBUSTATA = 1;
 
 // Gli amministratori si riconoscono da questi nomi finche' il contrassegno non
 // e' stato scritto nei loro metadati. Dopo, comanda il contrassegno: e' il

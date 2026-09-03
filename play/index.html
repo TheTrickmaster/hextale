@@ -9842,7 +9842,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.78.2</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.78.3</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -19899,13 +19899,40 @@ function verificaArtCarte(avanzamento){
   // silenzio: il silenzio non si nota finche' non lo si cerca.
   const vociNote = FINAL_CARDS.some(e => e && Array.isArray(e.voci));
   if(FINAL_CARDS.some(_arteGiaNota) && vociNote){
-    const quante = FINAL_CARDS.filter(_arteGiaNota).length;
-    console.info('[arte] la sa gia\' il catalogo: ' + quante + ' carte con illustrazione, zero richieste.');
+    // ── v0.78.3 — CI SI FIDA DEL SI', NON DEL NO ──────────────────────────
+    // La v0.77.99 si fidava del catalogo per intero, e per le carte che l'arte
+    // ce l'hanno e' giusto: un file che esiste non sparisce.
+    // Per quelle che il catalogo dice SENZA arte no. "Non ce l'ha" e'
+    // esattamente lo stato che cambia quando qualcuno disegna un'illustrazione
+    // nuova e la mette sul sito — e fino alla reimportazione successiva il
+    // gioco non se ne accorgeva. E' successo con Dark Strigoi: l'arte c'era, il
+    // catalogo diceva di no, e nessuno andava piu' a guardare.
+    // Quindi: le carte con arte si prendono dal catalogo e non si bussa; quelle
+    // senza si ricontrollano. Sono poche — chi non ha ancora un disegno — e il
+    // grosso del risparmio resta.
+    const conArte = FINAL_CARDS.filter(_arteGiaNota);
+    const daRiprovare = FINAL_CARDS.filter(e => !_arteGiaNota(e));
     for(const entry of FINAL_CARDS){
       if(!entry.slug) entry.slug = slugPersonaggio(entry.name) || String(entry.id||'').replace(/^final-/,'');
     }
-    if(typeof avanzamento === 'function') avanzamento(1, 1);
-    return Promise.resolve();
+    console.info('[arte] dal catalogo: ' + conArte.length + ' carte con illustrazione, zero richieste.'
+      + (daRiprovare.length ? ' Le ' + daRiprovare.length + ' senza si ricontrollano: e\' li\' che compare un disegno nuovo.' : ''));
+    if(!daRiprovare.length){
+      if(typeof avanzamento === 'function') avanzamento(1, 1);
+      return Promise.resolve();
+    }
+    const riprove = [];
+    for(const entry of daRiprovare){
+      if(!entry.slug) continue;
+      riprove.push(_livelliDiVariante(entry.slug,'dark').then(l=>{ if(l) entry.artLayersDark = l; }));
+      riprove.push(_livelliDiVariante(entry.slug,'light').then(l=>{ if(l) entry.artLayersLight = l; }));
+    }
+    return Promise.all(riprove).then(()=>{
+      const trovate = daRiprovare.filter(_arteGiaNota).map(e=>e.name);
+      if(trovate.length) console.info('[arte] illustrazione trovata adesso per: ' + trovate.join(', ')
+        + '. Entrera\' nel catalogo alla prossima reimportazione.');
+      if(typeof avanzamento === 'function') avanzamento(1, 1);
+    });
   }
   const lavori = [];
   const senzArte = [];
@@ -21087,7 +21114,17 @@ async function _bustinaChiediAlServer(){
     const r = await nakamaRpc('hx_bustina_apri', {});
     const slug = (r && r.carte) || [];
     if(slug.length !== 2) return null;
-    const voci = slug.map(s=>(FINAL_CARDS||[]).find(e=>e && e.slug === s)).filter(Boolean);
+    // ── v0.78.3 — DA UNA BUSTINA SI ESCE SEMPRE AL PRIMO LIVELLO ─────────
+    // La voce di catalogo porta il livello scritto nel foglio, e chi guarda la
+    // bustina puo' vederlo piu' alto: un admin vede tutto al massimo, e una
+    // carta col suo "Level (Temp)" a due usciva a due.
+    // Una bustina pero' regala una carta NUOVA, e una carta nuova comincia da
+    // uno — e' quello che si riceve davvero (vedi LIVELLO_SBUSTATA sul
+    // server), quindi e' quello che si deve vedere. Mostrarne una piu' forte di
+    // quella che si otterra' e' una promessa che il gioco non mantiene.
+    const alPrimo = e => (typeof cartaAlLivello === 'function' && e && e.level !== 1)
+      ? cartaAlLivello(e, 1) : e;
+    const voci = slug.map(s=>(FINAL_CARDS||[]).find(e=>e && e.slug === s)).filter(Boolean).map(alPrimo);
     // Se il catalogo del client non conosce uno dei due slug e' vecchio: si
     // preferisce la pescata locale a una bustina con un buco dentro.
     if(voci.length !== 2) return null;
@@ -21125,7 +21162,8 @@ async function apriBustina(){
     _bustinaCosto = 0;
     for(let i=0;i<BUSTINA_CARTE;i++){
       const e = _pescaCartaBustina(uscite);
-      if(e) uscite.push(e);
+      // v0.78.3 — al primo livello anche qui: vedi _bustinaChiediAlServer.
+      if(e) uscite.push((typeof cartaAlLivello === 'function' && e.level !== 1) ? cartaAlLivello(e, 1) : e);
     }
   }
   mostraPulsanteBustina('pack-collect', false, true);
@@ -26055,6 +26093,47 @@ function carteDalMazzoSalvato(mazzo, owner){
 // di misura, non un mazzo qualunque.
 // `controIA` resta nella firma perche' chi chiama lo passa gia', e perche'
 // distinguere i due casi tornera' utile quando ci sara' il PvP in rete.
+// ── v0.78.3 — L'IA GIOCA ALLO STESSO LIVELLO ─────────────────────────────
+// Il pareggio fra i due mazzi guardava la POTENZA (valori, gruppi, gemme), e
+// non il livello. Sono due cose diverse: il livello decide i numeri sui lati,
+// e un mazzo di carte di livello 4 contro uno di livello 1 e' una partita
+// decisa prima di cominciare, anche se la "potenza" calcolata torna.
+// La regola, come l'ha data Lorenzo: la somma dei livelli dei due mazzi deve
+// essere uguale. Dodici carte di livello 1 fanno dodici, e l'IA deve fare
+// dodici — non importa come li distribuisce.
+//
+// Si distribuisce il piu' uniformemente possibile: la parte intera a tutti, e
+// il resto una unita' a testa alle prime. Un mazzo con undici carte di livello
+// 1 e una di livello 4 sarebbe pari nella somma ma non nel gioco — una carta
+// molto piu' forte delle altre vale piu' di quattro carte appena migliori.
+function pareggiaILivelli(mio, suo){
+  if(!Array.isArray(mio) || !Array.isArray(suo) || !suo.length) return;
+  if(typeof cartaAlLivello !== 'function' || typeof entryDaId !== 'function') return;
+  const somma = mio.reduce((s,c)=> s + (c && typeof c.level === 'number' ? c.level : 1), 0);
+  if(!somma) return;
+  const quante = suo.length;
+  const base = Math.floor(somma / quante);
+  let resto = somma - base*quante;
+  let cambiate = 0;
+  for(let i=0;i<quante;i++){
+    const carta = suo[i];
+    if(!carta) continue;
+    // Fra 1 e 4: sono i livelli che una carta puo' avere.
+    const voluto = Math.max(1, Math.min(4, base + (resto > 0 ? 1 : 0)));
+    if(resto > 0) resto--;
+    if(carta.level === voluto) continue;
+    const entry = entryDaId(carta.baseId || carta.id);
+    if(!entry) continue;
+    const nuova = _makeCardDbCard(cartaAlLivello(entry, voluto), 2);
+    nuova.id = carta.id;
+    nuova.baseId = entry.id;
+    suo[i] = nuova;
+    cambiate++;
+  }
+  const suaSomma = suo.reduce((s,c)=> s + (c && typeof c.level === 'number' ? c.level : 1), 0);
+  console.info('[Hextale] livelli: il tuo mazzo somma ' + somma + ', quello dell\'IA ' + suaSomma
+    + (cambiate ? ' (' + cambiate + ' carte riportate al livello giusto)' : ''));
+}
 function makeBalancedDecks(controIA){
   // ── v0.77.54 — IN RETE I MAZZI LI DA' IL SERVER ─────────────────────────
   // Il mio arriva gia' mescolato da lui, e nell'ordine in cui lo ha mescolato:
@@ -26095,6 +26174,7 @@ function makeBalancedDecks(controIA){
       if(gap<scartoMigliore){ scartoMigliore=gap; migliore=b; }
       if(gap<=BALANCE_MAX_GAP) break;
     }
+    pareggiaILivelli(d1, migliore);
     return { d1, d2:migliore, gap:scartoMigliore };
   }
   // ── v0.77.47 — QUI C'ERA UN RAMO CHE NON POTEVA FUNZIONARE ──────────────
