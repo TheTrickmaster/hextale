@@ -10019,7 +10019,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.78.10</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.78.11</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -13877,7 +13877,14 @@ async function riferisciPartita(vinta, pari, controIA){
   }
   if(!sessioneAccount || !sessioneAccount.token) return;
   try{
-    const r = await nakamaRpc('hx_partita', { vinta: !!vinta, pari: !!pari, controIA: !!controIA });
+    // v0.78.11 — e quanti turni si e' giocato. In rete non passa da qui (lo
+    // conta il server); questa strada serve le partite contro l'IA, e li' il
+    // numero e' quello dei turni dell'UMANO — non della partita, che comprende
+    // anche quelli dell'avversario.
+    const mieiTurni = (G && G.turniGiocati)
+      ? (G.turniGiocati[G.vsAI ? 1 : (G.ioSonoIlNumero || 1)] || 0) : 0;
+    const r = await nakamaRpc('hx_partita', {
+      vinta: !!vinta, pari: !!pari, controIA: !!controIA, turni: mieiTurni });
     PROFILO_STAGIONE = r.profilo;
     _daMostrareDopoPartita = r;
   }catch(e){
@@ -27706,6 +27713,11 @@ function initGame(vsAI){
     // v0.78.10 — le caselle da svuotare a scontro finito (vedi
     // rimuoviDopoLaConquista). Nasce vuota a ogni partita come tutto il resto.
     rimozioniInAttesa:[],
+    // v0.78.11 — quanti turni ha giocato ciascuno. In rete il numero che conta
+    // e' quello del SERVER (l'esperienza la scrive lui, e non su un numero
+    // dichiarato da chi lo riceve); questo serve alle partite contro l'IA, dove
+    // non c'e' nessun altro che possa contarli.
+    turniGiocati:{1:0,2:0},
     // L'ultima conquista di ciascun giocatore, per Morgana: {cella, exProprietario}.
     ultimaConquista:{1:null,2:null},
     // v0.73.78 — che turno e'. Serve alle abilita' che scattano a un certo
@@ -29782,6 +29794,9 @@ function doPlace(card,playerIdx,q,r,daServer){
   }
 
   G.board[k]={card,owner:player};
+  // Un turno giocato e' una carta calata: e' il conto su cui si basa
+  // l'esperienza (vedi riferisciPartita e, sul server, XP_PER_TURNO).
+  if(G.turniGiocati) G.turniGiocati[player] = (G.turniGiocati[player]||0) + 1;
   // v0.73.90 — questo e' l'istante in cui la carta viene GIOCATA, quindi qui
   // tocca al grido di battaglia (vedi playCardBattlecry). Gli altri punti che
   // fanno parlare una carta — il click in Collezione, l'evocazione di

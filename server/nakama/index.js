@@ -70,8 +70,45 @@ var RANK_SCONFITTE_PER_SCENDERE = 3;
 var RANK_PUNTI_DOPO_RETROCESSIONE = 7;
 
 var LIVELLO_MAX = 30;
+// ── v0.78.11 — QUANTO VALE UNA PARTITA ────────────────────────────────────
+// Due parti, e si sommano: il TEMPO che uno ci ha messo e come e' FINITA.
+//   - due punti per ogni turno giocato da quel giocatore: e' la parte che
+//     nessuno puo' perdere, perche' quel tempo l'ha speso davvero;
+//   - piu' un premio che dipende da come la partita si e' chiusa PER LUI.
+// Il premio e' zero per chi esce: non e' una punizione, e' che una partita
+// lasciata a meta' non si e' conclusa in nessun modo — ne' vinta ne' persa. I
+// turni giocati restano suoi.
+// La tabella sta QUI e in nessun altro posto: e' l'unica cosa che si guarda
+// per sapere quanto vale una partita.
+var XP_PER_TURNO = 2;
 var XP_VITTORIA = 50;
 var XP_SCONFITTA = 20;
+var XP_RESA = 20;                 // arrendersi e- concludere: e- una sconfitta scelta
+var XP_RESTA_VINCENDO = 50;       // gli restano davanti a un tavolo vuoto, mentre vinceva
+var XP_RESTA_PERDENDO = 35;       // idem, ma stava perdendo: piu- di una sconfitta, meno di una vittoria
+var XP_USCITO = 0;                // chi si disconnette, crasha, o esce: solo i turni
+
+// Il premio di fine partita per UN giocatore, dato come e' finita per lui.
+// `modo` puo' essere:
+//   'finita'  la partita e' arrivata alla fine (anche per resa dell'altro)
+//   'resa'    l'ha chiusa lui arrendendosi
+//   'uscito'  si e' disconnesso, e' crashato, o e' uscito
+//   'resta'   e' rimasto in partita dopo che l'altro e' uscito
+function xpDiFine(modo, vinta) {
+  if (modo === 'uscito') return XP_USCITO;
+  if (modo === 'resa') return XP_RESA;
+  if (modo === 'resta') return vinta ? XP_RESTA_VINCENDO : XP_RESTA_PERDENDO;
+  return vinta ? XP_VITTORIA : XP_SCONFITTA;
+}
+// Un giocatore non puo' aver giocato piu' turni di quante siano le caselle:
+// e' il tetto naturale, e serve solo dove il numero lo dichiara un client
+// (le partite contro l'IA, dove non c'e' un avversario che possa smentirlo).
+function turniPuliti(n) {
+  n = Math.floor(Number(n) || 0);
+  if (!(n > 0)) return 0;
+  var tetto = _caselle().length;
+  return n > tetto ? tetto : n;
+}
 // Il livello L costa 50*(L+1): 50 per il primo, 100 per il secondo, e cosi'
 // via. E' la regola che Lorenzo ha scelto, e vive in questa riga sola.
 function xpPerSalire(livello) { return 50 * (livello + 1); }
@@ -891,7 +928,7 @@ function rpcMazziScrivi(ctx, logger, nk, payload) {
 // ma lo decide il server quando i due si sono trovati d'accordo su com'e'
 // finito il tabellone. Una regola sola, in un posto solo: se un domani cambia
 // quanto vale una vittoria, cambia per tutti e due i modi di giocare.
-function applicaEsito(nk, userId, vinta, pari, controIA) {
+function applicaEsito(nk, userId, vinta, pari, controIA, turni, modo) {
   var letto = leggiStagione(nk, userId);
   var p = letto.profilo;
   var prima = {
@@ -899,11 +936,19 @@ function applicaEsito(nk, userId, vinta, pari, controIA) {
     xpPerSalire: xpPerSalire(p.livello)
   };
   vinta = !!vinta; pari = !!pari; controIA = !!controIA;
+  turni = turniPuliti(turni);
+  modo = modo || 'finita';
 
   // ── esperienza ──────────────────────────────────────────────────────────
   // Un pareggio non e' una vittoria: vale come una sconfitta per l'esperienza,
   // e non muove il rank.
-  var guadagno = vinta ? XP_VITTORIA : XP_SCONFITTA;
+  // v0.78.11 — e i turni giocati si sommano al premio di fine. Le due parti
+  // viaggiano anche separate nella risposta: la schermata di fine partita puo'
+  // dire "18 dai turni + 50 per la vittoria" invece di un 68 che non si
+  // spiega.
+  var xpTurni = XP_PER_TURNO * turni;
+  var xpEsito = xpDiFine(modo, vinta);
+  var guadagno = xpTurni + xpEsito;
   if (p.livello < LIVELLO_MAX) {
     p.xp += guadagno;
     while (p.livello < LIVELLO_MAX && p.xp >= xpPerSalire(p.livello)) {
@@ -917,7 +962,13 @@ function applicaEsito(nk, userId, vinta, pari, controIA) {
 
   // ── rank ────────────────────────────────────────────────────────────────
   var salito = false, sceso = false;
-  if (!controIA && !pari) {
+  // v0.78.11 — una partita che nessuno ha concluso non muove il rank. Il
+  // server non puo' distinguere un crash da un abbandono per ripicca, e
+  // trattarli come una sconfitta punirebbe chi ha perso la corrente. In
+  // compenso non premia nemmeno chi resta: il rank misura le partite giocate
+  // fino in fondo.
+  var conclusa = (modo !== 'uscito' && modo !== 'resta');
+  if (!controIA && !pari && conclusa) {
     if (vinta) {
       p.sconfitteDiFila = 0;
       p.puntiRank += RANK_VITTORIA;
@@ -944,8 +995,15 @@ function applicaEsito(nk, userId, vinta, pari, controIA) {
     }
   }
 
+  // La partita si conta comunque: quel tempo il giocatore l'ha speso, e le
+  // partite giocate sono un conto di tempo.
   p.partite = (p.partite || 0) + 1;
-  if (vinta) p.vittorie = (p.vittorie || 0) + 1;
+  // La VITTORIA no, se la partita non si e' conclusa. Chi resta in campo
+  // mentre stava vincendo prende l'esperienza di una vittoria — gli hanno
+  // tolto la partita dalle mani, e quello e' giusto — ma "stava vincendo" non
+  // e' "ha vinto", e nel conto delle vittorie ci vanno solo le partite che
+  // qualcuno ha davvero portato a termine.
+  if (vinta && conclusa) p.vittorie = (p.vittorie || 0) + 1;
   scriviStagione(nk, userId, p);
 
   return {
@@ -954,6 +1012,10 @@ function applicaEsito(nk, userId, vinta, pari, controIA) {
     salito: salito,
     sceso: sceso,
     xpGuadagnata: guadagno,
+    xpTurni: xpTurni,
+    xpEsito: xpEsito,
+    turniGiocati: turni,
+    modoFine: modo,
     xpPerSalire: xpPerSalire(p.livello),
     ranghi: RANGHI
   };
@@ -965,7 +1027,11 @@ function rpcPartita(ctx, logger, nk, payload) {
   if (!ctx.userId) throw Error('serve un accesso');
   var dati;
   try { dati = JSON.parse(payload || '{}'); } catch (e) { throw Error('esito illeggibile'); }
-  return JSON.stringify(applicaEsito(nk, ctx.userId, !!dati.vinta, !!dati.pari, !!dati.controIA));
+  // I turni li dichiara il client, come l'esito: contro l'IA non c'e' nessun
+  // avversario che possa confermare, e turniPuliti mette il tetto oltre il
+  // quale la dichiarazione non e' piu' credibile.
+  return JSON.stringify(applicaEsito(nk, ctx.userId, !!dati.vinta, !!dati.pari,
+    !!dati.controIA, dati.turni, 'finita'));
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -1569,6 +1635,12 @@ function partitaInit(ctx, logger, nk, params) {
     mazzoIniziale: {},
     mano: {}, mazzo: {},
     buchi: [], occupate: {},
+    // v0.78.11 — quanti turni ha giocato CIASCUNO. Non si ricava da
+    // numeroTurno: quello conta i turni della partita, e a fine partita i due
+    // giocatori non ne hanno quasi mai giocati altrettanti. E' il server a
+    // contarli perche' e' la base dell'esperienza, e un numero che decide un
+    // premio non lo si chiede a chi lo riceve.
+    turniGiocati: {},
     turno: 0, numeroTurno: 0, scadenza: 0,
     iniziata: false, finita: false,
     natoIl: Date.now(),
@@ -1643,7 +1715,11 @@ function _resa(state, dispatcher, logger, nk, chi) {
     var u = state.giocatori[i];
     var suo = (i + 1) === vincitore;
     try {
-      var esito = applicaEsito(nk, u, suo, false, false);
+      // v0.78.11 — chi si arrende ha CONCLUSO la partita, e quello vale 20:
+      // e' una sconfitta scelta, non una partita lasciata a meta'. Chi si
+      // trova vincitore per la resa dell'altro ha vinto, e vale 50.
+      var esito = applicaEsito(nk, u, suo, false, false,
+        state.turniGiocati[u], suo ? 'finita' : 'resa');
       esito.vinta = suo;
       esito.pari = false;
       esito.perResa = true;
@@ -1656,6 +1732,54 @@ function _resa(state, dispatcher, logger, nk, chi) {
   logger.info('partita finita per resa di %s: vince il giocatore %d', chi, vincitore);
 }
 
+// ── v0.78.11 — CHI STAVA VINCENDO, QUANDO L'ALTRO E' USCITO ───────────────
+// Non lo si puo' chiedere al client che resta — sarebbe la sua parola su un
+// premio che riceve lui. Lo si legge dall'ultimo racconto su cui i due si erano
+// trovati D'ACCORDO (vedi OP_IMPRONTA e state.concordato): e' l'ultima cosa
+// vera che si sappia di quella partita.
+// Se non c'e' ancora nessun racconto — uno esce prima che il primo turno si
+// chiuda — non stava vincendo nessuno, e i turni giocati sono zero comunque.
+function _chiStavaVincendo(state) {
+  var acc = state.concordato;
+  if (!acc) return 0;
+  var p = acc.hp || acc.punteggio || {};
+  var d1 = (typeof p['1'] === 'number') ? p['1'] : 0;
+  var d2 = (typeof p['2'] === 'number') ? p['2'] : 0;
+  if (d1 === d2) return 0;
+  return d1 > d2 ? 1 : 2;
+}
+
+// ── v0.78.11 — UNA PARTITA LASCIATA A META' PAGA COMUNQUE IL TEMPO ────────
+// Prima qui non si scriveva NIENTE: chi usciva e chi restava tornavano al menu
+// come se quella mezz'ora non fosse esistita.
+// Adesso i turni giocati si pagano a tutti e due — quelli li ha giocati
+// davvero anche chi e' uscito, e togliergli anche quelli sarebbe punire un
+// crash. Il premio di fine invece dipende dalla parte in cui uno si trova:
+// zero per chi esce, perche' la sua partita non si e' conclusa in nessun modo;
+// per chi resta, quanto una vittoria se stava vincendo, e una via di mezzo se
+// stava perdendo — gli hanno tolto la partita dalle mani, e questo non e' colpa
+// sua ne' merito suo.
+// Il rank non si muove per nessuno dei due: vedi applicaEsito.
+function _uscita(state, dispatcher, logger, nk, chiEUscito) {
+  var vincente = _chiStavaVincendo(state);
+  for (var i = 0; i < state.giocatori.length; i++) {
+    var u = state.giocatori[i];
+    var uscito = (u === chiEUscito);
+    var stavaVincendo = (i + 1) === vincente;
+    try {
+      var esito = applicaEsito(nk, u, uscito ? false : stavaVincendo, false, false,
+        state.turniGiocati[u], uscito ? 'uscito' : 'resta');
+      esito.vinta = false;          // nessuno ha vinto: la partita non e' finita
+      esito.pari = false;
+      esito.perAbbandono = true;
+      esito.stavaVincendo = uscito ? false : stavaVincendo;
+      _aUno(dispatcher, state, u, OP_ESITO, esito);
+    } catch (e) {
+      logger.error('esito non scritto per %s dopo un abbandono: %s', u, String(e));
+    }
+  }
+}
+
 function partitaLeave(ctx, logger, nk, dispatcher, tick, state, presences) {
   for (var i = 0; i < presences.length; i++) {
     var u = presences[i].userId;
@@ -1663,6 +1787,10 @@ function partitaLeave(ctx, logger, nk, dispatcher, tick, state, presences) {
     if (state.iniziata && !state.finita) {
       state.finita = true;
       state.motivo = 'abbandono';
+      // v0.78.11 — prima dell'annuncio: l'esperienza si scrive, e chi resta la
+      // riceve insieme alla notizia invece di tornare al menu a mani vuote.
+      try { _uscita(state, dispatcher, logger, nk, u); }
+      catch (eu) { logger.error('esperienza non scritta dopo un abbandono: %s', String(eu)); }
       _aTutti(dispatcher, OP_FINE, { motivo: 'abbandono', chi: _indiceDi(state, u) + 1 });
       logger.info('partita finita per abbandono di %s', u);
     }
@@ -1786,6 +1914,7 @@ function partitaLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
 
     state.mano[chi].splice(posto, 1);
     state.occupate[k] = { carta: carta, di: idx + 1 };
+    state.turniGiocati[chi] = (state.turniGiocati[chi] || 0) + 1;
     // v0.77.86 — da adesso, se quella carta chiede un bersaglio, a rispondere
     // puo' essere solo lui (vedi OP_SCELGO).
     state.ultimaGiocataDi = idx;
@@ -1825,6 +1954,9 @@ function partitaLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
     var scelta = mano.shift();
     var pezzi = libera.split(',');
     state.occupate[libera] = { carta: scelta, di: state.turno + 1 };
+    // Anche un turno giocato d'ufficio e' un turno passato in partita: chi era
+    // al tavolo c'e' stato. Non contarlo penalizzerebbe una connessione lenta.
+    state.turniGiocati[tocca] = (state.turniGiocati[tocca] || 0) + 1;
     // Anche la giocata d'ufficio e' una giocata: se quella carta chiede un
     // bersaglio, la rinuncia deve poter arrivare da chi l'ha "giocata".
     state.ultimaGiocataDi = state.turno;
@@ -1910,7 +2042,7 @@ function _chiudiPartita(state, dispatcher, logger, nk, rapporto) {
     var esito;
     try {
       // controIA = false: questa e' una partita fra persone, e muove il rank.
-      esito = applicaEsito(nk, u, suo, pari, false);
+      esito = applicaEsito(nk, u, suo, pari, false, state.turniGiocati[u], 'finita');
     } catch (e) {
       logger.error('esito non scritto per %s: %s', u, String(e));
       continue;
