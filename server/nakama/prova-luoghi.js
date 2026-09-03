@@ -86,5 +86,27 @@ chiedi('e nemmeno cosi\' la mano viene toccata',
   somma(M.deltaContinuo(inMano, scenaDelRiquadro)), 0,
   'la scena ridotta non deve diventare una scorciatoia per rientrare dalla finestra.');
 
+// ── v0.78.17 — E LA STESSA CARTA ANCHE SE E' UN ALTRO OGGETTO ─────────────
+// Il riquadro dei buff non riceve sempre l'oggetto che sta sul tabellone: il
+// gioco ne fa delle copie — l'anteprima clona il campo, la scheda a schermo
+// intero costruisce la carta al livello scelto. Rispondendo per IDENTITA', a
+// una copia si diceva "non e' in campo", e il riquadro tornava a mostrare il
+// numero senza il nome: e' il difetto che Lorenzo ha visto due volte di fila.
+// La scena del gioco riconosce ora anche l'id (vedi _scenaTabellone); qui si
+// prova che il motore fa la cosa giusta quando glielo si dice.
+console.log('\nE LA STESSA CARTA, ANCHE IN COPIA\n');
+const copia = JSON.parse(JSON.stringify(inCampo));      // stesso id, altro oggetto
+const copiaInMano = JSON.parse(JSON.stringify(inMano));
+const perId = new Map([[lj.id, '0,0'], [inCampo.id, '1,0']]);
+const scenaTollerante = Object.assign({}, scenaDelRiquadro, {
+  cellaDi: (x) => dove.get(x) || ((x && x.id && perId.get(x.id)) || null)
+});
+chiedi('una COPIA della carta in campo riceve il buff',
+  somma(M.deltaContinuo(copia, scenaTollerante)) > 0, true,
+  'senza, il riquadro mostra il numero e tace su chi lo sta facendo.');
+chiedi('e una copia di una carta in MANO no',
+  somma(M.deltaContinuo(copiaInMano, scenaTollerante)), 0,
+  'riconoscere una carta non vuol dire spostarla in campo.');
+
 console.log('\n' + (ko ? 'FALLITO: ' + ko : 'OK: un luogo e\' un luogo, e la domanda e\' "dove sei"'));
 process.exit(ko ? 1 : 0);

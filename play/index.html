@@ -9550,6 +9550,12 @@ body.prova-senza-willchange #mm-book-rot{
   <div id="mm2">
     <!-- il fondale e la sua candela: la seconda immagine e' la stessa scena
          illuminata, e a farla respirare e' la sua opacita' (vedi mm2Candela). -->
+    <!-- ── v0.78.16 — quanti stanno giocando adesso ─────────────────────────
+         v0.78.17 — stava DENTRO alla barra in alto, che e' alta cento pixel:
+         messo a 104 dal suo bordo, finiva fuori dalla scatola del proprio
+         genitore e non si vedeva. Adesso e' figlio di #mm2, cioe' di tutta la
+         schermata, che e' anche quel che "fuori dalla top bar" vuol dire. -->
+    <div id="mm2-online"></div>
     <img id="mm2-bg" alt="" draggable="false">
     <img id="mm2-bg-lit" alt="" draggable="false">
     <canvas id="mm2-particles-far"  class="mm2-particelle" aria-hidden="true"></canvas>
@@ -9580,10 +9586,6 @@ body.prova-senza-willchange #mm-book-rot{
         <span class="mm2-nav-label" style="font-size:28px">Play vs AI</span>
       </button>
       </div>
-      <!-- v0.78.16 — quanti stanno giocando adesso. Sotto al pulsante delle
-           impostazioni e FUORI dalla barra: e' un dato sul mondo, non un
-           comando, e sta dove lo sguardo passa senza cercarlo. -->
-      <div id="mm2-online"></div>
       <div id="mm2-topbar-icone" class="mm2-topbar-sopra">
         <button class="mm2-icona" id="mm2-bug" aria-label="Report a bug"><img alt="" draggable="false"></button>
         <button class="mm2-icona" id="mm2-news" aria-label="Patch notes" onclick="apriPatchNotesDalMenu()"><img alt="" draggable="false"></button>
@@ -10244,7 +10246,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.78.16</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.78.17</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -15945,6 +15947,7 @@ function mmFermaCronometro(){
 // server, e per giunta un rumore che cresce con quanti giocano.
 const ONLINE_OGNI_MS = 20000;
 let _onlineTimer = null;
+let _onlineLamentato = false;
 async function aggiornaGiocatoriOnline(){
   const el = document.getElementById('mm2-online');
   if(!el) return;
@@ -15956,7 +15959,13 @@ async function aggiornaGiocatoriOnline(){
     // uno zero direbbe "non gioca nessuno", che e' un'altra cosa da "non lo so".
     if(n === null) return;
     el.textContent = n + (n === 1 ? ' player online' : ' players online');
-  }catch(_){ /* il menu non si rovina per un contatore */ }
+  }catch(e){
+    // Il menu non si rovina per un contatore, ma il silenzio totale rende
+    // indistinguibile "il server non risponde" da "il contatore non esiste":
+    // lo si dice una volta sola, che basta a chi va a cercare.
+    if(!_onlineLamentato){ _onlineLamentato = true;
+      console.warn('[online] non riesco a sapere quanti stanno giocando: ' + (e && e.message)); }
+  }
 }
 function avviaContatoreOnline(){
   if(_onlineTimer) return;
@@ -15981,6 +15990,16 @@ function avviaContatoreOnline(){
 // da cui una carta puo' arrivare, e la prima che si dimentica non sarebbe mai
 // nuova senza che nessuno se ne accorga.
 let CARTE_NUOVE = new Set();
+// Una carta e' "ancora da guardare"? La si chiede con lo slug, che e' la
+// chiave del server, ma si accetta anche l'id: le due forme convivono nel
+// gioco, e un elenco che arriva da una strada nuova non deve poter tacere.
+function _eCartaNuova(entry){
+  if(!entry || !CARTE_NUOVE.size) return false;
+  return CARTE_NUOVE.has(String(entry.slug || '')) || CARTE_NUOVE.has(String(entry.id || ''));
+}
+function _chiaveCartaNuova(entry){
+  return String((entry && (entry.slug || entry.id)) || '');
+}
 function carteNuoveDalServer(elenco){
   CARTE_NUOVE = new Set(Array.isArray(elenco) ? elenco.map(String) : []);
   try{ aggiornaPallinoNovita(); }catch(_){ }
@@ -15993,6 +16012,7 @@ function segnaCartaGuardata(id){
   id = String(id || '');
   if(!id || !CARTE_NUOVE.has(id)) return;
   CARTE_NUOVE.delete(id);
+  // Il server tiene le carte per slug: gli si dice quella chiave.
   _visteDaDire.push(id);
   aggiornaPallinoNovita();
   if(_visteTimer) clearTimeout(_visteTimer);
@@ -19189,18 +19209,42 @@ function vestiPannelliGiocatori(vsAI){
 // la stessa domanda da cui dipendono cornice, angoli e numeri della carta
 // (playerFactionIsDark). Si rifa' a ogni cambio di fazione, perche' e' li' che
 // la risposta cambia.
+// ── v0.78.17 — I DUE FILE NON SONO DISEGNATI ALLO STESSO MODO ─────────────
+// Misurati sul canale alfa: score-dark e' 499x443 col disegno fra y 82 e 442,
+// score-light e' 499x511 col disegno fra y 81 e 459. Due tele diverse, e le
+// due immagini entrano nel riquadro quadrato con `contain`: la scura, piu'
+// larga che alta, si ferma prima in verticale; la chiara riempie tutta
+// l'altezza. Il risultato e' che il riquadro DISEGNATO cade in due posti
+// diversi — il centro ottico della scura al 58.1% del riquadro, quello della
+// chiara al 52.8% — ed e' quello che si vedeva: l'orb del giocatore bianco
+// piu' in alto dell'altro.
+// Non e' una svista di misura da correggere a occhio: e' che il file e'
+// cambiato sotto a un CSS tarato sul precedente. Si allinea quindi il
+// DISEGNO, spostando la chiara in giu' della differenza fra i due centri, e si
+// mette il numero al centro del proprio riquadro invece che a un 58% valido
+// per una sola delle due.
+// Le due misure sono percentuali dell'orb e non pixel: cosi' restano giuste se
+// un domani --pi-score-h cambia.
+const ORB_CENTRO = { dark: 58.1, light: 52.8 };   // centro ottico, in % dell'orb
 function vestiOrbDelPunteggio(){
   if(typeof document === 'undefined') return;
   for(const n of [1, 2]){
     let scuro = true;
     try{ scuro = playerFactionIsDark(n); }catch(_){ }
     const file = scuro ? 'score-dark.png' : 'score-light.png';
+    const centro = scuro ? ORB_CENTRO.dark : ORB_CENTRO.light;
     for(const cls of ['.player-hp-orb-bg', '.player-hp-orb-lampo']){
       // Gli orb stanno dentro al pannello del proprio giocatore, ma la loro
       // classe e' la stessa per tutti e due: si cerca dal pannello.
       const el = document.querySelector('#p' + n + '-info ' + cls);
-      if(el) impostaImgDaCandidati(el, uiFileCandidati(file));
+      if(!el) continue;
+      impostaImgDaCandidati(el, uiFileCandidati(file));
+      // Il disegno scende fino a coincidere con quello dell'altra fazione.
+      el.style.transform = 'translateY(' + (ORB_CENTRO.dark - centro).toFixed(2) + '%)';
     }
+    // E il numero al centro del proprio riquadro, non a quello dell'altro.
+    const num = document.querySelector('#p' + n + '-info .player-hp-value');
+    if(num) num.style.top = ORB_CENTRO.dark + '%';
   }
 }
 function applyFactionToPlayerPanels(){
@@ -23629,7 +23673,12 @@ function cardDbRenderRoster(){
     // v0.78.16 — se questa carta non e' ancora stata guardata, si accende.
     // Il nastro e l'alone se ne vanno al primo passaggio del puntatore, che e'
     // anche il momento in cui la si dichiara vista al server.
-    if(CARTE_NUOVE.has(String(entry.id||''))){
+    // v0.78.16 chiedeva `entry.id` (final-baba-yaga), ma il server tiene le
+    // carte per SLUG (baba-yaga) — e' la chiave con cui sono possedute,
+    // sbustate e contate. La domanda non trovava mai niente, quindi nessuna
+    // carta si accendeva mai. Si accettano tutte e due le forme: chi legge non
+    // deve sapere quale delle due gli e' arrivata.
+    if(_eCartaNuova(entry)){
       slot.classList.add('carta-nuova');
       const nastro = document.createElement('img');
       nastro.className = 'nuova-nastro'; nastro.alt = 'New'; nastro.draggable = false;
@@ -23637,7 +23686,7 @@ function cardDbRenderRoster(){
       slot.appendChild(nastro);
       slot.addEventListener('pointerenter', ()=>{
         slot.classList.remove('carta-nuova');
-        segnaCartaGuardata(entry.id);
+        segnaCartaGuardata(_chiaveCartaNuova(entry));
         // Il nastro resta nel DOM ma spento (vedi il CSS): toglierlo qui
         // farebbe saltare la dissolvenza a meta'.
       }, { once:true });
@@ -29535,16 +29584,34 @@ function latiLiberiDi(cella){
 function _scenaTabellone(){
   const inCampo = [];
   const dove = new Map();
+  const perId = new Map();
   for(const k in G.board){
     const cella = G.board[k];
-    if(cella && cella.card){ inCampo.push(cella.card); dove.set(cella.card, k); }
+    if(cella && cella.card){
+      inCampo.push(cella.card);
+      dove.set(cella.card, k);
+      if(cella.card.id) perId.set(cella.card.id, k);
+    }
   }
   return {
     inCampo: inCampo,
     inMano: (G.p1Hand || []).concat(G.p2Hand || []),
     // v0.77.93 — su quale casella sta una carta. La usa il motore per sapere
     // che due giocate sono due occasioni diverse (vedi _occasione).
-    cellaDi: (carta)=> dove.get(carta) || null,
+    // ── v0.78.17 — E LA RICONOSCE ANCHE SE E' UN ALTRO OGGETTO ────────────
+    // Si rispondeva per IDENTITA', e va benissimo finche' chi chiede ha in mano
+    // proprio la carta che sta sul tabellone. Ma il gioco ne fa delle copie —
+    // l'anteprima del trascinamento clona l'intero campo, la scheda a schermo
+    // intero costruisce la carta al livello scelto — e a una copia si
+    // rispondeva "non e' in campo".
+    // Da quando "board" vuol dire davvero in campo (v0.78.15), quel "no" ha
+    // smesso di essere innocuo: il riquadro dei buff smetteva di dire CHI
+    // stesse buffando, e restava il numero da solo. E' il difetto che Lorenzo
+    // ha visto due volte di fila con Little John.
+    // L'id di una carta e' unico nella partita: e' la stessa carta anche se e'
+    // un altro oggetto.
+    cellaDi: (carta)=> dove.get(carta)
+      || ((carta && carta.id && perId.get(carta.id)) || null),
     vicini: (carta)=>{
       const k = dove.get(carta);
       if(!k) return [];
@@ -38775,7 +38842,15 @@ function surrenderGame(){
   }
   clearInterval(timerInterval);
   collapseAllHandExpand();
-  const loser=G.currentPlayer;
+  // ── v0.78.17 — SI ARRENDE CHI PREME, NON CHI HA IL TURNO ────────────────
+  // `G.currentPlayer` e' di chi e' il turno, e ci si arrende anche — anzi
+  // soprattutto — quando NON tocca a te. Arrendendosi durante il turno del
+  // computer, il perdente risultava il computer: la schermata diceva "Computer
+  // surrendered" a chi aveva appena mollato.
+  // Chi preme questo pulsante e' il giocatore locale, e chi sia lo dice
+  // _goIoSono: in rete il numero che il server ci ha dato, fuori rete sempre il
+  // primo, perche' il secondo e' la macchina.
+  const loser=_goIoSono();
   const winner=loser===1?2:1;
   // ── v0.78.14 — QUI IL PUNTEGGIO ERA FALSIFICATO, E AL CONTRARIO ─────────
   // Si scrivevano due numeri finti per far uscire giusto il confronto dentro a
