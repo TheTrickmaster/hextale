@@ -1207,7 +1207,19 @@ function ombraPrepara(ctx, nk, logger, state) {
       nome: e.name || '',
       valori: { NW: v.NW || 0, NE: v.NE || 0, E: v.E || 0, SE: v.SE || 0, SW: v.SW || 0, W: v.W || 0 },
       abilita: e.abilita || null,
-      tratti: e.traitNames || e.traits || []
+      tratti: e.traitNames || e.traits || [],
+      // ── v0.77.92 — E I GRUPPI, CHE NON SONO DEDUCIBILI DAI NUMERI ────────
+      // Da quando gli effetti colpiscono un GRUPPO intero e non un lato solo
+      // (vedi latiColpiti), il motore ha bisogno di sapere come la carta e'
+      // divisa. Senza `groupSides` se li ricava dai numeri — fasce contigue
+      // di lati uguali — e quella deduzione NON coincide sempre con la verita':
+      // due gruppi distinti possono mostrare lo stesso numero, e dedotti
+      // diventerebbero uno solo.
+      // Sarebbe la peggiore delle divergenze: il client colpisce un gruppo, il
+      // server ne colpisce due, le impronte non tornano e la partita viene
+      // fermata per un guasto che non c'e'. I gruppi stanno nel catalogo:
+      // basta portarseli.
+      gruppi: e.groupSides || null
     };
     quante++;
   }
@@ -1256,8 +1268,16 @@ function ombraCarta(state, id, di) {
   if (!b) return null;
   var v = { NW: b.valori.NW, NE: b.valori.NE, E: b.valori.E, SE: b.valori.SE, SW: b.valori.SW, W: b.valori.W };
   var vb = { NW: b.valori.NW, NE: b.valori.NE, E: b.valori.E, SE: b.valori.SE, SW: b.valori.SW, W: b.valori.W };
+  // v0.77.92 — `groupSides` col nome che il motore si aspetta (lo stesso del
+  // client): e' cio' che decide quali lati si muovono insieme.
+  var gs = null, gi;
+  if (b.gruppi && b.gruppi.length) {
+    gs = [];
+    for (gi = 0; gi < b.gruppi.length; gi++) gs.push(b.gruppi[gi].slice());
+  }
   return { id: String(id), baseId: String(id), name: b.nome, owner: di,
-           values: v, valoriBase: vb, traitNames: b.tratti, traits: b.tratti, abilita: b.abilita };
+           values: v, valoriBase: vb, traitNames: b.tratti, traits: b.tratti,
+           groupSides: gs, abilita: b.abilita };
 }
 
 // La scena che il motore vuole: chi c'e' in campo, chi e' vicino a chi.
@@ -2040,17 +2060,66 @@ var ABILITA_MOTORE = (function () {
     for (i = 0; i < testo.length; i++) { h ^= testo.charCodeAt(i); h = (h * 16777619) >>> 0; }
     return h;
   }
+  // ── v0.77.91 — L'UNITA' DI UNA CARTA E' IL GRUPPO, NON IL LATO ──────────
+  // Una carta di Hextale non ha sei numeri: ha dei GRUPPI di lati, e ogni
+  // gruppo porta un numero solo (vedi gruppiDiCarta nel client, e il commento
+  // sopra di lei: "chi disegna o ragiona su una carta deve chiamare
+  // gruppiDiCarta"). Questa funzione era l'unico posto del gioco che quella
+  // regola non la rispettava: per RAND pescava un LATO fra sei, e per
+  // HIGHEST/LOWEST ne restituiva uno solo.
+  //
+  // COSA SUCCEDEVA. Il Genio dice "buff ally in_hand power all RAND 3", e il
+  // motore faceva la cosa giusta su chi colpire — tutte le carte in mano — ma
+  // poi metteva il +3 su MEZZO gruppo. Il numero che si vede e' quello del
+  // primo lato del gruppo, quindi se il lato pescato non era il primo il bonus
+  // spariva dalla vista: da fuori sembrava che il Genio buffasse due o tre
+  // carte a caso invece di tutte. E non era solo un difetto di disegno — il
+  // lato gonfiato combatteva davvero con tre punti in piu', invisibili.
+  //
+  // Adesso il sorteggio e' fra i GRUPPI, e si colpisce il gruppo intero.
+  // ATTENZIONE, E' ANCHE UNA QUESTIONE DI FORZA: un gruppo puo' valere due o
+  // tre lati, quindi RAND adesso da' piu' di prima. E' la conseguenza di
+  // rispettare il modello della carta, non una scelta di bilanciamento — se il
+  // Genio cosi' diventa troppo generoso, il numero si abbassa nel foglio.
+  function _gruppiDi(valori, carta) {
+    // Se la carta dichiara i propri gruppi, sono quelli e non si discute:
+    // due gruppi possono mostrare lo stesso numero e restare distinti.
+    var g = carta && carta.groupSides, i;
+    if (g && g.length) {
+      var copia = [];
+      for (i = 0; i < g.length; i++) copia.push(g[i].slice());
+      return copia;
+    }
+    // Senza, si ricavano come fa getGroups nel client: fasce contigue di lati
+    // con lo stesso numero, e la fascia finale che si ricongiunge alla prima.
+    var out = [], j = 0;
+    while (j < SEI_LATI.length) {
+      var v = valori[SEI_LATI[j]], k = j;
+      while (k < SEI_LATI.length && valori[SEI_LATI[k]] === v) k++;
+      out.push(SEI_LATI.slice(j, k));
+      j = k;
+    }
+    if (out.length > 1 && valori[out[out.length - 1][0]] === valori[out[0][0]]) {
+      var ultimo = out.pop();
+      out[0] = ultimo.concat(out[0]);
+    }
+    return out;
+  }
   function latiColpiti(ambito, valori, carta, seme) {
     if (ambito === 'ALL' || !ambito) return SEI_LATI.slice();
+    var gruppi = _gruppiDi(valori || {}, carta), i;
+    if (!gruppi.length) return [];
     if (ambito === 'HIGHEST' || ambito === 'LOWEST') {
       var cerca = estremo(valori, ambito === 'HIGHEST');
-      var out = [], i;
-      for (i = 0; i < SEI_LATI.length; i++) if ((valori[SEI_LATI[i]] || 0) === cerca) out.push(SEI_LATI[i]);
-      return out.length ? [out[0]] : [];
+      // Il primo gruppo che porta quel numero, tutto intero.
+      for (i = 0; i < gruppi.length; i++) {
+        if ((valori[gruppi[i][0]] || 0) === cerca) return gruppi[i].slice();
+      }
+      return [];
     }
     if (ambito === 'RAND' || ambito === 'ONE') {
       var chiave = String((carta && (carta.id || carta.name)) || '?') + '|' + String(seme || '');
-      return [SEI_LATI[_semeDi(chiave) % SEI_LATI.length]];
+      return gruppi[_semeDi(chiave) % gruppi.length].slice();
     }
     return SEI_LATI.slice();
   }

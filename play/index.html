@@ -9939,7 +9939,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.90</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.92</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -13820,7 +13820,6 @@ async function caricaCarteDalServer(){
   // un istante in cui il gioco ha le carte ma non sa chi sei.
   preferenzeDalServer(risposta.preferenze, risposta.bustinaProssima);
   salvaPossessoInCache();
-  _foglioLetto = true;
   return { cambiato: !!cambiato };
 }
 
@@ -14248,6 +14247,46 @@ function montaColonnaAccesso(){
   try{ accessoSalutaSeSessioneSalvata(); }catch(_){}
   // v0.77.30 — e Google, dove puo'.
   try{ montaAccessoGoogle(); }catch(_){}
+  // v0.77.91 — e l'Invio manda avanti (vedi invioMandaAvanti).
+  try{ invioMandaAvanti(dentro); }catch(_){}
+}
+
+// ── v0.77.91 — L'INVIO FA QUEL CHE CI SI ASPETTA ──────────────────────────
+// Scritta l'email e la password, premere Invio non faceva niente: bisognava
+// prendere il mouse e cercare il pulsante. E' un modulo di accesso, e in un
+// modulo di accesso l'Invio manda avanti — non e' una scorciatoia per esperti,
+// e' il gesto che tutti fanno per primo.
+//
+// UN ASCOLTATORE SOLO, sulla colonna, e non uno per campo. Due ragioni:
+//   - i campi sono cinque oggi (email, password, e i tre della registrazione)
+//     e domani potrebbero essere sei: appenderne uno a ciascuno vuol dire
+//     ricordarsene ogni volta, cioe' dimenticarsene una volta;
+//   - il pulsante da premere dipende da QUALE modulo e' in scena, e quello si
+//     sa solo al momento del tasto. Chiederlo adesso vorrebbe dire legare il
+//     campo al pulsante che gli sta accanto oggi.
+//
+// Il pulsante giusto e' il PRIMO `.hx-azione` del modulo visibile: nel login e'
+// "Login", nella registrazione "Confirm and create". Gli altri due del login —
+// "Create new account" e "Play offline" — vengono dopo nel markup, quindi
+// l'Invio non li puo' premere per sbaglio. Un pulsante gia' occupato (disabled,
+// mentre la richiesta e' in volo) non si preme: sarebbe un secondo accesso
+// sopra al primo.
+function invioMandaAvanti(dentro){
+  if(!dentro || dentro.__invioCollegato) return;
+  dentro.__invioCollegato = true;   // montaColonnaAccesso puo' girare piu' volte
+  dentro.addEventListener('keydown', (e)=>{
+    if(e.key !== 'Enter') return;
+    const campo = e.target;
+    if(!campo || !campo.classList || !campo.classList.contains('hx-campo')) return;
+    const modulo = campo.closest('.hx-modulo');
+    if(!modulo) return;
+    const bottone = modulo.querySelector('.hx-azione');
+    if(!bottone || bottone.disabled) return;
+    // Il tasto e' stato usato: non deve fare anche il suo mestiere di default
+    // (in certi contesti manderebbe il modulo una seconda volta).
+    e.preventDefault();
+    bottone.click();
+  });
 }
 let _raggiereBustineMontate = false;
 function montaRaggiereBustine(){
@@ -16015,17 +16054,66 @@ var ABILITA_MOTORE = (function () {
     for (i = 0; i < testo.length; i++) { h ^= testo.charCodeAt(i); h = (h * 16777619) >>> 0; }
     return h;
   }
+  // ── v0.77.91 — L'UNITA' DI UNA CARTA E' IL GRUPPO, NON IL LATO ──────────
+  // Una carta di Hextale non ha sei numeri: ha dei GRUPPI di lati, e ogni
+  // gruppo porta un numero solo (vedi gruppiDiCarta nel client, e il commento
+  // sopra di lei: "chi disegna o ragiona su una carta deve chiamare
+  // gruppiDiCarta"). Questa funzione era l'unico posto del gioco che quella
+  // regola non la rispettava: per RAND pescava un LATO fra sei, e per
+  // HIGHEST/LOWEST ne restituiva uno solo.
+  //
+  // COSA SUCCEDEVA. Il Genio dice "buff ally in_hand power all RAND 3", e il
+  // motore faceva la cosa giusta su chi colpire — tutte le carte in mano — ma
+  // poi metteva il +3 su MEZZO gruppo. Il numero che si vede e' quello del
+  // primo lato del gruppo, quindi se il lato pescato non era il primo il bonus
+  // spariva dalla vista: da fuori sembrava che il Genio buffasse due o tre
+  // carte a caso invece di tutte. E non era solo un difetto di disegno — il
+  // lato gonfiato combatteva davvero con tre punti in piu', invisibili.
+  //
+  // Adesso il sorteggio e' fra i GRUPPI, e si colpisce il gruppo intero.
+  // ATTENZIONE, E' ANCHE UNA QUESTIONE DI FORZA: un gruppo puo' valere due o
+  // tre lati, quindi RAND adesso da' piu' di prima. E' la conseguenza di
+  // rispettare il modello della carta, non una scelta di bilanciamento — se il
+  // Genio cosi' diventa troppo generoso, il numero si abbassa nel foglio.
+  function _gruppiDi(valori, carta) {
+    // Se la carta dichiara i propri gruppi, sono quelli e non si discute:
+    // due gruppi possono mostrare lo stesso numero e restare distinti.
+    var g = carta && carta.groupSides, i;
+    if (g && g.length) {
+      var copia = [];
+      for (i = 0; i < g.length; i++) copia.push(g[i].slice());
+      return copia;
+    }
+    // Senza, si ricavano come fa getGroups nel client: fasce contigue di lati
+    // con lo stesso numero, e la fascia finale che si ricongiunge alla prima.
+    var out = [], j = 0;
+    while (j < SEI_LATI.length) {
+      var v = valori[SEI_LATI[j]], k = j;
+      while (k < SEI_LATI.length && valori[SEI_LATI[k]] === v) k++;
+      out.push(SEI_LATI.slice(j, k));
+      j = k;
+    }
+    if (out.length > 1 && valori[out[out.length - 1][0]] === valori[out[0][0]]) {
+      var ultimo = out.pop();
+      out[0] = ultimo.concat(out[0]);
+    }
+    return out;
+  }
   function latiColpiti(ambito, valori, carta, seme) {
     if (ambito === 'ALL' || !ambito) return SEI_LATI.slice();
+    var gruppi = _gruppiDi(valori || {}, carta), i;
+    if (!gruppi.length) return [];
     if (ambito === 'HIGHEST' || ambito === 'LOWEST') {
       var cerca = estremo(valori, ambito === 'HIGHEST');
-      var out = [], i;
-      for (i = 0; i < SEI_LATI.length; i++) if ((valori[SEI_LATI[i]] || 0) === cerca) out.push(SEI_LATI[i]);
-      return out.length ? [out[0]] : [];
+      // Il primo gruppo che porta quel numero, tutto intero.
+      for (i = 0; i < gruppi.length; i++) {
+        if ((valori[gruppi[i][0]] || 0) === cerca) return gruppi[i].slice();
+      }
+      return [];
     }
     if (ambito === 'RAND' || ambito === 'ONE') {
       var chiave = String((carta && (carta.id || carta.name)) || '?') + '|' + String(seme || '');
-      return [SEI_LATI[_semeDi(chiave) % SEI_LATI.length]];
+      return gruppi[_semeDi(chiave) % gruppi.length].slice();
     }
     return SEI_LATI.slice();
   }
@@ -18557,63 +18645,7 @@ const FINAL_CARDS = [
 // codice vero (vedi eat_the_rich e compagnia piu' sotto), quindi dal foglio
 // si puo' assegnare un'abilita' gia' esistente, non inventarne una nuova.
 // Una chiave sconosciuta viene ignorata e segnalata in console.
-// Foglio del team "Tabella Carte Hextale" (di Lorenzo + ro.verdiani), scelto
-// da Lorenzo come fonte di verita'.
-//
-// v0.72.64 FIX — PERCHE' NON SI VEDEVANO LE CARTE DEL FOGLIO.
-// In v0.72.61 avevo scelto l'endpoint `gviz/tq?tqx=out:csv` perche' legge
-// sempre l'ultima versione e non richiede "Pubblica sul web". Sbagliato: quel
-// percorso NON manda l'header `Access-Control-Allow-Origin`, quindi il browser
-// scarica i byte ma VIETA alla pagina di leggerli e fetch() rigetta. Il gioco
-// cadeva ogni volta sul ripiego ("foglio non raggiungibile") e mostrava le 4
-// carte interne — esattamente il sintomo osservato.
-// Non me ne ero accorto perche' nei test simulavo la risposta con una route di
-// Playwright, che scavalca il controllo CORS: il caricatore risultava
-// funzionante mentre dal vivo non poteva funzionare. Riprodotto poi per bene
-// con due server locali su porte diverse (due origini vere): senza l'header
-// arrivano 4 carte, con l'header 7.
-// L'endpoint `/pub?output=csv` invece l'header lo manda, ed e' quindi l'unico
-// utilizzabile da una pagina web. In cambio richiede il passaggio
-// File > Condividi > Pubblica sul web, e serve la copia pubblicata, che Google
-// rigenera con qualche minuto di ritardo rispetto alle modifiche.
-// L'URL e' quello fornito da Google alla pubblicazione: contiene un token
-// (2PACX-...) generato in quel momento e NON ricavabile dall'id del file.
-// Va scritto per intero e non ricomposto a pezzi: senza `gid` Google serve la
-// prima scheda, che e' quella giusta. Se un domani servisse una scheda
-// diversa, si ripubblica scegliendola e si incolla il nuovo URL qui.
-const CARDS_SHEET_ID = '17atpUlgmzHMZibOMDKEMyr9LxN8o0aK18Gg-Q1Ziko4'; // solo per riferimento
-const CARDS_SHEET_CSV_URL =
-  'https://docs.google.com/spreadsheets/d/e/2PACX-1vQQuS2iOVZq9CLsdBxpwzj163l99wQebHtD0Lgf2XGPDyTLsLkC9EEHjolI4i4wQq37lElO8a1dz3Uw/pub?output=csv';
-const CARDS_SHEET_TIMEOUT_MS = 5000;
-// v0.72.73 — IL FOGLIO SI CHIEDE PER NOME.
-// Il documento contiene piu' schede: quella viva ("Cards DB") e la precedente
-// ("Foglio1"), rimasta li' con una struttura diversa. Fino alla v0.72.72 il
-// gioco non diceva quale voleva, e chiedere "la scheda" senza specificarla NON
-// e' una richiesta deterministica: due letture fatte a pochi secondi di
-// distanza hanno restituito schede diverse. Significa che quali carte
-// finivano in partita era, letteralmente, questione di fortuna.
-// Ora la scheda si nomina. Se un domani verra' rinominata, il caricamento
-// fallira' in modo evidente e con un messaggio chiaro, che e' molto meglio di
-// leggere in silenzio la scheda sbagliata.
-const CARDS_SHEET_NAME = 'Cards DB';
 
-// Parser CSV minimale ma corretto sulle virgolette: i flavour text contengono
-// virgole dentro le citazioni, quindi split(',') romperebbe le righe.
-function _csvParse(testo){
-  const righe=[]; let campo='', riga=[], inVirgolette=false;
-  for(let i=0;i<testo.length;i++){
-    const c=testo[i];
-    if(inVirgolette){
-      if(c==='"'){ if(testo[i+1]==='"'){ campo+='"'; i++; } else inVirgolette=false; }
-      else campo+=c;
-    } else if(c==='"') inVirgolette=true;
-    else if(c===','){ riga.push(campo); campo=''; }
-    else if(c==='\n'){ riga.push(campo); righe.push(riga); riga=[]; campo=''; }
-    else if(c!=='\r') campo+=c;
-  }
-  if(campo!=='' || riga.length){ riga.push(campo); righe.push(riga); }
-  return righe;
-}
 
 // ── STANDARD DI RARITA' (v0.72.73) ─────────────────────────────────────────
 // Due tabelle che il foglio puo' sempre scavalcare: se la colonna
@@ -18623,6 +18655,16 @@ function _csvParse(testo){
 //
 // SLOT GEMME: quanti incastonatori mostra la carta, per rarita' e livello.
 // Un indice per livello, da 1 a 4.
+// ── v0.77.91 — IL FOGLIO GOOGLE NON SI LEGGE PIU' DA QUI ─────────────────
+// Qui vivevano cinquecento righe che scaricavano il foglio delle carte (per
+// JSONP e per CSV), lo interpretavano e ne ricavavano FINAL_CARDS. Dalla
+// v0.77.36 non le chiamava piu' nessuno: le carte vengono dal database, e il
+// foglio e' rimasto lo strumento con cui si SCRIVONO, non quello da cui il
+// gioco le legge. La lettura del foglio vive adesso solo nell'importazione,
+// che gira a parte (server/importazione/), dove serve davvero.
+// Restano qui accanto valoriAlLivello, cartaAlLivello e le tabelle delle
+// gemme: quelle non erano del foglio, servono al gioco tutti i giorni.
+
 const GEMME_STANDARD = {
   common:   [0, 0, 1, 1],
   rare:     [0, 1, 1, 2],
@@ -18633,34 +18675,6 @@ const GEMME_STANDARD = {
 const DROP_RATE_STANDARD = { common:65, rare:22, mythic:10, timeless:3 };
 
 const LIVELLI_MAX = 4;
-// Legge una cella di valore. Restituisce sempre quattro numeri — uno per
-// livello — o null se non c'e' niente di leggibile.
-// `esplicita` dice quale delle due forme era scritta: serve a non confondere
-// una scaletta scritta a mano con quella ricavata dalla regola, perche' solo la
-// prima va conservata.
-function _scalettaDiLivelli(cella, nomeCarta, nomeLato){
-  const grezzo = String(cella==null ? '' : cella).trim();
-  if(!grezzo) return null;
-  // Il separatore accetta il trattino normale e quello lungo, che un foglio di
-  // calcolo inserisce da solo mentre si scrive.
-  const pezzi = grezzo.split(/\s*[-\u2013\u2014]\s*/).filter(x=>x!=='');
-  const numeri = pezzi.map(x=>parseInt(x,10)).filter(n=>isFinite(n));
-  if(!numeri.length) return null;
-  if(numeri.length !== 1 && numeri.length !== LIVELLI_MAX){
-    console.warn('[carte] "'+(nomeCarta||'?')+'", lato '+(nomeLato||'?')+': "'+grezzo
-      + '" ha '+numeri.length+' numeri. Le forme accettate sono DUE: un numero solo'
-      + '\n(il livello 1, e ogni livello successivo aggiunge +1) oppure quattro'
-      + '\n(un valore per livello, es. "4-6-7-7"). Per ora vale il primo numero'
-      + '\ncol +1 a livello.');
-  }
-  const esplicita = numeri.length === LIVELLI_MAX;
-  const fuori = [];
-  for(let i=0;i<LIVELLI_MAX;i++){
-    fuori.push(esplicita ? numeri[i] : numeri[0] + i);
-  }
-  fuori.esplicita = esplicita;
-  return fuori;
-}
 // Il bonus di livello: +1 a ogni lato per ogni livello oltre il primo.
 // Sta in una funzione sua e non sparso nel lettore del foglio perche' e' una
 // REGOLA di gioco, non un dettaglio di come si legge una riga: il giorno in cui
@@ -18767,631 +18781,14 @@ function cartaAlLivello(card, livello){
   return copia;
 }
 
-// Legge la prima colonna disponibile fra piu' nomi possibili. Serve perche' i
-// titoli del foglio condiviso cambiano nel tempo (es. "Level (Temp)", che un
-// giorno diventera' "Level"): accettarne piu' d'uno evita che una rinomina
-// innocua svuoti silenziosamente un campo.
-function getAlt(get, nomi){
-  for(const n of nomi){ const v=get(n); if(v && v.trim()) return v; }
-  return '';
-}
 
-// Da riga del foglio a voce di FINAL_CARDS. Ritorna null se la riga non e'
-// utilizzabile (manca il nome o mancano i sei valori): meglio saltare una
-// carta incompleta che immetterne una rotta nel mazzo.
-// v0.75.81 — vedi l'avviso sulle colonne dei tratti, dentro alla funzione.
-let _trattiMancantiSegnalato = false;
-function _cardaDaRiga(col, get, haColonna){
-  const nome=(get('Name')||'').trim();
-  if(!nome) return null;
-  // v0.72.73 — E' LA COLONNA "VISIBLE" A DIRE SE UNA RIGA E' UNA CARTA.
-  // Il foglio contiene oltre cento nomi, ma la maggior parte sono ancora idee.
-  // Chi lo cura marca con Yes le righe pronte a entrare in gioco: e' una
-  // decisione esplicita, presa da una persona, e vale piu' di qualunque
-  // criterio indiretto. Prima si guardava la Rarity, e prima ancora i valori
-  // dei lati — entrambi indovinavano l'intenzione invece di leggerla.
-  // Se la colonna non c'e' proprio (schede piu' vecchie), si ripiega sul
-  // criterio precedente invece di dichiarare che non esiste nessuna carta.
-  const AFFERMATIVI=['yes','y','si','sì','true','vero','x','1'];
-  // v0.73.37 — il controllo passa dallo stesso confronto tollerante di tutto
-  // il resto (vedi haColonna). Il ripiego serve a chi chiama questa funzione
-  // da una prova isolata, senza indice delle colonne.
-  const haColonnaVisible = (typeof haColonna === 'function')
-    ? haColonna('Visible')
-    : (Array.isArray(col) && col.some(x=>String(x||'').toLowerCase().trim()==='visible'));
-  // ── LE DUE COLONNE CHE DECIDONO DOVE UNA CARTA APPARE ───────────────────
-  // Sono due domande diverse e non vanno confuse:
-  //   "Visible"        — questa carta e' PRONTA per il gioco? Se non lo e', non
-  //                      viene proprio caricata: non e' una carta, e' una riga
-  //                      di lavoro.
-  //   "Drop rate (%)" a 0 — questa carta e' pronta, ma non si ottiene: fuori
-  //                      dalla Collezione, dai mazzi e dalle bustine (vedi
-  //                      soloEvocabile). E' il modo di dichiarare una carta che
-  //                      esiste solo perche' qualcun'altra la evoca o ci si
-  //                      trasforma — Excalibur, The Crystal Princess, The Green
-  //                      Prince.
-  // v0.75.71 — la v0.75.70 aveva provato a far fare a Visible il mestiere del
-  // drop rate, tenendo da parte le righe non visibili perche' le evocazioni le
-  // trovassero lo stesso. Sbagliato: due colonne che dicono la stessa cosa in
-  // due modi sono due posti in cui cercare quando qualcosa non appare.
-  if(haColonnaVisible && !AFFERMATIVI.includes((get('Visible')||'').trim().toLowerCase())) return null;
-  // La rarita' resta necessaria a gemme, drop rate e colore della gemma di
-  // livello: se manca si assume la piu' comune, che e' il default meno
-  // sorprendente.
-  const RARITA_VALIDE=['common','rare','mythic','timeless'];
-  let rarita=(get('Rarity')||'').trim().toLowerCase();
-  if(!RARITA_VALIDE.includes(rarita)){
-    if(!haColonnaVisible) return null; // vecchio criterio: senza rarita' non e' una carta
-    rarita='common';
-  }
-  // I valori si prendono dal foglio quando ci sono TUTTI E SEI. Se ne manca
-  // anche uno solo la carta non e' mezza compilata: e' da compilare, e mettere
-  // in gioco tre lati veri e tre inventati sarebbe peggio che inventarli
-  // tutti, perche' il risultato sembrerebbe intenzionale. Vedi la regola dei
-  // valori sopra per come vengono generati quelli provvisori.
-  // Livello e slot gemme: indipendenti dai valori dei lati, si calcolano qui
-  // perche' servono entrambi piu' sotto.
-  const liv=parseInt(getAlt(get,['Level','Level (Temp)']),10);
-  const livello=isFinite(liv)?Math.max(1,Math.min(4,liv)):livelloCasualeStabile(nome);
-  const gemmeDaFoglio=parseInt(get('Gem slots'),10);
-  const slotGemmeDalFoglio=isFinite(gemmeDaFoglio) && gemmeDaFoglio>=0;
-  const slotGemme = slotGemmeDalFoglio
-    ? gemmeDaFoglio
-    : ((GEMME_STANDARD[rarita] || GEMME_STANDARD.common)[livello-1] || 0);
 
-  // ── v0.75.64 — UN LATO PUO' AVERE UN VALORE PER LIVELLO ─────────────────
-  // Nella cella di un lato si puo' scrivere un numero solo — "4" — e allora
-  // vale la regola di sempre: quello e' il livello 1, e ogni livello oltre
-  // aggiunge +1. Oppure una scaletta — "4-6-7-7" — e allora quei numeri SONO i
-  // livelli, uno per uno: 4 al primo, 6 al secondo, 7 al terzo e al quarto.
-  // Le forme sono DUE e solo due: un numero, o quattro. Una scaletta di due o
-  // tre numeri non e' una scrittura piu' corta, e' una riga incompleta — e
-  // indovinare cosa volesse dire vorrebbe dire far giocare una carta diversa da
-  // quella che il foglio dichiara. Si segnala in console e si torna alla regola
-  // del +1 sul primo numero, che e' il comportamento di sempre.
-  const lati=['NW','NE','E','SE','SW','W'];
-  let values={};
-  let scalette=null;   // {lato: [v1,v2,v3,v4]} solo per i lati scritti a scaletta
-  let completa=true;
-  let latoMancante=null;
-  for(const s of lati){
-    const scala=_scalettaDiLivelli(get(s), nome, s);
-    if(!scala){ completa=false; latoMancante=s; break; }
-    values[s]=scala[0];
-    if(scala.esplicita){ (scalette || (scalette={}))[s]=scala; }
-  }
-  if(!completa){
-    values = valoriProvvisori(nome);
-    // v0.75.65 — E LO SI DICE. Questo ripiego inventa i sei valori di una carta,
-    // ed era muto: una carta con una cella vuota entrava in partita con numeri
-    // che non stanno scritti da nessuna parte, e dal gioco sembrava un errore
-    // del codice. E' successo con Excalibur — che nel foglio ha 0-0-0-0 su ogni
-    // lato ma che il gioco aveva letto prima di quella modifica — ed e' costato
-    // un'indagine che questa riga avrebbe chiuso in dieci secondi.
-    console.warn('[carte] "'+nome+'": la colonna '+latoMancante+' e\' vuota o illeggibile,'
-      + '\nquindi TUTTI e sei i valori di questa carta sono INVENTATI dal codice'
-      + '\n(valori provvisori, stabili per nome). Quelli scritti nel foglio negli altri'
-      + '\nlati vengono ignorati: bastano sei celle leggibili perche\' valgano i suoi.'
-      + (_daFileLocale
-        ? '\n\nATTENZIONE: il gioco e\' aperto DAL DISCO, e da li\' il foglio si legge via'
-          + '\ngviz, che decide un tipo per ogni colonna e SCARTA le celle che non ci'
-          + '\nrientrano: se in questa hai scritto un valore per livello ("4-6-7-7"), in'
-          + '\nuna colonna di numeri quel testo non arriva affatto. Aprendo il gioco dal'
-          + '\nlink di GitHub Pages viene letta la copia pubblicata, che le celle le'
-          + '\nconsegna com\'e\' scritte, e il problema non si presenta.'
-        : ''));
-  } else if(!valoriRispettanoLaRegola(values)){
-    // I valori scritti a mano nel foglio NON vengono corretti: chi li ha messi
-    // avra' avuto le sue ragioni, e riscriverli dal codice significherebbe far
-    // giocare una carta diversa da quella che il foglio dichiara. Si segnala e
-    // basta — cosi' chi cura il foglio sa dove guardare. (Alla scrittura di
-    // questa versione, Alice ha 3 6 6 6 3 3, che somma 27.)
-    const somma = SIDES.reduce((t,l)=>t+(values[l]||0), 0);
-    console.warn('[carte] "'+nome+'" non rispetta la regola dei valori: somma '+somma
-      +' (ammesso '+VALORI_SOMMA_MIN+'-'+VALORI_SOMMA_MAX+'), '
-      +getGroups(values).length+' gruppi (massimo '+VALORI_GRUPPI_MAX+')');
-  }
-  // v0.72.61 — il foglio e' quello condiviso del team, che ha colonne PROPRIE
-  // e non le tre che avevo aggiunto io. Invece di chiedere a chi ci lavora di
-  // aggiungerne, il lettore si adatta a quelle esistenti:
-  //   - "Level (Temp)" invece di "Level" (getAlt accetta piu' nomi possibili,
-  //      cosi' se un domani la colonna viene rinominata "Level" funziona lo
-  //      stesso senza toccare il codice);
-  //   - lo slug dell'arte si DERIVA dal nome ("Robin Hood" -> "robinhood"),
-  //     che e' esattamente la convenzione dei file gia' presenti in cards/art/;
-  //   - l'abilita' si ricava dal nome leggibile ("Eat the Rich" ->
-  //     eat_the_rich), sempre normalizzando allo stesso modo. Cosi' la colonna
-  //     "Ability name", che nel foglio c'e' gia' ed e' compilata, fa da chiave
-  //     senza doverne aggiungere una tecnica accanto.
-  const norm=s=>(s||'').trim().toLowerCase().replace(/[^a-z0-9]+/g,'');
-  // v0.72.68 — DUE normalizzazioni diverse, e non e' una svista. `norm` toglie
-  // ogni separatore e serve a riconoscere le abilita' ("A Kind of Magic" ->
-  // akindofmagic); lo slug dei file tiene invece i trattini, perche' e' cosi'
-  // che si chiamano cartelle e file sul disco ("Robin Hood" -> robin-hood).
-  // Usare `norm` anche per i file — come faceva la v0.72.67 — fa cercare
-  // "robinhood/" dove c'e' "robin-hood/": nessun errore in console, solo la
-  // rana al posto dell'illustrazione.
-  const slug=slugPersonaggio(nome);
-  const arte=(get('Art slug')||slug).trim();
-  // v0.72.72 — "None" nel foglio vale come casella vuota: nessuna icona
-  // tratto sulla carta. Chi compila scrive "None" per dire esplicitamente
-  // "questa carta non ha un Tratto", che e' un'informazione diversa dal
-  // non aver ancora deciso ma porta allo stesso risultato a schermo. Senza
-  // questo filtro diventava un tratto di nome "none", che non ha icona e
-  // non corrisponde a nessun filtro della Collezione: la carta finiva fuori
-  // da ogni ricerca per tratto senza che si capisse perche'.
-  // Si scarta anche "/", il segno che il foglio usa altrove per "niente".
-  const TRATTI_VUOTI=['none','/','-','n/a'];
-  // (vedi piu' sotto: l'avviso sulle colonne mancanti si dice una volta sola)
-  // v0.73.3 — si conserva anche la GRAFIA DEL FOGLIO, non solo la chiave
-  // normalizzata. La chiave minuscola serve a confrontare e a comporre i nomi
-  // dei file; il nome da mostrare deve essere quello scritto nel foglio, non
-  // una ricostruzione. Rimettere la maiuscola a mano funziona finche' gli
-  // tratti sono parole singole, ma il giorno in cui qualcuno scrivera'
-  // "Wise Man" o "McGuffin" la ricostruzione darebbe "Wise man" e "Mcguffin".
-  // ── v0.75.81 — LE DUE COLONNE SI CHIAMANO "Trait 1" E "Trait 2" ──────────
-  // Erano "Archetype (Role)" e "Archetype (Trait)". Il nome nuovo dice anche
-  // una cosa che il vecchio negava: le due colonne pescano dalla STESSA lista,
-  // non ci sono piu' un ruolo e un tratto ma due tratti alla pari. Il codice
-  // gia' le fondeva in un elenco solo (`card.traits`), quindi non c'e' niente
-  // da cambiare oltre ai nomi — nessuna regola guardava mai "il ruolo" o "il
-  // tratto" separatamente, solo l'elenco intero.
-  //
-  // I nomi vecchi restano come ripiego, e non per nostalgia: un'intestazione
-  // che non si trova non fa rumore. La carta uscirebbe semplicemente SENZA
-  // TRATTI, e a quel punto Power Nap non protegge piu' nessuno, Kingslayer non
-  // trova bersagli, Cappuccetto non riconosce le sue prede e i filtri della
-  // Collezione la perdono — tutto in silenzio, senza un solo avviso. Se non si
-  // trova ne' il nome nuovo ne' il vecchio, si dice ad alta voce.
-  const _cella = (...nomi)=>{
-    for(const n of nomi){ if(haColonna(n)) return get(n); }
-    return '';
-  };
-  // Una volta sola: questa funzione gira su ogni riga del foglio, e un avviso
-  // ripetuto duecento volte si legge come un guasto invece che come un avviso.
-  if(!_trattiMancantiSegnalato
-     && !haColonna('Trait 1') && !haColonna('Trait 2')
-     && !haColonna('Archetype (Role)') && !haColonna('Archetype (Trait)')){
-    _trattiMancantiSegnalato = true;
-    console.warn('[carte] nessuna colonna dei tratti trovata ("Trait 1"/"Trait 2"): '
-      + 'ogni carta entrera\' in gioco SENZA TRATTI, e le abilita\' che li leggono '
-      + '(Power Nap, Kingslayer, Fearless, Power of Love...) non faranno niente. '
-      + 'RIMEDIO: controlla le intestazioni del foglio.');
-  }
-  const trattiGrezzi=[_cella('Trait 1','Archetype (Role)'), _cella('Trait 2','Archetype (Trait)')]
-    .map(x=>(x||'').trim())
-    .filter(x=>x && !TRATTI_VUOTI.includes(x.toLowerCase()));
-  const tratti=trattiGrezzi.map(x=>x.toLowerCase());
-  for(const nome of trattiGrezzi) registraNomeTratto(nome);
-  // ABILITA': si risolve il NOME MOSTRATO del foglio contro il registro vero.
-  // Derivare la chiave dal nome con una semplice normalizzazione NON funziona,
-  // ed e' un errore che avevo gia' commesso: su 17 abilita' solo 12 combaciano.
-  // "Smol Friends" ha chiave `smol_friends`, "A Kind of Magic" ha
-  // `a_kind_of_magic`, "Riparare" ha `riparare`. Chi compila il foglio scrive il
-  // nome leggibile, non la chiave interna — quindi si cerca per nome nel
-  // registro e si usa la normalizzazione solo come ripiego, per il caso in cui
-  // qualcuno scriva direttamente la chiave tecnica.
-  // v0.72.74 — "Ability unlocked at level": il livello a cui la carta sblocca
-  // la propria abilita'. Sotto quel livello l'abilita' c'e' — si vede, si sa
-  // cosa fara' — ma non agisce. Colonna vuota o non numerica significa
-  // sbloccata da subito, che e' il comportamento di prima e quindi il default
-  // che non sorprende nessuno.
-  const sbloccoGrezzo=parseInt(getAlt(get,['Ability unlocked at level','Ability unlock level']),10);
-  const abilityUnlockLevel=isFinite(sbloccoGrezzo)?Math.max(1,Math.min(4,sbloccoGrezzo)):1;
-  // ── v0.75.45 — IL LEGAME E' IL NOME DEL PERSONAGGIO ──────────────────────
-  // Prima era il nome dell'ABILITA' (v0.73.49). Il cambio ha una ragione sola,
-  // ed e' il numero di volte che quelle due celle vengono toccate: il nome di
-  // un'abilita' cambia spesso — si limano, si riscrivono, si spostano da una
-  // carta all'altra — mentre il nome di un personaggio, una volta scelto, non
-  // si tocca quasi mai. Agganciarsi alla cella che cambia significa scollegare
-  // l'abilita' ogni volta che la si rinomina, e succede in silenzio: la carta
-  // non si rompe, mostra NO_SCRIPT, e ci si accorge del guasto solo giocando.
-  // v0.75.44 e' costata proprio questo — "Braaaaaaaids" contro
-  // "Braaaaaaaaaaaids", quattro "a" di differenza invisibili a occhio.
-  // Adesso il nome dell'abilita' e la sua descrizione sono SOLO testo da
-  // mostrare: si possono riscrivere liberamente nel foglio senza toccare
-  // niente, ed e' il comportamento che ci si aspetta da una colonna di testo.
-  // Cio' che comanda e' il campo `carta` di ogni voce del registro.
-  //
-  // Il confronto passa da `norm`, quindi maiuscole, spazi e punteggiatura non
-  // contano: "Nottingham Sheriff", "nottingham sheriff" e "NottinghamSheriff"
-  // agganciano la stessa voce.
-  //
-  // COME SI SPEGNE UN'ABILITA' adesso: Trigger = "None", che e' la parola che
-  // il foglio usa gia' per dire "questa carta non ne ha". Svuotare "Ability
-  // name" non basta piu' — ed e' esattamente il punto, visto che quella cella
-  // deve poter essere modificata senza conseguenze.
-  const triggerGrezzo=(get('Trigger')||'').trim().toLowerCase();
-  const abilitaSpenta = triggerGrezzo === 'none';
-  const abGrezza=(get('Ability name')||'').trim();
-  const nomePersonaggio=norm(nome);
-  let abilita='';
-  if(nomePersonaggio && !abilitaSpenta){
-    let reg=null; try{ reg=TILE_ABILITIES_DEF; }catch(_){ reg=null; }
-    if(reg){
-      for(const k in reg){
-        if(reg[k].carta && norm(reg[k].carta) === nomePersonaggio){ abilita=k; break; }
-      }
-    }
-    // Nessuna voce per questo personaggio. Se il foglio dichiara comunque
-    // un'abilita' — un nome, o anche solo una descrizione — si tiene una chiave
-    // segnaposto: non aggancia niente (nel registro non esiste) e serve solo a
-    // far arrivare la carta al controllo piu' sotto, quello che la marca
-    // NO_SCRIPT. Senza, una carta con un'abilita' scritta ma non programmata
-    // uscirebbe muta, senza che nessuno lo dica.
-    // Il punto esclamativo davanti rende impossibile che un segnaposto
-    // coincida per caso con una chiave vera del registro.
-    if(!abilita && (abGrezza && abGrezza!=='/')){
-      abilita='!'+nomePersonaggio;
-    }
-  }
-  // Il drop rate accetta sia "3" sia "3%" sia "3,5", perche' in un foglio
-  // compilato a mano compaiono tutte e tre.
-  const dropDaFoglio=parseFloat(String(get('Drop rate (%)')||'').replace('%','').replace(',','.'));
-  const dropRateDalFoglio=isFinite(dropDaFoglio) && dropDaFoglio>=0;
-  const dropRate = dropRateDalFoglio ? dropDaFoglio : (DROP_RATE_STANDARD[rarita] ?? 0);
 
-  // v0.76.0 — IL NUMERO DELLA CARTA NEL FOGLIO. Fin qui non veniva letto: al
-  // gioco bastava lo slug ricavato dal nome. Serve ai codici mazzo, dove due
-  // caratteri al posto di venti sono la differenza fra un codice che si passa
-  // e uno che non si passa (vedi codiceDelMazzo).
-  const numeroDalFoglio = parseInt(String(get('ID')||'').replace(/[^0-9]/g,''), 10);
-  return {
-    id:'final-'+slug,
-    numero: isFinite(numeroDalFoglio) ? numeroDalFoglio : null,
-    name:nome,
-    quote:(get('Flavour text')||'').trim(),
-    // v0.73.0 — I VALORI DEL FOGLIO SONO LA BASE DI LIVELLO 1: ogni livello
-    // oltre il primo aggiunge +1 a ogni lato, piatto. Una carta di livello 4
-    // gioca quindi con +3 su tutti e sei. Il foglio resta la base e non va
-    // ricalcolato a mano quando una carta sale: il numero scritto li' significa
-    // sempre la stessa cosa, indipendentemente dal livello.
-    values: valoriAlLivello(values, livello, scalette),
-    // v0.73.1 — la divisione in gruppi, decisa qui una volta sola. Il bonus di
-    // livello somma lo stesso numero a tutti i lati, quindi non cambia quali
-    // lati stanno insieme: si puo' ricavare indifferentemente dai valori base.
-    groupSides: gruppiIniziali(values),
-    // I valori come stanno nel foglio, prima del bonus. Servono a sapere da
-    // dove si e' partiti senza doverlo ricavare per sottrazione.
-    valuesBase: values,
-    // v0.75.64 — i lati che nel foglio hanno una scaletta di livelli. Viaggia
-    // con la riga perche' e' la riga a dichiararlo: chi ricostruisce la carta a
-    // un livello diverso (la vetrina della scheda) deve poterlo chiedere alla
-    // stessa fonte, non ricavarlo per sottrazione.
-    valuesPerLivello: scalette,
-    // v0.72.73 — SLOT GEMME. Standard per rarita' e livello (vedi
-    // GEMME_STANDARD), scavalcato dalla colonna "Gem slots" quando c'e' scritto
-    // un numero. Le carte del foglio avevano groupGems sempre vuoto, ed e' per
-    // questo che gli incastonatori non si vedevano mai.
-    groupGems: slotGemmeDaConteggio(slotGemme),
-    activatedGroups:{},
-    // Probabilita' che la carta esca da una bustina. Non c'e' ancora niente da
-    // aprire, quindi per ora e' solo un dato che la carta si porta dietro:
-    // standard per rarita', scavalcato dalla colonna "Drop rate (%)".
-    dropRate: dropRate,
-    dropRateProvvisorio: !dropRateDalFoglio,
-    gemSlots: slotGemme,
-    gemSlotsProvvisori: !slotGemmeDalFoglio,
-    // v0.72.67 — niente piu' arte piatta: l'illustrazione e' SEMPRE la pila
-    // di 4 livelli in cards/art/<slug>/, riempita dopo la verifica di
-    // esistenza (vedi verificaArtCarte). artDark/artLight restano nulli
-    // apposta: cosi' getCardArtVariants ripiega da se' sui due segnaposto
-    // condivisi, che sono esattamente cio' che deve vedere una carta senza
-    // cartella d'arte.
-    slug: arte,
-    artDark: null,
-    artLight: null,
-    artLayersDark: null,
-    artLayersLight: null,
-    cardAbility:abilita,
-    // v0.72.62 — nome e descrizione dell'abilita' COSI' COME STANNO NEL
-    // FOGLIO. Servono alle abilita' non ancora programmate: quelle non hanno
-    // una voce in TILE_ABILITIES_DEF da cui pescare i testi, quindi senza
-    // questi due campi la carta mostrerebbe uno spazio vuoto. Con questi,
-    // mostra il nome vero seguito dal marcatore NO_SCRIPT.
-    abilityNameSheet:(get('Ability name')||'').trim().replace(/^\/$/,''),
-    abilityDescSheet:(get('Ability description')||'').trim().replace(/^\/$/,''),
-    // Il trigger dichiarato nel foglio (On play, Synergy, Passive, End of
-    // Turn, Conquest, Reaction). Per ora e' solo informativo: la logica dei
-    // trigger vive nel codice dell'abilita'. "In hand" e' escluso su richiesta.
-    abilityTrigger:(get('Trigger')||'').trim().replace(/^\/$/,''),
-    abilityUnlockLevel,
-    // Comodita' di lettura: l'abilita' e' ancora chiusa a chiave?
-    abilityLocked: livello < abilityUnlockLevel,
-    traits:tratti,
-    traitNames:trattiGrezzi,
-    rarity:rarita,
-    // Segna le carte i cui valori se li e' inventati il gioco. Per ora serve a
-    // saperlo dalla console; e' anche l'aggancio pronto se un domani si
-    // volesse marcarle visivamente in Collezione.
-    valoriProvvisori: !completa,
-    // v0.72.67 — livello mancante nel foglio: se ne assegna uno fra 1 e 3,
-    // ricavato dal NOME della carta e non da Math.random(). Deve restare lo
-    // stesso a ogni avvio: il livello governa gemme e tier degli effetti foil
-    // in Collezione, e vederli cambiare da soli fra una partita e l'altra
-    // sembrerebbe un bug. Stessa carta, stesso livello, sempre.
-    level:livello,
-  };
-}
 
-// v0.72.66 FIX ("in game non carica il db delle carte: foglio non
-// raggiungibile") — PERCHE' FALLIVA E PERCHE' ORA NON PUO' PIU' FALLIRE.
-//
-// Il foglio era pubblicato correttamente e l'URL `/pub?output=csv` era
-// giusto: il problema non stava ne' nel foglio ne' nell'indirizzo. Stava nel
-// MODO in cui la pagina viene aperta durante lo sviluppo, cioe' con un doppio
-// click sul file. In quel caso l'indirizzo e' `file:///C:/...` e il browser
-// assegna alla pagina l'origine speciale `null`, che NON e' un'origine vera:
-// qualunque `fetch()` verso un altro sito viene rifiutato prima ancora di
-// partire. Il caricatore cadeva quindi sempre sul ripiego, mostrando le carte
-// interne — e in v0.72.64 non me n'ero accorto perche' avevo riprodotto il
-// problema con due server locali (due origini VERE, dove `/pub?output=csv`
-// funziona davvero), non aprendo il file dal disco come fa Lorenzo.
-//
-// La soluzione non e' un URL diverso: e' non usare `fetch()` come strada
-// principale. Un tag <script> puo' caricare codice da qualsiasi sito senza
-// alcun controllo di origine — e' cosi' che funzionano da sempre le librerie
-// da CDN — e Google offre proprio per questo l'endpoint `gviz/tq` in modo
-// JSONP: gli si passa il nome di una funzione (`responseHandler`) e lui
-// risponde con uno script che la chiama passandole i dati. Nessun `fetch()`,
-// nessuna origine da controllare, nessun CORS: funziona identico da file://,
-// da localhost, dal sito pubblicato.
-// In piu' `gviz` legge il foglio DAL VIVO, mentre `/pub?output=csv` serve una
-// copia che Google rigenera con qualche minuto di ritardo: chi compila il
-// foglio vede ora le modifiche subito, senza aspettare.
-//
-// Il `fetch()` del CSV resta come SECONDA strada, non come prima: se un
-// domani Google cambiasse `gviz`, il gioco continuerebbe a leggere il foglio
-// dalla copia pubblicata invece di ripiegare sulle 4 carte interne. E se
-// entrambe falliscono si tiene la tabella interna, come prima: un errore di
-// rete non puo' lasciare il gioco senza carte.
 
-// Converte la risposta di gviz nella STESSA forma prodotta da _csvParse
-// (prima riga = intestazioni, poi una riga per carta), cosi' il resto del
-// caricatore non deve sapere da quale delle due strade sono arrivati i dati.
-function _gvizAllaTabella(dati){
-  if(!dati || !dati.table) return [];
-  const colonne = dati.table.cols || [];
-  const corpo = (dati.table.rows || []).map(r =>
-    colonne.map((_,i) => {
-      const cella = (r && r.c) ? r.c[i] : null;
-      if(!cella) return '';
-      // `f` e' il valore COSI' COME SI VEDE nel foglio, `v` quello grezzo.
-      // Si preferisce `f` quando c'e', perche' per i numeri `v` puo' arrivare
-      // come 3 oppure 3.0 a seconda della formattazione della cella.
-      if(cella.f != null) return String(cella.f);
-      return (cella.v == null) ? '' : String(cella.v);
-    })
-  );
-  let intestazioni = colonne.map(c => (c && c.label ? String(c.label) : '').trim());
-  // Se il foglio non dichiara una riga di intestazione, gviz lascia le
-  // etichette vuote e i titoli finiscono nella prima riga di dati: in quel
-  // caso la si promuove a intestazione.
-  if(!intestazioni.some(Boolean)){
-    if(!corpo.length) return [];
-    intestazioni = corpo.shift().map(x => (x||'').trim());
-  }
-  return [intestazioni].concat(corpo);
-}
-
-// STRADA PRINCIPALE — JSONP via tag <script>: immune al controllo di origine,
-// quindi funziona anche aprendo l'HTML con un doppio click.
-function _foglioViaScript(){
-  return new Promise(risolvi => {
-    if(!CARDS_SHEET_ID) return risolvi(null);
-    const nomeCallback = '_hextaleFoglio' + Date.now();
-    const script = document.createElement('script');
-    let scadenza = null, concluso = false;
-    const chiudi = (valore, motivo) => {
-      if(concluso) return;
-      concluso = true;
-      if(scadenza) clearTimeout(scadenza);
-      try { delete window[nomeCallback]; } catch(_) { window[nomeCallback] = undefined; }
-      if(script.parentNode) script.parentNode.removeChild(script);
-      if(motivo) console.warn('[carte] lettura diretta fallita: ' + motivo);
-      risolvi(valore);
-    };
-    window[nomeCallback] = dati => chiudi(dati, null);
-    script.onerror = () => chiudi(null, 'lo script del foglio non si e\' caricato (foglio non condiviso pubblicamente, o rete assente)');
-    scadenza = setTimeout(() => chiudi(null, 'nessuna risposta entro ' + CARDS_SHEET_TIMEOUT_MS + 'ms'), CARDS_SHEET_TIMEOUT_MS);
-    // `&t=` con l'orario serve a impedire che il browser riusi una risposta
-    // vecchia tenuta in cache: il foglio cambia spesso e va riletto ogni volta.
-    script.src = 'https://docs.google.com/spreadsheets/d/' + CARDS_SHEET_ID +
-                 '/gviz/tq?tqx=out:json;responseHandler:' + nomeCallback +
-                 '&sheet=' + encodeURIComponent(CARDS_SHEET_NAME) +
-                 '&t=' + Date.now();
-    document.head.appendChild(script);
-  }).then(_gvizAllaTabella);
-}
-
-// SECONDA STRADA — la copia pubblicata, letta con fetch(). Usabile solo da
-// un'origine vera (http/https): da file:// il browser la blocca, quindi in
-// quel caso non si tenta nemmeno, per non buttare via secondi di caricamento
-// in un tentativo che non puo' riuscire.
-function _foglioViaCsv(){
-  if(!CARDS_SHEET_CSV_URL) return Promise.resolve([]);
-  if(location.protocol === 'file:'){
-    console.info('[carte] pagina aperta da file:// — salto la copia pubblicata (il browser vieta fetch() da qui)');
-    return Promise.resolve([]);
-  }
-  const scaduto = new Promise(res => setTimeout(() => res('__SCADUTO__'), CARDS_SHEET_TIMEOUT_MS));
-  return Promise.race([
-    fetch(CARDS_SHEET_CSV_URL, {cache:'no-store'})
-      .then(r => r.ok ? r.text() : ('__HTTP__' + r.status))
-      .catch(e => '__RETE__' + (e && e.message ? e.message : e)),
-    scaduto,
-  ]).then(testo => {
-    // Ogni motivo di fallimento viene detto per esteso: il vecchio messaggio
-    // unico ("foglio non raggiungibile") non permetteva di capire se fosse
-    // lentezza, permessi o rete, e ha fatto perdere una sessione intera.
-    if(testo === '__SCADUTO__'){ console.warn('[carte] copia pubblicata: nessuna risposta entro ' + CARDS_SHEET_TIMEOUT_MS + 'ms'); return []; }
-    if(typeof testo === 'string' && testo.indexOf('__HTTP__') === 0){ console.warn('[carte] copia pubblicata: risposta ' + testo.slice(8) + ' (foglio non piu\' pubblicato?)'); return []; }
-    if(typeof testo === 'string' && testo.indexOf('__RETE__') === 0){ console.warn('[carte] copia pubblicata: ' + testo.slice(8)); return []; }
-    if(!testo) return [];
-    return _csvParse(testo);
-  });
-}
-
-// v0.75.67 — QUANDO SI PUO', PRIMA LA COPIA PUBBLICATA. NON E' UNA PREFERENZA
-// DI VELOCITA': E' UNA DI FEDELTA'.
-// gviz non consegna le celle, consegna la sua INTERPRETAZIONE delle celle:
-// decide un tipo per ogni colonna guardando i dati, e cio' che non rientra in
-// quel tipo lo scarta. NW..W sono colonne di numeri, quindi una cella scritta
-// "0-0-0-0" non arriva vuota — non arriva proprio. Il gioco concludeva che la
-// riga fosse incompleta e inventava tutti e sei i valori: e' cosi' che Excalibur
-// entrava in campo con 7 e 4 anche aperto da GitHub Pages, dove la copia
-// pubblicata sarebbe stata leggibile ma veniva provata solo come ripiego.
-// Il CSV invece non interpreta niente: restituisce il testo delle celle com'e'.
-// Quando fetch e' permesso si parte quindi da li', e gviz resta la strada per
-// chi apre il file dal disco — dove fetch e' vietato e un'interpretazione
-// imperfetta e' comunque meglio di nessun dato.
-// La verifica non e' "sono arrivate delle righe" ma "sono arrivate le righe
-// GIUSTE": la copia pubblicata non permette di scegliere la scheda per nome, e
-// se qualcuno ne avesse pubblicata un'altra si tornerebbe a gviz invece di
-// costruire un roster su colonne che non esistono.
-function _sembraIlFoglioDelleCarte(righe){
-  if(!righe || righe.length < 2) return false;
-  const titoli = righe[0].map(x => String(x||'').toLowerCase().replace(/\s+/g,' ').trim());
-  return titoli.includes('name') && titoli.includes('nw');
-}
-// v0.77.36 — QUESTA NON E' PIU' LA SORGENTE DELLE CARTE, e non viene piu'
-// chiamata all'avvio. Il roster arriva dal database (vedi
-// caricaCarteDalServer); il foglio Google resta lo strumento con cui le carte
-// si SCRIVONO, e da li' entrano nel database con un'importazione fatta a mano.
-// Il codice resta perche' serve ancora a quell'importazione, ma se un giorno
-// l'importazione si sposta altrove, tutto questo blocco si puo' cancellare.
-function caricaCarteDalFoglio(){
-  const primaStrada = _daFileLocale ? _foglioViaScript() : _foglioViaCsv();
-  const secondaStrada = _daFileLocale ? _foglioViaCsv() : _foglioViaScript();
-  return primaStrada
-    .then(righe => {
-      if(_sembraIlFoglioDelleCarte(righe)) return righe;
-      if(righe && righe.length >= 2){
-        console.info('[carte] la prima strada ha risposto ma non sembra il foglio delle carte: provo l\'altra.');
-      }
-      return secondaStrada;
-    })
-    .then(righe => _applicaRigheFoglio(righe))
-    .catch(e => { console.warn('[carte] caricamento interrotto: ' + e); return false; });
-}
 
 // Da tabella di righe a FINAL_CARDS. Separata dal trasporto apposta: la
 // logica di lettura e' identica quale che sia la strada che ha portato i dati.
-// v0.76.13 — QUESTO FOGLIO E' STATO LETTO DAVVERO? La tabella interna ha
-// quattro carte e serve solo a non lasciare il gioco senza niente: se resta
-// lei, la Collezione mostra Robin Hood, Merlino, Alice e Biancaneve e basta.
-// Succedeva davvero, ed e' il genere di guasto che sembra un gioco rotto senza
-// spiegare perche'. Chi apre la Collezione adesso lo controlla e, se il foglio
-// non era arrivato, riprova prima di disegnare (vedi openCardDbOverlay).
-let _foglioLetto = false;
-function _applicaRigheFoglio(righe){
-  if(!righe || righe.length < 2){
-    console.warn('[carte] foglio non raggiungibile: uso la tabella interna (anonime)');
-    _foglioLetto = false;
-    return false;
-  }
-  const col = righe[0].map(x => x.trim());
-  // v0.72.73 — la copia pubblicata (la seconda strada, vedi _foglioViaCsv) non
-  // permette di scegliere la scheda per nome: serve quella che qualcuno ha
-  // pubblicato, e nessuno garantisce sia quella giusta. Un paio di colonne
-  // obbligatorie fanno da firma: se non ci sono, quello che e' arrivato non e'
-  // il database delle carte e si preferisce la tabella interna a un roster
-  // costruito su colonne che non esistono.
-  // v0.73.37 — i nomi delle colonne si confrontano SENZA badare a maiuscole e
-  // spazi. Una colonna scritta "Ability Name" o "ability name" o con uno
-  // spazio di troppo funzionava prima come se non esistesse: il foglio non se
-  // ne accorgeva, il gioco nemmeno, e la carta usciva senza abilita' senza
-  // che nessuno dicesse niente. Un foglio si compila a mano, e a mano si
-  // scrive "Ability Name" tanto quanto "Ability name".
-  const _chiaveColonna = x => String(x||'').toLowerCase().replace(/\s+/g,' ').trim();
-  const indiceColonne = {};
-  col.forEach((nome, j)=>{ const k=_chiaveColonna(nome); if(k && !(k in indiceColonne)) indiceColonne[k]=j; });
-  const haColonna = nome => _chiaveColonna(nome) in indiceColonne;
-  const COLONNE_ATTESE = ['Name','Rarity'];
-  const mancanti = COLONNE_ATTESE.filter(c => !haColonna(c));
-  if(mancanti.length){
-    console.warn('[carte] la tabella ricevuta non sembra il database delle carte'
-      + ' (mancano le colonne: ' + mancanti.join(', ') + '). Colonne trovate: ' + col.join(' | '));
-    return false;
-  }
-  // v0.73.49 — se nel foglio e' rimasta la vecchia colonna "Ability key", lo
-  // si dice. Non e' un errore e non cambia niente, ma una colonna che sembra
-  // comandare e non comanda piu' e' peggio di una colonna assente: si finisce
-  // per correggere quella mentre il gioco legge l'altra.
-  if(haColonna('Ability key')){
-    console.info('[carte] la colonna "Ability key" non viene piu\' letta: dalla v0.73.49'
-      + ' l\'abilita\' si aggancia SOLO tramite "Ability name". Si puo\' eliminare.');
-  }
-  const nuove = [];
-  for(let i=1;i<righe.length;i++){
-    const r = righe[i];
-    const get = k => { const j = indiceColonne[_chiaveColonna(k)]; return (j===undefined) ? '' : (r[j]||''); };
-    const c = _cardaDaRiga(col, get, haColonna);
-    if(c) nuove.push(c);
-  }
-  if(!nuove.length){
-    console.warn('[carte] foglio letto ma nessuna carta valida: uso la tabella interna. Colonne trovate: ' + col.join(' | '));
-    return false;
-  }
-  // Un'abilita' inesistente nel codice non deve rompere la carta: si
-  // segnala e si lascia la carta senza abilita'.
-  // Il registro vero e' TILE_ABILITIES_DEF (17 voci). E' un `const` di
-  // livello superiore dichiarato PIU' AVANTI nel file, quindi non e'
-  // esposto su window e non va letto da li': si referenzia direttamente,
-  // dentro un try, perche' questa funzione gira a caricamento avvenuto —
-  // quando tutte le costanti sono gia' inizializzate. Il try copre il caso
-  // limite in cui venisse chiamata prima, evitando che una zona morta
-  // temporale faccia fallire l'intero caricamento delle carte.
-  let registro = null;
-  try { registro = TILE_ABILITIES_DEF; } catch(_){ registro = null; }
-  for(const c of nuove){
-    if(!c.cardAbility) continue;
-    if(registro && !registro[c.cardAbility]){
-      // v0.72.62 — l'abilita' NON viene piu' buttata via. Prima sparivano in
-      // silenzio (dopo un avviso in console) e sulla carta non restava
-      // traccia: guardando il gioco non si capiva quali abilita' fossero
-      // ancora da programmare. Ora la carta conserva nome e descrizione
-      // presi dal foglio, e viene marcata: il nome comparira' seguito da
-      // NO_SCRIPT in rosso, cosi' lo stato di avanzamento si legge a colpo
-      // d'occhio giocando invece che aprendo la console.
-      c.abilityNoScript = true;
-      // v0.73.16 — l'avviso dice anche COME rimediare. Il caso piu' comune non
-      // e' un'abilita' davvero da scrivere, e' un nome che nel foglio non
-      // combacia piu' con quello del registro (una rinomina, un refuso): la
-      // carta perde l'abilita' e da fuori sembra rotta. Elencare i nomi
-      // accettati trasforma un'ora di indagine in dieci secondi di lettura.
-      // v0.73.49 — l'unico rimedio possibile e' il nome, perche' il nome e'
-      // l'unico legame (vedi il commento in _cardaDaRiga). L'avviso elenca
-      // quindi i nomi esatti che il registro conosce: incollarne uno nella
-      // cella "Ability name" e' tutto quello che serve.
-      // v0.75.45 — l'avviso segue il legame nuovo: non serve piu' elencare i
-      // nomi delle abilita' accettate, perche' non e' piu' quella cella a
-      // decidere. Serve dire che PER QUESTO PERSONAGGIO non c'e' codice, e
-      // mostrare i personaggi che ce l'hanno — cosi' un refuso nel nome della
-      // carta (l'unico modo rimasto di scollegare un'abilita' per sbaglio) si
-      // vede subito confrontando le due liste.
-      const accettati = Object.keys(registro)
-        .map(k => registro[k].carta)
-        .filter(Boolean)
-        .sort();
-      console.warn('[carte] "'+c.name+'" dichiara l\'abilita\' "'+(c.abilityNameSheet||'(senza nome)')
-        + '", ma per questo PERSONAGGIO non c\'e\' nessuna abilita\' programmata:'
-        + '\nla carta non ne avra\' nessuna.'
-        + '\n\nDalla v0.75.45 il legame fra foglio e codice e\' il NOME DEL PERSONAGGIO,'
-        + '\nnon piu\' il nome dell\'abilita\' (che ora e\' solo testo da mostrare e si puo\''
-        + '\nriscrivere liberamente).'
-        + '\n\nRIMEDIO: o il nome nella colonna "Name" non combacia con nessuno di questi'
-        + '\n(maiuscole, spazi e punteggiatura non contano), oppure l\'abilita\' e\' ancora'
-        + '\nda programmare:\n  '
-        + accettati.join('\n  '));
-    }
-  }
-  FINAL_CARDS.length=0;
-  FINAL_CARDS.push(...nuove);
-  console.info('[carte] caricate '+nuove.length+' carte dal foglio');
-  _foglioLetto = true;
-  return true;
-}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // v0.72.68 — ARTE E VOCI DEI PERSONAGGI, TROVATE DA SOLE
@@ -32815,12 +32212,50 @@ function simulaPiazzamento(card, q, r){
 
 // Che valori avrebbe questa carta se venisse giocata in (q,r)? Null se la sua
 // abilita' non ne cambia nessuno (o se non ne ha).
-function valoriDopoAbilita(card, q, r){
+// ── v0.77.91 — LA DOMANDA GIUSTA E' "QUESTI NUMERI POSSONO CAMBIARE?" ─────
+// Il cancello qui sotto chiedeva un'altra cosa: "questa carta ha un'abilita'
+// che agisce al PIAZZAMENTO?". Sono due domande diverse, e la seconda lascia
+// fuori due casi interi.
+//
+//   1. Le abilita' CONTINUE della carta stessa. La Principessa sul pisello
+//      guadagna +1 per ogni lato libero della casella: il suo bonus dipende
+//      esattamente da dove la posi, cioe' e' la carta che ha piu' bisogno di
+//      un'anteprima di tutte — e non ne aveva nessuna, perche' il suo momento
+//      e' `while_on_board` e non `on_play`.
+//   2. Le abilita' continue di CHI E' GIA' IN CAMPO. Posare una carta accanto
+//      a Baloo la fa crescere di due; il conto lo fa il tabellone, non la
+//      carta trascinata, quindi nessun controllo sulla carta poteva accorgersene.
+//
+// La regola vale per tutte e non e' scritta carta per carta: si simula quando
+// qualcosa — lei o il tabellone — puo' muovere quei numeri. Se poi non si
+// muove niente, chi chiama se ne accorge da solo (i delta sono tutti zero) e
+// non disegna nessuna anteprima: un giro di simulazione sprecato costa molto
+// meno di un numero che non si vede.
+function _numeriChePossonoCambiare(card){
+  if(motoreFaLEvento(card, 'on_play')) return true;
   const chiave = abilitaAttivaDi(card);
-  // v0.77.61 — l'anteprima si accende anche per le abilita' che passano dal
-  // motore: senza, una carta il cui effetto e' descritto nel foglio invece
-  // che scritto nel codice non mostrerebbe il suo bonus sotto al puntatore.
-  if(!motoreFaLEvento(card, 'on_play') && (!chiave || !EFFETTI_PIAZZAMENTO[chiave])) return null;
+  if(chiave && EFFETTI_PIAZZAMENTO[chiave]) return true;
+  const motore = (typeof _motore === 'function') ? _motore() : null;
+  // La sua abilita' continua: quella che dipende da dove finisce.
+  if(motore && typeof _haAbilitaNuova === 'function' && _haAbilitaNuova(card)){
+    const sua = motore.abilitaDi(card);
+    if(sua && sua.trigger === 'while_on_board') return true;
+  }
+  // E quelle di chi e' gia' sul tabellone, che possono toccare lei. Si guarda
+  // se ce n'e' ALMENO UNA: distinguere quali la colpiscono davvero vorrebbe
+  // dire rifare il lavoro della simulazione per decidere se farla.
+  if(motore && typeof _haAbilitaNuova === 'function'){
+    for(const k in (G.board || {})){
+      const posto = G.board[k];
+      if(!posto || !posto.card || !_haAbilitaNuova(posto.card)) continue;
+      const a = motore.abilitaDi(posto.card);
+      if(a && a.trigger === 'while_on_board') return true;
+    }
+  }
+  return false;
+}
+function valoriDopoAbilita(card, q, r){
+  if(!_numeriChePossonoCambiare(card)) return null;
   const esito = simulaPiazzamento(card, q, r);
   return esito ? esito.tabellone[esito.cellaGiocata] : null;
 }
