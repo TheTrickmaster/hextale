@@ -1156,10 +1156,30 @@ body.mouse-down, body.mouse-down *{
 .deck-slot.non-giocabile{ opacity:0.45; cursor:var(--cursore); }
 .deck-slot.non-giocabile:hover{ filter:none; }
 .deck-slot-check.non-giocabile{ opacity:0.3; pointer-events:none; }
+/* v0.78.6 — la spunta si accende al passaggio. Prima non dava nessun segno di
+   essere premibile: un cerchietto fermo in mezzo a una riga che invece
+   reagisce si legge come una decorazione, non come un comando. */
+.deck-slot-check{ transition:filter .12s ease, transform .12s ease; }
+.deck-slot-check:hover{ filter:brightness(1.45) drop-shadow(0 0 6px rgba(232,195,106,0.55)); transform:scale(1.08); }
+.deck-slot-check:active{ transform:scale(0.96); }
+.deck-slot-check.non-giocabile:hover{ filter:none; transform:none; }
 /* v0.78.5 — il mazzo che si sta spostando. Si alza appena e diventa un po'
    trasparente: quel tanto che basta a dire "questo lo stai tenendo in mano",
    senza coprire quelli sotto che servono a capire dove lo si sta mettendo. */
-.deck-slot.deck-slot-trascinata{ opacity:0.75; transform:scale(1.02); cursor:grabbing; }
+/* v0.78.6 — la riga che si sta spostando esce dal flusso: e' gia' sotto al
+   puntatore, e tenerne due copie confonderebbe. Al suo posto resta il buco,
+   che e' quello che dice dove andra' a finire. */
+.deck-slot.deck-slot-presa{ display:none; }
+.deck-slot-gap{
+  border:1px dashed rgba(255,255,255,0.22); border-radius:16px;
+  background:rgba(255,255,255,0.04); box-sizing:border-box;
+  transition:height .12s ease;
+}
+/* Lo scivolo delle righe che si spostano: la stessa tecnica delle carte nel
+   mazzo (vedi _cartaBucoSposta), e la stessa classe che la sospende per un
+   fotogramma mentre si misura. */
+.deck-slot{ transition:transform .16s ease; }
+.deck-slot.senza-scivolo{ transition:none; }
 /* v0.77.51 — la finestra degli avvisi. */
 #avviso-box{ width:430px; }
 #avviso-testo{
@@ -4781,6 +4801,11 @@ body.io-sono-2 #p1-info .player-avatar-photo{ transform:scaleX(-1); }
   display:flex; flex-direction:column; align-items:center;
   gap:30px;                       /* i 30px chiesti fra nome e pulsanti */
 }
+#gameover-motivo{
+  font-family:var(--font-body); font-size:20px; color:#C9C2B0;
+  text-align:center; margin-top:6px; text-shadow:0 0 4px rgba(0,0,0,0.9);
+}
+#gameover-motivo:empty{ display:none; }
 #gameover-title span{
   font-family:'Marcellus SC','Marcellus',serif;
   font-size:60px; color:#D4CBB9;
@@ -9847,6 +9872,10 @@ body.prova-senza-willchange #mm-book-rot{
     <img id="gameover-bg" src="" alt="" draggable="false">
     <div id="gameover-content">
       <div id="gameover-title"><span id="gameover-title-text"></span></div>
+      <!-- v0.78.6 — perche' e' finita cosi'. Vuota quasi sempre (una partita
+           che finisce col tabellone pieno non ha niente da spiegare) e occupa
+           spazio solo quando ha qualcosa da dire. -->
+      <div id="gameover-motivo"></div>
       <div id="gameover-actions">
         <button id="btn-view-board" class="hx-btn" onclick="toggleBoardView(true)">
           <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
@@ -9896,7 +9925,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.78.5</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.78.6</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -13180,9 +13209,20 @@ function reteMessaggio(md){
     // arriva: la partita si interrompe senza un vincitore e senza il conto
     // finale, e senza una riga il giocatore resterebbe su un tavolo fermo
     // senza sapere perche'.
-    if(d.motivo === 'abbandono'){
-      apriAvviso('Match over',
-        suo ? 'Your opponent left the match.' : 'You left the match.', true);
+    // ── v0.78.6 — UNA PARTITA CHE FINISCE MOSTRA LA FINE ─────────────────
+    // Con 'abbandono' e con 'resa' la schermata di fine partita non arrivava
+    // da nessuna parte: quella la costruisce finishGameWithResult, che qui non
+    // veniva chiamata da nessuno. Restava un avviso e un tavolo fermo.
+    // Adesso la si mostra, con scritto perche' e' finita cosi'. Il punteggio
+    // resta quello vero fino a quell'istante — non si inventa un risultato:
+    // per una resa il vincitore lo ha deciso il server, e glielo si fa vedere.
+    if(d.motivo === 'abbandono' || d.motivo === 'resa'){
+      const perResa = (d.motivo === 'resa');
+      const testo = perResa
+        ? (suo ? 'Your opponent surrendered.' : 'You surrendered.')
+        : (suo ? 'Your opponent left the match.' : 'You left the match.');
+      try{ fineDaRete(testo, d.vincitore); }
+      catch(_){ apriAvviso('Match over', testo, true); }
     }
     PARTITA_RETE = null;
     return;
@@ -15402,7 +15442,33 @@ function mm2ApriSceltaMazzo(){
   lista.innerHTML = '';
   (MAZZI||[]).forEach(m=>{
     const slot = _slotMazzoPieno(m);
-    slot.querySelectorAll('.deck-slot-edit, .deck-edit').forEach(el=>el.remove());
+    // v0.78.6 — il pannello di modifica in linea qui non ha senso (siamo nel
+    // menu, non nella Libreria), ma la MATITA resta: da qui si va a modificare
+    // quel mazzo, che e' la cosa che si vuole fare piu' spesso subito dopo
+    // averlo guardato. Porta alla Libreria, gia' aperta su di lui.
+    slot.querySelectorAll('.deck-edit').forEach(el=>el.remove());
+    const matita = slot.querySelector('.deck-slot-edit');
+    if(matita){
+      matita.onclick = (ev)=>{
+        ev.stopPropagation();
+        mm2ChiudiSceltaMazzo();
+        openCardDbOverlay();
+        try{ apriModificaMazzo(m.id); }catch(_){}
+      };
+    }
+    // v0.78.6 — e la spunta si puo' premere. Ce l'aveva gia' un suo onclick
+    // (quello della Libreria) che ferma la propagazione e ridisegna la
+    // Libreria — che qui non e' in scena: da fuori sembrava che non facesse
+    // niente. Qui deve fare quel che fa la riga.
+    const spunta = slot.querySelector('.deck-slot-check');
+    if(spunta && mazzoGiocabile(m)){
+      spunta.onclick = (ev)=>{
+        ev.stopPropagation();
+        selezionaMazzo(m.id);
+        mm2AggiornaMazzo();
+        mm2ApriSceltaMazzo();
+      };
+    }
     // v0.77.40 — la spunta resta e si sposta: selezionaMazzo ridisegna la
     // Libreria, che qui non e' in scena, quindi e' questa lista a doversi
     // ricostruire — ed e' l'unico modo perche' il segno verde finisca sul
@@ -18031,8 +18097,55 @@ let _destroCollegato = false;
 // La soglia in pixel e' la stessa: sotto quella e' un clic, e un clic su un
 // mazzo lo sceglie. Senza questa distinzione, scegliere un mazzo sarebbe
 // diventato impossibile senza spostarlo di un pelo.
+// Il gesto e' lo stesso delle carte dentro a un mazzo, e lo sono anche i tre
+// pezzi che lo compongono, presi da li':
+//   il BUCO   — la riga esce dal flusso e al suo posto resta uno spazio che
+//               segue il puntatore, cosi' si vede DOVE andra' a finire;
+//   il FANTASMA — una copia della riga che rincorre il puntatore con la stessa
+//               molla del trascinamento in partita (vedi _tirPasso);
+//   lo SCIVOLO — le altre righe si spostano scorrendo e non saltando (FLIP,
+//               vedi _cartaBucoSposta).
+// Non si riusa _tir per intero perche' quello e' legato a un mazzo in
+// modifica; si riusano pero' le sue funzioni, che di quel legame non hanno
+// bisogno — cosi' i due gesti non possono divergere.
 let _riordinoMazzi = null;
 const RIORDINO_SOGLIA_PX = 6;
+function _mazzoBucoCrea(altezza){
+  const b = document.createElement('div');
+  b.className = 'deck-slot-gap';
+  b.style.height = altezza + 'px';
+  return b;
+}
+// Fra quali due mazzi sta il puntatore. Si guarda la META' di ogni riga: usare
+// il bordo darebbe mezza riga di zona morta in cui niente si muove.
+function _mazzoIndiceSotto(cont, clientY){
+  const righe = [...cont.children].filter(x =>
+    x.classList && x.classList.contains('deck-slot') && x.dataset && x.dataset.mazzo
+    && !x.classList.contains('deck-slot-presa'));
+  for(let i=0;i<righe.length;i++){
+    const r = righe[i].getBoundingClientRect();
+    if(clientY < r.top + r.height/2) return i;
+  }
+  return righe.length;
+}
+function _mazzoBucoSposta(cont, buco, indice){
+  const righe = [...cont.children].filter(x =>
+    x.classList && x.classList.contains('deck-slot') && x.dataset && x.dataset.mazzo
+    && !x.classList.contains('deck-slot-presa'));
+  const prima = new Map();
+  try{ for(const r of righe) prima.set(r, r.getBoundingClientRect().top); }catch(_){}
+  const riferimento = righe[indice] || null;
+  if(riferimento) cont.insertBefore(buco, riferimento); else cont.appendChild(buco);
+  try{
+    for(const r of righe){
+      const dy = prima.get(r) - r.getBoundingClientRect().top;
+      if(!dy) continue;
+      r.classList.add('senza-scivolo');
+      r.style.transform = 'translateY('+dy+'px)';
+      requestAnimationFrame(()=>{ r.classList.remove('senza-scivolo'); r.style.transform = ''; });
+    }
+  }catch(_){}
+}
 function collegaRiordinoMazzi(){
   const lista = document.getElementById('deck-list');
   if(!lista || lista.__riordino) return;
@@ -18045,55 +18158,116 @@ function collegaRiordinoMazzi(){
     // La spunta e la matita fanno da se': prenderle per trascinare vorrebbe
     // dire non riuscire piu' a premerle.
     if(ev.target.closest('.deck-slot-check, .deck-slot-edit, .deck-edit')) return;
-    _riordinoMazzi = { id:String(slot.dataset.mazzo), el:slot, y:ev.clientY, attivo:false };
+    _riordinoMazzi = { id:String(slot.dataset.mazzo), el:slot, y0:ev.clientY, attivo:false,
+                       contenitore:null, buco:null, indice:-1,
+                       x:0, y:0, vx:0, vy:0, bersaglioX:0, bersaglioY:0, raf:null };
     document.addEventListener('pointermove', _riordinoMuovi, true);
     document.addEventListener('pointerup', _riordinoFine, true);
     document.addEventListener('pointercancel', _riordinoFine, true);
   });
 }
-function _riordinoMuovi(ev){
-  if(!_riordinoMazzi) return;
-  if(!_riordinoMazzi.attivo){
-    if(Math.abs(ev.clientY - _riordinoMazzi.y) < RIORDINO_SOGLIA_PX) return;
-    _riordinoMazzi.attivo = true;
-    _riordinoMazzi.el.classList.add('deck-slot-trascinata');
+function _riordinoAvvia(ev){
+  const R = _riordinoMazzi;
+  const ghost = document.getElementById('library-drag-ghost');
+  if(!ghost){ _riordinoFine(); return; }
+  R.attivo = true;
+  const r = R.el.getBoundingClientRect();
+  const cont = R.el.parentNode;
+  const righe = [...cont.children].filter(x =>
+    x.classList && x.classList.contains('deck-slot') && x.dataset && x.dataset.mazzo);
+  R.contenitore = cont;
+  R.indice = righe.indexOf(R.el);
+  R.buco = _mazzoBucoCrea(r.height);
+  cont.insertBefore(R.buco, R.el);
+  // La copia si fa PRIMA di nascondere l'originale, o nascerebbe invisibile.
+  const copia = R.el.cloneNode(true);
+  copia.classList.remove('deck-slot-presa');
+  copia.style.cssText = 'position:absolute;inset:0;margin:0;';
+  R.el.classList.add('deck-slot-presa');
+
+  const scala = (_fit && _fit.scale) || 1;
+  ghost.innerHTML = '';
+  ghost.style.width  = (r.width/scala)+'px';
+  ghost.style.height = (r.height/scala)+'px';
+  ghost.style.display = 'block';
+  const tilt = document.createElement('div');
+  tilt.className = 'card-db-foil-tilt';
+  tilt.style.cssText = 'position:absolute;inset:0;';
+  tilt.appendChild(copia);
+  ghost.appendChild(tilt);
+  ghost.style.setProperty('--tilt-ampiezza', '20deg');
+
+  R.x = screenToAuthoredX(r.left + r.width/2);
+  R.y = screenToAuthoredY(r.top + r.height/2);
+  R.vx = 0; R.vy = 0;
+  R.raf = requestAnimationFrame(_riordinoPasso);
+  try{ playSfx('sfx-pick'); }catch(_){}
+}
+// La stessa molla del trascinamento delle carte: il fantasma non si incolla al
+// puntatore, lo rincorre. E' quella lieve distanza a far sembrare che abbia un
+// peso invece di essere disegnato sotto al dito.
+function _riordinoPasso(){
+  const R = _riordinoMazzi;
+  if(!R || !R.attivo){ if(R) R.raf = null; return; }
+  const dx = R.bersaglioX - R.x, dy = R.bersaglioY - R.y;
+  R.vx = (R.vx + dx*TIR_MOLLA_K) * TIR_MOLLA_SMORZO;
+  R.vy = (R.vy + dy*TIR_MOLLA_K) * TIR_MOLLA_SMORZO;
+  R.x += R.vx; R.y += R.vy;
+  const ghost = document.getElementById('library-drag-ghost');
+  if(ghost){
+    ghost.style.left = R.x+'px'; ghost.style.top = R.y+'px';
+    const rx = Math.max(-1, Math.min(1, R.vx/TIR_TILT_RIF));
+    const ry = Math.max(-1, Math.min(1, R.vy/TIR_TILT_RIF));
+    try{ cardFoilApply(ghost, rx, ry, 0.5+rx*0.5, 0.5+ry*0.5); }catch(_){}
   }
-  // Si guarda su quale riga sta il puntatore e ci si mette al suo posto: e'
-  // l'ordine dell'elenco che cambia sotto le dita, non un'anteprima a parte.
-  const lista = document.getElementById('deck-list');
-  if(!lista) return;
-  const sotto = document.elementFromPoint(ev.clientX, ev.clientY);
-  const altra = sotto && sotto.closest ? sotto.closest('.deck-slot') : null;
-  if(!altra || altra === _riordinoMazzi.el || !altra.dataset.mazzo) return;
-  const r = altra.getBoundingClientRect();
-  const dopo = (ev.clientY - r.top) > r.height/2;
-  lista.insertBefore(_riordinoMazzi.el, dopo ? altra.nextSibling : altra);
+  R.raf = requestAnimationFrame(_riordinoPasso);
+}
+function _riordinoMuovi(ev){
+  const R = _riordinoMazzi;
+  if(!R) return;
+  if(!R.attivo){
+    if(Math.abs(ev.clientY - R.y0) < RIORDINO_SOGLIA_PX) return;
+    _riordinoAvvia(ev);
+  }
+  const p = { x: screenToAuthoredX(ev.clientX), y: screenToAuthoredY(ev.clientY) };
+  R.bersaglioX = p.x; R.bersaglioY = p.y;
+  const cont = R.contenitore;
+  if(!cont) return;
+  const i = _mazzoIndiceSotto(cont, ev.clientY);
+  if(R.indice === i && R.buco.parentNode) return;
+  R.indice = i;
+  _mazzoBucoSposta(cont, R.buco, i);
 }
 function _riordinoFine(){
   document.removeEventListener('pointermove', _riordinoMuovi, true);
   document.removeEventListener('pointerup', _riordinoFine, true);
   document.removeEventListener('pointercancel', _riordinoFine, true);
-  const stato = _riordinoMazzi;
+  const R = _riordinoMazzi;
   _riordinoMazzi = null;
-  if(!stato) return;
-  stato.el.classList.remove('deck-slot-trascinata');
-  if(!stato.attivo) return;                  // era un clic: se ne occupa il clic
-  // L'ordine nuovo e' quello che si vede: si legge dall'elenco e si scrive nei
-  // mazzi. Le caselle che non sono mazzi (il casuale, le vuote) si saltano.
-  const lista = document.getElementById('deck-list');
-  if(!lista) return;
-  const ordine = [];
-  lista.querySelectorAll('.deck-slot').forEach(el=>{
-    if(el.dataset && el.dataset.mazzo) ordine.push(String(el.dataset.mazzo));
-  });
-  const perId = {};
-  for(const m of MAZZI) perId[m.id] = m;
-  const nuovi = [];
-  for(const id of ordine) if(perId[id]) nuovi.push(perId[id]);
-  // Chi non compare nell'elenco resta dov'era: non si perde un mazzo per un
-  // trascinamento andato storto.
-  for(const m of MAZZI) if(nuovi.indexOf(m) < 0) nuovi.push(m);
-  if(nuovi.length !== MAZZI.length) return;
+  if(!R) return;
+  if(R.raf !== null && R.raf !== undefined) cancelAnimationFrame(R.raf);
+  const ghost = document.getElementById('library-drag-ghost');
+  if(R.attivo && ghost){
+    try{ cardFoilApply(ghost, 0, 0, 0.5, 0.5); }catch(_){}
+    ghost.innerHTML = ''; ghost.style.display = 'none';
+    ghost.style.removeProperty('--tilt-ampiezza');
+  }
+  if(R.buco && R.buco.parentNode) R.buco.remove();
+  R.el.classList.remove('deck-slot-presa');
+  if(!R.attivo) return;                  // era un clic: se ne occupa il clic
+  // Dopo un trascinamento vero il clic che il browser sintetizza al rilascio
+  // non deve scegliere il mazzo: uno lo ha spostato, non scelto.
+  const ingoia = (e)=>{ e.stopPropagation(); e.preventDefault(); };
+  document.addEventListener('click', ingoia, true);
+  setTimeout(()=>document.removeEventListener('click', ingoia, true), 0);
+  if(R.indice < 0) return;
+  const da = MAZZI.findIndex(m=>String(m.id) === R.id);
+  if(da < 0) return;
+  const nuovi = MAZZI.slice();
+  const [preso] = nuovi.splice(da, 1);
+  // L'indice del buco e' contato fra le righe RIMASTE, cioe' senza quella che
+  // si sta spostando: e' gia' quello giusto nell'elenco a cui la si reinserisce.
+  nuovi.splice(Math.min(R.indice, nuovi.length), 0, preso);
   MAZZI = nuovi;
   salvaMazzi();
   renderListaMazzi();
@@ -36732,6 +36906,21 @@ function drawAndAnimate(player,fast,callback){
   if(taglia){
     newCard.tileAbilityBaseValues={...newCard.values};
     for(const s of SIDES) newCard.values[s]=(newCard.values[s]||0)+taglia;
+    // ── v0.78.6 — E LA BASE, O IL +2 DURA UN FOTOGRAMMA ──────────────────
+    // Questa e' la TERZA volta che lo stesso inciampo si ripresenta da una
+    // porta diversa (la Lepre Marzolina in v0.77.88, la trasformazione in
+    // v0.78.1, la taglia della Regina qui), e la ragione e' sempre la stessa:
+    // da v0.77.58 i valori veri non sono piu' `values`, sono `valoriBase` piu'
+    // le sinergie, rifatti a ogni disegno da ricalcolaValoriVivi. Chi scrive
+    // solo `values` scrive su una lavagna che verra' cancellata al primo
+    // ridisegno — e la carta appena pescata viene ridisegnata subito.
+    // La Regina lasciava quindi una taglia che si vedeva per un istante e poi
+    // spariva: da fuori, una Regina che non fa niente.
+    // `valoriNascita` NON si tocca: quello e' il metro del verde e del rosso, e
+    // un +2 della Regina deve vedersi verde (vedi scartoDallaNascita).
+    if(newCard.valoriBase){
+      for(const s of SIDES) newCard.valoriBase[s]=(newCard.valoriBase[s]||0)+taglia;
+    }
     if(newCard.hoorayBaseValues){
       for(const s of SIDES) newCard.hoorayBaseValues[s]=(newCard.hoorayBaseValues[s]||0)+taglia;
     }
@@ -37530,9 +37719,31 @@ function checkHpKO(){
 // pass-and-play PvP: G.currentPlayer is whoever has the settings modal
 // open on their own turn (the only way to reach it mid-game), so THEY are
 // the one surrendering.
+// v0.78.6 — "mi arrendo", detto al server. Vedi reteResa in surrenderGame.
+function reteResa(){
+  if(!PARTITA_RETE) return;
+  mmManda({ cid: 'r' + Date.now().toString(36), match_data_send: {
+    match_id: PARTITA_RETE.matchId, op_code: 12, data: btoa(JSON.stringify({}))
+  }});
+}
 function surrenderGame(){
   if(!G.currentPlayer || G.gameOver) return; // no game in progress, nothing to surrender
   closeSettingsModal();
+  // ── v0.78.6 — IN RETE CI SI ARRENDE AL SERVER, NON A SE STESSI ─────────
+  // Qui la resa chiudeva la propria partita e finiva li'. L'altro giocatore
+  // non veniva avvisato da nessuno: restava davanti a un tavolo fermo finche'
+  // il tempo non scadeva, senza sapere perche'.
+  // E' la stessa regola di tutto il resto — in rete non si fa, si chiede — e
+  // vale anche per il modo in cui una partita finisce: lo dichiara chi si
+  // arrende, lo arbitra il server, e la fine arriva a tutti e due insieme
+  // (vedi _resa, e op 6 in reteMessaggio).
+  if(PARTITA_RETE){
+    try{ reteResa(); }catch(_){}
+    // Non si chiude niente qui: la partita finisce quando il server lo dice,
+    // e quel messaggio arriva anche a noi. Chiudere adesso vorrebbe dire due
+    // fini diverse, e la nostra sarebbe quella senza esito scritto.
+    return;
+  }
   clearInterval(timerInterval);
   collapseAllHandExpand();
   const loser=G.currentPlayer;
@@ -37597,6 +37808,36 @@ function endGame(){
 // dark win — per explicit spec: "primary per il giocatore light e
 // secondary per il giocatore dark"), except the draw case which explicitly
 // wants a MIXED pair instead ("il primo primary e il secondo secondary").
+// ── v0.78.6 — LA FINE DECISA DAL SERVER ──────────────────────────────────
+// Una resa o un abbandono finiscono la partita senza che il tabellone dica
+// chi ha vinto: il vincitore lo decide il server, e a noi arriva gia' fatto.
+// Si scrive quel verdetto nei punti (che e' cio' che finishGameWithResult
+// legge per incoronare) e si lascia che la schermata si costruisca come
+// sempre — invece di scriverne una seconda, che il giorno dopo sarebbe gia'
+// diversa dalla prima.
+// La RIGA DEL PERCHE' si appoggia allo stesso posto in cui la schermata scrive
+// il proprio sottotitolo: chi guarda deve trovare "si e' arreso" li' dove
+// guarda gia', non in una finestra da chiudere prima di poter leggere.
+function fineDaRete(testo, vincitore){
+  if(!G || G.gameOver) return;
+  clearInterval(timerInterval);
+  collapseAllHandExpand();
+  if(vincitore === 1 || vincitore === 2){
+    const perdente = (vincitore === 1) ? 2 : 1;
+    // Uno scarto deciso: cosi' il confronto dentro a finishGameWithResult
+    // incorona chi deve, e non lo scambia mai per un pareggio.
+    G.hp[vincitore] = Math.max(G.hp[1], G.hp[2], 0) + 1;
+    G.hp[perdente] = G.hp[vincitore] - 1;
+  }
+  G.gameOver = true;
+  _motivoFinePartita = testo || '';
+  _finePartitaDalServer = true;
+  try{ render(); }catch(_){}
+  finishGameWithResult();
+}
+let _motivoFinePartita = '';
+// v0.78.6 — questa fine viene dal server? Allora l'esito e' gia' scritto.
+let _finePartitaDalServer = false;
 function finishGameWithResult(){
   const{1:hp1,2:hp2}=G.hp;
   const p1Label='Player 1';
@@ -37618,10 +37859,22 @@ function finishGameWithResult(){
       ? 'Draw!'
       : ((hp1>hp2 ? p1Label : p2Label) + ' wins!');   // piu' punti, non meno danni
   }
+  // v0.78.6 — e sotto, se c'e', il perche'. Si azzera subito dopo averlo
+  // mostrato: vale per QUESTA partita, e ritrovarlo sulla prossima sarebbe
+  // peggio che non averlo mai avuto.
+  const motivoEl = document.getElementById('gameover-motivo');
+  if(motivoEl) motivoEl.textContent = _motivoFinePartita || '';
   // v0.77.50 — l'esito va al server, che decide livello e rank. Si fa QUI,
   // dove il risultato e' appena stato deciso, e non all'uscita dalla schermata:
   // di la' si puo' anche chiudere il gioco.
-  try{ riferisciPartita(hp1 > hp2, hp1 === hp2, !!G.vsAI); }catch(_){}
+  // v0.78.6 — se la fine e' arrivata dal server (resa, abbandono), l'esito lo
+  // ha gia' scritto lui e ce lo ha gia' mandato: riferirlo di nuovo da qui
+  // vorrebbe dire contare due volte la stessa partita.
+  if(!_finePartitaDalServer){
+    try{ riferisciPartita(hp1 > hp2, hp1 === hp2, !!G.vsAI); }catch(_){}
+  }
+  _finePartitaDalServer = false;
+  _motivoFinePartita = '';
   setTimeout(()=>{
     document.getElementById('gameover').classList.add('show');
     // Il suono della fine, nello stesso istante in cui la schermata compare:

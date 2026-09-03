@@ -1005,6 +1005,10 @@ var OP_GIOCATA   = 3;   // server -> client: e' stata messa (a chi tocca, entro 
 var OP_TEMPO     = 4;   // server -> client: la scadenza, ogni tanto, per non andare alla deriva
 var OP_RIFIUTO   = 5;   // server -> client, personale: la tua mossa non vale, ed ecco perche'
 var OP_FINE      = 6;   // server -> client: finita, e come
+// v0.78.6 — client -> server: mi arrendo. Non e' la stessa cosa di andarsene:
+// chi si arrende resta collegato, e il server deve poterlo dire all'altro
+// SUBITO invece di aspettare che una presenza cada.
+var OP_MI_ARRENDO = 12;
 var OP_IMPRONTA  = 7;   // client -> server: com'e' il mio stato dopo questa giocata
 var OP_DISACCORDO= 8;   // server -> client: le due impronte non coincidono
 var OP_ESITO     = 9;   // server -> client, personale: com'e' andata, e cosa hai guadagnato
@@ -1588,6 +1592,38 @@ function partitaJoin(ctx, logger, nk, dispatcher, tick, state, presences) {
   return { state: state };
 }
 
+// ── v0.78.6 — LA RESA LA DICHIARA CHI SI ARRENDE, E LA ARBITRA IL SERVER ──
+// Prima il client si arrendeva DA SOLO: chiudeva la propria partita e non
+// diceva niente a nessuno. L'altro restava davanti a un tavolo fermo finche'
+// il tempo non scadeva, senza sapere perche'.
+// Adesso la resa e' un messaggio come una giocata, e il server ne fa quel che
+// fa di ogni fine: lo dice a tutti e due, e SCRIVE L'ESITO — chi si arrende
+// perde, l'altro vince. Una resa e' una sconfitta scelta, non una partita
+// senza risultato.
+function _resa(state, dispatcher, logger, nk, chi) {
+  if (!state.iniziata || state.finita) return;
+  state.finita = true;
+  state.motivo = 'resa';
+  var perdente = _indiceDi(state, chi);
+  if (perdente < 0) return;
+  var vincitore = (perdente === 0) ? 2 : 1;
+  for (var i = 0; i < state.giocatori.length; i++) {
+    var u = state.giocatori[i];
+    var suo = (i + 1) === vincitore;
+    try {
+      var esito = applicaEsito(nk, u, suo, false, false);
+      esito.vinta = suo;
+      esito.pari = false;
+      esito.perResa = true;
+      _aUno(dispatcher, state, u, OP_ESITO, esito);
+    } catch (e) {
+      logger.error('esito non scritto per %s dopo una resa: %s', u, String(e));
+    }
+  }
+  _aTutti(dispatcher, OP_FINE, { motivo: 'resa', chi: perdente + 1, vincitore: vincitore });
+  logger.info('partita finita per resa di %s: vince il giocatore %d', chi, vincitore);
+}
+
 function partitaLeave(ctx, logger, nk, dispatcher, tick, state, presences) {
   for (var i = 0; i < presences.length; i++) {
     var u = presences[i].userId;
@@ -1617,6 +1653,15 @@ function partitaLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
     if (idx === -1) continue;
     var corpo = {};
     try { corpo = JSON.parse(nk.binaryToString(m.data)); } catch (e) { corpo = {}; }
+
+    // v0.78.6 — la resa, prima di tutto il resto: chi si arrende non ha altro
+    // da dire, e continuare a leggere i suoi messaggi dopo la fine non avrebbe
+    // senso. Non si controlla di chi sia il turno: ci si puo' arrendere quando
+    // si vuole, ed e' proprio quando NON tocca a te che se ne sente il bisogno.
+    if (m.opCode === OP_MI_ARRENDO) {
+      _resa(state, dispatcher, logger, nk, chi);
+      return { state: state };
+    }
 
     if (m.opCode === OP_IMPRONTA) {
       // ── v0.77.55 — IL SERVER FA L'ARBITRO ───────────────────────────
