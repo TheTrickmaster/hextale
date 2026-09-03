@@ -620,7 +620,7 @@ var ABILITA_MOTORE = (function () {
         var uno = {}; for (var kk in pezzo) uno[kk] = pezzo[kk];
         uno.carta = presi[k];
         if (az === 'protect' || az === 'swap' || az === 'shuffle' || az === 'rotate') {
-          uno.lati = latiColpiti(eff.ambito, (presi[k].valoriBase || presi[k].values) || {}, presi[k], scena.seme);
+          uno.lati = latiColpiti(eff.ambito, (presi[k].valoriBase || presi[k].values) || {}, presi[k], _occasione(fonte, scena));
         }
         fuori.push(uno);
       }
@@ -653,7 +653,7 @@ var ABILITA_MOTORE = (function () {
     var i, j, bersaglio, lati;
     for (i = 0; i < lista.length; i++) {
       bersaglio = lista[i];
-      lati = latiColpiti(eff.ambito, (bersaglio.valoriBase || bersaglio.values) || {}, bersaglio, scena.seme);
+      lati = latiColpiti(eff.ambito, (bersaglio.valoriBase || bersaglio.values) || {}, bersaglio, _occasione(fonte, scena));
       if (az === 'set') {
         // "diventa un valore fra 1 e 3": il numero si tira QUI e vale per
         // tutti i lati colpiti, cosi' la carta non esce a scacchiera.
@@ -669,6 +669,31 @@ var ABILITA_MOTORE = (function () {
         fuori.push({ carta: bersaglio, lati: lati, delta: d, azione: az });
       }
     }
+  }
+
+  // ── v0.77.93 — DUE GENI NON SONO LA STESSA OCCASIONE ────────────────────
+  // Il lato "a caso" esce da un numero ricavato dal seme, e il seme conteneva
+  // due cose sole: la partita e la carta BERSAGLIO. Mancava chi stava agendo.
+  // Il risultato: giocato il primo Genio, il secondo regalava il bonus allo
+  // STESSO gruppo di ogni carta in mano, e cosi' il terzo, e il quarto — la
+  // scelta era casuale una volta sola, all'inizio della partita, e poi si
+  // ripeteva identica per sempre.
+  //
+  // Serviva quindi un pezzo di seme che cambi a ogni giocata, e che i due
+  // client e il server calcolino IDENTICO — se divergesse, i due tabelloni si
+  // troverebbero d'accordo solo per caso. La casella su cui la carta agisce ha
+  // tutte e due le proprieta': ogni Genio ne occupa una diversa, e su quale sia
+  // sono tutti d'accordo perche' l'ha decisa il server. Il turno fa da ripiego
+  // per chi agisce dalla mano, dove una casella non c'e'.
+  //
+  // NON si tocca il seme delle abilita' CONTINUE (_unEffetto): quelle devono
+  // restare ferme sullo stesso gruppo finche' durano, o il bonus salterebbe da
+  // un lato all'altro a ogni ridisegno. Li' l'occasione non esiste: c'e' uno
+  // stato che dura.
+  function _occasione(fonte, scena) {
+    var dove = (scena && scena.cellaDi) ? scena.cellaDi(fonte) : null;
+    if (!dove) dove = 't' + String((scena && scena.turno) || 0);
+    return String((scena && scena.seme) || '') + '|' + String(dove);
   }
 
   // I cambiamenti che l'abilita' di questa carta produce a un dato evento.
