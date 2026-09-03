@@ -4956,9 +4956,12 @@ body.io-sono-2 #p1-info .player-avatar-photo{ transform:scaleX(-1); }
 }
 .go-avatar-cornice{ position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
 #go-avatar-suo .go-avatar-foto{ transform:scaleX(-1); }   /* si guardano in faccia */
+/* Sta sopra al nome di chi ha vinto, e per questo e' piu' piccolo di lui: e'
+   la premessa, non l'annuncio. Vuoto quasi sempre — una partita che finisce
+   col tabellone pieno non ha niente da spiegare — e allora non occupa spazio. */
 #gameover-motivo{
   font-family:var(--font-body); font-size:20px; color:#C9C2B0;
-  text-align:center; margin-top:12px; text-shadow:0 0 4px rgba(0,0,0,0.9);
+  text-align:center; margin-bottom:8px; text-shadow:0 0 4px rgba(0,0,0,0.9);
 }
 #gameover-motivo:empty{ display:none; }
 /* ── LE RICOMPENSE ────────────────────────────────────────────────────────*/
@@ -10092,6 +10095,10 @@ body.prova-senza-willchange #mm-book-rot{
   <div id="gameover-fascia" class="hx-pannello">
     <!-- La testata: end-game-bg, il nome di chi ha vinto, i due punteggi. -->
     <div id="gameover-testata">
+      <!-- v0.78.14 — il perche' sta SOPRA il nome di chi ha vinto: si legge
+           prima cosa e' successo e poi come e' finita, che e' l'ordine in cui
+           le due cose sono avvenute. -->
+      <div id="gameover-motivo"></div>
       <div id="gameover-title"><span id="gameover-title-text"></span></div>
       <div id="gameover-punteggi">
         <span class="go-punti" id="go-punti-mio">0</span>
@@ -10107,10 +10114,6 @@ body.prova-senza-willchange #mm-book-rot{
         <span class="go-punti" id="go-punti-suo">0</span>
       </div>
     </div>
-    <!-- v0.78.6 — perche' e' finita cosi'. Vuota quasi sempre (una partita
-         che finisce col tabellone pieno non ha niente da spiegare) e occupa
-         spazio solo quando ha qualcosa da dire. -->
-    <div id="gameover-motivo"></div>
     <div id="gameover-premi-titolo">Your rewards:</div>
     <div id="gameover-premi">
       <div class="go-premio" id="go-premio-xp">
@@ -10191,7 +10194,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.78.13</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.78.14</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -13486,10 +13489,17 @@ function reteMessaggio(md){
     // resta quello vero fino a quell'istante — non si inventa un risultato:
     // per una resa il vincitore lo ha deciso il server, e glielo si fa vedere.
     if(d.motivo === 'abbandono' || d.motivo === 'resa'){
+      // v0.78.14 — col NOME di chi se n'e' andato, non con "il tuo avversario".
+      // Il server dice chi e' stato (`d.chi`, il suo numero) e il nome ce l'ha
+      // gia' il pannello di partita: e' la stessa domanda del titolo, fatta
+      // allo stesso posto.
       const perResa = (d.motivo === 'resa');
-      const testo = perResa
-        ? (suo ? 'Your opponent surrendered.' : 'You surrendered.')
-        : (suo ? 'Your opponent left the match.' : 'You left the match.');
+      const chiSeNeVa = (d.chi === 1 || d.chi === 2) ? _goNomeDi(d.chi) : null;
+      const testo = chiSeNeVa
+        ? (chiSeNeVa + (perResa ? ' surrendered.' : ' left the match.'))
+        : (perResa
+            ? (suo ? 'Your opponent surrendered.' : 'You surrendered.')
+            : (suo ? 'Your opponent left the match.' : 'You left the match.'));
       try{ fineDaRete(testo, d.vincitore); }
       catch(_){ apriAvviso('Match over', testo, true); }
     }
@@ -38350,6 +38360,19 @@ function reteResa(){
     match_id: PARTITA_RETE.matchId, op_code: 12, data: btoa(JSON.stringify({}))
   }});
 }
+// ── v0.78.14 — LA REGOLA DELLA RESA, PER INTERO ──────────────────────────
+// Chi si arrende PERDE, e chi resta in partita vince. Sempre — anche se stava
+// perdendo, anche all'ultimo turno. Una sola eccezione, ed e' quando non c'e'
+// niente da assegnare: **a zero a zero non ha vinto nessuno**, e il risultato
+// e' un pareggio.
+// Il metro e' il PUNTEGGIO e non "quante carte ci sono in campo": due carte
+// calate senza nessuna conquista lasciano il punteggio a zero, e li' non e'
+// successo niente di piu' che su un tabellone vuoto.
+// Il server decide con lo stesso metro dalla sua parte (vedi _resa), o
+// scriverebbe nel profilo una vittoria che sullo schermo si legge "Draw".
+function punteggioAZero(){
+  return !G || !G.hp || ((G.hp[1]||0) === 0 && (G.hp[2]||0) === 0);
+}
 function surrenderGame(){
   if(!G.currentPlayer || G.gameOver) return; // no game in progress, nothing to surrender
   closeSettingsModal();
@@ -38372,13 +38395,22 @@ function surrenderGame(){
   collapseAllHandExpand();
   const loser=G.currentPlayer;
   const winner=loser===1?2:1;
-  // Uno scarto deciso e senza ambiguita', cosi' il confronto in
-  // finishGameWithResult incorona sempre chi deve e non lo scambia mai per un
-  // pareggio, qualunque fossero i numeri veri.
-  // v0.75.0 — ribaltato: adesso vince chi ha MENO danni, quindi e' chi si
-  // arrende a doverne avere di piu'.
-  G.hp[winner]=Math.min(G.hp[1],G.hp[2],0);
-  G.hp[loser]=G.hp[winner]+1;
+  // ── v0.78.14 — QUI IL PUNTEGGIO ERA FALSIFICATO, E AL CONTRARIO ─────────
+  // Si scrivevano due numeri finti per far uscire giusto il confronto dentro a
+  // finishGameWithResult. Erano tarati sulla regola della v0.75.0 — "i numeri
+  // sono DANNI SUBITI e vince chi ne ha meno" — e quando la v0.77.0 li ha
+  // ribaltati (sono PUNTI FATTI, e vince chi ne ha di piu') queste due righe
+  // sono rimaste com'erano.
+  // Da allora arrendersi fuori rete faceva VINCERE chi si arrendeva: al
+  // vincitore andava il minimo, al perdente uno in piu'. Su un tabellone vuoto
+  // usciva 1 - 0 per chi aveva appena mollato.
+  // Nessuno se n'era accorto perche' quei numeri non li leggeva nessuno: si
+  // guardava solo chi dei due fosse il maggiore. E' lo stesso difetto di
+  // fineDaRete (v0.78.13), dall'altra porta.
+  // Adesso chi ha vinto lo si DICE, e i punti restano quelli veri.
+  G.vincitoreDichiarato = punteggioAZero() ? 0 : winner;
+  // v0.78.14 — e sopra al nome di chi vince si legge chi ha mollato.
+  _motivoFinePartita = _goNomeDi(loser) + ' surrendered.';
   G.gameOver=true;
   render();
   // v0.77.6 — l'abbassamento della musica sta adesso dove compare la schermata
@@ -38458,7 +38490,12 @@ function fineDaRete(testo, vincitore){
   // Adesso chi ha vinto lo si DICE, invece di lasciarlo dedurre da due numeri
   // costruiti apposta. I punti restano quelli veri, anche quando sono zero a
   // zero — che su un tabellone vuoto e' esattamente quel che e' successo.
-  G.vincitoreDichiarato = (vincitore === 1 || vincitore === 2) ? vincitore : 0;
+  // v0.78.14 — e se non e' stata giocata nemmeno una carta, non c'e' niente da
+  // vincere: zero a zero, pareggio. Vale anche quando il server dichiara un
+  // vincitore — su un tabellone vuoto quella dichiarazione non descrive una
+  // partita, e la stessa regola la applica anche lui dalla sua parte.
+  G.vincitoreDichiarato = (!punteggioAZero() && (vincitore === 1 || vincitore === 2))
+    ? vincitore : 0;
   G.gameOver = true;
   _motivoFinePartita = testo || '';
   _finePartitaDalServer = true;

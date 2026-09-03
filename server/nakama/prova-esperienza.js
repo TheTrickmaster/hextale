@@ -114,11 +114,44 @@ for (const g of guardie) {
   console.log('  ' + (buono ? 'ok    ' : 'ROTTA ') + g.nome);
 }
 
+// ── v0.78.14 — LA REGOLA DELLA RESA ───────────────────────────────────────
+// Chi si arrende PERDE e chi resta vince, sempre — anche se chi si arrende
+// stava vincendo. Una sola eccezione: a ZERO A ZERO non ha vinto nessuno, ed e'
+// un pareggio.
+// La cosa che questo banco sorveglia non e' la regola in se': e' che il CLIENT
+// e il SERVER la applichino con lo STESSO metro. Se uno guardasse il punteggio
+// e l'altro le carte in campo, ci sarebbero partite in cui lo schermo dice
+// "Draw" e il profilo registra una vittoria — e nessuno se ne accorgerebbe,
+// perche' le due cose non si guardano mai insieme.
+console.log('\nLA RESA, DETTA UGUALE DALLE DUE PARTI\n');
+const gioco = fs.readFileSync(path.join(__dirname, '..', '..', 'play', 'index.html'), 'utf8');
+const dueParti = [
+  { nome: 'il client misura il PUNTEGGIO, non le carte in campo',
+    dove: gioco, prova: /function punteggioAZero\(\)\{[\s\S]{0,200}?G\.hp\[1\]/ },
+  { nome: 'il server misura il PUNTEGGIO, dal racconto concorde',
+    dove: src, prova: /function _punteggioAZero\(state\) \{[\s\S]{0,300}?state\.concordato/ },
+  { nome: 'il client: a zero a zero nessun vincitore dichiarato',
+    dove: gioco, prova: /punteggioAZero\(\) \? 0 : winner/ },
+  { nome: 'e non da- retta nemmeno al server, se il punteggio e- zero a zero',
+    dove: gioco, prova: /!punteggioAZero\(\) && \(vincitore === 1 \|\| vincitore === 2\)/ },
+  { nome: 'il server: a zero a zero l-esito e- un pareggio per tutti e due',
+    dove: src, prova: /applicaEsito\(nk, u, vuoto \? false : suo, vuoto, false/ },
+  { nome: 'e nessuno falsifica piu- i punti per far uscire giusto un confronto',
+    dove: gioco, prova: /^(?![\s\S]*G\.hp\[winner\]\s*=\s*Math\.)[\s\S]*$/ },
+];
+for (const d of dueParti) {
+  const buono = d.prova.test(d.dove);
+  if (!buono) ko++;
+  console.log('  ' + (buono ? 'ok    ' : 'ROTTA ') + d.nome);
+}
+
 // E le tre strade che scrivono l'esito devono passare il modo e i turni.
 console.log('\nCHI SCRIVE L-ESITO LO DICE COM-E- FINITA\n');
 const strade = [
   { nome: 'la fine normale', prova: /applicaEsito\(nk, u, suo, pari, false, state\.turniGiocati\[u\], 'finita'\)/ },
-  { nome: 'la resa', prova: /suo \? 'finita' : 'resa'/ },
+  // v0.78.14 — `vuoto` sta davanti perche' a zero a zero non c'e' nessuna resa
+  // da premiare ne' da punire: e' un pareggio per tutti e due.
+  { nome: 'la resa', prova: /\(vuoto \|\| suo\) \? 'finita' : 'resa'/ },
   { nome: 'l-abbandono', prova: /uscito \? 'uscito' : 'resta'/ },
   { nome: 'la partita contro l-IA', prova: /dati\.turni, 'finita'/ },
   { nome: 'e i turni li conta il server, non il client', prova: /state\.turniGiocati\[chi\] = \(state\.turniGiocati\[chi\] \|\| 0\) \+ 1/ },

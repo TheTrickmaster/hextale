@@ -1782,13 +1782,36 @@ function partitaJoin(ctx, logger, nk, dispatcher, tick, state, presences) {
 // fa di ogni fine: lo dice a tutti e due, e SCRIVE L'ESITO — chi si arrende
 // perde, l'altro vince. Una resa e' una sconfitta scelta, non una partita
 // senza risultato.
+// ── v0.78.14 — LA REGOLA DELLA RESA, PER INTERO ──────────────────────────
+// Chi si arrende PERDE, e chi resta in partita vince. Sempre — anche se stava
+// perdendo, anche all'ultimo turno. Una sola eccezione, ed e' quando non c'e'
+// niente da assegnare: a ZERO A ZERO non ha vinto nessuno, e il risultato e'
+// un pareggio.
+// Il metro e' il PUNTEGGIO, non quante carte ci siano in campo: due carte
+// calate senza nessuna conquista lasciano il punteggio a zero, e li' non e'
+// successo niente di piu' che su un tabellone vuoto.
+// I punti il server non li calcola: li legge dall'ultimo racconto su cui i due
+// client si sono trovati D'ACCORDO (vedi OP_IMPRONTA). Se non ce n'e' ancora
+// nessuno, nessuno ha ancora fatto punti — che e' zero a zero.
+// Il client decide con lo stesso metro dalla sua parte (vedi punteggioAZero),
+// o il profilo direbbe "vittoria" mentre lo schermo dice "Draw".
+function _punteggioAZero(state) {
+  var acc = state.concordato;
+  if (!acc) return true;
+  var p = acc.hp || acc.punteggio || {};
+  return !((typeof p['1'] === 'number' && p['1'] !== 0) ||
+           (typeof p['2'] === 'number' && p['2'] !== 0));
+}
+
 function _resa(state, dispatcher, logger, nk, chi) {
   if (!state.iniziata || state.finita) return;
   state.finita = true;
   state.motivo = 'resa';
   var perdente = _indiceDi(state, chi);
   if (perdente < 0) return;
-  var vincitore = (perdente === 0) ? 2 : 1;
+  // A zero a zero non c'e' un vincitore: zero, cioe' nessuno.
+  var vuoto = _punteggioAZero(state);
+  var vincitore = vuoto ? 0 : ((perdente === 0) ? 2 : 1);
   for (var i = 0; i < state.giocatori.length; i++) {
     var u = state.giocatori[i];
     var suo = (i + 1) === vincitore;
@@ -1796,10 +1819,12 @@ function _resa(state, dispatcher, logger, nk, chi) {
       // v0.78.11 — chi si arrende ha CONCLUSO la partita, e quello vale 20:
       // e' una sconfitta scelta, non una partita lasciata a meta'. Chi si
       // trova vincitore per la resa dell'altro ha vinto, e vale 50.
-      var esito = applicaEsito(nk, u, suo, false, false,
-        state.turniGiocati[u], suo ? 'finita' : 'resa');
-      esito.vinta = suo;
-      esito.pari = false;
+      // v0.78.14 — a zero a zero e' un pareggio per tutti e due, e un pareggio
+      // paga quanto una sconfitta: nessuno dei due ha `vinta`.
+      var esito = applicaEsito(nk, u, vuoto ? false : suo, vuoto, false,
+        state.turniGiocati[u], (vuoto || suo) ? 'finita' : 'resa');
+      esito.vinta = vuoto ? false : suo;
+      esito.pari = vuoto;
       esito.perResa = true;
       _aUno(dispatcher, state, u, OP_ESITO, esito);
     } catch (e) {
@@ -1807,7 +1832,8 @@ function _resa(state, dispatcher, logger, nk, chi) {
     }
   }
   _aTutti(dispatcher, OP_FINE, { motivo: 'resa', chi: perdente + 1, vincitore: vincitore });
-  logger.info('partita finita per resa di %s: vince il giocatore %d', chi, vincitore);
+  if (vuoto) logger.info('resa di %s a zero a zero: pareggio, nessun vincitore', chi);
+  else logger.info('partita finita per resa di %s: vince il giocatore %d', chi, vincitore);
 }
 
 // ── v0.78.11 — CHI STAVA VINCENDO, QUANDO L'ALTRO E' USCITO ───────────────
