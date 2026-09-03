@@ -37,7 +37,11 @@ for (const p of programmi) {
   const testo = fs.readFileSync(path.join(QUI, p), 'utf8');
   const suoi = new Set([...testo.matchAll(/(?:function|const|let|var)\s+([A-Za-z_$][\w$]*)/g)].map(m => m[1]));
   const chiesti = new Set();
-  for (const m of testo.matchAll(/typeof\s+(_[A-Za-z_$][\w$]*)\s*!==\s*'function'/g)) chiesti.add(m[1]);
+  // La forma `typeof X !== 'function'` e' il segnale esplicito di "questa me la
+  // deve dare il gioco": si prende qualunque nome, non solo quelli col
+  // trattino basso. E' cosi' che verificaArtCarte (v0.77.99) e' entrata
+  // nell'elenco da sola, senza che nessuno la aggiungesse a mano.
+  for (const m of testo.matchAll(/typeof\s+([A-Za-z_$][\w$]*)\s*!==\s*'function'/g)) chiesti.add(m[1]);
   for (const m of testo.matchAll(/\b(_[a-zA-Z][\w$]*)\s*\(/g)) chiesti.add(m[1]);
   const daGioco = [...chiesti].filter(n => !suoi.has(n));
   if (!daGioco.length) continue;

@@ -98,6 +98,60 @@ app.whenReady().then(async () => {
   const dati = JSON.parse(grezzo);
   if (dati.errore) { console.log('ERRORE: ' + dati.errore); app.exit(1); return; }
 
+  // ── L'ARTE, SCOPERTA UNA VOLTA SOLA ─────────────────────────────────────
+  // Quali illustrazioni esistono lo si scopre BUSSANDO: per ogni carta si
+  // prova <slug>-<fazione>-layer3.png e, se non c'e', <slug>-<fazione>.png.
+  // Sono tre richieste per carta per fazione, circa seicento in tutto — e
+  // finora le faceva OGNI GIOCATORE A OGNI AVVIO, per riscoprire ogni volta
+  // la stessa risposta. Sono i "svariati secondi" prima che le carte si
+  // vedano nella Libreria.
+  // La risposta pero' non cambia fra un giocatore e l'altro: dipende da quali
+  // file stanno sul sito, non da chi guarda. Si chiede quindi qui, una volta,
+  // e si scrive nel catalogo: da li' in poi il gioco la LEGGE invece di
+  // riscoprirla, e le illustrazioni ci sono dal primo disegno.
+  // Si fa dentro alla stessa pagina che ha gia' il gioco caricato, quindi con
+  // le sue funzioni: verificaArtCarte e' la stessa che girava nel client, e
+  // non c'e' una seconda regola da tenere allineata.
+  console.log('        cerco le illustrazioni (una volta per tutte)...');
+  const conArte = await w.webContents.executeJavaScript(`(async ()=>{ try {
+    if(typeof verificaArtCarte !== 'function' || typeof _applicaCatalogo !== 'function'){
+      return JSON.stringify({ errore: 'il gioco non offre verificaArtCarte o _applicaCatalogo' });
+    }
+    _applicaCatalogo(${JSON.stringify(dati.carte)});
+    await verificaArtCarte();
+    return JSON.stringify({ arte: FINAL_CARDS.map(e => ({
+      id: e.id,
+      artLayersDark: e.artLayersDark || null,
+      artLayersLight: e.artLayersLight || null,
+      artDark: e.artDark || null,
+      artLight: e.artLight || null,
+      voci: e.voci || null,
+      battlecry: e.battlecry || null
+    })) });
+  } catch(e){ return JSON.stringify({ errore: String(e && e.stack || e) }); }
+  })()`);
+  const esitoArte = JSON.parse(conArte);
+  if (esitoArte.errore) {
+    // Non e' fatale: senza, il gioco torna a scoprirsela da solo come prima.
+    console.log('        (l\'arte non si e\' potuta scoprire: ' + esitoArte.errore + ')');
+  } else {
+    const perId = {};
+    for (const a of esitoArte.arte) perId[a.id] = a;
+    let quante = 0;
+    for (const c of dati.carte) {
+      const a = perId[c.id];
+      if (!a) continue;
+      c.artLayersDark = a.artLayersDark;
+      c.artLayersLight = a.artLayersLight;
+      c.artDark = a.artDark;
+      c.artLight = a.artLight;
+      if (a.voci) c.voci = a.voci;
+      if (a.battlecry) c.battlecry = a.battlecry;
+      if (a.artLayersDark || a.artLayersLight || a.artDark || a.artLight) quante++;
+    }
+    console.log('        ' + quante + ' carte su ' + dati.carte.length + ' hanno un\'illustrazione');
+  }
+
   // ── LE ABILITA', LETTE DALLE COLONNE NUOVE ──────────────────────────────
   // Si fa QUI, in Node, e non dentro alla pagina: nel blocco delle abilita' ci
   // sono nomi di colonna RIPETUTI (Action, Who, Where... due volte), e cercarli

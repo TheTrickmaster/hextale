@@ -9842,7 +9842,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.98</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.99</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -19775,8 +19775,46 @@ function whooshDiRarita(rarita){
 // Il totale si sa solo alla fine del ciclo qui sotto (dipende da quante carte
 // e quali abilita' hanno), quindi si riferisce a conteggio finito: prima di
 // allora non ci sarebbe niente di onesto da dire.
+// ── v0.77.99 — SE IL CATALOGO L'ARTE LA SA GIA', NON SI BUSSA ────────────
+// Questa funzione scopre quali illustrazioni esistono bussando: per ogni carta
+// prova <slug>-<fazione>-layer3.png e, se non c'e', <slug>-<fazione>.png. Sono
+// circa tre richieste per carta per fazione — seicento in tutto — e ognuna che
+// fallisce costa un secondo tentativo.
+// La risposta pero' non dipende da chi guarda: dipende da quali file stanno sul
+// sito. Farla riscoprire a ogni giocatore a ogni avvio erano i "svariati
+// secondi" prima che le carte si vedessero nella Libreria.
+// Da v0.77.99 la scopre l'IMPORTAZIONE, una volta, e la scrive nel catalogo
+// (vedi converti.js). Qui si guarda se c'e' gia': se c'e', non si bussa a
+// nessuna porta e le illustrazioni ci sono dal primo disegno.
+//
+// Il ripiego resta e serve: un catalogo importato prima di oggi quei campi non
+// li ha, e finche' non si rifa' l'importazione il gioco deve sapersela cavare
+// da solo — come ha sempre fatto.
+function _arteGiaNota(entry){
+  return !!(entry && (entry.artLayersDark || entry.artLayersLight
+                   || entry.artDark || entry.artLight));
+}
 function verificaArtCarte(avanzamento){
   if(!Array.isArray(FINAL_CARDS) || !FINAL_CARDS.length) return Promise.resolve();
+  // Se la sa il catalogo, non c'e' niente da scoprire. Basta che la sappia per
+  // QUALCUNA: o l'importazione l'ha fatta per tutte, o per nessuna.
+  //
+  // Si pretende pero' che il catalogo porti ANCHE le voci. Questa funzione
+  // scopre due cose insieme — le illustrazioni e le battute dei personaggi — e
+  // saltarla per intero fidandosi della sola arte vorrebbe dire, se
+  // l'importazione avesse preso l'una e non l'altra, un gioco con le carte
+  // giuste e i personaggi muti. Meglio bussare per niente che restare in
+  // silenzio: il silenzio non si nota finche' non lo si cerca.
+  const vociNote = FINAL_CARDS.some(e => e && Array.isArray(e.voci));
+  if(FINAL_CARDS.some(_arteGiaNota) && vociNote){
+    const quante = FINAL_CARDS.filter(_arteGiaNota).length;
+    console.info('[arte] la sa gia\' il catalogo: ' + quante + ' carte con illustrazione, zero richieste.');
+    for(const entry of FINAL_CARDS){
+      if(!entry.slug) entry.slug = slugPersonaggio(entry.name) || String(entry.id||'').replace(/^final-/,'');
+    }
+    if(typeof avanzamento === 'function') avanzamento(1, 1);
+    return Promise.resolve();
+  }
   const lavori = [];
   const senzArte = [];
   for(const entry of FINAL_CARDS){
