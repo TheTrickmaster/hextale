@@ -623,7 +623,9 @@ body.mouse-down, body.mouse-down *{
 #mm2-box-donate .donate-form{ width:100%; margin:0; padding:0; display:block; }
 #mm2-donate-btn{ width:100%; }
 #mm2-donate-btn .hxb-label{ gap:8px; }
-#mm2-donate-logo{ height:27px; width:auto; display:block; }
+#mm2-donate-logo, .hx-donate-logo{ height:27px; width:auto; display:block; }
+/* v0.78.15 — il Donate delle impostazioni e' lo stesso del menu. */
+.hx-donate-btn .hxb-label{ gap:8px; }
 
 /* ── IL CENTRO ────────────────────────────────────────────────────────── */
 #mm2-centro{
@@ -4483,8 +4485,11 @@ body.io-sono-2 #p1-info .player-avatar-photo{ transform:scaleX(-1); }
 /* v0.78.5 — la riga del TOTALE si distingue da quelle che la spiegano: e' il
    fatto, le altre sono il perche'. */
 .ct-mod.ct-mod-totale{ font-weight:700; }
-.ct-mod.su{ color:#7BD88F; }
-.ct-mod.giu{ color:#E2686B; }
+/* Gli stessi due colori dei NUMERI sulla carta: li scrive il JS in queste due
+   variabili (vedi COLORE_SU / COLORE_GIU). I valori qui sono solo il ripiego
+   per l'istante prima che quel codice giri. */
+.ct-mod.su{ color:var(--hx-su, #00A349); }
+.ct-mod.giu{ color:var(--hx-giu, #C43F3F); }
 /* Il tooltip non e' dentro a #card-modal-info, quindi le regole della scheda
    non lo raggiungono: qui le stesse righe ricevono gli stessi font e gli
    stessi colori, in piccolo. Ripetute e non condivise perche' i due
@@ -4927,9 +4932,10 @@ body.io-sono-2 #p1-info .player-avatar-photo{ transform:scaleX(-1); }
    Da sinistra: i miei punti, il mio ritratto, il trattino, il suo ritratto, i
    suoi punti. Specchiati attorno al trattino, che e' il modo in cui un
    risultato si legge senza doverlo spiegare. */
+#gameover-title{ margin-bottom:-10px; }
 #gameover-punteggi{
   display:flex; flex-direction:row; align-items:center; justify-content:center;
-  gap:12px;
+  gap:12px; margin-top:-6px;
 }
 /* Stesso oro e stesso carattere del punteggio nella bolla in partita: e' lo
    stesso numero, e deve avere la stessa faccia. */
@@ -4961,7 +4967,7 @@ body.io-sono-2 #p1-info .player-avatar-photo{ transform:scaleX(-1); }
    col tabellone pieno non ha niente da spiegare — e allora non occupa spazio. */
 #gameover-motivo{
   font-family:var(--font-body); font-size:20px; color:#C9C2B0;
-  text-align:center; margin-bottom:8px; text-shadow:0 0 4px rgba(0,0,0,0.9);
+  text-align:center; margin-bottom:-16px; text-shadow:0 0 4px rgba(0,0,0,0.9);
 }
 #gameover-motivo:empty{ display:none; }
 /* ── LE RICOMPENSE ────────────────────────────────────────────────────────*/
@@ -10194,7 +10200,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.78.14</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.78.15</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -10254,7 +10260,10 @@ body.prova-senza-willchange #mm-book-rot{
            menu" era una seconda via d'uscita che lasciava la partita a meta'
            senza dichiararlo: chi vuole andarsene si arrende, e lo dice. -->
       <div class="settings-voci" data-quando="partita">
-      <button class="hx-btn hx-btn-warning settings-azione" type="button" onclick="surrenderGame()">
+      <!-- v0.78.15 — a partita finita non c'e' piu' niente a cui arrendersi, e
+           il pulsante resta acceso solo mentre si gioca (vedi
+           openSettingsModal). -->
+      <button id="btn-surrender" class="hx-btn hx-btn-warning settings-azione" type="button" onclick="surrenderGame()">
         <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
         <span class="hxb-label">Surrender</span>
       </button>
@@ -10327,18 +10336,20 @@ body.prova-senza-willchange #mm-book-rot{
            gestore gia' scritto in desktop/main.js. -->
       <div class="settings-voci" data-quando="menu">
         <div class="filters-riga"></div>
-        <div class="donate-box">
-          <form class="donate-form" action="https://www.paypal.com/donate" method="post" target="_blank" rel="noopener">
-            <input type="hidden" name="business" value="4HZY4JGJ2A358">
-            <input type="hidden" name="no_recurring" value="0">
-            <input type="hidden" name="currency_code" value="EUR">
-            <button type="submit" class="donate-btn" title="PayPal - The safer, easier way to pay online!">
-              <img src="https://www.paypalobjects.com/en_US/IT/i/btn/btn_donateCC_LG.gif"
-                   alt="Donate with PayPal" draggable="false"
-                   onerror="this.remove(); this.parentNode.textContent='Donate with PayPal';">
-            </button>
-          </form>
-        </div>
+        <!-- v0.78.15 — lo stesso pulsante del menu principale, non piu' la
+             GIF di PayPal. Il modulo resta identico — si cambia il vestito del
+             pulsante, non cio' che fa — ed e' l'unico modo perche' i due
+             posti da cui si dona abbiano la stessa faccia: prima uno era un
+             pulsante del gioco e l'altro un'immagine presa da paypal.com. -->
+        <form class="donate-form" action="https://www.paypal.com/donate" method="post" target="_blank" rel="noopener">
+          <input type="hidden" name="business" value="4HZY4JGJ2A358">
+          <input type="hidden" name="no_recurring" value="0">
+          <input type="hidden" name="currency_code" value="EUR">
+          <button class="hx-btn settings-azione hx-donate-btn" type="submit">
+            <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
+            <span class="hxb-label"><img class="hx-donate-logo" alt="" draggable="false">Donate</span>
+          </button>
+        </form>
       </div>
     </div>
   </div>
@@ -13602,7 +13613,14 @@ function reteRaccontaQuandoFermo(){
 function reteAllineaTimer(){
   if(!PARTITA_RETE || typeof timerLeft === 'undefined') return;
   const restano = Math.max(0, Math.round((PARTITA_RETE.scadenza - Date.now()) / 1000));
-  if(Math.abs(restano - timerLeft) >= 2) timerLeft = Math.min(TURN_SECS, restano);
+  // v0.78.15 — si correggeva `timerLeft`, e il tic successivo lo riscriveva da
+  // `timerDeadline` un sessantesimo di secondo dopo: la correzione durava un
+  // fotogramma e non arrivava mai a schermo. Il dato da correggere e' la
+  // SCADENZA, che e' quella da cui i secondi si ricavano.
+  if(Math.abs(restano - timerLeft) >= 2){
+    timerDeadline = PARTITA_RETE.scadenza;
+    timerLeft = Math.min(TURN_SECS, restano);
+  }
   reteAllineaTurno();
 }
 
@@ -16747,7 +16765,26 @@ var ABILITA_MOTORE = (function () {
       for (var i = 0; i < vic.length; i++) if (vic[i] === bersaglio) return true;
       return false;
     }
-    if (dove === 'board' || !dove) return bersaglio !== fonte || chi === 'self';
+    // ── v0.78.15 — "board" E' UN LUOGO, NON "CHIUNQUE" ────────────────────
+    // Qui bastava che il bersaglio non fosse la fonte, e non si guardava
+    // affatto DOVE si trovasse. Little John dice "buff ally board power": in
+    // campo. Le carte in MANO venivano buffate lo stesso, perche' anche loro
+    // non sono la fonte — il foglio diceva una cosa e il motore ne faceva
+    // un'altra, senza che nessuna delle due parti potesse accorgersene.
+    // Adesso il bersaglio deve essere in campo davvero.
+    // Se la scena non sa dire chi c'e' in campo si torna al comportamento di
+    // prima: meglio un effetto in piu' che spegnere ogni sinergia del gioco
+    // per una scena costruita male.
+    if (dove === 'board') {
+      var campo = scena && scena.inCampo;
+      if (campo && campo.length !== undefined) {
+        var dentro = false, k;
+        for (k = 0; k < campo.length; k++) if (campo[k] === bersaglio) { dentro = true; break; }
+        if (!dentro) return false;
+      }
+      return bersaglio !== fonte || chi === 'self';
+    }
+    if (!dove) return bersaglio !== fonte || chi === 'self';
     return false;
   }
 
@@ -19159,14 +19196,48 @@ function salvaImpostazioniAudio(){
 // e non fa niente, e appena il server risponde (vedi preferenzeDalServer). La
 // seconda e' quella che conta; la prima resta perche' la costruzione dell'audio
 // non deve dipendere da quando arriva la rete.
+// ── v0.78.15 — CARICARE UN VOLUME VUOL DIRE APPLICARLO ────────────────────
+// Questa funzione scriveva le tre variabili e si fermava li'. Ma il volume
+// vero e' una proprieta' degli ELEMENTI <audio>, e quella non la toccava
+// nessuno: se una musica stava gia' suonando quando le impostazioni
+// arrivavano dal server — ed e' il caso normale all'avvio, dove la musica
+// parte prima che il profilo torni — continuava al volume di prima, cioe' al
+// massimo, con il cursore a zero. Una spia che dice il falso.
+//
+// E c'e' la seconda meta' del difetto: questa funzione veniva richiamata a
+// ogni lettura del profilo, e RIPORTAVA i volumi a quel che diceva il server.
+// Chi aveva appena mutato la musica dalle impostazioni se la ritrovava accesa,
+// perche' la sua scelta era piu' recente della risposta che stava arrivando.
+// Da qui la regola: **una scelta fatta a mano in questa sessione vince su
+// qualunque lettura successiva.** Il server la ricevera' comunque (vedi
+// salvaImpostazioniAudio), ma non e' lui a dover ricordare al giocatore cosa
+// aveva appena deciso.
+let _audioSceltoAMano = false;
+function segnaAudioSceltoAMano(){ _audioSceltoAMano = true; }
 function caricaImpostazioniAudio(){
   const dati = PREFERENZE.audio || null;
   if(!dati) return;
+  if(_audioSceltoAMano) return;      // la scelta del giocatore viene dopo, e vince
   const buono = (v)=> (typeof v === 'number' && isFinite(v)) ? Math.max(0, Math.min(1, v)) : null;
   const m = buono(dati.master), mu = buono(dati.music), sf = buono(dati.sfx);
   if(m  !== null) window.globalVolume = m;
   if(mu !== null) window.musicVolume  = mu;
   if(sf !== null) window.sfxVolume    = sf;
+  // E si applicano a cio' che sta suonando ADESSO.
+  try{ allineaVolumiCorrenti(); }catch(_){ }
+}
+// Rimette il volume vero su tutto cio' che suona, dalle tre variabili. Non
+// salva niente: e' l'applicazione di una regola, non una scelta.
+function allineaVolumiCorrenti(){
+  const bgm = document.getElementById('bgm');
+  if(bgm) bgm.volume = getEffectiveMusicVolume();
+  const lp = document.getElementById('bgm-loop');
+  if(lp) lp.volume = getEffectiveMusicVolume();
+  document.querySelectorAll('audio[id^="sfx-"]').forEach(el=>{ el.volume = getGlobalVolume(); });
+  try{ setSliderVisual('volume-slider', getMasterVolume()); }catch(_){ }
+  try{ setSliderVisual('music-volume-slider', getMusicVolume()); }catch(_){ }
+  try{ setSliderVisual('sfx-volume-slider', getSfxVolume()); }catch(_){ }
+  try{ updateMuteIcon(); updateMusicMuteIcon(); updateSfxMuteIcon(); }catch(_){ }
 }
 function preparaImpostazioniAudio(){
   // v0.73.61 — si parte con tutto al massimo.
@@ -19250,6 +19321,7 @@ function setSliderVisual(trackId, vol01){
 // it updates both bgm and every sfx element even though music/sfx each also
 // have their own independent slider.
 function applyVolume(vol){
+  segnaAudioSceltoAMano();
   window.globalVolume=vol;
   const bgm=document.getElementById('bgm');
   if(bgm) bgm.volume=getEffectiveMusicVolume();
@@ -19264,6 +19336,7 @@ function applyVolume(vol){
 // Applies the MUSIC-only volume level [0-1] — affects bgm exclusively, sfx
 // are untouched.
 function applyMusicVolume(vol){
+  segnaAudioSceltoAMano();
   window.musicVolume=vol;
   const bgm=document.getElementById('bgm');
   if(bgm) bgm.volume=getEffectiveMusicVolume();
@@ -19278,6 +19351,7 @@ function applyMusicVolume(vol){
 // element AND playSfxFile()'s Web Audio path (both read getGlobalVolume(),
 // which now factors in this channel), bgm is untouched.
 function applySfxVolume(vol){
+  segnaAudioSceltoAMano();
   window.sfxVolume=vol;
   document.querySelectorAll('audio[id^="sfx-"]').forEach(el=>{ el.volume=getGlobalVolume(); });
   setSliderVisual('sfx-volume-slider', vol);
@@ -19422,6 +19496,12 @@ function openSettingsModal(quando){
   document.querySelectorAll('#settings-modal .settings-voci').forEach(g=>{
     g.classList.toggle('mostra', g.getAttribute('data-quando') === dove);
   });
+  // v0.78.15 — "Surrender" solo mentre c'e' una partita da abbandonare. A
+  // partita finita restava li', e premendolo non succedeva niente (vedi la
+  // prima riga di surrenderGame): un pulsante che non fa niente e' peggio di
+  // un pulsante assente, perche' fa credere di aver sbagliato qualcosa.
+  const resa = document.getElementById('btn-surrender');
+  if(resa) resa.style.display = (dove === 'partita' && G && !G.gameOver && G.currentPlayer) ? '' : 'none';
   // v0.77.11 — la finestra ha la veste di quella dei filtri, e quella veste
   // vuole due cose caricate: la trama del pannello e i cinque pezzi di ogni
   // pulsante. Si fa all'apertura e non una volta all'avvio perche' e' qui che
@@ -19449,6 +19529,13 @@ function vestiFinestraImpostazioni(){
   impostaVariabileDaCandidati(pannello, '--hx-casella-off', uiFileCandidati('checkbox-square-unchecked.png'));
   impostaVariabileDaCandidati(pannello, '--hx-casella-on',  uiFileCandidati('checkbox-square-checked.png'));
   pannello.querySelectorAll('.hx-btn').forEach(vestiPulsante);
+  // v0.78.15 — il logo del pulsante Donate. Sta qui e non nell'elenco degli
+  // asset di avvio perche' quell'elenco vestiva un id solo, e adesso i pulsanti
+  // che lo portano sono due (menu e impostazioni).
+  pannello.querySelectorAll('.hx-donate-logo').forEach(img =>
+    impostaImgDaCandidati(img, uiFileCandidati('paypal-logo.png')));
+  // E i due colori del bilancio, che il foglio di stile riceve da qui.
+  try{ allineaIColoriDelBilancio(); }catch(_){ }
 }
 function closeSettingsModal(){
   document.getElementById('settings-modal-overlay').classList.remove('show');
@@ -28183,9 +28270,18 @@ function startTimer(){
   // secondo lui, non da sessanta. Un turno cominciato in ritardo — perche' il
   // messaggio ci ha messo, o perche' la scheda era in secondo piano — durerebbe
   // altrimenti piu' del dovuto su uno dei due schermi.
+  // v0.78.15 — QUESTE RIGHE NON FACEVANO NIENTE. Scrivevano `timerLeft`, e
+  // venti righe piu' sotto `timerLeft=TURN_SECS` lo riscriveva; e comunque il
+  // conto vero lo tiene `timerDeadline`, da cui il tic ricalcola i secondi a
+  // ogni battito. Il risultato: in rete il timer era un cronometro LOCALE da
+  // sessanta secondi, e la scadenza del server non lo toccava mai — ne' qui,
+  // ne' dal battito (vedi reteAllineaTimer, che aveva lo stesso difetto).
+  // Adesso si scrive la SCADENZA, che e' il dato da cui tutto il resto
+  // discende, e la si tiene in una variabile che le righe qui sotto rispettano.
+  let scadenzaDelServer = 0;
   if(PARTITA_RETE && PARTITA_RETE.scadenza){
-    const restano = Math.round((PARTITA_RETE.scadenza - Date.now()) / 1000);
-    if(restano > 0 && restano <= TURN_SECS) timerLeft = restano;
+    const restano = (PARTITA_RETE.scadenza - Date.now()) / 1000;
+    if(restano > 0 && restano <= TURN_SECS) scadenzaDelServer = PARTITA_RETE.scadenza;
   }
   // v0.71.65 BUG FIX ("anche il timer non dovrebbe scorrere durante questi
   // test" — the "Testa animazione abilità..." preview): startTimer() is
@@ -28202,8 +28298,8 @@ function startTimer(){
   // va zittito — non nei singoli punti da cui un turno puo' finire, che sono
   // tanti e diventeranno di piu'.
   stopTictoc();
-  timerLeft=TURN_SECS;
-  timerDeadline=Date.now()+TURN_SECS*1000;
+  timerDeadline = scadenzaDelServer || (Date.now()+TURN_SECS*1000);
+  timerLeft = Math.max(0, Math.ceil((timerDeadline - Date.now())/1000));
   // Capture whose turn this timer belongs to. If the turn has already advanced by
   // the time the timer fires (e.g. the player placed a card right as it hit 0),
   // the stale timer must NOT auto-play for the new current player.
@@ -30670,23 +30766,13 @@ const TRASF_LAMPO_MS = TRASF_SU_MS + 340;
 // attaccato alla carta sparirebbe con lei proprio mentre serve. Stessa tecnica
 // della carta che vola via distrutta (vedi _volaViaDalTabellone).
 function _lampoTrasformazione(cella){
-  if(typeof document === 'undefined') return;
-  const bsvg = document.getElementById('board-svg');
   const el = elementoCarta(cella);
-  if(!bsvg || !el) return;
-  let r = null;
-  try { r = authoredRect(bsvg); } catch(_){ return; }
-  if(!r || !r.width) return;
+  if(!el) return;
   let bbox = null;
   try { bbox = el.getBBox(); } catch(_){ return; }
-  const velo = document.createElement('div');
-  velo.className = 'trasf-lampo-velo';
-  velo.style.left = r.left+'px'; velo.style.top = r.top+'px';
-  velo.style.width = r.width+'px'; velo.style.height = r.height+'px';
-  const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
-  svg.setAttribute('viewBox', bsvg.getAttribute('viewBox') || '');
-  svg.setAttribute('preserveAspectRatio', bsvg.getAttribute('preserveAspectRatio') || 'xMidYMid meet');
-  svg.style.cssText = 'width:100%;height:100%;display:block;overflow:visible;';
+  const v = _veloSullaPlancia('trasf-lampo-velo');
+  if(!v) return;
+  const velo = v.velo, svg = v.svg, bsvg = v.bsvg;
   const cx = bbox.x + bbox.width/2, cy = bbox.y + bbox.height/2;
   const raggio = Math.max(bbox.width, bbox.height)/2;
   const lampo = svgEl('polygon');
@@ -30717,7 +30803,6 @@ function _lampoTrasformazione(cella){
   }catch(_){ }
   gruppo.appendChild(lampo);
   svg.appendChild(gruppo);
-  velo.appendChild(svg);
   (document.getElementById('game-root') || document.body).appendChild(velo);
   // Il culmine del bianco cade ESATTAMENTE quando la carta cambia. La
   // percentuale si calcola invece di scriverla, cosi' spostando TRASF_SU_MS
@@ -32369,27 +32454,56 @@ function bersagliKingslayer(q, r, giocatore){
 // STESSO viewBox dell'originale, ed e' quello che le fa mantenere posizione e
 // misura senza un solo calcolo: le coordinate che aveva continuano a valere.
 const DISTRUZIONE_MS = 520;
-function _volaViaDalTabellone(cella){
-  if(typeof document === 'undefined') return;
+// ── v0.78.15 — UN VELO CHE STA DAVVERO SOPRA ALLA PLANCIA ─────────────────
+// Due animazioni vivono su un velo a parte, sopra al tabellone: la carta che
+// vola via distrutta e il lampo della trasformazione. Vivono li' perche' un
+// ridisegno della plancia le porterebbe via a meta' volo.
+//
+// Tutte e due sbagliavano posizione, e dello STESSO scarto, perche' facevano
+// la stessa cosa: copiavano il `viewBox` di #board-svg. Quel viewBox NON
+// ESISTE — la plancia e' un <svg width="1920" height="1080"> rimpicciolito da
+// due trasformazioni CSS (#board-scale al 93%, #game-root al resto) — quindi
+// copiavano una stringa vuota, e il velo finiva con uno spazio utente suo, in
+// cui un'unita' vale un pixel del velo invece di un pixel della plancia.
+// Da li' i sessantacinque pixel di scarto in orizzontale e i diciotto in
+// verticale, uguali per tutte e due.
+//
+// Adesso il viewBox si COSTRUISCE dalle misure vere della plancia, cosi' il
+// velo eredita esattamente la sua mappa. E si costruisce in un posto solo: le
+// due funzioni avevano queste stesse sei righe copiate, ed e' il motivo per cui
+// avevano anche lo stesso difetto.
+function _veloSullaPlancia(classe){
+  if(typeof document === 'undefined') return null;
   const bsvg = document.getElementById('board-svg');
-  const el = elementoCarta(cella);
-  if(!bsvg || !el) return;
+  if(!bsvg) return null;
   let r = null;
-  try { r = authoredRect(bsvg); } catch(_){ return; }
-  if(!r || !r.width) return;
+  try { r = authoredRect(bsvg); } catch(_){ return null; }
+  if(!r || !r.width) return null;
   const velo = document.createElement('div');
-  velo.className = 'carta-distrutta-volo';
+  velo.className = classe;
   velo.style.left = r.left+'px'; velo.style.top = r.top+'px';
   velo.style.width = r.width+'px'; velo.style.height = r.height+'px';
   const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
-  svg.setAttribute('viewBox', bsvg.getAttribute('viewBox') || '');
+  // Il viewBox vero: se la plancia ne dichiara uno si usa quello, altrimenti
+  // lo si ricava dalle sue misure — che e' il caso di oggi.
+  const w = bsvg.getAttribute('width')  || 1920;
+  const h = bsvg.getAttribute('height') || 1080;
+  svg.setAttribute('viewBox', bsvg.getAttribute('viewBox') || ('0 0 ' + w + ' ' + h));
   svg.setAttribute('preserveAspectRatio', bsvg.getAttribute('preserveAspectRatio') || 'xMidYMid meet');
   svg.style.cssText = 'width:100%;height:100%;display:block;overflow:visible;';
+  velo.appendChild(svg);
+  return { velo, svg, bsvg };
+}
+function _volaViaDalTabellone(cella){
+  const el = elementoCarta(cella);
+  if(!el) return;
+  const v = _veloSullaPlancia('carta-distrutta-volo');
+  if(!v) return;
+  const velo = v.velo, svg = v.svg;
   const copia = el.cloneNode(true);
   copia.classList.add('carta-distrutta');
   copia.style.setProperty('--durata', DISTRUZIONE_MS + 'ms');
   svg.appendChild(copia);
-  velo.appendChild(svg);
   (document.getElementById('game-root') || document.body).appendChild(velo);
   setTimeout(()=>{ try { velo.remove(); } catch(_){} }, DISTRUZIONE_MS + 200);
 }
@@ -39806,6 +39920,26 @@ function valoriNascosti(card){
 // (vedi gruppiDiCarta) — e da v0.77.91 nessun effetto puo' piu' spaccarlo.
 // Il ripiego sui delta passati da fuori serve alle carte senza `valoriNascita`:
 // le anteprime e le sonde, che non sono carte di una partita.
+// ── v0.78.15 — IL VERDE E IL ROSSO SONO DUE, IN TUTTO IL GIOCO ────────────
+// Erano scritti due volte: qui sotto per i NUMERI sulla carta (#00A349 e
+// #C43F3F) e nel foglio di stile per l'elenco dei buff (#7BD88F e #E2686B).
+// Due verdi diversi per la stessa cosa — "questo valore e' salito" — detta in
+// due punti dello stesso riquadro: si guardano insieme, e si vedeva.
+// Adesso il colore e' UNO e sta qui; il CSS lo riceve da queste stesse due
+// costanti (vedi allineaIColoriDelBilancio), quindi non c'e' modo che le due
+// facce tornino a divergere senza che qualcuno lo faccia apposta.
+const COLORE_SU  = '#00A349';
+const COLORE_GIU = '#C43F3F';
+function allineaIColoriDelBilancio(){
+  try{
+    const r = document.documentElement;
+    r.style.setProperty('--hx-su', COLORE_SU);
+    r.style.setProperty('--hx-giu', COLORE_GIU);
+  }catch(_){ }
+}
+// Si applicano subito: il foglio di stile ne ha bisogno dal primo disegno,
+// non dalla prima apertura delle impostazioni.
+try{ allineaIColoriDelBilancio(); }catch(_){ }
 function scartoDallaNascita(card, valoriMostrati, gruppo, ripiego){
   const lato = (gruppo && gruppo.sides && gruppo.sides[0]) || null;
   if(!lato) return 0;
@@ -40676,8 +40810,8 @@ function drawHexCard(svg,cx,cy,R,card,fillColor,strokeColor,textColor,nameText,i
       // scaling by magnitude like the old design had).
       const groupDelta = scartoDallaNascita(card, cardValues, g, factionDeltas);
       let valueFill = V.valText;
-      if(groupDelta>0) valueFill = '#00A349';
-      else if(groupDelta<0) valueFill = '#C43F3F';
+      if(groupDelta>0) valueFill = COLORE_SU;
+      else if(groupDelta<0) valueFill = COLORE_GIU;
       t.setAttribute('fill', valueFill);
       // v0.71.57 FIX ("anche il cambio del colore del numero nel value-circle
       // avviene in ritardo"): same class of bug as card-corner/value-circle
@@ -46229,18 +46363,21 @@ function _modificatoriDalMotore(card){
                 : (Math.abs(massimo) >= Math.abs(minimo) ? massimo : minimo);
     if(!delta) continue;
     const segno = delta > 0 ? '+' : '−';
-    // Il nome dell'abilita' quando la fonte e' la carta stessa: "da se stessa"
-    // non dice niente, il nome dell'abilita' si'.
-    const da = (fonte === card)
-      ? (card.abilityNameSheet || card.name || 'its own ability')
-      : (fonte.name || 'another card');
+    // ── v0.78.15 — QUANDO LA FONTE E' LA CARTA STESSA, SI DICE "Self" ──────
+    // Prima ci finiva il nome dell'abilita', e la riga diceva "+2 ALL from
+    // Sleight of Hand" — che e' il nome del gesto, non di chi lo fa. Chi legge
+    // sta guardando una lista di CHI le ha messo le mani addosso, e li' dentro
+    // "se stessa" e' una risposta, mentre il nome di un'abilita' e' un'altra
+    // domanda.
+    const suDiSe = (fonte === card);
+    const da = suDiSe ? null : (fonte.name || 'another card');
     // Tre forme sole, e nessuna nomina i lati: "ALL" se tocca tutta la carta,
     // "RAND" se il gruppo lo ha scelto il caso, niente se e' un gruppo e basta.
     // I lati colpiti sono gia' sotto gli occhi, verdi o rossi: ripeterli qui in
     // punti cardinali e' un dettaglio che si legge e non serve a niente.
     const ambito = uniforme ? ' ALL' : (_fonteACaso(fonte) ? ' RAND' : '');
     righe.push({
-      testo: segno + Math.abs(delta) + ambito + ' from ' + da,
+      testo: segno + Math.abs(delta) + ambito + (da ? (' from ' + da) : ' Self'),
       positivo: delta > 0
     });
   }
@@ -46280,6 +46417,15 @@ function _scartiDaiValoriStampati(card){
   }
   return fuori;
 }
+// La riga del foglio di questa carta dice che agisce su SE STESSA?
+function _abilitaSuDiSe(card){
+  if(typeof _haAbilitaNuova !== 'function' || !_haAbilitaNuova(card)) return false;
+  let a = null;
+  try{ a = _motore().abilitaDi(card); }catch(_){ return false; }
+  if(!a) return false;
+  return [a.effetto, a.effetto2].some(e => e && e.chi === 'self'
+    && (e.azione === 'buff' || e.azione === 'debuff' || e.azione === 'set'));
+}
 function bloccoModificatoriHTML(card){
   // ── QUANTO, E DA CHI ────────────────────────────────────────────────────
   // Due domande diverse, e servono tutte e due. "Quanto" e' un fatto e si
@@ -46307,13 +46453,21 @@ function bloccoModificatoriHTML(card){
   // Se OGNI gruppo si e' mosso della stessa quantita' la carta e' cambiata
   // tutta, e la riga e' una sola: "+2 ALL". Se no, una riga per ogni quantita'
   // diversa — due gruppi cresciuti entrambi di 2 restano un fatto solo.
+  // ── v0.78.15 — E IL TOTALE, QUANDO A FARSELO E' STATA LA CARTA STESSA ───
+  // Un colpo una tantum che una carta si da' da sola — il foglio dice "buff
+  // self power" — non passa da nessuno dei due elenchi coi nomi: restava un
+  // "+2" nudo, senza nessuno che dicesse da dove venisse.
+  // Se nessuna riga con un nome spiega quel totale e la riga del foglio dice
+  // che quella carta agisce su SE STESSA, allora il colpevole e' lei, e lo si
+  // scrive. Non e' una deduzione azzardata: e' l'unica fonte rimasta.
+  const daSe = (!nomi.length) && _abilitaSuDiSe(card);
   const quantiGruppi = ((typeof gruppiDiCarta === 'function') ? gruppiDiCarta(card) : []).length;
   const tutta = quantiGruppi > 0 && scarti.length >= quantiGruppi
              && scarti.every(s => s.delta === scarti[0].delta);
   const quantita = tutta ? [scarti[0].delta] : [...new Set(scarti.map(s => s.delta))];
   for(const d of quantita){
     righe.push({
-      testo: (d > 0 ? '+' : '\u2212') + Math.abs(d) + (tutta ? ' ALL' : ''),
+      testo: (d > 0 ? '+' : '\u2212') + Math.abs(d) + (tutta ? ' ALL' : '') + (daSe ? ' Self' : ''),
       positivo: d > 0,
       forte: true
     });

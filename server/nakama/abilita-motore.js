@@ -329,7 +329,26 @@ var ABILITA_MOTORE = (function () {
       for (var i = 0; i < vic.length; i++) if (vic[i] === bersaglio) return true;
       return false;
     }
-    if (dove === 'board' || !dove) return bersaglio !== fonte || chi === 'self';
+    // ── v0.78.15 — "board" E' UN LUOGO, NON "CHIUNQUE" ────────────────────
+    // Qui bastava che il bersaglio non fosse la fonte, e non si guardava
+    // affatto DOVE si trovasse. Little John dice "buff ally board power": in
+    // campo. Le carte in MANO venivano buffate lo stesso, perche' anche loro
+    // non sono la fonte — il foglio diceva una cosa e il motore ne faceva
+    // un'altra, senza che nessuna delle due parti potesse accorgersene.
+    // Adesso il bersaglio deve essere in campo davvero.
+    // Se la scena non sa dire chi c'e' in campo si torna al comportamento di
+    // prima: meglio un effetto in piu' che spegnere ogni sinergia del gioco
+    // per una scena costruita male.
+    if (dove === 'board') {
+      var campo = scena && scena.inCampo;
+      if (campo && campo.length !== undefined) {
+        var dentro = false, k;
+        for (k = 0; k < campo.length; k++) if (campo[k] === bersaglio) { dentro = true; break; }
+        if (!dentro) return false;
+      }
+      return bersaglio !== fonte || chi === 'self';
+    }
+    if (!dove) return bersaglio !== fonte || chi === 'self';
     return false;
   }
 
