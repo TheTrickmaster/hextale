@@ -9925,7 +9925,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.78.6</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.78.7</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -31026,6 +31026,24 @@ function _trasformaDalFoglio(card, eff, a){
   const etichetta = (a && a.nome) || card.abilityNameSheet || 'Transform';
   return trasformaCartaIn(card, entry.name, etichetta);
 }
+// ── v0.78.7 — QUESTA FUNZIONE GIRA ANCHE PER FINTA ───────────────────────
+// Trascinando una carta sul tabellone, simulaPiazzamento la cala su una copia
+// del campo e chiama applicaAbilitaPiazzamento — quindi anche questa — a OGNI
+// casella sorvolata, per mostrare l'anteprima dei numeri. La copia protegge il
+// tabellone e le mani, ma NON il resto dello stato della partita.
+//
+// I due segni qui sotto — "la prossima carta che giochi" e "la prossima che
+// peschi" — vivono in G, cioe' nello stato vero. Scritti durante un'anteprima
+// diventano promesse che nessuno ha fatto, e quello sulla pescata si SOMMA:
+// la Regina di Cuori regalava +2 a ogni movimento del puntatore, e in una
+// partita si arrivava a numeri come 232.
+// Il codice lo sapeva gia' — e' esattamente il motivo per cui esiste
+// EFFETTI_PIAZZAMENTO_REALI, e il suo commento cita proprio la Regina di
+// Cuori. Portando la sua abilita' sul foglio (v0.78.5) e' rientrata dalla
+// finestra: la strada nuova non aveva la protezione che la vecchia aveva.
+// La guardia sta ADESSO nei due punti che scrivono, non qui: chi aggiungera'
+// un terzo segno domani la trovera' gia' al suo posto invece di doversene
+// ricordare.
 function eseguiDalFoglio(card, evento, dove){
   if(!_haAbilitaNuova(card)) return false;
   const a = _motore().abilitaDi(card);
@@ -31050,6 +31068,8 @@ function eseguiDalFoglio(card, evento, dove){
     // foglio non trovava nessuno che la eseguisse.
     // La taglia vive in G.bonusProssimaPescata e la riscuote drawAndAnimate.
     if((eff.azione === 'buff' || eff.azione === 'debuff') && eff.quale === 'next' && eff.dove === 'drawn'){
+      // v0.78.7 — e nemmeno questa. Vedi sotto.
+      if(_simulazioneInCorso) continue;
       const chi = card.owner || G.currentPlayer;
       const quanto = ((eff.quanto && eff.quanto.numero) || 0) * (eff.azione === 'debuff' ? -1 : 1);
       if(quanto && G.bonusProssimaPescata){
@@ -31063,6 +31083,10 @@ function eseguiDalFoglio(card, evento, dove){
 
 // Il segno lasciato sulla prossima carta giocata da questo giocatore.
 function preparaPremioProssimaGiocata(card, a, eff){
+  // v0.78.7 — L'ANTEPRIMA NON PROMETTE NIENTE. Vedi il commento in
+  // eseguiDalFoglio: questa funzione scrive nello stato VERO della partita, e
+  // durante il trascinamento gira su una copia di lavoro.
+  if(_simulazioneInCorso) return;
   const chi = card.owner || G.currentPlayer;
   const segno = (eff.azione === 'debuff' ? -1 : 1) * ((eff.quanto && eff.quanto.numero) || 0);
   G.premioProssimaGiocata[chi] = {
