@@ -9842,7 +9842,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.78.1</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.78.2</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -13840,6 +13840,91 @@ async function caricaCarteDalServer(){
   return { cambiato: !!cambiato };
 }
 
+// ══════════════════════════════════════════════════════════════════════════
+// v0.78.2 — L'ARTE DELLE CARTE NON ERA MAI STATA PRECARICATA
+// ══════════════════════════════════════════════════════════════════════════
+// Il precaricatore dell'avvio raccoglie gli indirizzi da FINAL_CARDS — e
+// all'avvio FINAL_CARDS e' la TABELLA DI RIPIEGO, quattro carte scritte nel
+// file per non lasciare il gioco senza niente. Il catalogo vero arriva dopo,
+// col Login, e a quel punto la barra ha gia' finito e non ripassa piu'.
+// Quindi delle centosette illustrazioni non ne veniva precaricata NESSUNA: si
+// scaricavano una per una al momento di disegnarle. E' il "pop" che si vede
+// nella Libreria e in partita.
+//
+// Adesso, appena il catalogo vero e' arrivato, le si scarica in sottofondo.
+// Non blocca niente e non ha una barra: chi gioca e' gia' nel menu, e questo
+// e' lavoro che deve finire prima che serva, non prima che si possa fare
+// altro.
+//
+// SI SCARICA E SI DECODIFICA. Un'immagine scaricata ma non decodificata fa
+// "pop" lo stesso: il browser la disegna al primo fotogramma in cui puo', e
+// quel fotogramma e' quello in cui la carta compare. `decode()` porta il
+// lavoro qui, dove nessuno lo sta guardando.
+//
+// PRIMA IL PROPRIO MAZZO. E' l'arte che si vedra' per prima — la Libreria si
+// apre sulle proprie carte e la partita le pesca — e caricarla per prima vuol
+// dire che il pop sparisce da dove si nota, anche se il resto e' ancora in
+// viaggio.
+let _artePrecaricata = false;
+function precaricaArteDelleCarte(){
+  if(_artePrecaricata) return;
+  if(!Array.isArray(FINAL_CARDS) || !FINAL_CARDS.length) return;
+
+  // Gli indirizzi, una volta ciascuno, raccolti carta per carta cosi' da
+  // sapere di CHI sono: serve a mettere davanti quelli dei propri mazzi.
+  const visti = new Set();
+  const arteDi = (e)=>{
+    const suoi = [];
+    const raccogli = (v)=>{
+      if(!v) return;
+      if(typeof v === 'string'){ if(!visti.has(v)){ visti.add(v); suoi.push(v); } return; }
+      if(Array.isArray(v)){ v.forEach(raccogli); return; }
+      if(typeof v === 'object'){ Object.values(v).forEach(raccogli); return; }
+    };
+    raccogli(e.artLayersDark); raccogli(e.artLayersLight);
+    raccogli(e.artDark); raccogli(e.artLight);
+    return suoi;
+  };
+  const miei = new Set();
+  for(const m of (MAZZI || [])) for(const id of (m.carte || [])) miei.add(String(id));
+  const prima = [], poi = [];
+  for(const e of FINAL_CARDS){
+    const suoi = arteDi(e);
+    if(!suoi.length) continue;
+    (miei.has(String(e.id)) ? prima : poi).push(...suoi);
+  }
+  const lista = prima.concat(poi);
+  // Niente da scaricare vuol dire che il catalogo non porta ancora gli
+  // indirizzi: succede finche' non si rifa' l'importazione (v0.77.99), e in
+  // quel caso li scopre il client poco dopo. NON ci si segna come fatti, o non
+  // si riproverebbe piu' — ed e' proprio il momento in cui riprovare serve.
+  if(!lista.length) return;
+  _artePrecaricata = true;
+
+  // Sei alla volta: la stessa larghezza della coda delle sonde. Di piu' non
+  // fa arrivare le immagini prima, fa solo litigare le richieste fra loro.
+  const INSIEME = 6;
+  let prossimo = 0, fatte = 0;
+  const t0 = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+  const una = (url)=> new Promise(ok=>{
+    const img = new Image();
+    const fine = ()=>{ fatte++; ok(); };
+    img.onload  = ()=>{ if(img.decode) img.decode().then(fine, fine); else fine(); };
+    img.onerror = fine;   // un'immagine che manca non deve fermare le altre
+    img.src = url;
+  });
+  const canale = ()=>{
+    if(prossimo >= lista.length) return Promise.resolve();
+    return una(lista[prossimo++]).then(canale);
+  };
+  const canali = [];
+  for(let i=0;i<INSIEME;i++) canali.push(canale());
+  Promise.all(canali).then(()=>{
+    const ms = ((typeof performance !== 'undefined' ? performance.now() : Date.now()) - t0);
+    console.info('[arte] precaricate ' + fatte + ' immagini di carte in ' + Math.round(ms) + 'ms.');
+  });
+}
+
 // Si chiama a accesso avvenuto. Non blocca niente: se il server non risponde
 // si resta con quello che c'era, che e' il comportamento giusto per un gioco
 // che deve poter funzionare anche scollegato.
@@ -13873,6 +13958,9 @@ async function aggiornaCarteDopoAccesso(){
     // il roster gia' letto, altrimenti butterebbe ogni carta di ogni mazzo.
     if(typeof sincronizzaMazzi === 'function') await sincronizzaMazzi();
     try{ mm2AggiornaMazzo(); }catch(_){}
+    // v0.78.2 — e da qui in poi le illustrazioni si scaricano in sottofondo.
+    // Sta DOPO i mazzi perche' e' da li' che sa quali carte vengono prima.
+    try{ precaricaArteDelleCarte(); }catch(_){}
 
     // L'arte si riverifica solo se il catalogo e' cambiato davvero: e' un giro
     // lungo, e rifarlo a ogni accesso allungherebbe l'attesa per niente.
@@ -13887,6 +13975,10 @@ async function aggiornaCarteDopoAccesso(){
       _arteVerificataPer = _catalogoVersione;
       // Le illustrazioni sono arrivate: chi le mostra le rilegga.
       try{ mm2AggiornaMazzo(); }catch(_){}
+      // v0.78.2 — e adesso si possono precaricare. Con un catalogo importato da
+      // v0.77.99 in poi gli indirizzi c'erano gia' e questo giro non trova piu'
+      // niente da fare; con uno vecchio, e' questo il momento in cui si sanno.
+      try{ precaricaArteDelleCarte(); }catch(_){}
     }
     if(typeof cardDbRenderRoster === 'function' && document.getElementById('card-db-overlay')) cardDbRenderRoster();
   }catch(_){}
