@@ -1059,10 +1059,75 @@ function _mescola(a) {
 // del resto: se una carta non e' sua, non entra. E' il motivo per cui il mazzo
 // si legge QUI e non si accetta dal client — un mazzo che arriva dal client e'
 // una richiesta, non un fatto.
+// ── v0.78.4 — IL MAZZO CASUALE LO COMPONE IL SERVER ──────────────────────
+// Il client puo' generarsi un mazzo casuale per giocare contro l'IA, ma in rete
+// no: qui vale la regola scritta sopra _mazzoDi — "un mazzo che arriva dal
+// client e' una richiesta, non un fatto". Se il casuale glielo lasciassimo
+// dichiarare, chiunque potrebbe dichiarare dodici Excalibur.
+// Quindi lo compone il server, con le stesse carte che il giocatore possiede
+// davvero e le stesse due regole di sempre: dodici carte, ventiquattro punti.
+//
+// NON PUO' USCIRNE UNO NON VALIDO. Si prende una carta alla volta e la si
+// accetta solo se il budget regge ANCHE i posti che restano da riempire, dando
+// per scontato che costino almeno uno l'uno. Con quel controllo dodici caselle
+// si riempiono sempre, perche' la carta piu' economica costa uno e dodici per
+// uno fa dodici — cioe' meta' del budget.
+function _mazzoCasualeDi(nk, logger, userId) {
+  var catalogo = leggiSistema(nk, KEY_CATALOGO);
+  if (!catalogo || !catalogo.carte) return null;
+  var possesso = leggiPossesso(nk, userId);
+  if (!possesso) return null;
+  var admin = !!possesso.admin;
+  var possedute = _possedute(catalogo.carte, possesso, admin);
+
+  var candidate = [], i;
+  for (i = 0; i < catalogo.carte.length; i++) {
+    var c = catalogo.carte[i];
+    if (c.soloAdmin && !admin) continue;
+    if (!possedute[c.slug]) continue;
+    candidate.push(c);
+  }
+  if (candidate.length < MAZZO_CARTE) {
+    logger.warn('mazzo casuale per %s: possiede solo %d carte', userId, candidate.length);
+    return null;
+  }
+  // Mescolata alla Fisher-Yates. Qui il caso deve essere caso: e' il server, e
+  // non c'e' nessun secondo tabellone con cui doversi trovare d'accordo.
+  for (i = candidate.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var tmp = candidate[i]; candidate[i] = candidate[j]; candidate[j] = tmp;
+  }
+  var costoDi = function (r) { return COSTO_RARITA[String(r || '').toLowerCase()] || 1; };
+  var prese = [], punti = 0;
+  for (i = 0; i < candidate.length && prese.length < MAZZO_CARTE; i++) {
+    var q = costoDi(candidate[i].rarity);
+    var restanti = MAZZO_CARTE - prese.length - 1;
+    if (punti + q + restanti > MAZZO_PUNTI) continue;
+    prese.push(String(candidate[i].id));
+    punti += q;
+  }
+  if (prese.length !== MAZZO_CARTE) {
+    logger.warn('mazzo casuale per %s: non ne esce uno da %d carte entro %d punti', userId, MAZZO_CARTE, MAZZO_PUNTI);
+    return null;
+  }
+  logger.info('mazzo casuale per %s: %d carte, %d punti su %d', userId, prese.length, punti, MAZZO_PUNTI);
+  return { nome: 'Random deck', carte: prese };
+}
+
 function _mazzoDi(nk, logger, userId) {
   var r = nk.storageRead([{ collection: COLL_PROFILO, key: KEY_MAZZI, userId: userId }]);
   var dati = (r && r.length && r[0].value) ? r[0].value : null;
-  if (!dati || !dati.mazzi || !dati.mazzi.length) return null;
+  if (!dati) return null;
+  // v0.78.4 — se ha scelto il casuale, se ne compone uno adesso. Sta PRIMA del
+  // controllo sui mazzi salvati: col casuale non serve averne nemmeno uno, e
+  // finora si finiva per ripiegare sul primo — cioe' si giocava un mazzo
+  // preciso avendo chiesto il caso.
+  if (String(dati.scelto) === MAZZO_CASUALE) {
+    var casuale = _mazzoCasualeDi(nk, logger, userId);
+    if (casuale) return casuale;
+    logger.warn('mazzo casuale non componibile per %s: ripiego sui suoi mazzi', userId);
+  }
+  if (!dati.mazzi || !dati.mazzi.length) return null;
   var scelto = null;
   for (var i = 0; i < dati.mazzi.length; i++) {
     if (String(dati.mazzi[i].id) === String(dati.scelto)) { scelto = dati.mazzi[i]; break; }

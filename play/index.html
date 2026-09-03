@@ -9842,7 +9842,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.78.3</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.78.4</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -13260,12 +13260,18 @@ async function mm2CercaAvversario(){
   // Contro l'IA non c'e' niente da cercare: si parte e basta.
   if(_mm2Vista === 'ai'){ try{ requestNewGame(true); }catch(_){} return; }
 
-  const mio = (typeof mazzoSelezionato === 'function') ? mazzoSelezionato() : null;
+  // v0.78.4 — col casuale se ne genera uno adesso: vedi mazzoConCuiGiocare.
+  const mio = (typeof mazzoConCuiGiocare === 'function') ? mazzoConCuiGiocare() : null;
   // Un mazzo incompleto e' la ragione piu' probabile per cui questo pulsante
   // non fa niente: merita una finestra, non una riga che si puo' non vedere.
   if(!mio || !mazzoValido(mio)){
-    apriAvviso('Deck not ready',
-      'Pick a deck with ' + MAZZO_CARTE + ' cards, within ' + MAZZO_PUNTI + ' points, before searching.', false);
+    // Col casuale il messaggio di prima sarebbe un consiglio impossibile da
+    // seguire — un mazzo lo ha scelto, e' la macchina che non lo ha saputo
+    // comporre — quindi si dice l'unica cosa vera: mancano carte.
+    const casuale = (MAZZO_SCELTO === MAZZO_CASUALE);
+    apriAvviso('Deck not ready', casuale
+      ? 'A random deck needs ' + MAZZO_CARTE + ' cards you own, within ' + MAZZO_PUNTI + ' points. Open more Book Packs, or pick a deck you built.'
+      : 'Pick a deck with ' + MAZZO_CARTE + ' cards, within ' + MAZZO_PUNTI + ' points, before searching.', false);
     return;
   }
   if(!sessioneAccount || !sessioneAccount.token){
@@ -16735,6 +16741,72 @@ function capacitaDelMazzo(mazzo){
 // capacita' non sforata. Non e' una cortesia dell'interfaccia — e' la stessa
 // condizione che il gioco pretende per scendere in campo, chiesta prima
 // invece che dopo.
+// ══════════════════════════════════════════════════════════════════════════
+// v0.78.4 — IL MAZZO CASUALE E' UN MAZZO, NON UN'ASSENZA DI MAZZO
+// ══════════════════════════════════════════════════════════════════════════
+// `mazzoSelezionato()` torna NULL quando si e' scelto il casuale, e lo dice
+// anche il suo commento: "col mazzo casuale la risposta e' nessuno". Va bene
+// per chi chiede "quale dei mazzi salvati?"; non va bene per chi chiede "con
+// che cosa scendo in campo?", e i due usi si erano confusi. La ricerca di un
+// avversario leggeva quel null come "non hai scelto niente" e fermava tutto
+// con "pick a deck with 12 cards": il mazzo casuale non era invalido, era
+// invisibile.
+//
+// Adesso, quando serve DAVVERO un mazzo, il casuale se lo fa dare: dodici
+// carte scelte fra le proprie, entro i ventiquattro punti. Da quel momento e'
+// un mazzo come gli altri — ha un codice, si puo' mandare al server, si puo'
+// validare.
+//
+// NON PUO' USCIRNE UNO NON VALIDO, e non per fortuna: si spende partendo dalle
+// carte piu' costose finche' il budget lo consente e si riempie con le piu'
+// economiche, poi si CONTROLLA col metro vero (mazzoValido) e, se per qualche
+// ragione non tornasse, si ripiega sulle dodici carte piu' economiche che si
+// possiedono — che entro i ventiquattro punti ci stanno sempre, perche' la
+// piu' economica costa uno e dodici per uno fa dodici.
+const MAZZO_CASUALE_NOME = 'Random deck';
+function _mazzoDaCarte(carte){
+  return { id: MAZZO_CASUALE, nome: MAZZO_CASUALE_NOME, carte: carte.map(e=>String(e.id)) };
+}
+function generaMazzoCasuale(){
+  const disponibili = (typeof carteDelGiocatore === 'function') ? carteDelGiocatore().slice() : [];
+  if(disponibili.length < MAZZO_CARTE){
+    console.warn('[mazzo casuale] hai solo ' + disponibili.length + ' carte: ne servono ' + MAZZO_CARTE + '.');
+    return null;
+  }
+  const costo = e => (typeof costoDiRarita === 'function') ? costoDiRarita(e.rarity) : 1;
+  // Si prova qualche composizione a caso, tenendo la prima che sta nel budget:
+  // cosi' il mazzo e' vario invece di essere sempre le dodici carte piu' scarse.
+  for(let prova=0; prova<40; prova++){
+    const mescolate = (typeof _mescola === 'function') ? _mescola(disponibili.slice()) : disponibili.slice();
+    const prese = [];
+    let punti = 0;
+    for(const e of mescolate){
+      if(prese.length >= MAZZO_CARTE) break;
+      const c2 = costo(e);
+      // Quanto costerebbe come minimo riempire i posti che restano dopo questa.
+      const restanti = MAZZO_CARTE - prese.length - 1;
+      if(punti + c2 + restanti > MAZZO_PUNTI) continue;
+      prese.push(e); punti += c2;
+    }
+    if(prese.length === MAZZO_CARTE){
+      const m = _mazzoDaCarte(prese);
+      if(mazzoValido(m)) return m;
+    }
+  }
+  // Ripiego: le dodici piu' economiche. Dodici common fanno dodici punti.
+  const perCosto = disponibili.slice().sort((a,b)=>costo(a)-costo(b)).slice(0, MAZZO_CARTE);
+  const m = _mazzoDaCarte(perCosto);
+  if(mazzoValido(m)) return m;
+  console.warn('[mazzo casuale] non riesco a comporne uno valido con le carte che possiedi.');
+  return null;
+}
+// Il mazzo con cui si scende in campo: quello scelto, oppure — se si e' scelto
+// il casuale — uno generato adesso. E' la domanda che devono fare tutti quelli
+// che stanno per giocare, al posto di mazzoSelezionato().
+function mazzoConCuiGiocare(){
+  if(MAZZO_SCELTO === MAZZO_CASUALE) return generaMazzoCasuale();
+  return mazzoSelezionato();
+}
 function mazzoValido(mazzo){
   // Si contano le carte che ESISTONO DAVVERO, non gli id scritti nel mazzo.
   // Le due cose coincidono quasi sempre — caricaMazzi butta gli id spariti
@@ -25958,14 +26030,42 @@ function makeDeck(owner,total){
       console.warn('[mazzo] il roster non permette nessuna composizione da '+MAZZO_PUNTI
         +' punti in '+MAZZO_CARTE+' carte: mazzo pescato senza vincolo di rarita\'.');
     }
+    // ── v0.78.4 — ANCHE IL RIPIEGO STA NEL BUDGET ─────────────────────────
+    // Qui si pescava senza guardare i punti, e per un mazzo da dodici carte
+    // poteva uscirne uno da trenta: un mazzo che il gioco stesso, chiesto con
+    // mazzoValido, avrebbe dichiarato non giocabile. Un mazzo generato dalla
+    // macchina deve essere sempre valido — se non lo e', il difetto non e' di
+    // chi gioca e non c'e' niente che possa farci.
+    // Si accetta una carta solo se il budget regge ANCHE i posti che restano,
+    // dando per scontato che costino almeno uno l'uno: con quel controllo le
+    // caselle si riempiono sempre, perche' la carta piu' economica costa uno.
+    // Se il roster non basta nemmeno per quello si prende comunque il numero
+    // di carte chiesto, ma lo si dice: meglio una partita sbilanciata di una
+    // che non comincia, e meglio ancora saperlo.
     const mescolate = _mescola(giocabili);
     const carte = [];
-    for(let i=0;i<quante;i++){
-      const entry = mescolate[i % mescolate.length];
+    const costo = e => (typeof costoDiRarita === 'function') ? costoDiRarita(e.rarity) : 1;
+    const tetto = (quante === MAZZO_CARTE) ? MAZZO_PUNTI : Infinity;
+    let punti = 0;
+    const metti = (entry)=>{
       const carta = _makeCardDbCard(entry, owner);
-      carta.id = `${entry.id}-${owner}-${i}`;
+      carta.id = `${entry.id}-${owner}-${carte.length}`;
       carta.baseId = entry.id;
       carte.push(carta);
+      punti += costo(entry);
+    };
+    for(const entry of mescolate){
+      if(carte.length >= quante) break;
+      const restanti = quante - carte.length - 1;
+      if(punti + costo(entry) + restanti > tetto) continue;
+      metti(entry);
+    }
+    if(carte.length < quante){
+      const perCosto = giocabili.slice().sort((a,b)=>costo(a)-costo(b));
+      let i = 0;
+      while(carte.length < quante && perCosto.length) metti(perCosto[i++ % perCosto.length]);
+      console.warn('[mazzo] il roster non basta a restare entro ' + tetto + ' punti:'
+        + ' mazzo completato con le carte piu\' economiche (' + punti + ' punti).');
     }
     return carte;
   }
@@ -26152,7 +26252,8 @@ function makeBalancedDecks(controIA){
     console.info('[rete] mazzo mio di ' + mie.length + ' carte, dell\'avversario ' + sue.length + ' ignote');
     return { d1, d2, gap: 0 };
   }
-  const mio = mazzoSelezionato();
+  // v0.78.4 — col casuale se ne genera uno adesso, valido per costruzione.
+  const mio = (typeof mazzoConCuiGiocare === 'function') ? mazzoConCuiGiocare() : mazzoSelezionato();
   if(mio && mazzoValido(mio)){
     const d1 = carteDalMazzoSalvato(mio, 1);
     console.info('[Hextale] mazzo del giocatore 1: "'+(mio.nome||mio.id)+'"');
