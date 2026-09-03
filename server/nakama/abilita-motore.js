@@ -316,17 +316,34 @@ var ABILITA_MOTORE = (function () {
     return a && b && a.owner !== undefined && b.owner !== undefined && a.owner === b.owner;
   }
 
+  // ── v0.78.18 — DUE CARTE SONO LA STESSA SE HANNO LO STESSO ID ────────────
+  // Qui si confrontava per IDENTITA', e va bene finche' gli oggetti sono quelli
+  // veri. Ma il gioco fa delle COPIE delle carte — l'anteprima clona il campo,
+  // la scheda a schermo intero ricostruisce la carta, la conquista ne passa una
+  // con l'owner cambiato — e a una copia il confronto rispondeva "sono due
+  // carte diverse".
+  // La conseguenza era che una carta si buffava DA SOLA: Little John, appena
+  // calato e senza nessuno intorno, si vedeva scritto "+1 ALL from Little
+  // John", perche' la copia di se stesso non risultava se stesso e passava per
+  // un alleato qualsiasi.
+  // Un id e' unico dentro a una partita: e' la stessa carta anche quando non e'
+  // lo stesso oggetto.
+  function stessaCarta(a, b) {
+    if (a === b) return true;
+    if (!a || !b) return false;
+    return !!a.id && a.id === b.id;
+  }
   // L'effetto della FONTE colpisce il BERSAGLIO?
   function colpisce(fonte, eff, bersaglio, scena) {
     var chi = eff.chi, dove = eff.dove;
-    if (chi === 'self') return bersaglio === fonte;
+    if (chi === 'self') return stessaCarta(bersaglio, fonte);
     if (!bersaglio) return false;
     if (chi === 'ally' && !_stessoPadrone(fonte, bersaglio)) return false;
     if (chi === 'opponent' && _stessoPadrone(fonte, bersaglio)) return false;
     // "any" non guarda il padrone.
     if (dove === 'adjacent') {
       var vic = (scena.vicini && scena.vicini(fonte)) || [];
-      for (var i = 0; i < vic.length; i++) if (vic[i] === bersaglio) return true;
+      for (var i = 0; i < vic.length; i++) if (stessaCarta(vic[i], bersaglio)) return true;
       return false;
     }
     // ── v0.78.15 — "board" E' UN LUOGO, NON "CHIUNQUE" ────────────────────
@@ -358,9 +375,9 @@ var ABILITA_MOTORE = (function () {
         for (k = 0; k < scena.inCampo.length; k++) if (scena.inCampo[k] === bersaglio) { dentro = true; break; }
         if (!dentro) return false;
       }
-      return bersaglio !== fonte || chi === 'self';
+      return !stessaCarta(bersaglio, fonte) || chi === 'self';
     }
-    if (!dove) return bersaglio !== fonte || chi === 'self';
+    if (!dove) return !stessaCarta(bersaglio, fonte) || chi === 'self';
     return false;
   }
 

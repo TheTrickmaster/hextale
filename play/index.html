@@ -7401,7 +7401,9 @@ body.prova-senza-willchange #mm-book-rot{
 /* Il pallino accanto a "Library & decks". Quattro pixel: e' un segno, non un
    distintivo — deve farsi notare senza chiedere di essere letto. */
 .mm2-pallino-novita{
-  display:inline-block; width:4px; height:4px; margin-left:8px;
+  /* v0.78.18 — otto invece di quattro: a quattro era un segno che si poteva
+     scambiare per un difetto dello schermo. */
+  display:inline-block; width:8px; height:8px; margin-left:8px;
   vertical-align:middle; border-radius:50%;
   background:#7E1515; box-shadow:0 0 0 1px #C8A84B;
 }
@@ -9185,13 +9187,18 @@ body.prova-senza-willchange #mm-book-rot{
    impostazioni e appena sotto di lui (26 + 56 + 22 d'aria), fuori dalla barra.
    Vuoto finche' non si sa: meglio niente che uno zero che sembra un fatto. */
 #mm2-online{
-  position:absolute; right:36px; top:104px; z-index:20;
+  /* v0.78.18 — sceso di ventisei pixel: misurato sullo screenshot in cui
+     Lorenzo ha disegnato il riquadro, il testo ci cade dentro centrato. */
+  position:absolute; right:36px; top:130px; z-index:20;
   font-family:'Marcellus',var(--font-display),serif;
   font-size:22px; color:#9DA7A9;
   text-align:right; pointer-events:none; user-select:none;
   text-shadow:0 0 6px rgba(0,0,0,0.8);
 }
-#mm2-online:empty{ display:none; }
+/* Niente `:empty{display:none}`: un contatore invisibile finche' non sa il
+   numero e' indistinguibile da un contatore che non esiste — ed e' esattamente
+   cosi' che e' stato segnalato due volte. Prima di sapere mostra un trattino,
+   che e' la verita': c'e', e non sa ancora. */
 /* v0.73.57 — al passaggio del puntatore si ACCENDE e basta: non gira piu'.
    Un ingranaggio che ruota promette che qualcosa si stia gia' regolando. */
 #mm-settings-btn:hover{ filter:brightness(1.35); }
@@ -10246,7 +10253,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.78.17</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.78.18</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -15951,6 +15958,8 @@ let _onlineLamentato = false;
 async function aggiornaGiocatoriOnline(){
   const el = document.getElementById('mm2-online');
   if(!el) return;
+  // v0.78.18 — c'e' comunque, anche prima di avere un numero.
+  if(!el.textContent) el.textContent = '— players online';
   if(!sessioneAccount || !sessioneAccount.token) return;
   try{
     const r = await nakamaRpc('hx_giocatori', {});
@@ -16943,17 +16952,34 @@ var ABILITA_MOTORE = (function () {
     return a && b && a.owner !== undefined && b.owner !== undefined && a.owner === b.owner;
   }
 
+  // ── v0.78.18 — DUE CARTE SONO LA STESSA SE HANNO LO STESSO ID ────────────
+  // Qui si confrontava per IDENTITA', e va bene finche' gli oggetti sono quelli
+  // veri. Ma il gioco fa delle COPIE delle carte — l'anteprima clona il campo,
+  // la scheda a schermo intero ricostruisce la carta, la conquista ne passa una
+  // con l'owner cambiato — e a una copia il confronto rispondeva "sono due
+  // carte diverse".
+  // La conseguenza era che una carta si buffava DA SOLA: Little John, appena
+  // calato e senza nessuno intorno, si vedeva scritto "+1 ALL from Little
+  // John", perche' la copia di se stesso non risultava se stesso e passava per
+  // un alleato qualsiasi.
+  // Un id e' unico dentro a una partita: e' la stessa carta anche quando non e'
+  // lo stesso oggetto.
+  function stessaCarta(a, b) {
+    if (a === b) return true;
+    if (!a || !b) return false;
+    return !!a.id && a.id === b.id;
+  }
   // L'effetto della FONTE colpisce il BERSAGLIO?
   function colpisce(fonte, eff, bersaglio, scena) {
     var chi = eff.chi, dove = eff.dove;
-    if (chi === 'self') return bersaglio === fonte;
+    if (chi === 'self') return stessaCarta(bersaglio, fonte);
     if (!bersaglio) return false;
     if (chi === 'ally' && !_stessoPadrone(fonte, bersaglio)) return false;
     if (chi === 'opponent' && _stessoPadrone(fonte, bersaglio)) return false;
     // "any" non guarda il padrone.
     if (dove === 'adjacent') {
       var vic = (scena.vicini && scena.vicini(fonte)) || [];
-      for (var i = 0; i < vic.length; i++) if (vic[i] === bersaglio) return true;
+      for (var i = 0; i < vic.length; i++) if (stessaCarta(vic[i], bersaglio)) return true;
       return false;
     }
     // ── v0.78.15 — "board" E' UN LUOGO, NON "CHIUNQUE" ────────────────────
@@ -16985,9 +17011,9 @@ var ABILITA_MOTORE = (function () {
         for (k = 0; k < scena.inCampo.length; k++) if (scena.inCampo[k] === bersaglio) { dentro = true; break; }
         if (!dentro) return false;
       }
-      return bersaglio !== fonte || chi === 'self';
+      return !stessaCarta(bersaglio, fonte) || chi === 'self';
     }
-    if (!dove) return bersaglio !== fonte || chi === 'self';
+    if (!dove) return !stessaCarta(bersaglio, fonte) || chi === 'self';
     return false;
   }
 
@@ -19226,6 +19252,13 @@ function vestiPannelliGiocatori(vsAI){
 // Le due misure sono percentuali dell'orb e non pixel: cosi' restano giuste se
 // un domani --pi-score-h cambia.
 const ORB_CENTRO = { dark: 58.1, light: 52.8 };   // centro ottico, in % dell'orb
+// v0.78.18 — quanto scende il disegno chiaro. La misura sui due file dice 5.3%
+// dell'orb (12.7px a 240); Lorenzo ne ha chiesti 16, che sono il 6.67%, ed e'
+// la sua decisione: la misura allinea le due TELE, l'occhio allinea i due
+// cerchi, e i due file non hanno lo stesso spessore di cornice attorno.
+// Sta scritto come percentuale e non come pixel perche' l'orb puo' cambiare
+// misura: a 240px fa esattamente i 16 chiesti.
+const ORB_GIU_CHIARO = 100 * 16 / 240;
 function vestiOrbDelPunteggio(){
   if(typeof document === 'undefined') return;
   for(const n of [1, 2]){
@@ -19240,7 +19273,7 @@ function vestiOrbDelPunteggio(){
       if(!el) continue;
       impostaImgDaCandidati(el, uiFileCandidati(file));
       // Il disegno scende fino a coincidere con quello dell'altra fazione.
-      el.style.transform = 'translateY(' + (ORB_CENTRO.dark - centro).toFixed(2) + '%)';
+      el.style.transform = scuro ? '' : ('translateY(' + ORB_GIU_CHIARO.toFixed(3) + '%)');
     }
     // E il numero al centro del proprio riquadro, non a quello dell'altro.
     const num = document.querySelector('#p' + n + '-info .player-hp-value');
@@ -20087,7 +20120,9 @@ function _scalettaDiLivelli(cella, nomeCarta, nomeLato){
 }
 
 // Legge la prima colonna disponibile fra piu' nomi possibili. Serve perche' i
-// titoli del foglio condiviso cambiano nel tempo (es. "Level (Temp)", che un
+// titoli del foglio condiviso cambiano nel tempo (es. "Level (Temp)" — che non
+// si legge piu' da nessuna parte dalla v0.78.18, ed e' rimasto qui come
+// esempio di cosa questa funzione serva a sopportare — che un
 // giorno diventera' "Level"): accettarne piu' d'uno evita che una rinomina
 // innocua svuoti silenziosamente un campo.
 function getAlt(get, nomi){
@@ -20149,10 +20184,19 @@ function _cardaDaRiga(col, get, haColonna){
   // in gioco tre lati veri e tre inventati sarebbe peggio che inventarli
   // tutti, perche' il risultato sembrerebbe intenzionale. Vedi la regola dei
   // valori sopra per come vengono generati quelli provvisori.
-  // Livello e slot gemme: indipendenti dai valori dei lati, si calcolano qui
-  // perche' servono entrambi piu' sotto.
-  const liv=parseInt(getAlt(get,['Level','Level (Temp)']),10);
-  const livello=isFinite(liv)?Math.max(1,Math.min(4,liv)):livelloCasualeStabile(nome);
+  // ── v0.78.18 — IL LIVELLO NON VIENE PIU' DAL FOGLIO ─────────────────────
+  // Qui si leggeva la colonna "Level (Temp)" — e, mancando quella, si tirava un
+  // livello a caso ma stabile dal nome. Erano tutti e due dei ripieghi di
+  // quando il livello di una carta non lo decideva ancora nessuno.
+  // Adesso lo decide chi gioca: le carte sbustate escono di livello 1, il mazzo
+  // dell'IA pareggia la somma dei livelli del giocatore, e ogni carta scende in
+  // campo al livello a cui il suo proprietario l'ha portata (vedi
+  // cartaAlLivello). Una colonna del foglio che dicesse un'altra cosa sarebbe
+  // una seconda verita' sullo stesso numero, e la piu' vecchia delle due.
+  //
+  // Il livello del CATALOGO e' quindi 1, sempre: e' la base da cui tutti gli
+  // altri si ricavano, e i valori stampati sono i valori di partenza.
+  const livello=1;
   const gemmeDaFoglio=parseInt(get('Gem slots'),10);
   const slotGemmeDalFoglio=isFinite(gemmeDaFoglio) && gemmeDaFoglio>=0;
   const slotGemme = slotGemmeDalFoglio
@@ -20681,6 +20725,13 @@ const ART_LIVELLI = [1,2,3,4];
 const ART_LIVELLO_PERSONAGGIO = 3; // dove finisce un pezzo senza numero, e dove sta chi ne ha uno solo
 const VOCI_MAX = 12;               // limite di cortesia alla ricerca di <slug>-N.mp3
 
+// v0.78.18 — NON LA CHIAMA PIU' NESSUNO. Il livello di catalogo e' 1 per tutte
+// (vedi _cardaDaRiga); questa restava l'ultimo posto in cui un livello veniva
+// INVENTATO. La si tiene perche' e' il pezzo di storia che spiega perche' le
+// carte avevano livelli diversi senza che nessuno glieli avesse dati, ma non
+// deve tornare in servizio: se un giorno servisse di nuovo un livello, lo
+// dovra' dare qualcuno, non un dado.
+//
 // Livello per le carte a cui il foglio non ne assegna uno, distribuito
 // 40% al livello 1, 30% al 2, 20% al 3, 10% al 4 — una piramide, con i
 // livelli alti rari come devono essere.
@@ -22273,9 +22324,11 @@ async function _bustinaChiediAlServer(){
     const slug = (r && r.carte) || [];
     if(slug.length !== 2) return null;
     // ── v0.78.3 — DA UNA BUSTINA SI ESCE SEMPRE AL PRIMO LIVELLO ─────────
-    // La voce di catalogo porta il livello scritto nel foglio, e chi guarda la
-    // bustina puo' vederlo piu' alto: un admin vede tutto al massimo, e una
-    // carta col suo "Level (Temp)" a due usciva a due.
+    // Chi guarda la bustina puo' vedere la carta piu' alta di com'e': un admin
+    // vede tutto al massimo.
+    // v0.78.18 — la seconda ragione non c'e' piu': il catalogo non porta piu'
+    // un livello scritto nel foglio, e ogni voce nasce al primo. Questa riga
+    // resta come rete, non come correzione di un caso che si verifica.
     // Una bustina pero' regala una carta NUOVA, e una carta nuova comincia da
     // uno — e' quello che si riceve davvero (vedi LIVELLO_SBUSTATA sul
     // server), quindi e' quello che si deve vedere. Mostrarne una piu' forte di
@@ -35048,8 +35101,9 @@ function abilitaAttivaDi(card){
       console.info('[abilita\' bloccata] "'+(card.name||card.id)+'" ha "'+card.cardAbility
         +'" ma e\' di livello '+(card.level!=null?card.level:'?')
         +' e quella si sblocca al livello '+(card.abilityUnlockLevel!=null?card.abilityUnlockLevel:'?')
-        +': non fara\' NIENTE. RIMEDIO: nel foglio, alza "Level (Temp)" di questa carta'
-        +' oppure abbassa "Ability unlocked at level".');
+        +': non fara\' NIENTE. RIMEDIO: abbassa "Ability unlocked at level" nel'
+        +' foglio, oppure gioca quella carta a un livello piu\' alto — dalla'
+        +' v0.78.18 il catalogo non assegna piu\' livelli, li assegna il possesso.');
     }
     return null;
   }
@@ -46712,7 +46766,11 @@ function _modificatoriDalMotore(card){
     // sta guardando una lista di CHI le ha messo le mani addosso, e li' dentro
     // "se stessa" e' una risposta, mentre il nome di un'abilita' e' un'altra
     // domanda.
-    const suDiSe = (fonte === card);
+    // v0.78.18 — per ID e non per identita': a questo riquadro la carta arriva
+    // spesso come COPIA (vedi stessaCarta nel motore), e confrontando gli
+    // oggetti la carta non riconosceva se stessa.
+    const suDiSe = (fonte === card)
+      || !!(fonte && card && fonte.id && fonte.id === card.id);
     const da = suDiSe ? null : (fonte.name || 'another card');
     // Tre forme sole, e nessuna nomina i lati: "ALL" se tocca tutta la carta,
     // "RAND" se il gruppo lo ha scelto il caso, niente se e' un gruppo e basta.
