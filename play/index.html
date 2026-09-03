@@ -315,50 +315,41 @@ body.mouse-down, body.mouse-down *{
   pointer-events:none; user-select:none; -webkit-user-drag:none;
 }
 #mm2-bg{ z-index:0; }
-/* v0.77.39 — UNA FIACCOLA, NON UN RESPIRO.
-   Prima erano cinque secondi di andirivieni morbido: leggeva come una luce che
-   pulsa, non come una fiamma. Una fiamma ha scatti brevi e DISUGUALI, e la
-   disuguaglianza e' la cosa che conta — un tremolio regolare, per quanto
-   veloce, si riconosce subito come un'animazione.
-   Da qui due scelte. `steps(1,end)` invece di una curva morbida, cosi' ogni
-   scatto e' uno scatto e non una dissolvenza. E due animazioni sovrapposte su
-   durate che non sono multiple fra loro (0.9s e 2.3s): non tornano mai in
-   fase, quindi la stessa sequenza non si ripete mai uguale.
-   La seconda agisce sul FILTRO e non sull'opacita': due animazioni sulla
-   stessa proprieta' non si sommano, il browser ne terrebbe una sola. */
+/* ── v0.78.9 — UNA FIAMMA CHE NON E' UN INTERRUTTORE ──────────────────────
+   Restava di v0.77.39 il problema opposto a quello che risolveva: `steps(1,end)`
+   toglie ogni dissolvenza, quindi ogni scatto arrivava intero e la luce leggeva
+   come un contatto che va e viene invece che come una candela. Il carattere di
+   una fiamma non sta nella DUREZZA dei salti — sta nel fatto che non si
+   ripetono a intervalli uguali. Quella si tiene: i tempi restano spaiati
+   (9, 17, 26, 33, 47...), cambia solo il modo di andare da un punto all'altro,
+   che adesso e' una curva morbida.
+   Il ciclo e' anche piu' lungo: con la dissolvenza, un giro veloce leggerebbe
+   come un tremolio elettrico — cioe' esattamente la cosa da togliere.
+
+   E LA VAMPATA E' STATA TOLTA. Agiva su `filter:brightness` di un'immagine che
+   copre tutto lo schermo, quindi non illuminava la lanterna: illuminava la
+   pagina, tutta insieme, comprese le parti che una candela non puo' raggiungere.
+   Era il lampo a schermo pieno. Il respiro della luce lo fa gia' l'opacita' —
+   e quello si', solo dove il fondale acceso e' davvero acceso. */
 #mm2-bg-lit{
   z-index:1; opacity:0.5;
-  /* v0.77.47 — un 30% piu' lente. Restano non multiple fra loro, che e' la
-     ragione per cui la sequenza non si ripete mai uguale. */
-  animation:mm2Fiaccola 1.17s steps(1,end) infinite,
-            mm2Vampata  2.99s steps(1,end) infinite;
+  animation:mm2Fiaccola 3.7s cubic-bezier(.45,.05,.55,.95) infinite;
 }
-/* v0.77.40 — gli INTERVALLI restano (sono loro a dare l'irregolarita'), i
-   salti si stringono: prima si andava da 0.26 a 0.95, cioe' quasi da spento a
-   pieno, e a quella distanza ogni scatto legge come un guasto invece che come
-   una fiamma. Adesso la banda e' 0.50-0.70: la luce si muove sempre, ma resta
-   sempre accesa. */
+/* La banda resta stretta (0.52-0.68): la luce si muove sempre ma non si spegne
+   mai, che e' come si comporta una candela al riparo. */
 @keyframes mm2Fiaccola{
-  0%   { opacity:0.52; }
-  9%   { opacity:0.68; }
-  17%  { opacity:0.56; }
-  26%  { opacity:0.70; }
-  33%  { opacity:0.58; }
+  0%   { opacity:0.55; }
+  9%   { opacity:0.66; }
+  17%  { opacity:0.57; }
+  26%  { opacity:0.68; }
+  33%  { opacity:0.59; }
   47%  { opacity:0.64; }
-  55%  { opacity:0.50; }
-  63%  { opacity:0.69; }
-  71%  { opacity:0.55; }
+  55%  { opacity:0.52; }
+  63%  { opacity:0.67; }
+  71%  { opacity:0.56; }
   84%  { opacity:0.63; }
-  92%  { opacity:0.53; }
-  100% { opacity:0.66; }
-}
-@keyframes mm2Vampata{
-  0%   { filter:brightness(1); }
-  21%  { filter:brightness(1.10); }
-  34%  { filter:brightness(0.95); }
-  58%  { filter:brightness(1.06); }
-  73%  { filter:brightness(0.97); }
-  100% { filter:brightness(1.03); }
+  92%  { opacity:0.54; }
+  100% { opacity:0.55; }
 }
 /* La polvere: le stesse tre tele della schermata d'accesso, stessi piani e
    stesso `plus-lighter`. Non un secondo effetto simile — proprio le stesse
@@ -4231,6 +4222,51 @@ body.io-sono-2 #p1-info .player-avatar-photo{ transform:scaleX(-1); }
 .hit-flash{
   animation:hitFlash 0.22s ease-out;
   pointer-events:none;
+}
+
+/* ── v0.78.9 — LA SCENA DELLA TRASFORMAZIONE ──────────────────────────────
+   Il lampo del colpo (.hit-flash qui sopra) non va bene per una trasformazione:
+   il suo culmine e' al 12%, cioe' dopo ventisei millisecondi, perche' un colpo
+   deve arrivare secco. Qui il bianco serve a NASCONDERE il cambio, e per farlo
+   deve salire insieme al salto e trovarsi al massimo nell'istante esatto in cui
+   la carta diventa un'altra: e' l'unico momento in cui l'occhio non vede cosa
+   c'e' sotto.
+   La percentuale del culmine non e' scritta a mano — la calcola il JS da
+   --culmine, cosi' cambiando la durata del salto le due cose restano agganciate
+   e non c'e' un secondo numero da ricordarsi di aggiornare. */
+.trasf-lampo-velo{
+  position:fixed; z-index:60; pointer-events:none;
+}
+.trasf-lampo{
+  animation:trasfLampo var(--durata,600ms) linear forwards;
+  pointer-events:none;
+}
+@keyframes trasfLampo{
+  0%   { opacity:0; }
+  50%  { opacity:1; }   /* il 50% e' nominale: lo sposta --culmine, vedi JS */
+  100% { opacity:0; }
+}
+/* Il salto: su, e poi giu'. Sono DUE animazioni e non una perche' in mezzo la
+   carta viene ridisegnata (e' diventata un'altra carta), e un ridisegno butta
+   via l'elemento a cui l'animazione era attaccata. Spezzandola nel punto in cui
+   il cambio avviene, ognuna delle due vive su un elemento che non se ne va. */
+.trasf-su{
+  animation:trasfSu var(--durata,260ms) cubic-bezier(.25,.6,.35,1) forwards;
+  transform-box:fill-box; transform-origin:center bottom;
+}
+@keyframes trasfSu{
+  0%   { transform:translateY(0)     scale(1.03,0.96); }
+  22%  { transform:translateY(-4px)  scale(1,1); }
+  100% { transform:translateY(-16px) scale(0.99,1.02); }
+}
+.trasf-giu{
+  animation:trasfGiu var(--durata,320ms) cubic-bezier(.4,0,.6,1) forwards;
+  transform-box:fill-box; transform-origin:center bottom;
+}
+@keyframes trasfGiu{
+  0%   { transform:translateY(-16px) scale(0.99,1.02); }
+  72%  { transform:translateY(0)     scale(1.04,0.95); }
+  100% { transform:translateY(0)     scale(1,1); }
 }
 
 /* Shake played on a blocked tile's overlay polygon the instant Distruggere
@@ -9925,7 +9961,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.78.7</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.78.9</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -13284,7 +13320,33 @@ function reteApplicaGiocata(d){
   // Si aspetta che le animazioni della conquista si siano posate: il racconto
   // deve descrivere il tabellone FERMO, altrimenti i due lo fotograferebbero
   // in due istanti diversi e non coinciderebbero mai.
-  setTimeout(()=>reteMandaImpronta(false), 1800);
+  reteRaccontaQuandoFermo();
+}
+
+// -- v0.78.9 -- FERMO VUOL DIRE ANCHE "NESSUNO STA ANCORA SCEGLIENDO" -----
+// I 1800ms qui sopra erano tarati sulle ANIMAZIONI. Ma una carta che CHIEDE un
+// bersaglio -- Mordred, che ne distrugge una -- apre una finestra che resta li'
+// finche' il giocatore non decide: e' tempo umano, non tempo di animazione. Il
+// racconto partiva quindi a scelta ancora aperta e descriveva un tabellone di
+// un attimo prima, con la carta distrutta ancora al suo posto. Da quel racconto
+// il server rifa' le caselle occupate (vedi _occupateDaImpronta), e chi provava
+// a giocare sulla casella liberata si sentiva rispondere che era occupata.
+//
+// Aspettare la finestra e' una condizione che vale IN DUE, ed e' il motivo per
+// cui si puo' fare: la finestra e' aperta su tutti e due i client e si chiude
+// su tutti e due con lo stesso messaggio del server (op 11). I due non
+// raccontano quindi stadi diversi della stessa giocata -- che sarebbe un
+// disaccordo, cioe' una partita fermata.
+// Il tetto e' piu' lungo di un turno intero: se ci si arrivasse, la finestra
+// sarebbe gia' stata chiusa d'ufficio dallo scadere del tempo.
+function reteRaccontaQuandoFermo(){
+  const scadenza = Date.now() + 20000;
+  const guarda = ()=>{
+    if(!PARTITA_RETE) return;
+    if(G && G.sceltaBersaglio && Date.now() < scadenza){ setTimeout(guarda, 200); return; }
+    setTimeout(()=>reteMandaImpronta(false), 1800);
+  };
+  guarda();
 }
 
 // Il conto alla rovescia segue il server. Il client puo' andare alla deriva —
@@ -30271,11 +30333,64 @@ function attivaTrasformazioneAlPiazzamento(card, q, r){
   if(!t) return false;
   return trasformaCartaIn(card, t.diventa, t.etichetta);
 }
-// Quanto dura il lampo prima che la carta cambi. Il cambio avviene a META' del
-// lampo, quando il bianco copre tutto: e' l'unico istante in cui l'occhio non
-// vede cosa c'e' sotto — stesso principio dei Sette Nani col muro, e del giro
-// delle carte, dove il contenuto si cambia a meta' rotazione.
-const BACIO_LAMPO_MS = 220;    // deve combaciare con .hit-flash
+// ── v0.78.9 — I TEMPI DELLA TRASFORMAZIONE ───────────────────────────────
+// La scena, per intero: la carta cade, si guarda intorno, SALTA, il bianco sale
+// con lei, al culmine del bianco diventa un'altra carta, ricade, e solo un
+// secondo dopo si combatte.
+// Il secondo di pausa non e' una rifinitura: senza, lo scontro parte mentre
+// l'occhio sta ancora registrando che quella e' una carta diversa, e la
+// trasformazione si perde dentro l'attacco.
+const TRASF_SU_MS    = 260;    // il salto verso l'alto
+const TRASF_GIU_MS   = 320;    // la ricaduta, gia' nei panni nuovi
+const TRASF_PAUSA_MS = 1000;   // e poi si respira, prima di combattere
+// Il lampo copre tutto il salto e un po' della discesa: deve essere ancora
+// acceso quando la carta cambia, e spegnersi dopo.
+const TRASF_LAMPO_MS = TRASF_SU_MS + 340;
+
+// Il bianco vive su un velo suo, sopra alla plancia, e non attaccato alla
+// carta: nell'istante del cambio la plancia viene ridisegnata, e un lampo
+// attaccato alla carta sparirebbe con lei proprio mentre serve. Stessa tecnica
+// della carta che vola via distrutta (vedi _volaViaDalTabellone).
+function _lampoTrasformazione(cella){
+  if(typeof document === 'undefined') return;
+  const bsvg = document.getElementById('board-svg');
+  const el = elementoCarta(cella);
+  if(!bsvg || !el) return;
+  let r = null;
+  try { r = authoredRect(bsvg); } catch(_){ return; }
+  if(!r || !r.width) return;
+  let bbox = null;
+  try { bbox = el.getBBox(); } catch(_){ return; }
+  const velo = document.createElement('div');
+  velo.className = 'trasf-lampo-velo';
+  velo.style.left = r.left+'px'; velo.style.top = r.top+'px';
+  velo.style.width = r.width+'px'; velo.style.height = r.height+'px';
+  const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
+  svg.setAttribute('viewBox', bsvg.getAttribute('viewBox') || '');
+  svg.setAttribute('preserveAspectRatio', bsvg.getAttribute('preserveAspectRatio') || 'xMidYMid meet');
+  svg.style.cssText = 'width:100%;height:100%;display:block;overflow:visible;';
+  const cx = bbox.x + bbox.width/2, cy = bbox.y + bbox.height/2;
+  const raggio = Math.max(bbox.width, bbox.height)/2;
+  const lampo = svgEl('polygon');
+  lampo.setAttribute('points', ptStr(cx, cy, raggio));
+  lampo.setAttribute('fill', '#ffffff');
+  lampo.classList.add('trasf-lampo');
+  lampo.style.setProperty('--durata', TRASF_LAMPO_MS + 'ms');
+  svg.appendChild(lampo);
+  velo.appendChild(svg);
+  (document.getElementById('game-root') || document.body).appendChild(velo);
+  // Il culmine del bianco cade ESATTAMENTE quando la carta cambia. La
+  // percentuale si calcola invece di scriverla, cosi' spostando TRASF_SU_MS
+  // restano agganciati da soli.
+  const culmine = Math.round(100 * TRASF_SU_MS / TRASF_LAMPO_MS);
+  try {
+    lampo.animate(
+      [ {opacity:0, offset:0}, {opacity:1, offset:culmine/100}, {opacity:0, offset:1} ],
+      { duration: TRASF_LAMPO_MS, easing:'linear', fill:'forwards' }
+    );
+  } catch(_){ /* senza Web Animations resta la curva CSS, col culmine a meta' */ }
+  setTimeout(()=>{ try { velo.remove(); } catch(_){} }, TRASF_LAMPO_MS + 200);
+}
 // v0.75.74 — quanto si aspetta, a caduta finita, prima che il bacio faccia
 // effetto. Mezzo secondo: il tempo di vedere che quella e' una rana.
 const BACIO_RESPIRO_MS = 500;
@@ -30329,7 +30444,12 @@ function trasformaConLampo(cella, card, q, r, poi, fare){
   const bsvg = document.getElementById('board-svg');
   const el = bsvg && bsvg.querySelector('[data-conquered="'+cella+'"]');
   if(!el){ cambia(); try{ renderBoard(); }catch(_){} finito(); return; }
-  try{ lampeggiaCarta(el); }catch(_){}
+  // ── v0.78.9 — IL SALTO, E IL BIANCO CHE SALE CON LUI ────────────────────
+  // La carta si stacca dal tassello mentre il bianco cresce. Le due cose
+  // partono insieme e finiscono insieme, ed e' quello che le fa leggere come
+  // un unico gesto invece che come un effetto sopra a un altro.
+  try{ el.style.setProperty('--durata', TRASF_SU_MS + 'ms'); el.classList.add('trasf-su'); }catch(_){}
+  try{ _lampoTrasformazione(cella); }catch(_){}
   // v0.75.72 — LA VOCE DELLA TRASFORMAZIONE PARTE COL LAMPO, e il grido di
   // battaglia aspetta che abbia finito. Sono due momenti diversi della stessa
   // scena — prima la rana che diventa principe, poi il principe che si
@@ -30356,13 +30476,24 @@ function trasformaConLampo(cella, card, q, r, poi, fare){
     card.gridoRimandato = false;
     delete card.__voceTrasformazione;
     try{ renderBoard(); }catch(_){}
+    // La carta e' un'altra e la plancia l'ha ridisegnata: l'elemento di prima
+    // non esiste piu', quindi la seconda meta' del salto va attaccata a quello
+    // NUOVO. E' per questo che il salto e' spezzato in due — non per gusto, ma
+    // perche' nel mezzo la carta cambia identita'.
+    try{
+      const nuovo = elementoCarta(cella);
+      if(nuovo){ nuovo.style.setProperty('--durata', TRASF_GIU_MS + 'ms'); nuovo.classList.add('trasf-giu'); }
+    }catch(_){}
     dopoIlSuono(voce, chiaveVoce, ()=>{ try{ playCardBattlecry(card); }catch(_){} });
     // Il resto del lampo scorre sulla carta NUOVA, e solo dopo si combatte:
     // "prima diventa principe, poi attacca". Lo scontro non aspetta la voce —
     // aspetterebbe due secondi e mezzo a carta ferma — ma la voce continua sopra
     // di esso, che e' come si comportano tutti gli altri gridi.
-    setTimeout(finito, BACIO_LAMPO_MS/2);
-  }, BACIO_LAMPO_MS/2);
+    // Ricaduta, e POI un secondo di respiro prima dello scontro. Senza quel
+    // secondo l'attacco parte mentre l'occhio sta ancora registrando che la
+    // carta e' diversa, e la trasformazione si perde dentro il combattimento.
+    setTimeout(finito, TRASF_GIU_MS + TRASF_PAUSA_MS);
+  }, TRASF_SU_MS);
 }
 // ── v0.75.58 — UNICORN, "Unicorn Hunt" ────────────────────────────────────
 // Ogni volta che viene giocato la sua probabilita' di uscire da una bustina
@@ -30525,7 +30656,18 @@ function trasformaCartaIn(card, nomeCarta, etichetta){
     console.info('['+(etichetta||'trasformazione')+'] "'+nomeCarta+'" non e\' nel foglio: la trasformazione non avviene.');
     return false;
   }
-  const nuova = _makeCardDbCard(entry, card.owner || G.currentPlayer);
+  let nuova = _makeCardDbCard(entry, card.owner || G.currentPlayer);
+  // ── v0.78.9 — E RESTA AL LIVELLO CHE AVEVA ──────────────────────────────
+  // `_makeCardDbCard` costruisce la carta come sta sul foglio, cioe' al primo
+  // livello: una carta di livello 3 che si trasformava ricadeva a livello 1 e
+  // perdeva due punti su ogni gruppo. Da fuori si vedeva un DEBUFF nel momento
+  // stesso della trasformazione, e nessuna abilita' lo aveva ordinato.
+  // Il livello e' una proprieta' del possessore, non del ritratto: chi ha
+  // cresciuto quella carta ha cresciuto lei, non la sua figura.
+  const _liv = (card && card.level) || 1;
+  if(_liv !== 1 && typeof cartaAlLivello === 'function'){
+    try{ nuova = cartaAlLivello(nuova, _liv); }catch(_){}
+  }
   // ── v0.78.1 — I NUMERI DIVENTANO I SUOI, MA I COLPI PRESI RESTANO ────────
   // La regola, per esteso: una carta che si trasforma prende i valori della
   // carta nuova, e si porta dietro i buff e i debuff che aveva addosso — a
@@ -31016,10 +31158,51 @@ function motoreMomentoDelTurno(evento, diChi){
 // Adesso lo fa il foglio: "transform self card #174" si esegue, e la tabella
 // scritta a mano resta solo per le due che hanno anche una condizione sul
 // vicino e un'animazione dedicata.
+// La casella su cui sta una carta, se e' in campo. Durante un'anteprima
+// `G.board` E' il tabellone clonato (vedi simulaPiazzamento), quindi questa
+// risposta e' giusta anche li' senza doverlo sapere.
+function _cellaDellaCarta(card){
+  if(!card || !G || !G.board) return null;
+  for(const k in G.board){
+    const cella = G.board[k];
+    if(cella && cella.card === card) return k;
+  }
+  return null;
+}
+// ── v0.78.9 — UNA TRASFORMAZIONE COL "SE" NON AVVIENE SE IL "SE" E' FALSO ─
+// Il Principe Ranocchio dice "if adjacent has_trait Princess, transform self
+// card #144". La condizione non la guardava nessuno su questa strada: si
+// trasformava in Green Prince sempre, principessa o no. Stessa sorte toccava a
+// Cenerentola col suo Guardian, e sarebbe toccata a qualunque carta scritta
+// domani con la stessa forma — non era un difetto di una carta, era un difetto
+// della porta da cui passano tutte.
+//
+// La domanda si fa in DUE modi perche' ci sono due situazioni, e nessuno dei
+// due copre l'altra. Sul tabellone, dove le coordinate ci sono, si guardano i
+// vicini di quella casella: e' la risposta piu' informata e non dipende dal
+// fatto che la scena abbia gia' registrato la carta. Per ogni altra forma di
+// condizione risponde il motore, che le sa valutare tutte.
+// Se non si riesce a decidere, la trasformazione NON avviene: fra il rischio di
+// una trasformazione mancata e quello di una trasformazione regalata, la
+// seconda e' peggio — cambia i numeri con cui si combatte.
+function _condizioneDiTrasformazione(a, card){
+  const se = a && a.se;
+  if(!se) return true;
+  const cella = _cellaDellaCarta(card);
+  if(cella && se.soggetto === 'adjacent' && se.test === 'has_trait'){
+    const pezzi = cella.split(',');
+    return _condizioneAlPiazzamento(se, Number(pezzi[0]), Number(pezzi[1]));
+  }
+  let scena = null;
+  try{ scena = cella ? _scenaEvento(card, cella) : _scenaTabellone(); }
+  catch(_){ return false; }
+  return _condizioneVeraQui(se, card, scena);
+}
 function _trasformaDalFoglio(card, eff, a){
   if(!eff || eff.azione !== 'transform') return false;
   if(eff.cosa && eff.cosa !== 'card') return false;
   if(eff.chi && eff.chi !== 'self') return false;      // per ora si trasforma se stessa
+  if(!_condizioneDiTrasformazione(a, card)) return false;
   const entry = cartaIndicataDa(eff.quanto && eff.quanto.carta);
   if(!entry) return false;
   if(card.baseId === entry.id) return false;           // gia' trasformata
@@ -31050,7 +31233,29 @@ function eseguiDalFoglio(card, evento, dove){
   if(!a || a.trigger !== evento) return false;
   let fatto = false;
   for(const eff of [a.effetto, a.effetto2]){
-    if(eff && eff.azione === 'transform' && _trasformaDalFoglio(card, eff, a)) fatto = true;
+    if(!eff || eff.azione !== 'transform') continue;
+    // ── v0.78.9 — AL PIAZZAMENTO VERO NON SI CAMBIA QUI ──────────────────
+    // La trasformazione `on_play` la METTE IN SCENA doPlace: la carta cade, si
+    // guarda intorno, salta, il bianco sale, e al culmine diventa un'altra
+    // (vedi trasformaConLampo). Cambiarla adesso vorrebbe dire cambiarla un
+    // istante PRIMA che la scena cominci — e la scena non comincerebbe mai,
+    // perche' la carta trasformata non porta piu' la riga che la chiedeva.
+    // Era esattamente cio' che si vedeva col Principe Ranocchio: diventava
+    // principe di scatto, senza nessuna transizione.
+    // Si dichiara comunque `fatto`: la riga E' stata presa in carico, da
+    // qualcun altro, e nessun'altra strada deve raccoglierla.
+    // Per FINTA invece si fa, e si deve: l'anteprima al trascinamento mostra i
+    // numeri con cui si combattera', e li' la carta e' una copia.
+    if(evento === 'on_play' && !_simulazioneInCorso){
+      // `dove` arriva ora come {q,r} (dal piazzamento) e ora come "q,r" (dalle
+      // abilita' di casella): si accettano tutte e due, o la scena partirebbe
+      // a seconda di chi ha chiamato.
+      const _p = (typeof dove === 'string') ? dove.split(',').map(Number)
+               : (dove && typeof dove.q === 'number') ? [dove.q, dove.r] : [NaN, NaN];
+      if(trasformazioneAlPiazzamento(card, _p[0], _p[1])) fatto = true;
+      continue;
+    }
+    if(_trasformaDalFoglio(card, eff, a)) fatto = true;
   }
   for(const eff of [a.effetto, a.effetto2]){
     if(!eff) continue;
@@ -31106,11 +31311,19 @@ function preparaPremioProssimaGiocata(card, a, eff){
 // La promessa vale per UNA carta comunque vada: se quella conquista, il premio
 // non arriva E non resta in attesa della prossima. E' la lettura di "la
 // prossima carta che giochi" — la prossima, non la prima che si comporta bene.
-function riscuotiPremioProssimaGiocata(card, giocatore, quanteConquiste){
+// `soloAnteprima` serve al trascinamento: mostra cosa succederebbe senza che
+// succeda. La differenza e' una riga sola — la promessa non si consuma — ed e'
+// il motivo per cui questa funzione ha un parametro invece di una gemella.
+function riscuotiPremioProssimaGiocata(card, giocatore, quanteConquiste, soloAnteprima){
   const p = G.premioProssimaGiocata && G.premioProssimaGiocata[giocatore];
   if(!p || !card) return false;
   if(p.postoDa === card.id) return false;
-  G.premioProssimaGiocata[giocatore] = null;
+  // Una promessa che dipende dal fatto che la carta NON conquisti non si puo'
+  // mostrare in anteprima: mentre si sorvola una casella non e' ancora deciso,
+  // e disegnare un bonus che potrebbe non arrivare sarebbe una promessa che il
+  // gioco non e' tenuto a mantenere.
+  if(soloAnteprima && p.soloSeNonConquista) return false;
+  if(!soloAnteprima) G.premioProssimaGiocata[giocatore] = null;
   if(p.soloSeNonConquista && quanteConquiste > 0) return false;
   if(!p.quanto) return false;
   const lati = _motore().latiColpiti(p.ambito, (card.valoriBase || card.values) || {}, card, G._semeSinergie || '');
@@ -33809,6 +34022,17 @@ function simulaPiazzamento(card, q, r){
 
     const chiave = abilitaAttivaDi(card);
     if(chiave) applicaAbilitaPiazzamento(cartaClone, q, r, chiave);
+    // ── v0.78.8 — E LA PROMESSA LASCIATA DA UN'ALTRA CARTA ────────────────
+    // Lo Spaventapasseri (e il Grillo Parlante) non toccano se stessi: lasciano
+    // un segno che la PROSSIMA carta giocata riscuote. Quella carta e' proprio
+    // quella che si sta trascinando, e il suo bonus fa parte di cio' che
+    // succedera' posandola — quindi fa parte di cio' che l'anteprima deve
+    // mostrare.
+    // Qui non c'era, e il difetto era invisibile in un modo particolare: non
+    // sbagliava un numero, ne taceva uno. Si vedeva la carta atterrare e SOLO
+    // ALLORA salire.
+    // Con `true` la promessa non si consuma: si guarda, non si riscuote.
+    riscuotiPremioProssimaGiocata(cartaClone, proprietario, 0, true);
     // Nella simulazione il giocatore e' quello di turno: la carta trascinata e'
     // sua per definizione.
     reazioniAlPiazzamento(cartaClone, q, r, G.currentPlayer);
@@ -45327,6 +45551,18 @@ function toast(msg){
 //
 // Il segno decide il colore, come gia' per le righe vecchie: sopra il valore
 // base verde, sotto rosso (.ct-mod.su / .ct-mod.giu).
+// v0.78.9 — un effetto che sceglie A CASO su quale gruppo cadere si dice
+// "RAND". Senza, due partite con la stessa carta mostrerebbero la stessa riga
+// per due cose diverse, e chi legge non saprebbe che quel +2 sarebbe potuto
+// finire da un'altra parte.
+function _fonteACaso(fonte){
+  const motore = (typeof _motore === 'function') ? _motore() : null;
+  if(!motore || typeof motore.abilitaDi !== 'function' || !fonte) return false;
+  let a = null;
+  try{ a = motore.abilitaDi(fonte); }catch(_){ return false; }
+  if(!a) return false;
+  return [a.effetto, a.effetto2].some(e => e && e.ambito === 'RAND');
+}
 function _modificatoriDalMotore(card){
   if(typeof sinergieDalFoglio !== 'function' || !sinergieDalFoglio()) return [];
   const motore = (typeof _motore === 'function') ? _motore() : null;
@@ -45363,8 +45599,13 @@ function _modificatoriDalMotore(card){
     const da = (fonte === card)
       ? (card.abilityNameSheet || card.name || 'its own ability')
       : (fonte.name || 'another card');
+    // Tre forme sole, e nessuna nomina i lati: "ALL" se tocca tutta la carta,
+    // "RAND" se il gruppo lo ha scelto il caso, niente se e' un gruppo e basta.
+    // I lati colpiti sono gia' sotto gli occhi, verdi o rossi: ripeterli qui in
+    // punti cardinali e' un dettaglio che si legge e non serve a niente.
+    const ambito = uniforme ? ' ALL' : (_fonteACaso(fonte) ? ' RAND' : '');
     righe.push({
-      testo: segno + Math.abs(delta) + (uniforme ? ' ALL' : '') + ' from ' + da,
+      testo: segno + Math.abs(delta) + ambito + ' from ' + da,
       positivo: delta > 0
     });
   }
@@ -45423,22 +45664,42 @@ function bloccoModificatoriHTML(card){
   if(!scarti.length && !nomi.length) return '';
 
   const righe = [];
-  const tuttiILati = (lati)=> (typeof SIDES !== 'undefined') && lati.length >= SIDES.length;
-  // Il totale. Un gruppo per riga: gruppi diversi possono essere cambiati di
-  // quantita' diverse, e riassumerli in un numero solo sarebbe una media che
-  // non corrisponde a nessuno dei due.
-  for(const s of scarti){
+  // ── v0.78.9 — SI DICE DI QUANTO, NON DI DOVE ───────────────────────────
+  // Prima ogni gruppo aveva la sua riga coi punti cardinali: una carta a tre
+  // gruppi cresciuta di 2 mostrava "+2 W/NW/NE", "+2 E/SE", "+2 SW" — tre
+  // righe per dire una cosa sola, e per giunta la piu' facile da vedere, dato
+  // che quei lati sono li' accanto, gia' colorati di verde.
+  // Se OGNI gruppo si e' mosso della stessa quantita' la carta e' cambiata
+  // tutta, e la riga e' una sola: "+2 ALL". Se no, una riga per ogni quantita'
+  // diversa — due gruppi cresciuti entrambi di 2 restano un fatto solo.
+  const quantiGruppi = ((typeof gruppiDiCarta === 'function') ? gruppiDiCarta(card) : []).length;
+  const tutta = quantiGruppi > 0 && scarti.length >= quantiGruppi
+             && scarti.every(s => s.delta === scarti[0].delta);
+  const quantita = tutta ? [scarti[0].delta] : [...new Set(scarti.map(s => s.delta))];
+  for(const d of quantita){
     righe.push({
-      testo: (s.delta > 0 ? '+' : '\u2212') + Math.abs(s.delta)
-             + (tuttiILati(s.lati) ? ' ALL' : ' ' + s.lati.join('/')),
-      positivo: s.delta > 0,
+      testo: (d > 0 ? '+' : '\u2212') + Math.abs(d) + (tutta ? ' ALL' : ''),
+      positivo: d > 0,
       forte: true
     });
   }
   // E chi c'e' dietro, quando si sa.
+  // ── v0.78.9 — E SE IL NOME SPIEGA GIA' TUTTO, IL TOTALE ANONIMO SPARISCE ─
+  // "+2 ALL" seguito da "+2 ALL from Queen of Hearts" e' la stessa riga detta
+  // due volte, la prima senza dire chi. Il totale esiste per non tacere mai
+  // (vedi qui sopra): quando qualcuno lo spiega per intero, ha gia' fatto il
+  // suo lavoro e sta solo occupando una riga.
+  // Il confronto e' sul TESTO — stessa quantita', stesso ambito — quindi toglie
+  // solo cio' che e' ripetuto alla lettera, e non puo' nascondere una
+  // differenza fra quanto e' cambiato e quanto qualcuno si prende il merito.
+  for(let i = righe.length - 1; i >= 0; i--){
+    const r = righe[i];
+    if(!r.forte) continue;
+    if(nomi.some(n => n.testo.indexOf(r.testo + ' from ') === 0)) righe.splice(i, 1);
+  }
   for(const n of nomi) righe.push(n);
   if(!righe.length) return '';
-  return '<div class="cm-riga cm-mods"><span class="cm-et">Bonus/Malus:</span>'
+  return '<div class="cm-riga cm-mods"><span class="cm-et">Buffs/debuffs:</span>'
     + '<span class="cm-val"><span class="ct-mods">'
     + righe.map(r=>'<span class="ct-mod '+(r.positivo?'su':'giu')+(r.forte?' ct-mod-totale':'')+'">'
         + escapeHtml(r.testo)+'</span>').join('')

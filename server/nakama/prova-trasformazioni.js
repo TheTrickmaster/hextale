@@ -65,5 +65,41 @@ for (const f of ['_trasformazioneDelFoglio', '_trasformaDalFoglio', 'cartaIndica
   console.log('  ' + (c1 ? 'ok    ' : 'MANCA ') + f);
 }
 
+// -- v0.78.9 -- LE DUE REGOLE CHE MANCAVANO --------------------------------
+// 1) UNA RIGA COL "SE" NON SI ESEGUE SE IL "SE" E' FALSO.
+//    Il Principe Ranocchio si trasformava senza nessuna principessa accanto, e
+//    Cenerentola senza nessun Guardian: la condizione, su quella strada, non la
+//    guardava nessuno. La guardia sta ora nella porta da cui passano TUTTE le
+//    trasformazioni del foglio, non in una carta.
+// 2) UNA TRASFORMAZIONE on_play E' UNA SCENA, NON UN CAMBIO.
+//    La carta cade, salta, il bianco sale, e al culmine diventa un'altra. Se
+//    eseguiDalFoglio la cambia per conto suo un istante prima, la scena non
+//    parte nemmeno: la carta trasformata non porta piu' la riga che la
+//    chiedeva. Era il "si trasforma di scatto" segnalato alla v0.78.8.
+console.log('');
+const REGOLE = [
+  { nome: 'ogni trasformazione dal foglio guarda la condizione della riga',
+    prova: /function _trasformaDalFoglio[\s\S]{0,600}?_condizioneDiTrasformazione\(a, card\)/,
+    perche: 'senza, una riga con "if adjacent has_trait X" si esegue comunque' },
+  { nome: 'la condizione sa rispondere in tutti e due i modi',
+    prova: /function _condizioneDiTrasformazione[\s\S]{0,1200}?_condizioneAlPiazzamento[\s\S]{0,600}?_condizioneVeraQui/,
+    perche: 'sul tabellone si guardano i vicini della casella, altrove risponde il motore' },
+  { nome: 'al piazzamento vero la trasformazione la mette in scena doPlace',
+    prova: /evento === 'on_play' && !_simulazioneInCorso/,
+    perche: 'cambiarla dentro eseguiDalFoglio la farebbe avvenire di scatto, senza transizione' },
+  { nome: 'la scena c-e- tutta: salto, lampo, discesa, respiro',
+    prova: /TRASF_SU_MS[\s\S]*TRASF_GIU_MS[\s\S]*TRASF_PAUSA_MS/,
+    perche: 'il respiro finale e- cio- che impedisce allo scontro di mangiarsi la trasformazione' },
+  { nome: 'una carta che si trasforma resta al livello che aveva',
+    prova: /cartaAlLivello\(nuova, _liv\)/,
+    perche: 'senza, ricadeva al livello del foglio: un debuff che nessuna abilita- aveva ordinato' },
+];
+for (const r of REGOLE) {
+  const buono = r.prova.test(gioco);
+  if (!buono) ko++;
+  console.log('  ' + (buono ? 'ok    ' : 'ROTTA ') + r.nome);
+  if (!buono) console.log('        ' + r.perche);
+}
+
 console.log('\n' + (ko ? 'FALLITO: ' + ko + ' cose da sistemare' : 'OK: le trasformazioni vengono tutte dal foglio'));
 process.exit(ko ? 1 : 0);

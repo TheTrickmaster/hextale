@@ -1527,6 +1527,38 @@ function ombraConfronta(state, logger, turno, improntaVera) {
   }
 }
 
+// -- v0.78.9 -- LE CASELLE OCCUPATE LE DICE IL RACCONTO CONCORDE ----------
+// `state.occupate` era una somma di sole giocate: cresceva e non calava mai.
+// Ma una carta puo' USCIRE dal tabellone -- Mordred ne distrugge una -- o
+// SPOSTARSI -- Rapunzel la tira accanto a se'. Il server non lo sapeva: quella
+// casella restava occupata per sempre nella sua contabilita', e chi provava a
+// giocarci si sentiva rispondere "quella casella e' gia' occupata" davanti a
+// una casella vuota. Il difetto non era di Mordred: era di ogni abilita' che
+// toglie o sposta una carta, oggi e domani.
+//
+// Non lo si chiede al client. Sarebbe la sua parola, e con quella si potrebbe
+// liberare qualunque casella. Lo si legge invece dal racconto che i due client
+// hanno gia' fatto UGUALE (vedi OP_IMPRONTA): l'impronta e' esattamente
+// "casella:carta:proprietario" per ogni casella piena, cioe' E' GIA' la mappa
+// delle occupate, concordata da tutti e due. Per falsificarla non basta un
+// client modificato: dovrebbero mentire nello stesso identico modo.
+//
+// Si taglia sul PRIMO e sull'ULTIMO due punti: la casella e' "q,r" e il
+// proprietario e' una cifra, mentre in mezzo c'e' un identificativo di carta
+// su cui non conviene fare promesse.
+function _occupateDaImpronta(state, impronta) {
+  var nuove = {};
+  var pezzi = String(impronta || '').split('|');
+  for (var i = 0; i < pezzi.length; i++) {
+    var p = pezzi[i];
+    if (!p) continue;
+    var a = p.indexOf(':'), b = p.lastIndexOf(':');
+    if (a < 0 || b <= a) continue;
+    nuove[p.slice(0, a)] = { carta: p.slice(a + 1, b), di: parseInt(p.slice(b + 1), 10) || 0 };
+  }
+  state.occupate = nuove;
+}
+
 function partitaInit(ctx, logger, nk, params) {
   var giocatori = JSON.parse(params.giocatori || '[]');
   var info = JSON.parse(params.info || '{}');
@@ -1698,6 +1730,8 @@ function partitaLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
       }
 
       state.concordato = { turno: t, impronta: uno.impronta, punteggio: uno.punteggio, hp: uno.hp };
+      // v0.78.9 — e da quello stesso racconto si rifanno le caselle occupate.
+      _occupateDaImpronta(state, uno.impronta);
       // v0.77.76 — i due client sono d'accordo: e' il momento buono per
       // chiedere al server se avrebbe detto la stessa cosa. Non decide niente:
       // se sbaglia, lo sapremo dal registro invece che da una partita persa.
