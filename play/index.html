@@ -234,7 +234,11 @@ body.mouse-down, body.mouse-down *{
      object-fit:cover for this fill-the-box use) fixes the glow with zero
      visual/behavioral change to the backdrop itself.
      background-size:cover, matching the old object-fit:cover behavior. */
-  background-image:url('https://hextalegame.com/ui/start-screen-bg.png');
+  /* v0.78.10 — lo stesso fondale del menu principale. Erano due scene diverse
+     per lo stesso posto: si entrava in una taverna e, fatto l'accesso, ci si
+     ritrovava in un'altra. Adesso la stanza e' una, e quel che cambia entrando
+     e' cosa ci si trova dentro. */
+  background-image:url('https://hextalegame.com/ui/main-menu-bg.jpg');
   background-size:cover; background-position:center; background-repeat:no-repeat;
   z-index:0;pointer-events:none;user-select:none;
   /* v0.37.0: the background now fades in on its OWN 3s transition — slower
@@ -247,6 +251,22 @@ body.mouse-down, body.mouse-down *{
      inherited from .start-fade. */
   transition:opacity 3s ease;
 }
+/* ── v0.78.10 — E LA LANTERNA BRILLA ANCHE QUI ────────────────────────────
+   La stessa scena illuminata del menu, con la stessa animazione: `mm2Fiaccola`
+   e' una sola, dichiarata una volta, e i due fondali la condividono. Due copie
+   della stessa curva sarebbero due cose da tenere allineate, e prima o poi una
+   delle due resterebbe indietro.
+   Sta DENTRO a #start-bg-img e non accanto: cosi' eredita la sua dissolvenza
+   d'ingresso da tre secondi senza doverla ridichiarare, e soprattutto senza
+   entrare nella sequenza di apparizione della schermata, che si aspetta
+   esattamente i figli che ha (vedi runPreload). */
+#start-bg-lit{
+  position:absolute; inset:0;
+  background-image:url('https://hextalegame.com/ui/main-menu-bg-lit.jpg');
+  background-size:cover; background-position:center; background-repeat:no-repeat;
+  opacity:0.5; pointer-events:none; user-select:none;
+}
+
 /* ── v0.72.57 — strati 2 e 3 dello sfondo dello start screen ──────────────
    Ordine, dal fondo: start-screen-bg (#start-bg-img) → le tre tele della
    polvere in `plus-lighter`. Tutti e due a schermo pieno.
@@ -331,25 +351,38 @@ body.mouse-down, body.mouse-down *{
    pagina, tutta insieme, comprese le parti che una candela non puo' raggiungere.
    Era il lampo a schermo pieno. Il respiro della luce lo fa gia' l'opacita' —
    e quello si', solo dove il fondale acceso e' davvero acceso. */
-#mm2-bg-lit{
-  z-index:1; opacity:0.5;
-  animation:mm2Fiaccola 3.7s cubic-bezier(.45,.05,.55,.95) infinite;
+.fondale-acceso, #mm2-bg-lit{
+  animation:mm2Fiaccola 2.2s linear infinite;
 }
-/* La banda resta stretta (0.52-0.68): la luce si muove sempre ma non si spegne
-   mai, che e' come si comporta una candela al riparo. */
+#mm2-bg-lit{ z-index:1; opacity:0.5; }
+/* ── v0.78.10 — UNA VIA DI MEZZO, E LA MISURA GIUSTA E' L'AMPIEZZA ─────────
+   La v0.78.9 aveva tolto la durezza e con essa si era portata via anche la
+   presenza: 0.52-0.68 in tre secondi e sette e' una luce che si muove senza
+   che nessuno se ne accorga. Il difetto vero pero' non era mai stato
+   l'ampiezza — era lo SCATTO (`steps(1,end)`, nessuna dissolvenza) e il lampo
+   a schermo pieno. Quei due restano fuori.
+   Quindi: banda larga come prima e anche di piu' (0.40-0.82), ciclo di due
+   secondi e due, e le dissolvenze si tengono. Il carattere di fiamma lo fa il
+   TEMPO di ogni passaggio, non la sua brutalita': qualche salita e' uno scatto
+   quasi secco (ease-out ripido) e qualche discesa e' un lento riassestarsi, e
+   sono i due tipi mescolati a non lasciare mai riconoscere un ritmo.
+   L'andatura generale e' `linear` di proposito: la curva vera la mette ogni
+   fotogramma con la propria animation-timing-function, e una curva globale la
+   moltiplicherebbe per un'altra. */
 @keyframes mm2Fiaccola{
-  0%   { opacity:0.55; }
-  9%   { opacity:0.66; }
-  17%  { opacity:0.57; }
-  26%  { opacity:0.68; }
-  33%  { opacity:0.59; }
-  47%  { opacity:0.64; }
-  55%  { opacity:0.52; }
-  63%  { opacity:0.67; }
-  71%  { opacity:0.56; }
-  84%  { opacity:0.63; }
-  92%  { opacity:0.54; }
-  100% { opacity:0.55; }
+  0%   { opacity:0.58; animation-timing-function:cubic-bezier(.2,.9,.35,1); }
+  9%   { opacity:0.79; animation-timing-function:cubic-bezier(.5,0,.7,.4); }
+  18%  { opacity:0.48; animation-timing-function:cubic-bezier(.15,.85,.4,1); }
+  25%  { opacity:0.74; animation-timing-function:ease-in-out; }
+  34%  { opacity:0.55; animation-timing-function:cubic-bezier(.2,.9,.3,1); }
+  41%  { opacity:0.82; animation-timing-function:cubic-bezier(.6,0,.8,.35); }
+  53%  { opacity:0.44; animation-timing-function:ease-in-out; }
+  61%  { opacity:0.68; animation-timing-function:cubic-bezier(.25,.9,.35,1); }
+  68%  { opacity:0.40; animation-timing-function:cubic-bezier(.3,.8,.4,1); }
+  77%  { opacity:0.76; animation-timing-function:cubic-bezier(.55,0,.75,.4); }
+  86%  { opacity:0.50; animation-timing-function:ease-in-out; }
+  94%  { opacity:0.71; animation-timing-function:cubic-bezier(.4,0,.6,1); }
+  100% { opacity:0.58; }
 }
 /* La polvere: le stesse tre tele della schermata d'accesso, stessi piani e
    stesso `plus-lighter`. Non un secondo effetto simile — proprio le stesse
@@ -510,6 +543,9 @@ body.mouse-down, body.mouse-down *{
   position:absolute; top:88px; left:50%; transform:translateX(-50%);
   height:184px; width:auto; z-index:20;
   pointer-events:none; user-select:none; -webkit-user-drag:none;
+  /* v0.78.10 — spenta per ora, per scelta. Il resto della regola resta al suo
+     posto: riaccenderla e' togliere una riga, non rimetterne sei. */
+  display:none;
 }
 
 /* ── I RIQUADRI ───────────────────────────────────────────────────────────
@@ -700,7 +736,11 @@ body.mouse-down, body.mouse-down *{
   font-family:'Marcellus',var(--font-display),serif; font-size:20px; color:#8FA1A3;
   cursor:var(--cursore);
 }
-#mm2-deck-box{ width:530px; display:flex; flex-direction:column; gap:16px; }
+/* v0.78.10 — larga il doppio meno un filo: dentro ci stanno due colonne di
+   mazzi. A 530px una colonna sola era giusta; spezzarla in due senza allargare
+   avrebbe dato due colonne troppo strette per leggere il nome di un mazzo
+   accanto alla sua illustrazione. */
+#mm2-deck-box{ width:1000px; display:flex; flex-direction:column; gap:16px; }
 #mm2-deck-titlebar h2{
   margin:0; text-align:center;
   font-family:'Marcellus',var(--font-display),serif;
@@ -711,8 +751,26 @@ body.mouse-down, body.mouse-down *{
    regola condivisa e' una fila flex che parte da sinistra, e un titolo che non
    riempie la fila ci scivola dentro. */
 #mm2-deck-titlebar .hx-titlebar-center{ justify-content:center; }
-#mm2-deck-lista{ display:flex; flex-direction:column; gap:12px; overflow:visible; }
+/* ── v0.78.10 — I MAZZI SU DUE COLONNE ────────────────────────────────────
+   Dodici mazzi in fila uno sotto l'altro sono una lista che scende oltre lo
+   schermo; sei e sei stanno sott'occhio insieme. L'ordine di riempimento resta
+   quello di sempre (riga per riga, da sinistra), che e' lo stesso ordine in cui
+   i mazzi si trascinano nella Libreria: sono le stesse posizioni, disposte su
+   due file invece che su una.
+   La riga di stacco e il mazzo casuale attraversano tutte e due le colonne —
+   non sono uno dei mazzi, sono l'alternativa a sceglierne uno — e il casuale
+   sta al centro, largo quanto una colonna. */
+#mm2-deck-lista{
+  display:grid; grid-template-columns:1fr 1fr; gap:12px;
+  align-items:start; overflow:visible;
+}
 #mm2-deck-lista .deck-slot{ cursor:var(--cursore); }
+#mm2-deck-lista > .filters-riga{ grid-column:1 / -1; }
+#mm2-deck-lista > .mm2-slot-casuale{
+  grid-column:1 / -1;
+  width:calc(50% - 6px);      /* una colonna: 6px e' meta' del gap */
+  justify-self:center;
+}
 /* La riga del mazzo casuale: stessa forma delle altre, con un fondo suo che
    riempie tutto il riquadro invece dell'illustrazione della prima carta. */
 .mm2-slot-casuale{
@@ -9136,7 +9194,7 @@ body.prova-senza-willchange #mm-book-rot{
      both visible; (e) only starts after (d)'s fade-in transition time has
      elapsed, and (f) only after (e)'s — never in the same tick. -->
 <div id="start-screen">
-  <div id="start-bg-img" class="start-fade"></div>
+  <div id="start-bg-img" class="start-fade"><div id="start-bg-lit" class="fondale-acceso"></div></div>
   <!-- v0.72.57 — sfondo dello start screen a TRE STRATI, dal fondo verso
        l'osservatore: #start-bg-img (start-screen-bg.png) → le tre tele della
        polvere (blend `plus-lighter`). v0.77.19 — le barre non ci sono piu'.
@@ -9961,7 +10019,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.78.9</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.78.10</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -11457,7 +11515,10 @@ if(document.readyState==='loading'){
   function attendiFondalePronto(){
     const promesse = [];
     // 1) lo sfondo, decodificato
-    const bgUrl = 'https://hextalegame.com/ui/start-screen-bg.png';
+    // v0.78.10 — l'immagine che si aspetta e' quella che si mostra: dal
+    // momento che il fondale e' passato a quello del menu, aspettare la vecchia
+    // vorrebbe dire partire con la nuova ancora da decodificare.
+    const bgUrl = 'https://hextalegame.com/ui/main-menu-bg.jpg';
     promesse.push(new Promise(res=>{
       const im = new Image();
       const fine = ()=>res();
@@ -13343,7 +13404,12 @@ function reteRaccontaQuandoFermo(){
   const scadenza = Date.now() + 20000;
   const guarda = ()=>{
     if(!PARTITA_RETE) return;
-    if(G && G.sceltaBersaglio && Date.now() < scadenza){ setTimeout(guarda, 200); return; }
+    // v0.78.10 — e una rimozione ancora in coda e' un tabellone non ancora
+    // fermo: raccontarlo adesso vorrebbe dire descrivere una carta che sta per
+    // sparire come se restasse.
+    const inSospeso = (G && G.sceltaBersaglio)
+                   || (G && G.rimozioniInAttesa && G.rimozioniInAttesa.length);
+    if(inSospeso && Date.now() < scadenza){ setTimeout(guarda, 200); return; }
     setTimeout(()=>reteMandaImpronta(false), 1800);
   };
   guarda();
@@ -27637,6 +27703,9 @@ function initGame(vsAI){
     // ricordarsi anche a che condizione vale e da chi viene: la carta premiata
     // dev'essere in grado di dire chi l'ha premiata.
     premioProssimaGiocata:{1:null,2:null},
+    // v0.78.10 — le caselle da svuotare a scontro finito (vedi
+    // rimuoviDopoLaConquista). Nasce vuota a ogni partita come tutto il resto.
+    rimozioniInAttesa:[],
     // L'ultima conquista di ciascun giocatore, per Morgana: {cella, exProprietario}.
     ultimaConquista:{1:null,2:null},
     // v0.73.78 — che turno e'. Serve alle abilita' che scattano a un certo
@@ -30376,7 +30445,29 @@ function _lampoTrasformazione(cella){
   lampo.setAttribute('fill', '#ffffff');
   lampo.classList.add('trasf-lampo');
   lampo.style.setProperty('--durata', TRASF_LAMPO_MS + 'ms');
-  svg.appendChild(lampo);
+  // ── v0.78.10 — LA MASCHERA VA CENTRATA SULLA CARTA ───────────────────────
+  // `getBBox()` risponde nello spazio della CARTA, prima delle trasformazioni
+  // che la portano sulla sua casella. Il lampo del colpo (lampeggiaCarta) puo'
+  // permetterselo perche' nasce DENTRO la carta e quelle trasformazioni le
+  // eredita; questo invece vive su un velo a parte — che e' il motivo per cui
+  // sopravvive al ridisegno — e quindi quelle coordinate le prende alla
+  // lettera: l'esagono finiva dove la carta sarebbe stata se nessuno l'avesse
+  // spostata, cioe' altrove.
+  // Si mette quindi il poligono dentro a un gruppo che porta la stessa matrice
+  // che porta la carta. Si chiede allo schermo e non a getCTM perche' getCTM
+  // include gia' la trasformazione del viewBox, che il velo — avendo lo stesso
+  // viewBox — applicherebbe una seconda volta.
+  const gruppo = svgEl('g');
+  try{
+    const suo = el.getScreenCTM(), radice = bsvg.getScreenCTM();
+    if(suo && radice){
+      const m = radice.inverse().multiply(suo);
+      gruppo.setAttribute('transform',
+        'matrix('+m.a+','+m.b+','+m.c+','+m.d+','+m.e+','+m.f+')');
+    }
+  }catch(_){ }
+  gruppo.appendChild(lampo);
+  svg.appendChild(gruppo);
   velo.appendChild(svg);
   (document.getElementById('game-root') || document.body).appendChild(velo);
   // Il culmine del bianco cade ESATTAMENTE quando la carta cambia. La
@@ -31698,7 +31789,10 @@ const SCELTE_PIAZZAMENTO = {
       giocatore,
       cellaOrigine: key(q,r),
       bersagli,
-      applica: (cella) => distruggiCarta(cella),
+      // v0.78.10 — la carta non sparisce adesso: sparisce a scontro finito.
+      // Toglierla qui la sottrarrebbe al conteggio dei lati, cioe' cambierebbe
+      // l'esito dello scontro invece di seguirlo.
+      applica: (cella) => rimuoviDopoLaConquista(cella),
       rinuncia: () => {},
     };
   },
@@ -32050,6 +32144,37 @@ function _volaViaDalTabellone(cella){
   (document.getElementById('game-root') || document.body).appendChild(velo);
   setTimeout(()=>{ try { velo.remove(); } catch(_){} }, DISTRUZIONE_MS + 200);
 }
+// ── v0.78.10 — CHI TOGLIE UNA CARTA LO FA DOPO LA CONQUISTA, SEMPRE ───────
+// La regola vale per ogni abilita' che rimuove, non solo per Mordred.
+//
+// Non e' una scelta di regia: una carta tolta PRIMA non e' piu' li' quando si
+// contano i lati, quindi toglierla CAMBIA l'esito dello scontro. Chi guarda
+// vede una conquista che non avviene e non ha modo di capire perche'. Prima si
+// combatte con il tabellone che c'era, poi la carta indicata sparisce.
+//
+// La coda vive in G perche' fra il momento della scelta e quello dello scontro
+// il turno passa per tre funzioni diverse. Si svuota SEMPRE — anche se la
+// conquista non produce niente — o la rimozione resterebbe appesa al turno
+// dopo, e sparirebbe una carta in un momento che nessuno ha chiesto.
+function rimuoviDopoLaConquista(cella){
+  if(!cella) return null;
+  if(!G.rimozioniInAttesa) G.rimozioniInAttesa = [];
+  if(G.rimozioniInAttesa.indexOf(cella) < 0) G.rimozioniInAttesa.push(cella);
+  // Chi chiama vuole sapere se c'era qualcosa da togliere: si risponde con
+  // quel che c'e' ADESSO, che e' esattamente cio' che sparira'.
+  return G.board[cella] || null;
+}
+function svuotaLeRimozioniInAttesa(){
+  const coda = G.rimozioniInAttesa || [];
+  G.rimozioniInAttesa = [];
+  let quante = 0;
+  for(const cella of coda) if(distruggiCarta(cella)) quante++;
+  return quante;
+}
+// ATTENZIONE a chi scrivera' un'abilita' che rimuove: NON si chiama questa.
+// Questa e' la rimozione vera e non sa niente di quando sia il momento giusto.
+// Un'abilita' chiama rimuoviDopoLaConquista (vedi qui sopra), e la carta se ne
+// va quando deve.
 function distruggiCarta(cella){
   if(!cella || !G.board[cella]) return null;
   const tolta = G.board[cella];
@@ -34931,6 +35056,11 @@ function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLa
   // legge come un blocco, ed e' esattamente cosi' che e' stato segnalato.
   const chiudiIlTurno = ()=>{
     if(!G || G.gameOver) return;
+    // v0.78.10 — LO SCONTRO E' FINITO: adesso le carte indicate da un'abilita'
+    // che rimuove escono dal tabellone. Sta in cima e non in fondo perche' piu'
+    // sotto si puo' aprire un'altra finestra e uscire da qui: la rimozione
+    // resterebbe appesa, e la carta sparirebbe a sorpresa un turno dopo.
+    const _tolte = svuotaLeRimozioniInAttesa();
     // v0.73.66 — un'abilita' puo' avere qualcosa da chiedere al giocatore
     // PROPRIO ADESSO che lo scontro e' finito (vedi SCELTE_DOPO_CONQUISTA,
     // es. 12 Dancing Princesses). Si prova prima di chiudere il turno, e solo
@@ -34957,7 +35087,9 @@ function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLa
         return;
       }
     }
-    const attesa = effettiDopoLoScontro(card, q, r);
+    // Il volo della carta distrutta e' un'animazione come le altre e va
+    // aspettato, o il turno cambierebbe mentre e' ancora per aria.
+    const attesa = Math.max(effettiDopoLoScontro(card, q, r), _tolte ? DISTRUZIONE_MS : 0);
     if(attesa>0) rimandaFineTurnoFino(performance.now() + attesa);
     endTurn(player);
   };
@@ -34972,6 +35104,11 @@ function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLa
 // animazioni, aspettando la pausa, aspettando l'ondata) e senza questo flag
 // il tabellone verrebbe contato una volta per rientro.
 function endTurn(player, animationsSettled, dannoFatto){
+  // v0.78.10 — rete di sicurezza. Di norma la coda delle rimozioni la svuota
+  // chiudiIlTurno, a scontro finito; se un giorno una strada arrivasse qui
+  // senza passare di la', una carta indicata resterebbe in campo per sempre.
+  // Su una coda gia' vuota non costa niente, ed e' chiamata a ogni rientro.
+  try{ if(G && G.rimozioniInAttesa && G.rimozioniInAttesa.length) svuotaLeRimozioniInAttesa(); }catch(_){}
   // v0.71.21: belt-and-suspenders stop for the AI-thinking fake-hover
   // (see startAiThinkingHover()'s own comment) — normally already stopped
   // right before aiPlay() fires (see maybeTriggerAiTurn()), but aiPlay()
