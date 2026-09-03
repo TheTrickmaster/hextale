@@ -78,6 +78,17 @@ conta('disconnesso, crashato, uscito', M.inkDiFine('uscito', false), 0);
 conta('resta, stava vincendo', M.inkDiFine('resta', true), 10);
 conta('resta, stava perdendo', M.inkDiFine('resta', false), 5);
 
+// Un PAREGGIO non e' una vittoria e non e' nemmeno una cosa a se': vale come
+// una sconfitta, ed e' cosi' che arriva fin qui — su un pareggio nessuno dei
+// due giocatori ha `vinta`, quindi tutti e due prendono i premi della
+// sconfitta. Il banco lo scrive perche' e' una REGOLA, e non una conseguenza
+// casuale di come e' fatto il codice: chi un domani desse al pareggio un premio
+// suo deve accorgersi di stare cambiando una regola.
+console.log('\nIL PAREGGIO\n');
+conta('esperienza, come una sconfitta', M.xpDiFine('finita', false), 20);
+conta('inchiostro, come una sconfitta', M.inkDiFine('finita', false), 5);
+conta('nove turni e un pareggio', xp(9, 'finita', false), 38);
+
 console.log('\nLA BUSTINA\n');
 conta('una ogni cinque partite', M.PARTITE_PER_BUSTINA, 5);
 

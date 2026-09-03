@@ -4889,6 +4889,10 @@ body.io-sono-2 #p1-info .player-avatar-photo{ transform:scaleX(-1); }
 #gameover-fascia{
   position:relative; z-index:1;
   width:100%;
+  /* Il tabellone dietro resta leggibile come forma ma smette di competere col
+     testo che ci sta sopra. */
+  backdrop-filter:blur(20px);
+  -webkit-backdrop-filter:blur(20px);
   /* Il raggio se ne va: la fascia tocca i due bordi dello schermo, e un angolo
      arrotondato contro il bordo mostra l'incavo — direbbe "galleggio" invece
      di "attraverso". Fondo, cornice e trama restano quelli di .hx-pannello. */
@@ -4907,7 +4911,7 @@ body.io-sono-2 #p1-info .player-avatar-photo{ transform:scaleX(-1); }
   position:relative;
   width:100%; min-height:227px;    /* l'altezza vera di end-game-bg.png */
   display:flex; flex-direction:column; align-items:center; justify-content:center;
-  gap:10px; padding:18px 0; box-sizing:border-box;
+  gap:0; padding:18px 0; box-sizing:border-box;
   background-image:var(--go-testata-bg, none);
   background-repeat:no-repeat; background-position:center center;
   background-size:auto 100%;
@@ -4942,7 +4946,7 @@ body.io-sono-2 #p1-info .player-avatar-photo{ transform:scaleX(-1); }
    apertura misurata sul canale alfa della cornice (vedi .player-avatar-photo),
    percentuali identiche perche' e' la stessa immagine. */
 .go-avatar{
-  position:relative; height:54px; width:calc(54px * 749 / 834);
+  position:relative; height:100px; width:calc(100px * 749 / 834);
   flex:0 0 auto;
 }
 .go-avatar-foto{
@@ -4974,7 +4978,7 @@ body.io-sono-2 #p1-info .player-avatar-photo{ transform:scaleX(-1); }
 .go-premio-icona{ width:auto; display:block; }
 #go-icona-xp{ height:74px; }
 #go-icona-ink{ height:92px; }
-#go-icona-pack{ height:84px; }
+#go-icona-pack{ height:89px; }
 /* La bustina resta spenta finche' non e' guadagnata: si vede che esiste e si
    capisce che manca qualcosa, invece di chiedersi dove sia. */
 #go-premio-pack:not(.vinta) #go-icona-pack{ opacity:0.4; }
@@ -4993,7 +4997,7 @@ body.io-sono-2 #p1-info .player-avatar-photo{ transform:scaleX(-1); }
 /* La barra e il "1x" sono due stati dello stesso posto, non due posti: finche'
    la bustina non e' guadagnata si vede la barra, e quando si riempie sparisce
    e lascia il numero. */
-.go-pack-barra{ width:150px; margin-bottom:8px; }
+.go-pack-barra{ width:150px; margin:20px 0; }
 #go-premio-pack:not(.vinta) #go-pack-num{ display:none; }
 #go-premio-pack.vinta .go-pack-barra{ display:none; }
 #gameover-actions{
@@ -10187,7 +10191,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.78.12</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.78.13</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -27929,6 +27933,10 @@ function initGame(vsAI){
     // v0.78.10 — le caselle da svuotare a scontro finito (vedi
     // rimuoviDopoLaConquista). Nasce vuota a ogni partita come tutto il resto.
     rimozioniInAttesa:[],
+    // v0.78.13 — chi ha vinto, quando a dirlo e' il server (resa, abbandono) e
+    // non il tabellone. Zero vuol dire "lo dicono i punti", che e' il caso
+    // normale. Vedi fineDaRete.
+    vincitoreDichiarato:0,
     // v0.78.11 — quanti turni ha giocato ciascuno. In rete il numero che conta
     // e' quello del SERVER (l'esperienza la scrive lui, e non su un numero
     // dichiarato da chi lo riceve); questo serve alle partite contro l'IA, dove
@@ -38438,13 +38446,19 @@ function fineDaRete(testo, vincitore){
   if(!G || G.gameOver) return;
   clearInterval(timerInterval);
   collapseAllHandExpand();
-  if(vincitore === 1 || vincitore === 2){
-    const perdente = (vincitore === 1) ? 2 : 1;
-    // Uno scarto deciso: cosi' il confronto dentro a finishGameWithResult
-    // incorona chi deve, e non lo scambia mai per un pareggio.
-    G.hp[vincitore] = Math.max(G.hp[1], G.hp[2], 0) + 1;
-    G.hp[perdente] = G.hp[vincitore] - 1;
-  }
+  // ── v0.78.13 — IL PUNTEGGIO NON SI INVENTA ──────────────────────────────
+  // Qui si SCRIVEVANO due numeri finti: al vincitore il massimo piu' uno, al
+  // perdente uno in meno. Non erano un punteggio, erano un modo di far uscire
+  // giusto il confronto dentro a finishGameWithResult — che incorona guardando
+  // chi ha piu' punti.
+  // Ha funzionato finche' quei numeri non li vedeva nessuno. Dalla v0.78.12 la
+  // schermata di fine partita MOSTRA i punteggi accanto ai due ritratti, e su
+  // una partita chiusa prima della prima mossa si leggeva "1 - 0" con il
+  // tabellone vuoto: un risultato che non era mai successo.
+  // Adesso chi ha vinto lo si DICE, invece di lasciarlo dedurre da due numeri
+  // costruiti apposta. I punti restano quelli veri, anche quando sono zero a
+  // zero — che su un tabellone vuoto e' esattamente quel che e' successo.
+  G.vincitoreDichiarato = (vincitore === 1 || vincitore === 2) ? vincitore : 0;
   G.gameOver = true;
   _motivoFinePartita = testo || '';
   _finePartitaDalServer = true;
@@ -38471,6 +38485,10 @@ function finishGameWithResult(){
   // e' cosa racconta — ed e' per questo che il confronto vive in una riga
   // sola, commentata: e' l'unico posto in cui la regola si legge.
   // Un pareggio esatto resta un pareggio.
+  // v0.78.13 — se la fine viene dal server (una resa, un abbandono) il
+  // vincitore lo ha deciso lui e arriva gia' fatto: non si ricava dai punti,
+  // che su una partita interrotta non dicono niente.
+  const dichiarato = (G && G.vincitoreDichiarato) || 0;
   const titleSpan=document.getElementById('gameover-title-text');
   // v0.77.5 — la schermata e' UNA. Qui si sceglieva fra tre varianti (fondo
   // scuro, chiaro o neutro, bandiera del vincitore, name-wrapper diverso, e
@@ -38478,9 +38496,11 @@ function finishGameWithResult(){
   // end-game-bg per tutti e tre gli esiti, quindi di tutta quella scelta non
   // resta niente da fare: cambia solo cosa c'e' scritto.
   if(titleSpan){
-    titleSpan.textContent = (hp1===hp2)
-      ? 'Draw!'
-      : ((hp1>hp2 ? p1Label : p2Label) + ' wins!');   // piu' punti, non meno danni
+    titleSpan.textContent = dichiarato
+      ? ((dichiarato === 1 ? p1Label : p2Label) + ' wins!')
+      : ((hp1===hp2)
+          ? 'Draw'
+          : ((hp1>hp2 ? p1Label : p2Label) + ' wins!'));   // piu' punti, non meno danni
   }
   // v0.78.6 — e sotto, se c'e', il perche'. Si azzera subito dopo averlo
   // mostrato: vale per QUESTA partita, e ritrovarlo sulla prossima sarebbe
@@ -38504,6 +38524,9 @@ function finishGameWithResult(){
   }
   _finePartitaDalServer = false;
   _motivoFinePartita = '';
+  // Vale per QUESTA partita: ritrovarlo sulla prossima incoronerebbe qualcuno
+  // che non ha ancora giocato.
+  if(G) G.vincitoreDichiarato = 0;
   setTimeout(()=>{
     document.getElementById('gameover').classList.add('show');
     // v0.78.12 — la fascia c'e' subito, il resto entra a tempo.
@@ -38612,6 +38635,10 @@ function _goConta(el, fino, durata){
 
 const GO_PASSO_MS = 260;      // quanto passa fra un pezzo e il successivo
 const GO_CONTA_MS = 900;      // quanto ci mette un numero a salire
+// v0.78.13 — e quanto passa fra un PREMIO e il successivo. E' molto meno del
+// tempo che un numero ci mette a salire, di proposito: i tre premi devono
+// leggersi come una fila che si accende, non come tre annunci in coda.
+const GO_PREMIO_PASSO_MS = 320;
 function goEntrata(){
   const q = (sel)=> document.querySelector(sel);
   // Tutto quel che entra parte spento. Si toglie e si rimette la classe a ogni
@@ -38687,12 +38714,19 @@ function goPremi(premi){
   const packBox = q('#go-premio-pack');
   let t = 0;
 
+  // ── v0.78.13 — UNO DIETRO L'ALTRO, NON UNO DOPO L'ALTRO ─────────────────
+  // Prima ogni premio aspettava che il precedente avesse FINITO di contare:
+  // novecento millisecondi l'uno, quasi tre secondi per tre numeri, e in mezzo
+  // due pause in cui non succedeva niente. Adesso il passo fra un premio e il
+  // successivo e' il tempo di accorgersi che il primo e' arrivato — i numeri
+  // continuano a salire mentre il vicino entra, che e' cio' che rende la fila
+  // una fila e non tre annunci separati.
   // L'esperienza: l'icona entra pulsando, il numero sale.
   poi(t, ()=>{ accendi('#go-premio-xp'); pulsa('#go-icona-xp'); _goConta(q('#go-xp-num'), premi.xp, GO_CONTA_MS); });
-  t += GO_CONTA_MS;
+  t += GO_PREMIO_PASSO_MS;
   // Poi l'inchiostro, con lo stesso gesto.
   poi(t, ()=>{ accendi('#go-premio-ink'); pulsa('#go-icona-ink'); _goConta(q('#go-ink-num'), premi.ink, GO_CONTA_MS); });
-  t += GO_CONTA_MS;
+  t += GO_PREMIO_PASSO_MS;
   // E per ultima la bustina: la barra si riempie, e SOLO se si e' arrivati in
   // fondo lascia il posto al "1x". Il salto avviene a barra piena, non prima:
   // altrimenti si vedrebbe il premio comparire senza aver visto perche'.
@@ -38705,7 +38739,7 @@ function goPremi(premi){
     if(mask) mask.style.width = Math.max(0, Math.min(100, (quanti / (premi.quante||5)) * 100)).toFixed(1) + '%';
   });
   if(premi.bustina){
-    t += 950;                        // il tempo che la barra ci mette a riempirsi
+    t += 1050;                       // il tempo che la barra ci mette a riempirsi
     poi(t, ()=>{
       if(packBox) packBox.classList.add('vinta');
       pulsa('#go-icona-pack');
