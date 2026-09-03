@@ -327,6 +327,66 @@ function assicuraPossesso(ctx, nk, logger, userId, username) {
 //               guardano. Due domande diverse, due risposte separate: e' lo
 //               stesso errore che il gioco aveva gia' pagato confondendo
 //               "Visible" con "Drop rate".
+// ══════════════════════════════════════════════════════════════════════════
+// v0.77.90 — TUTTO CIO' CHE E' DEL GIOCATORE STA QUI, NON NEL BROWSER
+// ══════════════════════════════════════════════════════════════════════════
+// Fino a ieri una manciata di cose vivevano in localStorage: la fazione
+// scelta, i volumi, il conto alla rovescia della bustina gratuita, il progresso
+// dell'Unicorno, quali note di rilascio erano gia' state lette.
+// Due difetti, e il secondo e' grosso:
+//   - localStorage e' del BROWSER, non dell'account. Due finestre con due
+//     account diversi lo condividono, e i dati dell'uno finiscono addosso
+//     all'altro. E' esattamente quello che si e' visto.
+//   - il conto della bustina e il progresso dell'Unicorno sono economia di
+//     gioco. Scritti nel browser, si azzerano svuotando la cronologia: non
+//     sono un dato, sono un suggerimento.
+// Adesso stanno nel possesso, che e' gia' per-utente e gia' scritto in modo
+// controllato. Il client non li salva piu' da nessuna parte: li chiede
+// all'avvio e li rimanda quando cambiano.
+var BUSTINA_ATTESA_MS = 8 * 60 * 60 * 1000;   // deve combaciare col client
+var UNICORNO_TETTO = 65;                       // idem: vedi UNICORNO_TETTO li'
+
+// Solo le chiavi che conosciamo, e ognuna del tipo giusto. Un blob che arriva
+// dal client non si scrive com'e': sarebbe una porta aperta per mettere
+// qualunque cosa nel profilo di qualcuno.
+function _preferenzePulite(dentro, gia) {
+  var fuori = {};
+  var vecchie = gia || {};
+  for (var k in vecchie) if (Object.prototype.hasOwnProperty.call(vecchie, k)) fuori[k] = vecchie[k];
+  if (!dentro) return fuori;
+
+  if (dentro.fazione === 'light' || dentro.fazione === 'dark') fuori.fazione = dentro.fazione;
+  if (typeof dentro.aiutoEsagono === 'boolean') fuori.aiutoEsagono = dentro.aiutoEsagono;
+  if (typeof dentro.patchNotesLette === 'string') fuori.patchNotesLette = String(dentro.patchNotesLette).slice(0, 40);
+  if (typeof dentro.unicorno === 'number' && isFinite(dentro.unicorno)) {
+    // Il progresso sale e non scende, e non supera il tetto: un client che
+    // mandasse un numero qualunque non deve poter regalarsi l'Unicorno.
+    var prima = (typeof fuori.unicorno === 'number') ? fuori.unicorno : 0;
+    fuori.unicorno = Math.max(0, Math.min(UNICORNO_TETTO, Math.max(prima, dentro.unicorno)));
+  }
+  if (dentro.audio && typeof dentro.audio === 'object') {
+    var a = {};
+    for (var nome in dentro.audio) {
+      if (!Object.prototype.hasOwnProperty.call(dentro.audio, nome)) continue;
+      var v = dentro.audio[nome];
+      if (typeof v === 'number' && isFinite(v)) a[String(nome).slice(0, 20)] = Math.max(0, Math.min(1, v));
+      else if (typeof v === 'boolean') a[String(nome).slice(0, 20)] = v;
+    }
+    fuori.audio = a;
+  }
+  return fuori;
+}
+
+function rpcPreferenze(ctx, logger, nk, payload) {
+  if (!ctx.userId) throw Error('serve un accesso');
+  var dentro = {};
+  try { dentro = payload ? JSON.parse(payload) : {}; } catch (e) { dentro = {}; }
+  var possesso = assicuraPossesso(ctx, nk, logger, ctx.userId, ctx.username);
+  possesso.preferenze = _preferenzePulite(dentro, possesso.preferenze);
+  scriviPossesso(nk, ctx.userId, possesso);
+  return JSON.stringify({ preferenze: possesso.preferenze });
+}
+
 function rpcAvvio(ctx, logger, nk, payload) {
   if (!ctx.userId) throw Error('serve un accesso');
   var richiesta = {};
@@ -367,6 +427,12 @@ function rpcAvvio(ctx, logger, nk, payload) {
     mazzi: possesso.mazzi,
     livello: possesso.livello,
     valute: valuteDi(possesso),
+    // v0.77.90 — cio' che prima stava nel browser. Arriva con la stessa
+    // risposta di tutto il resto: una domanda sola all'avvio.
+    preferenze: possesso.preferenze || {},
+    // Quando la prossima bustina gratuita sara' pronta, in millisecondi. Zero
+    // vuol dire "adesso": chi non ne ha mai raccolta una non deve aspettare.
+    bustinaProssima: (typeof possesso.bustinaProssima === 'number') ? possesso.bustinaProssima : 0,
     // v0.77.53 — l'avatar dell'account, che i pannelli di partita mostrano
     // accanto al nome. Sta fra i campi che Nakama tiene da se' (non nei
     // metadati), quindi si legge di la' e non da un oggetto nostro.
@@ -665,6 +731,13 @@ function rpcBustinaRaccogli(ctx, logger, nk, payload) {
     possesso.carte[tieni[j]] = Math.max(avuto, LIVELLO_SBUSTATA);
   }
   possesso.valute = valute;
+  // v0.77.90 — LE OTTO ORE LE CONTA IL SERVER.
+  // Prima il momento della prossima bustina lo scriveva il client nel proprio
+  // localStorage: bastava svuotarlo per averne un'altra subito, e due account
+  // sullo stesso browser si passavano l'attesa a vicenda. Adesso il conto parte
+  // qui, nella stessa scrittura che consegna le carte, e non c'e' modo di
+  // separare le due cose.
+  possesso.bustinaProssima = Date.now() + BUSTINA_ATTESA_MS;
   scriviPossesso(nk, ctx.userId, possesso);
   cancellaBustina(nk, ctx.userId);
 
@@ -681,6 +754,7 @@ function rpcBustinaRaccogli(ctx, logger, nk, payload) {
     tenute: tieni,
     speso: costo,
     valute: valute,
+    bustinaProssima: possesso.bustinaProssima,
     possedute: _possedute(carte, possesso, admin)
   });
 }
@@ -2426,6 +2500,7 @@ function InitModule(ctx, logger, nk, initializer) {
   initializer.registerRpc('hx_mazzi_leggi', rpcMazziLeggi);
   initializer.registerRpc('hx_mazzi_scrivi', rpcMazziScrivi);
   initializer.registerRpc('hx_partita', rpcPartita);
+  initializer.registerRpc('hx_preferenze', rpcPreferenze);
   initializer.registerRpc('hx_bustina_apri', rpcBustinaApri);
   initializer.registerRpc('hx_bustina_raccogli', rpcBustinaRaccogli);
   // v0.77.53 — la partita in rete. registerMatch da' un nome al gestore;

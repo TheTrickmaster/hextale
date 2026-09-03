@@ -9939,7 +9939,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.89</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.90</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -11204,25 +11204,21 @@ if(document.readyState==='loading'){
   // Vedi il commento dentro beginLoadingPhase. Risolve SEMPRE, e non lancia
   // mai: un caricamento che si ferma perche' il server tace sarebbe peggio del
   // difetto che questa funzione chiude.
+  // ── v0.77.90 — QUESTA NON PUO' PIU' SCALDARE NIENTE, E VA DETTO ─────────
+  // Nata un'ora fa (v0.77.89) per chiedere il catalogo vero mentre la barra
+  // scorre, appoggiandosi alla sessione salvata sul computer. Da oggi la
+  // sessione non sopravvive alla chiusura della finestra — e' il rimedio al
+  // mescolamento fra account, vedi nakamaRiscriviSessione — quindi all'avvio
+  // un accesso valido non c'e' mai, e questa non ha piu' niente da chiedere.
+  // NON e' inutile che resti. La meta' piu' importante di quella correzione
+  // regge lo stesso: `_arteVerificataPer` fa si' che la verifica dell'arte,
+  // che e' il pezzo lungo, si faccia una volta sola per catalogo invece che a
+  // ogni accesso. Quello che si e' perso e' il precaricamento anticipato.
+  // Per riaverlo servirebbe poter chiedere il CATALOGO senza un accesso: e'
+  // dato pubblico — le carte le vedono tutti — ma vuol dire aprire una porta
+  // nuova sul server, ed e' una decisione di Lorenzo, non mia.
   function _scaldaDatiDelGiocatore(){
-    if(typeof nakamaSessionePronta !== 'function' || typeof caricaCarteDalServer !== 'function')
-      return Promise.resolve(false);
-    return nakamaSessionePronta()
-      .then(s => {
-        if(!s || !s.token){
-          console.info("[avvio] nessuna sessione salvata: il catalogo si chiedera' dopo il Login.");
-          return false;
-        }
-        return caricaCarteDalServer().then(esito => {
-          console.info('[avvio] catalogo, possesso e profilo pronti prima del menu.');
-          return !!(esito && esito.cambiato);
-        });
-      })
-      .catch(e => {
-        console.warn('[avvio] il database non ha risposto adesso: si riprova dopo il Login ('
-          + (e && e.message) + ').');
-        return false;
-      });
+    return Promise.resolve(false);
   }
 
   function beginLoadingPhase(){
@@ -11376,6 +11372,13 @@ if(document.readyState==='loading'){
   }
 
   function runPreload(){
+    // v0.77.90 — la prima cosa che il gioco fa e' dimenticare. Chi ha giocato
+    // prima di oggi ha ancora sessione, mazzi, saldo e attese scritti nel
+    // browser: finche' restano li' sono dati di qualcuno, su un computer che
+    // puo' essere di qualcun altro. Si cancellano all'avvio e non al primo
+    // accesso, perche' chi apre il gioco e non entra deve comunque uscirne
+    // senza aver lasciato niente.
+    try{ _ripuliscilLocaleVecchio(); }catch(_){}
     // Step 1: background fades in alone (3s, see BG_FADE_MS/CSS). Step 2
     // (the loading bar + asset preload) only begins once that fade-in has
     // genuinely finished — the preload itself already started fetching in
@@ -11449,17 +11452,29 @@ if(document.readyState==='loading'){
   if(document.readyState==='loading'){
     document.addEventListener('DOMContentLoaded', ()=>{ avviaSplash(); allineaTarghettaVersione(); caricaImpostazioniAudio(); caricaAiutoEsagono(); caricaValute(); runPreload(); });
   } else {
-    avviaSplash();
-    allineaTarghettaVersione();
-    // v0.76.10 — il fondale della battaglia si mette SUBITO. Stava dentro a
-    // montaGraficaPartita, che gira solo quando comincia una partita: fino a
-    // quel momento quell'immagine non c'era, e chi guardava vedeva il nero.
-    // Il fondale e' della pagina, non della partita.
-    try{ impostaImgDaCandidati(document.getElementById('board-bg-img'), uiFileCandidati('battle-bg.jpg')); }catch(_){}
-    caricaImpostazioniAudio();
-    caricaAiutoEsagono();
-    caricaValute();
-    runPreload();
+    // ── v0.77.90 — QUESTA STRADA DEVE ASPETTARE LA FINE DELLO SCRIPT ───────
+    // Il ramo di sopra parte a documento pronto, cioe' quando questo script e'
+    // stato eseguito per intero. Questo invece partiva SUBITO, in mezzo allo
+    // script — e finche' cio' che chiamava leggeva solo localStorage andava
+    // bene, perche' localStorage c'e' sempre.
+    // Adesso quelle funzioni leggono PREFERENZE e CHIAVI_DA_DIMENTICARE, che
+    // sono dichiarate piu' in basso: chiamarle da qui vorrebbe dire leggerle
+    // prima che esistano, e in JavaScript quello non da' undefined, lancia.
+    // Un turno di attesa basta e avanza: lo script finisce, tutto esiste, e la
+    // sequenza parte identica a quella dell'altro ramo.
+    setTimeout(()=>{
+      avviaSplash();
+      allineaTarghettaVersione();
+      // v0.76.10 — il fondale della battaglia si mette SUBITO. Stava dentro a
+      // montaGraficaPartita, che gira solo quando comincia una partita: fino a
+      // quel momento quell'immagine non c'era, e chi guardava vedeva il nero.
+      // Il fondale e' della pagina, non della partita.
+      try{ impostaImgDaCandidati(document.getElementById('board-bg-img'), uiFileCandidati('battle-bg.jpg')); }catch(_){}
+      caricaImpostazioniAudio();
+      caricaAiutoEsagono();
+      caricaValute();
+      runPreload();
+    }, 0);
   }
 })();
 
@@ -12666,21 +12681,56 @@ function nakamaSalvaSessione(risposta, email, precedente){
   nakamaRiscriviSessione();
   return sessioneAccount;
 }
+// ══════════════════════════════════════════════════════════════════════════
+// v0.77.90 — LA SESSIONE NON SI SALVA NEL BROWSER
+// ══════════════════════════════════════════════════════════════════════════
+// Stava in localStorage, ed e' da li' che nasceva il difetto peggiore che
+// questo gioco abbia avuto: localStorage e' del BROWSER, non della finestra e
+// non dell'account. Due client aperti con due account diversi scrivono nella
+// stessa casella, quindi il secondo accesso sovrascriveva il token del primo —
+// e da quel momento tutte e due le finestre parlavano al server come lo stesso
+// giocatore. Mazzi, livelli, carte, valute: tutto mescolato, e nessun messaggio
+// da nessuna parte a dirlo.
+// Il rimedio non e' una chiave per account: sarebbe la stessa idea rifatta con
+// piu' attenzione, e prima o poi si sbaglierebbe di nuovo. Il token adesso vive
+// SOLO in memoria, cioe' dentro alla finestra che ha fatto l'accesso. Due
+// finestre sono due sessioni, sempre, per costruzione — e chiudere il gioco
+// chiude la sessione, che e' il modo in cui si comporta ogni altro programma
+// che tenga a chi sei.
+// Si paga con l'accesso da rifare a ogni apertura. E' il prezzo giusto: la
+// comodita' di non riscrivere una password non vale il rischio di giocare, e
+// di spendere, sull'account di qualcun altro.
+// Vedi anche caricaPreferenzeDalServer: da qui in poi NIENTE del giocatore
+// tocca il browser.
 function nakamaRiscriviSessione(){
-  try{ localStorage.setItem(NAKAMA_CHIAVE_SESSIONE, JSON.stringify(sessioneAccount)); }catch(_){}
+  // Non scrive piu' da nessuna parte. Resta perche' i punti che la chiamano
+  // sono la porta unica da cui la sessione cambia, e quella porta e' comoda
+  // averla: il giorno in cui la sessione dovesse davvero durare oltre la
+  // finestra, si cambia qui dentro e basta.
+  _ripuliscilLocaleVecchio();
 }
 function nakamaLeggiSessione(){
-  if(sessioneAccount) return sessioneAccount;
-  try{
-    const grezzo = localStorage.getItem(NAKAMA_CHIAVE_SESSIONE);
-    if(grezzo) sessioneAccount = JSON.parse(grezzo);
-  }catch(_){}
   return sessioneAccount;
 }
 function nakamaDimenticaSessione(){
   sessioneAccount = null;
   giocatoreOnline = false;
-  try{ localStorage.removeItem(NAKAMA_CHIAVE_SESSIONE); }catch(_){}
+}
+// Chi ha giocato prima di oggi ha ancora le vecchie chiavi nel browser. Si
+// cancellano una volta per tutte: lasciarle vorrebbe dire che il difetto e'
+// chiuso per il codice nuovo ma i resti del vecchio restano li' a fare da
+// esca al prossimo che leggesse localStorage per abitudine.
+const CHIAVI_DA_DIMENTICARE = [
+  'hextale.sessione','hextale.catalogo','hextale.possesso','hextale.mazzi',
+  'hextale.valute','hextale.fazione','hextale.audio','hextale.aiuto.esagono',
+  'hextale.bustina.prossima','hextale.unicorno',
+  'hextale.patchnotes.lette','hextale.patchnotes.cache'
+];
+let _localeRipulito = false;
+function _ripuliscilLocaleVecchio(){
+  if(_localeRipulito) return;
+  _localeRipulito = true;
+  try{ for(const k of CHIAVI_DA_DIMENTICARE) localStorage.removeItem(k); }catch(_){}
 }
 // Una sessione salvata vale solo se il token non e' scaduto; se lo e' si tenta
 // il rinnovo col refresh. Un minuto di margine, perche' un token che scade fra
@@ -13764,6 +13814,11 @@ async function caricaCarteDalServer(){
   if(risposta.rankPunti) RANK_PUNTI = risposta.rankPunti;
   if(risposta.livelloMax) LIVELLO_MAX = risposta.livelloMax;
   _possessoNoto = true;
+  // v0.77.90 — e tutto cio' che prima viveva nel browser: fazione, volumi,
+  // aiuto dell'esagono, note gia' lette, progresso dell'Unicorno e il momento
+  // della prossima bustina. Arriva con questa stessa risposta, quindi non c'e'
+  // un istante in cui il gioco ha le carte ma non sa chi sei.
+  preferenzeDalServer(risposta.preferenze, risposta.bustinaProssima);
   salvaPossessoInCache();
   _foglioLetto = true;
   return { cambiato: !!cambiato };
@@ -14698,23 +14753,63 @@ const VALUTE_CHIAVE = 'hextale.valute';
 // Chi ha giocato prima della v0.77.52 aveva un saldo scritto in localStorage:
 // alla prima risposta del server viene sostituito, ed e' voluto. Un saldo che
 // il giocatore puo' riscrivere aprendo la console non e' un saldo.
+// ══════════════════════════════════════════════════════════════════════════
+// v0.77.90 — LE PREFERENZE VENGONO DAL SERVER, E NON SI SALVANO QUI
+// ══════════════════════════════════════════════════════════════════════════
+// Fazione scelta, volumi, aiuto dell'esagono, note di rilascio gia' lette,
+// progresso dell'Unicorno, e il momento della prossima bustina gratuita.
+// Stavano tutte in localStorage, che due account sullo stesso browser si
+// passavano l'un l'altro (vedi nakamaRiscriviSessione per il difetto grosso
+// della stessa famiglia). Adesso arrivano con hx_avvio e si rimandano con
+// hx_preferenze quando cambiano.
+// In memoria ci restano, perche' le legge chi disegna decine di volte al
+// secondo e non si puo' chiedere al server a ogni fotogramma. In memoria non
+// vuol dire in cache: alla chiusura non resta niente, e la finestra accanto
+// con un altro account ha le sue.
+let PREFERENZE = {};
+function preferenzeDalServer(p, bustinaProssima){
+  PREFERENZE = p || {};
+  if(typeof bustinaProssima === 'number') PREFERENZE.bustinaProssima = bustinaProssima;
+  // La fazione va rimessa su window, che e' dove la cercano le venti cose che
+  // ne dipendono (vedi fazioneUmano).
+  if(PREFERENZE.fazione && typeof window !== 'undefined') window.__humanFaction = PREFERENZE.fazione;
+  try{ if(typeof caricaImpostazioniAudio === 'function') caricaImpostazioniAudio(); }catch(_){}
+  try{ if(typeof caricaAiutoEsagono === 'function') caricaAiutoEsagono(); }catch(_){}
+  try{ if(typeof applyFactionToPlayerPanels === 'function') applyFactionToPlayerPanels(); }catch(_){}
+}
+// Si manda solo cio' che e' cambiato, e senza aspettare: nessuna di queste
+// cose e' cosi' importante da fermare chi gioca se il server tarda. Se la
+// scrittura non riesce, la preferenza vale per questa sessione e basta — ed e'
+// meglio di un valore scritto nel browser che poi finisce a un altro account.
+let _preferenzeInVolo = false, _preferenzeDaRimandare = null;
+function salvaPreferenze(cambiamenti){
+  if(!cambiamenti) return;
+  for(const k in cambiamenti) PREFERENZE[k] = cambiamenti[k];
+  if(!sessioneAccount || !sessioneAccount.token) return;   // scollegati: vale per ora
+  if(_preferenzeInVolo){
+    _preferenzeDaRimandare = Object.assign(_preferenzeDaRimandare || {}, cambiamenti);
+    return;
+  }
+  _preferenzeInVolo = true;
+  nakamaRpc('hx_preferenze', cambiamenti)
+    .catch(e => console.warn('[preferenze] non salvate: ' + (e && e.message)))
+    .then(()=>{
+      _preferenzeInVolo = false;
+      const restano = _preferenzeDaRimandare;
+      _preferenzeDaRimandare = null;
+      if(restano) salvaPreferenze(restano);
+    });
+}
 const VALUTE_INIZIALI = { magicInk:100, fairyDust:100 };
 const MENU_GIOCATORE = { nome:'Player name', magicInk:VALUTE_INIZIALI.magicInk, fairyDust:VALUTE_INIZIALI.fairyDust };
-function caricaValute(){
-  try{
-    const v = JSON.parse(localStorage.getItem(VALUTE_CHIAVE) || 'null');
-    // Si accetta solo cio' che e' un numero vero: un salvataggio rovinato non
-    // deve poter mettere "undefined" al posto di una valuta e trascinarselo
-    // dietro per tutte le partite successive.
-    if(v && typeof v.magicInk === 'number' && isFinite(v.magicInk)) MENU_GIOCATORE.magicInk = v.magicInk;
-    if(v && typeof v.fairyDust === 'number' && isFinite(v.fairyDust)) MENU_GIOCATORE.fairyDust = v.fairyDust;
-  }catch(_){}
-}
-function salvaValute(){
-  try{ localStorage.setItem(VALUTE_CHIAVE, JSON.stringify({
-    magicInk: MENU_GIOCATORE.magicInk, fairyDust: MENU_GIOCATORE.fairyDust
-  })); }catch(_){}
-}
+// v0.77.90 — il saldo lo dice il server, e solo lui. Queste due leggevano e
+// scrivevano in localStorage: la lettura faceva vedere il saldo di CHIUNQUE
+// avesse giocato prima su quel browser, e la scrittura lo lasciava li' per il
+// prossimo. Restano come nomi perche' i punti che le chiamano sono gia' quelli
+// giusti — l'avvio e ogni risposta che porta un saldo — e adesso non fanno
+// niente: il numero vero passa da applicaValuteDalServer.
+function caricaValute(){}
+function salvaValute(){}
 function fairyDust(){ return MENU_GIOCATORE.fairyDust; }
 // ── v0.77.52 — L'UNICA PORTA DA CUI IL SALDO ENTRA ────────────────────────
 // Ogni risposta del server che contiene un saldo passa di qui: l'avvio e la
@@ -17659,16 +17754,15 @@ function musicaMenuFerma(){
 // cercano playerFactionIsDark e le venti cose che ne dipendono, e deve
 // sopravvivere alla creazione del nuovo G dentro startGame().
 const FAZIONE_CHIAVE = 'hextale.fazione';
+// v0.77.90 — la scelta e' dell'ACCOUNT, non del browser: vedi PREFERENZE.
 function fazioneUmano(){
   if(typeof window !== 'undefined' && window.__humanFaction) return window.__humanFaction;
-  let v = null;
-  try{ v = localStorage.getItem(FAZIONE_CHIAVE); }catch(_){}
-  return v === 'light' ? 'light' : 'dark';   // scuro, se non e' mai stata scelta
+  return PREFERENZE.fazione === 'light' ? 'light' : 'dark';   // scuro, se mai scelta
 }
 function impostaFazioneUmano(fazione){
   const f = (fazione === 'light') ? 'light' : 'dark';
   window.__humanFaction = f;
-  try{ localStorage.setItem(FAZIONE_CHIAVE, f); }catch(_){}
+  salvaPreferenze({ fazione: f });
   applyFactionToPlayerPanels();   // banner, nome e colore dei due pannelli
   return f;
 }
@@ -18007,18 +18101,25 @@ function salvaImpostazioniAudio(){
   _audioSalvaTimer = setTimeout(()=>{
     _audioSalvaTimer = null;
     try{
-      localStorage.setItem(AUDIO_CHIAVE, JSON.stringify({
+      // v0.77.90 — al server, non nel browser. Il ritardo di 250ms serviva a
+      // non scrivere su disco a ogni fotogramma mentre si trascina un cursore,
+      // e serve anche adesso: e' una richiesta di rete al posto di una
+      // scrittura, e vale ancora di piu' non ripeterla sessanta volte.
+      salvaPreferenze({ audio: {
         master: getMasterVolume(), music: getMusicVolume(), sfx: getSfxVolume()
-      }));
+      }});
     }catch(_){}
   }, 250);
 }
 // Si legge PRIMA che preparaImpostazioniAudio metta i suoi valori di partenza:
 // quella riempie solo cio' che e' `undefined`, quindi un valore letto da qui
 // vince senza bisogno di dirglielo.
+// v0.77.90 — si chiama due volte: all'avvio, quando PREFERENZE e' ancora vuoto
+// e non fa niente, e appena il server risponde (vedi preferenzeDalServer). La
+// seconda e' quella che conta; la prima resta perche' la costruzione dell'audio
+// non deve dipendere da quando arriva la rete.
 function caricaImpostazioniAudio(){
-  let dati = null;
-  try{ dati = JSON.parse(localStorage.getItem(AUDIO_CHIAVE) || 'null'); }catch(_){}
+  const dati = PREFERENZE.audio || null;
   if(!dati) return;
   const buono = (v)=> (typeof v === 'number' && isFinite(v)) ? Math.max(0, Math.min(1, v)) : null;
   const m = buono(dati.master), mu = buono(dati.music), sf = buono(dati.sfx);
@@ -18240,10 +18341,9 @@ const AIUTO_ESAGONO_CHIAVE = 'hextale.aiutoEsagono';
 let _aiutoEsagono = true;
 function aiutoEsagonoAcceso(){ return _aiutoEsagono; }
 function caricaAiutoEsagono(){
-  try {
-    const v = localStorage.getItem(AIUTO_ESAGONO_CHIAVE);
-    if(v !== null) _aiutoEsagono = (v === '1');
-  } catch(_){}
+  // v0.77.90 — dalle preferenze dell'account. Finche' il server non ha
+  // risposto vale il valore di partenza, che e' acceso.
+  if(typeof PREFERENZE.aiutoEsagono === 'boolean') _aiutoEsagono = PREFERENZE.aiutoEsagono;
   aggiornaInterruttoreEsagono();
 }
 function aggiornaInterruttoreEsagono(){
@@ -18260,7 +18360,7 @@ function toggleAiutoEsagono(){
   // quello che si vede.
   const c = document.getElementById('hex-helper-check');
   _aiutoEsagono = c ? !!c.checked : !_aiutoEsagono;
-  try { localStorage.setItem(AIUTO_ESAGONO_CHIAVE, _aiutoEsagono ? '1' : '0'); } catch(_){}
+  salvaPreferenze({ aiutoEsagono: _aiutoEsagono });
   aggiornaInterruttoreEsagono();
   // Le carte si ridisegnano subito, cosi' l'effetto si vede mentre la
   // finestra e' ancora aperta invece che al prossimo render qualunque.
@@ -20313,15 +20413,28 @@ const BUSTINA_ATTESA_MS = 8*60*60*1000; // otto ore
 const BUSTINA_CARTE = 2;
 const BUSTINA_CHIAVE = 'hextale.bustina.prossima';
 
+// ── v0.77.90 — LE OTTO ORE LE CONTA IL SERVER ────────────────────────────
+// Questo conto stava nel browser, ed era due difetti in uno. Il primo: due
+// account sullo stesso computer si passavano l'attesa a vicenda, quindi
+// raccogliendo con l'uno si toglieva la bustina all'altro. Il secondo, peggio:
+// una bustina gratuita ogni otto ore e' economia di gioco, e un'economia
+// scritta nel browser si azzera svuotando la cronologia — non era un'attesa,
+// era un suggerimento.
+// Adesso il momento arriva col resto (hx_avvio) e riparte dentro alla stessa
+// scrittura che consegna le carte (rpcBustinaRaccogli): il regalo e il conto
+// non si possono piu' separare.
+// Zero vuol dire "adesso", ed e' anche cio' che si legge finche' il server non
+// ha risposto: una bustina offerta per errore e' un guasto molto piu' mite di
+// un'attesa imposta a chi non ha fatto niente.
 function _bustinaProssimaApertura(){
-  try {
-    const v = localStorage.getItem(BUSTINA_CHIAVE);
-    const t = v ? parseInt(v,10) : 0;
-    return isFinite(t) ? t : 0;
-  } catch(_) { return 0; } // localStorage negato (modalita' privata): bustina sempre pronta
+  const t = PREFERENZE.bustinaProssima;
+  return (typeof t === 'number' && isFinite(t)) ? t : 0;
 }
 function _bustinaSalvaProssima(quando){
-  try { localStorage.setItem(BUSTINA_CHIAVE, String(quando)); } catch(_) {}
+  // Il client non decide piu' quando: se lo segna e basta, per far scorrere il
+  // conto alla rovescia senza richiedere al server a ogni secondo. Il numero
+  // vero e' quello che arriva nella risposta della raccolta.
+  PREFERENZE.bustinaProssima = quando;
 }
 function bustinaDisponibile(){ return Date.now() >= _bustinaProssimaApertura(); }
 
@@ -21437,6 +21550,11 @@ async function raccogliCarte(){
       // Il saldo e il roster arrivano dalla risposta: non si toccano a mano,
       // altrimenti il numero a schermo sarebbe una nostra opinione.
       applicaValuteDalServer(r && r.valute);
+      // v0.77.90 — e quando ricomincia l'attesa. Il client se l'era segnata da
+      // solo all'apertura per non farsi aprire due bustine con due click; qui
+      // arriva quella VERA, decisa dal server nella stessa scrittura che ha
+      // consegnato le carte.
+      if(r && typeof r.bustinaProssima === 'number') _bustinaSalvaProssima(r.bustinaProssima);
       if(r && r.possedute){
         CARTE_POSSEDUTE = r.possedute;
         _possessoNoto = true;
@@ -24094,12 +24212,16 @@ const PATCH_NOTES_CACHE = 'hextale.patchnotes';
 // versione, la domanda "c'e' qualcosa di nuovo da leggere?" si risponde da
 // sola confrontando due stringhe, e pubblicare basta.
 const PATCH_NOTES_LETTE = 'hextale.patchnotes.lette';
+// v0.77.90 — anche questa segue l'account: chi ha gia' letto le note della
+// versione nuova non deve rivederle aprendo il gioco su un altro computer, e
+// chi non le ha lette non deve trovarsele gia' segnate come lette perche' le
+// aveva aperte qualcun altro su questo browser.
 function patchNotesUltimaLetta(){
-  try { return localStorage.getItem(PATCH_NOTES_LETTE) || ''; } catch(_){ return ''; }
+  return PREFERENZE.patchNotesLette || '';
 }
 function ricordaPatchNotesLette(versione){
   if(!versione) return;
-  try { localStorage.setItem(PATCH_NOTES_LETTE, versione); } catch(_){}
+  salvaPreferenze({ patchNotesLette: String(versione) });
 }
 // La piu' recente fra quelle che si stanno mostrando: l'elenco arriva gia' in
 // ordine, dalla piu' nuova alla piu' vecchia (vedi analizzaPatchNotes).
@@ -24203,9 +24325,11 @@ function caricaPatchNotes(opzioni){
   // Prima si mostra cio' che si era gia' letto: se la rete risponde, il
   // contenuto viene sostituito un attimo dopo. Meglio note leggermente
   // vecchie subito che un riquadro vuoto che forse si riempie.
-  let daCache = null;
-  try { daCache = JSON.parse(localStorage.getItem(PATCH_NOTES_CACHE) || 'null'); } catch(_){}
-  if(daCache && daCache.length) consegna(daCache);
+  // v0.77.90 — QUI C'ERA UNA COPIA DELLE NOTE NEL BROWSER, e non c'e' piu'.
+  // Mostrava le note dell'ultima volta mentre si aspettava GitHub. Comoda, ma
+  // e' pur sempre roba salvata nel browser, e la regola non ha eccezioni
+  // comode: se il testo non e' ancora arrivato, il riquadro aspetta.
+  // Si perde poco — sono otto secondi al massimo, e solo la prima apertura.
 
   // v0.73.9 — il controllo della versione parte insieme alle note e per conto
   // suo: le due richieste non si aspettano a vicenda, e se quella della
@@ -24225,7 +24349,6 @@ function caricaPatchNotes(opzioni){
     const testo = new TextDecoder('utf-8').decode(byte);
     const versioni = analizzaPatchNotes(testo);
     if(!versioni.length) return;
-    try { localStorage.setItem(PATCH_NOTES_CACHE, JSON.stringify(versioni)); } catch(_){}
     consegna(versioni);
   }).catch(()=>{ /* si resta con quelle salvate, o con niente */ });
 }
@@ -29426,16 +29549,17 @@ const UNICORNO_CHIAVE = 'hextale.unicorno';
 const UNICORNO_PASSO = 0.1;
 const UNICORNO_TETTO = 65;
 const UNICORNO_FRASE_FINALE = 'Congratulations, you achieved the impossible.';
+// v0.77.90 — dal server, come tutto il resto. Era un progresso scritto nel
+// browser: due account se lo passavano, e chi svuotava la cronologia lo
+// perdeva. Il server tiene il numero e non lo lascia scendere ne' superare il
+// tetto, quindi non e' piu' nemmeno un numero che si possa regalare da fuori.
 function dropRateUnicorno(){
-  try{
-    const grezzo = localStorage.getItem(UNICORNO_CHIAVE);
-    const v = parseFloat(grezzo);
-    if(isFinite(v)) return Math.min(UNICORNO_TETTO, Math.max(0, v));
-  }catch(_){}
+  const v = PREFERENZE.unicorno;
+  if(typeof v === 'number' && isFinite(v)) return Math.min(UNICORNO_TETTO, Math.max(0, v));
   return null;   // mai giocato: vale quello del foglio
 }
 function salvaDropRateUnicorno(v){
-  try{ localStorage.setItem(UNICORNO_CHIAVE, String(v)); }catch(_){}
+  salvaPreferenze({ unicorno: v });
 }
 function unicornoAlMassimo(){
   return dropRateUnicorno() >= UNICORNO_TETTO;
