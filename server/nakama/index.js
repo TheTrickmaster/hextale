@@ -2642,6 +2642,11 @@ var ABILITA_MOTORE = (function () {
     vince: vince,
     giocabileSuBloccata: giocabileSuBloccata,
     rendeImmuniIVicini: rendeImmuniIVicini,
+    // v0.78.5 — l'elenco delle azioni che il motore sa mettere in scena. Lo
+    // chiede chi deve decidere se un'abilita' e' "programmata" o va marcata
+    // NO_SCRIPT: quella domanda si fa qui e non con una lista ricopiata
+    // altrove, che il giorno dopo sarebbe gia' diversa.
+    AZIONI_DESCRITTE: AZIONI_DESCRITTE,
     latiColpiti: latiColpiti,
     colpisce: colpisce,
     quantita: quantita,

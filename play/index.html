@@ -1156,6 +1156,10 @@ body.mouse-down, body.mouse-down *{
 .deck-slot.non-giocabile{ opacity:0.45; cursor:var(--cursore); }
 .deck-slot.non-giocabile:hover{ filter:none; }
 .deck-slot-check.non-giocabile{ opacity:0.3; pointer-events:none; }
+/* v0.78.5 — il mazzo che si sta spostando. Si alza appena e diventa un po'
+   trasparente: quel tanto che basta a dire "questo lo stai tenendo in mano",
+   senza coprire quelli sotto che servono a capire dove lo si sta mettendo. */
+.deck-slot.deck-slot-trascinata{ opacity:0.75; transform:scale(1.02); cursor:grabbing; }
 /* v0.77.51 — la finestra degli avvisi. */
 #avviso-box{ width:430px; }
 #avviso-testo{
@@ -4362,6 +4366,9 @@ body.io-sono-2 #p1-info .player-avatar-photo{ transform:scaleX(-1); }
   -webkit-background-clip:text; background-clip:text;
   -webkit-text-fill-color:transparent; color:transparent;
 }
+/* v0.78.5 — la riga del TOTALE si distingue da quelle che la spiegano: e' il
+   fatto, le altre sono il perche'. */
+.ct-mod.ct-mod-totale{ font-weight:700; }
 .ct-mod.su{ color:#7BD88F; }
 .ct-mod.giu{ color:#E2686B; }
 /* Il tooltip non e' dentro a #card-modal-info, quindi le regole della scheda
@@ -5149,6 +5156,18 @@ body.io-sono-2 #p1-info .player-avatar-photo{ transform:scaleX(-1); }
    ognuno puo' aprire un pannello. Scorre il PANNELLO e non la scatola: la
    barra del titolo deve restare in vista, o scorrendo si perde di vista che
    finestra si sta guardando. */
+#aggiorna-overlay{ z-index:4000; }   /* sopra a tutto: non c'e' niente da fare sotto */
+#aggiorna-box{ width:520px; display:flex; flex-direction:column; gap:16px; }
+#aggiorna-titlebar h2{
+  margin:0; text-align:center;
+  font-family:'Marcellus',var(--font-display),serif;
+  font-size:30px; font-weight:400; line-height:1;
+  color:#EDE0C6; text-shadow:0 0 4px rgba(0,0,0,1);
+}
+#aggiorna-titlebar .hx-titlebar-center{ justify-content:center; }
+#aggiorna-testo{ font-family:var(--font-body); font-size:15px; color:#EDE0C6; line-height:1.5; }
+#aggiorna-testo b{ color:#E8C36A; }
+#aggiorna-conto{ font-family:var(--font-body); font-size:14px; color:#95A7A9; min-height:20px; }
 #debug-box{ width:1040px; max-width:calc(100vw - 40px); display:flex; flex-direction:column; gap:16px; }
 #debug-titlebar h2{
   margin:0; text-align:center;
@@ -7861,6 +7880,17 @@ body.prova-senza-willchange #mm-book-rot{
    indietro. Il pulsante tiene la propria misura a prescindere da cosa ci sia
    dentro, cosi' non c'e' nessun buco da riempire. */
 .deck-slot-check img{ width:32px; height:32px; object-fit:contain; }
+/* v0.78.5 — LA SPUNTA ACCESA E' UN DISEGNO PIU' GRANDE, e deborda apposta.
+   Le due immagini non hanno le stesse proporzioni (50x50 spenta, 72x59 accesa,
+   perche' quella accesa porta il segno fuori dal cerchio): costringerle nello
+   stesso quadrato da 32 schiacciava la seconda. Qui la si lascia alla sua
+   misura e la si ricentra sul cerchio spento, che e' quello che tiene il posto
+   nella riga. */
+.deck-slot-check img.spuntata{
+  width:46px; height:auto;
+  position:relative; top:-2px;
+  margin-top:-6px; margin-right:-4px;
+}
 .deck-slot-nome{
   flex:1 1 auto; min-width:0;
   font-family:'Marcellus',var(--font-display),serif;
@@ -9690,6 +9720,30 @@ body.prova-senza-willchange #mm-book-rot{
     </div>
   </div>
 </div>
+<!-- ── v0.78.5 — GIOCARE CON UN CLIENT VECCHIO NON E' UN'OPZIONE ──────────
+     Una versione indietro non e' una scomodita': il catalogo, le regole delle
+     abilita' e il protocollo di rete cambiano insieme, e un client vecchio
+     gioca partite che il server racconta in un altro modo. Meglio fermarsi e
+     dirlo che lasciar giocare qualcosa che poi verra' rifiutato.
+     Questa finestra non si chiude: non c'e' la X, non si chiude cliccando
+     fuori, e sotto non c'e' niente da raggiungere. -->
+<div id="aggiorna-overlay" class="hx-overlay">
+  <div id="aggiorna-box" class="hx-box">
+    <div class="hx-titlebar" id="aggiorna-titlebar">
+      <span class="hx-titlebar-cap hx-titlebar-left"></span>
+      <div class="hx-titlebar-center"><h2>Update available</h2></div>
+      <span class="hx-titlebar-cap hx-titlebar-right"></span>
+    </div>
+    <div class="hx-pannello">
+      <div id="aggiorna-testo"></div>
+      <div id="aggiorna-conto"></div>
+      <button class="hx-btn hx-azione hx-btn-opaco" type="button" onclick="aggiornaERiavvia()">
+        <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
+        <span class="hxb-label">Update and restart</span>
+      </button>
+    </div>
+  </div>
+</div>
 <div id="rank-overlay" class="hx-overlay">
   <div id="rank-box" class="hx-box">
     <div class="hx-titlebar" id="rank-titlebar">
@@ -9842,7 +9896,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.78.4</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.78.5</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -15659,10 +15713,16 @@ function mazzoSelezionato(){
   if(MAZZO_SCELTO === MAZZO_CASUALE) return null;
   return MAZZI.find(m=>m.id===MAZZO_SCELTO) || null;
 }
+// ── v0.78.5 — SCEGLIERE UN MAZZO NON LO SPOSTA ───────────────────────────
+// Qui il mazzo scelto veniva messo in cima. L'intenzione era buona — quello
+// con cui giochi si vede per primo — ma il risultato e' che la lista si
+// riordina sotto le dita: si sceglie un mazzo e quello SALTA, e per ritrovare
+// dov'era bisogna ricostruirlo a mente. Un elenco che si riordina da solo e'
+// un elenco di cui non ci si puo' fidare a memoria.
+// L'ordine adesso e' quello che decide chi gioca, trascinando (vedi
+// collegaRiordinoMazzi), e non cambia mai da solo.
 function mazziOrdinati(){
-  const sel = MAZZI.filter(m=>m.id===MAZZO_SCELTO);
-  const altri = MAZZI.filter(m=>m.id!==MAZZO_SCELTO);
-  return sel.concat(altri);
+  return MAZZI.slice();
 }
 // ═══════════════════════════════════════════════════════════════════════════
 // v0.76.0 — IL CODICE DI UN MAZZO
@@ -16705,6 +16765,11 @@ var ABILITA_MOTORE = (function () {
     vince: vince,
     giocabileSuBloccata: giocabileSuBloccata,
     rendeImmuniIVicini: rendeImmuniIVicini,
+    // v0.78.5 — l'elenco delle azioni che il motore sa mettere in scena. Lo
+    // chiede chi deve decidere se un'abilita' e' "programmata" o va marcata
+    // NO_SCRIPT: quella domanda si fa qui e non con una lista ricopiata
+    // altrove, che il giorno dopo sarebbe gia' diversa.
+    AZIONI_DESCRITTE: AZIONI_DESCRITTE,
     latiColpiti: latiColpiti,
     colpisce: colpisce,
     quantita: quantita,
@@ -16886,6 +16951,7 @@ function renderListaMazzi(){
 function _slotMazzoPieno(mazzo){
   const el = document.createElement('div');
   el.className = 'deck-slot deck-slot-piena';
+  el.dataset.mazzo = mazzo.id;   // v0.78.5 — serve al riordino
   el.dataset.mazzo = mazzo.id;
   const art = document.createElement('div');
   art.className = 'deck-slot-art';
@@ -16904,8 +16970,12 @@ function _slotMazzoPieno(mazzo){
   const checkImg = document.createElement('img');
   checkImg.alt = '';
   checkImg.draggable = false;
+  // v0.78.5 — la classe dice QUALE delle due immagini e', cosi' il CSS puo'
+  // dare all'accesa la sua misura senza doverla indovinare dal nome del file.
+  const spuntato = (mazzo.id === MAZZO_SCELTO);
+  checkImg.classList.toggle('spuntata', spuntato);
   impostaImgDaCandidati(checkImg, uiFileCandidati(
-    mazzo.id === MAZZO_SCELTO ? 'checkbox-round-checked.png' : 'checkbox-round-unchecked.png'));
+    spuntato ? 'checkbox-round-checked.png' : 'checkbox-round-unchecked.png'));
   check.appendChild(checkImg);
   // v0.77.51 — un mazzo non giocabile non si sceglie, e si vede: la spunta e'
   // spenta invece di rispondere con un silenzio che sembra un guasto.
@@ -17916,6 +17986,119 @@ function collegaTrascinamentoMazzo(){
     _tirInizia(ev, id, slot, 'dentro');
   }, true);
 }
+// ── v0.78.5 — IL TASTO DESTRO METTE E TOGLIE ─────────────────────────────
+// Trascinare una carta dentro e fuori da un mazzo e' il gesto giusto per
+// spostarne una: si vede dove va a finire. Ma per METTERNE dodici, o per
+// toglierne una che si e' appena messa, e' dodici volte lo stesso viaggio.
+// Il tasto destro fa la stessa cosa in un colpo: sulla griglia aggiunge, e su
+// una carta gia' nel mazzo (o sulla sua riga) toglie. Un gesto solo che si
+// legge in un modo solo — "questa dentro, questa fuori" — invece di due gesti
+// diversi a seconda di dove si sta guardando.
+// Vale solo mentre si sta modificando un mazzo: fuori da li' non c'e' un mazzo
+// a cui aggiungere, e il menu del browser resta quello di sempre.
+function collegaTastoDestroMazzo(){
+  if(_destroCollegato) return;
+  _destroCollegato = true;
+  document.addEventListener('contextmenu', (ev)=>{
+    if(!_mazzoInModifica) return;
+    const bersaglio = ev.target && ev.target.closest ? ev.target : null;
+    if(!bersaglio) return;
+    // Una riga del mazzo: esce.
+    const riga = bersaglio.closest('.deck-card-row');
+    if(riga && riga.dataset.carta){
+      ev.preventDefault();
+      togliCartaDalMazzo(riga.dataset.carta);
+      return;
+    }
+    // Una casella della griglia: entra, o esce se c'era gia'.
+    const slot = bersaglio.closest('#card-db-grid .card-db-card-slot');
+    if(!slot || !slot.dataset.entryId) return;
+    ev.preventDefault();
+    const id = String(slot.dataset.entryId);
+    if(_mazzoInModifica.carte.includes(id)) togliCartaDalMazzo(id);
+    else aggiungiCartaAlMazzo(id);
+  });
+}
+let _destroCollegato = false;
+
+// ── v0.78.5 — I MAZZI SI RIORDINANO TRASCINANDOLI ────────────────────────
+// Da quando scegliere un mazzo non lo sposta piu' in cima (vedi mazziOrdinati),
+// l'ordine e' una cosa che decide chi gioca — e serve un modo per deciderlo.
+// E' lo stesso gesto delle carte dentro a un mazzo: si prende, si porta dove
+// deve stare, si lascia. Qui pero' non serve tutta la macchina del
+// trascinamento delle carte (fantasma, inclinazione, foil): una riga di elenco
+// si sposta bene con le sole caselle, senza niente che voli.
+// La soglia in pixel e' la stessa: sotto quella e' un clic, e un clic su un
+// mazzo lo sceglie. Senza questa distinzione, scegliere un mazzo sarebbe
+// diventato impossibile senza spostarlo di un pelo.
+let _riordinoMazzi = null;
+const RIORDINO_SOGLIA_PX = 6;
+function collegaRiordinoMazzi(){
+  const lista = document.getElementById('deck-list');
+  if(!lista || lista.__riordino) return;
+  lista.__riordino = true;
+  lista.addEventListener('pointerdown', (ev)=>{
+    if(ev.button !== undefined && ev.button !== 0) return;
+    if(_mazzoInModifica) return;              // mentre si modifica non si riordina
+    const slot = ev.target.closest && ev.target.closest('.deck-slot');
+    if(!slot || !slot.dataset.mazzo) return;
+    // La spunta e la matita fanno da se': prenderle per trascinare vorrebbe
+    // dire non riuscire piu' a premerle.
+    if(ev.target.closest('.deck-slot-check, .deck-slot-edit, .deck-edit')) return;
+    _riordinoMazzi = { id:String(slot.dataset.mazzo), el:slot, y:ev.clientY, attivo:false };
+    document.addEventListener('pointermove', _riordinoMuovi, true);
+    document.addEventListener('pointerup', _riordinoFine, true);
+    document.addEventListener('pointercancel', _riordinoFine, true);
+  });
+}
+function _riordinoMuovi(ev){
+  if(!_riordinoMazzi) return;
+  if(!_riordinoMazzi.attivo){
+    if(Math.abs(ev.clientY - _riordinoMazzi.y) < RIORDINO_SOGLIA_PX) return;
+    _riordinoMazzi.attivo = true;
+    _riordinoMazzi.el.classList.add('deck-slot-trascinata');
+  }
+  // Si guarda su quale riga sta il puntatore e ci si mette al suo posto: e'
+  // l'ordine dell'elenco che cambia sotto le dita, non un'anteprima a parte.
+  const lista = document.getElementById('deck-list');
+  if(!lista) return;
+  const sotto = document.elementFromPoint(ev.clientX, ev.clientY);
+  const altra = sotto && sotto.closest ? sotto.closest('.deck-slot') : null;
+  if(!altra || altra === _riordinoMazzi.el || !altra.dataset.mazzo) return;
+  const r = altra.getBoundingClientRect();
+  const dopo = (ev.clientY - r.top) > r.height/2;
+  lista.insertBefore(_riordinoMazzi.el, dopo ? altra.nextSibling : altra);
+}
+function _riordinoFine(){
+  document.removeEventListener('pointermove', _riordinoMuovi, true);
+  document.removeEventListener('pointerup', _riordinoFine, true);
+  document.removeEventListener('pointercancel', _riordinoFine, true);
+  const stato = _riordinoMazzi;
+  _riordinoMazzi = null;
+  if(!stato) return;
+  stato.el.classList.remove('deck-slot-trascinata');
+  if(!stato.attivo) return;                  // era un clic: se ne occupa il clic
+  // L'ordine nuovo e' quello che si vede: si legge dall'elenco e si scrive nei
+  // mazzi. Le caselle che non sono mazzi (il casuale, le vuote) si saltano.
+  const lista = document.getElementById('deck-list');
+  if(!lista) return;
+  const ordine = [];
+  lista.querySelectorAll('.deck-slot').forEach(el=>{
+    if(el.dataset && el.dataset.mazzo) ordine.push(String(el.dataset.mazzo));
+  });
+  const perId = {};
+  for(const m of MAZZI) perId[m.id] = m;
+  const nuovi = [];
+  for(const id of ordine) if(perId[id]) nuovi.push(perId[id]);
+  // Chi non compare nell'elenco resta dov'era: non si perde un mazzo per un
+  // trascinamento andato storto.
+  for(const m of MAZZI) if(nuovi.indexOf(m) < 0) nuovi.push(m);
+  if(nuovi.length !== MAZZI.length) return;
+  MAZZI = nuovi;
+  salvaMazzi();
+  renderListaMazzi();
+}
+
 // v0.77.22 — le note di aggiornamento vivono QUI. Si aprono da sole una volta
 // sola, entrando nel menu, e solo se contengono una versione che non e' quella
 // gia' letta l'ultima volta — un ricordo che sta in localStorage e quindi
@@ -22458,7 +22641,9 @@ function openCardDbOverlay(){
   montaGraficaLibreria();
   controllaPezziLibreria();
   collegaTrascinamentoMazzo();
+  try{ collegaTastoDestroMazzo(); }catch(_){}   // v0.78.5
   renderListaMazzi();
+  try{ collegaRiordinoMazzi(); }catch(_){}      // v0.78.5
   cardDbRenderRoster();
   initCardDbFoilTilt();
 
@@ -24414,6 +24599,81 @@ const PATCH_NOTES_MAX = 10;
 // Dal testo alla struttura. Formato: "## versione" apre un blocco, le righe
 // che cominciano con "-" sono le voci. Tutto il resto viene ignorato, cosi'
 // si possono lasciare righe vuote o commenti senza rompere niente.
+// ══════════════════════════════════════════════════════════════════════════
+// v0.78.5 — IL CLIENT DEVE ESSERE L'ULTIMO
+// ══════════════════════════════════════════════════════════════════════════
+// Qual e' l'ultima versione? Lo dicono le NOTE DI RILASCIO: la prima voce del
+// file e' sempre quella appena pubblicata (e da v0.77.96 e' una regola, non
+// un'abitudine — ogni versione ha la sua riga). Non serve un secondo posto in
+// cui scrivere il numero, e due posti sarebbero due numeri da tenere d'accordo.
+// La versione di QUESTO client e' quella scritta sulla targhetta in basso a
+// destra, che e' l'unico numero che il file porta addosso.
+//
+// Nel guscio desktop non si controlla: li' l'aggiornamento e' automatico e il
+// guscio ha gia' aperto l'ultima versione. Stessa bandierina che usa
+// controllaAggiornamentoAllAvvio.
+function versioneDiQuestoClient(){
+  const targhetta = document.getElementById('build-version-badge');
+  return targhetta ? String(targhetta.textContent||'').trim() : '';
+}
+let _aggiornaConto = null;
+const AGGIORNA_SECONDI = 10;
+function aggiornaERiavvia(){
+  if(_aggiornaConto){ clearInterval(_aggiornaConto); _aggiornaConto = null; }
+  try{
+    // Una riga in coda all'indirizzo per non farsi servire la copia in cache:
+    // ricaricare e ritrovare la stessa versione sarebbe il modo peggiore di
+    // finire questa storia.
+    const u = new URL(location.href);
+    u.searchParams.set('v', Date.now().toString(36));
+    location.replace(u.toString());
+  }catch(_){ location.reload(); }
+}
+function bloccaPerAggiornamento(mia, ultima){
+  const ov = document.getElementById('aggiorna-overlay');
+  if(!ov || ov.classList.contains('show')) return;
+  const testo = document.getElementById('aggiorna-testo');
+  if(testo){
+    testo.innerHTML = 'A new version of the client is available.<br>'
+      + 'Your version: <b>' + escapeHtml(mia || '?') + '</b> — '
+      + 'Latest version: <b>' + escapeHtml(ultima || '?') + '</b>';
+  }
+  try{ vestiPulsantiDi('aggiorna-overlay'); }catch(_){}
+  try{
+    ov.querySelectorAll('.hx-pannello').forEach(pan=>
+      impostaVariabileDaCandidati(pan, '--hx-trama', uiFileCandidati('brushed-texture.jpg')));
+    for(const pezzo of [['left','title-bg-left.png'],['center','title-bg-center.png'],['right','title-bg-right.png']]){
+      const el = ov.querySelector('#aggiorna-titlebar .hx-titlebar-' + pezzo[0]);
+      if(el) impostaSfondoDaCandidati(el, uiFileCandidati(pezzo[1]));
+    }
+  }catch(_){}
+  ov.classList.add('show');
+  // Il gioco sotto smette: niente musica, niente timer che scorre dietro a una
+  // finestra che non si puo' chiudere.
+  try{ setGameAudioMuted(true); }catch(_){}
+  const conto = document.getElementById('aggiorna-conto');
+  let restano = AGGIORNA_SECONDI;
+  const scrivi = ()=>{ if(conto) conto.textContent = 'Restarting in ' + restano + 's...'; };
+  scrivi();
+  _aggiornaConto = setInterval(()=>{
+    restano--;
+    if(restano <= 0){ clearInterval(_aggiornaConto); _aggiornaConto = null; aggiornaERiavvia(); return; }
+    scrivi();
+  }, 1000);
+}
+// Chiamata quando le note di rilascio sono state lette: e' li' che si scopre
+// qual e' l'ultima versione pubblicata.
+function controllaVersioneDaNote(versioni){
+  if(typeof window !== 'undefined' && window.hextaleDesktop) return;
+  if(!Array.isArray(versioni) || !versioni.length) return;
+  const ultima = String(versioni[0].versione || '').trim();
+  const mia = versioneDiQuestoClient();
+  const nUltima = numeroVersioneDa(ultima), nMia = numeroVersioneDa(mia);
+  if(!nUltima || !nMia) return;                       // non si sa: non si allarma
+  if(confrontaVersioni(nUltima, nMia) <= 0) return;   // pari o piu' vecchia: tutto bene
+  console.warn('[versione] questo client e\' ' + mia + ', l\'ultima e\' ' + ultima + ': si ferma tutto.');
+  bloccaPerAggiornamento(mia, ultima);
+}
 function analizzaPatchNotes(testo){
   const versioni = [];
   let corrente = null;
@@ -24525,6 +24785,8 @@ function caricaPatchNotes(opzioni){
     const testo = new TextDecoder('utf-8').decode(byte);
     const versioni = analizzaPatchNotes(testo);
     if(!versioni.length) return;
+    // v0.78.5 — la prima voce dice qual e' l'ultima versione pubblicata.
+    try{ controllaVersioneDaNote(versioni); }catch(_){}
     consegna(versioni);
   }).catch(()=>{ /* si resta con quelle salvate, o con niente */ });
 }
@@ -27539,8 +27801,18 @@ function updateTimerUI(){
   const WAKEUP_LEAD_MS=1800;
   if(timerLeft<=11 && !wakeupPlayed){
     wakeupPlayed=true;
-    playSfxFile('wakeup.mp3');
-    setTimeout(playTictoc, WAKEUP_LEAD_MS);
+    // ── v0.78.5 — IL TEMPO CHE SCADE LO SENTE CHI DEVE MUOVERSI ──────────
+    // Il richiamo e il ticchettio sono un sollecito: "sbrigati, sta per
+    // scadere". Chi sta guardando l'avversario pensare non ha niente da
+    // sbrigare, e sentirseli addosso e' un allarme per una cosa che non puo'
+    // fare — per di piu' ogni turno, cioe' meta' della partita.
+    // La domanda giusta non e' "e' il turno del giocatore uno?", e' "tocca a
+    // ME?": in rete si puo' essere il due (vedi sceltaMia).
+    const mio = (typeof sceltaMia === 'function') ? sceltaMia(G.currentPlayer) : true;
+    if(mio){
+      playSfxFile('wakeup.mp3');
+      setTimeout(playTictoc, WAKEUP_LEAD_MS);
+    }
   }
 }
 
@@ -29423,7 +29695,42 @@ function testiAbilitaDi(card, chiaveEsplicita){
   const nome = testoSenzaMarcatori((card.abilityNameSheet||'').trim() || (reg && reg.name) || chiave || '');
   const desc = (card.abilityDescSheet||'').trim() || (reg && reg.desc) || '';
   if(!nome && !desc) return null;
-  return {name:nome, desc:desc, programmata: !!reg};
+  return {name:nome, desc:desc, programmata: abilitaEseguibile(card)};
+}
+
+// ── v0.78.5 — "PROGRAMMATA" NON VUOL PIU' DIRE "HA UNA FUNZIONE SCRITTA" ──
+// Il marchio NO_SCRIPT esiste per dire una cosa sola, ed e' giusta: questa
+// carta racconta un'abilita' che il gioco non sa eseguire. Chi legge la carta
+// deve sapere che quel testo, per ora, e' una promessa.
+// La DOMANDA pero' era rimasta indietro: chiedeva "c'e' una voce in
+// TILE_ABILITIES_DEF?", cioe' "qualcuno le ha scritto una funzione a mano?".
+// Da v0.77.57 le abilita' vengono dal foglio e la stragrande maggioranza non
+// ha ne' vuole una funzione propria: il motore le esegue leggendo le colonne.
+// Col metro vecchio quelle carte risultavano tutte NON programmate, e si
+// portavano addosso un NO_SCRIPT rosso pur funzionando benissimo.
+//
+// La domanda giusta e': il gioco sa eseguire cio' che questa riga descrive?
+//   - una REGOLA (Excalibur, Shere Khan): la applica il motore, sempre;
+//   - un EFFETTO che sposta numeri (buff, debuff, set): idem;
+//   - un EFFETTO fra quelli che il motore mette in scena (AZIONI_DESCRITTE,
+//     chiesto a lui e non ricopiato qui);
+//   - oppure, per le carte anteriori al foglio, la vecchia voce nel registro.
+// Tutto il resto e' davvero senza copione, e il marchio ci va.
+function abilitaEseguibile(card){
+  if(!card) return false;
+  const motore = (typeof _motore === 'function') ? _motore() : null;
+  const a = (motore && typeof _haAbilitaNuova === 'function' && _haAbilitaNuova(card))
+    ? motore.abilitaDi(card) : null;
+  if(a){
+    if(a.regola) return true;
+    const descritte = motore.AZIONI_DESCRITTE || {};
+    for(const eff of [a.effetto, a.effetto2]){
+      if(!eff || !eff.azione) continue;
+      if(eff.azione === 'buff' || eff.azione === 'debuff' || eff.azione === 'set'
+         || eff.azione === 'steal' || descritte[eff.azione]) return true;
+    }
+  }
+  return !!(card.cardAbility && TILE_ABILITIES_DEF[card.cardAbility]);
 }
 // ═══════════════════════════════════════════════════════════════════════════
 // v0.72.96 — ANTEPRIMA DEI VALORI: UNA SOLA VOLTA, PER TUTTE LE CARTE
@@ -30561,6 +30868,21 @@ function eseguiDalFoglio(card, evento, dove){
       preparaPremioProssimaGiocata(card, a, eff);
       fatto = true;
     }
+    // ── v0.78.5 — E "LA PROSSIMA CARTA CHE PESCHI" ──────────────────────
+    // La Regina di Cuori dice `buff ally drawn power next ALL 2`: stessa idea
+    // della riga qui sopra, ma il segno lo riscuote la pescata invece della
+    // giocata. Mancava l'aggancio — l'unica strada che la faceva funzionare
+    // era la sua vecchia chiave scritta a mano, e chi leggeva la riga del
+    // foglio non trovava nessuno che la eseguisse.
+    // La taglia vive in G.bonusProssimaPescata e la riscuote drawAndAnimate.
+    if((eff.azione === 'buff' || eff.azione === 'debuff') && eff.quale === 'next' && eff.dove === 'drawn'){
+      const chi = card.owner || G.currentPlayer;
+      const quanto = ((eff.quanto && eff.quanto.numero) || 0) * (eff.azione === 'debuff' ? -1 : 1);
+      if(quanto && G.bonusProssimaPescata){
+        G.bonusProssimaPescata[chi] = (G.bonusProssimaPescata[chi]||0) + quanto;
+        fatto = true;
+      }
+    }
   }
   return fatto;
 }
@@ -30668,8 +30990,28 @@ const EFFETTI_PIAZZAMENTO_REALI = {
   unicorn_hunt: (card) => attivaUnicornHunt(card),
 };
 function applicaEffettiRealiPiazzamento(card, q, r, chiave){
+  // v0.78.5 — se la riga del foglio ha gia' fatto la sua parte, la vecchia
+  // funzione scritta a mano non deve rifarla: la Regina lascerebbe due taglie
+  // invece di una. Stessa regola che applicaAbilitaPiazzamento usa da v0.77.62,
+  // qui mancava perche' questo registro e' nato prima del foglio.
+  if(typeof _foglioFaLEvento === 'function' && _foglioFaLEvento(card, 'on_play')) return;
   const effetto = EFFETTI_PIAZZAMENTO_REALI[chiave];
   if(typeof effetto === 'function') effetto(card, q, r);
+}
+// La riga del foglio di questa carta descrive qualcosa che il CLIENT esegue a
+// questo evento? E' la stessa domanda che si fa eseguiDalFoglio, ma senza
+// eseguire niente: serve a chi deve decidere se tirarsi indietro.
+function _foglioFaLEvento(card, evento){
+  if(!_haAbilitaNuova(card)) return false;
+  const a = _motore().abilitaDi(card);
+  if(!a || a.trigger !== evento) return false;
+  for(const eff of [a.effetto, a.effetto2]){
+    if(!eff) continue;
+    if(eff.azione === 'transform') return true;
+    if((eff.azione === 'buff' || eff.azione === 'debuff') && eff.quale === 'next'
+       && (eff.dove === 'board' || eff.dove === 'drawn')) return true;
+  }
+  return false;
 }
 
 // Regina di Cuori — "Off With the Head!". Non tocca niente in campo: lascia una
@@ -44751,15 +45093,78 @@ function _modificatoriDalMotore(card){
   }
   return righe;
 }
+// ── v0.78.5 — SE UN NUMERO E' CAMBIATO, QUALCUNO DEVE DIRLO ──────────────
+// La regola, e non ha eccezioni: se un gruppo di questa carta vale piu' o meno
+// di quanto c'e' stampato sulla carta, il riquadro lo dice. Sempre, per tutte.
+//
+// Prima non era cosi', e il perche' e' che le righe venivano da due elenchi di
+// CHI ha fatto cosa: il registro dei modificatori (che lo scrive solo la
+// vecchia strada, quindi Robin Hood si' e quasi nessun altro) e le sinergie
+// vive lette dal motore. Un effetto che avesse mosso i numeri senza passare da
+// nessuno dei due — un colpo una tantum descritto nel foglio, un furto, la
+// vendetta di una carta conquistata — non aveva nessuno che lo raccontasse: la
+// carta mostrava numeri verdi e un riquadro vuoto.
+//
+// Adesso il conto parte dalla VERITA' — quanto e' cambiato rispetto ai valori
+// di nascita, gruppo per gruppo, che e' esattamente cio' che decide il verde e
+// il rosso sui numeri (vedi scartoDallaNascita) — e le righe con un nome
+// servono a SPIEGARLA. Se nessuna la spiega, si dice comunque quanto e'
+// cambiato: meglio "+3 ALL" senza un colpevole che il silenzio.
+//
+// Cosi' una carta nuova, con un'abilita' che oggi non esiste ancora, sara'
+// raccontata correttamente il giorno in cui verra' scritta, senza toccare
+// questa funzione.
+function _scartiDaiValoriStampati(card){
+  const nati = card && card.valoriNascita;
+  const ora = card && card.values;
+  if(!nati || !ora) return [];
+  const gruppi = (typeof gruppiDiCarta === 'function') ? gruppiDiCarta(card) : [];
+  const fuori = [];
+  for(const g of gruppi){
+    const lato = g.sides[0];
+    const d = (ora[lato]||0) - (nati[lato]||0);
+    if(d) fuori.push({ lati:g.sides, delta:d });
+  }
+  return fuori;
+}
 function bloccoModificatoriHTML(card){
-  // Prima quelle del motore (le sinergie vive, che valgono adesso), poi quelle
-  // del registro (i colpi una tantum gia' successi): e' l'ordine in cui chi
-  // guarda se le aspetta, dal permanente all'accaduto.
-  const righe = _modificatoriDalMotore(card).concat(elencoModificatori(card));
+  // ── QUANTO, E DA CHI ────────────────────────────────────────────────────
+  // Due domande diverse, e servono tutte e due. "Quanto" e' un fatto e si
+  // misura: la distanza fra i numeri di adesso e quelli stampati sulla carta,
+  // gruppo per gruppo. "Da chi" e' una spiegazione, e la si sa solo per gli
+  // effetti che si sono presentati — le sinergie che il motore legge dal
+  // foglio, e i colpi che passano dal registro dei modificatori.
+  //
+  // L'ordine e' quello: prima il TOTALE, che c'e' sempre quando un numero e'
+  // cambiato, poi le righe con un nome. Cosi' il riquadro non puo' mentire nemmeno
+  // quando la spiegazione e' incompleta — al massimo e' meno dettagliato.
+  // Prima veniva costruito solo dai nomi: un effetto che non passava da nessuno
+  // dei due elenchi non aveva chi lo raccontasse, e la carta mostrava numeri
+  // verdi accanto a un riquadro vuoto.
+  const scarti = _scartiDaiValoriStampati(card);
+  const nomi = _modificatoriDalMotore(card).concat(elencoModificatori(card));
+  if(!scarti.length && !nomi.length) return '';
+
+  const righe = [];
+  const tuttiILati = (lati)=> (typeof SIDES !== 'undefined') && lati.length >= SIDES.length;
+  // Il totale. Un gruppo per riga: gruppi diversi possono essere cambiati di
+  // quantita' diverse, e riassumerli in un numero solo sarebbe una media che
+  // non corrisponde a nessuno dei due.
+  for(const s of scarti){
+    righe.push({
+      testo: (s.delta > 0 ? '+' : '\u2212') + Math.abs(s.delta)
+             + (tuttiILati(s.lati) ? ' ALL' : ' ' + s.lati.join('/')),
+      positivo: s.delta > 0,
+      forte: true
+    });
+  }
+  // E chi c'e' dietro, quando si sa.
+  for(const n of nomi) righe.push(n);
   if(!righe.length) return '';
   return '<div class="cm-riga cm-mods"><span class="cm-et">Bonus/Malus:</span>'
     + '<span class="cm-val"><span class="ct-mods">'
-    + righe.map(r=>'<span class="ct-mod '+(r.positivo?'su':'giu')+'">'+escapeHtml(r.testo)+'</span>').join('')
+    + righe.map(r=>'<span class="ct-mod '+(r.positivo?'su':'giu')+(r.forte?' ct-mod-totale':'')+'">'
+        + escapeHtml(r.testo)+'</span>').join('')
     + '</span></span></div>';
 }
 function buildCardTooltipHTML(card, onBoard, bonusInfo){
