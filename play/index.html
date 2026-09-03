@@ -3736,36 +3736,17 @@ body.io-sono-2 #p1-info .player-avatar-photo{ transform:scaleX(-1); }
    disegnato dietro l'attaccante e svanito in fretta. Non e' una copia della
    carta (costosa e visivamente confusa) ma una sagoma monocroma: serve a
    dire "e' passato di qui", non a mostrare cosa e' passato. */
-/* ── v0.77.97 — LA SCIA ARRIVAVA PRIMA DEL COLPO ─────────────────────────
-   Il "doppio colpo" che si vedeva non erano due rimbalzi: erano due LAMPI
-   BIANCHI sulla stessa carta, a un decimo di secondo l'uno dall'altro.
-   Guardando la registrazione fotogramma per fotogramma (20ms l'uno):
-     5.24s  parte il colpo, e con lui questa scia
-     5.32s  la scia e' al massimo della luce e ha gia' coperto il difensore
-     5.44s  il difensore lampeggia — QUESTO e' il contatto vero
-   Fra i due passano 110 millisecondi, che sono abbastanza per leggerli come
-   due impatti distinti e non abbastanza per capire che il primo non lo era.
-   La colpa e' di tre numeri messi insieme:
-     - la scia partiva col MOVIMENTO e non col contatto (giusto: e' il
-       movimento a generarla);
-     - ma correva 1.5 contro l'1.7 dell'attaccante, cioe' quasi altrettanto:
-       una scia che arriva dove arriva il pugno non e' una scia, e' un
-       secondo pugno;
-     - e durava 260ms contro i 193 del colpo, quindi era ancora accesa —
-       anzi, era addosso al bersaglio — quando arrivava il lampo vero.
-   Adesso resta quello che deve essere: un segno che dice "e' passato di
-   qui", corto, dietro alle spalle di chi colpisce, e spento un istante prima
-   che il colpo tocchi. Il contatto torna a essere uno solo.
-   I due numeri sono legati a STRIKE_MS nel codice (193ms): se un giorno
-   cambia la durata del colpo, questa dev'essere accorciata con lui. */
+/* La scia del colpo. La v0.77.97 l'aveva accorciata e trattenuta credendo che
+   fosse lei il "doppio colpo": non lo era (il colpo ripartiva davvero da capo,
+   vedi portaLaCellaInFondo nel v0.77.98), e una modifica fatta su una diagnosi
+   sbagliata non si tiene solo perche' e' gia' li'. Rimessa com'era. */
 @keyframes attackStreak{
   0%   {opacity:0;   transform:translate(0,0) scale(1,1);}
-  20%  {opacity:0.40;}
-  100% {opacity:0;   transform:translate(calc(var(--lx,0) * 0.55px),calc(var(--ly,0) * 0.55px)) scale(calc(1.18 * var(--sx,1)),calc(1.18 * var(--sy,1)));}
+  30%  {opacity:0.55;}
+  100% {opacity:0;   transform:translate(calc(var(--lx,0) * 1.5px),calc(var(--ly,0) * 1.5px)) scale(calc(1.35 * var(--sx,1)),calc(1.35 * var(--sy,1)));}
 }
 .attack-streak{
-  /* 0.17s: finisce PRIMA dei 193ms del contatto (vedi STRIKE_MS). */
-  animation:attackStreak 0.17s ease-out forwards;
+  animation:attackStreak 0.26s ease-out forwards;
   transform-box:fill-box;
   transform-origin:center center;
   pointer-events:none;
@@ -9861,7 +9842,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.97</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.77.98</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -33083,12 +33064,68 @@ const TRABALLIO_DUR_MS = 560; // deve combaciare con .card-wobble
 // cardLandApplyTo), e si risolve allo stesso modo: si sposta in fondo il
 // GRUPPO-CELLA intero, che e' l'unita' che #board-svg impila. Non serve
 // rimetterlo a posto: il prossimo renderBoard ricostruisce tutto da zero.
-function portaInPrimoPiano(el){
+// ── v0.77.98 — PORTARE UNA CELLA IN FONDO, IN UN POSTO SOLO ──────────────
+// In SVG non esiste z-index: comanda l'ordine nel documento, quindi "passare
+// sopra" vuol dire "essere l'ultimo disegnato". Quattro punti del gioco ne
+// hanno bisogno — la carta che si gira, quella che atterra, quella che salta e
+// lo strascico di Rapunzel — e tutti e quattro se lo scrivevano da soli.
+//
+// Erano quattro copie della stessa risalita, e TRE erano sbagliate allo stesso
+// modo: salivano fino alla radice dell'<svg>, che non e' piu' il genitore dei
+// gruppi-cella da quando le carte vivono in uno strato loro. Non trovando la
+// radice al primo passo, continuavano a salire e afferravano LO STRATO INTERO:
+// e riattaccare lo strato azzera ogni animazione in corso su tutte le carte.
+// La quarta era stata corretta nel v0.77.6, da sola, senza che le altre tre lo
+// sapessero. E' esattamente il difetto che quel commento descriveva: una
+// regola scritta in piu' posti sono piu' occasioni di sbagliarla.
+//
+// Adesso e' scritta qui. Ci si ferma al figlio diretto dello strato, e non si
+// tocca niente se e' gia' in fondo: un appendChild inutile e' pur sempre uno
+// stacca-e-riattacca, cioe' un'animazione azzerata per niente.
+function portaLaCellaInFondo(el){
+  if(!el) return;
   const radice = el.ownerSVGElement || document.getElementById('board-svg');
   if(!radice) return;
-  let gruppoCella = el;
-  while(gruppoCella.parentNode && gruppoCella.parentNode !== radice) gruppoCella = gruppoCella.parentNode;
-  if(gruppoCella.parentNode === radice) radice.appendChild(gruppoCella);
+  const strato = radice.querySelector('#board-cards-layer') || radice;
+  let cella = el;
+  while(cella.parentNode && cella.parentNode !== strato && cella.parentNode !== radice)
+    cella = cella.parentNode;
+  const genitore = cella.parentNode;
+  if(genitore && genitore.lastElementChild !== cella) genitore.appendChild(cella);
+}
+
+// ── v0.77.98 — IL SECONDO COLPO ERA IL PRIMO, RICOMINCIATO DA CAPO ───────
+// Questa funzione porta davanti la carta che si sta girando. Per farlo risale
+// dal suo elemento fino al gruppo-cella e lo rimette in fondo, perche' in SVG
+// non c'e' z-index: vince l'ordine nel documento.
+//
+// La risalita si fermava alla RADICE dell'<svg>. Andava bene finche' i
+// gruppi-cella erano figli diretti della radice; da quando le carte vivono in
+// uno strato loro (#board-cards-layer) quel ciclo non trova piu' la radice
+// salendo di uno, e continua a salire finche' non afferra LO STRATO INTERO.
+// A quel punto `appendChild` non sposta una carta: stacca e riattacca tutte
+// le carte del tabellone insieme — e riattaccare un nodo AZZERA ogni
+// animazione CSS in corso su di lui e su tutti i suoi figli.
+//
+// Ecco da dove veniva il "doppio colpo". giraCarta viene chiamata sul
+// difensore nell'ISTANTE DEL CONTATTO, cioe' a 193ms dall'inizio del colpo,
+// quando il lunge dell'attaccante e' a meta' strada. Lo strato si riattaccava,
+// il lunge ripartiva da zero, e l'attaccante faceva lo stesso identico
+// movimento una seconda volta.
+// Misurato sulla registrazione di Lorenzo, inseguendo la carta fotogramma per
+// fotogramma (vedi strumenti/traccia.js):
+//     5.26s -> 5.38s   su-sinistra, 9px    il colpo
+//     5.40s -> 5.42s   ferma
+//     5.44s -> 5.58s   su-sinistra, 9px    LO STESSO COLPO, da capo
+// Fra i due inizi passano 180ms: i 193 del contatto, meno un fotogramma.
+//
+// E' lo STESSO difetto che il v0.77.6 aveva corretto in cardLandApplyTo, in
+// una funzione scritta a parte che saliva allo stesso modo. Qui si applica la
+// stessa medicina: ci si ferma al figlio diretto dello strato, e non si tocca
+// niente se e' gia' in fondo — un appendChild inutile e' pur sempre uno
+// stacca-e-riattacca.
+function portaInPrimoPiano(el){
+  portaLaCellaInFondo(el);
 }
 function giraCarta(el){
   if(!el) return false;
@@ -42917,15 +42954,8 @@ function cardLandApplyTo(el){
   // riattacca, e cio' azzera ogni animazione CSS in corso su di lui e su tutti
   // i suoi figli — cioe' su tutte le carte del tabellone insieme. Adesso si
   // sale solo fino al figlio diretto del proprio genitore e si sposta quello.
-  const bsvgRoot = el.ownerSVGElement || document.getElementById('board-svg');
-  const strato = (bsvgRoot && bsvgRoot.querySelector('#board-cards-layer')) || bsvgRoot;
-  let cellGroup = el;
-  while(cellGroup.parentNode && cellGroup.parentNode !== strato && cellGroup.parentNode !== bsvgRoot)
-    cellGroup = cellGroup.parentNode;
-  const genitore = cellGroup.parentNode;
-  // Se e' gia' l'ultimo non si tocca niente: un appendChild inutile e' pur
-  // sempre uno stacca-e-riattacca, con tutto quello che si porta dietro.
-  if(genitore && genitore.lastElementChild !== cellGroup) genitore.appendChild(cellGroup);
+  // v0.77.98 — la risalita vive in portaLaCellaInFondo, insieme alle altre tre.
+  portaLaCellaInFondo(el);
   el.classList.remove('card-land');
   void el.getBoundingClientRect(); // forza il reflow prima di riavviare
   el.style.animationDelay = (-elapsed).toFixed(0)+'ms';
@@ -42957,10 +42987,7 @@ function cardJumpApplyTo(el){
   // suo gruppo-cella va spostato in fondo (stesso ragionamento, e stessa
   // trappola, dell'atterraggio: non basta spostare la carta dentro la propria
   // cella, va spostata la cella intera).
-  const radice = el.ownerSVGElement || document.getElementById('board-svg');
-  let cella = el;
-  while(cella.parentNode && cella.parentNode !== radice) cella = cella.parentNode;
-  if(cella.parentNode === radice) radice.appendChild(cella);
+  portaLaCellaInFondo(el);   // v0.77.98
   el.style.setProperty('--salto-y', (-_cardJump.distanza).toFixed(0)+'px');
   el.classList.remove('card-jump');
   void el.getBoundingClientRect(); // forza il reflow prima di riavviare
@@ -42991,10 +43018,7 @@ function cardSlideApplyTo(el){
   // Stessa trappola del salto: in SVG comanda l'ordine nel documento, e la
   // carta trascinata deve passare sopra a quelle che attraversa. Va spostata
   // la CELLA intera, non la carta dentro la cella.
-  const radice = el.ownerSVGElement || document.getElementById('board-svg');
-  let cella = el;
-  while(cella.parentNode && cella.parentNode !== radice) cella = cella.parentNode;
-  if(cella.parentNode === radice) radice.appendChild(cella);
+  portaLaCellaInFondo(el);   // v0.77.98
   el.style.setProperty('--strascico-x', _cardSlide.dx.toFixed(1)+'px');
   el.style.setProperty('--strascico-y', _cardSlide.dy.toFixed(1)+'px');
   el.classList.remove('card-slide');
