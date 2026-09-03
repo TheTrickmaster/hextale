@@ -9842,7 +9842,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.78.0</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.78.1</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -29559,11 +29559,22 @@ function dopoIlSuono(handle, chiave, poi){
   const durata = (buf && buf.duration) ? buf.duration*1000 : TRASFORMAZIONE_DURATA_DI_RIPIEGO_MS;
   setTimeout(chiama, durata);
 }
-function trasformaConLampo(cella, card, q, r, poi){
+// ── v0.78.1 — IL LAMPO NON DECIDE PIU' COSA FAR DIVENTARE LA CARTA ───────
+// Chiedeva la trasformazione ad attivaTrasformazioneAlPiazzamento, che a sua
+// volta chiede quella del momento `on_play`. Andava bene finche' l'unica
+// trasformazione era quella del bacio; da quando ce ne sono di altri momenti
+// (Strigoi con `always`, Cenerentola con `while_on_board`) quella domanda
+// torna null, e il lampo si vedeva senza che la carta cambiasse.
+// Adesso chi chiama passa il FARE: il lampo mette in scena, non sceglie.
+// Senza, resta il comportamento di sempre — il piazzamento non cambia.
+function trasformaConLampo(cella, card, q, r, poi, fare){
   const finito = ()=>{ if(typeof poi==='function') poi(); };
+  const cambia = ()=> (typeof fare === 'function')
+    ? fare()
+    : attivaTrasformazioneAlPiazzamento(card, q, r);
   const bsvg = document.getElementById('board-svg');
   const el = bsvg && bsvg.querySelector('[data-conquered="'+cella+'"]');
-  if(!el){ attivaTrasformazioneAlPiazzamento(card, q, r); try{ renderBoard(); }catch(_){} finito(); return; }
+  if(!el){ cambia(); try{ renderBoard(); }catch(_){} finito(); return; }
   try{ lampeggiaCarta(el); }catch(_){}
   // v0.75.72 — LA VOCE DELLA TRASFORMAZIONE PARTE COL LAMPO, e il grido di
   // battaglia aspetta che abbia finito. Sono due momenti diversi della stessa
@@ -29574,7 +29585,12 @@ function trasformaConLampo(cella, card, q, r, poi){
   // v0.75.77 — la voce e' quella scritta nel registro, e puo' non esserci
   // (Cenerentola): senza voce non c'e' niente da aspettare e il grido arriva
   // subito dopo il cambio, che e' il comportamento giusto e non un ripiego.
-  const scena = trasformazioneAlPiazzamento(card, q, r) || {};
+  // La voce: se chi chiama sa gia' in chi si diventa la porta con se'
+  // (card.__voceTrasformazione, messa un attimo prima); altrimenti la si
+  // chiede alla trasformazione da piazzamento, come sempre.
+  const scena = card.__voceTrasformazione
+    ? { voce: card.__voceTrasformazione }
+    : (trasformazioneAlPiazzamento(card, q, r) || {});
   let voce = null, chiaveVoce = null;
   if(scena.voce){
     chiaveVoce = assicuraSuonoDaVoce(scena.voce,'mp3');
@@ -29582,8 +29598,9 @@ function trasformaConLampo(cella, card, q, r, poi){
   }
   setTimeout(()=>{
     card.gridoRimandato = true;
-    attivaTrasformazioneAlPiazzamento(card, q, r);
+    cambia();
     card.gridoRimandato = false;
+    delete card.__voceTrasformazione;
     try{ renderBoard(); }catch(_){}
     dopoIlSuono(voce, chiaveVoce, ()=>{ try{ playCardBattlecry(card); }catch(_){} });
     // Il resto del lampo scorre sulla carta NUOVA, e solo dopo si combatte:
@@ -29755,13 +29772,50 @@ function trasformaCartaIn(card, nomeCarta, etichetta){
     return false;
   }
   const nuova = _makeCardDbCard(entry, card.owner || G.currentPlayer);
+  // ── v0.78.1 — I NUMERI DIVENTANO I SUOI, MA I COLPI PRESI RESTANO ────────
+  // La regola, per esteso: una carta che si trasforma prende i valori della
+  // carta nuova, e si porta dietro i buff e i debuff che aveva addosso — a
+  // meno che qualcuno non dica altrimenti.
+  //
+  // "Quello che aveva addosso" sono i colpi PERMANENTI: un furto, il dono di
+  // un'abilita', la vendetta di un nemico. Si misurano come distanza fra la
+  // sua base e i suoi numeri di nascita, che e' esattamente cio' che quelle
+  // due tabelle esistono per dire.
+  // Le sinergie VIVE (Baloo che regala ai vicini, le Pixies) non si portano
+  // dietro e non serve: si ricalcolano da sole al primo disegno, dalla base
+  // piu' quello che le carte intorno stanno facendo in questo istante. Se le
+  // sommassimo qui, il giro dopo verrebbero contate due volte.
+  const _prima = card.valoriNascita || card.values || {};
+  const _base  = card.valoriBase   || card.values || {};
+  const _addosso = {};
+  for(const s of SIDES) _addosso[s] = (_base[s]||0) - (_prima[s]||0);
+
   card.name = nuova.name;
   card.quote = nuova.quote || '';
-  card.values = {...nuova.values};
   // I valori di nascita diventano quelli della carta NUOVA: da adesso e' lei,
   // e il verde/rosso dei numeri va misurato su di lei (vedi valoriNascita).
   card.valoriNascita = {...nuova.values};
   card.groupSides = Array.isArray(nuova.groupSides) ? nuova.groupSides.map(g=>g.slice()) : card.groupSides;
+
+  // ── v0.78.1 — E LA BASE, CHE MANCAVA ────────────────────────────────────
+  // Qui si scriveva solo `values`. Da v0.77.58 pero' i valori veri si rifanno
+  // a ogni disegno da `valoriBase` piu' le sinergie: lasciandola indietro, il
+  // primo ridisegno riportava i numeri della carta VECCHIA. E' lo stesso
+  // difetto della Lepre Marzolina (v0.77.88), da un'altra porta.
+  // I colpi presi si riportano per GRUPPO e non per lato: un gruppo e' un
+  // numero solo (v0.77.91), e i gruppi della carta nuova possono essere
+  // diversi da quelli della vecchia. Si prende lo scarto del primo lato del
+  // gruppo, che e' il lato da cui si legge il suo numero.
+  const _nuovaBase = {...nuova.values};
+  try{
+    for(const g of gruppiDiCarta(card, _nuovaBase)){
+      const d = _addosso[g.sides[0]] || 0;
+      if(!d) continue;
+      for(const s of g.sides) _nuovaBase[s] = Math.max(0, (_nuovaBase[s]||0) + d);
+    }
+  }catch(_){ }
+  card.valoriBase = {..._nuovaBase};
+  card.values     = {..._nuovaBase};
   card.traits = (nuova.traits||[]).slice();
   card.rarity = nuova.rarity || card.rarity;
   card.cardAbility = nuova.cardAbility || null;
@@ -30127,12 +30181,15 @@ function motoreMomentoSempre(){
     if(T && _condizioneVeraQui(T.a.se, posto.card, scena)){
       _motore().segnaScatto(posto.card, momento, scena);
       const dove = posto.chiave;
+      const fare = ()=> _trasformaDalFoglio(posto.card, T.eff, T.a);
       if(dove){
         const [tq, tr] = String(dove).split(',').map(Number);
-        try{ trasformaConLampo(dove, posto.card, tq, tr, ()=>{}); }
-        catch(_){ _trasformaDalFoglio(posto.card, T.eff, T.a); }
+        // La voce e' quella della carta d'arrivo, scoperta dall'importazione.
+        posto.card.__voceTrasformazione = T.entry.voceTrasformazione || null;
+        try{ trasformaConLampo(dove, posto.card, tq, tr, ()=>{}, fare); }
+        catch(_){ fare(); }
       } else {
-        _trasformaDalFoglio(posto.card, T.eff, T.a);
+        fare();
       }
       mosso = true;
       continue;
