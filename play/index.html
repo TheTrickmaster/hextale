@@ -9668,15 +9668,16 @@ body.prova-senza-willchange #mm-book-rot{
       <div class="mm2-box" id="mm2-gioca">
         <img class="mm2-box-sfondo" id="mm2-gioca-bg" alt="" draggable="false">
         <img id="mm2-find-glow" alt="" draggable="false">
-        <div id="mm2-gioca-deck"></div>
-      <!-- ── v0.78.19 — quanti stanno giocando adesso ─────────────────────
-           Fra il mazzo e "Find opponent": e' l'informazione che si guarda un
-           istante prima di premere quel pulsante, e sta dove si sta gia'
-           guardando. Nei due posti precedenti — dentro alla barra in alto e
-           poi appeso allo sfondo — non si e' mai visto: qui e' in FILA con
-           gli altri due elementi, quindi non puo' finire fuori dalla scatola
-           di nessuno. -->
+      <!-- ── v0.78.19 — quanti sono collegati adesso ──────────────────────
+           In FILA con gli altri due elementi della scatola, quindi non puo'
+           finire fuori dalla scatola di nessuno — nei due posti precedenti,
+           dentro alla barra in alto e appeso allo sfondo, non si e' mai visto.
+           v0.78.21 — sopra al pulsante del mazzo, non piu' sotto.
+           Il testo sta QUI e non lo scrive il codice: e' quel che si vede dal
+           primo disegno, e un div vuoto e un elemento assente si somigliano
+           troppo. Il codice non fa altro che sostituirlo col numero vero. -->
       <div id="mm2-online">— players online</div>
+        <div id="mm2-gioca-deck"></div>
       <button id="mm2-find" class="hx-btn hx-btn-important" type="button" onclick="mm2CercaAvversario()">
         <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
         <span class="hxb-label">Find opponent</span>
@@ -10257,7 +10258,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.78.20</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.78.21</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -15956,21 +15957,30 @@ function mmFermaCronometro(){
 // Si chiede solo mentre il menu principale e' davvero a schermo: una domanda
 // ogni venti secondi da una pagina che nessuno sta guardando e' rumore verso il
 // server, e per giunta un rumore che cresce con quanti giocano.
-const ONLINE_OGNI_MS = 20000;
+// ── v0.78.21 — UN BATTITO, NON UNA DOMANDA ────────────────────────────────
+// Il server non tiene un contatore: tiene l'ultima volta in cui ciascuno si e'
+// fatto vivo, e online e' chi si e' fatto vivo di recente (vedi
+// rpcGiocatoriOnline). Questa chiamata e' quindi due cose insieme — dice "ci
+// sono" e chiede "quanti siamo" — ed e' per questo che deve battere SEMPRE,
+// non solo mentre si guarda il menu: chi sta giocando una partita e' online
+// quanto chi sta scegliendo il mazzo, e se smettesse di battere sparirebbe dal
+// conto proprio mentre gioca.
+// Trenta secondi: il server considera vivo un battito per novanta, quindi ce ne
+// vogliono tre persi di fila prima che qualcuno sparisca dal conto.
+const ONLINE_OGNI_MS = 30000;
 let _onlineTimer = null;
 let _onlineLamentato = false;
 async function aggiornaGiocatoriOnline(){
-  const el = document.getElementById('mm2-online');
-  if(!el) return;
-  // v0.78.18 — c'e' comunque, anche prima di avere un numero.
-  if(!el.textContent) el.textContent = '— players online';
+  // v0.78.21 — il battito parte anche se il riquadro non e' in pagina: serve a
+  // dire "ci sono", e lo si deve dire anche da dentro una partita.
   if(!sessioneAccount || !sessioneAccount.token) return;
+  const el = document.getElementById('mm2-online');
   try{
     const r = await nakamaRpc('hx_giocatori', {});
     const n = (r && typeof r.giocatori === 'number') ? r.giocatori : null;
     // Se il server non sa rispondere si lascia quel che c'era: sostituirlo con
-    // uno zero direbbe "non gioca nessuno", che e' un'altra cosa da "non lo so".
-    if(n === null) return;
+    // uno zero direbbe "non c'e' nessuno", che e' un'altra cosa da "non lo so".
+    if(n === null || !el) return;
     el.textContent = n + (n === 1 ? ' player online' : ' players online');
   }catch(e){
     // Il menu non si rovina per un contatore, ma il silenzio totale rende
@@ -15982,17 +15992,12 @@ async function aggiornaGiocatoriOnline(){
 }
 function avviaContatoreOnline(){
   if(_onlineTimer) return;
-  const giro = ()=>{
-    // v0.78.20 — la visibilita- del menu decide se CHIEDERE al server, non se
-    // il contatore esista: il testo sta nel markup e c'e- dal primo disegno.
-    // Prima era questa condizione a decidere anche se scrivere qualcosa, e
-    // bastava che il giro capitasse un istante prima che la pagina fosse in
-    // scena perche- il riquadro restasse vuoto per sempre.
-    const mm = document.getElementById('mm2');
-    if(mm && mm.offsetParent !== null) aggiornaGiocatoriOnline();
-  };
-  giro();
-  _onlineTimer = setInterval(giro, ONLINE_OGNI_MS);
+  // v0.78.21 — niente condizioni su quale pagina si stia guardando: il battito
+  // dice al server che questo giocatore c'e', e c'e' anche mentre gioca.
+  // Scrivere il numero, invece, ha senso solo se il riquadro e' in pagina — e
+  // quello lo decide aggiornaGiocatoriOnline, che lo trova o non lo trova.
+  aggiornaGiocatoriOnline();
+  _onlineTimer = setInterval(aggiornaGiocatoriOnline, ONLINE_OGNI_MS);
 }
 // ══════════════════════════════════════════════════════════════════════════
 // v0.78.16 — LE CARTE ANCORA DA GUARDARE
@@ -18903,6 +18908,9 @@ function apriMenuPrincipale(){
   const start = document.getElementById('start-screen');
   if(start) start.style.display = 'none';
   showPage('mainmenu');
+  // v0.78.21 — da qui in poi il giocatore e' DENTRO: da adesso l'avviso di
+  // versione vecchia puo' comparire, e da adesso si guarda a intervalli.
+  try{ sorvegliaLaVersione(); }catch(_){ }
   if(!_patchNotesProposte){
     _patchNotesProposte = true;
     setTimeout(()=>{ try { caricaPatchNotes({automatico:true}); } catch(_){} }, 500);
@@ -25665,10 +25673,41 @@ function bloccaPerAggiornamento(mia, ultima){
     scrivi();
   }, 1000);
 }
+// ══════════════════════════════════════════════════════════════════════════
+// v0.78.21 — L'AVVISO DI VERSIONE VECCHIA: DA DENTRO, E SEMPRE
+// ══════════════════════════════════════════════════════════════════════════
+// Due cose, e prima non ne valeva nessuna delle due.
+//
+// DA DENTRO. Il controllo partiva col caricamento delle note, che avviene
+// mentre si e' ancora sulla schermata d'accesso: la finestra che blocca tutto
+// compariva davanti al modulo di login, dove non c'e' niente da aggiornare che
+// il giocatore possa ancora perdere, e dove e' solo in mezzo ai piedi.
+//
+// SEMPRE. Il controllo si faceva due volte, tutte e due nei primi secondi. Un
+// client aperto da un'ora non scopriva mai che nel frattempo era uscita una
+// versione nuova — e quello e' proprio il caso che conta, perche' un client
+// vecchio in rete gioca una partita diversa dall'altro.
+// Adesso si guarda a intervalli, finche' il gioco e' aperto. Il primo sguardo
+// e' quello che si da' entrando.
+let _giocatoreDentro = false;
+const VERSIONE_OGNI_MS = 5 * 60 * 1000;
+let _sorveglianzaVersione = null;
+function sorvegliaLaVersione(){
+  _giocatoreDentro = true;
+  if(_sorveglianzaVersione) return;
+  if(typeof window !== 'undefined' && window.hextaleDesktop) return;
+  const guarda = ()=>{ try{ caricaPatchNotes({soloVersione:true}); }catch(_){ } };
+  guarda();
+  _sorveglianzaVersione = setInterval(guarda, VERSIONE_OGNI_MS);
+}
 // Chiamata quando le note di rilascio sono state lette: e' li' che si scopre
 // qual e' l'ultima versione pubblicata.
 function controllaVersioneDaNote(versioni){
   if(typeof window !== 'undefined' && window.hextaleDesktop) return;
+  // Fuori non si blocca niente: la finestra ha senso solo per chi e' dentro.
+  // Non si perde nulla — chi entra viene guardato subito (vedi
+  // sorvegliaLaVersione, chiamata da apriMenuPrincipale).
+  if(!_giocatoreDentro) return;
   if(!Array.isArray(versioni) || !versioni.length) return;
   const ultima = String(versioni[0].versione || '').trim();
   const mia = versioneDiQuestoClient();
@@ -25761,7 +25800,13 @@ function chiudiPatchNotes(){
 function caricaPatchNotes(opzioni){
   const modo = { automatico: !!(opzioni && opzioni.automatico) };
   const soloCarica = !!(opzioni && opzioni.soloCarica);
-  const consegna = (versioni)=> soloCarica ? riempiPatchNotes(versioni) : mostraPatchNotes(versioni, modo);
+  // v0.78.21 — `soloVersione` e' la lettura che fa la sorveglianza: prende il
+  // file per sapere qual e' l'ultima versione e non tocca il riquadro delle
+  // note, che potrebbe essere aperto e non deve muoversi sotto agli occhi di
+  // chi lo sta leggendo.
+  const soloVersione = !!(opzioni && opzioni.soloVersione);
+  const consegna = (versioni)=> soloVersione ? null
+                 : (soloCarica ? riempiPatchNotes(versioni) : mostraPatchNotes(versioni, modo));
   // Prima si mostra cio' che si era gia' letto: se la rete risponde, il
   // contenuto viene sostituito un attimo dopo. Meglio note leggermente
   // vecchie subito che un riquadro vuoto che forse si riempie.
@@ -25774,7 +25819,7 @@ function caricaPatchNotes(opzioni){
   // v0.73.9 — il controllo della versione parte insieme alle note e per conto
   // suo: le due richieste non si aspettano a vicenda, e se quella della
   // versione fallisce le note si vedono lo stesso (e viceversa).
-  try { controllaAggiornamentoAllAvvio(); } catch(_){}
+  if(!soloVersione){ try { controllaAggiornamentoAllAvvio(); } catch(_){} }
 
   const url = 'https://api.github.com/repos/' + GITHUB_REPO + '/contents/' + PATCH_NOTES_FILE;
   _githubJsonp(url, 8000).then(esito => {

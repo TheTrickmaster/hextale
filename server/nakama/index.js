@@ -1128,17 +1128,46 @@ function applicaEsito(nk, userId, vinta, pari, controIA, turni, modo) {
 // e quanta gente c'e' dentro. Se sbaglia, sbaglia per un attimo e si corregge
 // da sola al giro dopo.
 // Il numero e' pubblico e non dice niente di nessuno: quante persone, punto.
+// ── v0.78.21 — "ONLINE" VUOL DIRE COLLEGATO, NON "IN PARTITA" ─────────────
+// La prima versione contava le presenze nelle partite vive. Era il numero
+// sbagliato: due persone nel menu principale sono due persone online, e
+// `matchList` le vedeva come zero.
+//
+// Non si tiene comunque un contatore da alzare e abbassare — quello si gonfia
+// alla prima disconnessione brusca e non torna piu' giu'. Si tiene l'ULTIMA
+// VOLTA IN CUI CIASCUNO SI E' FATTO VIVO: il client batte ogni trenta secondi
+// (vedi battitoOnline), e online e' chi si e' fatto vivo di recente. Un client
+// che sparisce smette semplicemente di battere, e sparisce da se': non c'e'
+// nessuna "uscita" da ricordarsi di gestire, che e' la meta' che si dimentica
+// sempre.
+//
+// La finestra e' piu' larga del passo del battito, cosi' un battito perso per
+// strada non fa lampeggiare il numero.
+//
+// Due client che battono nello stesso istante si sovrascrivono a vicenda e uno
+// dei due battiti va perso: torna trenta secondi dopo, e nel frattempo il
+// numero e' piu' basso di uno. E' il prezzo di tenere tutto in un record solo,
+// ed e' accettabile finche' i giocatori sono decine; diventando centinaia,
+// questo record va spezzato.
+var PRESENZA_VIVA_MS = 90 * 1000;
+var KEY_PRESENZE = 'presenze';
 function rpcGiocatoriOnline(ctx, logger, nk, payload) {
-  var quanti = 0;
-  try {
-    // Solo le partite gia' cominciate: due che si stanno accoppiando non
-    // stanno ancora giocando.
-    var lista = nk.matchList(100, true, '', 1, 2, '');
-    for (var i = 0; i < lista.length; i++) quanti += (lista[i].size || 0);
-  } catch (e) {
-    logger.warn('non riesco a contare le partite: %s', String(e));
-    return JSON.stringify({ giocatori: 0, incerto: true });
+  var ora = Date.now();
+  var visti = null;
+  try { visti = leggiSistema(nk, KEY_PRESENZE); } catch (e) { visti = null; }
+  if (!visti || typeof visti !== 'object') visti = {};
+  if (ctx.userId) visti[ctx.userId] = ora;
+  var vivi = {}, quanti = 0;
+  for (var u in visti) {
+    var quando = visti[u];
+    if (typeof quando === 'number' && (ora - quando) <= PRESENZA_VIVA_MS) {
+      vivi[u] = quando; quanti++;
+    }
   }
+  // La scrittura non deve poter far fallire la risposta: il numero e' gia'
+  // buono, e un battito non scritto si riscrive fra trenta secondi.
+  try { scriviSistema(nk, KEY_PRESENZE, vivi); }
+  catch (e2) { logger.warn('battito non scritto: %s', String(e2)); }
   return JSON.stringify({ giocatori: quanti });
 }
 
