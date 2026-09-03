@@ -88,6 +88,16 @@ var XP_RESTA_VINCENDO = 50;       // gli restano davanti a un tavolo vuoto, ment
 var XP_RESTA_PERDENDO = 35;       // idem, ma stava perdendo: piu- di una sconfitta, meno di una vittoria
 var XP_USCITO = 0;                // chi si disconnette, crasha, o esce: solo i turni
 
+// v0.78.12 — l'inchiostro magico segue la stessa forma dell'esperienza: dieci
+// per una vittoria, cinque per una sconfitta, niente per chi lascia la partita
+// a meta'. Chi si arrende ha concluso, quindi prende i cinque della sconfitta.
+var INK_VITTORIA = 10;
+var INK_SCONFITTA = 5;
+// E ogni cinque partite si guadagna una bustina. Il conto lo tiene il server
+// insieme al resto: e' un premio, e un premio che il client puo' scrivere non
+// e' un premio.
+var PARTITE_PER_BUSTINA = 5;
+
 // Il premio di fine partita per UN giocatore, dato come e' finita per lui.
 // `modo` puo' essere:
 //   'finita'  la partita e' arrivata alla fine (anche per resa dell'altro)
@@ -99,6 +109,11 @@ function xpDiFine(modo, vinta) {
   if (modo === 'resa') return XP_RESA;
   if (modo === 'resta') return vinta ? XP_RESTA_VINCENDO : XP_RESTA_PERDENDO;
   return vinta ? XP_VITTORIA : XP_SCONFITTA;
+}
+function inkDiFine(modo, vinta) {
+  if (modo === 'uscito') return 0;
+  if (modo === 'resa') return INK_SCONFITTA;   // arrendersi e' concludere, perdendo
+  return vinta ? INK_VITTORIA : INK_SCONFITTA;
 }
 // Un giocatore non puo' aver giocato piu' turni di quante siano le caselle:
 // e' il tetto naturale, e serve solo dove il numero lo dichiara un client
@@ -475,6 +490,11 @@ function rpcAvvio(ctx, logger, nk, payload) {
     // Quando la prossima bustina gratuita sara' pronta, in millisecondi. Zero
     // vuol dire "adesso": chi non ne ha mai raccolta una non deve aspettare.
     bustinaProssima: (typeof possesso.bustinaProssima === 'number') ? possesso.bustinaProssima : 0,
+    // v0.78.12 — le bustine GUADAGNATE giocando, e a che punto si e' della
+    // prossima. Sono un'altra strada per averne una, indipendente dall'attesa.
+    bustineExtra: possesso.bustineExtra || 0,
+    versoBustina: possesso.versoBustina || 0,
+    partitePerBustina: PARTITE_PER_BUSTINA,
     // v0.77.53 — l'avatar dell'account, che i pannelli di partita mostrano
     // accanto al nome. Sta fra i campi che Nakama tiene da se' (non nei
     // metadati), quindi si legge di la' e non da un oggetto nostro.
@@ -779,7 +799,12 @@ function rpcBustinaRaccogli(ctx, logger, nk, payload) {
   // sullo stesso browser si passavano l'attesa a vicenda. Adesso il conto parte
   // qui, nella stessa scrittura che consegna le carte, e non c'e' modo di
   // separare le due cose.
-  possesso.bustinaProssima = Date.now() + BUSTINA_ATTESA_MS;
+  // v0.78.12 — se c'e' una bustina GUADAGNATA (cinque partite giocate), si
+  // spende quella e l'attesa delle otto ore non si tocca: sono due strade
+  // diverse per avere una bustina, e farle interferire vorrebbe dire che
+  // vincerne una ti allontana dalla prossima gratuita.
+  if ((possesso.bustineExtra || 0) > 0) possesso.bustineExtra -= 1;
+  else possesso.bustinaProssima = Date.now() + BUSTINA_ATTESA_MS;
   scriviPossesso(nk, ctx.userId, possesso);
   cancellaBustina(nk, ctx.userId);
 
@@ -797,6 +822,7 @@ function rpcBustinaRaccogli(ctx, logger, nk, payload) {
     speso: costo,
     valute: valute,
     bustinaProssima: possesso.bustinaProssima,
+    bustineExtra: possesso.bustineExtra || 0,
     possedute: _possedute(carte, possesso, admin)
   });
 }
@@ -939,6 +965,14 @@ function applicaEsito(nk, userId, vinta, pari, controIA, turni, modo) {
   turni = turniPuliti(turni);
   modo = modo || 'finita';
 
+  // ── v0.78.12 — CONTRO L'IA NON SI GUADAGNA NIENTE. MAI. ─────────────────
+  // Ne' esperienza, ne' rank, ne' inchiostro, ne' avanzamento verso la
+  // bustina. Il rank era gia' fuori dalla v0.77.x; l'esperienza no, e bastava
+  // battere il computer in fila per salire di livello — cioe' una misura di
+  // quanta voglia si ha di premere un pulsante, non di quanto si gioca.
+  // Una partita contro l'IA e' una partita di prova: si gioca per giocare.
+  var premia = !controIA;
+
   // ── esperienza ──────────────────────────────────────────────────────────
   // Un pareggio non e' una vittoria: vale come una sconfitta per l'esperienza,
   // e non muove il rank.
@@ -946,8 +980,8 @@ function applicaEsito(nk, userId, vinta, pari, controIA, turni, modo) {
   // viaggiano anche separate nella risposta: la schermata di fine partita puo'
   // dire "18 dai turni + 50 per la vittoria" invece di un 68 che non si
   // spiega.
-  var xpTurni = XP_PER_TURNO * turni;
-  var xpEsito = xpDiFine(modo, vinta);
+  var xpTurni = premia ? (XP_PER_TURNO * turni) : 0;
+  var xpEsito = premia ? xpDiFine(modo, vinta) : 0;
   var guadagno = xpTurni + xpEsito;
   if (p.livello < LIVELLO_MAX) {
     p.xp += guadagno;
@@ -968,7 +1002,7 @@ function applicaEsito(nk, userId, vinta, pari, controIA, turni, modo) {
   // compenso non premia nemmeno chi resta: il rank misura le partite giocate
   // fino in fondo.
   var conclusa = (modo !== 'uscito' && modo !== 'resta');
-  if (!controIA && !pari && conclusa) {
+  if (premia && !pari && conclusa) {
     if (vinta) {
       p.sconfitteDiFila = 0;
       p.puntiRank += RANK_VITTORIA;
@@ -997,6 +1031,41 @@ function applicaEsito(nk, userId, vinta, pari, controIA, turni, modo) {
 
   // La partita si conta comunque: quel tempo il giocatore l'ha speso, e le
   // partite giocate sono un conto di tempo.
+  // ── v0.78.12 — L'INCHIOSTRO E LA BUSTINA ────────────────────────────────
+  // Non stanno nel profilo di stagione ma nel POSSESSO, che e' dove vivono le
+  // valute e le carte. Si scrivono qui perche' qui si sa com'e' andata: e' lo
+  // stesso principio dell'esperienza, e per la stessa ragione non lo si chiede
+  // al client.
+  // `try` intorno a tutto: una bustina non consegnata non deve poter far
+  // fallire la scrittura dell'esperienza, che e' la cosa piu' importante.
+  var ink = 0, versoBustina = 0, bustinaVinta = false, valute = null;
+  if (premia) {
+    try {
+      var possesso = leggiPossesso(nk, userId);
+      if (possesso) {
+        ink = inkDiFine(modo, vinta);
+        var v = valuteDi(possesso);
+        v.magicInk += ink;
+        possesso.valute = v;
+        // L'avanzamento verso la bustina lo fa ogni partita conclusa. Chi esce
+        // a meta' non avanza: e' lo stesso metro dell'inchiostro.
+        if (conclusa) {
+          versoBustina = (possesso.versoBustina || 0) + 1;
+          if (versoBustina >= PARTITE_PER_BUSTINA) {
+            versoBustina = 0;
+            possesso.bustineExtra = (possesso.bustineExtra || 0) + 1;
+            bustinaVinta = true;
+          }
+          possesso.versoBustina = versoBustina;
+        } else {
+          versoBustina = possesso.versoBustina || 0;
+        }
+        scriviPossesso(nk, userId, possesso);
+        valute = v;
+      }
+    } catch (ep) { /* i premi non devono poter rompere l'esito */ }
+  }
+
   p.partite = (p.partite || 0) + 1;
   // La VITTORIA no, se la partita non si e' conclusa. Chi resta in campo
   // mentre stava vincendo prende l'esperienza di una vittoria — gli hanno
@@ -1016,6 +1085,15 @@ function applicaEsito(nk, userId, vinta, pari, controIA, turni, modo) {
     xpEsito: xpEsito,
     turniGiocati: turni,
     modoFine: modo,
+    // v0.78.12 — cosa si e' guadagnato oltre all'esperienza, e a che punto si
+    // e' del cammino verso la prossima bustina. La schermata di fine partita
+    // disegna esattamente questi numeri: non ne calcola nessuno per conto suo.
+    inkGuadagnato: ink,
+    valute: valute,
+    versoBustina: versoBustina,
+    partitePerBustina: PARTITE_PER_BUSTINA,
+    bustinaVinta: bustinaVinta,
+    controIA: controIA,
     xpPerSalire: xpPerSalire(p.livello),
     ranghi: RANGHI
   };

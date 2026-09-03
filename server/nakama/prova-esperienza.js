@@ -25,6 +25,7 @@ const src = fs.readFileSync(F, 'utf8');
 let M;
 try {
   M = new Function(src + '; return { xpDiFine: xpDiFine, turniPuliti: turniPuliti, ' +
+    'inkDiFine: inkDiFine, PARTITE_PER_BUSTINA: PARTITE_PER_BUSTINA, ' +
     'XP_PER_TURNO: XP_PER_TURNO, XP_VITTORIA: XP_VITTORIA, XP_SCONFITTA: XP_SCONFITTA };')();
 } catch (e) {
   console.log('non riesco a caricare il modulo del server: ' + e.message);
@@ -68,6 +69,39 @@ conta('un numero negativo vale zero', M.turniPuliti(-5), 0);
 conta('niente vale zero', M.turniPuliti(undefined), 0);
 conta('un testo vale zero', M.turniPuliti('molti'), 0);
 conta('un decimale si arrotonda in giu-', M.turniPuliti(7.9), 7);
+
+console.log('\nL-INCHIOSTRO MAGICO\n');
+conta('vittoria', M.inkDiFine('finita', true), 10);
+conta('sconfitta', M.inkDiFine('finita', false), 5);
+conta('resa (ha concluso, perdendo)', M.inkDiFine('resa', false), 5);
+conta('disconnesso, crashato, uscito', M.inkDiFine('uscito', false), 0);
+conta('resta, stava vincendo', M.inkDiFine('resta', true), 10);
+conta('resta, stava perdendo', M.inkDiFine('resta', false), 5);
+
+console.log('\nLA BUSTINA\n');
+conta('una ogni cinque partite', M.PARTITE_PER_BUSTINA, 5);
+
+// ── v0.78.12 — CONTRO L'IA NON SI GUADAGNA NIENTE. MAI. ──────────────────
+// Non e' una sfumatura: e' la regola che tiene in piedi il rank e il livello.
+// Se un domani qualcuno togliesse la guardia `premia`, si tornerebbe a poter
+// salire di livello battendo il computer in fila — cioe' a misurare la voglia
+// di premere un pulsante invece di quanto si gioca.
+console.log('\nE CONTRO L-IA NON SI GUADAGNA NIENTE\n');
+const guardie = [
+  { nome: 'esperienza, inchiostro e bustina si danno solo se `premia`',
+    prova: /var premia = !controIA;/ },
+  { nome: 'i turni e il premio di fine passano da `premia`',
+    prova: /var xpTurni = premia \? \(XP_PER_TURNO \* turni\) : 0;/ },
+  { nome: 'il rank pure',
+    prova: /if \(premia && !pari && conclusa\) \{/ },
+  { nome: 'e l-inchiostro e la bustina non si scrivono nemmeno',
+    prova: /if \(premia\) \{[\s\S]{0,200}?leggiPossesso/ },
+];
+for (const g of guardie) {
+  const buono = g.prova.test(src);
+  if (!buono) ko++;
+  console.log('  ' + (buono ? 'ok    ' : 'ROTTA ') + g.nome);
+}
 
 // E le tre strade che scrivono l'esito devono passare il modo e i turni.
 console.log('\nCHI SCRIVE L-ESITO LO DICE COM-E- FINITA\n');

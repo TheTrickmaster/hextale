@@ -4878,37 +4878,153 @@ body.io-sono-2 #p1-info .player-avatar-photo{ transform:scaleX(-1); }
    restano solo come classi che nessuno stile usa. Non le tolgo perche' il
    riquadro di debug le passa ancora, e riceverle senza che facciano niente e'
    corretto: la schermata e' una sola per tutti e tre gli esiti. */
-.go-box{
-  position:relative;
-  width:1920px; height:315px;
-  display:flex; align-items:center; justify-content:center;
+/* ══════════════════════════════════════════════════════════════════════
+   v0.78.12 — LA SCHERMATA DI FINE PARTITA
+   ══════════════════════════════════════════════════════════════════════
+   Una fascia a tutta larghezza con dentro, dall'alto: la testata (end-game-bg,
+   il nome di chi ha vinto, i punteggi coi due ritratti) e sotto le ricompense.
+   I due pulsanti stanno FUORI dalla fascia, sotto.
+   L'altezza non e' scritta da nessuna parte: la da' il contenuto. Un premio in
+   piu' domani non chiede di venire qui a correggere un numero. */
+#gameover-fascia{
+  position:relative; z-index:1;
+  width:100%;
+  /* Il raggio se ne va: la fascia tocca i due bordi dello schermo, e un angolo
+     arrotondato contro il bordo mostra l'incavo — direbbe "galleggio" invece
+     di "attraverso". Fondo, cornice e trama restano quelli di .hx-pannello. */
+  border-radius:0;
+  border-left:none; border-right:none;
+  padding:40px 0;
+  gap:0;
+  align-items:stretch;
   font-family:var(--font-body); color:var(--text);
 }
-#gameover-bg{
-  position:absolute; inset:0;
-  width:100%; height:100%;
-  object-fit:fill;
-  pointer-events:none; z-index:0;
+/* ── LA TESTATA ────────────────────────────────────────────────────────────
+   L'immagine NON si stira: tiene la sua proporzione e, su uno schermo piu'
+   stretto dei suoi 1920, si lascia tagliare ai lati. Una fascia decorata
+   schiacciata in larghezza si riconosce subito, e male. */
+#gameover-testata{
+  position:relative;
+  width:100%; min-height:227px;    /* l'altezza vera di end-game-bg.png */
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:10px; padding:18px 0; box-sizing:border-box;
+  background-image:var(--go-testata-bg, none);
+  background-repeat:no-repeat; background-position:center center;
+  background-size:auto 100%;
 }
-#gameover-content{
-  position:relative; z-index:1;
-  display:flex; flex-direction:column; align-items:center;
-  gap:30px;                       /* i 30px chiesti fra nome e pulsanti */
-}
-#gameover-motivo{
-  font-family:var(--font-body); font-size:20px; color:#C9C2B0;
-  text-align:center; margin-top:6px; text-shadow:0 0 4px rgba(0,0,0,0.9);
-}
-#gameover-motivo:empty{ display:none; }
 #gameover-title span{
+  display:inline-block;
   font-family:'Marcellus SC','Marcellus',serif;
-  font-size:60px; color:#D4CBB9;
+  font-size:60px; color:#FDF5E5;
   filter:drop-shadow(0 0 10px rgba(0,0,0,1));
   white-space:nowrap;
 }
+/* ── I PUNTEGGI ────────────────────────────────────────────────────────────
+   Da sinistra: i miei punti, il mio ritratto, il trattino, il suo ritratto, i
+   suoi punti. Specchiati attorno al trattino, che e' il modo in cui un
+   risultato si legge senza doverlo spiegare. */
+#gameover-punteggi{
+  display:flex; flex-direction:row; align-items:center; justify-content:center;
+  gap:12px;
+}
+/* Stesso oro e stesso carattere del punteggio nella bolla in partita: e' lo
+   stesso numero, e deve avere la stessa faccia. */
+.go-punti, .go-dash{
+  font-family:'Marcellus SC','Marcellus',var(--font-display),serif;
+  font-weight:400; font-size:40px; line-height:1;
+  font-variant-numeric:tabular-nums;
+  background-image:linear-gradient(135deg, #FFD376 0%, #FFF1D4 50%, #FFD376 100%);
+  -webkit-background-clip:text; background-clip:text;
+  -webkit-text-fill-color:transparent; color:transparent;
+  filter:drop-shadow(0 2px 6px rgba(0,0,0,1));
+}
+/* Il ritratto e' quello dei pannelli di partita, alla misura di qui: stessa
+   apertura misurata sul canale alfa della cornice (vedi .player-avatar-photo),
+   percentuali identiche perche' e' la stessa immagine. */
+.go-avatar{
+  position:relative; height:54px; width:calc(54px * 749 / 834);
+  flex:0 0 auto;
+}
+.go-avatar-foto{
+  position:absolute; left:15.5%; top:13%; width:69%; height:72%;
+  object-fit:cover;
+  clip-path:polygon(50% 0%, 100% 25.1%, 100% 74.5%, 50% 100%, 0% 74.5%, 0% 25.1%);
+}
+.go-avatar-cornice{ position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+#go-avatar-suo .go-avatar-foto{ transform:scaleX(-1); }   /* si guardano in faccia */
+#gameover-motivo{
+  font-family:var(--font-body); font-size:20px; color:#C9C2B0;
+  text-align:center; margin-top:12px; text-shadow:0 0 4px rgba(0,0,0,0.9);
+}
+#gameover-motivo:empty{ display:none; }
+/* ── LE RICOMPENSE ────────────────────────────────────────────────────────*/
+#gameover-premi-titolo{
+  font-family:'Rosarivo',serif; font-size:20px; color:#EDE0C6;
+  text-align:center; margin-top:40px;
+}
+#gameover-premi{
+  display:flex; flex-direction:row; align-items:center; justify-content:center;
+  gap:16px; margin-top:12px;
+}
+.go-premio{
+  height:100px; padding:0 30px; box-sizing:border-box;
+  display:flex; flex-direction:row; align-items:center; justify-content:center;
+  gap:14px;
+}
+.go-premio-icona{ width:auto; display:block; }
+#go-icona-xp{ height:74px; }
+#go-icona-ink{ height:92px; }
+#go-icona-pack{ height:84px; }
+/* La bustina resta spenta finche' non e' guadagnata: si vede che esiste e si
+   capisce che manca qualcosa, invece di chiedersi dove sia. */
+#go-premio-pack:not(.vinta) #go-icona-pack{ opacity:0.4; }
+.go-premio-testo{
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:2px;
+}
+.go-premio-num{
+  font-family:'Rosarivo',serif; font-size:50px; line-height:1; color:#FFD480;
+  font-variant-numeric:tabular-nums;
+  text-shadow:0 2px 6px rgba(0,0,0,0.9);
+}
+.go-premio-eti{
+  font-family:'Rosarivo',serif; font-size:20px; line-height:1; color:#EDE0C6;
+}
+/* La barra e il "1x" sono due stati dello stesso posto, non due posti: finche'
+   la bustina non e' guadagnata si vede la barra, e quando si riempie sparisce
+   e lascia il numero. */
+.go-pack-barra{ width:150px; margin-bottom:8px; }
+#go-premio-pack:not(.vinta) #go-pack-num{ display:none; }
+#go-premio-pack.vinta .go-pack-barra{ display:none; }
 #gameover-actions{
   display:flex; flex-direction:row; gap:20px;
+  margin-top:40px;                /* i 40px chiesti sotto alla fascia */
+  position:relative; z-index:1;
 }
+/* ── L'ENTRATA ────────────────────────────────────────────────────────────
+   La fascia c'e' subito; tutto il resto arriva a suo tempo, e ogni pezzo parte
+   spento. La scaletta la detta il JS pezzo per pezzo (vedi goEntrata) e non
+   questi ritardi: scritta qui sarebbe fissa, e dipende invece da cosa c'e' da
+   mostrare — una partita che non da' inchiostro non deve far aspettare la
+   bustina per un premio che non arriva. */
+.go-appare{ opacity:0; }
+.go-appare.go-visto{ animation:goAppare 0.42s ease-out forwards; }
+@keyframes goAppare{ from{ opacity:0; transform:translateY(6px); } to{ opacity:1; transform:none; } }
+/* Il nome di chi ha vinto pulsa e lampeggia di bianco. */
+@keyframes goTitolo{
+  0%   { transform:scale(0.94); color:#FFFFFF; filter:drop-shadow(0 0 24px rgba(255,255,255,0.95)); }
+  50%  { transform:scale(1.07); color:#FFFFFF; filter:drop-shadow(0 0 18px rgba(255,255,255,0.85)); }
+  100% { transform:scale(1);    color:#FDF5E5; filter:drop-shadow(0 0 10px rgba(0,0,0,1)); }
+}
+#gameover-title span.go-pulsa{ animation:goTitolo 0.3s ease-out; }
+/* E ogni icona entra allo stesso modo, ognuna al proprio turno. */
+@keyframes goIcona{
+  0%   { transform:scale(0.7);  filter:brightness(3) drop-shadow(0 0 16px rgba(255,255,255,0.9)); }
+  55%  { transform:scale(1.12); filter:brightness(1.8) drop-shadow(0 0 12px rgba(255,255,255,0.7)); }
+  100% { transform:scale(1);    filter:none; }
+}
+.go-premio-icona.go-pulsa{ animation:goIcona 0.36s ease-out; }
+.go-pack-barra .hx-capacity-mask{ transition:width 0.9s cubic-bezier(0.22,0.61,0.36,1); }
 /* Larghezza fissa a 330px l'uno: i pulsanti hanno una larghezza naturale che
    dipende da quanto e' lungo il testo, e due etichette diverse darebbero due
    pulsanti diversi. Qui devono essere una coppia. */
@@ -9962,25 +10078,77 @@ body.prova-senza-willchange #mm-book-rot{
      pulsanti. #gameover-box resta come contenitore per non spostare lo
      scrim e i suoi stati, ma non ha piu' fondo ne' cornice sue. -->
 <div id="gameover">
-  <div id="gameover-box" class="go-box">
-    <img id="gameover-bg" src="" alt="" draggable="false">
-    <div id="gameover-content">
+  <!-- ── v0.78.12 — LA FASCIA DEI RISULTATI ───────────────────────────────
+       Il contenitore prende tutta la larghezza e si alza quanto basta al suo
+       contenuto: non ha un'altezza sua, e non deve averla — un giorno le
+       ricompense saranno quattro invece di tre.
+       Fondo e cornice sono quelli di ogni finestra del gioco (.hx-pannello),
+       senza raggio: contro i due bordi dello schermo un angolo arrotondato
+       mostrerebbe l'incavo e direbbe "questo riquadro galleggia". -->
+  <div id="gameover-fascia" class="hx-pannello">
+    <!-- La testata: end-game-bg, il nome di chi ha vinto, i due punteggi. -->
+    <div id="gameover-testata">
       <div id="gameover-title"><span id="gameover-title-text"></span></div>
-      <!-- v0.78.6 — perche' e' finita cosi'. Vuota quasi sempre (una partita
-           che finisce col tabellone pieno non ha niente da spiegare) e occupa
-           spazio solo quando ha qualcosa da dire. -->
-      <div id="gameover-motivo"></div>
-      <div id="gameover-actions">
-        <button id="btn-view-board" class="hx-btn" onclick="toggleBoardView(true)">
-          <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
-          <span class="hxb-label">View board</span>
-        </button>
-        <button id="btn-back-main" class="hx-btn" onclick="backToMainMenu()">
-          <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
-          <span class="hxb-label">Back to main menu</span>
-        </button>
+      <div id="gameover-punteggi">
+        <span class="go-punti" id="go-punti-mio">0</span>
+        <div class="go-avatar" id="go-avatar-mio">
+          <img class="go-avatar-foto" alt="" draggable="false">
+          <img class="go-avatar-cornice" alt="" draggable="false">
+        </div>
+        <span class="go-dash">-</span>
+        <div class="go-avatar" id="go-avatar-suo">
+          <img class="go-avatar-foto" alt="" draggable="false">
+          <img class="go-avatar-cornice" alt="" draggable="false">
+        </div>
+        <span class="go-punti" id="go-punti-suo">0</span>
       </div>
     </div>
+    <!-- v0.78.6 — perche' e' finita cosi'. Vuota quasi sempre (una partita
+         che finisce col tabellone pieno non ha niente da spiegare) e occupa
+         spazio solo quando ha qualcosa da dire. -->
+    <div id="gameover-motivo"></div>
+    <div id="gameover-premi-titolo">Your rewards:</div>
+    <div id="gameover-premi">
+      <div class="go-premio" id="go-premio-xp">
+        <img class="go-premio-icona" id="go-icona-xp" alt="" draggable="false">
+        <div class="go-premio-testo">
+          <span class="go-premio-num" id="go-xp-num">0</span>
+          <span class="go-premio-eti">Xp</span>
+        </div>
+      </div>
+      <div class="go-premio" id="go-premio-ink">
+        <img class="go-premio-icona" id="go-icona-ink" alt="" draggable="false">
+        <div class="go-premio-testo">
+          <span class="go-premio-num" id="go-ink-num">0</span>
+          <span class="go-premio-eti">Magic ink</span>
+        </div>
+      </div>
+      <div class="go-premio" id="go-premio-pack">
+        <img class="go-premio-icona" id="go-icona-pack" alt="" draggable="false">
+        <div class="go-premio-testo">
+          <!-- Finche' la bustina non e' piena c'e' la barra; quando si riempie
+               sparisce e lascia il posto al "1x", che e' la stessa forma degli
+               altri due premi. Due stati dello stesso riquadro, non due
+               riquadri: la fila non deve muoversi. -->
+          <div class="hx-capacity go-pack-barra" id="go-pack-barra">
+            <div class="hx-capacity-bg"></div>
+            <div class="hx-capacity-mask" id="go-pack-mask"><div class="hx-capacity-fill"></div></div>
+          </div>
+          <span class="go-premio-num" id="go-pack-num">1x</span>
+          <span class="go-premio-eti">Card pack</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="gameover-actions">
+    <button id="btn-view-board" class="hx-btn" onclick="toggleBoardView(true)">
+      <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
+      <span class="hxb-label">View board</span>
+    </button>
+    <button id="btn-back-main" class="hx-btn" onclick="backToMainMenu()">
+      <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
+      <span class="hxb-label">Back to main menu</span>
+    </button>
   </div>
 </div>
 <!-- v0.77.5 — mentre si guarda il tabellone a partita finita, questo e'
@@ -10019,7 +10187,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.78.11</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.78.12</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -13721,6 +13889,10 @@ let LIVELLO_MAX = 30;
 // Non si anima al momento della partita: la si guarda tornando al menu, ed e'
 // li' che la barra deve salire.
 let _daMostrareDopoPartita = null;
+// v0.78.12 — vero solo mentre il menu di debug sta MOSTRANDO la schermata di
+// fine partita. Serve a una cosa sola: non riferire al server una partita che
+// non e' stata giocata.
+let _fineDiProva = false;
 
 // "bronze-top" -> "Bronze Top", "silver-2" -> "Silver II". I numeri diventano
 // romani perche' e' cosi' che si leggono i gradini in ogni gioco che li usa.
@@ -14070,7 +14242,7 @@ async function caricaCarteDalServer(){
   // aiuto dell'esagono, note gia' lette, progresso dell'Unicorno e il momento
   // della prossima bustina. Arriva con questa stessa risposta, quindi non c'e'
   // un istante in cui il gioco ha le carte ma non sa chi sei.
-  preferenzeDalServer(risposta.preferenze, risposta.bustinaProssima);
+  preferenzeDalServer(risposta.preferenze, risposta.bustinaProssima, risposta.bustineExtra);
   salvaPossessoInCache();
   return { cambiato: !!cambiato };
 }
@@ -15174,9 +15346,15 @@ const VALUTE_CHIAVE = 'hextale.valute';
 // vuol dire in cache: alla chiusura non resta niente, e la finestra accanto
 // con un altro account ha le sue.
 let PREFERENZE = {};
-function preferenzeDalServer(p, bustinaProssima){
+// v0.78.12 — quante bustine si sono GUADAGNATE giocando (una ogni cinque
+// partite) e a che punto si e' della prossima. Sono un'altra strada per avere
+// una bustina, indipendente dall'attesa di otto ore, e come tutto il resto le
+// conta il server.
+let BUSTINE_VINTE = 0;
+function preferenzeDalServer(p, bustinaProssima, bustineExtra){
   PREFERENZE = p || {};
   if(typeof bustinaProssima === 'number') PREFERENZE.bustinaProssima = bustinaProssima;
+  if(typeof bustineExtra === 'number') BUSTINE_VINTE = bustineExtra;
   // La fazione va rimessa su window, che e' dove la cercano le venti cose che
   // ne dipendono (vedi fazioneUmano).
   if(PREFERENZE.fazione && typeof window !== 'undefined') window.__humanFaction = PREFERENZE.fazione;
@@ -15806,7 +15984,25 @@ function montaGraficaPartita(){
   img('#turn-banner', 'turn-banner-bg.png');
   img('#timesup-banner', 'time-up-bg.png');
   img('#timesup-clock', 'clock-timeup.png');
-  img('#gameover-bg', 'end-game-bg.png');
+  // v0.78.12 — end-game-bg non e' piu' un <img> stirato su tutto il riquadro
+  // ma lo SFONDO della testata, che tiene la sua proporzione. Il riquadro
+  // adesso e' alto quanto il suo contenuto, e un'immagine stirata su
+  // un'altezza variabile sarebbe una fascia deformata in modo diverso a ogni
+  // partita.
+  impostaVariabileDaCandidati(document.getElementById('gameover-testata'),
+    '--go-testata-bg', uiFileCandidati('end-game-bg.png'));
+  impostaVariabileDaCandidati(document.getElementById('gameover-fascia'),
+    '--hx-trama', uiFileCandidati('brushed-texture.jpg'));
+  img('.go-avatar-cornice', 'avatar-frame.png');
+  img('#go-icona-xp',   'xp-icon.png');
+  img('#go-icona-ink',  'magic-ink-icon.png');
+  img('#go-icona-pack', 'card-pack-icon.png');
+  // La barra della bustina e' la barra di sempre: stessi due file dei cursori
+  // del volume e della barra dell'esperienza nel menu.
+  impostaVariabileDaCandidati(document.querySelector('#go-pack-barra .hx-capacity-bg'),
+    '--hx-bar-bg', _candidati('player-ui/slider-bar-bg.png', PLAYER_UI_BASE+'slider-bar-bg.png'));
+  impostaVariabileDaCandidati(document.querySelector('#go-pack-barra .hx-capacity-fill'),
+    '--hx-bar-fill', _candidati('player-ui/slider-bar-fill.png', PLAYER_UI_BASE+'slider-bar-fill.png'));
   // I tre pulsanti della fine partita usano i pezzi del pulsante normale.
   // Si vestono qui, una volta sola: non appartengono a nessuna pagina che li
   // ricostruisce, quindi non c'e' un momento successivo in cui rifarlo.
@@ -21086,7 +21282,10 @@ function _bustinaSalvaProssima(quando){
   // vero e' quello che arriva nella risposta della raccolta.
   PREFERENZE.bustinaProssima = quando;
 }
-function bustinaDisponibile(){ return Date.now() >= _bustinaProssimaApertura(); }
+// v0.78.12 — due strade per avere una bustina, e basta che una sia aperta:
+// quella guadagnata giocando (cinque partite) e quella che matura da sola ogni
+// otto ore. Chi ne ha guadagnata una non deve aspettare l'orologio.
+function bustinaDisponibile(){ return BUSTINE_VINTE > 0 || Date.now() >= _bustinaProssimaApertura(); }
 
 // "3h 42m" / "12m" / "48s": si scende di unita' mano a mano che il tempo si
 // accorcia, cosi' l'ultimo minuto non resta fermo su "0h 0m".
@@ -22222,6 +22421,10 @@ async function raccogliCarte(){
       // arriva quella VERA, decisa dal server nella stessa scrittura che ha
       // consegnato le carte.
       if(r && typeof r.bustinaProssima === 'number') _bustinaSalvaProssima(r.bustinaProssima);
+      // v0.78.12 — il server dice quante ne restano di quelle guadagnate: si
+      // prende il suo numero invece di scalarne uno qui, o le due contabilita'
+      // divergerebbero al primo errore di rete.
+      if(r && typeof r.bustineExtra === 'number') BUSTINE_VINTE = r.bustineExtra;
       if(r && r.possedute){
         CARTE_POSSEDUTE = r.possedute;
         _possessoNoto = true;
@@ -24585,7 +24788,20 @@ function debugShowGameOver(variant){
   else { G.hp={1:30,2:5}; } // 'dark'
   G.gameOver=true;
   document.getElementById('gameover').classList.remove('board-view');
+  // v0.78.12 — dei premi finti, perche' la schermata si possa guardare per
+  // intero senza giocare una partita: e' proprio il motivo per cui questo
+  // pulsante esiste. `_fineDiProva` impedisce che questa finzione arrivi al
+  // server, che altrimenti la scriverebbe come una partita.
+  _daMostrareDopoPartita = {
+    xpGuadagnata: 68, xpTurni: 18, xpEsito: 50,
+    inkGuadagnato: 10, versoBustina: variant==='draw' ? 3 : 0,
+    partitePerBustina: 5, bustinaVinta: variant!=='draw',
+    prima: { livello:2, xp:120, xpPerSalire:150, rank:0, puntiRank:0 },
+    profilo: PROFILO_STAGIONE || { livello:2, xp:188, rank:0, puntiRank:0 }
+  };
+  _fineDiProva = true;
   finishGameWithResult();
+  _fineDiProva = false;
   closeDebugModal();
 }
 // Debug shortcut: shows the AI "thinking" speech bubble with a sample
@@ -38240,8 +38456,15 @@ let _motivoFinePartita = '';
 let _finePartitaDalServer = false;
 function finishGameWithResult(){
   const{1:hp1,2:hp2}=G.hp;
-  const p1Label='Player 1';
-  const p2Label=G.vsAI?'Computer':'Player 2';
+  // ── v0.78.12 — IL NOME VERO, NON "PLAYER 1" ─────────────────────────────
+  // Qui c'erano due etichette scritte a mano, e vincevano sempre loro: sullo
+  // schermo di fine partita si leggeva "Player 1 wins!" anche quando il
+  // pannello di partita, due centimetri piu' in su, mostrava il nome
+  // dell'account. Adesso la domanda si fa a chi la sa gia' (vedi _goNomeDi):
+  // i pannelli portano il nome vero, e "Computer" quando l'avversario e' la
+  // macchina.
+  const p1Label=_goNomeDi(1);
+  const p2Label=_goNomeDi(2);
   // v0.77.0 — hp1 e hp2 sono i PUNTI FATTI, e vince chi ne ha di piu'.
   // Nella v0.75.0 erano i danni subiti e vinceva chi ne aveva meno; prima
   // ancora erano punti vita. Il numero e' sempre stato lo stesso, a cambiare
@@ -38264,19 +38487,27 @@ function finishGameWithResult(){
   // peggio che non averlo mai avuto.
   const motivoEl = document.getElementById('gameover-motivo');
   if(motivoEl) motivoEl.textContent = _motivoFinePartita || '';
+  // v0.78.12 — e i punteggi coi due ritratti.
+  try{ goRiempiPunteggi(hp1, hp2); }catch(e){ console.warn('[fine partita] punteggi: ' + (e && e.message)); }
   // v0.77.50 — l'esito va al server, che decide livello e rank. Si fa QUI,
   // dove il risultato e' appena stato deciso, e non all'uscita dalla schermata:
   // di la' si puo' anche chiudere il gioco.
   // v0.78.6 — se la fine e' arrivata dal server (resa, abbandono), l'esito lo
   // ha gia' scritto lui e ce lo ha gia' mandato: riferirlo di nuovo da qui
   // vorrebbe dire contare due volte la stessa partita.
-  if(!_finePartitaDalServer){
+  // v0.78.12 — e nemmeno la schermata di PROVA del menu di debug: mostrarla
+  // scriveva una partita vera, con la sua esperienza e il suo inchiostro.
+  // Finche' i premi non si vedevano era una stranezza; adesso sarebbe un modo
+  // di guadagnarli premendo un pulsante.
+  if(!_finePartitaDalServer && !_fineDiProva){
     try{ riferisciPartita(hp1 > hp2, hp1 === hp2, !!G.vsAI); }catch(_){}
   }
   _finePartitaDalServer = false;
   _motivoFinePartita = '';
   setTimeout(()=>{
     document.getElementById('gameover').classList.add('show');
+    // v0.78.12 — la fascia c'e' subito, il resto entra a tempo.
+    try{ goEntrata(); }catch(e){ console.warn('[fine partita] entrata: ' + (e && e.message)); }
     // Il suono della fine, nello stesso istante in cui la schermata compare:
     // legarlo alla comparsa e non a endGame() vuol dire che arriva insieme a
     // quello che annuncia, mezzo secondo dopo l'ultima carta.
@@ -38301,6 +38532,187 @@ function finishGameWithResult(){
       try{ bgm.volume = getEffectiveMusicVolume(); }catch(_){}
     }
   },500);
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// v0.78.12 — LA SCHERMATA DI FINE PARTITA
+// ══════════════════════════════════════════════════════════════════════════
+// Due mestieri distinti, e stanno separati apposta: RIEMPIRE (chi ha vinto, i
+// punteggi, quanto si e' guadagnato) e METTERE IN SCENA (in che ordine le cose
+// compaiono). Il primo si fa appena l'esito e' noto; il secondo quando la
+// schermata entra, che e' mezzo secondo dopo.
+//
+// I nomi e i ritratti NON si ricostruiscono qui: si copiano dai pannelli di
+// partita, che li portano gia' veri (vedi vestiPannelliGiocatori) e sanno gia'
+// dire "Computer" quando l'avversario e' la macchina. Ricavarli una seconda
+// volta vorrebbe dire avere due risposte alla stessa domanda, e prima o poi
+// una delle due sbaglierebbe.
+function _goNomeDi(n){
+  const el = document.getElementById(n === 2 ? 'p2-name-label' : 'p1-name-label');
+  const s = el && el.textContent && el.textContent.trim();
+  return s || (n === 2 ? (G.vsAI ? 'Computer' : 'Player 2') : 'Player 1');
+}
+function _goFotoDi(n){
+  const el = document.querySelector('#' + (n === 2 ? 'p2' : 'p1') + '-info .player-avatar-photo');
+  return (el && el.getAttribute('src')) || '';
+}
+// Quale dei due numeri sono IO. In rete lo dice il server (G.ioSonoIlNumero);
+// contro l'IA l'umano e' sempre il primo, e quel campo non c'e'.
+function _goIoSono(){ return (G && G.ioSonoIlNumero) || 1; }
+
+function goRiempiPunteggi(hp1, hp2){
+  const io = _goIoSono(), lui = (io === 2) ? 1 : 2;
+  const punti = { 1: hp1, 2: hp2 };
+  const mio = document.getElementById('go-punti-mio');
+  const suo = document.getElementById('go-punti-suo');
+  if(mio) mio.textContent = String(punti[io] || 0);
+  if(suo) suo.textContent = String(punti[lui] || 0);
+  const dash = document.querySelector('#gameover-punteggi .go-dash');
+  if(dash) dash.textContent = '-';
+  for(const [id, n] of [['go-avatar-mio', io], ['go-avatar-suo', lui]]){
+    const foto = document.querySelector('#' + id + ' .go-avatar-foto');
+    if(!foto) continue;
+    const src = _goFotoDi(n);
+    if(src) foto.setAttribute('src', src);
+    foto.style.visibility = src ? '' : 'hidden';
+  }
+}
+
+// I premi arrivano dal server e non si calcolano qui: questa schermata li
+// DISEGNA. Se non sono ancora arrivati (o non ce ne sono, che e' il caso di
+// una partita contro l'IA) si mostrano degli zeri, che e' la verita'.
+function _goPremi(){
+  const d = _daMostrareDopoPartita;
+  return {
+    xp:   (d && d.xpGuadagnata) || 0,
+    ink:  (d && d.inkGuadagnato) || 0,
+    verso:(d && typeof d.versoBustina === 'number') ? d.versoBustina : 0,
+    quante:(d && d.partitePerBustina) || 5,
+    bustina: !!(d && d.bustinaVinta)
+  };
+}
+
+// Un numero che sale. Non e' una decorazione: un premio che compare gia' fatto
+// non si distingue da un numero scritto, mentre uno che sale si guarda.
+function _goConta(el, fino, durata){
+  if(!el) return;
+  if(fino <= 0){ el.textContent = '0'; return; }
+  const t0 = performance.now();
+  const passo = (ora)=>{
+    const q = Math.min(1, (ora - t0) / durata);
+    // Rallenta arrivando: e' il modo in cui un contatore si ferma invece di
+    // sbattere contro il proprio ultimo numero.
+    const v = Math.round(fino * (1 - Math.pow(1 - q, 3)));
+    el.textContent = String(v);
+    if(q < 1) requestAnimationFrame(passo);
+    else el.textContent = String(fino);
+  };
+  requestAnimationFrame(passo);
+}
+
+const GO_PASSO_MS = 260;      // quanto passa fra un pezzo e il successivo
+const GO_CONTA_MS = 900;      // quanto ci mette un numero a salire
+function goEntrata(){
+  const q = (sel)=> document.querySelector(sel);
+  // Tutto quel che entra parte spento. Si toglie e si rimette la classe a ogni
+  // partita: la schermata e' la stessa e non viene ricostruita, quindi senza
+  // questo la seconda partita la troverebbe gia' tutta accesa.
+  const pezzi = ['#gameover-testata', '#gameover-punteggi', '#gameover-premi-titolo',
+                 '#go-premio-xp', '#go-premio-ink', '#go-premio-pack'];
+  for(const s of pezzi){
+    const el = q(s);
+    if(!el) continue;
+    el.classList.add('go-appare');
+    el.classList.remove('go-visto');
+  }
+  const titolo = q('#gameover-title span');
+  if(titolo) titolo.classList.remove('go-pulsa');
+  for(const s of ['#go-icona-xp','#go-icona-ink','#go-icona-pack']){
+    const el = q(s); if(el) el.classList.remove('go-pulsa');
+  }
+  const packBox = q('#go-premio-pack');
+  if(packBox) packBox.classList.remove('vinta');
+  const mask = q('#go-pack-mask');
+  if(mask) mask.style.width = '0%';
+  const xpNum = q('#go-xp-num'), inkNum = q('#go-ink-num');
+  if(xpNum) xpNum.textContent = '0';
+  if(inkNum) inkNum.textContent = '0';
+
+  const accendi = (sel)=>{ const el = q(sel); if(el){ el.classList.remove('go-appare'); el.classList.add('go-appare','go-visto'); } };
+  const pulsa = (sel)=>{ const el = q(sel); if(el){ el.classList.remove('go-pulsa'); void el.offsetWidth; el.classList.add('go-pulsa'); } };
+
+  let t = 300;                       // i tre decimi chiesti prima della testata
+  const poi = (ms, fare)=>{ setTimeout(()=>{ try{ fare(); }catch(_){ } }, ms); };
+
+  poi(t, ()=>{ accendi('#gameover-testata'); pulsa('#gameover-title span'); });
+  t += GO_PASSO_MS + 300;            // il titolo pulsa per tre decimi: si aspetta lui
+  poi(t, ()=> accendi('#gameover-punteggi'));
+  t += GO_PASSO_MS;
+  poi(t, ()=> accendi('#gameover-premi-titolo'));
+  t += GO_PASSO_MS;
+
+  // ── I PREMI SI ASPETTANO ──────────────────────────────────────────────
+  // Non li sa il client: li scrive il server, e la sua risposta puo' arrivare
+  // dopo che la schermata e' gia' entrata (in rete e' un messaggio, contro
+  // l'IA una chiamata). Disegnare degli zeri e correggerli un istante dopo
+  // sarebbe peggio che aspettare: si vedrebbe il premio cambiare sotto gli
+  // occhi, e un premio che cambia non si crede.
+  // Si aspetta quindi la risposta, con un tetto: se non arriva, si mostra
+  // quel che si sa — e quel che si sa e' zero, che per una partita contro
+  // l'IA e' anche la verita'.
+  poi(t, ()=> _goQuandoCiSonoIPremi((premi)=> goPremi(premi)));
+}
+
+// Chiama `poi` appena l'esito e' arrivato dal server, o allo scadere
+// dell'attesa. Non consuma `_daMostrareDopoPartita`: quello serve ancora al
+// menu, che con esso fa salire la barra dell'esperienza.
+const GO_ATTESA_PREMI_MS = 6000;
+function _goQuandoCiSonoIPremi(poi){
+  const scadenza = Date.now() + GO_ATTESA_PREMI_MS;
+  const guarda = ()=>{
+    if(_daMostrareDopoPartita || Date.now() >= scadenza){ poi(_goPremi()); return; }
+    setTimeout(guarda, 100);
+  };
+  guarda();
+}
+
+// La parte della scena che riguarda i tre premi. Sta a se' perche' comincia
+// quando arriva la risposta del server, non a un tempo fisso dall'inizio.
+function goPremi(premi){
+  const q = (sel)=> document.querySelector(sel);
+  const accendi = (sel)=>{ const el = q(sel); if(el){ el.classList.add('go-appare','go-visto'); } };
+  const pulsa = (sel)=>{ const el = q(sel); if(el){ el.classList.remove('go-pulsa'); void el.offsetWidth; el.classList.add('go-pulsa'); } };
+  const poi = (ms, fare)=>{ setTimeout(()=>{ try{ fare(); }catch(_){ } }, ms); };
+  const mask = q('#go-pack-mask');
+  const packBox = q('#go-premio-pack');
+  let t = 0;
+
+  // L'esperienza: l'icona entra pulsando, il numero sale.
+  poi(t, ()=>{ accendi('#go-premio-xp'); pulsa('#go-icona-xp'); _goConta(q('#go-xp-num'), premi.xp, GO_CONTA_MS); });
+  t += GO_CONTA_MS;
+  // Poi l'inchiostro, con lo stesso gesto.
+  poi(t, ()=>{ accendi('#go-premio-ink'); pulsa('#go-icona-ink'); _goConta(q('#go-ink-num'), premi.ink, GO_CONTA_MS); });
+  t += GO_CONTA_MS;
+  // E per ultima la bustina: la barra si riempie, e SOLO se si e' arrivati in
+  // fondo lascia il posto al "1x". Il salto avviene a barra piena, non prima:
+  // altrimenti si vedrebbe il premio comparire senza aver visto perche'.
+  poi(t, ()=>{
+    accendi('#go-premio-pack');
+    pulsa('#go-icona-pack');
+    // Quando la bustina e' stata vinta il conto e' gia' tornato a zero: si
+    // mostra allora il percorso fino in fondo, che e' cio' che e' successo.
+    const quanti = premi.bustina ? premi.quante : premi.verso;
+    if(mask) mask.style.width = Math.max(0, Math.min(100, (quanti / (premi.quante||5)) * 100)).toFixed(1) + '%';
+  });
+  if(premi.bustina){
+    t += 950;                        // il tempo che la barra ci mette a riempirsi
+    poi(t, ()=>{
+      if(packBox) packBox.classList.add('vinta');
+      pulsa('#go-icona-pack');
+      const n = q('#go-pack-num');
+      if(n) n.textContent = '1x';
+    });
+  }
 }
 
 // Toggles between the game-over results overlay and the live board
