@@ -340,10 +340,22 @@ var ABILITA_MOTORE = (function () {
     // prima: meglio un effetto in piu' che spegnere ogni sinergia del gioco
     // per una scena costruita male.
     if (dove === 'board') {
-      var campo = scena && scena.inCampo;
-      if (campo && campo.length !== undefined) {
+      // ── v0.78.16 — SI CHIEDE "DOVE SEI", NON "SEI NELL'ELENCO" ───────────
+      // La v0.78.15 guardava `scena.inCampo`, e sembrava la stessa domanda.
+      // Non lo e': chi COSTRUISCE una scena puo' mettere in `inCampo' solo la
+      // carta che sta esaminando — lo fa il riquadro dei buff, che per sapere
+      // quanto dia OGNI singola fonte ne mette in campo una alla volta (vedi
+      // _modificatoriDalMotore). In quella scena il bersaglio non c'e', e la
+      // v0.78.15 rispondeva "non e' in campo": il riquadro ha smesso di dire
+      // CHI stesse buffando, e restava il numero da solo.
+      // `cellaDi` risponde alla domanda giusta — su quale casella sta questa
+      // carta — e non dipende da chi il chiamante abbia messo nell'elenco dei
+      // contributori. Le due cose erano confuse, ed erano due.
+      if (scena && typeof scena.cellaDi === 'function') {
+        if (!scena.cellaDi(bersaglio)) return false;
+      } else if (scena && scena.inCampo && scena.inCampo.length !== undefined) {
         var dentro = false, k;
-        for (k = 0; k < campo.length; k++) if (campo[k] === bersaglio) { dentro = true; break; }
+        for (k = 0; k < scena.inCampo.length; k++) if (scena.inCampo[k] === bersaglio) { dentro = true; break; }
         if (!dentro) return false;
       }
       return bersaglio !== fonte || chi === 'self';

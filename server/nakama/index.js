@@ -344,6 +344,14 @@ function assicuraPossesso(ctx, nk, logger, userId, username) {
     }
     // Le carte sbustate, che si aggiungono a quelle dei mazzi starter.
     if (!attuale.carte) { attuale.carte = {}; daRiscrivere = true; }
+    // v0.78.16 — chi c'era gia' ha GIA' VISTO cio' che possiede: la novita'
+    // comincia da adesso. Senza questa riga, il giorno del rilascio ognuno si
+    // troverebbe l'intera collezione accesa, e "nuovo" non vorrebbe dire niente.
+    if (!attuale.viste) {
+      attuale.viste = {};
+      for (var sv in (attuale.carte || {})) attuale.viste[sv] = 1;
+      daRiscrivere = true;
+    }
     if (daRiscrivere) scriviPossesso(nk, userId, attuale);
     return attuale;
   }
@@ -494,6 +502,8 @@ function rpcAvvio(ctx, logger, nk, payload) {
     // prossima. Sono un'altra strada per averne una, indipendente dall'attesa.
     bustineExtra: possesso.bustineExtra || 0,
     versoBustina: possesso.versoBustina || 0,
+    // v0.78.16 — quali carte non sono ancora state guardate in Collezione.
+    nuove: _nuoveDi(possesso),
     partitePerBustina: PARTITE_PER_BUSTINA,
     // v0.77.53 — l'avatar dell'account, che i pannelli di partita mostrano
     // accanto al nome. Sta fra i campi che Nakama tiene da se' (non nei
@@ -793,6 +803,11 @@ function rpcBustinaRaccogli(ctx, logger, nk, payload) {
     possesso.carte[tieni[j]] = Math.max(avuto, LIVELLO_SBUSTATA);
   }
   possesso.valute = valute;
+  // v0.78.16 — le carte appena raccolte NON si segnano come viste: sono
+  // esattamente quelle che devono accendersi in Collezione. Qui si scrive solo
+  // che l'elenco esiste, cosi' chi non ne ha mai avuto uno non risulta con
+  // tutta la collezione da guardare.
+  if (!possesso.viste) possesso.viste = {};
   // v0.77.90 — LE OTTO ORE LE CONTA IL SERVER.
   // Prima il momento della prossima bustina lo scriveva il client nel proprio
   // localStorage: bastava svuotarlo per averne un'altra subito, e due account
@@ -823,6 +838,10 @@ function rpcBustinaRaccogli(ctx, logger, nk, payload) {
     valute: valute,
     bustinaProssima: possesso.bustinaProssima,
     bustineExtra: possesso.bustineExtra || 0,
+    // v0.78.16 — le carte appena prese sono nuove per definizione: si manda
+    // l-elenco aggiornato subito, cosi- il pallino compare tornando al menu
+    // senza aspettare la prossima lettura del profilo.
+    nuove: _nuoveDi(possesso),
     possedute: _possedute(carte, possesso, admin)
   });
 }
@@ -1097,6 +1116,75 @@ function applicaEsito(nk, userId, vinta, pari, controIA, turni, modo) {
     xpPerSalire: xpPerSalire(p.livello),
     ranghi: RANGHI
   };
+}
+
+// ── v0.78.16 — QUANTI STANNO GIOCANDO ADESSO ──────────────────────────────
+// Non si tiene un contatore: si CHIEDE. Un numero tenuto a mano andrebbe alzato
+// quando qualcuno entra e abbassato quando esce, e la seconda meta' e' quella
+// che prima o poi si dimentica — una disconnessione brusca, un processo
+// riavviato, e il numero resta gonfio per sempre senza che nessuno sappia
+// perche'.
+// `matchList` invece descrive cio' che c'e' in questo istante: le partite vive
+// e quanta gente c'e' dentro. Se sbaglia, sbaglia per un attimo e si corregge
+// da sola al giro dopo.
+// Il numero e' pubblico e non dice niente di nessuno: quante persone, punto.
+function rpcGiocatoriOnline(ctx, logger, nk, payload) {
+  var quanti = 0;
+  try {
+    // Solo le partite gia' cominciate: due che si stanno accoppiando non
+    // stanno ancora giocando.
+    var lista = nk.matchList(100, true, '', 1, 2, '');
+    for (var i = 0; i < lista.length; i++) quanti += (lista[i].size || 0);
+  } catch (e) {
+    logger.warn('non riesco a contare le partite: %s', String(e));
+    return JSON.stringify({ giocatori: 0, incerto: true });
+  }
+  return JSON.stringify({ giocatori: quanti });
+}
+
+// ── v0.78.16 — LE CARTE ANCORA DA GUARDARE ────────────────────────────────
+// Una carta appena sbustata resta "nuova" finche' non la si e' vista nella
+// Collezione. Il conto lo tiene il server per la stessa ragione di tutto il
+// resto: nel browser non vive niente, e due account sullo stesso computer si
+// passerebbero le novita' a vicenda.
+// Si tiene l'elenco di quelle GIA' VISTE e non di quelle nuove: le nuove sono
+// una differenza — cio' che si possiede meno cio' che si e' guardato — e una
+// differenza non puo' rimanere indietro rispetto ai fatti. Con l'elenco delle
+// nuove, una carta ottenuta per una strada che si dimentica di aggiungerla non
+// sarebbe mai nuova, e nessuno se ne accorgerebbe.
+function _visteDi(possesso) {
+  return (possesso && possesso.viste && typeof possesso.viste === 'object') ? possesso.viste : {};
+}
+function _nuoveDi(possesso) {
+  var avute = (possesso && possesso.carte) || {};
+  var viste = _visteDi(possesso);
+  var out = [];
+  for (var slug in avute) if (!viste[slug]) out.push(slug);
+  return out;
+}
+// Il client dice quali ha appena guardato. E' una dichiarazione innocua — al
+// massimo si toglie da se' un pallino — quindi non c'e' niente da verificare
+// oltre al fatto che siano carte che possiede davvero.
+function rpcCarteViste(ctx, logger, nk, payload) {
+  if (!ctx.userId) throw Error('serve un accesso');
+  var dati = {};
+  try { dati = JSON.parse(payload || '{}'); } catch (e) { dati = {}; }
+  var elenco = dati.carte;
+  var possesso = leggiPossesso(nk, ctx.userId);
+  if (!possesso) return JSON.stringify({ nuove: [] });
+  var viste = _visteDi(possesso);
+  var avute = possesso.carte || {};
+  if (elenco === 'tutte') {
+    for (var s in avute) viste[s] = 1;
+  } else if (Array.isArray(elenco)) {
+    for (var i = 0; i < elenco.length && i < 500; i++) {
+      var slug = String(elenco[i]);
+      if (avute[slug]) viste[slug] = 1;
+    }
+  }
+  possesso.viste = viste;
+  scriviPossesso(nk, ctx.userId, possesso);
+  return JSON.stringify({ nuove: _nuoveDi(possesso) });
 }
 
 // La RPC resta la strada delle partite contro l'IA, dove non c'e' nessun
@@ -2539,10 +2627,22 @@ var ABILITA_MOTORE = (function () {
     // prima: meglio un effetto in piu' che spegnere ogni sinergia del gioco
     // per una scena costruita male.
     if (dove === 'board') {
-      var campo = scena && scena.inCampo;
-      if (campo && campo.length !== undefined) {
+      // ── v0.78.16 — SI CHIEDE "DOVE SEI", NON "SEI NELL'ELENCO" ───────────
+      // La v0.78.15 guardava `scena.inCampo`, e sembrava la stessa domanda.
+      // Non lo e': chi COSTRUISCE una scena puo' mettere in `inCampo' solo la
+      // carta che sta esaminando — lo fa il riquadro dei buff, che per sapere
+      // quanto dia OGNI singola fonte ne mette in campo una alla volta (vedi
+      // _modificatoriDalMotore). In quella scena il bersaglio non c'e', e la
+      // v0.78.15 rispondeva "non e' in campo": il riquadro ha smesso di dire
+      // CHI stesse buffando, e restava il numero da solo.
+      // `cellaDi` risponde alla domanda giusta — su quale casella sta questa
+      // carta — e non dipende da chi il chiamante abbia messo nell'elenco dei
+      // contributori. Le due cose erano confuse, ed erano due.
+      if (scena && typeof scena.cellaDi === 'function') {
+        if (!scena.cellaDi(bersaglio)) return false;
+      } else if (scena && scena.inCampo && scena.inCampo.length !== undefined) {
         var dentro = false, k;
-        for (k = 0; k < campo.length; k++) if (campo[k] === bersaglio) { dentro = true; break; }
+        for (k = 0; k < scena.inCampo.length; k++) if (scena.inCampo[k] === bersaglio) { dentro = true; break; }
         if (!dentro) return false;
       }
       return bersaglio !== fonte || chi === 'self';
@@ -3006,6 +3106,8 @@ function InitModule(ctx, logger, nk, initializer) {
   initializer.registerRpc('hx_mazzi_scrivi', rpcMazziScrivi);
   initializer.registerRpc('hx_partita', rpcPartita);
   initializer.registerRpc('hx_preferenze', rpcPreferenze);
+  initializer.registerRpc('hx_giocatori', rpcGiocatoriOnline);
+  initializer.registerRpc('hx_carte_viste', rpcCarteViste);
   initializer.registerRpc('hx_bustina_apri', rpcBustinaApri);
   initializer.registerRpc('hx_bustina_raccogli', rpcBustinaRaccogli);
   // v0.77.53 — la partita in rete. registerMatch da' un nome al gestore;

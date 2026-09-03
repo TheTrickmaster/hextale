@@ -7376,6 +7376,35 @@ body.prova-senza-willchange #mm-book-rot{
      directly via WAAPI rather than transform translate). */
   transition:transform 0.18s ease;
 }
+/* ── v0.78.16 — LE CARTE ANCORA DA GUARDARE ───────────────────────────────
+   Un nastro "New" e un alone bianco dietro. Tutti e due spariscono al
+   passaggio del puntatore: guardarla E' averla vista, e da quel momento e' una
+   carta come le altre.
+   Il nastro sporge di due pixel dal bordo sinistro — non e' un errore di
+   misura, e' cio' che lo fa leggere come un'etichetta APPICCICATA sopra alla
+   carta invece che come una parte del disegno. */
+.card-db-card-slot.carta-nuova{
+  filter:drop-shadow(0 0 20px #fff);
+}
+.card-db-card-slot .nuova-nastro{
+  position:absolute; left:-2px; top:65px;
+  height:40px; width:auto; z-index:6;
+  pointer-events:none; user-select:none; -webkit-user-drag:none;
+  transition:opacity 0.18s ease;
+}
+/* Passandoci sopra torna una carta come le altre: via l'alone, via il nastro.
+   La transizione dell'alone e' la stessa dell'ingrandimento, cosi' le due cose
+   sembrano un gesto solo. */
+.card-db-card-slot:not(.carta-nuova) .nuova-nastro{ opacity:0; }
+.card-db-card-slot.carta-nuova:hover{ filter:none; }
+.card-db-card-slot.carta-nuova:hover .nuova-nastro{ opacity:0; }
+/* Il pallino accanto a "Library & decks". Quattro pixel: e' un segno, non un
+   distintivo — deve farsi notare senza chiedere di essere letto. */
+.mm2-pallino-novita{
+  display:inline-block; width:4px; height:4px; margin-left:8px;
+  vertical-align:middle; border-radius:50%;
+  background:#7E1515; box-shadow:0 0 0 1px #C8A84B;
+}
 .card-db-card-slot:not(.card-db-card-slot-placeholder):hover{
   /* v0.72.9: se questo valore cambia, aggiornare CARD_DB_HOVER_SCALE nel JS —
      cardDbLayoutGrid ci deriva il margine da riservare attorno alla griglia
@@ -9152,6 +9181,17 @@ body.prova-senza-willchange #mm-book-rot{
   transition:transform .16s ease-out, filter .16s ease-out;
 }
 #mm-settings-btn img{ display:block; width:100%; height:100%; pointer-events:none; user-select:none; -webkit-user-drag:none; }
+/* v0.78.16 — quanti stanno giocando. Allineato a destra come il pulsante delle
+   impostazioni e appena sotto di lui (26 + 56 + 22 d'aria), fuori dalla barra.
+   Vuoto finche' non si sa: meglio niente che uno zero che sembra un fatto. */
+#mm2-online{
+  position:absolute; right:36px; top:104px; z-index:20;
+  font-family:'Marcellus',var(--font-display),serif;
+  font-size:22px; color:#9DA7A9;
+  text-align:right; pointer-events:none; user-select:none;
+  text-shadow:0 0 6px rgba(0,0,0,0.8);
+}
+#mm2-online:empty{ display:none; }
 /* v0.73.57 — al passaggio del puntatore si ACCENDE e basta: non gira piu'.
    Un ingranaggio che ruota promette che qualcosa si stia gia' regolando. */
 #mm-settings-btn:hover{ filter:brightness(1.35); }
@@ -9540,6 +9580,10 @@ body.prova-senza-willchange #mm-book-rot{
         <span class="mm2-nav-label" style="font-size:28px">Play vs AI</span>
       </button>
       </div>
+      <!-- v0.78.16 — quanti stanno giocando adesso. Sotto al pulsante delle
+           impostazioni e FUORI dalla barra: e' un dato sul mondo, non un
+           comando, e sta dove lo sguardo passa senza cercarlo. -->
+      <div id="mm2-online"></div>
       <div id="mm2-topbar-icone" class="mm2-topbar-sopra">
         <button class="mm2-icona" id="mm2-bug" aria-label="Report a bug"><img alt="" draggable="false"></button>
         <button class="mm2-icona" id="mm2-news" aria-label="Patch notes" onclick="apriPatchNotesDalMenu()"><img alt="" draggable="false"></button>
@@ -10200,7 +10244,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.78.15</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.78.16</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -10263,7 +10307,7 @@ body.prova-senza-willchange #mm-book-rot{
       <!-- v0.78.15 — a partita finita non c'e' piu' niente a cui arrendersi, e
            il pulsante resta acceso solo mentre si gioca (vedi
            openSettingsModal). -->
-      <button id="btn-surrender" class="hx-btn hx-btn-warning settings-azione" type="button" onclick="surrenderGame()">
+      <button id="btn-surrender" class="hx-btn hx-btn-warning settings-azione" type="button">
         <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
         <span class="hxb-label">Surrender</span>
       </button>
@@ -13713,6 +13757,10 @@ async function mm2CercaAvversario(){
   btn.classList.add('cerca');
   if(box) box.classList.add('cerca');
   et.textContent = 'Cancel';
+  // v0.78.16 — e da qui si contano i secondi. Un'attesa senza un numero non si
+  // distingue da un'attesa bloccata: quindici secondi con un pulsante fermo
+  // sembrano un guasto, quindici secondi che si vedono passare sono un'attesa.
+  mmAvviaCronometro();
 
   const rank = (PROFILO_STAGIONE && PROFILO_STAGIONE.rank) || 0;
   const forza = forzaDelMazzo(mio);
@@ -14207,7 +14255,10 @@ function caricaPossessoDaCache(){
   try{
     // v0.77.70 — niente cache: finche' il server non risponde, non si sa.
     const p = null;
-    if(p){ CARTE_POSSEDUTE = p.possedute || {}; GIOCATORE_ADMIN = !!p.admin; _possessoNoto = true; return true; }
+    if(p){ CARTE_POSSEDUTE = p.possedute || {}; GIOCATORE_ADMIN = !!p.admin; _possessoNoto = true;
+      try{ aggiornaAccessoDebug(); }catch(_){ }
+      try{ carteNuoveDalServer(p.nuove); }catch(_){ }
+      return true; }
   }catch(_){}
   return false;
 }
@@ -14257,6 +14308,9 @@ async function caricaCarteDalServer(){
   }
   CARTE_POSSEDUTE = risposta.possedute || {};
   GIOCATORE_ADMIN = !!risposta.admin;
+  try{ aggiornaAccessoDebug(); }catch(_){ }
+  // v0.78.16 — e quali carte non sono ancora state guardate in Collezione.
+  try{ carteNuoveDalServer(risposta.nuove); }catch(_){ }
   // v0.77.52 — e il saldo, che viaggia con lo stesso giro: una chiamata sola
   // all'avvio porta catalogo, possesso, profilo e valute. Erano quattro
   // domande che il client faceva alla sua cache; adesso e' una risposta sola
@@ -15859,7 +15913,116 @@ function mm2ChiudiSceltaMazzo(){
 // leggere che qualcosa e' cambiato. Senza, i tre stati sarebbero un lampo solo.
 const MM2_PASSO_MS = 1000;
 let _mm2Cercando = false;
+// ── v0.78.16 — I SECONDI DELLA RICERCA ────────────────────────────────────
+// Si contano da quando la ricerca comincia e si azzerano quando finisce, in
+// qualunque modo finisca. Il punto di spegnimento e' UNO — mm2FermaRicerca —
+// perche' e' gia' l'unica porta da cui la ricerca esce: annullata a mano,
+// avversario trovato, o socket caduto.
+let _mmCronoDa = 0, _mmCrono = null;
+function mmAvviaCronometro(){
+  mmFermaCronometro();
+  _mmCronoDa = Date.now();
+  const passo = ()=>{
+    if(!_mm2Cercando){ mmFermaCronometro(); return; }
+    const et = document.querySelector('#mm2-find .hxb-label');
+    if(!et) return;
+    const s = Math.floor((Date.now() - _mmCronoDa) / 1000);
+    et.textContent = '(' + s + 's) Cancel';
+  };
+  passo();
+  _mmCrono = setInterval(passo, 1000);
+}
+function mmFermaCronometro(){
+  if(_mmCrono){ clearInterval(_mmCrono); _mmCrono = null; }
+  _mmCronoDa = 0;
+}
+// ── v0.78.16 — QUANTI STANNO GIOCANDO ─────────────────────────────────────
+// Lo chiede al server (vedi rpcGiocatoriOnline), che lo ricava dalle partite
+// vive invece di tenere un contatore: un numero tenuto a mano si gonfia alla
+// prima disconnessione brusca e non torna piu' giu'.
+// Si chiede solo mentre il menu principale e' davvero a schermo: una domanda
+// ogni venti secondi da una pagina che nessuno sta guardando e' rumore verso il
+// server, e per giunta un rumore che cresce con quanti giocano.
+const ONLINE_OGNI_MS = 20000;
+let _onlineTimer = null;
+async function aggiornaGiocatoriOnline(){
+  const el = document.getElementById('mm2-online');
+  if(!el) return;
+  if(!sessioneAccount || !sessioneAccount.token) return;
+  try{
+    const r = await nakamaRpc('hx_giocatori', {});
+    const n = (r && typeof r.giocatori === 'number') ? r.giocatori : null;
+    // Se il server non sa rispondere si lascia quel che c'era: sostituirlo con
+    // uno zero direbbe "non gioca nessuno", che e' un'altra cosa da "non lo so".
+    if(n === null) return;
+    el.textContent = n + (n === 1 ? ' player online' : ' players online');
+  }catch(_){ /* il menu non si rovina per un contatore */ }
+}
+function avviaContatoreOnline(){
+  if(_onlineTimer) return;
+  const giro = ()=>{
+    const mm = document.getElementById('mm2');
+    const inScena = mm && mm.offsetParent !== null;
+    if(inScena) aggiornaGiocatoriOnline();
+  };
+  giro();
+  _onlineTimer = setInterval(giro, ONLINE_OGNI_MS);
+}
+// ══════════════════════════════════════════════════════════════════════════
+// v0.78.16 — LE CARTE ANCORA DA GUARDARE
+// ══════════════════════════════════════════════════════════════════════════
+// Una carta appena sbustata resta "nuova" finche' non la si e' vista in
+// Collezione. Chi lo sa e' il SERVER — nel browser non vive niente, e due
+// account sullo stesso computer si passerebbero le novita' a vicenda.
+//
+// Il server tiene l'elenco di quelle GIA' VISTE e ci manda la differenza: le
+// nuove sono cio' che si possiede meno cio' che si e' guardato. Tenere invece
+// l'elenco delle nuove vorrebbe dire ricordarsi di aggiungerle a ogni strada
+// da cui una carta puo' arrivare, e la prima che si dimentica non sarebbe mai
+// nuova senza che nessuno se ne accorga.
+let CARTE_NUOVE = new Set();
+function carteNuoveDalServer(elenco){
+  CARTE_NUOVE = new Set(Array.isArray(elenco) ? elenco.map(String) : []);
+  try{ aggiornaPallinoNovita(); }catch(_){ }
+}
+// Le carte guardate si dichiarano al server in gruppo e con calma: passando il
+// puntatore su una griglia se ne toccano dieci in due secondi, e dieci
+// richieste per una cosa che non ha fretta sono dieci di troppo.
+let _visteDaDire = [], _visteTimer = null;
+function segnaCartaGuardata(id){
+  id = String(id || '');
+  if(!id || !CARTE_NUOVE.has(id)) return;
+  CARTE_NUOVE.delete(id);
+  _visteDaDire.push(id);
+  aggiornaPallinoNovita();
+  if(_visteTimer) clearTimeout(_visteTimer);
+  _visteTimer = setTimeout(()=>{
+    _visteTimer = null;
+    const gruppo = _visteDaDire; _visteDaDire = [];
+    if(!gruppo.length || !sessioneAccount || !sessioneAccount.token) return;
+    nakamaRpc('hx_carte_viste', { carte: gruppo })
+      .catch(e => console.warn('[novita] non segnate: ' + (e && e.message)));
+  }, 700);
+}
+// Il pallino accanto a "Library & decks": c'e' finche' resta qualcosa da
+// guardare. Non porta un numero — non serve sapere QUANTE, serve sapere che
+// c'e' qualcosa di la'.
+function aggiornaPallinoNovita(){
+  const dove = document.querySelector('#mm2-sc-library .hxb-label');
+  if(!dove) return;
+  let pallino = dove.querySelector('.mm2-pallino-novita');
+  if(CARTE_NUOVE.size > 0){
+    if(!pallino){
+      pallino = document.createElement('span');
+      pallino.className = 'mm2-pallino-novita';
+      dove.appendChild(pallino);
+    }
+  } else if(pallino){
+    pallino.remove();
+  }
+}
 function mm2FermaRicerca(){
+  mmFermaCronometro();
   _mm2Cercando = false;
   document.getElementById('mm2-find')?.classList.remove('cerca','trovato');
   document.getElementById('mm2-gioca')?.classList.remove('cerca','trovato');
@@ -15870,6 +16033,10 @@ function mm2FermaRicerca(){
 // sono gli unici dati che cambieranno davvero, e devono poter essere
 // riscritti a ogni entrata senza ricaricare niente.
 function aggiornaDatiMenu(){
+  // v0.78.16 — il contatore dei giocatori comincia a battere da qui: e' il
+  // momento in cui il menu entra in scena, e da qui in poi si sorveglia da se'.
+  try{ avviaContatoreOnline(); }catch(_){ }
+  try{ aggiornaPallinoNovita(); }catch(_){ }
   const nome = document.getElementById('mm-player-name-label');
   if(nome) nome.textContent = MENU_GIOCATORE.nome;
   // v0.75.21 — i numeri li scrive aggiornaValuteAVideo, che li scrive in TUTTI
@@ -16040,9 +16207,13 @@ function montaGraficaPartita(){
   // ricostruisce, quindi non c'e' un momento successivo in cui rifarlo.
   ['#btn-view-board','#btn-back-main','#btn-show-results'].forEach(sel=>
     vestiPulsante(document.querySelector(sel)));
-  img('.player-hp-orb-bg', 'score.png');
-  // Il lampo del punteggio e' la stessa immagine, resa bianca dal CSS.
-  img('.player-hp-orb-lampo', 'score.png');
+  // v0.78.16 — score.png non esiste piu': ci sono score-dark e score-light, e
+  // ognuno dei due giocatori porta quella della PROPRIA fazione. Non si vestono
+  // qui, dove si sa solo che i due orb esistono, ma dove si sa CHI E' CHI —
+  // cioe' quando la fazione viene applicata ai pannelli (vedi
+  // vestiOrbDelPunteggio). Vestirli qui vorrebbe dire scriverli una volta con
+  // la fazione sbagliata e correggerli dopo.
+  vestiOrbDelPunteggio();
   img('#settings-btn img', 'settings-button.png');
   // v0.77.53 — LA BARRA DEL NOME NON HA PIU' UNO SFONDO. Prima erano i tre
   // pezzi opachi della Libreria; adesso il nome sta direttamente sul drappo.
@@ -16776,10 +16947,22 @@ var ABILITA_MOTORE = (function () {
     // prima: meglio un effetto in piu' che spegnere ogni sinergia del gioco
     // per una scena costruita male.
     if (dove === 'board') {
-      var campo = scena && scena.inCampo;
-      if (campo && campo.length !== undefined) {
+      // ── v0.78.16 — SI CHIEDE "DOVE SEI", NON "SEI NELL'ELENCO" ───────────
+      // La v0.78.15 guardava `scena.inCampo`, e sembrava la stessa domanda.
+      // Non lo e': chi COSTRUISCE una scena puo' mettere in `inCampo' solo la
+      // carta che sta esaminando — lo fa il riquadro dei buff, che per sapere
+      // quanto dia OGNI singola fonte ne mette in campo una alla volta (vedi
+      // _modificatoriDalMotore). In quella scena il bersaglio non c'e', e la
+      // v0.78.15 rispondeva "non e' in campo": il riquadro ha smesso di dire
+      // CHI stesse buffando, e restava il numero da solo.
+      // `cellaDi` risponde alla domanda giusta — su quale casella sta questa
+      // carta — e non dipende da chi il chiamante abbia messo nell'elenco dei
+      // contributori. Le due cose erano confuse, ed erano due.
+      if (scena && typeof scena.cellaDi === 'function') {
+        if (!scena.cellaDi(bersaglio)) return false;
+      } else if (scena && scena.inCampo && scena.inCampo.length !== undefined) {
         var dentro = false, k;
-        for (k = 0; k < campo.length; k++) if (campo[k] === bersaglio) { dentro = true; break; }
+        for (k = 0; k < scena.inCampo.length; k++) if (scena.inCampo[k] === bersaglio) { dentro = true; break; }
         if (!dentro) return false;
       }
       return bersaglio !== fonte || chi === 'self';
@@ -19000,6 +19183,26 @@ function vestiPannelliGiocatori(vsAI){
   AVVERSARIO_INFO = null;
 }
 
+// ── v0.78.16 — OGNI PUNTEGGIO NEL COLORE DEL SUO GIOCATORE ────────────────
+// L'incavo del punteggio era un'immagine sola per tutti e due. Adesso sono due
+// — score-dark e score-light — e quale tocchi a chi lo dice la fazione, che e'
+// la stessa domanda da cui dipendono cornice, angoli e numeri della carta
+// (playerFactionIsDark). Si rifa' a ogni cambio di fazione, perche' e' li' che
+// la risposta cambia.
+function vestiOrbDelPunteggio(){
+  if(typeof document === 'undefined') return;
+  for(const n of [1, 2]){
+    let scuro = true;
+    try{ scuro = playerFactionIsDark(n); }catch(_){ }
+    const file = scuro ? 'score-dark.png' : 'score-light.png';
+    for(const cls of ['.player-hp-orb-bg', '.player-hp-orb-lampo']){
+      // Gli orb stanno dentro al pannello del proprio giocatore, ma la loro
+      // classe e' la stessa per tutti e due: si cerca dal pannello.
+      const el = document.querySelector('#p' + n + '-info ' + cls);
+      if(el) impostaImgDaCandidati(el, uiFileCandidati(file));
+    }
+  }
+}
 function applyFactionToPlayerPanels(){
   document.body.classList.toggle('human-light', window.__humanFaction==='light');
   // v0.77.85 — e da che lato sto io. Fuori dalla rete sono sempre il numero
@@ -19010,6 +19213,7 @@ function applyFactionToPlayerPanels(){
   // vero. Non si tocca piu' l'immagine: il drappo lo mette una volta sola il
   // giro degli asset, ed e' lo stesso per tutti e due i giocatori.
   assegnaAvatarDeiGiocatori();
+  vestiOrbDelPunteggio();
 }
 // ── v0.76.13 — L'AVATAR E' UNA CARTA, PESCATA A OGNI PARTITA ──────────────
 // Due carte diverse a caso, una per giocatore, ciascuna nella variante della
@@ -19496,12 +19700,22 @@ function openSettingsModal(quando){
   document.querySelectorAll('#settings-modal .settings-voci').forEach(g=>{
     g.classList.toggle('mostra', g.getAttribute('data-quando') === dove);
   });
-  // v0.78.15 — "Surrender" solo mentre c'e' una partita da abbandonare. A
-  // partita finita restava li', e premendolo non succedeva niente (vedi la
-  // prima riga di surrenderGame): un pulsante che non fa niente e' peggio di
-  // un pulsante assente, perche' fa credere di aver sbagliato qualcosa.
+  // ── v0.78.16 — UN PULSANTE SOLO, CON DUE MESTIERI ──────────────────────
+  // A partita finita non c'e' piu' niente a cui arrendersi, e il pulsante
+  // restava li' senza fare niente (vedi la prima riga di surrenderGame). Alla
+  // v0.78.15 lo nascondevo; meglio dargli il mestiere che serve in quel
+  // momento — uscire — invece di lasciare un vuoto dove il pollice si aspetta
+  // qualcosa. E allora perde anche il rosso: uscire da una partita gia' finita
+  // non e' un gesto da avvisare.
   const resa = document.getElementById('btn-surrender');
-  if(resa) resa.style.display = (dove === 'partita' && G && !G.gameOver && G.currentPlayer) ? '' : 'none';
+  if(resa){
+    const inCorso = !!(dove === 'partita' && G && !G.gameOver && G.currentPlayer);
+    const etichetta = resa.querySelector('.hxb-label');
+    if(etichetta) etichetta.textContent = inCorso ? 'Surrender' : 'Back to main menu';
+    resa.classList.toggle('hx-btn-warning', inCorso);
+    resa.onclick = inCorso ? surrenderGame : backToMainMenu;
+    resa.style.display = '';
+  }
   // v0.77.11 — la finestra ha la veste di quella dei filtri, e quella veste
   // vuole due cose caricate: la trama del pannello e i cinque pezzi di ogni
   // pulsante. Si fa all'apertura e non una volta all'avvio perche' e' qui che
@@ -19556,6 +19770,7 @@ function closeSettingsModal(){
 // cosi' restano valide anche quando gli asset cambiano nome.
 let _menuDebugVestito = false;
 function montaMenuDebug(){
+  if(!debugPermesso()) return;   // niente da vestire per chi non puo' aprirlo
   if(_menuDebugVestito) return;
   const dentro = document.getElementById('debug-modal-overlay');
   if(!dentro) return;
@@ -19572,7 +19787,42 @@ function montaMenuDebug(){
     impostaVariabileDaCandidati(pan, '--hx-trama', uiFileCandidati('brushed-texture.jpg')));
   dentro.querySelectorAll('.hx-btn').forEach(vestiPulsante);
 }
+// ── v0.78.16 — IL MENU DI DEBUG E' SOLO PER GLI ADMIN ─────────────────────
+// Chi puo' aprirlo lo dice il SERVER: `admin` arriva col profilo e il client
+// lo tiene in GIOCATORE_ADMIN. Non e' una cosa che un giocatore possa
+// dichiarare da se': la stessa risposta decide se vede tutte le carte, e li'
+// mentire non servirebbe a niente perche' a servirle e' il server.
+//
+// Onesta' su cosa questa serratura protegge e cosa no: le voci di questo menu
+// sono scorciatoie a SCHERMO — mostra questa animazione, apri questa finestra,
+// comincia una partita di prova. Nessuna di loro chiede niente al server, e la
+// schermata di fine partita di prova non riferisce piu' l'esito dalla v0.78.12.
+// Quindi qui non si difende un tesoro: si toglie di mezzo una porta che un
+// giocatore normale non deve nemmeno vedere, e che aperta per sbaglio gli
+// lascerebbe il gioco in uno stato che non sa da dove viene.
+// Le difese vere stanno dove si guadagna qualcosa, e sono lato server.
+function debugPermesso(){
+  return typeof GIOCATORE_ADMIN !== 'undefined' && !!GIOCATORE_ADMIN;
+}
+// La targhetta della versione apre il menu. Per chi non e' admin non deve
+// nemmeno sembrare premibile: un pulsante che non risponde si legge come un
+// guasto.
+function aggiornaAccessoDebug(){
+  const t = document.getElementById('build-version-badge');
+  if(!t) return;
+  const si = debugPermesso();
+  t.style.pointerEvents = si ? 'auto' : 'none';
+  t.style.cursor = si ? 'var(--cursore)' : 'default';
+  if(!si){
+    const ov = document.getElementById('debug-modal-overlay');
+    if(ov) ov.classList.remove('show');
+  }
+}
 function openDebugModal(){
+  if(!debugPermesso()){
+    console.info('[debug] il menu di debug e\' riservato agli admin.');
+    return;
+  }
   try{ montaMenuDebug(); }catch(_){}
   document.getElementById('debug-modal-overlay').classList.add('show');
 }
@@ -22526,6 +22776,8 @@ async function raccogliCarte(){
       // prende il suo numero invece di scalarne uno qui, o le due contabilita'
       // divergerebbero al primo errore di rete.
       if(r && typeof r.bustineExtra === 'number') BUSTINE_VINTE = r.bustineExtra;
+      // v0.78.16 — e quali carte non sono ancora state guardate.
+      try{ carteNuoveDalServer(r && r.nuove); }catch(_){ }
       if(r && r.possedute){
         CARTE_POSSEDUTE = r.possedute;
         _possessoNoto = true;
@@ -23374,6 +23626,22 @@ function cardDbRenderRoster(){
     // casella e' gia' nel mazzo che si sta componendo, e cosa aggiungere
     // trascinandola (vedi aggiornaFantasmiCollezione e il trascinamento).
     slot.dataset.entryId = String(entry.id||'');
+    // v0.78.16 — se questa carta non e' ancora stata guardata, si accende.
+    // Il nastro e l'alone se ne vanno al primo passaggio del puntatore, che e'
+    // anche il momento in cui la si dichiara vista al server.
+    if(CARTE_NUOVE.has(String(entry.id||''))){
+      slot.classList.add('carta-nuova');
+      const nastro = document.createElement('img');
+      nastro.className = 'nuova-nastro'; nastro.alt = 'New'; nastro.draggable = false;
+      impostaImgDaCandidati(nastro, uiFileCandidati('new-card-banner.png'));
+      slot.appendChild(nastro);
+      slot.addEventListener('pointerenter', ()=>{
+        slot.classList.remove('carta-nuova');
+        segnaCartaGuardata(entry.id);
+        // Il nastro resta nel DOM ma spento (vedi il CSS): toglierlo qui
+        // farebbe saltare la dissolvenza a meta'.
+      }, { once:true });
+    }
     // v0.72.8: le carte con foil abilitato vengono avvolte in
     // .card-db-foil-wrap > .card-db-foil-tilt, con il layer glare come
     // fratello dell'SVG (vedi il blocco CSS .card-db-foil-* per il perché
