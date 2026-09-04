@@ -10483,7 +10483,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.78.27</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.78.29</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -14227,6 +14227,12 @@ function xpPerSalire(livello){ return 50 * (livello + 1); }
 
 // Il nome che si vede nel menu. Viene dall'account; scollegati resta un nome
 // di cortesia invece di una riga vuota.
+// ── v0.78.28 — COME SI CHIAMA L'AVVERSARIO ARTIFICIALE ────────────────────
+// "Computer" era scritto in tre punti — il pannello di partita, il suo ripiego,
+// e la schermata versus — e cambiarlo voleva dire trovarli tutti e tre. Adesso
+// e' una parola sola: chi la cerca la trova qui, e chi la cambia la cambia una
+// volta.
+const NOME_IA = 'A worthy opponent';
 function nomeGiocatore(){
   return (sessioneAccount && sessioneAccount.username) || 'Player';
 }
@@ -19136,6 +19142,10 @@ function _riordinoFine(){
 // riquadro rovinerebbe tutte e due.
 let _patchNotesProposte = false;
 function apriMenuPrincipale(){
+  // v0.78.28 — PRIMA di showPage: il montaggio del menu fa partire la musica
+  // (vedi il gancio 'mainmenu' delle pagine), e quella chiede a questa
+  // bandierina il permesso. Accendendola dopo, il primo brano non partirebbe.
+  _giocatoreDentro = true;
   const start = document.getElementById('start-screen');
   if(start) start.style.display = 'none';
   showPage('mainmenu');
@@ -19217,7 +19227,15 @@ function tornaAllaPaginaChiamante(){
 // movimento che dovrebbe essere continuo.
 // La regola qui e' una sola: se sta gia' suonando, non si tocca. E' la stessa
 // idea del "non ridisegnare cio' che non e' cambiato" applicata al suono.
+// ── v0.78.28 — MAI PRIMA CHE IL MENU SI APRA ──────────────────────────────
+// La guardia sta QUI e non nei chiamanti, che sono quattro: il caricamento
+// della pagina, il montaggio del menu, il ritorno da una partita e l'uscita
+// dalla Collezione. Metterla nei chiamanti vorrebbe dire trovarli tutti — e
+// bastava dimenticarne uno perche' la musica ripartisse davanti al login.
+// `_giocatoreDentro` lo accende apriMenuPrincipale, che e' la porta da cui si
+// entra: prima di quella non c'e' nessun menu, quindi non c'e' musica.
 function musicaMenuAvvia(){
+  if(typeof _giocatoreDentro !== 'undefined' && !_giocatoreDentro) return;
   // _musicIntroLoopActive resta vero per tutta la coppia intro+coda, anche
   // dopo che la intro e' finita e a suonare e' solo la coda: e' l'unico modo
   // affidabile di chiedere "sta gia' andando?", perche' a quel punto #bgm puo'
@@ -19489,7 +19507,7 @@ function vestiPannelliGiocatori(vsAI){
     avatar: MIO_AVATAR
   });
   if(vsAI){
-    _vestiUnPannello('p' + suoNumero, { nome:'Computer', rank:null, avatar:'' });
+    _vestiUnPannello('p' + suoNumero, { nome:NOME_IA, rank:null, avatar:'' });
   } else {
     const a = AVVERSARIO_INFO || {};
     _vestiUnPannello('p' + suoNumero, {
@@ -19874,6 +19892,19 @@ function mostraVersus(poi){
   });
 }
 
+// Toglie dal tavolo quel che c'e' rimasto: i tasselli e le carte del tabellone,
+// e i due ventagli. Tutti e tre nascono vuoti nel markup, quindi svuotarli li
+// riporta esattamente com'erano prima che si giocasse la prima partita.
+// Il mazzo e il resto dell'interfaccia NON si toccano: quelli hanno gia' chi li
+// riscrive, e cancellarli qui vorrebbe dire farli lampeggiare al contrario.
+function svuotaLaScena(){
+  const svg = document.getElementById('board-svg');
+  if(svg) svg.innerHTML = '';
+  for(const id of ['p1-hand-fan','p2-hand-fan']){
+    const f = document.getElementById(id);
+    if(f) f.innerHTML = '';
+  }
+}
 function startGame(vsAI){
   // Cancel any pending timers
   clearInterval(timerInterval);
@@ -19881,6 +19912,23 @@ function startGame(vsAI){
   stopAiThinkingHover(); // also tears down the AI speech bubble (see that function's own comment) — a reset mid-"thinking" must not leave it stuck showing
 
   showPage('game'); // v0.72.31: monta la pagina partita e smonta tutte le altre
+  // ── v0.78.29 — SI ENTRA SU UN TAVOLO VUOTO ────────────────────────────────
+  // Il disegno del tabellone e della mano e' RIMANDATO alla fine della
+  // schermata versus (v0.78.27: la caduta dei tasselli deve avere qualcuno che
+  // la guarda). Ma "rimandato" non vuol dire "vuoto": dentro a #board-svg e ai
+  // due ventagli c'e' ancora, intatta, la partita precedente — l'ultimo
+  // renderBoard di quella non l'ha mai tolta, e nessuno la toglie fino al primo
+  // renderBoard di questa.
+  // Le due illustrazioni della versus si aprono a 5410ms e il disegno arriva a
+  // 6000: in quei sei decimi si vedeva il tabellone di prima, gia' posato, che
+  // poi spariva di colpo e ricadeva dall'alto.
+  // Si svuota QUI, che e' il primo istante in cui la partita nuova esiste e la
+  // schermata copre ancora tutto: da adesso fino alla caduta non c'e'
+  // letteralmente niente da vedere.
+  // Non e' un doppione del render: quello RICOSTRUISCE, e ricostruire e' un
+  // gesto solo — cancella e ridisegna nello stesso fotogramma. Il vuoto qui
+  // serve nei sei decimi in cui il render non e' ancora arrivato.
+  svuotaLaScena();
   document.getElementById('app').style.display='flex';
   // v0.71.9 FIX ("il pulsante impostazioni renderizza sopra allo start
   // screen. non va bene. dovrebbe stare sotto"): #settings-btn's z-index was
@@ -29038,7 +29086,7 @@ function initGame(vsAI){
   // vuoto: senza questa condizione le due righe cancellerebbero il nome vero
   // appena scritto, ed e' esattamente quello che facevano.
   if(p1NameEl && !p1NameEl.textContent) p1NameEl.textContent='Player 1';
-  if(p2NameEl && !p2NameEl.textContent) p2NameEl.textContent=vsAI?'Computer':'Player 2';
+  if(p2NameEl && !p2NameEl.textContent) p2NameEl.textContent=vsAI?NOME_IA:'Player 2';
   assignTileAbilities(); // no-op — tile abilities moved onto cards, see that function's comment
   // Magic tiles: 8-12 random non-hole cells become "magic" — a plain boolean,
   // no color. EXPERIMENTAL (v0.21.0-abilities-on-cards): this used to also
@@ -29142,7 +29190,25 @@ function hexDistance(q1,r1,q2,r2){
   const dq=q1-q2, dr=r1-r2;
   return (Math.abs(dq)+Math.abs(dq+dr)+Math.abs(dr))/2;
 }
-function canPlace(q,r){return!isHole(q,r)&&!isOccupied(q,r);}
+// ── v0.78.28 — PETER PAN, "Flight Perks" ──────────────────────────────────
+// La sua riga del foglio era gia' scritta giusta — `playable_on / self /
+// blocked` — e il motore sapeva gia' rispondere (`giocabileSuBloccata`). A
+// mancare era la DOMANDA: `canPlace` non prendeva nemmeno la carta, quindi non
+// aveva modo di chiederlo.
+// La carta e' un parametro FACOLTATIVO: tutti i punti che chiedono soltanto
+// "questa casella e' libera?" — la scelta di una casella a caso, la
+// valutazione dell'IA — continuano a rispondere come prima. Chi sta calando una
+// carta precisa la passa, e ottiene la risposta giusta per quella carta.
+function puoCalareSuBloccata(card){
+  if(!card || card.abilityLocked) return false;
+  if(typeof _haAbilitaNuova !== 'function' || !_haAbilitaNuova(card)) return false;
+  try{ return !!_motore().giocabileSuBloccata(card); }catch(_){ return false; }
+}
+function canPlace(q,r,card){
+  if(isOccupied(q,r)) return false;
+  if(!isHole(q,r)) return true;
+  return puoCalareSuBloccata(card);
+}
 function freeCell(){
   const free=G.cells.filter(c=>canPlace(c.q,c.r));
   return free.length?free[Math.floor(Math.random()*free.length)]:null;
@@ -31077,7 +31143,7 @@ function doPlace(card,playerIdx,q,r,daServer){
   // piu' scattante, ma vorrebbe dire mostrare partite che non sono successe.
   if(PARTITA_RETE && !daServer){
     if(!reteSonoIo(playerIdx)) return;      // l'avversario lo muove il server
-    if(G.gameOver || !canPlace(q,r)) return;
+    if(G.gameOver || !canPlace(q,r,card)) return;
     G.turnPlayLocked = true;                 // niente seconda carta nell'attesa
     G.selected = null;
     reteGioca(card, q, r);
@@ -31105,7 +31171,7 @@ function doPlace(card,playerIdx,q,r,daServer){
   // front, so no second card can even be picked up/dragged, let alone
   // placed, until the real turn switch has happened.
   if(G.turnPlayLocked) return;
-  if(G.gameOver||!canPlace(q,r))return;
+  if(G.gameOver||!canPlace(q,r,card))return;
   G.turnPlayLocked=true;
   // Force-close the enlarged hand-hover preview and the structured card
   // tooltip THE INSTANT a card starts being placed, rather than waiting for
@@ -31158,6 +31224,12 @@ function doPlace(card,playerIdx,q,r,daServer){
     card={...card, values:boosted, activatedGroups:newActivated};
   }
 
+  // v0.78.28 — se ci si e- posati su un tassello BLOCCATO (Peter Pan), quel
+  // tassello smette di esserlo: una casella non puo- essere insieme bloccata e
+  // occupata, e lasciarcela vorrebbe dire un tabellone che si contraddice —
+  // il disegno mostrerebbe il muro sopra la carta e la conquista non saprebbe
+  // cosa guardare.
+  if(G.holes && G.holes.has(k)) G.holes.delete(k);
   G.board[k]={card,owner:player};
   // Un turno giocato e' una carta calata: e' il conto su cui si basa
   // l'esperienza (vedi riferisciPartita e, sul server, XP_PER_TURNO).
@@ -35693,7 +35765,7 @@ function anteprimaTavolo(){
   const [q,r] = dragState.hoverCellKey.split(',').map(Number);
   // Solo su una cella dove la carta puo' davvero finire: sorvolare un muro o
   // una casella occupata non deve muovere nessun numero.
-  const esito = (!isNaN(q) && !isNaN(r) && canPlace(q,r)) ? simulaPiazzamento(carta, q, r) : null;
+  const esito = (!isNaN(q) && !isNaN(r) && canPlace(q,r,carta)) ? simulaPiazzamento(carta, q, r) : null;
   // v0.75.58 — se calandola qui si trasformerebbe, lo si segna sulla carta: da
   // li' lo legge chi la disegna (vedi cardFoilVisualCard) e mostra l'arte della
   // carta in cui sta per diventare. Si riscrive a ogni casella sorvolata e si
@@ -38115,12 +38187,24 @@ function aiChooseMove(){
   const hand=G.p2Hand;
   if(!hand.length) return null;
   const freeCells=G.cells.filter(c=>canPlace(c.q,c.r));
-  if(!freeCells.length) return null;
+  // ── v0.78.29 — E LE CASELLE BLOCCATE, PER CHI CI PUO- ATTERRARE ────────
+  // L-elenco delle caselle si calcolava una volta sola, prima di guardare le
+  // carte: era quindi lo stesso per tutte, e Peter Pan non aveva modo di
+  // esistere in quel conto. Le bloccate si raccolgono ora a parte e si
+  // aggiungono alla lista di CHI puo- calarcisi (vedi puoCalareSuBloccata),
+  // che e- la stessa domanda che fa il giocatore umano.
+  // Vale per chiunque avra- quella regola domani: qui non c-e- scritto Peter
+  // Pan da nessuna parte.
+  const bloccate=G.cells.filter(c=>isHole(c.q,c.r) && !isOccupied(c.q,c.r));
+  if(!freeCells.length && !bloccate.length) return null;
   let best=null, bestNet=-Infinity, bestScore=-1, bestPower=-1, bestCentro=-1;
   const candidates=[];
   for(const card of hand){
     if(cartaCongelata(card)) continue;   // v0.77.64 — gelata: non e' una mossa
-    for(const cell of freeCells){
+    // Le caselle che QUESTA carta puo' usare: le libere per tutte, e in piu'
+    // le bloccate per chi ci sa atterrare.
+    const celle = puoCalareSuBloccata(card) ? freeCells.concat(bloccate) : freeCells;
+    for(const cell of celle){
       const {count:conquests, damage, autolesione}=aiEvaluateConquests(card,cell.q,cell.r);
       const power=SIDES.reduce((s,side)=>s+(card.values[side]||0),0);
       // v0.75.0 — QUI C'ERA LA SCORCIATOIA DEL COLPO MORTALE.
@@ -38915,7 +38999,7 @@ function placeCard(q,r){
   // selectCard/armDragOrClick's own explicit checks.
   if(G.turnPlayLocked)return;
   const{card,playerIdx}=G.selected;
-  if(!canPlace(q,r))return;
+  if(!canPlace(q,r,card))return;
   doPlace(card,playerIdx,q,r);
 }
 
@@ -39768,7 +39852,7 @@ function finishGameWithResult(){
 function _goNomeDi(n){
   const el = document.getElementById(n === 2 ? 'p2-name-label' : 'p1-name-label');
   const s = el && el.textContent && el.textContent.trim();
-  return s || (n === 2 ? (G.vsAI ? 'Computer' : 'Player 2') : 'Player 1');
+  return s || (n === 2 ? (G.vsAI ? NOME_IA : 'Player 2') : 'Player 1');
 }
 function _goFotoDi(n){
   const el = document.querySelector('#' + (n === 2 ? 'p2' : 'p1') + '-info .player-avatar-photo');
@@ -45245,7 +45329,7 @@ function endDragOrClickGesture(e, isCancel){
   const cellKey=el&&el.dataset&&el.dataset.cellkey;
   if(cellKey){
     const[q,r]=cellKey.split(',').map(Number);
-    if(canPlace(q,r)){
+    if(canPlace(q,r, dragState && dragState.card)){
       // Clear dragState (specifically hoverCellKey) BEFORE calling doPlace,
       // not after. doPlace() can synchronously trigger renderBoard() one or
       // more times as part of resolving a tile ability (e.g. Prosciuga's
@@ -46757,7 +46841,7 @@ function renderBoard(){
     const k=key(q,r);
     const placed=G.board[k];
     const hole=isHole(q,r);
-    const placeable=hasSel&&canPlace(q,r)&&!G.gameOver;
+    const placeable=hasSel&&canPlace(q,r, G.selected && G.selected.card)&&!G.gameOver;
 
     // Shadow the outer `svg` reference with a per-cell group so every element
     // this iteration appends (tile art, ability icon, sockets, etc.) lands

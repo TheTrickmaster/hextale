@@ -2197,6 +2197,20 @@ zone, caricando il gioco e verificando che le funzioni chiave esistano ancora.
 - Ristrutturare l'HTML contando le graffe o i `</div>` non funziona su
   markup annidato: si usa un parser (jsdom) e si asserisce prima di
   scrivere, ad esempio contando i pulsanti del menu debug.
+- **Rimandare un disegno non svuota lo schermo.** Il tabellone e i due
+  ventagli non vengono ripuliti a fine partita: ci resta dentro l'ultimo
+  disegno di quella. Finche' il render della partita nuova girava subito, non
+  si vedeva — ricostruire cancella e ridisegna nello stesso fotogramma. Da
+  quando il render aspetta la fine della schermata versus (v0.78.27), in mezzo
+  c'e' mezzo secondo scoperto, e in quel mezzo secondo si vedeva la partita di
+  prima. Chi rimanda un disegno deve anche svuotare (v0.78.29,
+  `svuotaLaScena`).
+- **Una lista calcolata fuori dal ciclo non puo' dipendere da cio' che il ciclo
+  guarda.** `aiChooseMove` si faceva l'elenco delle caselle una volta sola,
+  prima di guardare le carte: era quindi lo stesso per tutte, e una carta che
+  si gioca dove le altre non possono (Peter Pan sui tasselli bloccati) non
+  aveva modo di esistere in quel conto. Non falliva niente — semplicemente
+  quella mossa non veniva mai nemmeno considerata.
 
 ---
 
