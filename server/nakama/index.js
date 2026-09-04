@@ -494,6 +494,84 @@ function rpcPreferenze(ctx, logger, nk, payload) {
 // La sigla vuota e' ammessa e vuol dire "torna a quello di partenza": e' il
 // modo in cui si ripara un avatar rimasto su una carta che non c'e' piu'.
 // ══════════════════════════════════════════════════════════════════════════
+// v0.79.15 — L'ACCORDO DEL PLAYTEST
+// ══════════════════════════════════════════════════════════════════════════
+// Chi entra la prima volta lo deve accettare, e finche' non lo accetta non
+// gioca. La memoria di quel gesto sta QUI e non nel browser per la ragione piu'
+// semplice di tutte: e' l'unica prova che esista, e una prova che il diretto
+// interessato puo' cancellare svuotando una cartella non e' una prova.
+//
+// Un oggetto per persona e per TIPO di accordo, con dentro i quattro campi
+// chiesti. La chiave e' il tipo: cosi' domani un secondo accordo — le regole
+// della community, poniamo — e' una chiave in piu' e non un pezzo di codice in
+// piu'.
+//
+// LA VERSIONE E' LA PARTE CHE LAVORA. Non si guarda "ha accettato?", si guarda
+// "ha accettato QUESTA versione?". Il giorno in cui il testo cambia basta
+// alzare ACCORDO_VERSIONE e tutti se lo rivedono davanti — che e' esattamente
+// cio' che un numero di versione su un contratto deve saper fare. Senza,
+// riproporlo vorrebbe dire cancellare a mano le accettazioni di tutti.
+var COLL_ACCORDI = 'accordi';
+var ACCORDO_TIPO = 'playtest_nca';
+var ACCORDO_VERSIONE = '1.0';
+
+function _accordoDi(nk, userId) {
+  try {
+    var r = nk.storageRead([{ collection: COLL_ACCORDI, key: ACCORDO_TIPO, userId: userId }]);
+    return (r && r.length && r[0].value) ? r[0].value : null;
+  } catch (e) { return null; }
+}
+// "In regola" vuol dire: ha accettato, e ha accettato la versione di adesso.
+function _accordoInRegola(nk, userId) {
+  var a = _accordoDi(nk, userId);
+  return !!(a && a.agreement_version === ACCORDO_VERSIONE);
+}
+
+// Due domande in una porta sola:
+//   {}                          -> come sto messo?
+//   { accetto:true, versione }  -> accetto, segnatelo.
+// La versione arriva dal client ma NON e' il client a deciderla: si scrive
+// quella del server. Chi mandasse un numero diverso otterrebbe solo di vedersi
+// rifiutare l'accettazione, non di firmare un testo che non ha letto.
+function rpcAccordo(ctx, logger, nk, payload) {
+  if (!ctx.userId) throw Error('serve un accesso');
+  var d = {};
+  try { d = payload ? JSON.parse(payload) : {}; } catch (e) { d = {}; }
+
+  if (d.accetto === true) {
+    if (String(d.versione || '') !== ACCORDO_VERSIONE) {
+      throw Error('versione dell accordo non corrispondente: ricarica il gioco');
+    }
+    var riga = {
+      user_id: ctx.userId,
+      agreement_type: ACCORDO_TIPO,
+      agreement_version: ACCORDO_VERSIONE,
+      // In ISO e non in millisecondi: e' un dato che un giorno qualcuno
+      // leggera' con gli occhi, e "2026-09-04T14:22:31.000Z" si legge.
+      accepted_at: new Date().toISOString()
+    };
+    nk.storageWrite([{
+      collection: COLL_ACCORDI, key: ACCORDO_TIPO,
+      userId: ctx.userId, value: riga,
+      // Solo il server: l'accettazione non e' un dato che il suo autore deve
+      // poter riscrivere.
+      permissionRead: 0, permissionWrite: 0
+    }]);
+    logger.info('accordo %s v%s accettato da %s', ACCORDO_TIPO, ACCORDO_VERSIONE, ctx.userId);
+    return JSON.stringify({ accettato: true, versione: ACCORDO_VERSIONE });
+  }
+
+  var gia = _accordoDi(nk, ctx.userId);
+  return JSON.stringify({
+    accettato: _accordoInRegola(nk, ctx.userId),
+    versione: ACCORDO_VERSIONE,
+    // Quale aveva accettato prima, se ne aveva accettata una: serve a
+    // distinguere "non ha mai firmato" da "ha firmato una versione vecchia".
+    versioneAccettata: (gia && gia.agreement_version) || ''
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════════════
 // v0.79.12 — LE SEGNALAZIONI DI GUASTO
 // ══════════════════════════════════════════════════════════════════════════
 // La finestra dice "submitted successfully", quindi la segnalazione deve
@@ -937,6 +1015,12 @@ function rpcAvvio(ctx, logger, nk, payload) {
     nuove: _nuoveDi(possesso),
     // v0.79.7 — quante copie di ciascuna carta posseduta. Vedi _copieDi.
     copie: _copieDi(possesso, possedute),
+    // v0.79.15 — e se l'accordo del playtest e' stato accettato, in questa
+    // versione. Viaggia con tutto il resto: e' una domanda in meno all'avvio.
+    accordo: {
+      accettato: _accordoInRegola(nk, ctx.userId),
+      versione: ACCORDO_VERSIONE
+    },
     partitePerBustina: PARTITE_PER_BUSTINA,
     // v0.77.53 — l'avatar dell'account, che i pannelli di partita mostrano
     // accanto al nome. Sta fra i campi che Nakama tiene da se' (non nei
@@ -3752,6 +3836,7 @@ function InitModule(ctx, logger, nk, initializer) {
   initializer.registerRpc('hx_avatar', rpcAvatar);
   initializer.registerRpc('hx_bustina_azzera', rpcBustinaAzzera);
   initializer.registerRpc('hx_segnalazione', rpcSegnalazione);
+  initializer.registerRpc('hx_accordo', rpcAccordo);
   initializer.registerRpc('hx_posta_config', rpcPostaConfig);
   initializer.registerRpc('hx_elimina_account', rpcEliminaAccount);
   initializer.registerRpc('hx_giocatori', rpcGiocatoriOnline);

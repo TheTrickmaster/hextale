@@ -155,12 +155,19 @@ dice(!!sedia && /return true/.test(sedia.slice(sedia.indexOf('catch'))),
   'Il danno di due finestre e- piccolo e raro; quello di non poter entrare\n' +
   '        quando il server ha un singhiozzo lo si prende in faccia subito.');
 
+// v0.79.15 — il menu non si apre piu' dentro ad accessoEntra: ci si arriva da
+// _dentroDopoAccesso, che e' cio' che succede una volta in regola. L'ordine da
+// controllare e' quindi "prima il posto, poi si prosegue" — e che a proseguire
+// sia la funzione che apre il menu.
 const ingresso = corpo(gioco, 'accessoEntra');
 const iSedia = ingresso ? ingresso.indexOf('prendiLaSedia') : -1;
-const iMenu = ingresso ? ingresso.indexOf('apriMenuPrincipale') : -1;
-dice(iSedia >= 0 && iMenu >= 0 && iSedia < iMenu,
-  'si chiede il posto PRIMA di aprire il menu',
+const iAvanti = ingresso ? ingresso.indexOf('_dentroDopoAccesso') : -1;
+dice(iSedia >= 0 && iAvanti >= 0 && iSedia < iAvanti,
+  'si chiede il posto PRIMA di proseguire',
   'Rifiutare dopo vorrebbe dire buttare fuori qualcuno che e- gia- dentro.');
+const dentro = corpo(gioco, '_dentroDopoAccesso');
+dice(!!dentro && dentro.indexOf('apriMenuPrincipale') >= 0,
+  'e chi prosegue apre il menu');
 
 const uscita = corpo(gioco, '_fuoriDalGioco');
 dice(!!uscita && uscita.indexOf('await lasciaLaSedia') >= 0,
@@ -198,6 +205,30 @@ dice(!!saluto && saluto.indexOf('lasciaLaSedia(true)') >= 0,
   'e il saluto e- persistente',
   'Una fetch normale muore con la pagina che la manda: il messaggio non\n' +
   '        arriverebbe mai, ed e- il difetto che si sta correggendo.');
+
+console.log('\nL-ACCORDO DEL PLAYTEST\n');
+
+// v0.79.15 — il testo si accetta una volta e non si gioca senza. Le due meta'
+// stanno in due file: qui si controlla che si parlino.
+dice(server.indexOf("registerRpc('hx_accordo', rpcAccordo)") >= 0, 'hx_accordo e- registrata');
+dice(gioco.indexOf("nakamaRpc('hx_accordo'") >= 0, 'e il client la chiama');
+const mVerS = /var ACCORDO_VERSIONE = '([^']+)'/.exec(server);
+const mVerC = /const ACCORDO_VERSIONE = '([^']+)'/.exec(gioco);
+dice(!!mVerS && !!mVerC && mVerS[1] === mVerC[1],
+  'e i due dichiarano la stessa versione (' + ((mVerS && mVerS[1]) || '?') + ')',
+  'Il server rifiuta un-accettazione che dichiari una versione diversa dalla sua:\n' +
+  '        se i due numeri divergono, nessuno riesce piu- ad accettare.');
+const rpcAcc = corpo(server, 'rpcAccordo');
+dice(!!rpcAcc && rpcAcc.indexOf('accepted_at') >= 0 && rpcAcc.indexOf('agreement_version') >= 0,
+  'e si salva chi, quando e quale versione');
+const inRegola = corpo(server, '_accordoInRegola');
+dice(!!inRegola && inRegola.indexOf('ACCORDO_VERSIONE') >= 0,
+  'in regola vuol dire aver accettato QUESTA versione',
+  'Altrimenti cambiare il testo non lo rimetterebbe davanti a nessuno.');
+dice(!!ingresso && ingresso.indexOf('apriAccordo') >= 0 && ingresso.indexOf('accordoInRegola') >= 0,
+  'e il cancello sta all-ingresso, prima del menu',
+  'Il menu ha i pulsanti che portano a giocare: non aprirlo e- il modo in cui\n' +
+  '        "senza accordo non si gioca" si mantiene da se-.');
 
 console.log('\nLE COPIE DI UNA CARTA\n');
 
