@@ -1282,6 +1282,11 @@ var OP_SCELGO    = 10;  // client -> server: il bersaglio che ho indicato
 var OP_SCELTA    = 11;  // server -> client: il bersaglio indicato, per tutti e due
 
 var TURNO_MS = 60000;        // i sessanta secondi del turno
+// v0.78.23 — quanto dura la schermata che presenta i due avversari, e quindi
+// quanto tempo in piu- ha il primo turno. Sta qui e non solo nel client perche-
+// e- il server a tenere l-orologio: se il client la allunga senza dirlo, i
+// secondi tornano a mancare, e questo numero e- il posto in cui accordarsi.
+var VERSUS_MS = 4000;
 var GRAZIA_MS = 2500;        // quanto si aspetta oltre la scadenza prima di troncare
 var MANO_INIZIALE = 4;
 var ATTESA_INGRESSO_MS = 30000;  // se il secondo non entra, la partita muore da sola
@@ -1445,7 +1450,14 @@ function _comincia(stato, dispatcher, logger, nk) {
   // da chi ha premuto prima o da chi ha la connessione piu' svelta.
   stato.turno = Math.floor(Math.random() * 2);
   stato.numeroTurno = 1;
-  stato.scadenza = Date.now() + TURNO_MS;
+  // ── v0.78.23 — IL PRIMO TURNO ASPETTA LA SCHERMATA VERSUS ──────────────
+  // Trovato l-avversario, i due client mostrano per qualche secondo chi
+  // sfideranno. Il cronometro pero- partiva da questo istante, e quei secondi
+  // se li mangiava il primo turno: chi apre la partita si trovava con meno
+  // tempo degli altri, per una cosa che non ha nemmeno visto succedere.
+  // Il tempo in piu- lo si da- QUI, una volta sola, perche- qui e- l-unico
+  // punto in cui si sa che quel turno e- il primo.
+  stato.scadenza = Date.now() + TURNO_MS + VERSUS_MS;
 
   for (var i = 0; i < stato.giocatori.length; i++) {
     var u = stato.giocatori[i];

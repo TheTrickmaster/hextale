@@ -4857,6 +4857,145 @@ body.io-sono-2 #p1-info .player-avatar-photo{ transform:scaleX(-1); }
 #card-tooltip.ctb-board.ctb-light .ctb-quote{ color:#837360; }
 #toast.show{opacity:1;}
 
+/* ══════════════════════════════════════════════════════════════════════
+   v0.78.23 — LA SCHERMATA VERSUS
+   ══════════════════════════════════════════════════════════════════════
+   L'OBLIQUA. La barra centrale (vs-separator.png) non e' verticale: misurata
+   sul canale alfa del file, il suo asse scende di 319.5px in orizzontale su
+   2269px di altezza, cioe' 8.02 gradi dalla verticale, piegando a SINISTRA
+   scendendo. Le due maschere devono seguire ESATTAMENTE quella linea, o si
+   vedrebbe un filo di sfondo lungo il taglio.
+   Su una scena alta 1080 quel taglio si sposta di 1080 x tan(8.02) = 152.2px,
+   cioe' 76.1px per parte dal centro — che su 1920 di larghezza fanno il
+   3.9635%. Da qui i due poligoni qui sotto.
+   Le percentuali reggono da sole perche' la scena e' sempre 1920x1080: e'
+   #game-root a scalarla, e dentro di lui le proporzioni non cambiano mai.
+   E l'immagine della barra non va ruotata: l'inclinazione ce l'ha gia'
+   disegnata dentro, e scalandola in altezza viene giusta da se'. */
+#versus{
+  position:absolute; inset:0; z-index:3500;
+  display:none; overflow:hidden;
+  background:#05080a;          /* sotto le due art non deve trasparire niente */
+}
+#versus.mostra{ display:block; }
+.vs-lato{
+  position:absolute; top:0; bottom:0; left:0; right:0;
+  overflow:hidden;
+}
+.vs-sx{ clip-path:polygon(0 0, 53.9635% 0, 46.0365% 100%, 0 100%); }
+.vs-dx{ clip-path:polygon(53.9635% 0, 100% 0, 100% 100%, 46.0365% 100%); }
+/* L'illustrazione riempie la sua meta' e ne avanza: deve poter scorrere senza
+   scoprire un bordo. E' alta il 130% e parte fuori campo. */
+.vs-art{
+  position:absolute; left:50%; top:50%;
+  width:auto; height:130%; min-width:104%;
+  transform:translate(-50%,-50%);
+  object-fit:cover; pointer-events:none; user-select:none;
+  will-change:transform;
+}
+/* Il colpo di bianco quando le due meta' finiscono di arrivare. */
+.vs-lampo{
+  position:absolute; inset:0; background:#fff;
+  opacity:0; pointer-events:none;
+}
+.vs-lampo.acceso{ animation:vsLampo 260ms ease-out; }
+@keyframes vsLampo{ 0%{opacity:0;} 22%{opacity:0.85;} 100%{opacity:0;} }
+
+#vs-separatore{
+  position:absolute; left:50%; top:-40px;
+  height:calc(100% + 80px); width:auto;
+  transform:translateX(-50%);
+  pointer-events:none; user-select:none; z-index:3;
+  opacity:0;
+}
+#vs-separatore.dentro{ transition:opacity 200ms ease-out; opacity:1; }
+
+/* Le due lettere. La "v" arriva dall'alto, la "s" dal basso: sono due gesti
+   opposti che si incontrano, come i due giocatori. */
+.vs-lettera{
+  position:absolute; top:50%; height:36%; width:auto;
+  pointer-events:none; user-select:none; z-index:4;
+  opacity:0;
+  filter:drop-shadow(0 6px 30px rgba(0,0,0,0.85));
+}
+#vs-lettera-v{ left:50%; transform:translate(-104%,-190%); }
+#vs-lettera-s{ left:50%; transform:translate(4%,-10%); }
+#vs-lettera-v.dentro{
+  transition:transform 300ms cubic-bezier(.2,.8,.3,1), opacity 220ms ease-out;
+  transform:translate(-104%,-50%); opacity:1;
+}
+#vs-lettera-s.dentro{
+  transition:transform 300ms cubic-bezier(.2,.8,.3,1), opacity 220ms ease-out;
+  transform:translate(4%,-50%); opacity:1;
+}
+
+/* ── LA SCHEDA DI UN GIOCATORE ─────────────────────────────────────────────
+   La veste e' quella delle finestre del gioco, con la sfocatura dietro. Il
+   drappo esce di sotto: e' quel che gli da' il peso di uno stendardo appeso
+   invece di un rettangolo con dentro una faccia. */
+.vs-scheda{
+  position:absolute; top:50%; z-index:5; overflow:visible;
+  width:300px; padding:18px 0 34px;
+  transform:translateY(-50%);
+  border-radius:22px;
+  background-image:linear-gradient(135deg, rgba(84,96,98,0.5) 0%, rgba(29,38,39,0.5) 100%);
+  border:1.5px solid rgba(255,255,255,0.2);
+  backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px);
+  display:flex; flex-direction:column; align-items:center;
+  opacity:0;
+}
+.vs-scheda-sx{ left:calc(25% - 150px + 40px); }
+.vs-scheda-dx{ left:calc(75% - 150px - 40px); }
+/* Il drappo, dietro a tutto e piu' lungo della scheda. */
+.vs-banner{
+  position:absolute; left:50%; top:8px;
+  width:212px; height:auto;
+  transform:translateX(-50%);
+  z-index:0; pointer-events:none; user-select:none;
+  filter:drop-shadow(6px 6px 26px rgba(0,0,0,0.45));
+}
+/* Sopra al drappo, ma senza toccare chi ha una posizione sua: il rank e-
+   assoluto perche- deve cadere DENTRO al quadrato dorato, che sta sotto al
+   bordo della scheda. Questa riga glielo riportava a 'relative', e finiva
+   di lato. */
+.vs-scheda > *:not(.vs-banner):not(.vs-rank){ position:relative; z-index:1; }
+.vs-nome{
+  font-family:'Marcellus',var(--font-display),serif;
+  font-size:22px; color:#EDE0C6; text-align:center;
+  text-shadow:0 0 6px rgba(0,0,0,1);
+  max-width:250px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  margin-bottom:10px;
+}
+.vs-avatar{
+  position:relative; left:auto; top:auto; transform:none;
+  height:150px; width:calc(150px * 749 / 834);
+  margin-bottom:6px;
+}
+/* Il rank non sta in fila con gli altri: sta DENTRO al quadrato dorato del
+   drappo, che cade sotto al bordo della scheda. Per questo e- assoluto e per
+   questo la scheda non taglia quel che le esce di sotto. */
+.vs-rank{
+  position:absolute; left:50%; bottom:-72px;
+  transform:translateX(-50%);
+  height:52px; width:auto; display:block; z-index:2;
+}
+.vs-rank[src=""]{ visibility:hidden; }
+/* L'entrata: la sinistra scende, la destra sale. */
+.vs-scheda-sx{ transform:translateY(calc(-50% - 40px)); }
+.vs-scheda-dx{ transform:translateY(calc(-50% + 40px)); }
+.vs-scheda.dentro{
+  transition:transform 420ms cubic-bezier(.2,.8,.3,1), opacity 380ms ease-out;
+  transform:translateY(-50%); opacity:1;
+}
+.vs-scheda.via{
+  transition:transform 260ms ease-in, opacity 220ms ease-in;
+  opacity:0;
+}
+.vs-scheda-sx.via{ transform:translateY(calc(-50% - 30px)); }
+.vs-scheda-dx.via{ transform:translateY(calc(-50% + 30px)); }
+/* E l'uscita di tutto il resto. */
+#versus.svanisce{ transition:opacity 200ms ease-in; opacity:0; }
+
 /* ── gameover ── */
 /* v0.71.22 REWORK ("ricreiamo la schermata di fine partita con la nuova
    UI... faction-coded... come design base delle box usiamo lo stesso dei
@@ -8459,12 +8598,21 @@ body.prova-senza-willchange #mm-book-rot{
   font-size:18px; color:#D4CBB9; text-shadow:0 0 4px rgba(0,0,0,1);
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
 }
+/* v0.78.23 — la crocetta si accende solo sulla riga che si sta guardando.
+   Sempre accesa erano dodici crocette in colonna, e dodici volte lo stesso
+   segno smette di essere un pulsante e diventa uno sfondo.
+   Resta nel posto che occupa anche da spenta: e' opacity e non display,
+   o le righe si allargherebbero al passaggio del mouse.
+   E si accende anche col fuoco della tastiera: chi non usa il mouse deve poter
+   vedere dov'e' quel pulsante. */
 .deck-card-row-x{
   flex:0 0 auto; background:none; border:0; padding:0; margin:0;
   display:inline-flex; align-items:center; cursor:var(--cursore);
-  opacity:0.8; transition:opacity 0.16s ease, filter 0.16s ease;
+  opacity:0; transition:opacity 0.16s ease, filter 0.16s ease;
 }
 .deck-card-row-x img{ display:block; height:18px; width:auto; }
+.deck-card-row:hover .deck-card-row-x{ opacity:0.8; }
+.deck-card-row-x:focus-visible{ opacity:1; }
 .deck-card-row-x:hover{ opacity:1; filter:brightness(1.4); }
 /* ── la barra della capacita' ──────────────────────────────────────────────
    Gli stessi due pezzi dei cursori del volume, senza il pallino: qui non c'e'
@@ -10148,6 +10296,48 @@ body.prova-senza-willchange #mm-book-rot{
      (end-game-bg) con dentro il nome di chi ha vinto e, sotto, i due
      pulsanti. #gameover-box resta come contenitore per non spostare lo
      scrim e i suoi stati, ma non ha piu' fondo ne' cornice sue. -->
+<!-- ══════════════════════════════════════════════════════════════════════
+     v0.78.23 — LA SCHERMATA VERSUS
+     ══════════════════════════════════════════════════════════════════════
+     Fra "ho trovato un avversario" e "si gioca" ci sono quattro secondi in cui
+     si guarda in faccia chi si ha davanti. Non e' una decorazione: e' l'unico
+     momento in cui l'avversario e' una persona con un nome e non un pannello
+     laterale.
+     Copre TUTTO, e sotto, mentre copre, la partita viene costruita: quando
+     questa se ne va, il tabellone e' gia' li' pronto.
+     Le due meta' sono ritagliate lungo la stessa obliqua della barra centrale
+     (vedi il CSS per la misura, che e' stata presa sul file e non a occhio). -->
+<div id="versus" aria-hidden="true">
+  <div class="vs-lato vs-sx">
+    <img class="vs-art" alt="" draggable="false">
+    <div class="vs-lampo"></div>
+  </div>
+  <div class="vs-lato vs-dx">
+    <img class="vs-art" alt="" draggable="false">
+    <div class="vs-lampo"></div>
+  </div>
+  <img id="vs-separatore" alt="" draggable="false">
+  <img id="vs-lettera-v" class="vs-lettera" alt="" draggable="false">
+  <img id="vs-lettera-s" class="vs-lettera" alt="" draggable="false">
+  <div class="vs-scheda vs-scheda-sx">
+    <img class="vs-banner" alt="" draggable="false">
+    <div class="vs-nome"></div>
+    <div class="player-avatar vs-avatar">
+      <img class="player-avatar-photo" alt="" draggable="false">
+      <img class="player-avatar-frame" alt="" draggable="false">
+    </div>
+    <img class="vs-rank" alt="" draggable="false">
+  </div>
+  <div class="vs-scheda vs-scheda-dx">
+    <img class="vs-banner" alt="" draggable="false">
+    <div class="vs-nome"></div>
+    <div class="player-avatar vs-avatar">
+      <img class="player-avatar-photo" alt="" draggable="false">
+      <img class="player-avatar-frame" alt="" draggable="false">
+    </div>
+    <img class="vs-rank" alt="" draggable="false">
+  </div>
+</div>
 <div id="gameover">
   <!-- ── v0.78.12 — LA FASCIA DEI RISULTATI ───────────────────────────────
        Il contenitore prende tutta la larghezza e si alza quanto basta al suo
@@ -10258,7 +10448,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.78.22</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.78.23</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -19116,7 +19306,16 @@ function requestNewGame(vsAI){
   fermaTuttiISuoni();
   // La fazione e' gia' decisa: si applica e si parte, senza fermare nessuno.
   impostaFazioneUmano(fazioneUmano());
-  startGame(!!vsAI);
+  // ── v0.78.23 — PRIMA SI GUARDA IN FACCIA CHI SI HA DAVANTI ─────────────
+  // La schermata versus copre tutto per quattro secondi e sotto, mentre
+  // copre, la partita viene costruita: quando se ne va, il tabellone e- gia-
+  // li-. Sta QUI perche- questa e- l-unico imbuto da cui passano tutte le
+  // partite — rete, IA e prove di debug — e agganciarla altrove vorrebbe
+  // dire averla in alcune e non in altre.
+  // Va dopo impostaFazioneUmano: i due ritratti si scelgono per fazione, e
+  // quella dev-essere gia- decisa.
+  if(typeof mostraVersus === 'function') mostraVersus(()=> startGame(!!vsAI));
+  else startGame(!!vsAI);
 }
 
 // ── v0.72.27 — FAZIONI DINAMICHE ────────────────────────────────────────
@@ -19381,6 +19580,212 @@ function assegnaAvatarDeiGiocatori(){
     _avatarProva(el, artUrlVariante(slug, scura ? 'dark' : 'light').senzaNumero || [], gen);
   }
 }
+// ══════════════════════════════════════════════════════════════════════════
+// v0.78.23 — LA SCHERMATA VERSUS
+// ══════════════════════════════════════════════════════════════════════════
+// Quattro secondi fra "ho trovato un avversario" e la prima carta. Coprono
+// tutto, e sotto — mentre coprono — la partita viene costruita: quando la
+// schermata se ne va, il tabellone e' gia' li'.
+//
+// I quattro secondi sono anche un accordo col SERVER: il primo turno nasce con
+// altrettanto tempo in piu' (vedi VERSUS_MS in _comincia), o chi apre la
+// partita si troverebbe con meno secondi degli altri per una cosa che non ha
+// nemmeno visto succedere. Allungare questa scena senza allungare quello vuol
+// dire rubare tempo al primo giocatore.
+const VERSUS_MS = 4000;
+// La scaletta, in millisecondi dall'inizio. Sta tutta qui perche' e' una
+// SCENA: leggerla come un elenco di istanti e' l'unico modo di capire se
+// funziona senza guardarla.
+const VS_SCALETTA = {
+  separatore: 0,      // la barra centrale, in dissolvenza
+  arti:      120,     // le due illustrazioni entrano, una da sopra e una da sotto
+  artiDurata:680,
+  lettere:   620,     // la "v" cala, la "s" sale
+  lampo:     800,     // arrivate a coprire: colpo di bianco
+  schede:    880,     // e i due riquadri coi dati
+  schedeVia:3150,     // si comincia a uscire: prima i riquadri
+  artiVia:  3410,     // poi le illustrazioni si aprono e scoprono la partita
+  artiViaDurata:390,
+  resto:    3800      // e in ultimo se ne va tutto il resto
+};
+
+// ── CHI SI VEDE, E CON CHE FACCIA ─────────────────────────────────────────
+// Il ritratto NON si sceglie due volte. Prima lo sceglieva la partita, a caso,
+// nel momento in cui il tabellone veniva costruito: mostrarne un altro qui
+// avrebbe voluto dire far vedere un personaggio e poi giocare con un altro.
+// Adesso lo sceglie questa scena e lo LASCIA SCRITTO in AVATAR_DEI_GIOCATORI,
+// che e' il campo che la partita guarda per primo (vedi
+// assegnaAvatarDeiGiocatori). E' anche lo stesso campo da cui passera' la
+// scelta dell'avatar quando ci sara' una schermata per farla: questa scena non
+// avra' bisogno di cambiare.
+function _vsScegliRitratti(){
+  const pool = (typeof carteGiocabili === 'function') ? carteGiocabili() : [];
+  const mescolate = pool.length ? _mescola(pool.slice()) : [];
+  const fuori = {};
+  for(const p of [1,2]){
+    const entry = mescolate.length ? mescolate[(p-1) % mescolate.length] : null;
+    if(!entry) continue;
+    // La fazione di quel giocatore decide quale delle due varianti d'arte: il
+    // ritratto chiaro a chi gioca chiaro. Vale anche per l'IA, che una fazione
+    // ce l'ha come tutti.
+    const scura = playerFactionIsDark(p);
+    const gia = scura ? entry.artDark : entry.artLight;
+    const slug = entry.slug || (typeof slugPersonaggio === 'function' ? slugPersonaggio(entry.name) : '');
+    const candidati = gia ? [gia]
+      : (slug ? ((artUrlVariante(slug, scura ? 'dark' : 'light').senzaNumero) || []) : []);
+    fuori[p] = { entry: entry, candidati: candidati };
+  }
+  return fuori;
+}
+// Il nome e il rank di chi ho davanti.
+// Contro l'IA non c'e' un avversario vero: si dice "A worthy opponent" e gli si
+// da' un rank vicino al proprio, uno sopra o uno sotto. Non e' un dato — e' un
+// modo di non lasciare vuoto il posto dove sta un dato, senza inventare un
+// nome che sembri quello di una persona.
+function _vsChiSonoIo(){
+  const n = (typeof PARTITA_RETE !== 'undefined' && PARTITA_RETE && PARTITA_RETE.io) ? PARTITA_RETE.io : 1;
+  return n;
+}
+function _vsDatiGiocatore(mio){
+  const prof = (typeof PROFILO_STAGIONE !== 'undefined' && PROFILO_STAGIONE) ? PROFILO_STAGIONE : null;
+  if(mio){
+    return {
+      nome: (MENU_GIOCATORE && MENU_GIOCATORE.nome) || 'Player',
+      rank: prof && typeof prof.rank === 'number' ? prof.rank : null
+    };
+  }
+  if(typeof PARTITA_RETE !== 'undefined' && PARTITA_RETE && typeof AVVERSARIO_INFO === 'object' && AVVERSARIO_INFO){
+    return {
+      nome: AVVERSARIO_INFO.nome || 'Opponent',
+      rank: (typeof AVVERSARIO_INFO.rank === 'number') ? AVVERSARIO_INFO.rank : null
+    };
+  }
+  // L'IA.
+  const mioRank = (prof && typeof prof.rank === 'number') ? prof.rank : 0;
+  const scarto = Math.floor(Math.random()*3) - 1;         // -1, 0 o +1
+  const ultimo = (typeof RANGHI !== 'undefined' && RANGHI) ? RANGHI.length - 1 : 0;
+  return { nome: 'A worthy opponent', rank: Math.max(0, Math.min(ultimo, mioRank + scarto)) };
+}
+
+// Riempie una delle due meta'. `lato` e' 'sx' o 'dx'.
+function _vsRiempiLato(lato, numero, ritratto, dati){
+  const radice = document.getElementById('versus');
+  if(!radice) return;
+  const meta = radice.querySelector('.vs-' + lato);
+  const scheda = radice.querySelector('.vs-scheda-' + lato);
+  if(!meta || !scheda) return;
+  const cand = (ritratto && ritratto.candidati) || [];
+  const arte = meta.querySelector('.vs-art');
+  const foto = scheda.querySelector('.player-avatar-photo');
+  if(cand.length){
+    impostaImgDaCandidati(arte, cand);
+    impostaImgDaCandidati(foto, cand);
+    // Quando l'indirizzo buono e' noto, lo si lascia scritto per la partita:
+    // cosi' il tabellone mostra la stessa faccia di questa schermata, e non ne
+    // sceglie una sua.
+    arte.onload = ()=>{ try{ AVATAR_DEI_GIOCATORI[numero] = arte.getAttribute('src') || null; }catch(_){ } };
+  }
+  const nome = scheda.querySelector('.vs-nome');
+  if(nome) nome.textContent = dati.nome || '';
+  const rank = scheda.querySelector('.vs-rank');
+  if(rank){
+    if(dati.rank === null || typeof iconaDelRank !== 'function'){ rank.removeAttribute('src'); rank.style.visibility='hidden'; }
+    else { rank.style.visibility=''; impostaImgDaCandidati(rank, iconaDelRank(RANGHI[dati.rank])); }
+  }
+}
+
+let _vsInCorso = false;
+// Mostra la scena e, quando ha finito, chiama `poi`. Chi chiama non deve sapere
+// niente della scaletta: passa quel che va fatto sotto, e lo si fa mentre la
+// schermata copre.
+function mostraVersus(poi){
+  const radice = document.getElementById('versus');
+  const fare = ()=>{ try{ if(typeof poi === 'function') poi(); }catch(e){ console.error('[versus] la partita non parte: ' + (e && e.stack || e)); } };
+  // Senza la schermata la partita comincia lo stesso: una scena mancante non
+  // deve poter impedire di giocare.
+  if(!radice || _vsInCorso){ fare(); return; }
+  _vsInCorso = true;
+
+  // Gli asset, ogni volta: sono pochi e cosi' non c'e' un "primo avvio" in cui
+  // la scena e' spoglia.
+  const img = (sel, file)=>{ const el = radice.querySelector(sel); if(el) impostaImgDaCandidati(el, uiFileCandidati(file)); };
+  img('#vs-separatore', 'vs-separator.png');
+  img('#vs-lettera-v', 'vs-v.png');
+  img('#vs-lettera-s', 'vs-s.png');
+  radice.querySelectorAll('.vs-banner').forEach(el => impostaImgDaCandidati(el, uiFileCandidati('player-banner.png')));
+  radice.querySelectorAll('.player-avatar-frame').forEach(el => impostaImgDaCandidati(el, uiFileCandidati('avatar-frame.png')));
+
+  // Chi sta a sinistra sono IO, sempre: la schermata la guarda una persona
+  // sola, e la persona sta a sinistra.
+  const io = _vsChiSonoIo(), lui = (io === 2) ? 1 : 2;
+  const ritratti = _vsScegliRitratti();
+  try{ AVATAR_DEI_GIOCATORI[1] = null; AVATAR_DEI_GIOCATORI[2] = null; }catch(_){ }
+  _vsRiempiLato('sx', io,  ritratti[io],  _vsDatiGiocatore(true));
+  _vsRiempiLato('dx', lui, ritratti[lui], _vsDatiGiocatore(false));
+
+  // Tutto parte spento e fuori posto: la scena e' la stessa a ogni partita, e
+  // senza questo la seconda la troverebbe gia' finita.
+  const sep = radice.querySelector('#vs-separatore');
+  const lettere = radice.querySelectorAll('.vs-lettera');
+  const schede = radice.querySelectorAll('.vs-scheda');
+  const arti = radice.querySelectorAll('.vs-art');
+  sep.classList.remove('dentro');
+  lettere.forEach(l => l.classList.remove('dentro'));
+  schede.forEach(s => s.classList.remove('dentro','via'));
+  radice.classList.remove('svanisce');
+  radice.style.opacity = '';
+  arti.forEach((a, i)=>{
+    a.style.transition = 'none';
+    // La sinistra parte da SOPRA e scende, la destra da SOTTO e sale: due gesti
+    // opposti che si incontrano. E sono le stesse due direzioni con cui, alla
+    // fine, si apriranno per scoprire il tabellone — per questo l'uscita si
+    // legge come un proseguimento e non come un ripensamento.
+    a.style.transform = 'translate(-50%,' + (i === 0 ? '-118%' : '18%') + ')';
+  });
+  radice.classList.add('mostra');
+  void radice.offsetWidth;
+
+  const quando = (ms, che)=> setTimeout(()=>{ try{ che(); }catch(_){ } }, ms);
+  quando(VS_SCALETTA.separatore, ()=> sep.classList.add('dentro'));
+  quando(VS_SCALETTA.arti, ()=>{
+    arti.forEach((a)=>{
+      a.style.transition = 'transform ' + VS_SCALETTA.artiDurata + 'ms cubic-bezier(.16,.84,.3,1)';
+      a.style.transform = 'translate(-50%,-50%)';
+    });
+  });
+  quando(VS_SCALETTA.lettere, ()=> lettere.forEach(l => l.classList.add('dentro')));
+  quando(VS_SCALETTA.lampo, ()=>{
+    radice.querySelectorAll('.vs-lampo').forEach(l=>{ l.classList.remove('acceso'); void l.offsetWidth; l.classList.add('acceso'); });
+    // E da qui in poi continuano nella stessa direzione, ma cosi' piano che
+    // non lo si nota: e' quello che tiene viva un'immagine ferma.
+    arti.forEach((a, i)=>{
+      a.style.transition = 'transform 2600ms linear';
+      a.style.transform = 'translate(-50%,' + (i === 0 ? '-46%' : '-54%') + ')';
+    });
+  });
+  quando(VS_SCALETTA.schede, ()=> schede.forEach(s => s.classList.add('dentro')));
+
+  // Mentre copre, sotto si costruisce la partita.
+  quando(VS_SCALETTA.schede + 120, fare);
+
+  quando(VS_SCALETTA.schedeVia, ()=> schede.forEach(s => s.classList.add('via')));
+  quando(VS_SCALETTA.artiVia, ()=>{
+    arti.forEach((a, i)=>{
+      a.style.transition = 'transform ' + VS_SCALETTA.artiViaDurata + 'ms cubic-bezier(.6,0,.85,.4)';
+      a.style.transform = 'translate(-50%,' + (i === 0 ? '68%' : '-168%') + ')';
+    });
+  });
+  quando(VS_SCALETTA.resto, ()=> radice.classList.add('svanisce'));
+  quando(VERSUS_MS, ()=>{
+    radice.classList.remove('mostra','svanisce');
+    _vsInCorso = false;
+    // Il cronometro del primo turno comincia ADESSO, non quattro secondi fa.
+    // In rete si riallinea da se' alla scadenza del server, che quei quattro
+    // secondi li ha gia' contati.
+    try{ if(G && !G.gameOver) startTimer(); }catch(_){ }
+  });
+}
+
 function startGame(vsAI){
   // Cancel any pending timers
   clearInterval(timerInterval);
