@@ -1351,11 +1351,18 @@ var KEY_PRESENZE = 'presenze';
 //                                 minuto che vedere il numero ballare.
 //   "il posto e' occupato?"     — qui sbagliare costa a chi resta chiuso
 //                                 fuori, quindi la sedia si libera prima.
-// Il client batte ogni trenta secondi: quarantacinque e' un battito saltato
-// piu' il margine. Chi chiude la scheda di brutto — non dalla porta, che
-// avvisa (vedi rpcEsco) — aspetta al massimo quel tempo prima di poter
-// rientrare.
-var SEDIA_LIBERA_MS = 45 * 1000;
+// Il client batte ogni venti secondi (ONLINE_OGNI_MS): trenta e' un battito
+// saltato piu' il margine. I due numeri vanno cambiati in coppia — una sedia
+// piu' corta del battito la perderebbe chi sta ancora giocando.
+//
+// v0.79.11 — erano quarantacinque, col battito a trenta. Restare mezzo minuto
+// fuori dal proprio account e' il momento in cui una persona smette di
+// riprovare, e questa attesa e' un RIPIEGO: la strada normale e' che chi se ne
+// va lo dica (rpcEsco), e adesso lo dice anche chi chiude la finestra senza
+// passare dalla porta. Questi trenta secondi valgono solo per chi non ha
+// potuto dire niente — un crollo, la corrente che va via, il telefono che
+// chiude l'applicazione di forza.
+var SEDIA_LIBERA_MS = 30 * 1000;
 
 // Legge una presenza nelle due forme, la vecchia e la nuova.
 function _presenzaLetta(v) {

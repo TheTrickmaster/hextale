@@ -10768,7 +10768,7 @@ body.io-sono-2 #p1-info .player-avatar-photo{ transform:scaleX(-1); }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.10</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.11</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -13576,10 +13576,19 @@ function erroreNakama(messaggio, codice){
 // `codice` vale 0 quando la richiesta non e' nemmeno partita (rete assente,
 // server spento, tempo scaduto): e' il caso che merita l'offerta di giocare in
 // locale, mentre un 401 e' una risposta vera e vuole un messaggio diverso.
+// ── v0.79.11 — `persistente`: UNA RICHIESTA CHE SOPRAVVIVE ALLA PAGINA ────
+// Serve a una cosa sola, ma quella cosa conta: dire al server "me ne vado"
+// mentre la finestra si sta chiudendo. Una fetch normale parte e muore insieme
+// alla pagina, quindi il messaggio non arriva mai — ed e' il motivo per cui
+// chi chiudeva il gioco restava fuori dal proprio account finche' il posto non
+// si liberava da solo.
+// `keepalive` dice al browser di consegnarla comunque. E niente scadenza: il
+// timeout la ANNULLEREBBE, che e' l'opposto di quel che si sta chiedendo.
 async function nakamaChiedi(percorso, opzioni){
   opzioni = opzioni || {};
   if(typeof fetch !== 'function') throw erroreNakama('This device cannot make network requests.', 0);
-  const controllo = (typeof AbortController === 'function') ? new AbortController() : null;
+  const persistente = !!opzioni.persistente;
+  const controllo = (!persistente && typeof AbortController === 'function') ? new AbortController() : null;
   const scaduto = controllo ? setTimeout(()=>controllo.abort(), NAKAMA.attesaMs) : 0;
   let risposta;
   try{
@@ -13587,6 +13596,7 @@ async function nakamaChiedi(percorso, opzioni){
       method: opzioni.metodo || 'GET',
       headers: Object.assign({ 'Content-Type': 'application/json' }, opzioni.intestazioni || {}),
       body: opzioni.corpo ? JSON.stringify(opzioni.corpo) : undefined,
+      keepalive: persistente || undefined,
       signal: controllo ? controllo.signal : undefined
     });
   }catch(_){
@@ -13830,9 +13840,32 @@ async function prendiLaSedia(){
     return true;
   }
 }
-function lasciaLaSedia(){
+function lasciaLaSedia(persistente){
   if(!sessioneAccount || !sessioneAccount.token) return Promise.resolve();
-  return nakamaRpc('hx_esco', { sessione: SESSIONE_CLIENT }).catch(()=>{});
+  return nakamaRpc('hx_esco', { sessione: SESSIONE_CLIENT },
+    persistente ? { persistente:true } : null).catch(()=>{});
+}
+// ── v0.79.11 — CHIUDERE LA FINESTRA E' USCIRE ────────────────────────────
+// Il posto si liberava solo passando dalla porta (Disconnect). Chi chiudeva il
+// gioco — o lo chiudeva per sbaglio — restava fuori dal proprio account finche'
+// il battito non scadeva: mezzo minuto in cui il gioco dice "sei gia' dentro" a
+// qualcuno che non e' dentro da nessuna parte, ed e' esattamente il momento in
+// cui una persona smette di riprovare.
+// `pagehide` e' l'ultimo istante utile, e l'unico che i browser garantiscono
+// (`unload` non arriva piu' su mobile). La richiesta parte "persistente", o
+// morirebbe con la pagina che la manda.
+//
+// `e.persisted` distingue le due cose che questo evento racconta: la pagina che
+// se ne VA davvero, e la pagina messa da parte per un eventuale ritorno
+// indietro (succede sul telefono a ogni cambio di applicazione). Nel secondo
+// caso la sessione e' ancora viva e non si saluta nessuno — altrimenti basterebbe
+// guardare una notifica per perdere il proprio posto.
+function salutaChiudendo(){
+  if(typeof window === 'undefined') return;
+  window.addEventListener('pagehide', (e)=>{
+    if(e && e.persisted) return;   // messa da parte, non chiusa
+    try{ lasciaLaSedia(true); }catch(_){ }
+  });
 }
 async function accessoEntra(sessione){
   // v0.79.3 — PRIMA di aprire il menu, e non dopo. Rifiutare qui costa poco:
@@ -13843,7 +13876,8 @@ async function accessoEntra(sessione){
     try{ nakamaDimenticaSessione(); }catch(_){}
     apriAvviso('Already in game',
       'This account is already in game on another device or window. '
-      + 'Close the other session and try again.', true);
+      + 'Close the other session and try again. If you just closed the game, '
+      + 'the seat frees itself within half a minute.', true);
     return;
   }
   giocatoreOnline = !!sessione;
@@ -14870,7 +14904,7 @@ let _catalogoVersione = '';
 // volta per chiamata. Vuota vuol dire "mai fatta".
 let _arteVerificataPer = null;
 
-function nakamaRpc(nome, corpo){
+function nakamaRpc(nome, corpo, opzioni){
   const s = sessioneAccount;
   if(!s || !s.token) throw erroreNakama('serve un accesso', 401);
   // `unwrap` dice a Nakama di prendere il corpo come payload e di restituire
@@ -14879,7 +14913,9 @@ function nakamaRpc(nome, corpo){
   return nakamaChiedi('/v2/rpc/' + nome + '?unwrap', {
     metodo: 'POST',
     intestazioni: { Authorization: 'Bearer ' + s.token },
-    corpo: corpo || {}
+    corpo: corpo || {},
+    // v0.79.11 — vedi nakamaChiedi: serve solo al saluto d'addio.
+    persistente: !!(opzioni && opzioni.persistente)
   });
 }
 
@@ -16698,7 +16734,12 @@ function mmFermaCronometro(){
 // conto proprio mentre gioca.
 // Trenta secondi: il server considera vivo un battito per novanta, quindi ce ne
 // vogliono tre persi di fila prima che qualcuno sparisca dal conto.
-const ONLINE_OGNI_MS = 30000;
+// v0.79.11 — venti secondi invece di trenta. Non e' il contatore dei giocatori
+// a volerlo — quello andava benissimo cosi' — e' il POSTO: il server considera
+// libera una sedia dopo un battito saltato piu' un margine, quindi battendo
+// piu' spesso l'attesa di chi e' rimasto fuori si accorcia insieme. Vedi
+// SEDIA_LIBERA_MS dall'altra parte: i due numeri vanno cambiati in coppia.
+const ONLINE_OGNI_MS = 20000;
 let _onlineTimer = null;
 let _onlineLamentato = false;
 async function aggiornaGiocatoriOnline(){
@@ -19654,6 +19695,8 @@ function apriMenuPrincipale(){
   // v0.78.21 — da qui in poi il giocatore e' DENTRO: da adesso l'avviso di
   // versione vecchia puo' comparire, e da adesso si guarda a intervalli.
   try{ sorvegliaLaVersione(); }catch(_){ }
+  // v0.79.11 — e da qui in poi, chiudere la finestra libera il posto.
+  try{ salutaChiudendo(); }catch(_){ }
   // v0.78.22 — e da qui parte il battito che dice al server "ci sono" e chiede
   // quanti siamo. Stava su aggiornaDatiMenu, che non chiama nessuno: vedi il
   // cartello li' sopra.

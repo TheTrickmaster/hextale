@@ -168,6 +168,37 @@ dice(!!uscita && uscita.indexOf('await lasciaLaSedia') >= 0,
   'Senza l-attesa la richiesta muore con la ricarica, e si resta chiusi fuori\n' +
   '        dal proprio account per tre quarti di minuto.');
 
+// ── v0.79.11 — I DUE NUMERI DEL POSTO VANNO IN COPPIA ────────────────────
+// Il client batte ogni ONLINE_OGNI_MS, il server considera libera una sedia
+// dopo SEDIA_LIBERA_MS. Se il secondo scendesse sotto il primo, il posto si
+// libererebbe sotto ai piedi di chi sta ancora giocando — e la prossima cosa
+// che vedrebbe e' "questo account e' gia' in gioco", riferito a se stesso.
+// Vivono in due file diversi, quindi nessuno dei due sa dell'altro: e' il
+// motivo per cui questa prova esiste.
+const mBattito = /const ONLINE_OGNI_MS = (\d+)/.exec(gioco);
+const mSedia = /var SEDIA_LIBERA_MS = (\d+) \* 1000/.exec(server);
+const msBattito = mBattito ? Number(mBattito[1]) : 0;
+const msSedia = mSedia ? Number(mSedia[1]) * 1000 : 0;
+dice(!!msBattito && !!msSedia, 'i due numeri del posto si leggono');
+dice(msSedia > msBattito * 1.4,
+  'la sedia dura piu- di un battito, col margine (' + (msBattito / 1000) + 's -> ' + (msSedia / 1000) + 's)',
+  'Una sedia piu- corta del battito la perde chi sta ancora giocando: al primo\n' +
+  '        battito in ritardo il gioco gli direbbe che e- gia- in gioco lui stesso.');
+dice(msSedia <= 40000,
+  'e non fa aspettare piu- di quaranta secondi chi e- rimasto fuori',
+  "E- il momento in cui una persona smette di riprovare. La strada normale e'\n" +
+  '        che chi se ne va lo dica (rpcEsco, e il saluto alla chiusura della\n' +
+  '        finestra): questa attesa e- solo per chi non ha potuto dire niente.');
+const saluto = corpo(gioco, 'salutaChiudendo');
+dice(!!saluto && saluto.indexOf('pagehide') >= 0 && saluto.indexOf('persisted') >= 0,
+  'chiudere la finestra libera il posto, ma metterla da parte no',
+  'Sul telefono pagehide arriva a ogni cambio di applicazione: senza guardare\n' +
+  '        `persisted`, guardare una notifica costerebbe il proprio posto.');
+dice(!!saluto && saluto.indexOf('lasciaLaSedia(true)') >= 0,
+  'e il saluto e- persistente',
+  'Una fetch normale muore con la pagina che la manda: il messaggio non\n' +
+  '        arriverebbe mai, ed e- il difetto che si sta correggendo.');
+
 console.log('\nLE COPIE DI UNA CARTA\n');
 
 // v0.79.7 — la pagina dello sbusto scrive "3 owned" sopra a una carta che si ha
