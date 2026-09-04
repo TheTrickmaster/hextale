@@ -1205,7 +1205,7 @@ body.mouse-down, body.mouse-down *{
   width:300px; align-self:center; margin:0;
 }
 /* v0.77.20 — Exit game ha una misura sua, piu' stretta del pannello. */
-#start-accesso > .hx-btn{ width:470px; align-self:center; }
+#start-accesso > .hx-btn{ width:400px; align-self:center; }
 /* v0.77.24 — la riga dei messaggi dell'accesso e il pulsante di ripiego.
    Il messaggio non compare e sparisce con `display`: cosi' i pulsanti sotto
    di lui salterebbero su e giu' a ogni tentativo. Cresce invece da altezza
@@ -1323,6 +1323,11 @@ body.mouse-down, body.mouse-down *{
   100%{ transform:translateX(-50%) scale(1); }
 }
 #username-box{ width:470px; }
+/* v0.79.16 — "Go back" e "Confirm" sono due pulsanti in colonna, e due pulsanti
+   in colonna larghi diversi si guardano male. Finche' il pannello li allargava
+   entrambi il problema non c'era; adesso che si fermano a 400px, quello senza
+   .hx-azione si accorcerebbe fino al suo testo. */
+#username-annulla{ width:100%; padding:0; }
 #username-spiega{
   font-family:'Rosarivo',serif; font-size:15px; line-height:1.4;
   text-align:center; color:#EDE0C6; opacity:0.85;
@@ -7077,11 +7082,32 @@ body.io-sono-2 #p1-info .player-avatar-photo{ transform:scaleX(-1); }
    Qui il nastro NON sparisce mai. In Collezione se ne va al primo sguardo,
    perche' li' "nuova" vuol dire "non ancora guardata"; in questa pagina vuol
    dire "non ce l'avevi", e passarci sopra col puntatore non cambia quel fatto.
-   Tutte e due stanno FUORI dal piano che gira (sono figlie della carta, come
-   il pulsante): dentro, girerebbero con lei e si leggerebbero al contrario. */
+
+   ── v0.79.16 — E IL NASTRO E' INCOLLATO ALLA CARTA ──────────────────────
+   Stava fuori da ogni livello che si muove — figlio diretto della carta, come
+   il pulsante — e si vedeva: la carta si inclinava seguendo il puntatore e
+   scattava avanti al tocco, e il nastro restava piatto e della sua misura,
+   sospeso davanti a una carta che si muoveva senza di lui. Non sembrava
+   stampato su di lei, sembrava appoggiato sopra lo schermo.
+   Adesso vive dentro a .pack-card-tilt, cioe' dentro all'inclinazione e dentro
+   all'ingrandimento: la prospettiva che piega la carta piega anche lui, e
+   quando la carta cresce cresce con lei. Delle due misure qui sotto non cambia
+   niente — .pack-card-tilt occupa esattamente il riquadro della carta.
+   translateZ(1px) e' l'unica riga in piu' che serve, e serve davvero: dentro a
+   uno spazio 3D due superfici alla stessa profondita' sono complanari, e due
+   superfici complanari il browser le disegna in un ordine che non e' garantito
+   — il nastro sparirebbe dentro alla faccia della carta a inclinazioni diverse.
+   Un millimetro davanti e la domanda non si pone. Lo z-index qui sotto invece
+   non decide piu' niente (in un contesto 3D conta la profondita', non lui): e'
+   rimasto perche' lo stesso nastro si usa anche in Collezione, dove decide.
+
+   Il conto delle copie no: quello NON e' sulla carta, e' una didascalia sopra
+   di lei, fuori dal suo bordo. Una didascalia che si inclina insieme al foglio
+   sembrerebbe stampata su un vetro, non detta a voce. */
 .pack-card .nuova-nastro{
   position:absolute; left:-2.3px; top:74.75px;
   height:46px; width:auto; z-index:7;
+  transform:translateZ(1px);
   pointer-events:none; user-select:none; -webkit-user-drag:none;
   opacity:0; transition:opacity .25s ease;
 }
@@ -7449,6 +7475,18 @@ body.io-sono-2 #p1-info .player-avatar-photo{ transform:scaleX(-1); }
   --hxb-mid:calc(var(--hxb-h) * 116 / 136);
   position:relative; flex:0 0 auto;
   height:var(--hxb-h);
+  /* ── v0.79.16 — MAI PIU' LARGHI DI 400px ──────────────────────────────
+     Un pulsante lungo mezzo schermo non si legge meglio: si legge peggio,
+     perche' l'etichetta resta al centro e i due bordi finiscono lontani da
+     dove si guarda. Il tetto sta qui, sulla famiglia, e non finestra per
+     finestra: cosi' vale anche per il prossimo pulsante che nascera'.
+     "align-self" e' la meta' che serve perche' il tetto non si veda: quasi
+     tutti questi pulsanti sono figli di una colonna che li allargava fino in
+     fondo, e uno che smette di allungarsi resterebbe appeso a sinistra invece
+     di stare in mezzo. Dentro a una riga non cambia niente: l'altezza e'
+     fissa, e centrarsi verticalmente e' gia' quello che facevano. */
+  max-width:400px;
+  align-self:center;
   display:inline-flex; align-items:center; justify-content:center;
   padding:0 34px;
   background:none; border:0; margin:0;
@@ -10688,7 +10726,18 @@ body.io-sono-2 #p1-info .player-avatar-photo{ transform:scaleX(-1); }
     </div>
     <div class="hx-pannello">
       <div id="username-spiega">This is the name other players will see.</div>
-      <input type="text" id="username-campo" class="hx-campo" placeholder="Username" autocomplete="off" spellcheck="false" maxlength="20">
+      <!-- v0.79.16 — LA CASELLA DEVE ESSERE VUOTA, E NON LO ERA.
+           Il codice la svuotava gia'; a riempirla era il browser, che vedeva un
+           campo di testo chiamato "username" accanto a una password salvata per
+           questo sito e ci metteva dentro l'account. autocomplete="off" non
+           basta: Chrome lo ignora proprio sui campi che crede di riconoscere.
+           Quindi due cose. La parola "username" sparisce da id, name e
+           segnaposto — sono i tre posti in cui il browser guarda per decidere
+           che campo e'. E il campo nasce di sola lettura: un campo readonly il
+           browser non lo tocca. Il divieto lo toglie apriModaleUsername un
+           istante prima di dare il fuoco, quando il giro di riempimento e' gia'
+           passato — quindi scrivere si puo', riempirlo da fuori no. -->
+      <input type="text" id="nomegiocatore-campo" name="hx-nomegiocatore" class="hx-campo" placeholder="Player name" autocomplete="off" spellcheck="false" maxlength="20" readonly>
       <div id="username-messaggio" class="hx-messaggio"></div>
       <button class="hx-btn hx-azione" type="button" id="username-conferma" onclick="confermaUsername(this)">
         <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
@@ -10919,7 +10968,7 @@ body.io-sono-2 #p1-info .player-avatar-photo{ transform:scaleX(-1); }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.15</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.16</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -11115,9 +11164,9 @@ body.io-sono-2 #p1-info .player-avatar-photo{ transform:scaleX(-1); }
       </div>
       <div class="filters-riga"></div>
       <div id="customize-riga-nome">
-        <span id="customize-nome-et">Username</span>
+        <span id="customize-nome-et">Player name</span>
         <div class="hx-dropdown-spazio"></div>
-        <button type="button" class="hx-sottolineato" id="customize-cambia-nome" onclick="apriCambioUsername()">Change username</button>
+        <button type="button" class="hx-sottolineato" id="customize-cambia-nome" onclick="apriCambioUsername()">Change player name</button>
       </div>
       <input type="text" id="customize-username" class="hx-campo" readonly tabindex="-1" spellcheck="false">
       <div class="filters-riga"></div>
@@ -11170,7 +11219,7 @@ body.io-sono-2 #p1-info .player-avatar-photo{ transform:scaleX(-1); }
         <p>Nothing in this Agreement prevents you from creating or working on your own games or products independently.</p>
         <p>You may use general game-development knowledge, skills, and ideas that you developed independently and without using Hextale as the basis for your work.</p>
         <div class="nca-titolo">4. Intellectual Property</div>
-        <p>Hextale and all of its intellectual property remain the property of the Developer or its respective licensors.</p>
+        <p>Hextale and all of its intellectual property remain the property of Hextale or its respective licensors.</p>
         <p>Your participation in the playtest does not grant you any ownership or rights in Hextale.</p>
         <div class="nca-titolo">5. Acceptance</div>
         <p>By selecting &ldquo;I Agree&rdquo;, you confirm that:</p>
@@ -11179,7 +11228,7 @@ body.io-sono-2 #p1-info .player-avatar-photo{ transform:scaleX(-1); }
           <li>you agree to be bound by its terms; and</li>
           <li>you agree not to copy, recreate, or substantially imitate Hextale based on your participation in the playtest.</li>
         </ul>
-        <p id="nca-piede">Hextale Playtest Agreement &copy; The Developer. All rights reserved.</p>
+        <p id="nca-piede">Hextale Playtest Agreement &copy; Hextale. All rights reserved.</p>
       </div>
 
       <label class="settings-opzione filters-opt" id="nca-spunta-riga">
@@ -14123,7 +14172,7 @@ function accessoSpiegaGuasto(modulo, errore, inRegistrazione){
     return;
   }
   if(codice === 409){
-    accessoMessaggio(modulo, 'That username is already taken.', 'errore');
+    accessoMessaggio(modulo, 'That player name is already taken.', 'errore');
     return;
   }
   accessoMessaggio(modulo, (errore && errore.message) || 'Something went wrong.', 'errore');
@@ -15776,14 +15825,19 @@ function apriModaleUsername(cambio){
   if(!ov) return;
   _usernameCambio = !!cambio;
   messaggioUsername('', '');
-  const campo = document.getElementById('username-campo');
-  if(campo) campo.value = _usernameCambio ? ((typeof nomeGiocatore === 'function' && nomeGiocatore()) || '') : '';
+  const campo = document.getElementById('nomegiocatore-campo');
+  if(campo){
+    campo.value = _usernameCambio ? ((typeof nomeGiocatore === 'function' && nomeGiocatore()) || '') : '';
+    // Da qui in poi si puo' scrivere: vedi il markup per il perche' nasca di
+    // sola lettura.
+    campo.removeAttribute('readonly');
+  }
   const annulla = document.getElementById('username-annulla');
   if(annulla) annulla.style.display = _usernameCambio ? '' : 'none';
   // E il titolo dice quale dei due momenti e': "scegli" al primo accesso,
   // "cambia" quando un nome ce l'hai gia'.
   const titolo = document.querySelector('#username-titlebar h2');
-  if(titolo) titolo.textContent = _usernameCambio ? 'Change username' : 'Choose your name';
+  if(titolo) titolo.textContent = _usernameCambio ? 'Change player name' : 'Choose your name';
   const spiega = document.getElementById('username-spiega');
   if(spiega) spiega.textContent = _usernameCambio
     ? 'The new name takes effect when you confirm.'
@@ -15793,7 +15847,13 @@ function apriModaleUsername(cambio){
   // non passa piu'.
   try{ vestiFinestraSemplice('username'); }catch(_){ }
   ov.classList.add('show');
-  if(campo) setTimeout(()=>{ try{ campo.focus(); campo.select(); }catch(_){} }, 50);
+  if(campo) setTimeout(()=>{ try{
+    // E se il browser ci avesse provato lo stesso mentre la finestra compariva,
+    // qui la casella si svuota di nuovo: al primo accesso deve essere vuota,
+    // non "quasi vuota".
+    if(!_usernameCambio && campo.value) campo.value = '';
+    campo.focus(); campo.select();
+  }catch(_){} }, 50);
 }
 // Non e' agganciata a nessun pulsante: dalla v0.77.35 la finestra si chiude
 // SOLO quando il nome e' stato salvato davvero.
@@ -15802,9 +15862,9 @@ function chiudiModaleUsername(){
   if(ov) ov.classList.remove('show');
 }
 async function confermaUsername(bottone){
-  const campo = document.getElementById('username-campo');
+  const campo = document.getElementById('nomegiocatore-campo');
   const nome = ((campo && campo.value) || '').trim();
-  if(nome.length < 3){ messaggioUsername('Username must be at least 3 characters.', 'errore'); return; }
+  if(nome.length < 3){ messaggioUsername('Player name must be at least 3 characters.', 'errore'); return; }
   if(!/^[A-Za-z0-9_.-]+$/.test(nome)){ messaggioUsername('Only letters, numbers, dots, dashes and underscores.', 'errore'); return; }
   accessoOccupato(bottone, true, 'Saving...');
   messaggioUsername('Saving...', 'attesa');
@@ -15816,7 +15876,7 @@ async function confermaUsername(bottone){
     // come sulla registrazione: verificato sul server. Guardare solo il codice
     // farebbe finire questo caso nel ramo generico "qualcosa e' andato storto".
     const gia = /already in use/i.test((e && e.message) || '');
-    messaggioUsername(gia ? 'That username is already taken.' : ((e && e.message) || 'Something went wrong.'), 'errore');
+    messaggioUsername(gia ? 'That player name is already taken.' : ((e && e.message) || 'Something went wrong.'), 'errore');
     return;
   }
   sessioneAccount.username = nome;
@@ -21587,7 +21647,7 @@ function apriCambioUsername(){
 // (ACCORDO_VERSIONE): il server rifiuta un'accettazione che dichiari una
 // versione diversa dalla sua, ed e' voluto — vuol dire che il testo e' cambiato
 // mentre qualcuno lo stava leggendo, e quel qualcuno deve rileggerlo.
-const ACCORDO_VERSIONE = '1.0';
+const ACCORDO_VERSIONE = '1.1';
 
 // Chiede al server come si e' messi. Se il server non risponde si NON si entra
 // e non si accetta niente: e' l'unico punto in cui un dubbio non si risolve
@@ -24499,7 +24559,12 @@ function vestiEtichettaBustina(carta){
     nastro.className = 'nuova-nastro';
     nastro.alt = 'New'; nastro.draggable = false;
     impostaImgDaCandidati(nastro, uiFileCandidati('new-card-banner.png'));
-    carta.appendChild(nastro);
+    // v0.79.16 — appeso al livello che si inclina, non alla carta: e' li' che
+    // vivono la prospettiva e l'ingrandimento, ed e' l'unico modo perche' il
+    // nastro li subisca invece di guardarli da fuori (vedi .nuova-nastro nel
+    // CSS). Se un domani quel livello non ci fosse, si torna sulla carta: una
+    // etichetta piatta e' molto meglio di nessuna etichetta.
+    (carta.querySelector('.pack-card-tilt') || carta).appendChild(nastro);
   } else {
     const et = document.createElement('div');
     et.className = 'pack-owned';
@@ -34809,18 +34874,70 @@ function bersagliGiveMeThat(q, r, giocatore){
   }
   return trovati;
 }
+// ── v0.79.16 — I TRATTI DI UNA CARTA STANNO IN DUE ELENCHI ────────────────
+// `traits` sono le sigle, e disegnano le icone sulla carta. `traitNames` sono
+// i nomi, e sono quelli che legge il motore: haTratto guarda PRIMA traitNames
+// e solo se manca ripiega sulle sigle. Sono la stessa informazione scritta due
+// volte, e i due elenchi vanno per indice.
+//
+// Chi ne cambia uno solo fa una carta che mostra un tratto senza averlo, o che
+// ce l'ha senza mostrarlo — e il secondo caso e' invisibile finche' qualcuno
+// non si chiede perche' Baloo non abbia dato il suo dono. E' quello che
+// succedeva qui: il furto svuotava `traits` e lasciava `traitNames` intatto,
+// quindi per il motore il derubato aveva ancora tutto.
+// Da qui in poi ci si passa sempre, e sono coppie: sigla e nome insieme.
+function _trattiDi(card){
+  const sigle = (card && card.traits) || [];
+  const nomi  = (card && card.traitNames) || [];
+  return sigle.map((s, i) => ({
+    sigla: s,
+    // Il ripiego e' lo stesso di _cmNomeTratto, cosi' una carta senza nomi si
+    // legge qui come si legge nella scheda. Oggi non serve a nessuno — tutte e
+    // 107 le carte del catalogo hanno i due elenchi allineati — ma il giorno in
+    // cui una non li avesse, meglio un nome ricavato che un tratto muto.
+    nome: nomi[i] || (s ? String(s).charAt(0).toUpperCase() + String(s).slice(1) : '')
+  })).filter(x => x.sigla);
+}
+function _aggiungiTratti(card, coppie){
+  const gia = _trattiDi(card);
+  const nuovi = coppie.filter(c => !gia.some(g => g.sigla === c.sigla));
+  if(!nuovi.length) return [];
+  const tutti = gia.concat(nuovi);
+  card.traits = tutti.map(x => x.sigla);
+  card.traitNames = tutti.map(x => x.nome);
+  return nuovi;
+}
+function _svuotaTratti(card){
+  card.traits = [];
+  card.traitNames = [];
+}
 function rubaITratti(ladro, cellaBersaglio){
   const bersaglio = G.board[cellaBersaglio];
   if(!ladro || !bersaglio || !bersaglio.card) return;
-  const presi = (bersaglio.card.traits||[]).slice();
+  const presi = _trattiDi(bersaglio.card);
   if(!presi.length) return;
   // Si AGGIUNGONO ai suoi, non li sostituiscono: Rumpelstiltskin colleziona.
   // E si tolgono all'altro, o sarebbe una copia e non un furto.
-  const gia = ladro.traits || [];
-  ladro.traits = gia.concat(presi.filter(a => !gia.includes(a)));
-  bersaglio.card.traits = [];
+  _aggiungiTratti(ladro, presi);
+  _svuotaTratti(bersaglio.card);
   ladro.tratiRubatiA = bersaglio.card.name || cellaBersaglio;
-  console.info('[Give me that] rubati i tratti a "'+(bersaglio.card.name||cellaBersaglio)+'": '+presi.join(', '));
+  console.info('[Give me that] rubati i tratti a "'+(bersaglio.card.name||cellaBersaglio)+'": '
+    + presi.map(x=>x.nome).join(', '));
+}
+// ── v0.79.16 — KING LOUIE, "I Wanna Be Like You" ──────────────────────────
+// Lo stesso gesto del furto meno la meta' cattiva: chi da' non perde niente.
+// E' un COPIARE, e per questo non passa da rubaITratti con una bandiera: due
+// comportamenti dentro una funzione sola sono due funzioni che aspettano di
+// essere separate male.
+function copiaITratti(ricevente, cellaBersaglio){
+  const bersaglio = G.board[cellaBersaglio];
+  if(!ricevente || !bersaglio || !bersaglio.card) return false;
+  const suoi = _trattiDi(bersaglio.card);
+  if(!suoi.length) return false;
+  const presi = _aggiungiTratti(ricevente, suoi);
+  console.info('[I Wanna Be Like You] copiati da "' + (bersaglio.card.name||cellaBersaglio) + '": '
+    + (presi.length ? presi.map(x=>x.nome).join(', ') : 'niente, li aveva gia\' tutti'));
+  return presi.length > 0;
 }
 // ── v0.75.57 — MARCH HARE: il piu' alto e il piu' basso si scambiano ──────
 // Solo carte nemiche adiacenti, e solo quelle che hanno DUE gruppi diversi da
@@ -35821,6 +35938,7 @@ function sceltaDalFoglio(card, q, r, giocatore){
   for(const eff of [a.effetto, a.effetto2]){
     if(!eff || !eff.scelta) continue;
     if(eff.azione === 'swap' && eff.cosa === 'position') return _sceltaScambioPosizioni(card, q, r, giocatore, a, eff);
+    if(eff.azione === 'copy' && eff.cosa === 'trait')     return _sceltaCopiaTratti(card, q, r, giocatore, a, eff);
   }
   return null;
 }
@@ -36049,6 +36167,52 @@ function _sceltaScambioPosizioni(card, q, r, giocatore, a, eff){
       return scambiaPosizioniInCampo(elenco[0], elenco[1]);
     },
     rinuncia: () => {},
+  };
+}
+
+// ── v0.79.16 — KING LOUIE, "I Wanna Be Like You" ──────────────────────────
+// "Copia tutti i tratti da una carta scelta". Il foglio dice gia' tutto — chi
+// (any: alleata o avversaria, e' lo stesso), dove (adjacent), cosa (trait),
+// quali (all) — e chi trova i bersagli e' candidatiDalFoglio, che quelle
+// colonne le sa gia' leggere per una dozzina di carte.
+// Non c'era niente da scrivere sui bersagli, quindi: mancava solo la finestra.
+// Senza, la carta scendeva, il foglio diceva "Player selection = yes" e non
+// veniva chiesto niente — l'abilita' esisteva sul foglio e in nessun altro
+// posto. (La console lo diceva gia', vedi _avvisaSceltaMancata.)
+//
+// Un vicino senza tratti non e' un bersaglio, e non e' una regola in piu':
+// copiare da chi non ha niente non e' un'azione. Quel filtro sta gia' in
+// _effettoHaSensoSu, dove sta per tutte.
+function _sceltaCopiaTratti(card, q, r, giocatore, a, eff){
+  const bersagli = candidatiDalFoglio(card, q, r, giocatore, a, eff);
+  if(!bersagli.length) return null;   // nessun vicino con tratti: nessuna pausa
+  return {
+    chiave: 'copia_tratti',
+    giocatore,
+    cellaOrigine: key(q, r),
+    bersagli,
+    applica: (cella) => { copiaITratti(card, cella); try{ renderBoard(); }catch(_){} },
+    rinuncia: () => {},
+    // Nessun `seScade`: se il tempo finisce non si copia niente. E' un
+    // vantaggio offerto, come Mordred — non un costo gia' pagato da riscuotere.
+    //
+    // L'IA sceglie il vicino che le porta piu' tratti NUOVI. E' la sola cosa
+    // che questa abilita' fa, quindi e' anche la sola da massimizzare; a parita'
+    // vince chi capita prima, che e' quanto basta. La valutazione viaggia con la
+    // finestra invece che in VALUTAZIONI_IA perche' quella tabella ha per chiave
+    // la sigla dell'abilita', e le carte che vivono solo nel foglio una sigla
+    // vera non ce l'hanno.
+    valuta: (sc) => {
+      let migliore = null, quanti = 0;
+      for(const cella of sc.bersagli){
+        const posto = G.board[cella];
+        if(!posto || !posto.card) continue;
+        const gia = _trattiDi(card).map(x => x.sigla);
+        const n = _trattiDi(posto.card).filter(x => gia.indexOf(x.sigla) < 0).length;
+        if(n > quanti){ quanti = n; migliore = cella; }
+      }
+      return migliore;   // null = non ci guadagna niente, e allora lascia stare
+    },
   };
 }
 
@@ -40028,7 +40192,11 @@ function aiResolvePendingAbilityIfAny(){
   // apriva. La guardia sta QUI, all'ingresso, e non nei punti che chiamano:
   // cosi' vale anche per il prossimo che la chiamera'.
   if(giocatoreUmano(scelta.giocatore)) return;
-  const valuta = VALUTAZIONI_IA[scelta.chiaveAbilita];
+  // v0.79.16 — una finestra puo' portarsi dietro la propria valutazione. Serve
+  // alle scelte costruite leggendo il foglio: VALUTAZIONI_IA ha per chiave la
+  // sigla dell'abilita', e quelle carte una sigla propria non ce l'hanno. Senza,
+  // l'IA tirerebbe a sorte fra i bersagli e il "lascio stare".
+  const valuta = (typeof scelta.valuta === 'function') ? scelta.valuta : VALUTAZIONI_IA[scelta.chiaveAbilita];
   let bersaglio = null;
   if(typeof valuta === 'function'){
     try { bersaglio = valuta(scelta); } catch(_){ bersaglio = null; }

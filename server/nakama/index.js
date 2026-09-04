@@ -513,7 +513,11 @@ function rpcPreferenze(ctx, logger, nk, payload) {
 // riproporlo vorrebbe dire cancellare a mano le accettazioni di tutti.
 var COLL_ACCORDI = 'accordi';
 var ACCORDO_TIPO = 'playtest_nca';
-var ACCORDO_VERSIONE = '1.0';
+// v0.79.16 — 1.1: nel testo 'the Developer' e' diventato 'Hextale'. E' un
+// cambio di nome della parte che firma, dentro alla clausola sulla proprieta'
+// intellettuale: non e' una virgola, ed e' esattamente il caso per cui questo
+// numero esiste. Chi aveva accettato la 1.0 se lo rivede davanti una volta.
+var ACCORDO_VERSIONE = '1.1';
 
 function _accordoDi(nk, userId) {
   try {
