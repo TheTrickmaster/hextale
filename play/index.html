@@ -681,7 +681,7 @@ body.mouse-down, body.mouse-down *{
 }
 #mm2-avatar:hover .player-avatar-photo{ filter:brightness(1.2); }
 #mm2-avatar:hover .player-avatar-frame{
-  filter:drop-shadow(0 0 10px rgba(161,211,219,0.9)) drop-shadow(0 0 22px rgba(161,211,219,0.5));
+  filter:drop-shadow(0 0 5px rgba(161,211,219,1));
 }
 /* Foto e cornice restano assolute DENTRO all'avatar, com'e' in partita: sono
    le loro percentuali a incastrare il ritratto nell'esagono della cornice. */
@@ -1329,6 +1329,41 @@ body.mouse-down, body.mouse-down *{
 .hx-campo::placeholder{ color:#8FA1A3; opacity:1; }
 .hx-campo:focus{ border-color:rgba(255,255,255,0.35); background:rgba(0,0,0,0.22); }
 .hx-campo::selection{ background:#4B585C; color:#EDE0C6; }
+/* ── v0.79.4 — IL RIEMPIMENTO AUTOMATICO DEL BROWSER ──────────────────────
+   Un campo riempito dal gestore di password non e' un campo come gli altri:
+   il browser gli mette addosso un fondo azzurrino, un testo scuro e un
+   carattere suoi, e lo fa da una regola che vince su quelle della pagina. Da
+   fuori sembrava che i due campi cambiassero pelle da soli appena la finestra
+   si apriva.
+   Non si combatte con "background": quel fondo il browser lo disegna a parte e
+   una dichiarazione normale non lo tocca. Il rimedio che funziona senza
+   perdere la trasparenza e' "background-clip: text" — il fondo del
+   riempimento viene ritagliato sul TESTO invece che sul riquadro, quindi
+   sparisce e resta quello vero del campo, che e' semi-trasparente e lascia
+   vedere il pannello sotto. Un fondo pieno messo con un box-shadow interno —
+   l'altro rimedio che si trova in giro — quella trasparenza la perderebbe, e
+   si vedrebbe una toppa di un colore leggermente diverso.
+   Il colore del testo si scrive con "-webkit-text-fill-color", che e' l'unico
+   che il riempimento automatico ascolta; il carattere va imposto, perche' la
+   regola del browser e' piu' forte di quella di .hx-campo.
+   Le quattro varianti (fermo, sotto al puntatore, col fuoco, premuto) vanno
+   elencate tutte: il browser le tratta come stati diversi, e ne basta una
+   scoperta perche' il campo cambi pelle appena lo si tocca. */
+.hx-campo:-webkit-autofill,
+.hx-campo:-webkit-autofill:hover,
+.hx-campo:-webkit-autofill:focus,
+.hx-campo:-webkit-autofill:active{
+  -webkit-background-clip:text;
+  background-clip:text;
+  -webkit-text-fill-color:#EDE0C6;
+  caret-color:#EDE0C6;
+  font-family:'Rosarivo',serif !important;
+  font-size:20px !important;
+  /* E se un domani il ritaglio non bastasse, il fondo del riempimento resta
+     comunque fermo: il browser lo anima verso il suo colore, e un'attesa
+     lunghissima e' il modo di dirgli di non arrivarci mai. */
+  transition:background-color 600000s 0s, color 600000s 0s;
+}
 /* Il campo della password porta l'occhio dentro di se': il contenitore e' il
    riferimento, cosi' l'icona sta a destra e a meta' altezza qualunque sia
    l'altezza del campo. Il testo si ferma prima dell'icona per non passarci
@@ -8325,7 +8360,7 @@ body.prova-senza-willchange #mm-book-rot{
    uscirebbero mai da sotto. Sotto all'avatar, non sotto alla foto. */
 .avatar-glow{
   position:absolute; left:9.5%; top:6.5%; width:81%; height:87%;
-  filter:blur(10px);
+  filter:blur(5px);
   opacity:0; transition:opacity 0.16s ease;
   pointer-events:none; z-index:0;
 }
@@ -10689,7 +10724,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.3</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.4</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
