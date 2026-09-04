@@ -4938,15 +4938,19 @@ body.io-sono-2 #p1-info .player-avatar-photo{ transform:scaleX(-1); }
 /* v0.78.24 — praticamente attaccate, e la coppia centrata sullo schermo.
    Erano staccate di un'incollatura per parte: le due lettere si leggevano come
    due segni vicini invece che come una parola sola. */
-#vs-lettera-v{ left:50%; transform:translate(-98%,-190%); }
-#vs-lettera-s{ left:50%; transform:translate(-2%,-10%); }
+/* v0.78.25 — altri novanta pixel di avvicinamento, quarantacinque per parte.
+   In pixel e non in percentuale: le due lettere hanno larghezze diverse (la "v"
+   e' piu' larga della "s"), quindi la stessa percentuale le avrebbe mosse di
+   quantita' diverse e la coppia si sarebbe scentrata. */
+#vs-lettera-v{ left:50%; transform:translate(calc(-98% + 45px),-190%); }
+#vs-lettera-s{ left:50%; transform:translate(calc(-2% - 45px),-10%); }
 #vs-lettera-v.dentro{
   transition:transform 300ms cubic-bezier(.2,.8,.3,1), opacity 220ms ease-out;
-  transform:translate(-98%,-50%); opacity:1;
+  transform:translate(calc(-98% + 45px),-50%); opacity:1;
 }
 #vs-lettera-s.dentro{
   transition:transform 300ms cubic-bezier(.2,.8,.3,1), opacity 220ms ease-out;
-  transform:translate(-2%,-50%); opacity:1;
+  transform:translate(calc(-2% - 45px),-50%); opacity:1;
 }
 
 /* ── LA SCHEDA DI UN GIOCATORE ─────────────────────────────────────────────
@@ -4997,7 +5001,7 @@ body.io-sono-2 #p1-info .player-avatar-photo{ transform:scaleX(-1); }
    (749x834), che e' la stessa dei pannelli di partita. */
 .vs-avatar{
   position:relative; left:auto; top:auto; transform:none;
-  width:280px; height:calc(280px * 834 / 749);
+  width:310px; height:calc(310px * 834 / 749);
   margin-bottom:6px;
 }
 /* Il rank non sta in fila con gli altri: sta DENTRO al rombo a filigrana del
@@ -5006,7 +5010,7 @@ body.io-sono-2 #p1-info .player-avatar-photo{ transform:scaleX(-1); }
    Il drappo e' largo 320 su una tela 536x1200, quindi alto 716; il rombo ha il
    suo centro poco sotto la meta'. */
 .vs-rank{
-  position:absolute; left:50%; top:437px;
+  position:absolute; left:50%; top:537px;
   transform:translate(-50%,-50%);
   width:110px; height:auto; display:block; z-index:2;
 }
@@ -10479,7 +10483,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.78.24</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.78.25</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -13959,7 +13963,15 @@ async function mm2CercaAvversario(){
   if(_mm2Cercando){ mm2AnnullaRicerca(); return; }
 
   // Contro l'IA non c'e' niente da cercare: si parte e basta.
-  if(_mm2Vista === 'ai'){ try{ requestNewGame(true); }catch(_){} return; }
+  if(_mm2Vista === 'ai'){
+    // v0.78.25 — contro l'IA non c'e' nessuno da trovare, ma il momento e' lo
+    // stesso: da qui in poi si gioca. Lo stesso suono della partita trovata in
+    // rete (vedi dove si riceve l'accoppiamento), cosi' le due strade cominciano
+    // allo stesso modo.
+    try{ playSfxFile('match-found.mp3'); }catch(_){}
+    try{ requestNewGame(true); }catch(_){}
+    return;
+  }
 
   // v0.78.4 — col casuale se ne genera uno adesso: vedi mazzoConCuiGiocare.
   const mio = (typeof mazzoConCuiGiocare === 'function') ? mazzoConCuiGiocare() : null;
@@ -19818,11 +19830,18 @@ function mostraVersus(poi){
   quando(VS_SCALETTA.lettere, ()=> lettere.forEach(l => l.classList.add('dentro')));
   quando(VS_SCALETTA.lampo, ()=>{
     radice.querySelectorAll('.vs-lampo').forEach(l=>{ l.classList.remove('acceso'); void l.offsetWidth; l.classList.add('acceso'); });
-    // E da qui in poi continuano nella stessa direzione, ma cosi' piano che
-    // non lo si nota: e' quello che tiene viva un'immagine ferma.
+    // ── v0.78.25 — E DA QUI NON SI FERMANO PIU' ─────────────────────────
+    // Continuano nella stessa direzione dello scivolo d'entrata, cosi' piano
+    // che non lo si nota — ed e' quello che tiene viva un'immagine ferma.
+    // La deriva dura fino all'ISTANTE in cui si aprono per scoprire il
+    // tabellone: prima era di 2600ms fissi e finiva due secondi e mezzo prima
+    // della fine, lasciando le due meta' immobili per tutto il resto della
+    // posa. Il numero si ricava dalla scaletta invece di essere scritto, cosi'
+    // allungando la posa la deriva la segue da se'.
+    const derivaMs = Math.max(400, VS_SCALETTA.artiVia - VS_SCALETTA.lampo);
     arti.forEach((a, i)=>{
-      a.style.transition = 'transform 2600ms linear';
-      a.style.transform = 'translate(-50%,' + (i === 0 ? '-46%' : '-54%') + ')';
+      a.style.transition = 'transform ' + derivaMs + 'ms linear';
+      a.style.transform = 'translate(-50%,' + (i === 0 ? '-42%' : '-58%') + ')';
     });
   });
   quando(VS_SCALETTA.schede, ()=> schede.forEach(s => s.classList.add('dentro')));
