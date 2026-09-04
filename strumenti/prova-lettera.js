@@ -175,6 +175,12 @@ app.whenReady().then(async () => {
       'e un velo scende sull-arte, dal pieno al niente');
     const bot = scelta.querySelector('.starter-esito .hxb-label');
     dice(bot && bot.textContent === 'Collect', 'e il pulsante dice Collect', bot ? bot.textContent : '(manca)');
+    const btn = scelta.querySelector('.starter-esito .hx-btn');
+    const pezzo = btn && btn.querySelector('.hxb-left');
+    dice(!!btn && btn.classList.contains('hx-btn-opaco'), 'ed e- della famiglia opaca');
+    dice(!!pezzo && /button-opaque-/.test(getComputedStyle(pezzo).backgroundImage || ''),
+      'e ha addosso i pezzi opachi, non quelli trasparenti',
+      'ho letto "' + ((pezzo && getComputedStyle(pezzo).backgroundImage) || '') + '"');
     // La frase sta in mezzo fra il mazzo e il pulsante: non a occhio, in pixel.
     const rp = scelta.querySelector('.starter-anteprima').getBoundingClientRect();
     const rf = scelta.querySelector('.starter-frase').getBoundingClientRect();
