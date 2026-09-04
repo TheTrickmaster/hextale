@@ -1123,7 +1123,8 @@ body.mouse-down, body.mouse-down *{
 }
 .hx-indietro img{ width:100%; height:100%; object-fit:contain; display:block; pointer-events:none; }
 .hx-indietro:hover{ filter:brightness(1.15); transform:translateX(-2px); }
-#login-titlebar h2, #registrazione-titlebar h2, #username-titlebar h2, #rank-titlebar h2, #avviso-titlebar h2{
+#login-titlebar h2, #registrazione-titlebar h2, #username-titlebar h2, #rank-titlebar h2, #avviso-titlebar h2,
+#customize-titlebar h2, #elimina-titlebar h2, #avatar-titlebar h2{
   margin:0; text-align:center;
   font-family:'Marcellus',var(--font-display),serif;
   font-size:30px; font-weight:400; line-height:1;
@@ -8147,6 +8148,152 @@ body.prova-senza-willchange #mm-book-rot{
 }
 #settings-pannello .settings-opzione .filters-casella{ margin-left:auto; }
 
+/* ══════════════════════════════════════════════════════════════════════════
+   v0.79.0 — LA COLONNA DELLE IMPOSTAZIONI
+   ══════════════════════════════════════════════════════════════════════════
+   Due finestre che si danno il cambio nello stesso posto, e sotto a tutte e
+   due il pulsante rosso. Le due finestre NON sono sovrapposte in assoluto: si
+   alternano nel flusso, e la colonna cambia altezza con loro. Sovrapporle
+   vorrebbe dire dare a tutte e due l'altezza della piu' alta, e il pulsante
+   rosso resterebbe staccato dal fondo di quella corta. */
+#settings-colonna{
+  display:flex; flex-direction:column; align-items:stretch;
+  gap:16px; width:530px;
+}
+#settings-colonna > #settings-modal{ width:100%; }
+/* Il pulsante rosso non e' largo quanto la finestra: e' l'ultima cosa che si
+   preme e non deve avere l'aria di una voce dell'elenco. */
+#settings-uscita{ align-items:center; }
+#settings-uscita .hx-btn{ width:290px; }
+
+/* ── Customize ─────────────────────────────────────────────────────────────
+   Entra da destra e se ne va da destra. La finestra sotto (le impostazioni) si
+   toglie di mezzo: non e' un'altra finestra sopra, e' la stessa pagina che
+   scorre di fianco. */
+#customize-modal{
+  display:none; width:100%;
+  flex-direction:column; gap:16px;
+  opacity:0; transform:translateX(46px);
+  transition:opacity 0.22s ease, transform 0.22s ease;
+}
+#customize-modal.mostra{ display:flex; }
+#customize-modal.dentro{ opacity:1; transform:translateX(0); }
+/* Il pulsante indietro nella barra: e' quello della Collezione, stessa
+   immagine e stessa posizione. */
+#customize-back img, #avatar-back img{ width:34px; height:auto; display:block; }
+
+/* L'avatar e la matita. La matita sta sul VERTICE BASSO dell'esagono, che non
+   e' il fondo del riquadro: la foto e' ritagliata a esagono dentro alla
+   cornice (vedi .player-avatar-photo), e il suo vertice cade al 13% + 72%,
+   cioe' all'85% dell'altezza. Il numero viene da li' e non da un occhio. */
+#customize-faccia{
+  position:relative; width:150px; margin:0 auto;
+  padding-bottom:26px;
+}
+#customize-avatar{
+  position:relative; left:auto; top:auto; transform:none;
+  width:150px; height:calc(150px * 834 / 749);
+}
+#customize-edit{
+  position:absolute; left:50%; top:85%;
+  transform:translate(-50%,-50%);
+  width:52px; height:52px; padding:0;
+  background:none; border:0; line-height:0;
+  filter:drop-shadow(0 2px 4px rgba(0,0,0,0.8));
+  transition:transform 0.14s ease;
+}
+#customize-edit:hover{ transform:translate(-50%,-50%) scale(1.08); }
+#customize-edit img{ width:100%; height:100%; object-fit:contain; display:block; }
+
+/* Il nome: l'etichetta a sinistra, il comando a destra, sulla stessa linea di
+   base — due caratteri e due misure diverse allineate sotto, non al centro. */
+#customize-riga-nome{ display:flex; align-items:baseline; width:100%; }
+#customize-nome-et{
+  font-family:'Marcellus',var(--font-display),serif;
+  font-size:24px; line-height:1; color:#EDE0C6;
+}
+/* Un comando scritto, non un pulsante: sottolineato e senza cornice. */
+.hx-sottolineato{
+  background:none; border:0; padding:0; margin:0;
+  font-family:'Rosarivo',serif; font-size:14px; line-height:1;
+  color:#EDE0C6; text-decoration:underline;
+  cursor:var(--cursore);
+}
+.hx-sottolineato:hover{ color:#FFF1D3; }
+.hx-pericolo{ color:#AF645B; }
+.hx-pericolo:hover{ color:#C87A70; }
+#customize-elimina{ align-self:center; }
+/* Il campo del nome si legge e non si scrive: a cambiarlo e' la finestra che
+   si apre da "Change username", che e' l'unica che sa parlare col server. */
+#customize-username{ pointer-events:none; }
+
+/* ── v0.79.0 — LE FINESTRE CHE SI APRONO SOPRA LE IMPOSTAZIONI ────────────
+   Tutte le finestre del gioco stanno a 4300, e a parita' di z-index a vincere
+   e' l'ordine nel documento. Queste tre si aprono DA Customize, cioe' da una
+   finestra che e' gia' in scena: una di loro (quella del nome) nel documento
+   viene prima delle impostazioni, e restava dietro al loro velo — visibile
+   nell'ispettore, invisibile a chi guarda.
+   Non e' un dettaglio d'ordine da sistemare spostando del markup: e' un fatto
+   di queste tre finestre, che per definizione stanno sopra a quella da cui
+   sono state aperte, e va scritto dove si legge. */
+#username-overlay, #elimina-overlay, #avatar-overlay{ z-index:4400; }
+
+/* ── La cancellazione dell'account ─────────────────────────────────────── */
+#elimina-box{ width:530px; }
+#elimina-domanda{
+  font-family:'Marcellus',var(--font-display),serif;
+  font-size:30px; font-weight:700; line-height:1.15; color:#EDE0C6;
+}
+#elimina-spiega{
+  font-family:'Rosarivo',serif; font-size:20px; line-height:1.35; color:#C5B696;
+}
+/* I due pulsanti sulla stessa riga, larghi uguale: e' una scelta fra due, e
+   nessuna delle due deve sembrare piu' facile dell'altra. */
+#elimina-pulsanti{ display:flex; gap:16px; width:100%; }
+#elimina-pulsanti .hx-btn{ flex:1 1 0; min-width:0; }
+
+/* ── La scelta dell'avatar ─────────────────────────────────────────────── */
+/* Tre colonne da 150 con dodici di distanza: 474 di griglia, piu' i trenta di
+   bordo del pannello per parte. La larghezza della finestra si scrive di
+   conseguenza invece di essere indovinata. */
+#avatar-box{ width:534px; }
+#avatar-griglia{
+  display:grid; grid-template-columns:repeat(3,150px);
+  gap:12px; justify-content:center;
+  max-height:60vh; overflow-y:auto;
+  scrollbar-width:none;
+}
+#avatar-griglia::-webkit-scrollbar{ display:none; width:0; height:0; }
+.avatar-scelta{
+  position:relative; width:150px; height:calc(150px * 834 / 749);
+  background:none; border:0; padding:0;
+  cursor:var(--cursore);
+}
+.avatar-scelta .player-avatar{
+  position:absolute; inset:0; left:0; top:0; transform:none;
+  width:100%; height:100%;
+}
+/* Il bagliore sta SOTTO alla cornice e sfonda oltre il riquadro: e' quello che
+   dice "questa". Un bordo non basterebbe — la cornice ne ha gia' uno suo. */
+.avatar-scelta::before{
+  content:''; position:absolute; left:50%; top:50%;
+  width:132%; height:132%;
+  transform:translate(-50%,-50%);
+  border-radius:50%;
+  background:radial-gradient(circle, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.45) 45%, rgba(255,255,255,0) 72%);
+  opacity:0; transition:opacity 0.16s ease;
+  pointer-events:none; z-index:0;
+}
+.avatar-scelta:hover::before{ opacity:0.28; }
+.avatar-scelta.scelta::before{ opacity:1; }
+.avatar-scelta .player-avatar{ z-index:1; }
+.avatar-nome{
+  position:absolute; left:0; right:0; bottom:-2px; z-index:2;
+  font-family:'Rosarivo',serif; font-size:13px; color:#CEDDDF;
+  text-align:center; text-shadow:0 0 4px rgba(0,0,0,1);
+  pointer-events:none;
+}
+
 /* ── il menu a tendina ──────────────────────────────────────────────────── */
 /* v0.75.97 — LA TENDINA STA SOPRA. Ogni figlio diretto del pannello riceve
    `z-index:1`, quindi le sezioni che vengono DOPO la tendina finivano davanti
@@ -10265,6 +10412,13 @@ body.prova-senza-willchange #mm-book-rot{
         <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
         <span class="hxb-label">Confirm</span>
       </button>
+      <!-- v0.79.0 — solo quando si sta CAMBIANDO un nome che gia' c'e': al
+           primo accesso non esiste un nome a cui tornare, e infatti quella
+           finestra non si chiude finche' non se n'e' scelto uno. -->
+      <button class="hx-btn" type="button" id="username-annulla" onclick="chiudiModaleUsername()">
+        <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
+        <span class="hxb-label">Go back</span>
+      </button>
     </div>
   </div>
 </div>
@@ -10483,7 +10637,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.78.29</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.0</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -10532,6 +10686,12 @@ body.prova-senza-willchange #mm-book-rot{
      quindi solo i gruppi .settings-voci, secondo chi ha aperto la finestra
      (vedi openSettingsModal). -->
 <div id="settings-modal-overlay" onclick="if(event.target===this) closeSettingsModal();">
+ <!-- v0.79.0 — UNA COLONNA, NON UNA FINESTRA SOLA.
+      Dentro ci stanno le due finestre che si danno il cambio (le impostazioni
+      e Customize) e, sotto a tutte e due, il pulsante rosso. Sta FUORI dalle
+      finestre perche' non appartiene a nessuna delle due: da qualunque punto
+      si sia arrivati, quella e' sempre la via d'uscita. -->
+ <div id="settings-colonna">
   <div id="settings-modal">
     <div class="hx-titlebar" id="settings-titlebar">
       <span class="hx-titlebar-cap hx-titlebar-left"></span>
@@ -10551,18 +10711,13 @@ body.prova-senza-willchange #mm-book-rot{
         <span class="hxb-label">Surrender</span>
       </button>
       </div>
+      <!-- v0.79.0 — un pulsante solo, e acceso. "Quit game" e "Account" erano
+           due segnaposto spenti: il primo non ha senso in un gioco che vive in
+           una pagina, il secondo e' diventato cio' che sta dentro a Customize. -->
       <div class="settings-voci" data-quando="menu">
-      <button class="hx-btn settings-azione mm-inerte" type="button" disabled>
-        <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
-        <span class="hxb-label">Quit game</span>
-      </button>
-      <button class="hx-btn settings-azione mm-inerte" type="button" disabled>
+      <button class="hx-btn settings-azione" type="button" onclick="apriCustomize()">
         <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
         <span class="hxb-label">Customize</span>
-      </button>
-      <button class="hx-btn settings-azione mm-inerte" type="button" disabled>
-        <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
-        <span class="hxb-label">Account</span>
       </button>
       </div>
       <div class="filters-riga"></div>
@@ -10597,6 +10752,25 @@ body.prova-senza-willchange #mm-book-rot{
         <span class="settings-mute-icon" id="sfx-mute-btn" onclick="toggleSfxMute()"><img id="sfx-mute-icon-img" src="" alt=""></span>
       </div>
       <div class="filters-riga"></div>
+      <!-- ── v0.79.0 — CON CHE FAZIONE SI GIOCA ─────────────────────────────
+           Sta nel gruppo del MENU e non in quello della partita: a meta'
+           partita la domanda non ha risposta possibile, si sta gia' giocando
+           di un colore.
+           La riga di separazione sta DENTRO al gruppo, non dopo: un gruppo che
+           si nasconde deve portarsi via anche la propria riga, o in partita
+           resterebbero due separatori appiccicati. -->
+      <div class="settings-voci" data-quando="menu">
+        <div class="hx-dropdown" id="fazione-dropdown">
+          <button type="button" class="hx-dropdown-testa" onclick="apriChiudiTendinaFazione(event)">
+            <span class="hx-dropdown-et">Play as:</span>
+            <span class="hx-dropdown-spazio"></span>
+            <span class="hx-dropdown-valore" id="fazione-dropdown-valore"></span>
+            <img class="hx-dropdown-freccia" alt="" draggable="false">
+          </button>
+          <div class="hx-dropdown-voci" id="fazione-dropdown-voci"></div>
+        </div>
+        <div class="filters-riga"></div>
+      </div>
       <!-- v0.75.1 — l'esagono di aiuto in alto a sinistra sulla carta si puo'
            spegnere. v0.77.11 — l'interruttore a levetta diventa la casella
            quadrata gia' usata dai filtri: e' una casella vera, nascosta dietro
@@ -10634,6 +10808,111 @@ body.prova-senza-willchange #mm-book-rot{
           </button>
         </form>
       </div>
+    </div>
+  </div>
+
+  <!-- ── v0.79.0 — CUSTOMIZE ────────────────────────────────────────────────
+       Entra da destra e se ne va da destra, come una pagina che scorre di
+       fianco: e' la stessa finestra che cambia contenuto, non una che si
+       apre sopra all'altra. Il pulsante indietro sta nella barra del titolo,
+       dove sta gia' quello della Collezione. -->
+  <div id="customize-modal">
+    <div class="hx-titlebar" id="customize-titlebar">
+      <span class="hx-titlebar-cap hx-titlebar-left"></span>
+      <div class="hx-titlebar-center">
+        <button class="hx-icon-btn" id="customize-back" aria-label="Back" onclick="chiudiCustomize()"><img alt="" draggable="false"></button>
+        <h2>Customize</h2>
+        <div class="hx-titlebar-spacer"></div>
+      </div>
+      <span class="hx-titlebar-cap hx-titlebar-right"></span>
+    </div>
+    <div class="hx-pannello" id="customize-pannello">
+      <div id="customize-faccia">
+        <div class="player-avatar" id="customize-avatar">
+          <img class="player-avatar-photo" alt="" draggable="false">
+          <img class="player-avatar-frame" alt="" draggable="false">
+        </div>
+        <button type="button" id="customize-edit" aria-label="Change avatar" onclick="apriSceltaAvatar()"><img alt="" draggable="false"></button>
+      </div>
+      <div class="filters-riga"></div>
+      <div id="customize-riga-nome">
+        <span id="customize-nome-et">Username</span>
+        <div class="hx-dropdown-spazio"></div>
+        <button type="button" class="hx-sottolineato" id="customize-cambia-nome" onclick="apriCambioUsername()">Change username</button>
+      </div>
+      <input type="text" id="customize-username" class="hx-campo" readonly tabindex="-1" spellcheck="false">
+      <div class="filters-riga"></div>
+      <button type="button" class="hx-sottolineato hx-pericolo" id="customize-elimina" onclick="apriEliminaAccount()">Delete account</button>
+    </div>
+  </div>
+
+  <!-- Sempre in fondo, sempre visibile: vedi il commento della colonna. -->
+  <div class="settings-voci" data-quando="menu" id="settings-uscita">
+    <button class="hx-btn hx-btn-warning settings-azione" type="button" onclick="disconnetti()">
+      <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
+      <span class="hxb-label">Disconnect</span>
+    </button>
+  </div>
+ </div>
+</div>
+
+<!-- ── v0.79.0 — CANCELLARE L'ACCOUNT ──────────────────────────────────────
+     La password si richiede QUI e la ricontrolla il SERVER: una finestra la si
+     salta, e una sessione aperta la si trova su un computer lasciato acceso.
+     Vedi rpcEliminaAccount. -->
+<div id="elimina-overlay" class="hx-overlay" onclick="if(event.target===this) chiudiEliminaAccount();">
+  <div id="elimina-box" class="hx-box">
+    <div class="hx-titlebar" id="elimina-titlebar">
+      <span class="hx-titlebar-cap hx-titlebar-left"></span>
+      <div class="hx-titlebar-center"><h2>Delete account</h2></div>
+      <span class="hx-titlebar-cap hx-titlebar-right"></span>
+    </div>
+    <div class="hx-pannello">
+      <div id="elimina-domanda">Are you sure you want to delete your account?</div>
+      <div id="elimina-spiega">Type in your password to delete this account forever: you won't be able to retrieve it.</div>
+      <div class="hx-campo-pwd">
+        <input type="password" id="elimina-pwd" class="hx-campo" placeholder="Password" autocomplete="off" spellcheck="false">
+        <button type="button" class="hx-occhio" aria-label="Show password" onclick="mostraNascondiPassword(this)"><img alt="" draggable="false"></button>
+      </div>
+      <div id="elimina-messaggio" class="hx-messaggio"></div>
+      <div class="filters-riga"></div>
+      <div id="elimina-pulsanti">
+        <button class="hx-btn hx-btn-warning" type="button" id="elimina-conferma" onclick="confermaEliminaAccount(this)">
+          <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
+          <span class="hxb-label">Delete account</span>
+        </button>
+        <button class="hx-btn" type="button" onclick="chiudiEliminaAccount()">
+          <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
+          <span class="hxb-label">Go back</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── v0.79.0 — SCEGLIERE LA PROPRIA FACCIA ───────────────────────────────
+     Le carte che si possiedono, tre per riga. Si sbloccano ottenendo la carta:
+     l'elenco non e' una lista di immagini, e' la Collezione vista da un'altra
+     parte. -->
+<div id="avatar-overlay" class="hx-overlay" onclick="if(event.target===this) chiudiSceltaAvatar();">
+  <div id="avatar-box" class="hx-box">
+    <div class="hx-titlebar" id="avatar-titlebar">
+      <span class="hx-titlebar-cap hx-titlebar-left"></span>
+      <div class="hx-titlebar-center">
+        <button class="hx-icon-btn" id="avatar-back" aria-label="Back" onclick="chiudiSceltaAvatar()"><img alt="" draggable="false"></button>
+        <h2>Choose your avatar</h2>
+        <div class="hx-titlebar-spacer"></div>
+      </div>
+      <span class="hx-titlebar-cap hx-titlebar-right"></span>
+    </div>
+    <div class="hx-pannello">
+      <div id="avatar-griglia"></div>
+      <div id="avatar-messaggio" class="hx-messaggio"></div>
+      <div class="filters-riga"></div>
+      <button class="hx-btn settings-azione" type="button" id="avatar-conferma" onclick="confermaSceltaAvatar(this)">
+        <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
+        <span class="hxb-label">Select avatar</span>
+      </button>
     </div>
   </div>
 </div>
@@ -13949,7 +14228,7 @@ function mmConsegnaBiglietto(rank, forza, codice){
     min_count: 2, max_count: 2,
     query: mmDomanda(rank, forza, _mmForbice),
     string_properties: { gioco: 'hextale', mazzo: codice, nome: nomeGiocatore(),
-                         avatar: MIO_AVATAR || '' },
+                         avatar: miaSiglaAvatar() },
     numeric_properties: { rank: rank, capacita: Math.round(forza.capacita),
                           livello: Math.round(forza.livelloMedio * 10) }
   }});
@@ -14262,11 +14541,36 @@ function mm2RinfrescaGiocatore(){
 // il server ha cominciato a mandare l'avatar vero. Passa dallo stesso filtro
 // dei pannelli di partita (_avatarAmmesso): solo roba di casa, mai un'immagine
 // presa da un account esterno.
+// v0.79.0 — la mia carta, nella variante del colore IN VIGORE: quello scelto,
+// o l'ultimo uscito dal sorteggio se si gioca a caso (vedi fazioneUmano).
+// Ha un contatore suo e non quello dei pannelli di partita: sono due immagini
+// diverse, e un giro di pannelli non deve poter zittire il menu a meta'
+// caricamento.
+let _avatarMenuGen = 0;
 function mm2AggiornaAvatar(){
   const foto = document.querySelector('#mm2-avatar .player-avatar-photo');
   if(!foto) return;
-  const suo = (typeof _avatarAmmesso === 'function') ? _avatarAmmesso(MIO_AVATAR) : null;
-  foto.src = suo || (PLAYER_UI_BASE + 'pinocchio-avatar-test.png');
+  mostraAvatarSu(foto, miaSiglaAvatar());
+}
+// Usata da tutti i posti FUORI dalla partita che mostrano la mia faccia: il
+// menu, le impostazioni, la finestra di scelta. Dentro alla partita comanda
+// assegnaAvatarDeiGiocatori, che ha due giocatori e due fazioni da tenere
+// insieme.
+function mostraAvatarSu(el, sigla, fazione){
+  if(!el) return;
+  const cand = avatarCandidati(sigla, fazione || fazioneUmano());
+  if(!cand.length){ el.src = PLAYER_UI_BASE + AVATAR_RIPIEGO; return; }
+  const gen = ++_avatarMenuGen;
+  let i = 0;
+  const prova = ()=>{
+    if(gen !== _avatarMenuGen || i >= cand.length) return;
+    const url = cand[i++];
+    const test = new Image();
+    test.onload = ()=>{ if(gen === _avatarMenuGen) el.src = url; };
+    test.onerror = prova;
+    test.src = url;
+  };
+  prova();
 }
 
 // Riempie il riquadro del giocatore. Si puo' chiamare sempre: senza profilo
@@ -14942,14 +15246,38 @@ function messaggioUsername(testo, genere){
   el.textContent = testo || '';
   el.className = 'hx-messaggio' + (testo ? ' mostra' : '') + (genere ? ' hx-messaggio-' + genere : '');
 }
-function apriModaleUsername(){
+// ── v0.79.0 — LA STESSA FINESTRA, DUE MOMENTI ────────────────────────────
+// Al primo accesso e' una domanda a cui si deve rispondere: non si chiude
+// finche' un nome non c'e'. Da Customize e' un cambio, e da un cambio si puo'
+// rinunciare — quindi compare il pulsante per tornare indietro e il campo
+// parte dal nome che si ha, che e' quello che si sta per correggere.
+// I controlli sul nome, gli errori del server e il salvataggio sono gli stessi
+// nei due casi, ed e' il motivo per cui e' una finestra sola: due sarebbero
+// due posti da cui un nome puo' nascere, e uno dei due invecchierebbe.
+let _usernameCambio = false;
+function apriModaleUsername(cambio){
   const ov = document.getElementById('username-overlay');
   if(!ov) return;
+  _usernameCambio = !!cambio;
   messaggioUsername('', '');
   const campo = document.getElementById('username-campo');
-  if(campo) campo.value = '';
+  if(campo) campo.value = _usernameCambio ? ((typeof nomeGiocatore === 'function' && nomeGiocatore()) || '') : '';
+  const annulla = document.getElementById('username-annulla');
+  if(annulla) annulla.style.display = _usernameCambio ? '' : 'none';
+  // E il titolo dice quale dei due momenti e': "scegli" al primo accesso,
+  // "cambia" quando un nome ce l'hai gia'.
+  const titolo = document.querySelector('#username-titlebar h2');
+  if(titolo) titolo.textContent = _usernameCambio ? 'Change username' : 'Choose your name';
+  const spiega = document.getElementById('username-spiega');
+  if(spiega) spiega.textContent = _usernameCambio
+    ? 'The new name takes effect when you confirm.'
+    : 'This is the name other players will see.';
+  // v0.79.0 — da Customize questa finestra nasce adesso, e nessuno l'ha
+  // ancora vestita: al primo accesso lo fa la colonna d'accesso, che da qui
+  // non passa piu'.
+  try{ vestiFinestraSemplice('username'); }catch(_){ }
   ov.classList.add('show');
-  if(campo) setTimeout(()=>{ try{ campo.focus(); }catch(_){} }, 50);
+  if(campo) setTimeout(()=>{ try{ campo.focus(); campo.select(); }catch(_){} }, 50);
 }
 // Non e' agganciata a nessun pulsante: dalla v0.77.35 la finestra si chiude
 // SOLO quando il nome e' stato salvato davvero.
@@ -14985,6 +15313,8 @@ async function confermaUsername(bottone){
   // Sta qui e non dentro a chiudiModaleUsername perche' il fatto nuovo e'
   // QUESTO: il nome e' cambiato. Chi lo mostra si aggiorna di conseguenza.
   try{ mm2AggiornaProfilo(); }catch(_){}
+  // v0.79.0 — e Customize, che il nome ce l'ha scritto in un campo suo.
+  try{ aggiornaCustomize(); }catch(_){}
   // Se questo fallisce la domanda tornera' al prossimo avvio: seccante, non
   // grave. Il nome, che e' la cosa che conta, e' gia' salvato sul server.
   try{ await nakamaScriviOggetto(NAKAMA_COLLEZIONE_PROFILO, 'stato', { usernameScelto: true }); }catch(_){}
@@ -15688,7 +16018,17 @@ function preferenzeDalServer(p, bustinaProssima, bustineExtra){
   if(typeof bustineExtra === 'number') BUSTINE_VINTE = bustineExtra;
   // La fazione va rimessa su window, che e' dove la cercano le venti cose che
   // ne dipendono (vedi fazioneUmano).
-  if(PREFERENZE.fazione && typeof window !== 'undefined') window.__humanFaction = PREFERENZE.fazione;
+  // v0.79.0 — su window ci va sempre un COLORE, mai "random": li' lo cercano
+  // le venti cose che ne dipendono, e nessuna di quelle sa cosa farsene di una
+  // parola che non e' un colore.
+  // Si calcola dalle PREFERENZE appena arrivate e non da fazioneUmano(), che
+  // guarda window per prima cosa: se qualcosa l'avesse gia' scritto prima di
+  // adesso — e all'avvio succede — questa riga si limiterebbe a riscriverci lo
+  // stesso valore, e la preferenza vera non entrerebbe mai in vigore.
+  if(typeof window !== 'undefined'){
+    const _pf = preferenzaFazione();
+    window.__humanFaction = (_pf === 'random') ? fazioneUltimaMostrata() : _pf;
+  }
   try{ if(typeof caricaImpostazioniAudio === 'function') caricaImpostazioniAudio(); }catch(_){}
   try{ if(typeof caricaAiutoEsagono === 'function') caricaAiutoEsagono(); }catch(_){}
   try{ if(typeof applyFactionToPlayerPanels === 'function') applyFactionToPlayerPanels(); }catch(_){}
@@ -19331,17 +19671,70 @@ function musicaMenuFerma(){
 // cercano playerFactionIsDark e le venti cose che ne dipendono, e deve
 // sopravvivere alla creazione del nuovo G dentro startGame().
 const FAZIONE_CHIAVE = 'hextale.fazione';
-// v0.77.90 — la scelta e' dell'ACCOUNT, non del browser: vedi PREFERENZE.
+// ── v0.79.0 — LA PREFERENZA E LA FAZIONE SONO DUE COSE DIVERSE ────────────
+// Fino a ieri erano la stessa: si sceglieva "chiaro" o "scuro" e quella parola
+// era insieme la preferenza salvata e la fazione con cui si giocava. Con
+// "Random" non si puo' piu': "random" non e' una fazione — nessuno gioca in
+// random — e' il MODO in cui si decide quale sara', partita per partita.
+// Quindi:
+//   preferenzaFazione()   cosa ha scelto il giocatore: random, light o dark.
+//   fazioneUmano()        con cosa si sta giocando ADESSO: sempre light o dark.
+//   fazioneDaGiocare()    quale sara' nella partita che sta per cominciare.
+// Confondere la prima con la seconda avrebbe un effetto preciso e silenzioso:
+// impostaFazioneUmano SALVAVA, quindi il primo sorteggio avrebbe riscritto
+// "random" in "dark" e il giocatore non avrebbe piu' rivisto un sorteggio in
+// vita sua. Adesso quella funzione salva 'fazioneUltima', che e' un ricordo,
+// non una scelta.
+//
+// In rete non cambia niente: la fazione la decide OGNI CLIENT per se'
+// (playerFactionIsDark: "sei io?"), quindi due giocatori che preferiscono
+// entrambi il buio non si vedranno mai uguali. Ognuno si vede come si e'
+// scelto e vede l'altro dell'altro colore.
+function preferenzaFazione(){
+  const f = PREFERENZE.fazione;
+  return (f === 'light' || f === 'dark' || f === 'random') ? f : 'random';
+}
+// L'ultimo colore USCITO: e' quello che il menu mostra quando la preferenza
+// non ne nomina nessuno. Senza, il menu di chi gioca a caso sarebbe sempre
+// scuro, e la partita appena giocata in chiaro non avrebbe lasciato traccia.
+function fazioneUltimaMostrata(){
+  return PREFERENZE.fazioneUltima === 'light' ? 'light' : 'dark';
+}
 function fazioneUmano(){
   if(typeof window !== 'undefined' && window.__humanFaction) return window.__humanFaction;
-  return PREFERENZE.fazione === 'light' ? 'light' : 'dark';   // scuro, se mai scelta
+  const p = preferenzaFazione();
+  return p === 'random' ? fazioneUltimaMostrata() : p;
+}
+// v0.79.0 — il sorteggio, e sta QUI e in nessun altro posto: chi comincia una
+// partita chiede questa, non tira il dado per conto suo.
+function fazioneDaGiocare(){
+  const p = preferenzaFazione();
+  if(p !== 'random') return p;
+  return Math.random() < 0.5 ? 'dark' : 'light';
 }
 function impostaFazioneUmano(fazione){
   const f = (fazione === 'light') ? 'light' : 'dark';
   window.__humanFaction = f;
-  salvaPreferenze({ fazione: f });
+  // Si salva il RICORDO, non la scelta: vedi il commento qui sopra.
+  salvaPreferenze({ fazioneUltima: f });
   applyFactionToPlayerPanels();   // banner, nome e colore dei due pannelli
   return f;
+}
+// La scelta del menu a tendina. Se e' un colore vero vale da subito — anche
+// fuori dalla partita, perche' decide l'arte del mazzo e la faccia degli
+// avatar; se e' "random" si lascia in vigore l'ultimo colore uscito, che e'
+// quello che si sta guardando in questo momento.
+function scegliPreferenzaFazione(scelta){
+  const s = (scelta === 'light' || scelta === 'dark') ? scelta : 'random';
+  salvaPreferenze({ fazione: s });
+  if(s !== 'random'){
+    window.__humanFaction = s;
+    salvaPreferenze({ fazioneUltima: s });
+  }
+  try{ applyFactionToPlayerPanels(); }catch(_){}
+  try{ mm2RinfrescaGiocatore(); }catch(_){}
+  try{ aggiornaTendinaFazione(); }catch(_){}
+  return s;
 }
 function requestNewGame(vsAI){
   // v0.77.54 — contro l'IA non c'e' nessuna partita in rete: se ne restasse
@@ -19358,7 +19751,8 @@ function requestNewGame(vsAI){
   // mentre la scena precedente puo' avere ancora qualcosa in canna.
   fermaTuttiISuoni();
   // La fazione e' gia' decisa: si applica e si parte, senza fermare nessuno.
-  impostaFazioneUmano(fazioneUmano());
+  // v0.79.0 — con "Random" il dado si tira QUI, una volta per partita.
+  impostaFazioneUmano(fazioneDaGiocare());
   // ── v0.78.27 — IL SUONO DELLA PARTITA TROVATA, ANCHE CONTRO L'IA ───────
   // Contro l'IA non c'e' nessuno da trovare, ma il momento e' lo stesso: da qui
   // in poi si gioca.
@@ -19441,22 +19835,43 @@ let MIO_AVATAR = '';
 // Quale avatar spetta a ciascuno dei due pannelli: lo riempie
 // vestiPannelliGiocatori, lo consuma assegnaAvatarDeiGiocatori. Vuoto vuol
 // dire "non ne ha uno suo", e allora vale il ritratto pescato fra le carte.
-const AVATAR_DEI_GIOCATORI = { 1:'', 2:'' };
+// v0.79.0 — ci stanno gli INDIRIZZI DA PROVARE, non uno solo: l'arte di una
+// carta vive in due posti (la copia locale e il sito), e quale dei due
+// risponda si scopre provando. Vuoto vuol dire "non ne ha uno suo", e allora
+// vale il ritratto pescato fra le carte.
+const AVATAR_DEI_GIOCATORI = { 1:null, 2:null };
 const AVATAR_RIPIEGO = 'pinocchio-avatar-test.png';
-
-// Un avatar e' ammesso solo se e' roba nostra: un file di player-ui, oppure
-// un indirizzo sul sito del gioco. Tutto il resto diventa stringa vuota, che
-// vuol dire "usa il ritratto di ripiego".
-function _avatarAmmesso(valore){
-  const v = String(valore || '').trim();
-  if(!v) return '';
-  if(/^https?:/i.test(v)){
-    return /^https?:\/\/hextalegame\.com\//i.test(v) ? v : '';
+// ── v0.79.0 — L'AVATAR E' UNA CARTA, E LA CARTA HA DUE FACCE ──────────────
+// Sul server sta scritta una SIGLA ("fox"), non un indirizzo. E' una scelta,
+// non un dettaglio: la stessa carta ha un'illustrazione chiara e una scura, e
+// quale delle due si veda dipende da chi guarda e da che fazione sta giocando
+// in questo momento. Un indirizzo salvato congelerebbe quella decisione sul
+// giorno in cui e' stata presa — e chi passa al chiaro si ritroverebbe la
+// propria faccia scura addosso per sempre.
+// Quindi: il server ricorda CHI, il client decide DI CHE COLORE. E' la stessa
+// divisione del motore delle abilita'.
+//
+// Si continua ad accettare cio' che c'era prima (un file di player-ui, un
+// indirizzo del sito): un avatar vecchio non deve sparire per un cambio di
+// formato. Tutto il resto — un'immagine presa da un altro sito, per esempio da
+// un profilo Google — non passa, ne' qui ne' sul server.
+const AVATAR_DI_PARTENZA = 'fox';
+function avatarCandidati(sigla, fazione){
+  const v = String(sigla || '').trim();
+  if(!v) return [];
+  if(/^https?:/i.test(v)) return /^https?:\/\/hextalegame\.com\//i.test(v) ? [v] : [];
+  if(/\.(png|jpg|jpeg|webp)$/i.test(v)){
+    return /^[A-Za-z0-9_.-]+$/.test(v) ? [PLAYER_UI_BASE + v] : [];
   }
-  // Un nome di file: lo risolviamo noi, e non puo' uscire dalla sua cartella.
-  if(/^[A-Za-z0-9_.-]+\.(png|jpg|jpeg|webp)$/i.test(v)) return PLAYER_UI_BASE + v;
-  return '';
+  if(!/^[a-z0-9-]+$/i.test(v)) return [];
+  const f = (fazione === 'light') ? 'light' : 'dark';
+  try{ return (artUrlVariante(v.toLowerCase(), f).senzaNumero) || []; }catch(_){ return []; }
 }
+// La sigla che vale per me: quella scelta, o Fox finche' non se ne sceglie una.
+// Fox e' anche cio' che il server assegna a chi comincia (AVATAR_DI_PARTENZA
+// di la'): i due valori dicono la stessa cosa, e uno dei due e' quello che si
+// vede mentre la risposta del server e' ancora per strada.
+function miaSiglaAvatar(){ return MIO_AVATAR || AVATAR_DI_PARTENZA; }
 
 function _vestiUnPannello(quale, dati){
   const nome = document.getElementById(quale + '-name-label');
@@ -19481,7 +19896,10 @@ function _vestiUnPannello(quale, dati){
   // dentro a player-ui. Il controllo sta qui E sul server (vedi _avatarDi):
   // il server e' la fonte, questa e' la porta — e una porta chiusa vale anche
   // il giorno in cui la fonte sbaglia.
-  AVATAR_DEI_GIOCATORI[quale === 'p1' ? 1 : 2] = _avatarAmmesso(dati.avatar);
+  // v0.79.0 — e si annota nella fazione di QUEL giocatore: la stessa carta ha
+  // due facce, e a ciascuno tocca quella del proprio colore.
+  const _n = (quale === 'p1' ? 1 : 2);
+  AVATAR_DEI_GIOCATORI[_n] = avatarCandidati(dati.avatar, playerFactionIsDark(_n) ? 'dark' : 'light');
 }
 
 // ── v0.77.86 — I PANNELLI SEGUONO IL NUMERO, COME TUTTO IL RESTO ──────────
@@ -19504,7 +19922,8 @@ function vestiPannelliGiocatori(vsAI){
   _vestiUnPannello('p' + mioNumero, {
     nome: nomeGiocatore(),
     rank: mioRank,
-    avatar: MIO_AVATAR
+    // v0.79.0 — la sigla, con Fox come ripiego: vedi miaSiglaAvatar.
+    avatar: miaSiglaAvatar()
   });
   if(vsAI){
     _vestiUnPannello('p' + suoNumero, { nome:NOME_IA, rank:null, avatar:'' });
@@ -19632,7 +20051,7 @@ function assegnaAvatarDeiGiocatori(){
     // cambia niente: il giorno in cui una schermata lo fara' scegliere, questo
     // ramo e' gia' quello giusto.
     const suo = AVATAR_DEI_GIOCATORI[p];
-    if(suo){ el.src = suo; continue; }
+    if(suo && suo.length){ _avatarProva(el, suo, gen); continue; }
     if(!mescolate.length) continue;
     // Due carte diverse quando si puo': lo stesso ritratto da tutte e due le
     // parti si legge come un errore, non come una coincidenza.
@@ -19693,11 +20112,28 @@ const VS_SCALETTA = {
 // assegnaAvatarDeiGiocatori). E' anche lo stesso campo da cui passera' la
 // scelta dell'avatar quando ci sara' una schermata per farla: questa scena non
 // avra' bisogno di cambiare.
+// v0.79.0 — la sigla dell'avatar di uno dei due giocatori, se ne ha una. La mia
+// la so; quella dell'avversario viaggia nel biglietto del matchmaking, come il
+// nome e il rank. L'IA non ne ha: non e' un account, e il suo ritratto resta
+// quello pescato fra le carte.
+function _vsSiglaAvatarDi(numero){
+  const io = _vsChiSonoIo();
+  if(numero === io) return miaSiglaAvatar();
+  if(typeof PARTITA_RETE !== 'undefined' && PARTITA_RETE
+     && typeof AVVERSARIO_INFO === 'object' && AVVERSARIO_INFO){
+    return AVVERSARIO_INFO.avatar || '';
+  }
+  return '';
+}
 function _vsScegliRitratti(){
   const pool = (typeof carteGiocabili === 'function') ? carteGiocabili() : [];
   const mescolate = pool.length ? _mescola(pool.slice()) : [];
   const fuori = {};
   for(const p of [1,2]){
+    // L'avatar SCELTO viene prima di tutto: e' la faccia che quel giocatore ha
+    // deciso di avere, e questa schermata e' il posto in cui la si guarda.
+    const suo = avatarCandidati(_vsSiglaAvatarDi(p), playerFactionIsDark(p) ? 'dark' : 'light');
+    if(suo.length){ fuori[p] = { entry: null, candidati: suo }; continue; }
     const entry = mescolate.length ? mescolate[(p-1) % mescolate.length] : null;
     if(!entry) continue;
     // La fazione di quel giocatore decide quale delle due varianti d'arte: il
@@ -19764,7 +20200,11 @@ function _vsRiempiLato(lato, numero, ritratto, dati){
     // Quando l'indirizzo buono e' noto, lo si lascia scritto per la partita:
     // cosi' il tabellone mostra la stessa faccia di questa schermata, e non ne
     // sceglie una sua.
-    arte.onload = ()=>{ try{ AVATAR_DEI_GIOCATORI[numero] = arte.getAttribute('src') || null; }catch(_){ } };
+    // v0.79.0 — si lasciano scritti gli INDIRIZZI DA PROVARE, non quello che ha
+    // risposto per primo. Prima si aspettava l'onload dell'immagine: se quella
+    // gia' stava nella cache del browser l'evento non arrivava, e la partita
+    // sotto si sceglieva un ritratto suo. Gli indirizzi invece si sanno subito.
+    AVATAR_DEI_GIOCATORI[numero] = cand;
   }
   const nome = scheda.querySelector('.vs-nome');
   if(nome) nome.textContent = dati.nome || '';
@@ -20365,6 +20805,16 @@ function openSettingsModal(quando){
   // vuole due cose caricate: la trama del pannello e i cinque pezzi di ogni
   // pulsante. Si fa all'apertura e non una volta all'avvio perche' e' qui che
   // si sa quali gruppi di voci sono in scena.
+  // v0.79.0 — il pulsante rosso sta FUORI dalla finestra, quindi il giro qui
+  // sopra (che cerca dentro a #settings-modal) non lo vede. Ha la stessa
+  // regola: solo dal menu principale. In partita la via d'uscita e' arrendersi,
+  // e disconnettersi lascerebbe una partita a meta' senza dirlo a nessuno.
+  const uscita = document.getElementById('settings-uscita');
+  if(uscita) uscita.classList.toggle('mostra', dove === 'menu');
+  // E si riparte sempre dalla prima pagina: riaprendo le impostazioni ci si
+  // aspetta le impostazioni, non l'ultima schermata in cui si era.
+  _customizeChiudiSubito();
+  costruisciTendinaFazione();
   vestiFinestraImpostazioni();
   document.getElementById('settings-modal-overlay').classList.add('show');
 }
@@ -20393,8 +20843,322 @@ function vestiFinestraImpostazioni(){
   // che lo portano sono due (menu e impostazioni).
   pannello.querySelectorAll('.hx-donate-logo').forEach(img =>
     impostaImgDaCandidati(img, uiFileCandidati('paypal-logo.png')));
+  // ── v0.79.0 — e le finestre nuove ─────────────────────────────────────
+  // Customize vive nella stessa colonna, quindi si veste con la stessa mano.
+  // La cancellazione e la scelta dell'avatar sono finestre a se': le veste
+  // chi le apre (vedi apriEliminaAccount / apriSceltaAvatar).
+  sfondo('#customize-titlebar .hx-titlebar-left',   'title-bg-left.png');
+  sfondo('#customize-titlebar .hx-titlebar-center', 'title-bg-center.png');
+  sfondo('#customize-titlebar .hx-titlebar-right',  'title-bg-right.png');
+  const cust = document.getElementById('customize-pannello');
+  if(cust){
+    impostaVariabileDaCandidati(cust, '--hx-trama', uiFileCandidati('brushed-texture.jpg'));
+    cust.querySelectorAll('.hx-btn').forEach(vestiPulsante);
+    impostaImgDaCandidati(cust.querySelector('#customize-edit img'), uiFileCandidati('edit-button.png'));
+    impostaImgDaCandidati(cust.querySelector('#customize-avatar .player-avatar-frame'), uiFileCandidati('avatar-frame.png'));
+  }
+  impostaImgDaCandidati(document.querySelector('#customize-back img'), uiFileCandidati('back-button.png'));
+  // Il pulsante rosso sta fuori dal pannello, quindi il giro dei pulsanti qui
+  // sopra non lo prende: e' cercato apposta.
+  document.querySelectorAll('#settings-uscita .hx-btn').forEach(vestiPulsante);
+  // La freccia della tendina. Il giro degli asset ne veste UNA SOLA in tutto il
+  // gioco (querySelector, non querySelectorAll), e quella e' la tendina della
+  // Collezione: questa resterebbe senza. Meglio vestirla qui, dov'e' di casa,
+  // che allargare un giro che non sa niente di questa finestra.
+  document.querySelectorAll('#fazione-dropdown .hx-dropdown-freccia').forEach(img =>
+    impostaImgDaCandidati(img, uiFileCandidati('down-arrow-icon.png')));
   // E i due colori del bilancio, che il foglio di stile riceve da qui.
   try{ allineaIColoriDelBilancio(); }catch(_){ }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// v0.79.0 — CUSTOMIZE
+// ══════════════════════════════════════════════════════════════════════════
+// Non e' una finestra sopra a un'altra: e' la stessa colonna che scorre di
+// fianco. Le impostazioni si tolgono di mezzo e Customize entra da destra;
+// tornando indietro Customize se ne va da dove e' venuto.
+// Il pulsante rosso non partecipa al movimento — sta fuori da tutte e due, e
+// resta dov'e' (vedi il commento della colonna nel markup).
+const CUSTOMIZE_MS = 220;
+let _customizeTimer = 0;
+function apriCustomize(){
+  const cust = document.getElementById('customize-modal');
+  const imp = document.getElementById('settings-modal');
+  if(!cust || !imp) return;
+  if(_customizeTimer){ clearTimeout(_customizeTimer); _customizeTimer = 0; }
+  aggiornaCustomize();
+  imp.style.display = 'none';
+  cust.classList.add('mostra');
+  // Un fotogramma di distanza fra "esiste" e "entra": senza, il browser vede
+  // una cosa nata gia' al suo posto e non ha niente da animare.
+  requestAnimationFrame(()=>{ requestAnimationFrame(()=>{ cust.classList.add('dentro'); }); });
+}
+function chiudiCustomize(){
+  const cust = document.getElementById('customize-modal');
+  const imp = document.getElementById('settings-modal');
+  if(!cust || !imp) return;
+  cust.classList.remove('dentro');
+  if(_customizeTimer) clearTimeout(_customizeTimer);
+  _customizeTimer = setTimeout(()=>{
+    _customizeTimer = 0;
+    cust.classList.remove('mostra');
+    imp.style.display = '';
+  }, CUSTOMIZE_MS);
+}
+// Senza scivolata: serve a chi riapre le impostazioni, che deve trovarle
+// gia' in prima pagina e non vedere una finestra tornare indietro da sola.
+function _customizeChiudiSubito(){
+  const cust = document.getElementById('customize-modal');
+  const imp = document.getElementById('settings-modal');
+  if(_customizeTimer){ clearTimeout(_customizeTimer); _customizeTimer = 0; }
+  if(cust) cust.classList.remove('mostra','dentro');
+  if(imp) imp.style.display = '';
+}
+// Quel che Customize mostra viene da due posti soli: il nome dell'account e la
+// sigla dell'avatar. Si rilegge a ogni apertura invece di essere scritto una
+// volta, perche' fra un'apertura e l'altra puo' essere cambiato tutto.
+function aggiornaCustomize(){
+  const campo = document.getElementById('customize-username');
+  if(campo) campo.value = (typeof nomeGiocatore === 'function' ? nomeGiocatore() : '') || '';
+  const foto = document.querySelector('#customize-avatar .player-avatar-photo');
+  if(foto) mostraAvatarSu(foto, miaSiglaAvatar());
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// v0.79.0 — "PLAY AS", LA TENDINA
+// ══════════════════════════════════════════════════════════════════════════
+// Tre voci, e la prima e' quella di chi non ha mai scelto niente. La tendina
+// NON ricorda niente per conto suo: legge preferenzaFazione e scrive con
+// scegliPreferenzaFazione, che e' l'unica porta. Una tendina che si ricordasse
+// la scelta da se' potrebbe dire una cosa mentre il gioco ne fa un'altra.
+const FAZIONI_SCELTA = [
+  { chiave:'random', testo:'Random' },
+  { chiave:'light',  testo:'Light' },
+  { chiave:'dark',   testo:'Dark' }
+];
+function costruisciTendinaFazione(){
+  const voci = document.getElementById('fazione-dropdown-voci');
+  if(!voci) return;
+  voci.innerHTML = '';
+  for(const o of FAZIONI_SCELTA){
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'hx-dropdown-voce';
+    b.textContent = o.testo;
+    b.onclick = (ev)=>{ ev.stopPropagation(); scegliPreferenzaFazione(o.chiave); chiudiTendinaFazione(); };
+    voci.appendChild(b);
+  }
+  aggiornaTendinaFazione();
+}
+function aggiornaTendinaFazione(){
+  const attiva = preferenzaFazione();
+  const voce = FAZIONI_SCELTA.filter(o => o.chiave === attiva)[0] || FAZIONI_SCELTA[0];
+  const et = document.getElementById('fazione-dropdown-valore');
+  if(et) et.textContent = voce.testo;
+  document.querySelectorAll('#fazione-dropdown-voci .hx-dropdown-voce').forEach((b,i)=>{
+    b.classList.toggle('scelta', FAZIONI_SCELTA[i] && FAZIONI_SCELTA[i].chiave === attiva);
+  });
+}
+function apriChiudiTendinaFazione(ev){
+  if(ev) ev.stopPropagation();
+  const d = document.getElementById('fazione-dropdown');
+  if(d) d.classList.toggle('aperta');
+}
+function chiudiTendinaFazione(){
+  const d = document.getElementById('fazione-dropdown');
+  if(d) d.classList.remove('aperta');
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// v0.79.0 — CAMBIARE NOME
+// ══════════════════════════════════════════════════════════════════════════
+// E' la STESSA finestra del primo accesso, non una copia: cambia solo che da
+// qui si puo' rinunciare, e che il campo parte dal nome che si ha. Copiarla
+// avrebbe voluto dire copiare anche i controlli sul nome e la gestione degli
+// errori del server, cioe' avere due posti da cui un nome puo' nascere.
+function apriCambioUsername(){
+  apriModaleUsername(true);
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// v0.79.0 — CANCELLARE L'ACCOUNT
+// ══════════════════════════════════════════════════════════════════════════
+function messaggioElimina(testo, genere){
+  const el = document.getElementById('elimina-messaggio');
+  if(!el) return;
+  el.textContent = testo || '';
+  el.className = 'hx-messaggio' + (testo ? ' mostra' : '') + (genere ? ' hx-messaggio-' + genere : '');
+}
+function apriEliminaAccount(){
+  const ov = document.getElementById('elimina-overlay');
+  if(!ov) return;
+  vestiFinestraSemplice('elimina');
+  messaggioElimina('', '');
+  const pwd = document.getElementById('elimina-pwd');
+  if(pwd){ pwd.value = ''; pwd.type = 'password'; }
+  ov.classList.add('show');
+  if(pwd) setTimeout(()=>{ try{ pwd.focus(); }catch(_){} }, 50);
+}
+function chiudiEliminaAccount(){
+  const ov = document.getElementById('elimina-overlay');
+  if(ov) ov.classList.remove('show');
+}
+async function confermaEliminaAccount(bottone){
+  const pwd = document.getElementById('elimina-pwd');
+  const password = (pwd && pwd.value) || '';
+  if(!password){ messaggioElimina('Type in your password.', 'errore'); return; }
+  accessoOccupato(bottone, true, 'Deleting...');
+  messaggioElimina('Deleting...', 'attesa');
+  try{
+    await nakamaRpc('hx_elimina_account', { password: password });
+  }catch(e){
+    accessoOccupato(bottone, false);
+    const sbagliata = /password/i.test((e && e.message) || '');
+    messaggioElimina(sbagliata ? 'Wrong password.' : ((e && e.message) || 'Something went wrong.'), 'errore');
+    return;
+  }
+  // Da qui in poi non c'e' piu' un account: non si torna al menu, si esce.
+  // Stessa strada della disconnessione, per la stessa ragione (vedi disconnetti).
+  _fuoriDalGioco();
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// v0.79.0 — SCEGLIERE LA PROPRIA FACCIA
+// ══════════════════════════════════════════════════════════════════════════
+// Le carte che si possiedono, in ordine alfabetico, tre per riga. Non e' una
+// lista di immagini: e' carteDelGiocatore(), la stessa fonte della Collezione
+// e dei mazzi. Cosi' "gli avatar si sbloccano ottenendo la carta" non e' una
+// regola da mantenere — e' l'unica cosa che questo elenco sa fare.
+let _avatarInForse = '';
+function apriSceltaAvatar(){
+  const ov = document.getElementById('avatar-overlay');
+  if(!ov) return;
+  vestiFinestraSemplice('avatar');
+  impostaImgDaCandidati(document.querySelector('#avatar-back img'), uiFileCandidati('back-button.png'));
+  _avatarInForse = miaSiglaAvatar();
+  messaggioAvatar('', '');
+  costruisciGrigliaAvatar();
+  ov.classList.add('show');
+}
+function chiudiSceltaAvatar(){
+  const ov = document.getElementById('avatar-overlay');
+  if(ov) ov.classList.remove('show');
+}
+function messaggioAvatar(testo, genere){
+  const el = document.getElementById('avatar-messaggio');
+  if(!el) return;
+  el.textContent = testo || '';
+  el.className = 'hx-messaggio' + (testo ? ' mostra' : '') + (genere ? ' hx-messaggio-' + genere : '');
+}
+function costruisciGrigliaAvatar(){
+  const griglia = document.getElementById('avatar-griglia');
+  if(!griglia) return;
+  griglia.innerHTML = '';
+  const mie = (typeof carteDelGiocatore === 'function') ? carteDelGiocatore() : [];
+  const ordinate = mie.slice().sort((a,b)=> String(a.name||'').localeCompare(String(b.name||'')));
+  // La faccia da mostrare e' quella del colore IN VIGORE: si sceglie l'avatar
+  // guardandolo com'e' quando lo si avra' addosso, non nell'altra variante.
+  const fazione = fazioneUmano();
+  for(const entry of ordinate){
+    const slug = entry.slug || (typeof slugPersonaggio === 'function' ? slugPersonaggio(entry.name) : '');
+    if(!slug) continue;
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'avatar-scelta' + (slug === _avatarInForse ? ' scelta' : '');
+    b.setAttribute('data-slug', slug);
+    b.title = entry.name || slug;
+    const cornice = document.createElement('div');
+    cornice.className = 'player-avatar';
+    const foto = document.createElement('img');
+    foto.className = 'player-avatar-photo';
+    foto.alt = ''; foto.draggable = false;
+    const telaio = document.createElement('img');
+    telaio.className = 'player-avatar-frame';
+    telaio.alt = ''; telaio.draggable = false;
+    impostaImgDaCandidati(telaio, uiFileCandidati('avatar-frame.png'));
+    cornice.appendChild(foto); cornice.appendChild(telaio);
+    b.appendChild(cornice);
+    b.onclick = ()=> scegliAvatarNellaGriglia(slug);
+    griglia.appendChild(b);
+    // Le immagini si chiedono DOPO aver appeso il pulsante: la prova degli
+    // indirizzi e' asincrona, e chi risponde deve trovare un elemento che sta
+    // gia' nella pagina.
+    impostaImgDaCandidati(foto, avatarCandidati(slug, fazione));
+  }
+  if(!griglia.children.length){
+    messaggioAvatar('Your cards are still loading.', 'attesa');
+  }
+}
+function scegliAvatarNellaGriglia(slug){
+  _avatarInForse = slug;
+  document.querySelectorAll('#avatar-griglia .avatar-scelta').forEach(b =>
+    b.classList.toggle('scelta', b.getAttribute('data-slug') === slug));
+}
+async function confermaSceltaAvatar(bottone){
+  if(!_avatarInForse){ messaggioAvatar('Pick an avatar first.', 'errore'); return; }
+  accessoOccupato(bottone, true, 'Saving...');
+  messaggioAvatar('Saving...', 'attesa');
+  try{
+    await nakamaRpc('hx_avatar', { avatar: _avatarInForse });
+  }catch(e){
+    accessoOccupato(bottone, false);
+    messaggioAvatar((e && e.message) || 'Something went wrong.', 'errore');
+    return;
+  }
+  // Il server ha accettato: adesso lo sa anche il gioco. MIO_AVATAR e' la fonte
+  // da cui leggono tutti — menu, Customize, schermata versus e pannelli di
+  // partita — quindi si scrive li' e si dice a chi disegna di rileggere.
+  MIO_AVATAR = _avatarInForse;
+  accessoOccupato(bottone, false);
+  messaggioAvatar('', '');
+  chiudiSceltaAvatar();
+  aggiornaCustomize();
+  try{ mm2RinfrescaGiocatore(); }catch(_){}
+}
+
+// La barra del titolo e la trama di una finestra qualunque, dato il suo
+// prefisso. Le finestre nuove sono tre e le righe sarebbero le stesse tre
+// volte.
+function vestiFinestraSemplice(prefisso){
+  const sfondo = (sel, file)=>{
+    const el = document.querySelector(sel);
+    if(el) impostaSfondoDaCandidati(el, uiFileCandidati(file));
+  };
+  sfondo('#' + prefisso + '-titlebar .hx-titlebar-left',   'title-bg-left.png');
+  sfondo('#' + prefisso + '-titlebar .hx-titlebar-center', 'title-bg-center.png');
+  sfondo('#' + prefisso + '-titlebar .hx-titlebar-right',  'title-bg-right.png');
+  const box = document.getElementById(prefisso + '-box');
+  const pannello = box && box.querySelector('.hx-pannello');
+  if(pannello){
+    impostaVariabileDaCandidati(pannello, '--hx-trama', uiFileCandidati('brushed-texture.jpg'));
+    pannello.querySelectorAll('.hx-btn').forEach(vestiPulsante);
+  }
+  // L'occhio della password: si veste con la stessa funzione della colonna
+  // d'accesso, che sa scegliere fra "mostra" e "nascondi" leggendo il campo.
+  if(box) box.querySelectorAll('.hx-occhio').forEach(vestiOcchio);
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// v0.79.0 — USCIRE
+// ══════════════════════════════════════════════════════════════════════════
+// Si ricarica la pagina, e non e' una scorciatoia: e' l'unica cosa che
+// garantisce quel che serve. La sessione vive SOLO in memoria (vedi
+// nakamaRiscriviSessione: dalla v0.77.90 niente del giocatore tocca il
+// browser), e in memoria vivono anche il catalogo, il possesso, i mazzi, il
+// profilo, le preferenze e altre venti cose sparse in questo file. Non esiste
+// una funzione che le azzeri tutte, e scriverla vorrebbe dire tenerla
+// aggiornata per sempre: dimenticarne una significherebbe far entrare il
+// prossimo account con addosso qualcosa del precedente.
+// Ricaricando, quel rischio non esiste: quel che non e' scritto da nessuna
+// parte non torna.
+function _fuoriDalGioco(){
+  try{ nakamaDimenticaSessione(); }catch(_){}
+  try{ fermaTuttiISuoni(); }catch(_){}
+  try{ location.reload(); }catch(_){}
+}
+function disconnetti(){
+  closeSettingsModal();
+  _fuoriDalGioco();
 }
 function closeSettingsModal(){
   document.getElementById('settings-modal-overlay').classList.remove('show');

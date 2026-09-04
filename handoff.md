@@ -2159,6 +2159,70 @@ tocca una di quelle schermate per altri motivi, conviene convertirla allora.
 
 ---
 
+## Fazione preferita e avatar (dalla v0.79.0)
+
+**La preferenza e la fazione sono due cose diverse.** Fino alla v0.78 erano la
+stessa parola: si sceglieva chiaro o scuro, e quella era insieme la preferenza
+salvata e la fazione con cui si giocava. Con "Random" non si puo' piu': random
+non e' una fazione — nessuno gioca in random — e' il MODO in cui si decide
+quale sara', partita per partita.
+
+    preferenzaFazione()      random | light | dark   — cosa ha scelto
+    fazioneUmano()           light | dark            — con cosa si gioca adesso
+    fazioneDaGiocare()       light | dark            — e nella partita che parte
+    scegliPreferenzaFazione  l'unica porta da cui la scelta entra
+
+Il sorteggio sta in un posto solo e lo chiede `requestNewGame`, che e' l'unico
+imbuto. `impostaFazioneUmano` salva `fazioneUltima` — un RICORDO, non una
+scelta: se salvasse `fazione`, il primo sorteggio riscriverebbe "random" in
+"dark" e non ci sarebbero piu' sorteggi. Il ricordo serve al menu, che deve
+mostrare l'arte del mazzo e l'avatar in un colore anche quando la preferenza
+non ne nomina nessuno.
+
+**In rete non cambia niente.** La fazione la decide ogni client per se'
+(`playerFactionIsDark`: "sei io?"), quindi due giocatori che preferiscono
+entrambi il buio non si vedranno mai uguali: ognuno si vede come si e' scelto e
+vede l'altro dell'altro colore. Non e' un dato che viaggia.
+
+**L'avatar e' una carta, non un indirizzo.** Sul server sta scritta una SIGLA
+(`fox`); il client la trasforma in illustrazione E nella variante di colore
+giusta per chi guarda. Un indirizzo salvato congelerebbe quella decisione sul
+giorno in cui e' stata presa, e chi passa al chiaro si ritroverebbe la propria
+faccia scura addosso per sempre. Il server ricorda CHI, il client decide DI CHE
+COLORE — la stessa divisione del motore delle abilita'.
+
+La lista degli avatar e' `carteDelGiocatore()`, la stessa fonte della Collezione
+e dei mazzi: "si sbloccano ottenendo la carta" non e' una regola da mantenere,
+e' l'unica cosa che quell'elenco sa fare. Il server ricontrolla il possesso
+(`rpcAvatar` -> `_possedute`).
+
+Fox e' l'avatar di partenza: e' l'unica carta che tutti e tre i mazzi starter
+hanno, quindi e' l'unica che si puo' dare senza guardare quale mazzo e' uscito.
+Il valore sta scritto due volte, `AVATAR_DI_PARTENZA` di qua e di la': una e'
+cio' che il server assegna, l'altra e' cio' che si vede mentre la risposta e'
+ancora per strada.
+
+**Uscire e cancellare** passano tutti e due da `_fuoriDalGioco`, che ricarica la
+pagina. Non e' una scorciatoia: la sessione vive solo in memoria (v0.77.90), e
+in memoria vivono anche catalogo, possesso, mazzi, profilo, preferenze e altre
+venti cose sparse nel file. Non esiste una funzione che le azzeri tutte, e
+scriverla vorrebbe dire tenerla aggiornata per sempre: dimenticarne una
+significherebbe far entrare il prossimo account con addosso qualcosa del
+precedente.
+
+La password della cancellazione la ricontrolla il SERVER
+(`authenticateEmail` con create=false, e l'account che risponde dev'essere
+proprio chi chiede). Una finestra la si salta; una sessione aperta la si trova
+su un computer lasciato acceso.
+
+**Le finestre che si aprono sopra le impostazioni** (nome, cancellazione,
+avatar) hanno z-index 4400 e non 4300 come tutte le altre. A parita' di
+z-index vince l'ordine nel documento, e quella del nome nel markup viene prima
+delle impostazioni: restava dietro al loro velo, visibile nell'ispettore e
+invisibile a chi guarda.
+
+---
+
 ## Verifica prima di consegnare
 
 **v0.73.66 — non e' piu' obbligatorio passare da `test/`** (vedi sopra): si

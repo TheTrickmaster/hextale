@@ -35,6 +35,21 @@ var KEY_STAGIONE = 'stagione';
 // perche' ha una vita sua, cortissima, e va cancellato appena si e' raccolto.
 var KEY_BUSTINA = 'bustina';
 
+// ── v0.79.0 — L'AVATAR E' UNA CARTA ───────────────────────────────────────
+// Non un indirizzo: la SIGLA di una carta posseduta (`fox`, `baba-yaga`). Il
+// client la trasforma in un'illustrazione, e la trasforma nella variante di
+// colore giusta per chi guarda — la stessa carta ha una faccia chiara e una
+// scura, e quale delle due si veda dipende da chi la sta guardando e da che
+// fazione sta giocando. Un indirizzo scritto qui congelerebbe quella scelta
+// sul momento in cui e' stata fatta.
+// La verifica e' quindi UNA: la carta ce l'ha davvero? Il resto lo fa il
+// client, che e' l'unico a sapere di che colore sta dipingendo.
+//
+// Fox e' l'avatar di chi comincia: e' l'unica carta che tutti e tre i mazzi
+// starter hanno, quindi e' l'unica che si puo' dare senza guardare quale mazzo
+// e' uscito.
+var AVATAR_DI_PARTENZA = 'fox';
+
 // ══════════════════════════════════════════════════════════════════════════
 // LA STAGIONE, IL LIVELLO E IL RANK
 // ══════════════════════════════════════════════════════════════════════════
@@ -352,6 +367,13 @@ function assicuraPossesso(ctx, nk, logger, userId, username) {
       for (var sv in (attuale.carte || {})) attuale.viste[sv] = 1;
       daRiscrivere = true;
     }
+    // v0.79.0 — e chi c'era prima che gli avatar esistessero ne riceve uno.
+    // Il campo vuoto sarebbe una scelta ("nessun avatar"), e non lo e': e' un
+    // vuoto della nostra storia, come il saldo mancante qui sopra.
+    if (typeof attuale.avatar !== 'string' || !attuale.avatar) {
+      attuale.avatar = AVATAR_DI_PARTENZA;
+      daRiscrivere = true;
+    }
     if (daRiscrivere) scriviPossesso(nk, userId, attuale);
     return attuale;
   }
@@ -367,7 +389,9 @@ function assicuraPossesso(ctx, nk, logger, userId, username) {
     origine: 'caso',
     // Il saldo di partenza e le carte guadagnate dopo, sbustando.
     valute: { magicInk: VALUTE_INIZIALI.magicInk, fairyDust: VALUTE_INIZIALI.fairyDust },
-    carte: {}
+    carte: {},
+    // v0.79.0 — con una faccia da subito. Vedi AVATAR_DI_PARTENZA.
+    avatar: AVATAR_DI_PARTENZA
   };
   scriviPossesso(nk, userId, possesso);
   // v0.77.84 — e il mazzo si crea GIA' FATTO.
@@ -420,7 +444,16 @@ function _preferenzePulite(dentro, gia) {
   for (var k in vecchie) if (Object.prototype.hasOwnProperty.call(vecchie, k)) fuori[k] = vecchie[k];
   if (!dentro) return fuori;
 
-  if (dentro.fazione === 'light' || dentro.fazione === 'dark') fuori.fazione = dentro.fazione;
+  // v0.79.0 — "random" e' una scelta come le altre, ed e' quella di partenza.
+  // Non e' una fazione: e' il modo in cui si decide quale sara', partita per
+  // partita. Chi legge la preferenza non deve mai riceverne una a caso senza
+  // saperlo, quindi il valore resta 'random' e il sorteggio lo fa il client
+  // all'inizio di ogni partita.
+  if (dentro.fazione === 'light' || dentro.fazione === 'dark' || dentro.fazione === 'random') fuori.fazione = dentro.fazione;
+  // E l'ultima fazione USCITA dal sorteggio. Serve al menu, che deve mostrare
+  // l'arte del mazzo e l'avatar in un colore anche quando la preferenza non ne
+  // nomina nessuno. Solo un colore vero: 'random' qui non vuol dire niente.
+  if (dentro.fazioneUltima === 'light' || dentro.fazioneUltima === 'dark') fuori.fazioneUltima = dentro.fazioneUltima;
   if (typeof dentro.aiutoEsagono === 'boolean') fuori.aiutoEsagono = dentro.aiutoEsagono;
   if (typeof dentro.patchNotesLette === 'string') fuori.patchNotesLette = String(dentro.patchNotesLette).slice(0, 40);
   if (typeof dentro.unicorno === 'number' && isFinite(dentro.unicorno)) {
@@ -450,6 +483,87 @@ function rpcPreferenze(ctx, logger, nk, payload) {
   possesso.preferenze = _preferenzePulite(dentro, possesso.preferenze);
   scriviPossesso(nk, ctx.userId, possesso);
   return JSON.stringify({ preferenze: possesso.preferenze });
+}
+
+// ── v0.79.0 — SI SCEGLIE LA PROPRIA FACCIA ────────────────────────────────
+// Arriva una sigla di carta e basta. La domanda che il server si fa e' una
+// sola, ed e' quella che il client non puo' farsi da solo: quella carta ce
+// l'ha? Senza questo controllo un avatar sarebbe la lista completa delle carte
+// del gioco, e "si sbloccano ottenendo la carta" non vorrebbe dire niente.
+//
+// La sigla vuota e' ammessa e vuol dire "torna a quello di partenza": e' il
+// modo in cui si ripara un avatar rimasto su una carta che non c'e' piu'.
+function rpcAvatar(ctx, logger, nk, payload) {
+  if (!ctx.userId) throw Error('serve un accesso');
+  var dentro = {};
+  try { dentro = payload ? JSON.parse(payload) : {}; } catch (e) { dentro = {}; }
+  var sigla = String(dentro.avatar || '').trim().toLowerCase();
+  if (sigla.length > 60) throw Error('sigla non valida');
+  if (sigla && !/^[a-z0-9-]+$/.test(sigla)) throw Error('sigla non valida');
+
+  var possesso = assicuraPossesso(ctx, nk, logger, ctx.userId, ctx.username);
+  if (!sigla) sigla = AVATAR_DI_PARTENZA;
+
+  if (sigla !== AVATAR_DI_PARTENZA) {
+    var catalogo = leggiSistema(nk, KEY_CATALOGO);
+    if (!catalogo || !catalogo.carte) throw Error('catalogo non ancora importato');
+    var admin = !!possesso.admin;
+    var carte = [];
+    for (var i = 0; i < catalogo.carte.length; i++) {
+      var c = catalogo.carte[i];
+      if (c.soloAdmin && !admin) continue;
+      carte.push(c);
+    }
+    var sue = _possedute(carte, possesso, admin);
+    if (!sue[sigla]) throw Error('questa carta non e tua');
+  }
+
+  possesso.avatar = sigla;
+  scriviPossesso(nk, ctx.userId, possesso);
+  return JSON.stringify({ avatar: sigla });
+}
+
+// ── v0.79.0 — E SI PUO' ANDARSENE PER SEMPRE ──────────────────────────────
+// La password si richiede QUI, e non ci si accontenta di averla chiesta nella
+// finestra: una finestra la si salta, una sessione aperta la si trova su un
+// computer lasciato acceso. `authenticateEmail` con create=false e' l'unico
+// modo che il runtime ha di dire "questa password e' giusta", e si controlla
+// che l'account che risponde sia PROPRIO chi sta chiedendo — altrimenti
+// basterebbe la password di un altro.
+//
+// Poi si cancella tutto quello che e' nostro e infine l'account: in
+// quest'ordine, perche' dopo la cancellazione dell'account il suo userId non
+// apre piu' niente e cio' che fosse rimasto resterebbe li' per sempre, senza
+// nessuno a cui appartenere.
+//
+// La mail torna libera: chi se ne va deve potersi riscrivere da zero.
+function rpcEliminaAccount(ctx, logger, nk, payload) {
+  if (!ctx.userId) throw Error('serve un accesso');
+  var dentro = {};
+  try { dentro = payload ? JSON.parse(payload) : {}; } catch (e) { dentro = {}; }
+  var password = String(dentro.password || '');
+  if (!password) throw Error('serve la password');
+
+  var conto = nk.accountGetId(ctx.userId);
+  var email = (conto && conto.email) || '';
+  if (!email) throw Error('questo account non ha una email: scrivici');
+
+  var chi = nk.authenticateEmail(email, password, null, false);
+  if (!chi || chi.userId !== ctx.userId) throw Error('password sbagliata');
+
+  var chiavi = [KEY_POSSESSO, KEY_MAZZI, KEY_STAGIONE, KEY_BUSTINA, 'stato'];
+  for (var i = 0; i < chiavi.length; i++) {
+    try { nk.storageDelete([{ collection: COLL_PROFILO, key: chiavi[i], userId: ctx.userId }]); }
+    catch (e) { logger.warn('cancellando %s di %s: %s', chiavi[i], ctx.userId, String(e)); }
+  }
+  // Il battito che dice "sono online" non si tocca: e' un'ora scritta in un
+  // registro condiviso, e smette di contare da sola dopo un minuto e mezzo
+  // (vedi PRESENZA_VIVA_MS). Andare a riscrivere quel registro qui vorrebbe
+  // dire prendersi il rischio di una scrittura in mezzo alla cancellazione per
+  // guadagnare novanta secondi.
+  nk.accountDeleteId(ctx.userId, true);
+  logger.info('account cancellato: %s', ctx.userId);
+  return JSON.stringify({ fatto: true });
 }
 
 function rpcAvvio(ctx, logger, nk, payload) {
@@ -3172,6 +3286,8 @@ function InitModule(ctx, logger, nk, initializer) {
   initializer.registerRpc('hx_mazzi_scrivi', rpcMazziScrivi);
   initializer.registerRpc('hx_partita', rpcPartita);
   initializer.registerRpc('hx_preferenze', rpcPreferenze);
+  initializer.registerRpc('hx_avatar', rpcAvatar);
+  initializer.registerRpc('hx_elimina_account', rpcEliminaAccount);
   initializer.registerRpc('hx_giocatori', rpcGiocatoriOnline);
   initializer.registerRpc('hx_carte_viste', rpcCarteViste);
   initializer.registerRpc('hx_bustina_apri', rpcBustinaApri);
