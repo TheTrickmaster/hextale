@@ -77,6 +77,21 @@
   --font-display:'Marcellus SC', cursive;
   --font-body:'Rosarivo', serif;
 }
+/* ── v0.79.14 — IL CURSORE DEL GIOCO SU TUTTO, SENZA ECCEZIONI ─────────────
+   La regola c'era gia' — "da qui in poi si scrive cursor:var(--cursore)" — ma
+   era una regola per chi scrive, e chi scrive dimentica. Ogni elemento che
+   ereditava un cursore di sistema (la barra di testo su una casella, la manina
+   su un collegamento, il divieto su una carta gelata) lo riportava dentro, e
+   non c'era modo di accorgersene se non passandoci sopra.
+   Adesso lo dice il foglio, una volta, per TUTTI gli elementi. Chi ne vuole uno
+   diverso deve scriverlo dopo e con piu' forza: e' l'unico modo in cui una
+   regola come questa regge nel tempo.
+   L'unica variante ammessa e' quella premuta, che mette body.mouse-down piu'
+   sotto — un'altra faccia dello stesso cursore, non uno di sistema.
+   NOTA: l'angolo che allarga una casella di testo lo disegna il BROWSER, e su
+   quei sedici pixel puo' imporre la propria freccia obliqua qualunque cosa
+   dica il foglio. E' l'unico punto che questa regola non raggiunge. */
+*, *::before, *::after{ cursor:var(--cursore); }
 html,body{width:100%;height:100%;overflow:hidden;color:var(--text);font-family:var(--font-body);user-select:none;
   cursor:var(--cursore);
   /* Letterbox/pillarbox fill: the black margin left over around the scaled
@@ -3126,7 +3141,7 @@ body.io-sono-2 #p1-info .player-avatar-photo{ transform:scaleX(-1); }
   width:74px; height:74px; margin:-37px 0 0 -37px;
   z-index:60;
   pointer-events:auto;
-  cursor:pointer;
+  cursor:var(--cursore);
   display:flex; align-items:center; justify-content:center;
   animation:scartaCroceIn .22s ease-out both;
 }
@@ -3158,7 +3173,7 @@ body.io-sono-2 #p1-info .player-avatar-photo{ transform:scaleX(-1); }
    e restano scritte qui e non nel disegno della carta perche' il gelo e' uno
    stato del momento, non un modo diverso di essere quella carta. */
 .hand-card-wrap.congelata{ filter:saturate(.35) brightness(1.06) drop-shadow(0 0 8px rgba(150,215,255,.75)); }
-.hand-card-wrap.congelata .hand-card-hitzone{ cursor:not-allowed; }
+.hand-card-wrap.congelata .hand-card-hitzone{ cursor:var(--cursore); }
 .hand-card-wrap.congelata::after{
   content:''; position:absolute; inset:0; pointer-events:none; border-radius:inherit;
   background:linear-gradient(150deg, rgba(190,235,255,.34), rgba(120,190,255,.16) 55%, rgba(255,255,255,.28));
@@ -5447,7 +5462,7 @@ body.io-sono-2 #p1-info .player-avatar-photo{ transform:scaleX(-1); }
    perche' adesso e' l'unico effetto e prima i due si sommavano. */
 #card-modal-info .cm-freccia:hover{ filter:brightness(1.35) drop-shadow(0 0 7px rgba(255,233,145,0.75)); }
 #card-modal-info .cm-freccia:active{ transform:translateY(1px); }
-#card-modal-info .cm-freccia[disabled]{ opacity:0.35; cursor:default; }
+#card-modal-info .cm-freccia[disabled]{ opacity:0.35; cursor:var(--cursore); }
 #card-modal-info .cm-freccia[disabled]:hover{ filter:none; }
 #card-modal-info .cm-freccia[disabled]:active{ transform:none; }
 /* v0.73.2 — il pulsante di chiusura della carta ingrandita usa l'ASSET vero e
@@ -8359,17 +8374,29 @@ body.io-sono-2 #p1-info .player-avatar-photo{ transform:scaleX(-1); }
    guarda, e quello non lo sappiamo. Il ringraziamento non ha tetto — sono
    tre righe, e non c'e' niente da far scorrere. */
 #bug-modulo{ max-height:62vh; overflow-y:auto; padding-right:10px; }
+/* ── v0.79.14 — E LE CASELLE SI LASCIANO TIRARE ────────────────────────────
+   `resize:vertical` c-era gia- e non serviva a niente: questo e- un contenitore
+   flex in colonna, e in un contenitore flex i figli si RESTRINGONO da soli
+   quando il contenuto non ci sta (flex-shrink vale 1 di suo). Tirando la
+   casella piu- in giu- il contenuto superava il tetto, il flex la ricomprimeva
+   subito, e da fuori sembrava che il trascinamento non facesse niente.
+   Con flex-shrink a zero l-altezza scritta dal trascinamento resta, e cio- che
+   non ci sta piu- scorre — che e- esattamente il patto di questa finestra. */
+#bug-modulo > *{ flex-shrink:0; }
 /* La barra: sottile, grigia, e con lo stesso filo di luce dei bordi del
    gioco. Altrove le barre si nascondono (la Collezione, le note di rilascio);
    qui serve VEDERLA, perche' e' l'unico segno che sotto c'e' dell'altro. */
-#bug-modulo{ scrollbar-width:thin; scrollbar-color:rgba(255,255,255,0.22) transparent; }
-#bug-modulo::-webkit-scrollbar{ width:8px; }
-#bug-modulo::-webkit-scrollbar-track{ background:rgba(0,0,0,0.22); border-radius:4px; }
-#bug-modulo::-webkit-scrollbar-thumb{
+/* E- una CLASSE e non due regole gemelle: la portano la finestra della
+   segnalazione e la griglia degli avatar, e una barra scritta due volte
+   diventa due barre diverse alla prima modifica. */
+.hx-scorre{ scrollbar-width:thin; scrollbar-color:rgba(255,255,255,0.22) transparent; }
+.hx-scorre::-webkit-scrollbar{ width:8px; height:8px; }
+.hx-scorre::-webkit-scrollbar-track{ background:rgba(0,0,0,0.22); border-radius:4px; }
+.hx-scorre::-webkit-scrollbar-thumb{
   background:rgba(255,255,255,0.22); border-radius:4px;
   border:1px solid rgba(255,255,255,0.10);
 }
-#bug-modulo::-webkit-scrollbar-thumb:hover{ background:rgba(255,255,255,0.34); }
+.hx-scorre::-webkit-scrollbar-thumb:hover{ background:rgba(255,255,255,0.34); }
 /* Le caselle non si allargano oltre alla finestra: tirandole di lato
    uscirebbero dal pannello invece di far scorrere. */
 .hx-campo-lungo{ max-width:100%; }
@@ -8450,10 +8477,17 @@ body.io-sono-2 #p1-info .player-avatar-photo{ transform:scaleX(-1); }
   grid-auto-rows:calc(300px * 834 / 749 - 40px);
   gap:4.8px; justify-content:center;
   max-height:64vh; overflow-y:auto;
-  scrollbar-width:none;
+  /* Gli esagoni sbordano di venti pixel per parte dalla loro colonna (e- il
+     modo in cui stanno stretti, vedi sopra): senza questa riga quel debordare
+     conta come contenuto e fa comparire una barra orizzontale per venti pixel
+     che non si devono raggiungere. */
+  overflow-x:hidden;
+  /* v0.79.14 — la barra si VEDE (classe .hx-scorre nel markup): nascosta,
+     niente diceva che sotto ci fossero altre carte. Un po- di spazio a destra
+     perche- non passi sopra all-ultima colonna. */
+  padding-right:10px;
 }
 #avatar-griglia > .avatar-scelta{ place-self:center; }
-#avatar-griglia::-webkit-scrollbar{ display:none; width:0; height:0; }
 .avatar-scelta{
   position:relative; width:300px; height:calc(300px * 834 / 749);
   background:none; border:0; padding:0;
@@ -9344,7 +9378,7 @@ body.io-sono-2 #p1-info .player-avatar-photo{ transform:scaleX(-1); }
   min-width:180px; min-height:44px; padding:6px 14px;
   background:rgba(255,255,255,0.04);
   border:1px solid rgba(233,222,197,0.28); border-radius:8px;
-  cursor:pointer; transition:border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+  cursor:var(--cursore); transition:border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
   /* Se la gif non arriva, questo e' il testo che si legge al suo posto. */
   font-family:'Cinzel',serif; font-size:0.9rem; color:#E9DEC5;
 }
@@ -10840,7 +10874,7 @@ body.io-sono-2 #p1-info .player-avatar-photo{ transform:scaleX(-1); }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.13</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.14</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -11072,7 +11106,7 @@ body.io-sono-2 #p1-info .player-avatar-photo{ transform:scaleX(-1); }
     </div>
     <div class="hx-pannello" id="bug-pannello">
 
-      <div id="bug-modulo">
+      <div id="bug-modulo" class="hx-scorre">
         <div class="bug-etichetta">What went wrong?</div>
         <div class="hx-dropdown" id="bug-categoria">
           <button type="button" class="hx-dropdown-testa" onclick="apriChiudiTendina(event,'bug-categoria')">
@@ -11206,7 +11240,7 @@ body.io-sono-2 #p1-info .player-avatar-photo{ transform:scaleX(-1); }
       <span class="hx-titlebar-cap hx-titlebar-right"></span>
     </div>
     <div class="hx-pannello">
-      <div id="avatar-griglia"></div>
+      <div id="avatar-griglia" class="hx-scorre"></div>
       <div id="avatar-messaggio" class="hx-messaggio"></div>
       <div class="filters-riga"></div>
       <button class="hx-btn settings-azione" type="button" id="avatar-conferma" onclick="confermaSceltaAvatar(this)">
