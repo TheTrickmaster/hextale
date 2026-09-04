@@ -1156,7 +1156,10 @@ body.mouse-down, body.mouse-down *{
 .hx-indietro:hover{ filter:brightness(1.15); transform:translateX(-2px); }
 #login-titlebar h2, #registrazione-titlebar h2, #username-titlebar h2, #rank-titlebar h2, #avviso-titlebar h2,
 #customize-titlebar h2, #elimina-titlebar h2, #avatar-titlebar h2, #bug-titlebar h2,
-#nca-titlebar h2{
+/* v0.79.23 — e questo. Non l'avevo aggiunto, e il titolo cadeva sullo stile di
+   base della barra: carattere e misura diversi da ogni altra finestra del
+   gioco, per una riga dimenticata in un elenco. */
+#nca-titlebar h2, #starter-titlebar h2{
   margin:0; text-align:center;
   font-family:'Marcellus',var(--font-display),serif;
   font-size:30px; font-weight:400; line-height:1;
@@ -8478,6 +8481,30 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
 .starter-amico  .starter-tinta{ background:linear-gradient(180deg, #324736 0%, rgba(50,71,54,0) 100%);  mix-blend-mode:color; }
 .starter-amante .starter-tinta{ background:linear-gradient(180deg, #4F3643 0%, rgba(79,54,67,0) 100%);  mix-blend-mode:color; }
 .starter-ignoto .starter-tinta{ background:linear-gradient(180deg, #0C0C0F 0%, rgba(12,12,15,0) 100%);  mix-blend-mode:difference; }
+/* v0.79.23 — l'illustrazione del mazzo scelto prende il posto della tinta.
+   E' l'ultimo strato prima del contenuto, e il suo 60% lascia passare quel
+   tanto di pannello che serve perche' la colonna resti una colonna. */
+.starter-arte{
+  position:absolute; inset:0; border-radius:inherit;
+  background-size:cover; background-position:center 30%;
+  opacity:0; transition:opacity .5s ease;
+  pointer-events:none; z-index:1;
+}
+.starter-col.starter-fatta .starter-arte{ opacity:0.6; }
+.starter-col.starter-fatta .starter-tinta{ opacity:0; transition:opacity .5s ease; }
+/* Il lampo: un velo bianco che si accende e si spegne da solo. Sta sopra a
+   tutto quel che c'e' nella colonna — e' il momento in cui la lettera diventa
+   un mazzo, e per un istante non si deve vedere ne' l'una ne' l'altro. */
+.starter-flash{
+  position:absolute; inset:0; border-radius:inherit;
+  background:#fff; opacity:0; pointer-events:none; z-index:5;
+}
+.starter-col.starter-lampo .starter-flash{ animation:starterLampo .5s ease-out forwards; }
+@keyframes starterLampo{
+  0%   { opacity:0; }
+  18%  { opacity:0.85; }
+  100% { opacity:0; }
+}
 .starter-dentro, .starter-esito{
   position:relative; z-index:2;
   display:flex; flex-direction:column; align-items:center;
@@ -8493,19 +8520,35 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
      lettera vive dentro a quello spazio, non ne aggiunge un altro. */
   margin:30px 0 8px;
 }
-.starter-nome b{ font-weight:400; text-transform:lowercase; }
+/* v0.79.23 — chi scrive la lettera in bianco: e' la parola che distingue le
+   tre colonne, e le tre colonne si guardano prima di leggerle. */
+.starter-nome b{ font-weight:400; text-transform:lowercase; color:#FFFFFF; }
 .starter-testo{
   font-family:'Rosarivo',serif; font-size:15px; font-style:italic;
   color:#B0BCBE; line-height:1.45; text-align:justify;
 }
 /* Il pulsante in fondo, sempre: le tre lettere sono lunghe diverse e tre
-   pulsanti a quote diverse si leggono come tre cose diverse. */
+   pulsanti a quote diverse si leggono come tre cose diverse.
+   v0.79.23 — e largo quanto la colonna. Lasciato alla sua misura naturale, il
+   pulsante e' fatto di cinque pezzi d'immagine che si dispongono attorno
+   all'etichetta: con tre etichette corte usciva piccolo, e i cinque pezzi si
+   vedevano tutti attaccati — da fuori "storto". Steso da bordo a bordo, i
+   riempitivi hanno di che riempire e l'etichetta sta in mezzo. */
 .starter-pick, .starter-esito .hx-btn{ margin-top:auto; }
+.starter-col .hx-btn{ width:100%; max-width:none; }
+/* L'etichetta si lascia della sua misura: e' .hx-btn a centrarla, ed e' gia'
+   il suo mestiere. Stirandola a tutta larghezza si trasformava in un riquadro
+   allineato a sinistra — .hxb-label e' a sua volta una riga flex, e li' dentro
+   'text-align' non decide niente. */
 /* ── QUANDO SI SCEGLIE ────────────────────────────────────────────────────
    Le altre due si spengono e si chiudono su se stesse; quella scelta resta e
    si accende. Il centro non si calcola: le colonne stanno in una riga centrata,
    e quando le altre due arrivano a larghezza zero il centro e' dove finisce
    lei. */
+/* Passandoci sopra la colonna si schiarisce. Niente alone: sono tre pannelli
+   affiancati, e un alone attorno a uno solo lo staccherebbe dagli altri due
+   invece di indicarlo. Solo finche' c'e' una scelta da fare. */
+.starter-col:not(.starter-via):not(.starter-fatta):hover{ filter:brightness(1.14); }
 .starter-col.starter-via{
   opacity:0; flex-basis:0; width:0; margin-left:-15px; margin-right:-15px;
   pointer-events:none;
@@ -8522,6 +8565,26 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
    contenuto: si spegne uno e si accende l'altro, cosi' il passaggio si vede. */
 .starter-col.starter-fatta .starter-dentro{ display:none; }
 .starter-col.starter-fatta .starter-esito{ display:flex; }
+/* ── v0.79.23 — QUEL CHE RESTA IN SCENA ──────────────────────────────────
+   Scelta la lettera, il riquadro che conteneva le tre colonne e il titolo se
+   ne vanno: la domanda e' stata fatta e ha avuto risposta, e tenerli li'
+   direbbe che si puo' ancora cambiare idea. Resta la colonna, sola. */
+#starter-overlay.starter-solo #starter-titlebar{ opacity:0; transition:opacity .4s ease; }
+#starter-overlay.starter-solo #starter-pannello{
+  background:none; border-color:transparent; padding:0;
+  transition:background-color .45s ease, border-color .45s ease, padding .45s ease;
+}
+#starter-overlay.starter-solo #starter-pannello::before{ opacity:0; transition:opacity .45s ease; }
+/* Il contenuto arriva DOPO il lampo, e i due pezzi arrivano da due parti:
+   l'anteprima cala dall'alto, la frase sale dal basso. Non e' un vezzo — sono
+   due cose diverse (che cosa hai preso, e cosa vuol dire), e arrivare insieme
+   dallo stesso punto le farebbe leggere come una sola. */
+.starter-col.starter-fatta .starter-anteprima{ animation:starterGiu .5s cubic-bezier(.22,1,.36,1) both; }
+.starter-col.starter-fatta .starter-frase{ animation:starterSu .5s cubic-bezier(.22,1,.36,1) both; }
+.starter-col.starter-fatta .starter-esito .hx-btn{ animation:starterCompare .5s ease .12s both; }
+@keyframes starterGiu{ from{ opacity:0; transform:translateY(-26px); } to{ opacity:1; transform:none; } }
+@keyframes starterSu{  from{ opacity:0; transform:translateY(26px); }  to{ opacity:1; transform:none; } }
+@keyframes starterCompare{ from{ opacity:0; } to{ opacity:1; } }
 /* L'anteprima e la frase stanno in mezzo alla colonna e il pulsante in fondo,
    come il Pick che ha sostituito. I due margini automatici — sopra la prima e
    sotto la seconda — si dividono lo spazio libero: e' il modo di centrare una
@@ -11121,7 +11184,7 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.22</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.23</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -11359,6 +11422,8 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
       <div id="starter-colonne">
       <div class="starter-col starter-amico" data-mazzo="1">
         <div class="starter-tinta"></div>
+        <div class="starter-arte"></div>
+        <div class="starter-flash"></div>
         <div class="starter-dentro">
           <img class="starter-lettera" data-starter-icona="letter-friend.png" alt="" draggable="false">
           <div class="starter-nome">A letter from a <b>friend</b></div>
@@ -11379,6 +11444,8 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
       </div>
       <div class="starter-col starter-amante" data-mazzo="3">
         <div class="starter-tinta"></div>
+        <div class="starter-arte"></div>
+        <div class="starter-flash"></div>
         <div class="starter-dentro">
           <img class="starter-lettera" data-starter-icona="letter-lover.png" alt="" draggable="false">
           <div class="starter-nome">A letter from a <b>lover</b></div>
@@ -11399,6 +11466,8 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
       </div>
       <div class="starter-col starter-ignoto" data-mazzo="2">
         <div class="starter-tinta"></div>
+        <div class="starter-arte"></div>
+        <div class="starter-flash"></div>
         <div class="starter-dentro">
           <img class="starter-lettera" data-starter-icona="letter-stranger.png" alt="" draggable="false">
           <div class="starter-nome">A letter from a <b>stranger</b></div>
@@ -21929,10 +21998,12 @@ function apriSceltaStarter(){
   // Si riparte pulita: questa finestra si apre una volta sola per account, ma
   // un debug o un secondo accesso nella stessa pagina la riaprono, e mezza
   // scelta di prima si vedrebbe tutta.
+  ov.classList.remove('starter-solo');
   ov.querySelectorAll('.starter-col').forEach(c=>{
-    c.classList.remove('starter-via','starter-presa','starter-fatta');
+    c.classList.remove('starter-via','starter-presa','starter-fatta','starter-lampo');
     const a = c.querySelector('.starter-anteprima'); if(a) a.innerHTML = '';
     const f = c.querySelector('.starter-frase'); if(f) f.textContent = '';
+    const s = c.querySelector('.starter-arte'); if(s) s.style.backgroundImage = '';
   });
   vestiFinestraSemplice('starter');
   try{
@@ -21972,6 +22043,10 @@ async function scegliStarter(bottone){
   }
 
   const ov = document.getElementById('starter-overlay');
+  // La carta che si prende: il suono e' quello di una carta pescata, perche' e'
+  // esattamente il gesto — si allunga una mano e si prende quella.
+  try{ playSfxFile('card-draw.mp3'); }catch(_){ }
+  ov.classList.add('starter-solo');
   ov.querySelectorAll('.starter-col').forEach(c=>{
     if(c === col) c.classList.add('starter-presa');
     else c.classList.add('starter-via');
@@ -21985,10 +22060,10 @@ async function scegliStarter(bottone){
   await carte;
 
   const nome = (esito && esito.nome) || '';
+  const mazzo = (typeof mazzoPerId === 'function') ? mazzoPerId('starter-' + numero) : null;
   const dove = col.querySelector('.starter-anteprima');
   if(dove){
     dove.innerHTML = '';
-    const mazzo = (typeof mazzoPerId === 'function') ? mazzoPerId('starter-' + numero) : null;
     if(mazzo && typeof _slotMazzoPieno === 'function'){
       const slot = _slotMazzoPieno(mazzo);
       // E' una vetrina, non una lista: via i comandi che qui non portano da
@@ -22001,6 +22076,19 @@ async function scegliStarter(bottone){
   const frase = col.querySelector('.starter-frase');
   if(frase) frase.innerHTML = 'Congratulations! You picked the <b>'
     + escapeHtml(nome || ('Starter ' + numero)) + '</b> deck!';
+  // Il fondo della colonna diventa l'illustrazione del mazzo: la stessa che la
+  // casella qui sopra si e' presa dalla sua prima carta, quindi le due non
+  // possono discordare.
+  const arte = col.querySelector('.starter-arte');
+  if(arte && mazzo && typeof candidatiArtDelMazzo === 'function'){
+    const quali = candidatiArtDelMazzo(mazzo);
+    if(quali && quali.length) impostaSfondoDaCandidati(arte, quali);
+  }
+  // Il lampo, il "ding" e il contenuto arrivano INSIEME: e' un momento solo —
+  // la lettera si apre — e spezzarlo in tre tempi lo farebbe sembrare una
+  // sequenza di cose che caricano.
+  try{ playSfxFile('card-ding.mp3'); }catch(_){ }
+  col.classList.add('starter-lampo');
   col.classList.add('starter-fatta');
   _starterInCorso = false;
 }

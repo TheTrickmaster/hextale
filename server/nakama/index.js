@@ -199,7 +199,7 @@ var COSTO_RARITA = { timeless: 4, mythic: 3, rare: 2, common: 1 };
 var MAZZI_STARTER = [1, 2, 3];
 // I nomi dei tre mazzi iniziali. Stanno qui e non nel client perche' e' il
 // server a crearli: il giocatore li trova gia' fatti al primo accesso.
-var NOMI_STARTER = { 1: 'Starter Wild', 2: 'Starter Debuff', 3: 'Starter Princess' };
+var NOMI_STARTER = { 1: 'Starter Wild', 2: 'Starter Trickster', 3: 'Starter Princess' };
 // v0.77.84 — LE CARTE PARTONO DA UNO.
 // Era 2, e non per una decisione: si era fermato li'. Su un account normale
 // una carta comincia al primo livello e sale giocando; l'admin le ha tutte al

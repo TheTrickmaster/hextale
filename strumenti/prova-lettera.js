@@ -73,6 +73,22 @@ app.whenReady().then(async () => {
     dice(testi[0].indexOf('Hey!') === 0 && testi[1].indexOf('My dearest,') === 0
       && testi[2].indexOf('To thee who hast found this letter,') === 0,
       'e ognuna dice la sua');
+    const tit = getComputedStyle(document.querySelector('#starter-titlebar h2'));
+    dice(/Marcellus/.test(tit.fontFamily) && tit.fontSize === '30px'
+      && tit.textAlign === 'center' && tit.color === 'rgb(237, 224, 198)',
+      'il titolo e- come quello di ogni altra finestra',
+      tit.fontFamily + '  ' + tit.fontSize + '  ' + tit.textAlign + '  ' + tit.color);
+    const pick = col[0].querySelector('.starter-pick');
+    dice(Math.abs(pick.offsetWidth - (col[0].offsetWidth - 52)) < 3,
+      'e il Pick riempie la colonna',
+      'largo ' + pick.offsetWidth + ' dentro a una colonna di ' + col[0].offsetWidth + ' meno 26 di bordo per parte');
+    dice(getComputedStyle(col[0].querySelector('.starter-nome b')).color === 'rgb(255, 255, 255)',
+      'chi scrive la lettera e- in bianco');
+    const et = pick.querySelector('.hxb-label');
+    const cb = pick.getBoundingClientRect(), ce = et.getBoundingClientRect();
+    dice(Math.abs((ce.left+ce.width/2) - (cb.left+cb.width/2)) < 2,
+      'e la sua scritta sta in mezzo',
+      'scarto di ' + Math.abs((ce.left+ce.width/2)-(cb.left+cb.width/2)).toFixed(1) + 'px');
 
     // Per la fotografia: via il velo di apertura, che sta sopra a tutto finche'
     // il gioco non ha finito di caricare e coprirebbe la finestra.
@@ -106,6 +122,13 @@ app.whenReady().then(async () => {
     await attendi(200);
 
     dice(scelta.classList.contains('starter-presa'), 'quella scelta si accende');
+    dice(document.getElementById('starter-overlay').classList.contains('starter-solo'),
+      'il riquadro che le conteneva e il titolo se ne vanno');
+    dice(scelta.classList.contains('starter-lampo'), 'la colonna lampeggia');
+    const arte = scelta.querySelector('.starter-arte');
+    dice(!!arte && (arte.style.backgroundImage || '').indexOf('url(') >= 0,
+      'e il suo fondo diventa l-arte del mazzo',
+      'ho letto "' + ((arte && arte.style.backgroundImage) || '') + '"');
     dice(col[1].classList.contains('starter-via') && col[2].classList.contains('starter-via'),
       'e le altre due se ne vanno');
     // Non zero spaccato: a larghezza zero restano i due bordi da un pixel e
