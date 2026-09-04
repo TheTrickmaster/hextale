@@ -26,10 +26,13 @@ for (const f of fn) {
   console.log('  ' + (esiste ? 'ok   ' : 'MANCA') + ' ' + f);
 }
 
+// v0.79.8 — i sette id di "Download latest version" non ci sono piu': quella
+// voce e- stata tolta dal menu insieme alle altre tre (Blur test, Show card DB,
+// Show asset). Questo banco chiede che markup e codice si corrispondano — con
+// gli id vecchi chiedeva che si corrispondessero su qualcosa che non esiste.
 const idAttesi = ['debug-music-loop-picker', 'debug-music-loop-select', 'debug-music-loop-lead',
   'debug-music-loop-status', 'debug-card-picker', 'debug-card-search-input', 'debug-card-search-list',
-  'debug-update-box', 'debug-update-msg', 'debug-update-actions', 'debug-update-download',
-  'debug-update-fallback', 'debug-update-run', 'debug-update-run-note', 'debug-grid'];
+  'debug-grid'];
 console.log('ID CHE IL CODICE CERCA');
 for (const id of idAttesi) {
   const c1 = finestra.indexOf('id="' + id + '"') >= 0;

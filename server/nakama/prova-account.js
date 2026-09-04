@@ -199,5 +199,23 @@ dice(!!quante && quante.indexOf('CARTE_POSSEDUTE') >= 0,
   'e scollegati ripiega sul possesso',
   'Se il server non ha risposto si sa almeno se la carta ce l-hai: una copia.');
 
+console.log('\nL-ATTESA DELLA BUSTINA\n');
+
+// v0.79.8 — il pulsante del menu di debug cancellava una chiave di
+// localStorage, e dalla v0.77.90 l'attesa non sta piu' li'. Diceva "fatto" e
+// non era successo niente: il difetto piu' scomodo, perche' da fuori sembra
+// che funzioni.
+dice(server.indexOf("registerRpc('hx_bustina_azzera', rpcBustinaAzzera)") >= 0,
+  'hx_bustina_azzera e- registrata');
+dice(gioco.indexOf("nakamaRpc('hx_bustina_azzera'") >= 0, 'e il client la chiama');
+const azzera = corpo(server, 'rpcBustinaAzzera');
+dice(!!azzera && azzera.indexOf('possesso.admin') >= 0,
+  'e solo un admin puo- azzerarla',
+  "Senza quel controllo questa e- la strada che la v0.77.90 aveva chiuso:\n" +
+  '        chiunque potrebbe avere una bustina ogni volta che vuole.');
+dice(gioco.indexOf('BUSTINA_CHIAVE') < 0 || gioco.split('BUSTINA_CHIAVE').length - 1 === 1,
+  'e la chiave morta nel browser non si usa piu-',
+  'Restava il nome di una chiave che nessuno legge.');
+
 console.log('\n' + (ko ? 'FALLITO: ' + ko : 'OK: client e server dicono la stessa cosa'));
 process.exit(ko ? 1 : 0);

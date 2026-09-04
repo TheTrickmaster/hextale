@@ -493,6 +493,29 @@ function rpcPreferenze(ctx, logger, nk, payload) {
 //
 // La sigla vuota e' ammessa e vuol dire "torna a quello di partenza": e' il
 // modo in cui si ripara un avatar rimasto su una carta che non c'e' piu'.
+// ── v0.79.8 — AZZERARE L'ATTESA DELLA BUSTINA, DAL MENU DI DEBUG ──────────
+// Il pulsante c'era gia' e non funzionava piu': cancellava una chiave di
+// localStorage, e dalla v0.77.90 l'attesa non sta piu' li' — la tiene il
+// server (possesso.bustinaProssima), che e' il motivo per cui era stata
+// spostata: nel browser bastava svuotare una chiave per avere una bustina
+// subito. Da allora il pulsante svuotava una chiave che non leggeva piu'
+// nessuno e non diceva niente a nessuno.
+//
+// Adesso lo fa il server, ed e' RISERVATO AGLI ADMIN. Non e' una precauzione
+// di forma: senza quel controllo questa e' esattamente la strada che la
+// v0.77.90 aveva chiuso — chiunque potrebbe chiamarla e avere una bustina ogni
+// volta che vuole. La finestra di debug e' gia' chiusa ai non-admin, ma una
+// finestra si salta; una domanda al server no.
+function rpcBustinaAzzera(ctx, logger, nk, payload) {
+  if (!ctx.userId) throw Error('serve un accesso');
+  var possesso = assicuraPossesso(ctx, nk, logger, ctx.userId, ctx.username);
+  if (!possesso.admin) throw Error('non sei un admin');
+  possesso.bustinaProssima = 0;
+  scriviPossesso(nk, ctx.userId, possesso);
+  logger.info('attesa bustina azzerata da %s', ctx.userId);
+  return JSON.stringify({ bustinaProssima: 0 });
+}
+
 function rpcAvatar(ctx, logger, nk, payload) {
   if (!ctx.userId) throw Error('serve un accesso');
   var dentro = {};
@@ -3426,6 +3449,7 @@ function InitModule(ctx, logger, nk, initializer) {
   initializer.registerRpc('hx_partita', rpcPartita);
   initializer.registerRpc('hx_preferenze', rpcPreferenze);
   initializer.registerRpc('hx_avatar', rpcAvatar);
+  initializer.registerRpc('hx_bustina_azzera', rpcBustinaAzzera);
   initializer.registerRpc('hx_elimina_account', rpcEliminaAccount);
   initializer.registerRpc('hx_giocatori', rpcGiocatoriOnline);
   initializer.registerRpc('hx_entro', rpcEntro);
