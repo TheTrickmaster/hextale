@@ -672,6 +672,17 @@ body.mouse-down, body.mouse-down *{
    no: e' un numero, non un comando, e cliccarlo per sbaglio aprirebbe una
    finestra che non si stava cercando. */
 #mm2-avatar #mm2-orb{ pointer-events:none; }
+/* v0.79.3 — e al passaggio si accende, che e' il modo in cui un ritratto dice
+   di essere un pulsante. Lo stesso azzurro del bagliore della finestra di
+   scelta (#A1D3DB): e' la stessa cosa che si sta per fare, e si annuncia con
+   lo stesso colore. */
+#mm2-avatar .player-avatar-photo, #mm2-avatar .player-avatar-frame{
+  transition:filter 0.16s ease;
+}
+#mm2-avatar:hover .player-avatar-photo{ filter:brightness(1.2); }
+#mm2-avatar:hover .player-avatar-frame{
+  filter:drop-shadow(0 0 10px rgba(161,211,219,0.9)) drop-shadow(0 0 22px rgba(161,211,219,0.5));
+}
 /* Foto e cornice restano assolute DENTRO all'avatar, com'e' in partita: sono
    le loro percentuali a incastrare il ritratto nell'esagono della cornice. */
 #mm2-avatar .player-avatar-frame{ inset:0; width:100%; height:100%; }
@@ -8276,13 +8287,21 @@ body.prova-senza-willchange #mm-book-rot{
    di prima meno il sessanta per cento): 909,6 di griglia, piu' i trenta di
    bordo del pannello per parte. La larghezza della finestra si scrive di
    conseguenza invece di essere indovinata. */
-#avatar-box{ width:970px; }
+/* v0.79.3 — quaranta pixel piu' vicini, e il numero sta nella LARGHEZZA DELLA
+   COLONNA, non nel gap: il gap era gia' a 4,8 e sotto zero non va. Le colonne
+   sono quindi 260 con dentro un esagono da 300, che sborda di venti per parte e
+   si centra da se' (place-self). Da centro a centro sono 264,8 invece di 304,8:
+   quaranta esatti. Gli esagoni hanno gli angoli trasparenti, quindi lo
+   sconfinamento non si vede — si vede solo che stanno piu' stretti. */
+#avatar-box{ width:850px; }
 #avatar-griglia{
-  display:grid; grid-template-columns:repeat(3,300px);
+  display:grid; grid-template-columns:repeat(3,260px);
+  grid-auto-rows:calc(300px * 834 / 749 - 40px);
   gap:4.8px; justify-content:center;
   max-height:64vh; overflow-y:auto;
   scrollbar-width:none;
 }
+#avatar-griglia > .avatar-scelta{ place-self:center; }
 #avatar-griglia::-webkit-scrollbar{ display:none; width:0; height:0; }
 .avatar-scelta{
   position:relative; width:300px; height:calc(300px * 834 / 749);
@@ -10670,7 +10689,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.1</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.3</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -13763,7 +13782,54 @@ function accessoSpiegaGuasto(modulo, errore, inRegistrazione){
   }
   accessoMessaggio(modulo, (errore && errore.message) || 'Something went wrong.', 'errore');
 }
-function accessoEntra(sessione){
+// ══════════════════════════════════════════════════════════════════════════
+// v0.79.3 — UN ACCOUNT, UN POSTO SOLO
+// ══════════════════════════════════════════════════════════════════════════
+// Lo stesso account aperto due volte non e' un dettaglio estetico: sono due
+// client che credono di essere lo stesso giocatore. Cercano partite in due,
+// spendono lo stesso saldo, si scrivono addosso le stesse preferenze — e a
+// vincere e' sempre l'ultimo salvataggio arrivato, cioe' il caso.
+//
+// Chi tiene il posto e' il SERVER, e lo tiene col battito che c'era gia' (vedi
+// rpcEntro): qui non si decide niente, si chiede il permesso. Un controllo
+// fatto dal client sarebbe un controllo che il secondo client puo' saltare.
+//
+// Il nome di questa finestra si genera adesso e vale finche' e' aperta.
+// Ricaricando ne nasce un altro, ed e' giusto: dopo una ricarica quella di
+// prima non c'e' piu' — e infatti chi se ne va dalla porta lo dice al server
+// (vedi lasciaLaSedia), cosi' rientra subito invece di aspettare che la sedia
+// si liberi da sola.
+const SESSIONE_CLIENT = 'w' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+async function prendiLaSedia(){
+  // Scollegati non c'e' nessun account da occupare: si entra e basta.
+  if(!sessioneAccount || !sessioneAccount.token) return true;
+  try{
+    const r = await nakamaRpc('hx_entro', { sessione: SESSIONE_CLIENT });
+    return !(r && r.dentro === false);
+  }catch(e){
+    // Il server non risponde: NON si chiude fuori nessuno. Il danno di due
+    // finestre aperte e' piccolo e raro; quello di non poter entrare quando il
+    // server ha un singhiozzo lo si prende in faccia subito.
+    console.warn('[sedia] non si sa se il posto e- libero: ' + (e && e.message));
+    return true;
+  }
+}
+function lasciaLaSedia(){
+  if(!sessioneAccount || !sessioneAccount.token) return Promise.resolve();
+  return nakamaRpc('hx_esco', { sessione: SESSIONE_CLIENT }).catch(()=>{});
+}
+async function accessoEntra(sessione){
+  // v0.79.3 — PRIMA di aprire il menu, e non dopo. Rifiutare qui costa poco:
+  // non si e' ancora dentro a niente, e la schermata d'accesso e' gia' li'.
+  if(sessione && !(await prendiLaSedia())){
+    accessoMessaggio('login', '', '');
+    accessoMessaggio('registrazione', '', '');
+    try{ nakamaDimenticaSessione(); }catch(_){}
+    apriAvviso('Already in game',
+      'This account is already in game on another device or window. '
+      + 'Close the other session and try again.', true);
+    return;
+  }
   giocatoreOnline = !!sessione;
   accessoMessaggio('login', '', '');
   accessoMessaggio('registrazione', '', '');
@@ -16592,7 +16658,9 @@ async function aggiornaGiocatoriOnline(){
   if(!sessioneAccount || !sessioneAccount.token) return;
   const el = document.getElementById('mm2-online');
   try{
-    const r = await nakamaRpc('hx_giocatori', {});
+    // v0.79.3 — e dice anche chi sta battendo: e' cosi' che il server sa
+    // quando una sedia e' ancora occupata (vedi rpcEntro).
+    const r = await nakamaRpc('hx_giocatori', { sessione: SESSIONE_CLIENT });
     const n = (r && typeof r.giocatori === 'number') ? r.giocatori : null;
     // Se il server non sa rispondere si lascia quel che c'era: sostituirlo con
     // uno zero direbbe "non c'e' nessuno", che e' un'altra cosa da "non lo so".
@@ -21213,7 +21281,12 @@ function vestiFinestraSemplice(prefisso){
 // prossimo account con addosso qualcosa del precedente.
 // Ricaricando, quel rischio non esiste: quel che non e' scritto da nessuna
 // parte non torna.
-function _fuoriDalGioco(){
+async function _fuoriDalGioco(){
+  // v0.79.3 — si libera la sedia PRIMA di ricaricare, e si aspetta: dopo la
+  // ricarica questa pagina non c'e' piu' e la richiesta morirebbe per strada.
+  // Chi rientra subito deve trovare il posto libero; chi chiude di brutto la
+  // finestra aspetta i quarantacinque secondi del battito, e va bene cosi'.
+  try{ await lasciaLaSedia(); }catch(_){}
   try{ nakamaDimenticaSessione(); }catch(_){}
   try{ fermaTuttiISuoni(); }catch(_){}
   try{ location.reload(); }catch(_){}
@@ -27068,7 +27141,20 @@ function bloccaPerAggiornamento(mia, ultima){
 // Adesso si guarda a intervalli, finche' il gioco e' aperto. Il primo sguardo
 // e' quello che si da' entrando.
 let _giocatoreDentro = false;
-const VERSIONE_OGNI_MS = 5 * 60 * 1000;
+// ── v0.79.2 — OGNI DUE MINUTI, E PIU' SPESSO NON SI PUO' ──────────────────
+// Erano cinque. Nessuno ti avvisa quando esce una versione nuova: il client se
+// ne accorge GUARDANDO, e fra uno sguardo e l'altro passa questo tempo. Chi
+// pubblica e resta in gioco aspettava quindi fino a cinque minuti, piu' il
+// tempo che GitHub ci mette a servire il file aggiornato invece della sua
+// copia (fino a un minuto).
+// Due e non trenta secondi per una ragione precisa: le richieste all'API di
+// GitHub senza credenziali sono SESSANTA ALL'ORA per indirizzo. A due minuti
+// se ne spendono trenta, e le altre trenta restano a chi apre le note di
+// rilascio e a chi cerca la versione piu' recente all'avvio. A un minuto si
+// starebbe esattamente sul tetto, e superarlo non rallenta l'avviso: lo spegne
+// del tutto, perche' GitHub comincia a rispondere 403 e da fuori sembra
+// semplicemente che il controllo non funzioni piu'.
+const VERSIONE_OGNI_MS = 2 * 60 * 1000;
 let _sorveglianzaVersione = null;
 function sorvegliaLaVersione(){
   _giocatoreDentro = true;

@@ -23,7 +23,10 @@ const server = fs.readFileSync(path.join(__dirname, 'index.js'), 'utf8');
 // Il corpo di una funzione, dalla dichiarazione in colonna zero alla graffa
 // che la chiude, anch'essa in colonna zero.
 function corpo(testo, nome) {
-  const inizio = testo.indexOf('\nfunction ' + nome + '(');
+  let inizio = testo.indexOf('\nfunction ' + nome + '(');
+  // Alcune sono asincrone, e la parola in piu' davanti basta a non trovarle:
+  // e' il modo in cui questo banco poteva dire "ROTTO" su codice giusto.
+  if (inizio < 0) inizio = testo.indexOf('\nasync function ' + nome + '(');
   if (inizio < 0) return null;
   const righe = testo.slice(inizio + 1).split('\n');
   const out = [];
@@ -125,6 +128,45 @@ dice(!!elimina && elimina.indexOf('authenticateEmail') >= 0,
 dice(!!elimina && elimina.indexOf('accountDeleteId') >= 0,
   "e l'account viene cancellato davvero",
   'La mail deve tornare libera: chi se ne va deve potersi riscrivere.');
+
+console.log('\nUN ACCOUNT, UN POSTO SOLO\n');
+
+for (const [nome, funzione] of [['hx_entro', 'rpcEntro'], ['hx_esco', 'rpcEsco']]) {
+  dice(server.indexOf("registerRpc('" + nome + "', " + funzione + ")") >= 0,
+    nome + ' e- registrata');
+  dice(gioco.indexOf("nakamaRpc('" + nome + "'") >= 0, 'e il client la chiama');
+}
+
+const entro = corpo(server, 'rpcEntro');
+dice(!!entro && entro.indexOf('_sediaOccupataDaAltri') >= 0,
+  'il posto lo controlla il SERVER',
+  'Un controllo fatto dal client e- un controllo che il secondo client puo-\n' +
+  '        saltare.');
+
+const battito = corpo(server, 'rpcGiocatoriOnline');
+dice(!!battito && battito.indexOf('_sediaOccupataDaAltri') >= 0,
+  'e il battito non ruba la sedia a nessuno',
+  'Senza, al secondo client basterebbe battere per prendersi il posto senza\n' +
+  '        essere mai passato da rpcEntro.');
+
+const sedia = corpo(gioco, 'prendiLaSedia');
+dice(!!sedia && /return true/.test(sedia.slice(sedia.indexOf('catch'))),
+  'e se il server tace non si chiude fuori nessuno',
+  'Il danno di due finestre e- piccolo e raro; quello di non poter entrare\n' +
+  '        quando il server ha un singhiozzo lo si prende in faccia subito.');
+
+const ingresso = corpo(gioco, 'accessoEntra');
+const iSedia = ingresso ? ingresso.indexOf('prendiLaSedia') : -1;
+const iMenu = ingresso ? ingresso.indexOf('apriMenuPrincipale') : -1;
+dice(iSedia >= 0 && iMenu >= 0 && iSedia < iMenu,
+  'si chiede il posto PRIMA di aprire il menu',
+  'Rifiutare dopo vorrebbe dire buttare fuori qualcuno che e- gia- dentro.');
+
+const uscita = corpo(gioco, '_fuoriDalGioco');
+dice(!!uscita && uscita.indexOf('await lasciaLaSedia') >= 0,
+  'e chi se ne va dalla porta libera il posto, aspettando',
+  'Senza l-attesa la richiesta muore con la ricarica, e si resta chiusi fuori\n' +
+  '        dal proprio account per tre quarti di minuto.');
 
 console.log('\n' + (ko ? 'FALLITO: ' + ko : 'OK: client e server dicono la stessa cosa'));
 process.exit(ko ? 1 : 0);

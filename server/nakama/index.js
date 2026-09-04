@@ -1265,17 +1265,113 @@ function applicaEsito(nk, userId, vinta, pari, controIA, turni, modo) {
 // questo record va spezzato.
 var PRESENZA_VIVA_MS = 90 * 1000;
 var KEY_PRESENZE = 'presenze';
-function rpcGiocatoriOnline(ctx, logger, nk, payload) {
-  var ora = Date.now();
+// ══════════════════════════════════════════════════════════════════════════
+// v0.79.3 — UN ACCOUNT, UN POSTO SOLO
+// ══════════════════════════════════════════════════════════════════════════
+// Lo stesso account aperto due volte non e' un dettaglio estetico: sono due
+// client che credono di essere lo stesso giocatore. Cercano partite in due,
+// spendono lo stesso saldo, si scrivono addosso le stesse preferenze, e chi ne
+// paga il conto e' il secondo salvataggio che arriva.
+//
+// La sedia la tiene il BATTITO che gia' c'era (vedi PRESENZA_VIVA_MS): non
+// serve un secondo registro, serve sapere CHI sta battendo. La presenza quindi
+// non e' piu' solo un'ora, e' { q: quando, s: quale sessione }.
+// Le presenze vecchie sono numeri e basta: si continuano a leggere: chi era
+// gia' collegato al momento dello schieramento non deve essere buttato fuori.
+//
+// SEDIA_LIBERA_MS e' PIU' CORTO della finestra del contatore, ed e' voluto.
+// Sono due domande diverse:
+//   "quante persone ci sono?"   — meglio contare uno di troppo per mezzo
+//                                 minuto che vedere il numero ballare.
+//   "il posto e' occupato?"     — qui sbagliare costa a chi resta chiuso
+//                                 fuori, quindi la sedia si libera prima.
+// Il client batte ogni trenta secondi: quarantacinque e' un battito saltato
+// piu' il margine. Chi chiude la scheda di brutto — non dalla porta, che
+// avvisa (vedi rpcEsco) — aspetta al massimo quel tempo prima di poter
+// rientrare.
+var SEDIA_LIBERA_MS = 45 * 1000;
+
+// Legge una presenza nelle due forme, la vecchia e la nuova.
+function _presenzaLetta(v) {
+  if (typeof v === 'number') return { q: v, s: '' };
+  if (v && typeof v === 'object' && typeof v.q === 'number') return { q: v.q, s: String(v.s || '') };
+  return null;
+}
+// C'e' qualcun ALTRO seduto su questo account in questo momento?
+function _sediaOccupataDaAltri(nk, userId, sessione) {
+  var visti = null;
+  try { visti = leggiSistema(nk, KEY_PRESENZE); } catch (e) { visti = null; }
+  if (!visti || typeof visti !== 'object') return false;
+  var p = _presenzaLetta(visti[userId]);
+  if (!p) return false;
+  if ((Date.now() - p.q) > SEDIA_LIBERA_MS) return false;   // se n'e' andato
+  // Nessuna sessione scritta: e' una presenza di prima di questa versione.
+  // Vale come occupata — e' comunque qualcuno che stava battendo.
+  return p.s !== sessione;
+}
+
+// Ci si siede. Si chiama UNA VOLTA, appena l'accesso e' riuscito e prima che
+// il menu si apra: e' l'unico momento in cui rifiutare costa poco, perche' non
+// si e' ancora dentro a niente.
+function rpcEntro(ctx, logger, nk, payload) {
+  if (!ctx.userId) throw Error('serve un accesso');
+  var dati = {};
+  try { dati = payload ? JSON.parse(payload) : {}; } catch (e) { dati = {}; }
+  var sessione = String(dati.sessione || '').slice(0, 64);
+  if (!sessione) throw Error('serve una sessione');
+  if (_sediaOccupataDaAltri(nk, ctx.userId, sessione)) {
+    logger.info('accesso rifiutato a %s: gia. in gioco', ctx.userId);
+    return JSON.stringify({ dentro: false, motivo: 'gia in gioco' });
+  }
   var visti = null;
   try { visti = leggiSistema(nk, KEY_PRESENZE); } catch (e) { visti = null; }
   if (!visti || typeof visti !== 'object') visti = {};
-  if (ctx.userId) visti[ctx.userId] = ora;
+  visti[ctx.userId] = { q: Date.now(), s: sessione };
+  try { scriviSistema(nk, KEY_PRESENZE, visti); }
+  catch (e2) { logger.warn('presenza non scritta: %s', String(e2)); }
+  return JSON.stringify({ dentro: true });
+}
+
+// E ci si alza. Chi se ne va dalla porta lo dice, cosi' puo' rientrare subito
+// invece di aspettare che la sedia si liberi da sola. Solo la propria sedia:
+// una sessione non puo' far alzare un'altra.
+function rpcEsco(ctx, logger, nk, payload) {
+  if (!ctx.userId) throw Error('serve un accesso');
+  var dati = {};
+  try { dati = payload ? JSON.parse(payload) : {}; } catch (e) { dati = {}; }
+  var sessione = String(dati.sessione || '').slice(0, 64);
+  var visti = null;
+  try { visti = leggiSistema(nk, KEY_PRESENZE); } catch (e) { visti = null; }
+  if (!visti || typeof visti !== 'object') return JSON.stringify({ fuori: true });
+  var p = _presenzaLetta(visti[ctx.userId]);
+  if (p && (!sessione || p.s === sessione || !p.s)) {
+    delete visti[ctx.userId];
+    try { scriviSistema(nk, KEY_PRESENZE, visti); }
+    catch (e2) { logger.warn('presenza non tolta: %s', String(e2)); }
+  }
+  return JSON.stringify({ fuori: true });
+}
+
+function rpcGiocatoriOnline(ctx, logger, nk, payload) {
+  var ora = Date.now();
+  var dati = {};
+  try { dati = payload ? JSON.parse(payload) : {}; } catch (eP) { dati = {}; }
+  var sessione = String(dati.sessione || '').slice(0, 64);
+  var visti = null;
+  try { visti = leggiSistema(nk, KEY_PRESENZE); } catch (e) { visti = null; }
+  if (!visti || typeof visti !== 'object') visti = {};
+  // v0.79.3 — il battito dice anche CHI sta battendo, e non ruba la sedia a
+  // nessuno: se il posto risulta di un'altra sessione viva, questo client non
+  // ci scrive sopra. Non e' un caso teorico — e' quello che succede al secondo
+  // client se qualcuno gli mette le mani sul codice per saltare il rifiuto.
+  if (ctx.userId && !(sessione && _sediaOccupataDaAltri(nk, ctx.userId, sessione))) {
+    visti[ctx.userId] = sessione ? { q: ora, s: sessione } : ora;
+  }
   var vivi = {}, quanti = 0;
   for (var u in visti) {
-    var quando = visti[u];
-    if (typeof quando === 'number' && (ora - quando) <= PRESENZA_VIVA_MS) {
-      vivi[u] = quando; quanti++;
+    var letta = _presenzaLetta(visti[u]);
+    if (letta && (ora - letta.q) <= PRESENZA_VIVA_MS) {
+      vivi[u] = visti[u]; quanti++;
     }
   }
   // La scrittura non deve poter far fallire la risposta: il numero e' gia'
@@ -3289,6 +3385,8 @@ function InitModule(ctx, logger, nk, initializer) {
   initializer.registerRpc('hx_avatar', rpcAvatar);
   initializer.registerRpc('hx_elimina_account', rpcEliminaAccount);
   initializer.registerRpc('hx_giocatori', rpcGiocatoriOnline);
+  initializer.registerRpc('hx_entro', rpcEntro);
+  initializer.registerRpc('hx_esco', rpcEsco);
   initializer.registerRpc('hx_carte_viste', rpcCarteViste);
   initializer.registerRpc('hx_bustina_apri', rpcBustinaApri);
   initializer.registerRpc('hx_bustina_raccogli', rpcBustinaRaccogli);
