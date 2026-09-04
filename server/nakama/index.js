@@ -521,6 +521,17 @@ var SEGN_FOTO_MAX = 400 * 1024;
 var SEGN_CATEGORIE = ['gameplay', 'cards', 'match', 'ui', 'collection',
   'rewards', 'performance', 'visual', 'account', 'other'];
 var SEGN_FREQUENZE = ['once', 'sometimes', 'always'];
+// Come si leggono nell'email. Nel messaggio vanno le stesse parole che il
+// giocatore ha visto nella finestra: chi legge la segnalazione e chi l'ha
+// scritta devono parlare della stessa cosa con lo stesso nome. Le sigle
+// restano quelle salvate — sono la chiave, non il testo.
+var SEGN_ETICHETTE = {
+  gameplay: 'Gameplay', cards: 'Cards & Abilities', match: 'Match / Board',
+  ui: 'UI & Menus', collection: 'Collection / Progression', rewards: 'Rewards / Packs',
+  performance: 'Performance', visual: 'Visual / Audio', account: 'Account', other: 'Other',
+  once: 'Once', sometimes: 'Sometimes', always: 'Always'
+};
+function _etichetta(sigla) { return SEGN_ETICHETTE[sigla] || String(sigla || ''); }
 
 function _inElenco(elenco, v) {
   for (var i = 0; i < elenco.length; i++) if (elenco[i] === v) return true;
@@ -544,38 +555,90 @@ function _testoPulito(v) {
 // La password della casella non passa nemmeno di qui: la conosce solo il
 // servizio di inoltro, dal suo file di ambiente sul server.
 var KEY_POSTA = 'posta';
+// Il numero della segnalazione: uno, due, tre. Serve per parlarne — "il numero
+// 47" e' una cosa che si scrive in una risposta, "segn-1757003812345-918273"
+// no. Il conto sta sul server e in un posto solo, perche' un numero che due
+// posti calcolano per conto proprio prima o poi lo assegna due volte.
+var KEY_SEGN_CONTO = 'segnalazioni-conto';
 var SEGN_DESTINATARIO = 'support@hextalegame.com';
 // Il servizio vive accanto a Nakama, sulla rete interna di docker: da fuori
 // non e' raggiungibile, ed e' voluto — non ha nessuna ragione di esserlo.
 var POSTA_URL = 'http://posta:8081/invia';
 
+// La configurazione c'e' o non c'e': se non c'e', la posta e' spenta e la
+// segnalazione resta solo sul server. La CHIAVE dentro e' facoltativa — vedi
+// il servizio di inoltro per il perche': la vera difesa e' che quel servizio
+// non e' raggiungibile da fuori.
 function _postaConfig(nk) {
   var c = null;
   try { c = leggiSistema(nk, KEY_POSTA); } catch (e) { c = null; }
-  if (!c || !c.chiave) return null;
+  if (!c || !c.attiva) return null;
   return c;
 }
 
-// Il corpo del messaggio: testo semplice. Chi legge una segnalazione vuole
-// leggerla, non guardarla.
+// Il corpo del messaggio. Due versioni dello stesso testo: quella scritta, per
+// chi legge la posta senza figure, e quella disegnata, con in cima il marchio e
+// il numero. Non e' vanita': una casella che riceve segnalazioni le riceve a
+// decine, e il numero grosso in alto e' cio' che permette di ritrovarne una.
+var POSTA_LOGO = 'https://hextalegame.com/ui/hextale-logo-topbar.png';
+function _postaHtml(s, chiave) {
+  var riga = function (etichetta, valore) {
+    return '<tr><td style="padding:2px 14px 2px 0;color:#8a9a9c;white-space:nowrap">' + etichetta +
+      '</td><td style="padding:2px 0;color:#EDE0C6">' + _html(valore) + '</td></tr>';
+  };
+  var blocco = function (titolo, testo) {
+    return '<div style="margin:22px 0 0">' +
+      '<div style="font:600 14px/1.2 Georgia,serif;color:#8a9a9c;text-transform:uppercase;letter-spacing:.08em">' + titolo + '</div>' +
+      '<div style="margin-top:6px;font:16px/1.5 Georgia,serif;color:#EDE0C6;white-space:pre-wrap">' + _html(testo) + '</div>' +
+      '</div>';
+  };
+  return '<div style="background:#1b2223;padding:26px;font-family:Georgia,serif">' +
+    '<div style="max-width:640px;margin:0 auto;background:#232c2d;border:1px solid #36423f;border-radius:14px;padding:26px">' +
+      '<table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-bottom:18px"><tr>' +
+        '<td style="padding-right:16px"><img src="' + POSTA_LOGO + '" alt="Hextale" height="46" style="display:block;height:46px;width:auto"></td>' +
+        '<td style="font:bold 28px/1 Georgia,serif;color:#EDE0C6">Bug report n&deg; ' + s.numero + '</td>' +
+      '</tr></table>' +
+      '<div style="height:1px;background:#36423f;margin:0 0 18px"></div>' +
+      '<table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;font:15px/1.5 Georgia,serif">' +
+        riga('Category', _etichetta(s.categoria)) +
+        riga('How often', _etichetta(s.frequenza)) +
+        riga('Player', (s.nome || '(no name)') + '  [' + s.chi + ']') +
+        riga('Version', (s.versione || '?') + '   screen ' + (s.schermo || '?')) +
+        riga('Browser', s.agente || '?') +
+      '</table>' +
+      blocco('What happened', s.cosa) +
+      blocco('What they expected', s.atteso || '(not answered)') +
+      '<div style="margin-top:24px;padding-top:14px;border-top:1px solid #36423f;font:13px/1.5 Georgia,serif;color:#6f7d7f">' +
+        'On the server: ' + _html(COLL_SEGNALAZIONI + '/' + chiave) +
+        (s.conFoto ? '<br>Screenshot attached.' : '') +
+      '</div>' +
+    '</div></div>';
+}
+function _html(v) {
+  return String(v == null ? '' : v)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+// La versione scritta, per chi legge la posta senza figure.
 function _postaTesto(s, chiave) {
   var righe = [
-    'Categoria: ' + s.categoria,
-    'Frequenza: ' + s.frequenza,
-    'Giocatore: ' + (s.nome || '(senza nome)') + '  [' + s.chi + ']',
-    'Versione:  ' + (s.versione || '?') + '   schermo ' + (s.schermo || '?'),
+    'Bug report n. ' + s.numero,
+    '',
+    'Category:  ' + _etichetta(s.categoria),
+    'How often: ' + _etichetta(s.frequenza),
+    'Player:    ' + (s.nome || '(no name)') + '  [' + s.chi + ']',
+    'Version:   ' + (s.versione || '?') + '   screen ' + (s.schermo || '?'),
     'Browser:   ' + (s.agente || '?'),
     '',
-    '--- Cosa e successo ---',
+    '--- What happened ---',
     s.cosa,
     '',
-    '--- Cosa si aspettava ---',
-    (s.atteso || '(non risposto)'),
+    '--- What they expected ---',
+    (s.atteso || '(not answered)'),
     '',
     '---',
-    'Sul server: ' + COLL_SEGNALAZIONI + '/' + chiave
+    'On the server: ' + COLL_SEGNALAZIONI + '/' + chiave
   ];
-  if (s.conFoto) righe.push('Schermata allegata (anche in ' + COLL_SEGNALAZIONI + '/' + chiave + '-foto)');
+  if (s.conFoto) righe.push('Screenshot attached (also in ' + COLL_SEGNALAZIONI + '/' + chiave + '-foto)');
   return righe.join('\n');
 }
 
@@ -587,14 +650,24 @@ function _spedisciSegnalazione(nk, logger, s, chiave, foto) {
   if (!cfg) { logger.info('posta non configurata: la segnalazione %s resta solo sul server', chiave); return false; }
   var corpo = {
     a: SEGN_DESTINATARIO,
-    oggetto: '[Hextale] ' + s.categoria + ' - ' + String(s.cosa).slice(0, 60).replace(/\s+/g, ' '),
+    // Il numero anche nell'oggetto: e' quello che si vede nell'elenco della
+    // casella, prima di aprire.
+    oggetto: '[Hextale] Bug report n. ' + s.numero + ' - ' + _etichetta(s.categoria),
     testo: _postaTesto(s, chiave),
+    html: _postaHtml(s, chiave),
     allegato: foto || ''
   };
   try {
-    var r = nk.httpRequest(POSTA_URL, 'post',
-      { 'Content-Type': 'application/json', 'X-Hextale-Chiave': cfg.chiave },
-      JSON.stringify(corpo), 20);
+    var intestazioni = { 'Content-Type': 'application/json' };
+    if (cfg.chiave) intestazioni['X-Hextale-Chiave'] = cfg.chiave;
+    // L'ultimo numero e' l'attesa in MILLISECONDI, non in secondi. Con 20 la
+    // chiamata scadeva dopo venti millesimi: l'email partiva davvero — il
+    // servizio di inoltro la imbucava — ma Nakama non lo sapeva piu' e
+    // segnava la segnalazione come non spedita. Un difetto che si vedeva solo
+    // mettendo i due registri uno accanto all'altro.
+    // Venticinque secondi: aprire una connessione SMTP e consegnare un
+    // messaggio con un allegato non e' istantaneo.
+    var r = nk.httpRequest(POSTA_URL, 'post', intestazioni, JSON.stringify(corpo), 25000);
     if (r.code >= 200 && r.code < 300) return true;
     logger.warn('la posta ha risposto %d per la segnalazione %s: %s', r.code, chiave, String(r.body).slice(0, 300));
   } catch (e) {
@@ -605,14 +678,27 @@ function _spedisciSegnalazione(nk, logger, s, chiave, foto) {
 
 // Si scrive una volta, da un admin, e non compare mai in questo file:
 //   {"chiave":"<la stessa che sta nell'ambiente del servizio di inoltro>"}
+// Due strade, come per l'importazione del catalogo:
+//   - dal gioco, da un admin;
+//   - da fuori con la chiave http del runtime, che e' come si configura una
+//     macchina: senza sessione, senza account, da una riga di comando.
+// La seconda esiste perche' questa chiamata porta una parola d'ordine, e una
+// parola d'ordine si sposta da un file all'altro sulla stessa macchina — non
+// passa per le mani di nessuno.
 function rpcPostaConfig(ctx, logger, nk, payload) {
-  if (!ctx.userId) throw Error('serve un accesso');
-  var possesso = assicuraPossesso(ctx, nk, logger, ctx.userId, ctx.username);
-  if (!possesso.admin) throw Error('non sei un admin');
+  if (ctx.userId) {
+    var possesso = assicuraPossesso(ctx, nk, logger, ctx.userId, ctx.username);
+    if (!possesso.admin) throw Error('non sei un admin');
+  }
   var d = {};
   try { d = payload ? JSON.parse(payload) : {}; } catch (e) { d = {}; }
-  if (!d.chiave) throw Error('serve la chiave');
-  scriviSistema(nk, KEY_POSTA, { chiave: String(d.chiave) });
+  // Accendere la posta e' un fatto solo: {"attiva":true}. La chiave si aggiunge
+  // se la si e' messa anche nel servizio di inoltro, e chi la scrive e' chi la
+  // conosce — non passa da nessun'altra parte.
+  scriviSistema(nk, KEY_POSTA, {
+    attiva: d.attiva === false ? false : true,
+    chiave: String(d.chiave || '')
+  });
   logger.info('posta configurata da %s', ctx.userId);
   // La chiave non torna indietro: chi l'ha scritta ce l'ha gia', e chiunque
   // altro non deve poterla rileggere da qui.
@@ -639,7 +725,18 @@ function rpcSegnalazione(ctx, logger, nk, payload) {
 
   var quando = Date.now();
   var chiave = 'segn-' + quando + '-' + Math.floor(Math.random() * 1e6);
+  // Il numero si prende PRIMA di scrivere: se la scrittura fallisce si e'
+  // bruciato un numero, e un buco in una numerazione non fa male a nessuno.
+  // Al contrario — prenderlo dopo vorrebbe dire che due segnalazioni scritte
+  // nello stesso istante possono ricevere lo stesso.
+  var numero = 1;
+  try {
+    var conto = leggiSistema(nk, KEY_SEGN_CONTO);
+    numero = ((conto && typeof conto.ultimo === 'number') ? conto.ultimo : 0) + 1;
+    scriviSistema(nk, KEY_SEGN_CONTO, { ultimo: numero });
+  } catch (eN) { logger.warn('numero della segnalazione non assegnato: %s', String(eN)); }
   var segnalazione = {
+    numero: numero,
     quando: quando,
     chi: ctx.userId,
     nome: ctx.username || '',
@@ -680,7 +777,7 @@ function rpcSegnalazione(ctx, logger, nk, payload) {
   // la segnalazione e' gia' al sicuro, e il giocatore ha gia' fatto la sua
   // parte. Se la posta e' giu', a saperlo e' il registro del server.
   var spedita = _spedisciSegnalazione(nk, logger, segnalazione, chiave, conFoto ? foto : '');
-  return JSON.stringify({ ricevuta: true, spedita: spedita });
+  return JSON.stringify({ ricevuta: true, spedita: spedita, numero: numero });
 }
 
 // ── v0.79.8 — AZZERARE L'ATTESA DELLA BUSTINA, DAL MENU DI DEBUG ──────────
@@ -761,7 +858,14 @@ function rpcEliminaAccount(ctx, logger, nk, payload) {
   var email = (conto && conto.email) || '';
   if (!email) throw Error('questo account non ha una email: scrivici');
 
-  var chi = nk.authenticateEmail(email, password, null, false);
+  // v0.79.13 — il terzo argomento e' il NOME UTENTE, e vuole una stringa: con
+  // `null` il runtime alza "TypeError: expects string" e la cancellazione
+  // falliva sempre. Non si vedeva perche' l'unica strada per arrivarci
+  // passava dalla finestra, e la finestra si prova solo cancellando un account
+  // vero. E' saltata fuori alla prima prova fatta davvero, dal server.
+  // Con create=false quel nome non serve a cercare nessuno — conta che sia una
+  // stringa — e il piu' onesto da passare e' il proprio.
+  var chi = nk.authenticateEmail(email, password, ctx.username || '', false);
   if (!chi || chi.userId !== ctx.userId) throw Error('password sbagliata');
 
   var chiavi = [KEY_POSSESSO, KEY_MAZZI, KEY_STAGIONE, KEY_BUSTINA, 'stato'];

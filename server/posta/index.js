@@ -33,9 +33,16 @@ const CFG = {
 // meta' deve rifiutarsi di partire, non accorgersene la prima volta che
 // qualcuno ha qualcosa da raccontare.
 for (const [nome, valore] of [['SMTP_HOST', CFG.host], ['SMTP_USER', CFG.utente],
-                              ['SMTP_PASS', CFG.password], ['POSTA_CHIAVE', CFG.chiave]]) {
+                              ['SMTP_PASS', CFG.password]]) {
   if (!valore) { console.error('[posta] manca ' + nome + ': non parto.'); process.exit(1); }
 }
+// La parola d'ordine e' FACOLTATIVA, e va detto perche'. La vera difesa e' che
+// questo servizio non e' raggiungibile da fuori: non pubblica nessuna porta, e
+// vive sulla rete interna di docker insieme a Nakama. La chiave e' una difesa
+// in piu' contro il vicino di casa — un altro processo sulla stessa rete —
+// e chi la vuole la mette in tutte e due i posti: qui e nella configurazione
+// di Nakama (hx_posta_config). Senza, si parte lo stesso e lo si dice.
+if (!CFG.chiave) console.warn('[posta] nessuna POSTA_CHIAVE: accetto chiunque sulla rete interna.');
 
 // La porta 465 e' SMTP dentro a TLS dal primo byte (secure), la 587 comincia in
 // chiaro e sale dopo (STARTTLS). Sbagliare questo e' il modo piu' comune di
@@ -60,7 +67,7 @@ const server = http.createServer((req, res) => {
   // mondo non lo vede — ma contro il vicino di casa: qualunque altro processo
   // sulla stessa rete di docker potrebbe altrimenti spedire posta a nome
   // nostro.
-  if (req.headers['x-hextale-chiave'] !== CFG.chiave) return rispondi(res, 401, { errore: 'chiave sbagliata' });
+  if (CFG.chiave && req.headers['x-hextale-chiave'] !== CFG.chiave) return rispondi(res, 401, { errore: 'chiave sbagliata' });
 
   let pezzi = [], quanto = 0;
   req.on('data', (c) => {
@@ -83,6 +90,10 @@ const server = http.createServer((req, res) => {
       subject: String(d.oggetto).slice(0, 200),
       text: String(d.testo || '')
     };
+    // Le due versioni viaggiano insieme: chi legge la posta con le figure vede
+    // quella disegnata, chi la legge senza vede quella scritta. E' lo stesso
+    // messaggio, non due.
+    if (d.html) messaggio.html = String(d.html);
     // La schermata arriva come "data:image/jpeg;base64,...": si spedisce come
     // allegato vero, non incollata nel testo.
     const foto = String(d.allegato || '');
