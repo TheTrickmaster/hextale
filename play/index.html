@@ -2514,10 +2514,9 @@ body.io-sono-2 #p2-deck-pile{ left:calc(50px + 163px - var(--card-w)/2); }
    e il testo cresce verso il centro, come gia' faceva quello di destra. */
 body.io-sono-2 #p1-hand-expand-hint{ left:auto; right:30px; flex-direction:row-reverse; }
 body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; }
-/* Il ritratto dell'avversario guarda verso il centro: se i lati si scambiano,
-   si scambia anche lui, o guarderebbe fuori dallo schermo. */
-body.io-sono-2 #p2-info .player-avatar-photo{ transform:none; }
-body.io-sono-2 #p1-info .player-avatar-photo{ transform:scaleX(-1); }
+/* v0.79.18 — qui c'erano le due righe che scambiavano il rovesciamento quando
+   si gioca da destra. Non serve piu' scambiare niente: non si rovescia piu'
+   nessuno (vedi .player-avatar-photo). */
 /* Lo sfondo di legno, appeso al bordo superiore. E' alto 1200 su una tela di
    1080: deborda in basso, ed e' giusto — e' un drappo, non un riquadro. */
 /* v0.76.12 — la sfocatura DIETRO al drappo. Non si puo' mettere sull'immagine
@@ -2603,8 +2602,17 @@ body.io-sono-2 #p1-info .player-avatar-photo{ transform:scaleX(-1); }
   object-fit:cover;
   clip-path:polygon(50% 0%, 100% 25.1%, 100% 74.5%, 50% 100%, 0% 74.5%, 0% 25.1%);
 }
-/* Il giocatore di destra guarda sempre verso il tabellone. */
-#p2-info .player-avatar-photo{ transform:scaleX(-1); }
+/* ── v0.79.18 — E NESSUNO SI SPECCHIA PIU' ────────────────────────────────
+   Qui c'era "il giocatore di destra guarda sempre verso il tabellone", e la
+   riga rovesciava il suo ritratto. Era giusta quando i ritratti erano quattro
+   disegni fatti apposta, tutti rivolti nella stessa direzione: specchiarne uno
+   lo faceva guardare dall'altra parte, e i due si guardavano in faccia.
+   Da v0.79.0 l'avatar e' l'ARTE DI UNA CARTA, scelta da chi gioca, e ogni arte
+   guarda dove vuole. Specchiarla non la fa guardare verso il centro: la fa
+   guardare al contrario di come e' disegnata — e la stessa faccia risultava
+   diversa fra il menu, lo schermo del versus e il pannello di partita, che e'
+   il modo piu' rapido per far sembrare che siano due persone.
+   Adesso l'arte si vede come e', dovunque. */
 .player-avatar-frame{
   position:absolute; inset:0; width:100%; height:100%;
   pointer-events:none;
@@ -10542,9 +10550,11 @@ body.io-sono-2 #p1-info .player-avatar-photo{ transform:scaleX(-1); }
      makes those long-dormant no-op hooks live.
      v0.51.0: .player-hp-liquid/.player-hp-liquid-surface markup removed —
      the orb is static art again (mask/fill/animation pulled per explicit
-     request pending a revisit). P2's avatar photo is mirrored via CSS only
-     (#p2-info .player-avatar-photo{transform:scaleX(-1)} — see that rule's
-     comment) so both players share this exact same markup structure. -->
+     request pending a revisit).
+     v0.79.18: il ritratto del giocatore di destra NON e' piu' specchiato (vedi
+     .player-avatar-photo nel CSS: l'avatar e' l'arte di una carta, e ogni arte
+     guarda dove e' disegnata). I due pannelli erano gia' identici nel markup,
+     e adesso lo sono anche nel disegno. -->
 <div class="player-info" id="p1-info">
   <div class="player-banner-sfoca"></div>
   <img class="player-banner" id="p1-banner" alt="" draggable="false">
@@ -10968,7 +10978,7 @@ body.io-sono-2 #p1-info .player-avatar-photo{ transform:scaleX(-1); }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.17</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.18</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -30825,7 +30835,15 @@ function updateTimerUI(){
   const fillW=TIMER_FULL_BAR_W*frac;
   maskEl.style.width=fillW.toFixed(2)+'px';
   maskEl.classList.toggle('urgent', timerLeft<=10);
-  if(timerLeft<=10) startScreenEdgeFlash(); else stopScreenEdgeFlash();
+  // ── v0.79.18 — I BORDI LAMPEGGIANO A CHI DEVE MUOVERSI ─────────────────
+  // Il richiamo e il ticchettio avevano gia' questa regola da v0.78.5; il
+  // lampeggio no, ed era rimasto l'unico allarme che suonava anche a chi stava
+  // solo guardando l'avversario pensare. Un allarme per una cosa che non puoi
+  // fare — e per meta' della partita.
+  // La domanda e' la stessa di la': non "e' il turno del giocatore uno?", ma
+  // "tocca a ME?" — in rete si puo' essere il due (vedi sceltaMia).
+  const mioIlTempo = (typeof sceltaMia === 'function') ? sceltaMia(G.currentPlayer) : true;
+  if(timerLeft<=10 && mioIlTempo) startScreenEdgeFlash(); else stopScreenEdgeFlash();
   // #timer-signal-img and #timer-pin-hover both read this same custom
   // property for their x-position (left:var(--timer-x)), so the dot and the
   // (currently hidden-or-not) pin always stay in sync with the fill bar's
@@ -35441,9 +35459,33 @@ const TRASCINA_SOGLIA_PX = 3; // sotto questa soglia e' un tocco, non un trascin
 // allo scostamento orizzontale. Non era l'inclinazione della carta: quella e'
 // una rotazione in 3D guidata dalla velocita'. Sostituita da quella vera (vedi
 // .tassello-inclinato e passoMolla), queste non servono piu' a nessuno.
-function preparaTrascinamentoTassello(svg, cella, bx, by, R, buildSvgIconBtn){
+// ── v0.79.18 — E VALE ANCHE PER LE CARTE, NON SOLO PER I MURI ────────────
+// Nasceva per Ali Baba, che sposta un muro; da oggi lo stesso gesto muove
+// anche i personaggi. Le due cose che cambiavano da un caso all'altro erano
+// scritte dentro — quale elemento sollevare e dove lo si puo' posare — e sono
+// diventate due domande fatte alla scelta:
+//
+//   cosa si solleva   la carta su quella casella, se c'e'; altrimenti il muro
+//   dove si posa      `scelta.mete(cella)`, che per i muri resta meteDelTassello
+//
+// Il resto — la molla, l'inclinazione, l'ombra, la mano che si chiude, il
+// bagliore che passa da "questi puoi prenderli" a "qui puoi posarlo" — non
+// sapeva gia' prima cosa stesse spostando, e infatti non e' cambiato di una
+// riga.
+function preparaTrascinamento(svg, cella, bx, by, R, buildSvgIconBtn, scelta){
   const bsvg = document.getElementById('board-svg');
-  const wrap = bsvg && bsvg.querySelector('[data-tile-wrap="'+cella+'h"]');
+  // Una carta si chiama "conquered" (e' il tag che porta ogni carta in campo),
+  // un muro "<cella>h". Prima la carta: se su quella casella c'e' qualcuno, e'
+  // lui che si sta prendendo in mano.
+  const wrap = bsvg && (bsvg.querySelector('[data-conquered="'+cella+'"]')
+                     || bsvg.querySelector('[data-tile-wrap="'+cella+'h"]'));
+  // Dove si puo' posare. Il valore di serie e' quello dei muri, cosi' Ali Baba
+  // non ha dovuto imparare niente di nuovo.
+  const mete = (k) => (scelta && typeof scelta.mete === 'function')
+    ? (scelta.mete(k) || []) : meteDelTassello(k);
+  // E a cosa tornare se si lascia fuori bersaglio: le cose prendibili di
+  // QUESTA scelta.
+  const prendibili = () => (scelta && scelta.bersagli) || tasselliBloccatiSpostabili();
   const iconaAperta = ICONA_MANO;
   // v0.73.89 — se la mano chiusa non c'e' ancora fra gli asset si continua con
   // quella aperta: il gesto funziona lo stesso, cambia solo che non si vede
@@ -35484,14 +35526,14 @@ function preparaTrascinamentoTassello(svg, cella, bx, by, R, buildSvgIconBtn){
       // "qui puoi posarlo". E' la parte dinamica della regola, e il momento in
       // cui serve davvero — con il tassello in mano, la domanda del giocatore
       // non e' piu' quale prendere ma dove metterlo.
-      aggiornaGlowAzione(meteDelTassello(cella));
+      aggiornaGlowAzione(mete(cella));
     }
     // La molla insegue questo punto; il disegno lo fa il passo della molla,
     // non questo gestore (vedi passoMolla).
     preso.bersaglioX = dx; preso.bersaglioY = dy;
     // Si accende la casella sotto al dito, se e' una di quelle buone: il
     // giocatore deve sapere dove sta per posare PRIMA di lasciare.
-    evidenziaApprodoTassello(cella, cellaSottoAlPunto(p));
+    evidenziaApprodoTassello(cella, cellaSottoAlPunto(p), mete(cella));
   };
   // ── v0.73.93 — LA PRESA: due livelli annidati, come per la carta ─────────
   // Fuori il livello che SPOSTA (una `transform` SVG), dentro quello che
@@ -35595,7 +35637,7 @@ function preparaTrascinamentoTassello(svg, cella, bx, by, R, buildSvgIconBtn){
     evidenziaApprodoTassello(cella, null);
     const p = puntoNelDisegno(e);
     const destinazione = eraMosso ? cellaSottoAlPunto(p) : null;
-    const buone = meteDelTassello(cella);
+    const buone = mete(cella);
     if(destinazione && buone.includes(destinazione)){
       // La destinazione viaggia sullo stato della scelta e non come parametro,
       // perche' la chiusura passa dall'UNICO punto di uscita gia' esistente
@@ -35615,7 +35657,7 @@ function preparaTrascinamentoTassello(svg, cella, bx, by, R, buildSvgIconBtn){
     // tornavano spenti — da fuori sembrava che l'abilita' si fosse consumata.
     // Rimettendolo su tutti i tasselli spostabili si torna esattamente allo
     // stato di partenza, che e' cio' che un tentativo annullato deve fare.
-    aggiornaGlowAzione(tasselliBloccatiSpostabili());
+    aggiornaGlowAzione(prendibili());
   };
   gruppoIcona.addEventListener('pointerdown', (e)=>{
     if(e.button!==undefined && e.button!==0) return;
@@ -35651,12 +35693,16 @@ function cellaSottoAlPunto(p){
 // Accende la casella su cui si sta per posare. Riusa l'evidenziazione
 // condivisa invece di inventarne una: chi gioca ha gia' imparato che
 // quell'esagono chiaro vuol dire "qui si puo'".
-function evidenziaApprodoTassello(tassello, cella){
+function evidenziaApprodoTassello(tassello, cella, buone){
   const bsvg=document.getElementById('board-svg');
   if(!bsvg) return;
   const vecchia = bsvg.querySelector('[data-approdo-tassello]');
   if(vecchia) vecchia.remove();
-  if(!cella || !meteDelTassello(tassello).includes(cella)) return;
+  // v0.79.18 — le mete arrivano da chi chiama: adesso questa funzione accende
+  // anche le caselle dove puo' andare una CARTA, e "dove puo' andare" non e'
+  // piu' una domanda sola.
+  const mete = buone || meteDelTassello(tassello);
+  if(!cella || mete.indexOf(cella) < 0) return;
   const c = G.cells.find(x=>key(x.q,x.r)===cella);
   if(!c || !_ultimoCentroPlancia || !_ultimoRaggioCella) return;
   const {x,y} = axialToPixel(c.q,c.r,_ultimoCentroPlancia.x,_ultimoCentroPlancia.y,_ultimoRaggioCella);
@@ -36311,22 +36357,37 @@ function _muoveQualcuno(eff){
 }
 
 // ── v0.79.17 — JACK AND THE BEANSTALK, "Up You Go!" ───────────────────────
-// "Puo' spostare un alleato ovunque sul tabellone". Due domande, quindi due
-// finestre in fila: PRIMA chi si sposta, POI dove va. La seconda si apre dentro
-// `applicaEAspetta` della prima e si prende la sua continuazione, cosi' il
-// turno riprende una volta sola, in fondo a tutte e due — e' lo stesso schema
-// dello sceriffo che usa subito l'abilita' appena rubata.
+// "Puo' spostare un alleato ovunque sul tabellone".
 //
-// Perche' due e non una: il Tricheco chiede solo CHI e la destinazione la
-// decide il tabellone, ma li' "dove" non e' scritto sulla carta. Qui c'e', ed e'
-// "ovunque": scegliere al posto del giocatore vorrebbe dire togliergli proprio
-// la cosa che la carta gli promette.
+// v0.79.18 — SI PRENDE E SI POSA, non si clicca due volte. La prima versione
+// faceva due finestre in fila — indica chi, poi indica dove — ed erano due
+// domande giuste poste nel modo sbagliato: spostare qualcosa e' UN gesto solo,
+// e con due clic il giocatore non sa, mentre fa il primo, che gliene sara'
+// chiesto un secondo. Adesso e' lo stesso trascinamento di Ali Baba: si afferra
+// l'alleato, la mano si chiude, il tabellone accende le caselle dove si puo'
+// posare, e lo si lascia li'.
+// Lasciandolo fuori bersaglio non succede niente e la finestra resta aperta: si
+// riprova senza aver sprecato l'abilita'.
 function _cartaPuoSpostarsi(){
   return (typeof celleLibere === 'function') ? celleLibere() : [];
 }
+// Fra piu' caselle libere, la piu' "in mezzo": quella che rende di piu'. Serve
+// quando a decidere non e' una persona — l'IA, o il tempo scaduto — e la misura
+// e' quella con cui l'IA valuta gia' quanto vale una casella, letta nel verso
+// giusto (_menoInMezzo e' la stessa, al contrario).
+function _piuInMezzo(celle){
+  let migliore = null, punteggio = -Infinity;
+  for(const k of (celle || [])){
+    const p = String(k).split(',').map(Number);
+    const v = (typeof aiVicinatoUtile === 'function') ? aiVicinatoUtile(p[0], p[1]) : 0;
+    if(v > punteggio){ punteggio = v; migliore = k; }
+  }
+  return migliore;
+}
 function _sceltaSpostaOvunque(card, q, r, giocatore, a, eff){
   // Nessun posto dove andare: niente finestra e niente pausa. Aprirla vorrebbe
-  // dire far scegliere una carta per poi non poterla mettere da nessuna parte.
+  // dire far prendere in mano una carta per poi non poterla posare da nessuna
+  // parte.
   if(!_cartaPuoSpostarsi().length) return null;
   // I bersagli si chiedono alla porta di tutti, ma dicendo che si sta scegliendo
   // una CARTA: con `cosa` invariato candidatiDalFoglio andrebbe a cercare fra i
@@ -36336,21 +36397,36 @@ function _sceltaSpostaOvunque(card, q, r, giocatore, a, eff){
   const comeCarta = Object.assign({}, eff, { cosa: 'card' });
   const bersagli = candidatiDalFoglio(card, q, r, giocatore, a, comeCarta);
   if(!bersagli.length) return null;
-  return {
+  // Lo stato si tiene per NOME e non si rilegge da G.sceltaBersaglio: la
+  // chiusura azzera quella variabile PRIMA di chiamare `applica`, quindi da
+  // dentro e' sempre null. Stessa ragione — e stesso inciampo gia' pagato — di
+  // Ali Baba.
+  const stato = {
     chiave: 'sposta_ovunque',
     giocatore,
-    // La mano, come per il Tricheco: non si colpisce nessuno, si prende
-    // qualcuno e lo si mette altrove.
+    // Si prende e si posa: la mano, e il trascinamento.
+    modo: 'trascina',
     icona: ICONA_MANO,
     cellaOrigine: key(q, r),
     bersagli,
+    // "Ovunque" vuol dire ogni casella libera, meno quella da cui si parte.
+    mete: (da) => _cartaPuoSpostarsi().filter(k => k !== da),
+    // `cella` e' la carta presa; dove vada lo dice `destinazioneScelta`, che il
+    // trascinamento riempie un istante prima di chiudere. Quando manca — l'IA,
+    // o il tempo scaduto — si prende la casella libera piu' in mezzo, che e' la
+    // scelta meno stupida fra quelle disponibili.
     applicaEAspetta: (cella, poi) => {
-      if(!_apriDoveMetterla(cella, giocatore, poi)) poi();
+      const mete = stato.mete(cella);
+      const chiesta = stato.destinazioneScelta;
+      const dove = (chiesta && mete.indexOf(chiesta) >= 0) ? chiesta : _piuInMezzo(mete);
+      if(!dove){ poi(); return; }
+      spostaCartaConSalto(cella, dove, poi);
     },
     rinuncia: () => {},
     // L'IA sposta l'alleato che sta nel posto peggiore, e solo se ce n'e' uno
-    // migliore libero. La misura e' quella che l'IA usa gia' per decidere quanto
-    // rende una casella: qui non nasce un secondo metro.
+    // migliore libero; la destinazione la scrive sullo stato, come Ali Baba.
+    // La misura e' quella con cui l'IA valuta gia' quanto rende una casella:
+    // qui non nasce un secondo metro.
     valuta: (sc) => {
       const libere = _cartaPuoSpostarsi();
       if(!libere.length) return null;
@@ -36365,45 +36441,12 @@ function _sceltaSpostaOvunque(card, q, r, giocatore, a, eff){
         if(v < peggio){ peggio = v; scelto = k; }
       }
       // Se sta gia' meglio di qualunque casella libera, spostarlo lo peggiora.
-      return (scelto !== null && peggio < meglio) ? scelto : null;
-    },
-  };
-}
-// La seconda finestra: dove va a finire. I bersagli sono le caselle libere —
-// "ovunque" vuol dire quello, e `celleLibere` e' gia' l'unica voce del gioco su
-// cosa sia una casella libera.
-// Rinunciare qui lascia la carta dov'e': l'abilita' e' stata offerta, non
-// pagata, e a meta' strada si puo' ancora cambiare idea.
-function _apriDoveMetterla(daCella, giocatore, poi){
-  const libere = _cartaPuoSpostarsi().filter(k => k !== daCella);
-  if(!libere.length) return false;
-  G.sceltaBersaglio = {
-    chiave: 'sposta_ovunque_dove', chiaveAbilita: 'sposta_ovunque_dove',
-    giocatore,
-    icona: ICONA_MANO,
-    // La X per rinunciare sta sulla carta che si e' presa: e' li' che il
-    // giocatore sta guardando, ed e' la cosa che la finestra riguarda.
-    cellaOrigine: daCella,
-    bersagli: libere,
-    applicaEAspetta: (dove, fine) => spostaCartaConSalto(daCella, dove, fine),
-    rinuncia: () => {},
-    alTermine: (typeof poi === 'function') ? poi : undefined,
-    valuta: (sc) => {
-      let scelto = null, meglio = -Infinity;
-      for(const k of sc.bersagli){
-        const p = String(k).split(',').map(Number);
-        const v = (typeof aiVicinatoUtile === 'function') ? aiVicinatoUtile(p[0], p[1]) : 0;
-        if(v > meglio){ meglio = v; scelto = k; }
-      }
+      if(scelto === null || peggio >= meglio) return null;
+      sc.destinazioneScelta = _piuInMezzo(sc.mete(scelto));
       return scelto;
     },
   };
-  try { renderBoard(); } catch(_){ }
-  // Il tempo riparte, o questa seconda finestra resterebbe aperta per sempre:
-  // il timer era stato fermato dalla prima.
-  try { startTimer(); } catch(_){ }
-  if(typeof giocatoreUmano === 'function' && !giocatoreUmano(giocatore)) aiResolvePendingAbilityIfAny();
-  return true;
+  return stato;
 }
 
 // Due caselle si scambiano quel che hanno sopra: la carta E il proprietario,
@@ -36492,29 +36535,42 @@ function _apriSpostaUnVicino(card, cella, eff, poi){
     candidati.push(nk);
   }
   if(!candidati.length) return false;
-  G.sceltaBersaglio = {
+  // ── v0.79.18 — SI PRENDE E SI POSA ──────────────────────────────────────
+  // Prima si cliccava CHI, e dove andasse a finire lo decideva il tabellone: la
+  // casella libera meno buona fra quelle attorno, cioe' "lo si toglie di mezzo".
+  // Era una lettura nostra — il foglio dice chi si sposta e non dove — e con il
+  // trascinamento non serve piu': la destinazione la sceglie chi gioca, che e'
+  // la risposta piu' onesta a una domanda che il foglio non pone.
+  // Resta come ripiego per l'IA e per il tempo scaduto, dove una persona che
+  // decida non c'e'.
+  const stato = {
     chiave: 'sposta_un_vicino', chiaveAbilita: 'sposta_un_vicino',
     card, q, r, k: cella, giocatore: card.owner || G.currentPlayer,
     // La mano: qui non si colpisce nessuno, si prende qualcuno e lo si sposta.
+    modo: 'trascina',
     icona: ICONA_MANO,
     cellaOrigine: cella,
     bersagli: candidati,
+    // Un vicino si sposta di una casella: le mete sono quelle libere attorno a
+    // LUI, non attorno al Tricheco.
+    mete: (da) => celleLibereAttornoATassello(da),
     applicaEAspetta: (scelta, fine) => {
-      const libere = celleLibereAttornoATassello(scelta);
-      // v0.77.72 — VERSO IL BORDO, non verso il centro.
-      // Prima riusavo la regola dei tasselli, che scelgono la casella piu' in
-      // mezzo: per un MURO ha senso (al centro toglie piu' spazio), per una
-      // CARTA e' il contrario — la si sposterebbe nel posto migliore del
+      const libere = stato.mete(scelta);
+      const chiesta = stato.destinazioneScelta;
+      // v0.77.72 — il ripiego va VERSO IL BORDO, non verso il centro. Per un
+      // MURO la casella piu' in mezzo ha senso (al centro toglie piu' spazio),
+      // per una CARTA e' il contrario: la si sposterebbe nel posto migliore del
       // tabellone, cioe' le si farebbe un favore.
-      // Il foglio dice CHI si sposta, non dove: la destinazione e' una nostra
-      // lettura, e la lettura e' "lo si toglie di mezzo".
-      const dove = libere.length ? _menoInMezzo(libere) : null;
+      const dove = (chiesta && libere.indexOf(chiesta) >= 0)
+        ? chiesta
+        : (libere.length ? _menoInMezzo(libere) : null);
       if(!dove){ fine(); return; }
       spostaCartaConSalto(scelta, dove, fine);
     },
     rinuncia: () => {},
     alTermine: (typeof poi === 'function') ? poi : undefined
   };
+  G.sceltaBersaglio = stato;
   try { render(); } catch(_){ }
   return true;
 }
@@ -41432,12 +41488,19 @@ function fineDaRete(testo, vincitore){
   // Adesso chi ha vinto lo si DICE, invece di lasciarlo dedurre da due numeri
   // costruiti apposta. I punti restano quelli veri, anche quando sono zero a
   // zero — che su un tabellone vuoto e' esattamente quel che e' successo.
-  // v0.78.14 — e se non e' stata giocata nemmeno una carta, non c'e' niente da
-  // vincere: zero a zero, pareggio. Vale anche quando il server dichiara un
-  // vincitore — su un tabellone vuoto quella dichiarazione non descrive una
-  // partita, e la stessa regola la applica anche lui dalla sua parte.
-  G.vincitoreDichiarato = (!punteggioAZero() && (vincitore === 1 || vincitore === 2))
-    ? vincitore : 0;
+  // v0.78.14 — se non e' stata giocata nemmeno una carta non c'e' niente da
+  // vincere: zero a zero, pareggio.
+  // ── v0.79.18 — MA LA REGOLA STA DA UNA PARTE SOLA ──────────────────────
+  // Qui il pareggio a tabellone vuoto veniva imposto ANCHE sopra a un
+  // vincitore dichiarato dal server, e la stessa regola era scritta pure di la'
+  // (vedi la resa: a zero a zero il server manda vincitore 0). Due copie della
+  // stessa decisione, e la copia di qui rovesciava quella di la' nel caso che
+  // conta: chi abbandona perde SEMPRE, anche a zero a zero, e il client si
+  // rimangiava quel "sempre".
+  // Adesso chi ha vinto lo dice il server, e basta. Il pareggio a tabellone
+  // vuoto resta dov'e' sempre stato — la partita finita da sola, che qui non
+  // passa nemmeno.
+  G.vincitoreDichiarato = (vincitore === 1 || vincitore === 2) ? vincitore : 0;
   G.gameOver = true;
   _motivoFinePartita = testo || '';
   _finePartitaDalServer = true;
@@ -41448,6 +41511,18 @@ let _motivoFinePartita = '';
 // v0.78.6 — questa fine viene dal server? Allora l'esito e' gia' scritto.
 let _finePartitaDalServer = false;
 function finishGameWithResult(){
+  // ── v0.79.18 — L'OROLOGIO SI FERMA QUI, E QUI SOLO ──────────────────────
+  // Ci si arriva da tre porte — la fine naturale, la resa, e la parola del
+  // server — e solo la prima fermava il tempo. Chi si arrendeva a otto secondi
+  // dalla fine del proprio turno restava con i bordi che lampeggiavano e
+  // l'orologio che ticchettava sopra alla schermata dei risultati, e a zero il
+  // turno passava pure.
+  // Non si mette la stessa riga sulle tre porte: si mette QUI, che e' il punto
+  // in cui tutte e tre entrano. La quarta che nascera' domani la trovera' gia'
+  // fatta — che e' esattamente il motivo per cui questo posto esiste.
+  clearInterval(timerInterval); timerInterval = null;
+  try{ stopTictoc(); }catch(_){ }
+  try{ stopScreenEdgeFlash(); }catch(_){ }
   const{1:hp1,2:hp2}=G.hp;
   // ── v0.78.12 — IL NOME VERO, NON "PLAYER 1" ─────────────────────────────
   // Qui c'erano due etichette scritte a mano, e vincevano sempre loro: sullo
@@ -49061,7 +49136,7 @@ function renderBoard(){
       // identico, ed e' il motivo per cui questa e' una riga di differenza e
       // non una seconda finestra da mantenere.
       if(scelta.modo === 'trascina'){
-        preparaTrascinamentoTassello(svg, cella, bx, by, R, buildSvgIconBtn);
+        preparaTrascinamento(svg, cella, bx, by, R, buildSvgIconBtn, scelta);
       } else {
         // v0.75.57 — l'icona la puo' dire la scelta. Il mirino resta il default
         // — vuol dire "indica un bersaglio" e vale per quasi tutte — ma chi fa

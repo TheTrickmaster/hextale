@@ -8,8 +8,10 @@
 //   - + 0 a chi si disconnette, crasha, o esce per qualunque altra ragione che
 //     non sia la sconfitta: la sua partita non si e' conclusa in nessun modo.
 //     I turni giocati restano suoi, perche' quelli li ha giocati;
-//   - a chi RESTA dopo che l'altro e' uscito: + 50 se stava vincendo, + 35 se
-//     stava perdendo.
+//   - a chi RESTA dopo che l'altro e' uscito: + 50, come una vittoria. Perche'
+//     e' una vittoria: da v0.79.18 chi abbandona PERDE, sempre, e non importa
+//     chi fosse avanti. Il ramo "restava perdendo" (+ 35) e' sparito con la
+//     lettura per cui, in un abbandono, nessuno dei due vinceva.
 //
 //     node server/nakama/prova-esperienza.js
 //
@@ -50,8 +52,8 @@ conta('vittoria', M.xpDiFine('finita', true), 50);
 conta('sconfitta', M.xpDiFine('finita', false), 20);
 conta('resa (una sconfitta scelta)', M.xpDiFine('resa', false), 20);
 conta('disconnesso, crashato, uscito', M.xpDiFine('uscito', false), 0);
-conta('resta in partita, stava vincendo', M.xpDiFine('resta', true), 50);
-conta('resta in partita, stava perdendo', M.xpDiFine('resta', false), 35);
+conta('resta in partita: ha vinto', M.xpDiFine('resta', true), 50);
+conta('e resta una vittoria comunque fosse messo', M.xpDiFine('resta', false), 50);
 
 console.log('\nI TURNI, CHE NESSUNO PUO- PERDERE\n');
 conta('due punti per turno', M.XP_PER_TURNO, 2);
@@ -59,8 +61,7 @@ conta('nove turni e una vittoria', xp(9, 'finita', true), 68);
 conta('nove turni e una sconfitta', xp(9, 'finita', false), 38);
 conta('nove turni e una resa', xp(9, 'resa', false), 38);
 conta('nove turni e una disconnessione', xp(9, 'uscito', false), 18);
-conta('nove turni, resta, vincendo', xp(9, 'resta', true), 68);
-conta('nove turni, resta, perdendo', xp(9, 'resta', false), 53);
+conta('nove turni e l-altro se ne va', xp(9, 'resta', true), 68);
 conta('zero turni e una disconnessione', xp(0, 'uscito', false), 0);
 
 console.log('\nE UN NUMERO DI TURNI NON SI PUO- DICHIARARE A PIACERE\n');
@@ -75,8 +76,7 @@ conta('vittoria', M.inkDiFine('finita', true), 10);
 conta('sconfitta', M.inkDiFine('finita', false), 5);
 conta('resa (ha concluso, perdendo)', M.inkDiFine('resa', false), 5);
 conta('disconnesso, crashato, uscito', M.inkDiFine('uscito', false), 0);
-conta('resta, stava vincendo', M.inkDiFine('resta', true), 10);
-conta('resta, stava perdendo', M.inkDiFine('resta', false), 5);
+conta('resta in partita: ha vinto', M.inkDiFine('resta', true), 10);
 
 // Un PAREGGIO non e' una vittoria e non e' nemmeno una cosa a se': vale come
 // una sconfitta, ed e' cosi' che arriva fin qui — su un pareggio nessuno dei
@@ -132,8 +132,14 @@ const dueParti = [
     dove: src, prova: /function _punteggioAZero\(state\) \{[\s\S]{0,300}?state\.concordato/ },
   { nome: 'il client: a zero a zero nessun vincitore dichiarato',
     dove: gioco, prova: /punteggioAZero\(\) \? 0 : winner/ },
-  { nome: 'e non da- retta nemmeno al server, se il punteggio e- zero a zero',
-    dove: gioco, prova: /!punteggioAZero\(\) && \(vincitore === 1 \|\| vincitore === 2\)/ },
+  // v0.79.18 — qui il banco pretendeva che il client si rimangiasse il
+  // vincitore dichiarato dal server, quando il punteggio era zero a zero.
+  // Erano DUE copie della stessa regola, e la copia di qua rovesciava quella di
+  // la' proprio nel caso che conta: chi abbandona perde sempre, anche a zero a
+  // zero, e il client rimetteva il pareggio. Adesso la regola sta da una parte
+  // sola — il server — e il banco controlla che il client non se la riscriva.
+  { nome: 'il client non riscrive il vincitore che gli dice il server',
+    dove: gioco, prova: /G\.vincitoreDichiarato = \(vincitore === 1 \|\| vincitore === 2\) \? vincitore : 0;/ },
   { nome: 'il server: a zero a zero l-esito e- un pareggio per tutti e due',
     dove: src, prova: /applicaEsito\(nk, u, vuoto \? false : suo, vuoto, false/ },
   { nome: 'e nessuno falsifica piu- i punti per far uscire giusto un confronto',
@@ -153,6 +159,14 @@ const strade = [
   // da premiare ne' da punire: e' un pareggio per tutti e due.
   { nome: 'la resa', prova: /\(vuoto \|\| suo\) \? 'finita' : 'resa'/ },
   { nome: 'l-abbandono', prova: /uscito \? 'uscito' : 'resta'/ },
+  // ── v0.79.18 — CHI ABBANDONA PERDE, SEMPRE ──────────────────────────────
+  // Il guasto era che l'abbandono non dichiarava NESSUN vincitore: il client
+  // cadeva sul confronto fra i punti e incoronava chi era avanti, cioe' spesso
+  // proprio chi se n'era andato. Queste due righe sono la regola, e stanno qui
+  // perche' e' la stessa domanda delle altre: chi ha vinto, e chi lo dice.
+  { nome: 'l-abbandono dichiara un vincitore', prova: /vincitore: restaInPiedi/ },
+  { nome: 'e chi resta ha vinto, comunque fosse messo',
+    prova: /applicaEsito\(nk, u, !uscito, false, false,/ },
   { nome: 'la partita contro l-IA', prova: /dati\.turni, 'finita'/ },
   { nome: 'e i turni li conta il server, non il client', prova: /state\.turniGiocati\[chi\] = \(state\.turniGiocati\[chi\] \|\| 0\) \+ 1/ },
 ];

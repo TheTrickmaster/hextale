@@ -79,29 +79,26 @@ app.whenReady().then(async () => {
     dice(b1.indexOf(key(1,0)) < 0, 'non l-avversaria', 'Il foglio dice "Who = ally".');
     dice(b1.indexOf(key(0,0)) < 0, 'ne- se stessa');
 
-    // ── 2. la seconda: DOVE va ──────────────────────────────────────────────
-    let proseguito = 0;
-    uno.applicaEAspetta(key(1,-1), ()=>{ proseguito++; });
-    const due = G.sceltaBersaglio;
-    dice(!!due, 'scelto chi, si apre la SECONDA finestra',
-      'E- la meta- che il foglio chiama "ovunque": sceglierla al posto suo\\n' +
-      '        vorrebbe dire togliergli proprio cio- che la carta promette.');
-    if(!due){ for(const k of CAMPI) G[k] = salva[k]; return dette; }
-
-    const b2 = due.bersagli || [];
+    // ── 2. SI PRENDE E SI POSA, non si clicca due volte ─────────────────────
+    dice(uno.modo === 'trascina', 'si sposta trascinando, non a clic',
+      'Spostare qualcosa e- UN gesto solo: con due clic, mentre si fa il\\n' +
+      '        primo, non si sa nemmeno che ne sara- chiesto un secondo.');
+    const mete = uno.mete ? uno.mete(key(1,-1)) : [];
     const libere = celleLibere();
-    dice(b2.length === libere.filter(k=>k!==key(1,-1)).length && b2.every(k=>libere.indexOf(k)>=0),
-      'e i bersagli sono le caselle LIBERE (' + b2.length + ')');
-    dice(b2.indexOf(key(0,0)) < 0 && b2.indexOf(key(1,0)) < 0, 'mai una casella occupata');
-    dice(proseguito === 0, 'il turno NON e- ancora ripreso',
-      'La continuazione della prima finestra deve arrivare in fondo alla\\n' +
-      '        seconda, o lo scontro guarderebbe un tabellone che sta per cambiare.');
+    dice(mete.length === libere.filter(k=>k!==key(1,-1)).length && mete.every(k=>libere.indexOf(k)>=0),
+      'e si posa su una casella LIBERA, qualunque (' + mete.length + ')');
+    dice(mete.indexOf(key(0,0)) < 0 && mete.indexOf(key(1,0)) < 0, 'mai su una casella occupata');
 
     // ── 3. e la carta si sposta davvero ─────────────────────────────────────
     const meta = key(-2,2);
-    dice(b2.indexOf(meta) >= 0, 'la casella lontana e- fra le mete: "ovunque" e- ovunque');
+    dice(mete.indexOf(meta) >= 0, 'la casella lontana e- fra le mete: "ovunque" e- ovunque');
     let finita = 0;
-    due.applicaEAspetta(meta, ()=>{ finita++; });
+    // E' quel che fa il rilascio: scrive la destinazione sullo stato della
+    // scelta e poi chiude. La chiusura vera azzera G.sceltaBersaglio prima di
+    // chiamare applica, ed e' per questo che la destinazione NON puo' viaggiare
+    // di li'.
+    uno.destinazioneScelta = meta;
+    uno.applicaEAspetta(key(1,-1), ()=>{ finita++; });
     await attendi(1200);
     dice(!G.board[key(1,-1)], 'la carta ha lasciato la casella di partenza');
     dice(!!(G.board[meta] && G.board[meta].card && G.board[meta].card.name === 'Compagna'),

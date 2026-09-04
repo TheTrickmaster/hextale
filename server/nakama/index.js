@@ -99,8 +99,10 @@ var XP_PER_TURNO = 2;
 var XP_VITTORIA = 50;
 var XP_SCONFITTA = 20;
 var XP_RESA = 20;                 // arrendersi e- concludere: e- una sconfitta scelta
-var XP_RESTA_VINCENDO = 50;       // gli restano davanti a un tavolo vuoto, mentre vinceva
-var XP_RESTA_PERDENDO = 35;       // idem, ma stava perdendo: piu- di una sconfitta, meno di una vittoria
+var XP_RESTA_VINCENDO = 50;       // gli restano davanti a un tavolo vuoto: ha vinto, e vale una vittoria
+// v0.79.18 — qui viveva XP_RESTA_PERDENDO (35), per chi restava mentre stava
+// perdendo. Da quando abbandonare e' una sconfitta, chi resta ha vinto e basta:
+// quel caso non esiste piu'.
 var XP_USCITO = 0;                // chi si disconnette, crasha, o esce: solo i turni
 
 // v0.78.12 — l'inchiostro magico segue la stessa forma dell'esperienza: dieci
@@ -122,7 +124,11 @@ var PARTITE_PER_BUSTINA = 5;
 function xpDiFine(modo, vinta) {
   if (modo === 'uscito') return XP_USCITO;
   if (modo === 'resa') return XP_RESA;
-  if (modo === 'resta') return vinta ? XP_RESTA_VINCENDO : XP_RESTA_PERDENDO;
+  // v0.79.18 — chi resta ha VINTO, e non c'e' piu' un ramo "restava perdendo":
+  // da quando abbandonare e' una sconfitta, chi rimane in piedi ha vinto
+  // qualunque fosse il punteggio. XP_RESTA_PERDENDO era il numero di quando
+  // nessuno dei due vinceva, ed e' sparito con quella lettura.
+  if (modo === 'resta') return XP_RESTA_VINCENDO;
   return vinta ? XP_VITTORIA : XP_SCONFITTA;
 }
 function inkDiFine(modo, vinta) {
@@ -2638,22 +2644,9 @@ function _resa(state, dispatcher, logger, nk, chi) {
   else logger.info('partita finita per resa di %s: vince il giocatore %d', chi, vincitore);
 }
 
-// ── v0.78.11 — CHI STAVA VINCENDO, QUANDO L'ALTRO E' USCITO ───────────────
-// Non lo si puo' chiedere al client che resta — sarebbe la sua parola su un
-// premio che riceve lui. Lo si legge dall'ultimo racconto su cui i due si erano
-// trovati D'ACCORDO (vedi OP_IMPRONTA e state.concordato): e' l'ultima cosa
-// vera che si sappia di quella partita.
-// Se non c'e' ancora nessun racconto — uno esce prima che il primo turno si
-// chiuda — non stava vincendo nessuno, e i turni giocati sono zero comunque.
-function _chiStavaVincendo(state) {
-  var acc = state.concordato;
-  if (!acc) return 0;
-  var p = acc.hp || acc.punteggio || {};
-  var d1 = (typeof p['1'] === 'number') ? p['1'] : 0;
-  var d2 = (typeof p['2'] === 'number') ? p['2'] : 0;
-  if (d1 === d2) return 0;
-  return d1 > d2 ? 1 : 2;
-}
+// v0.79.18 — qui viveva _chiStavaVincendo, che leggeva dall'ultimo racconto
+// concordato chi fosse avanti quando l'altro e' uscito. Serviva a decidere il
+// premio di chi restava, e non serve piu': chi resta ha vinto, punto.
 
 // ── v0.78.11 — UNA PARTITA LASCIATA A META' PAGA COMUNQUE IL TEMPO ────────
 // Prima qui non si scriveva NIENTE: chi usciva e chi restava tornavano al menu
@@ -2666,19 +2659,32 @@ function _chiStavaVincendo(state) {
 // stava perdendo — gli hanno tolto la partita dalle mani, e questo non e' colpa
 // sua ne' merito suo.
 // Il rank non si muove per nessuno dei due: vedi applicaEsito.
+// ── v0.79.18 — CHI ABBANDONA PERDE. SEMPRE. ───────────────────────────────
+// Deciso da Lorenzo, e non ammette casi: chi lascia la partita l'ha persa, chi
+// resta l'ha vinta. Non importa chi fosse avanti.
+//
+// Prima non era cosi': nessuno dei due aveva vinto, e il premio di chi restava
+// dipendeva da come stava andando. Il risultato si e' visto in partita — chi
+// era avanti se n'e' andato, il server non ha dichiarato nessun vincitore, e la
+// schermata di fine, non avendo altro da guardare, ha incoronato chi aveva piu'
+// punti: cioe' PROPRIO CHI AVEVA MOLLATO. Da fuori: "ha abbandonato e ha vinto".
+//
+// Era anche una via d'uscita: perdi, esci, e ti porti via il pareggio.
+//
+// Il rank resta fermo per tutti e due (vedi applicaEsito): il server non sa
+// distinguere un crash da un abbandono per ripicca, e togliere un gradino a chi
+// ha perso la corrente sarebbe peggio del problema che risolve. E' l'unica
+// parte della vecchia lettura che resta in piedi, ed e' una decisione a se'.
 function _uscita(state, dispatcher, logger, nk, chiEUscito) {
-  var vincente = _chiStavaVincendo(state);
   for (var i = 0; i < state.giocatori.length; i++) {
     var u = state.giocatori[i];
     var uscito = (u === chiEUscito);
-    var stavaVincendo = (i + 1) === vincente;
     try {
-      var esito = applicaEsito(nk, u, uscito ? false : stavaVincendo, false, false,
+      var esito = applicaEsito(nk, u, !uscito, false, false,
         state.turniGiocati[u], uscito ? 'uscito' : 'resta');
-      esito.vinta = false;          // nessuno ha vinto: la partita non e' finita
+      esito.vinta = !uscito;
       esito.pari = false;
       esito.perAbbandono = true;
-      esito.stavaVincendo = uscito ? false : stavaVincendo;
       _aUno(dispatcher, state, u, OP_ESITO, esito);
     } catch (e) {
       logger.error('esito non scritto per %s dopo un abbandono: %s', u, String(e));
@@ -2697,8 +2703,17 @@ function partitaLeave(ctx, logger, nk, dispatcher, tick, state, presences) {
       // riceve insieme alla notizia invece di tornare al menu a mani vuote.
       try { _uscita(state, dispatcher, logger, nk, u); }
       catch (eu) { logger.error('esperienza non scritta dopo un abbandono: %s', String(eu)); }
-      _aTutti(dispatcher, OP_FINE, { motivo: 'abbandono', chi: _indiceDi(state, u) + 1 });
-      logger.info('partita finita per abbandono di %s', u);
+      // v0.79.18 — E SI DICE CHI HA VINTO. Qui mancava, ed e' tutto il guasto:
+      // il client riceveva la notizia senza un vincitore e cadeva sull'unica
+      // cosa che gli restava, il confronto fra i punti — incoronando chi era
+      // avanti, cioe' spesso proprio chi se n'era andato.
+      // La resa lo diceva gia' (vedi il suo _aTutti): le due porte adesso
+      // parlano la stessa lingua.
+      var haMollato = _indiceDi(state, u);
+      var restaInPiedi = (haMollato === 0) ? 2 : 1;
+      _aTutti(dispatcher, OP_FINE, { motivo: 'abbandono', chi: haMollato + 1,
+                                     vincitore: restaInPiedi });
+      logger.info('partita finita per abbandono di %s: vince il giocatore %d', u, restaInPiedi);
     }
   }
   return { state: state };
