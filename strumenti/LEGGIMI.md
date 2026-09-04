@@ -137,3 +137,23 @@ un ripostiglio e un disastro: la cartella del gioco E' il sito, quindi spostare
 un asset ancora in uso lo rompe per tutti, subito. L'elenco che esce e' un punto
 di partenza da verificare a mano, cartella per cartella — vedi `_old/LEGGIMI.md`
 per come e' andata la prima volta.
+
+## prova-lettera.js — la scelta del mazzo iniziale
+
+    $ELECTRON strumenti/prova-lettera.js [scatto.png]
+
+"Pick a letter" si vede UNA volta sola per account, e questo la rende la
+schermata piu' difficile da riprovare a mano: sbagliarla vuol dire sbagliarla
+per tutti quelli che si registreranno, e accorgersene per caso mesi dopo
+guardando un account nuovo. Qui si apre a comando — con un server finto che
+risponde come quello vero — si sceglie, e si guarda cosa succede.
+
+Il controllo che conta piu' di tutti e' **quale lettera da' quale mazzo**
+(sinistra 1, centro 3, destra 2): e' una corrispondenza decisa da Lorenzo e
+senza una regola dietro, quindi non c'e' niente nel codice che possa
+smentirla se un giorno si scambia.
+
+Con un nome di file come argomento fa anche due fotografie: la schermata come
+si apre e come resta dopo la scelta. Per fotografarla va tolto il velo di
+apertura (`#splash`), che sta sopra a tutto finche' il gioco non ha finito di
+caricare.

@@ -8434,6 +8434,116 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
    pulsanti — che qui sono l'unica via d'uscita.
    Sta sopra a tutto (4500): finche' non e' stato accettato non c'e' niente
    sotto con cui si debba poter interagire. */
+/* ── v0.79.22 — LA SCELTA DEL MAZZO INIZIALE ──────────────────────────────
+   Tre colonne 330x580, trenta di distanza. Il fondo e' quello dei pannelli —
+   stesso gradiente, stessa trama — piu' UNA TINTA per colonna: un velo che
+   parte pieno in alto e si spegne in basso, cosi' il colore sta dove sta la
+   lettera e lascia il testo leggibile.
+   Le prime due tinte fondono in "color": prendono il colore del velo e
+   lasciano al fondo la sua luce, che e' il modo di colorare una cosa senza
+   coprirla. La terza fonde in "difference", ed e' voluto: quel nero non
+   colora, INVERTE — la colonna dello sconosciuto e' l'unica che non si accorda
+   col resto, ed e' esattamente cio' che quella lettera dice. */
+#starter-overlay{ z-index:4500; }
+#starter-box{ width:auto; }
+#starter-colonne{
+  display:flex; justify-content:center; align-items:stretch; gap:30px;
+}
+.starter-col{
+  position:relative; flex:0 0 330px;
+  width:330px; height:580px; box-sizing:border-box;
+  border-radius:24px; overflow:hidden;
+  background-image:linear-gradient(135deg, rgba(84,96,98,0.5) 0%, rgba(29,38,39,0.5) 100%);
+  border:1.5px solid rgba(255,255,255,0.2);
+  /* Le tre misure che si muovono quando una viene scelta. La larghezza va a
+     zero insieme al gap (margin negativo): e' cosi' che la colonna rimasta
+     scivola al centro invece di saltarci. */
+  transition:opacity .38s ease, flex-basis .45s cubic-bezier(.22,1,.36,1),
+             width .45s cubic-bezier(.22,1,.36,1), margin .45s cubic-bezier(.22,1,.36,1),
+             box-shadow .45s ease;
+}
+.starter-col::before{
+  content:''; position:absolute; inset:0; border-radius:inherit;
+  background-image:var(--hx-trama, none);
+  background-size:cover; background-position:center;
+  opacity:0.4; mix-blend-mode:overlay;
+  pointer-events:none; z-index:0;
+}
+/* La tinta e' un elemento suo e non uno pseudo: il ::before e' gia' della
+   trama, e due fusioni diverse sullo stesso strato non si possono chiedere. */
+.starter-tinta{
+  position:absolute; inset:0; border-radius:inherit;
+  pointer-events:none; z-index:1;
+}
+.starter-amico  .starter-tinta{ background:linear-gradient(180deg, #324736 0%, rgba(50,71,54,0) 100%);  mix-blend-mode:color; }
+.starter-amante .starter-tinta{ background:linear-gradient(180deg, #4F3643 0%, rgba(79,54,67,0) 100%);  mix-blend-mode:color; }
+.starter-ignoto .starter-tinta{ background:linear-gradient(180deg, #0C0C0F 0%, rgba(12,12,15,0) 100%);  mix-blend-mode:difference; }
+.starter-dentro, .starter-esito{
+  position:relative; z-index:2;
+  display:flex; flex-direction:column; align-items:center;
+  padding:30px 26px; box-sizing:border-box;
+  width:330px; height:100%;
+}
+.starter-esito{ display:none; }
+.starter-lettera{ width:200px; height:auto; display:block; }
+.starter-nome{
+  font-family:'Marcellus',var(--font-display),serif;
+  font-size:20px; color:#EDE0C6; text-align:center;
+  /* I trenta pixel chiesti stanno fra la lettera e il testo: il nome della
+     lettera vive dentro a quello spazio, non ne aggiunge un altro. */
+  margin:30px 0 8px;
+}
+.starter-nome b{ font-weight:400; text-transform:lowercase; }
+.starter-testo{
+  font-family:'Rosarivo',serif; font-size:15px; font-style:italic;
+  color:#B0BCBE; line-height:1.45; text-align:justify;
+}
+/* Il pulsante in fondo, sempre: le tre lettere sono lunghe diverse e tre
+   pulsanti a quote diverse si leggono come tre cose diverse. */
+.starter-pick, .starter-esito .hx-btn{ margin-top:auto; }
+/* ── QUANDO SI SCEGLIE ────────────────────────────────────────────────────
+   Le altre due si spengono e si chiudono su se stesse; quella scelta resta e
+   si accende. Il centro non si calcola: le colonne stanno in una riga centrata,
+   e quando le altre due arrivano a larghezza zero il centro e' dove finisce
+   lei. */
+.starter-col.starter-via{
+  opacity:0; flex-basis:0; width:0; margin-left:-15px; margin-right:-15px;
+  pointer-events:none;
+}
+.starter-col.starter-presa{
+  box-shadow:0 0 0 1.5px rgba(255,231,178,0.9), 0 0 34px 6px rgba(255,231,178,0.45);
+  animation:starterRespira 2.6s ease-in-out infinite;
+}
+@keyframes starterRespira{
+  0%,100%{ box-shadow:0 0 0 1.5px rgba(255,231,178,0.75), 0 0 26px 4px rgba(255,231,178,0.32); }
+  50%    { box-shadow:0 0 0 1.5px rgba(255,231,178,1),    0 0 40px 8px rgba(255,231,178,0.55); }
+}
+/* La lettera lascia il posto all'anteprima del mazzo: non si sostituisce il
+   contenuto: si spegne uno e si accende l'altro, cosi' il passaggio si vede. */
+.starter-col.starter-fatta .starter-dentro{ display:none; }
+.starter-col.starter-fatta .starter-esito{ display:flex; }
+/* L'anteprima e la frase stanno in mezzo alla colonna e il pulsante in fondo,
+   come il Pick che ha sostituito. I due margini automatici — sopra la prima e
+   sotto la seconda — si dividono lo spazio libero: e' il modo di centrare una
+   coppia senza toccare il pulsante, che resta dov'era.
+   La casella del mazzo e' la stessa del menu, e da li' prende anche la misura:
+   e' larga quanto chi la contiene, e senza una larghezza si chiuderebbe su se
+   stessa (e' cosi' che si e' vista la prima volta, ridotta a un quadratino). */
+.starter-anteprima{
+  display:flex; align-items:center; justify-content:center;
+  width:100%; margin-top:auto;
+}
+/* `flex:0 0 70px` sulla casella e' l'ALTEZZA — nasce dentro a una colonna. Qui
+   il contenitore e' una riga, e quella stessa riga diventava la LARGHEZZA: la
+   casella si presentava come un quadratino di settanta pixel. Si ridichiara la
+   base, non la larghezza: in un contenitore flex e' la base che comanda. */
+.starter-anteprima .deck-slot{ flex:0 0 100%; width:100%; cursor:default; }
+.starter-frase{
+  font-family:'Rosarivo',serif; font-size:17px; color:#EDE0C6;
+  text-align:center; line-height:1.4; margin:22px 0 auto;
+}
+.starter-frase b{ font-weight:400; color:#FFF1D3; }
+
 #nca-overlay{ z-index:4500; }
 #nca-box{ width:640px; }
 #nca-testo{
@@ -11011,7 +11121,7 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.21</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.22</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -11225,6 +11335,91 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
     </button>
   </div>
  </div>
+</div>
+
+<!-- ── v0.79.22 — LA LETTERA: SI SCEGLIE IL MAZZO INIZIALE ─────────────────
+     Compare una volta sola, subito dopo aver scelto il nome. Prima il mazzo di
+     partenza usciva a sorte e nessuno lo diceva: la prima cosa che il gioco
+     faceva per te era una scelta al posto tuo.
+     Le tre lettere non dicono "aggressivo / difensivo / rischioso": lo
+     raccontano. Chi scrive la prima e' un amico, la seconda un innamorato, la
+     terza qualcuno che non si firma — e il tono e' l'indizio. Non e' un
+     dettaglio di scrittura: e' l'unica informazione che questa schermata da',
+     e va letta come si legge una lettera, non come si legge una tabella.
+     Non ha X ne' chiusura dal velo: le tre vie d'uscita sono i tre pulsanti,
+     perche' un mazzo bisogna sceglierlo. -->
+<div id="starter-overlay" class="hx-overlay">
+  <div id="starter-box" class="hx-box">
+    <div class="hx-titlebar" id="starter-titlebar">
+      <span class="hx-titlebar-cap hx-titlebar-left"></span>
+      <div class="hx-titlebar-center"><h2>Pick a letter</h2></div>
+      <span class="hx-titlebar-cap hx-titlebar-right"></span>
+    </div>
+    <div class="hx-pannello" id="starter-pannello">
+      <div id="starter-colonne">
+      <div class="starter-col starter-amico" data-mazzo="1">
+        <div class="starter-tinta"></div>
+        <div class="starter-dentro">
+          <img class="starter-lettera" data-starter-icona="letter-friend.png" alt="" draggable="false">
+          <div class="starter-nome">A letter from a <b>friend</b></div>
+          <div class="starter-testo">Hey!<br>I found something I thought you might like. No idea if it&rsquo;ll be your thing, but it felt wrong not to send it your way. There&rsquo;s a little something tucked inside this envelope: a few surprises, some good for a laugh, and maybe a couple that&rsquo;ll get you out of trouble when things don&rsquo;t go quite as planned. Open it when you get the chance.</div>
+          <button class="hx-btn starter-pick" type="button" onclick="scegliStarter(this)">
+            <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
+            <span class="hxb-label">Pick</span>
+          </button>
+        </div>
+        <div class="starter-esito">
+          <div class="starter-anteprima"></div>
+          <div class="starter-frase"></div>
+          <button class="hx-btn" type="button" onclick="chiudiSceltaStarter()">
+            <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
+            <span class="hxb-label">Great, thanks!</span>
+          </button>
+        </div>
+      </div>
+      <div class="starter-col starter-amante" data-mazzo="3">
+        <div class="starter-tinta"></div>
+        <div class="starter-dentro">
+          <img class="starter-lettera" data-starter-icona="letter-lover.png" alt="" draggable="false">
+          <div class="starter-nome">A letter from a <b>lover</b></div>
+          <div class="starter-testo">My dearest,<br>I have left something here for you, small enough to hide within these pages. Within this envelope lie a few precious faces, each carrying a little of the grace, charm, and wonder I see whenever I look upon you. I hope that they remind you that some things are worth keeping close to the heart. Your one and only.</div>
+          <button class="hx-btn starter-pick" type="button" onclick="scegliStarter(this)">
+            <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
+            <span class="hxb-label">Pick</span>
+          </button>
+        </div>
+        <div class="starter-esito">
+          <div class="starter-anteprima"></div>
+          <div class="starter-frase"></div>
+          <button class="hx-btn" type="button" onclick="chiudiSceltaStarter()">
+            <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
+            <span class="hxb-label">Great, thanks!</span>
+          </button>
+        </div>
+      </div>
+      <div class="starter-col starter-ignoto" data-mazzo="2">
+        <div class="starter-tinta"></div>
+        <div class="starter-dentro">
+          <img class="starter-lettera" data-starter-icona="letter-stranger.png" alt="" draggable="false">
+          <div class="starter-nome">A letter from a <b>stranger</b></div>
+          <div class="starter-testo">To thee who hast found this letter,<br>I bid thee heed what lieth sealed within. I have enclosed a curious gathering, fashioned for those who know that fortune oft favoureth neither the wise nor the righteous. Therein dwell figures of uncertain purpose, bearing smiles that may conceal more than they reveal. Take what is offered, shouldst thou possess the courage.</div>
+          <button class="hx-btn starter-pick" type="button" onclick="scegliStarter(this)">
+            <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
+            <span class="hxb-label">Pick</span>
+          </button>
+        </div>
+        <div class="starter-esito">
+          <div class="starter-anteprima"></div>
+          <div class="starter-frase"></div>
+          <button class="hx-btn" type="button" onclick="chiudiSceltaStarter()">
+            <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
+            <span class="hxb-label">Great, thanks!</span>
+          </button>
+        </div>
+      </div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- ── v0.79.15 — L'ACCORDO DEL PLAYTEST ───────────────────────────────────
@@ -15849,7 +16044,11 @@ async function chiediUsernameSeServe(){
   if(!s || !s.token || !s.userId) return;
   try{
     const stato = await nakamaLeggiOggetto(NAKAMA_COLLEZIONE_PROFILO, 'stato');
-    if(stato && stato.usernameScelto) return;
+    // v0.79.22 — il nome c'e' gia', ma la lettera puo' essere ancora da
+    // scegliere: chi ha chiuso il gioco fra le due domande deve ritrovare la
+    // seconda. Chiederlo qui e non altrove tiene le due cose in fila, che e'
+    // l'ordine in cui si vedono.
+    if(stato && stato.usernameScelto){ chiediStarterSeServe(); return; }
   }catch(_){ return; }
   apriModaleUsername();
 }
@@ -15947,6 +16146,11 @@ async function confermaUsername(bottone){
   // non si svuota da sola, e riaprendola si leggerebbe ancora "Saving...".
   messaggioUsername('', '');
   chiudiModaleUsername();
+  // v0.79.22 — e subito dopo il nome, la lettera. Solo al PRIMO nome: da
+  // Customize questa e' una correzione, non un ingresso, e chi cambia nome non
+  // deve rivedersi chiedere il mazzo (che comunque il server rifiuterebbe di
+  // riassegnare).
+  if(!_usernameCambio){ try{ chiediStarterSeServe(); }catch(_){} }
 }
 
 // All'apertura della colonna: se c'e' una sessione buona lo si dice, e si
@@ -21693,6 +21897,115 @@ function apriCambioUsername(){
 }
 
 // ══════════════════════════════════════════════════════════════════════════
+// v0.79.22 — LA LETTERA: IL MAZZO INIZIALE LO SCEGLIE CHI GIOCA
+// ══════════════════════════════════════════════════════════════════════════
+// Si apre una volta sola, subito dopo il nome. A dire se serve e' il SERVER —
+// hx_starter con la busta vuota — e non una nota lasciata da questa parte: il
+// mazzo di partenza e' un fatto dell'account, e chi cambia computer non deve
+// ritrovarsi a sceglierlo di nuovo.
+//
+// Quale lettera da' quale mazzo lo dice il markup (`data-mazzo`), non questo
+// codice: sinistra 1, centro 3, destra 2. E' una corrispondenza decisa da
+// Lorenzo e senza una regola dietro — scriverla accanto alla colonna a cui
+// appartiene e' il solo modo perche' resti giusta.
+let _starterInCorso = false;
+
+async function chiediStarterSeServe(){
+  const s = sessioneAccount;
+  if(!s || !s.token) return;
+  let stato = null;
+  // Se il server non risponde non si apre niente: peggio di non scegliere il
+  // mazzo c'e' solo sceglierlo e non vederselo assegnato.
+  try{ stato = await nakamaRpc('hx_starter', {}); }
+  catch(e){ console.warn('[starter] non so se il mazzo e\' gia\' stato scelto: ' + ((e && e.message) || '')); return; }
+  if(!stato || stato.scelto) return;
+  apriSceltaStarter();
+}
+
+function apriSceltaStarter(){
+  const ov = document.getElementById('starter-overlay');
+  if(!ov) return;
+  _starterInCorso = false;
+  // Si riparte pulita: questa finestra si apre una volta sola per account, ma
+  // un debug o un secondo accesso nella stessa pagina la riaprono, e mezza
+  // scelta di prima si vedrebbe tutta.
+  ov.querySelectorAll('.starter-col').forEach(c=>{
+    c.classList.remove('starter-via','starter-presa','starter-fatta');
+    const a = c.querySelector('.starter-anteprima'); if(a) a.innerHTML = '';
+    const f = c.querySelector('.starter-frase'); if(f) f.textContent = '';
+  });
+  vestiFinestraSemplice('starter');
+  try{
+    // La trama del pannello vale anche per le tre colonne: sono pannelli anche
+    // loro, solo tinti.
+    ov.querySelectorAll('.starter-col').forEach(c=>
+      impostaVariabileDaCandidati(c, '--hx-trama', uiFileCandidati('brushed-texture.jpg')));
+    ov.querySelectorAll('[data-starter-icona]').forEach(im=>
+      impostaImgDaCandidati(im, uiFileCandidati(im.getAttribute('data-starter-icona'))));
+  }catch(_){ }
+  ov.classList.add('show');
+}
+function chiudiSceltaStarter(){
+  const ov = document.getElementById('starter-overlay');
+  if(ov) ov.classList.remove('show');
+}
+
+// Il gesto: le altre due si chiudono, questa resta, si accende e scivola al
+// centro. Solo DOPO — a movimento finito — la lettera lascia il posto al mazzo.
+// Le due cose non si sovrappongono di proposito: sono due frasi, e dette
+// insieme non si legge nessuna delle due.
+const STARTER_MOSSA_MS = 480;
+async function scegliStarter(bottone){
+  if(_starterInCorso) return;
+  const col = bottone && bottone.closest('.starter-col');
+  if(!col) return;
+  const numero = parseInt(col.getAttribute('data-mazzo'), 10) || 0;
+  if(!numero) return;
+  _starterInCorso = true;
+
+  let esito = null;
+  try{ esito = await nakamaRpc('hx_starter', { mazzo: numero }); }
+  catch(e){
+    _starterInCorso = false;
+    apriAvviso('Something went wrong', 'We could not set up your deck: ' + ((e && e.message) || 'try again.'), true);
+    return;
+  }
+
+  const ov = document.getElementById('starter-overlay');
+  ov.querySelectorAll('.starter-col').forEach(c=>{
+    if(c === col) c.classList.add('starter-presa');
+    else c.classList.add('starter-via');
+  });
+
+  // I mazzi si rileggono adesso: quello nuovo l'ha appena scritto il server, e
+  // l'anteprima e' proprio lui. Va fatto MENTRE la colonna scivola, cosi' il
+  // tempo del movimento e' anche il tempo dell'attesa.
+  const carte = (async ()=>{ try{ await aggiornaCarteDopoAccesso(); }catch(_){ } })();
+  await new Promise(r=>setTimeout(r, STARTER_MOSSA_MS));
+  await carte;
+
+  const nome = (esito && esito.nome) || '';
+  const dove = col.querySelector('.starter-anteprima');
+  if(dove){
+    dove.innerHTML = '';
+    const mazzo = (typeof mazzoPerId === 'function') ? mazzoPerId('starter-' + numero) : null;
+    if(mazzo && typeof _slotMazzoPieno === 'function'){
+      const slot = _slotMazzoPieno(mazzo);
+      // E' una vetrina, non una lista: via i comandi che qui non portano da
+      // nessuna parte (la spunta sceglie, la matita apre la Libreria).
+      slot.querySelectorAll('.deck-slot-check, .deck-slot-edit, .deck-edit').forEach(el=>el.remove());
+      slot.onclick = null;
+      dove.appendChild(slot);
+    }
+  }
+  const frase = col.querySelector('.starter-frase');
+  if(frase) frase.innerHTML = 'Congratulations! You picked the <b>'
+    + escapeHtml(nome || ('Starter ' + numero)) + '</b> deck!';
+  col.classList.add('starter-fatta');
+  _starterInCorso = false;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
 // v0.79.15 — L'ACCORDO DEL PLAYTEST
 // ══════════════════════════════════════════════════════════════════════════
 // Si accetta una volta, al primo ingresso, e finche' non lo si accetta non si
@@ -23289,7 +23602,14 @@ function _vociDiPersonaggio(slug){
 // e questo suono appartiene al MOMENTO della trasformazione, non al principe.
 // Essere fra i precaricati serve anche a un'altra cosa: da qui si conosce la
 // sua durata, ed e' quella a decidere quando parte il grido di battaglia.
-const SUONI_EXTRA = ['the-caterpillar-smoke', 'strigoi-laugh', 'baba-yaga-laugh',
+// v0.79.22 — 'strigoi-laugh' non c'e' piu': era il suono della versione
+// SCRITTA A MANO dell'abilita' di Strigoi, e quel file non e' mai esistito nella
+// cartella. Adesso Strigoi si trasforma passando dal foglio — diventa Dark
+// Strigoi — e chi si trasforma fa il grido della carta NUOVA (vedi
+// trasformaCartaIn, che suona card.battlecry): dark-strigoi-battlecry.mp3 c'e',
+// quindi non manca niente. Restava solo un file chiesto a ogni avvio e mai
+// trovato.
+const SUONI_EXTRA = ['the-caterpillar-smoke', 'baba-yaga-laugh',
                      'the-green-prince-transform'];
 // v0.75.76 — una sola estensione. Finche' fra i suoni convivevano .mp3 e .wav
 // si provavano entrambe e vinceva la prima che rispondeva; da quando la cartella
@@ -32083,9 +32403,11 @@ function calaLaNotteSu(card){
   // sentirla ridere da dietro un dorso e' un'informazione che il giocatore non
   // dovrebbe avere: dice che li' c'e' uno Strigoi, e a quel punto tanto varrebbe
   // mostrare la carta.
-  if(cartaScopertaAdesso(card)){
-    try { playSfxFile(assicuraSuonoDaVoce('strigoi-laugh','mp3')); } catch(_){}
-  }
+  // v0.79.22 — qui partiva 'strigoi-laugh', il suono della versione scritta a
+  // mano. Questa strada non ci si arriva piu' (recalcNightmare esce subito
+  // quando le abilita' vengono dal foglio), e il grido lo fa adesso la carta in
+  // cui Strigoi si trasforma. Il file non e' mai esistito: toglierlo qui e da
+  // SUONI_EXTRA e' l'ultima traccia che se ne va.
   // Se manca l'arte notturna, il +2 e la risata restano: si rinuncia solo al
   // cambio d'abito, e lo si dice, invece di restare muti su tutto.
   if(!card.artNotteDark && !card.artNotteLight){

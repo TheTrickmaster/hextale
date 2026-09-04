@@ -412,6 +412,53 @@ function assicuraPossesso(ctx, nk, logger, userId, username) {
   return possesso;
 }
 
+// ══════════════════════════════════════════════════════════════════════════
+// v0.79.22 — LA LETTERA: IL MAZZO INIZIALE LO SCEGLIE CHI GIOCA
+// ══════════════════════════════════════════════════════════════════════════
+// Fino a ieri il mazzo di partenza usciva a sorte, e la riga che lo scriveva
+// diceva gia' cosa sarebbe successo un giorno: origine 'caso' adesso, 'scelta'
+// quando ci sara' la schermata. La schermata c'e'.
+//
+// Il sorteggio RESTA, e non e' un residuo: e' la rete. Un account nasce con un
+// mazzo comunque, cosi' chi chiude il gioco prima di scegliere — o chi si
+// registra da un client vecchio — non si ritrova senza niente da giocare. La
+// scelta lo sostituisce finche' e' ancora quello del caso.
+//
+// E si sceglie UNA volta sola: dopo, `origine` dice 'scelta' e questa porta
+// risponde senza scrivere. Non e' una cortesia — e' che il mazzo si puo'
+// modificare in Libreria, e una seconda scelta lo riscriverebbe da capo.
+//
+// Con payload vuoto e' una DOMANDA ("ho gia' scelto?"), con {mazzo:N} e' la
+// scelta. Stessa forma di hx_accordo: una porta sola per una cosa sola.
+function rpcStarter(ctx, logger, nk, payload) {
+  if (!ctx.userId) throw Error('serve un accesso');
+  var d = {};
+  try { d = payload ? JSON.parse(payload) : {}; } catch (e) { d = {}; }
+
+  var possesso = assicuraPossesso(ctx, nk, logger, ctx.userId, ctx.username);
+  var giaScelto = (possesso.origine === 'scelta');
+  var suo = (possesso.mazzi && possesso.mazzi.length) ? possesso.mazzi[0] : 0;
+
+  if (d.mazzo !== undefined && d.mazzo !== null && !giaScelto) {
+    var numero = Math.floor(Number(d.mazzo));
+    if (MAZZI_STARTER.indexOf(numero) < 0) throw Error('mazzo iniziale non valido');
+    possesso.mazzi = [numero];
+    possesso.origine = 'scelta';
+    scriviPossesso(nk, ctx.userId, possesso);
+    try { creaMazzoStarter(nk, logger, ctx.userId, numero, !!possesso.admin); }
+    catch (e) { logger.warn('mazzo starter non rifatto per %s: %s', ctx.userId, String(e)); }
+    suo = numero;
+    giaScelto = true;
+    logger.info('mazzo iniziale SCELTO da %s: %d (%s)', ctx.userId, numero, NOMI_STARTER[numero] || '?');
+  }
+
+  return JSON.stringify({
+    scelto: giaScelto,
+    mazzo: suo,
+    nome: NOMI_STARTER[suo] || ''
+  });
+}
+
 // ── RPC: il catalogo e cio' che il giocatore possiede ─────────────────────
 // Una chiamata sola all'avvio. Torna:
 //   carte     — le definizioni COMPLETE, che al gioco servono tutte: una carta
@@ -1061,7 +1108,18 @@ function rpcImporta(ctx, logger, nk, payload) {
 // di roba che ha davvero.
 function creaMazzoStarter(nk, logger, userId, numero, admin) {
   var gia = nk.storageRead([{ collection: COLL_PROFILO, key: KEY_MAZZI, userId: userId }]);
-  if (gia && gia.length && gia[0].value && gia[0].value.mazzi && gia[0].value.mazzi.length) return;
+  var addosso = (gia && gia.length && gia[0].value && gia[0].value.mazzi) || [];
+  // ── v0.79.22 — SI RIFA' SOLO SOPRA A UN ALTRO STARTER ──────────────────
+  // Se il giocatore ha gia' dei mazzi non si tocca niente: sarebbe il suo
+  // lavoro, cancellato. L'eccezione e' il mazzo del SORTEGGIO — uno solo, con
+  // l'id 'starter-N' — perche' e' esattamente quello che la scelta della
+  // lettera viene a sostituire, e a quel punto il giocatore non ha ancora
+  // avuto modo di costruire niente.
+  if (addosso.length) {
+    var soloIlSorteggio = (addosso.length === 1)
+      && String((addosso[0] && addosso[0].id) || '').indexOf('starter-') === 0;
+    if (!soloIlSorteggio) return;
+  }
 
   var catalogo = leggiSistema(nk, KEY_CATALOGO);
   if (!catalogo || !catalogo.carte) { logger.warn('mazzo starter: catalogo non ancora importato'); return; }
@@ -3869,6 +3927,7 @@ function InitModule(ctx, logger, nk, initializer) {
   initializer.registerRpc('hx_bustina_azzera', rpcBustinaAzzera);
   initializer.registerRpc('hx_segnalazione', rpcSegnalazione);
   initializer.registerRpc('hx_accordo', rpcAccordo);
+  initializer.registerRpc('hx_starter', rpcStarter);
   initializer.registerRpc('hx_posta_config', rpcPostaConfig);
   initializer.registerRpc('hx_elimina_account', rpcEliminaAccount);
   initializer.registerRpc('hx_giocatori', rpcGiocatoriOnline);
