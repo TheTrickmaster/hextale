@@ -189,8 +189,22 @@ app.whenReady().then(async () => {
     dice(Math.abs(sopra - sotto) < 3, 'ed e- in mezzo fra il mazzo e il pulsante',
       'sopra ' + sopra.toFixed(1) + ', sotto ' + sotto.toFixed(1));
 
-    // ── 3. e non si sceglie due volte ──────────────────────────────────────
-    const prima = window.__chiestoQuante || 0;
+    // ── 3. e premuto Collect se ne va verso l-alto ─────────────────────────
+    // Le animazioni qui restano ACCESE: quel che si misura non e- dove si
+    // ferma, ma che parta e che a fine corsa la finestra sia davvero chiusa.
+    stop.remove();
+    chiudiSceltaStarter();
+    await attendi(60);
+    dice(scelta.classList.contains('starter-esce'), 'premuto Collect, la colonna parte');
+    const uscita = getComputedStyle(scelta).animationName;
+    dice(uscita === 'starterEsce',
+      'ed e- l-uscita che gira, non piu- il respiro dell-alone',
+      'sta girando "' + uscita + '"');
+    await attendi(700);
+    const ov2 = document.getElementById('starter-overlay');
+    dice(!ov2.classList.contains('show'), 'e a corsa finita la finestra e- chiusa');
+    dice(!scelta.classList.contains('starter-esce'),
+      'e la colonna e- rimessa a posto: riaprendo non parte gia- andata');
     return { dette };
   }catch(e){ return { guasto:(e&&e.message)+' '+String((e&&e.stack)||'').slice(0,240) }; } })()`);
 

@@ -43,7 +43,13 @@ app.whenReady().then(async () => {
         const testo = ((et && et.textContent) || b.textContent || '').trim().slice(0,28);
         const k = strada(b) + ' | ' + testo;
         if(righe[k]) return;
-        righe[k] = { largo:b.offsetWidth, x:b.offsetLeft, y:b.offsetTop };
+        // Quanto e' scentrata l'etichetta dentro al suo pulsante. Non si guarda
+        // il CSS: si misurano i due rettangoli, che e' l'unica cosa che chi
+        // gioca vede davvero.
+        let fuoriAsse = 0;
+        if(et){ const rb = b.getBoundingClientRect(), re = et.getBoundingClientRect();
+          if(rb.width && re.width) fuoriAsse = Math.abs((re.left+re.width/2) - (rb.left+rb.width/2)); }
+        righe[k] = { largo:b.offsetWidth, x:b.offsetLeft, y:b.offsetTop, fuoriAsse:+fuoriAsse.toFixed(1) };
       });
     };
 
@@ -72,9 +78,15 @@ app.whenReady().then(async () => {
   fs.writeFileSync('misura-' + NOME + '.json', JSON.stringify(esito, null, 1));
   const chiavi = Object.keys(esito);
   const troppo = chiavi.filter(k => esito[k].largo > 400);
+  const stretti = chiavi.filter(k => esito[k].largo < 200);
+  const storti = chiavi.filter(k => esito[k].fuoriAsse > 1.5);
   console.log('pulsanti misurati: ' + chiavi.length);
   console.log('sopra i 400px: ' + troppo.length);
   troppo.sort((a, b) => esito[b].largo - esito[a].largo).forEach(k =>
     console.log('  ' + String(esito[k].largo).padStart(4) + 'px  x=' + String(esito[k].x).padStart(4) + '  ' + k));
+  console.log('sotto i 200px: ' + stretti.length);
+  stretti.forEach(k => console.log('  ' + String(esito[k].largo).padStart(4) + 'px  ' + k));
+  console.log('con l-etichetta scentrata: ' + storti.length);
+  storti.forEach(k => console.log('  ' + String(esito[k].fuoriAsse).padStart(5) + 'px fuori asse  ' + k));
   app.quit();
 }).catch(e => { console.error(e); app.quit(); });

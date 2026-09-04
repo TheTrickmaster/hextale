@@ -5478,9 +5478,15 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
 }
 #card-modal-info .cm-livello.hx-campo{
   height:auto; min-height:56px; padding:8px 14px;
-  /* La casella e' larga quanto la colonna, e il margine che la stacca da cio'
-     che le sta sopra e' quello che prima era padding-top. */
-  margin-top:16px; flex:0 0 auto;
+  /* ── v0.79.26 — IN FONDO ALLA COLONNA ──────────────────────────────────
+     Qui c'erano 16px di margine, e schiacciavano il margine AUTOMATICO della
+     regola qui sopra: la casella si fermava subito sotto all'ultima riga
+     invece di scendere in fondo. Un numero che ne cancella un altro senza che
+     si veda — sono due regole diverse, e la seconda vince perche' e' piu'
+     forte.
+     Il margine torna automatico, cioe' "prenditi tutto lo spazio che avanza":
+     la colonna e' alta quanto la carta, e di spazio ne avanza sempre. */
+  margin-top:auto; flex:0 0 auto;
 }
 /* "Level:" e' un'etichetta, il numero e' il dato: due colori diversi, come nel
    resto della scheda. */
@@ -7519,6 +7525,16 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
      di stare in mezzo. Dentro a una riga non cambia niente: l'altezza e'
      fissa, e centrarsi verticalmente e' gia' quello che facevano. */
   max-width:400px;
+  /* ── v0.79.26 — E MAI PIU' STRETTI DI 200px ────────────────────────────
+     Un .hx-btn e' fatto di cinque pezzi d'immagine in fila: due tappi da 49,
+     un centro da 58, e due riempitivi che si prendono quel che avanza. Sotto
+     i 156px di pezzi fissi i riempitivi non hanno piu' niente da riempire e
+     le tre immagini finiscono attaccate: e' quello che si legge come "piccolo
+     e storto", e non e' un difetto di allineamento — e' un pulsante piu'
+     corto della propria cornice.
+     Duecento e' la misura in cui i riempitivi hanno ancora una quarantina di
+     pixel a testa, cioe' la piu' stretta in cui la cornice si legge intera. */
+  min-width:200px;
   align-self:center;
   display:inline-flex; align-items:center; justify-content:center;
   padding:0 34px;
@@ -8578,6 +8594,24 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
   0%,100%{ box-shadow:0 0 0 1.5px rgba(255,231,178,0.75), 0 0 26px 4px rgba(255,231,178,0.32); }
   50%    { box-shadow:0 0 0 1.5px rgba(255,231,178,1),    0 0 40px 8px rgba(255,231,178,0.55); }
 }
+/* ── v0.79.26 — E POI SE NE VA ────────────────────────────────────────────
+   Premuto "Collect", la colonna sale e si dissolve. Sale e non scende perche'
+   il mazzo va nella Libreria: e' un movimento che porta via, non che chiude.
+   Sta DOPO .starter-presa e con la stessa forza, quindi vince: il respiro
+   dell'alone si ferma e comincia l'uscita — due animazioni sullo stesso
+   elemento non convivono, e a convivere finirebbero per non vedersi nessuna
+   delle due.
+   Il velo scuro dietro se ne va con lei, un attimo dopo: sparendo di colpo
+   lascerebbe la pagina in faccia mentre la colonna e' ancora per aria. */
+.starter-col.starter-esce{
+  animation:starterEsce .45s cubic-bezier(.4,0,.2,1) forwards;
+  pointer-events:none;
+}
+@keyframes starterEsce{
+  from{ opacity:1; transform:translateY(0); }
+  to  { opacity:0; transform:translateY(-90px); }
+}
+#starter-overlay.starter-chiude{ opacity:0; transition:opacity .3s ease .15s; }
 /* La lettera lascia il posto all'anteprima del mazzo: non si sostituisce il
    contenuto: si spegne uno e si accende l'altro, cosi' il passaggio si vede. */
 .starter-col.starter-fatta .starter-dentro{ display:none; }
@@ -11216,7 +11250,7 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.25</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.26</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -21765,11 +21799,15 @@ function toggleSfxMute(){
 // Chi lo conosce a memoria puo' spegnerlo.
 // La scelta sopravvive alla partita e alla sessione, come ogni impostazione.
 const AIUTO_ESAGONO_CHIAVE = 'hextale.aiutoEsagono';
-let _aiutoEsagono = true;
+// ── v0.79.26 — DI PARTENZA E' SPENTO ─────────────────────────────────────
+// Era acceso, e per un account nuovo voleva dire cominciare a giocare con un
+// aiuto addosso senza averlo chiesto. Chi ne ha bisogno lo accende dalle
+// impostazioni, e da quel momento la scelta e' sua e viaggia con l'account.
+let _aiutoEsagono = false;
 function aiutoEsagonoAcceso(){ return _aiutoEsagono; }
 function caricaAiutoEsagono(){
   // v0.77.90 — dalle preferenze dell'account. Finche' il server non ha
-  // risposto vale il valore di partenza, che e' acceso.
+  // risposto vale il valore di partenza, che dalla v0.79.26 e' spento.
   if(typeof PREFERENZE.aiutoEsagono === 'boolean') _aiutoEsagono = PREFERENZE.aiutoEsagono;
   aggiornaInterruttoreEsagono();
 }
@@ -22036,9 +22074,10 @@ function apriSceltaStarter(){
   // Si riparte pulita: questa finestra si apre una volta sola per account, ma
   // un debug o un secondo accesso nella stessa pagina la riaprono, e mezza
   // scelta di prima si vedrebbe tutta.
-  ov.classList.remove('starter-solo');
+  ov.classList.remove('starter-solo', 'starter-chiude');
+  _starterEsce = false;
   ov.querySelectorAll('.starter-col').forEach(c=>{
-    c.classList.remove('starter-via','starter-presa','starter-fatta','starter-lampo');
+    c.classList.remove('starter-via','starter-presa','starter-fatta','starter-lampo','starter-esce');
     const a = c.querySelector('.starter-anteprima'); if(a) a.innerHTML = '';
     const f = c.querySelector('.starter-frase'); if(f) f.textContent = '';
     const s = c.querySelector('.starter-arte'); if(s) s.style.backgroundImage = '';
@@ -22054,9 +22093,27 @@ function apriSceltaStarter(){
   }catch(_){ }
   ov.classList.add('show');
 }
+// Quanto dura l'uscita. E' lo stesso numero dell'animazione qui sopra, ed e'
+// l'unico posto in cui le due cose devono restare d'accordo.
+const STARTER_USCITA_MS = 460;
+let _starterEsce = false;
 function chiudiSceltaStarter(){
   const ov = document.getElementById('starter-overlay');
-  if(ov) ov.classList.remove('show');
+  if(!ov) return;
+  if(_starterEsce) return;              // premuto due volte: la seconda non fa niente
+  const col = ov.querySelector('.starter-col.starter-fatta');
+  // Nessuna colonna da portare via (la finestra chiusa da altro, o una
+  // riapertura): si chiude e basta, invece di aspettare un'animazione che non
+  // c'e' nessuno a fare.
+  if(!col){ ov.classList.remove('show'); return; }
+  _starterEsce = true;
+  col.classList.add('starter-esce');
+  ov.classList.add('starter-chiude');
+  setTimeout(()=>{
+    ov.classList.remove('show', 'starter-chiude');
+    col.classList.remove('starter-esce');
+    _starterEsce = false;
+  }, STARTER_USCITA_MS);
 }
 
 // Il gesto: le altre due si chiudono, questa resta, si accende e scivola al
