@@ -116,7 +116,13 @@ app.whenReady().then(async () => {
     // Le transizioni si spengono: a finestra nascosta non avanzano affatto, e a
     // finestra visibile si misurerebbe un fotogramma a caso del movimento. Qui
     // interessa DOVE si fermano le colonne, non come ci arrivano.
-    col.forEach(c=>{ c.style.transition = 'none'; });
+    // Transizioni E animazioni, dentro e fuori: a finestra nascosta non
+    // avanzano affatto, a finestra visibile si misura un fotogramma a caso del
+    // movimento — e un elemento a meta' di una traslazione ha un rettangolo che
+    // non e' quello dove si fermera'. Qui interessa DOVE si ferma tutto.
+    const stop = document.createElement('style');
+    stop.textContent = '.starter-col, .starter-col *{ transition:none !important; animation:none !important; }';
+    document.head.appendChild(stop);
     const scelta = col[0];
     await scegliStarter(scelta.querySelector('.starter-pick'));
     await attendi(200);
@@ -156,7 +162,26 @@ app.whenReady().then(async () => {
       && !scelta.querySelector('.starter-anteprima .deck-slot-edit'),
       'una vetrina, non una lista: niente spunta e niente matita');
     const frase = scelta.querySelector('.starter-frase').textContent;
-    dice(frase === 'Congratulations! You picked the Starter Wild deck!', 'e la frase giusta', frase);
+    dice(frase === '20 new cards have been added to your library.',
+      'e la frase conta le carte del mazzo', frase);
+    const tt = scelta.querySelector('.starter-titolo');
+    const ts = getComputedStyle(tt);
+    dice(tt.textContent === 'New deck unlocked!' && /Marcellus/.test(ts.fontFamily)
+      && ts.fontSize === '22px' && ts.color === 'rgb(237, 231, 218)',
+      'e sopra c-e- "New deck unlocked!"',
+      tt.textContent + '  ' + ts.fontFamily + '  ' + ts.fontSize + '  ' + ts.color);
+    const velo = scelta.querySelector('.starter-velo');
+    dice(!!velo && getComputedStyle(velo).opacity === '1',
+      'e un velo scende sull-arte, dal pieno al niente');
+    const bot = scelta.querySelector('.starter-esito .hxb-label');
+    dice(bot && bot.textContent === 'Collect', 'e il pulsante dice Collect', bot ? bot.textContent : '(manca)');
+    // La frase sta in mezzo fra il mazzo e il pulsante: non a occhio, in pixel.
+    const rp = scelta.querySelector('.starter-anteprima').getBoundingClientRect();
+    const rf = scelta.querySelector('.starter-frase').getBoundingClientRect();
+    const rb = scelta.querySelector('.starter-esito .hx-btn').getBoundingClientRect();
+    const sopra = rf.top - rp.bottom, sotto = rb.top - rf.bottom;
+    dice(Math.abs(sopra - sotto) < 3, 'ed e- in mezzo fra il mazzo e il pulsante',
+      'sopra ' + sopra.toFixed(1) + ', sotto ' + sotto.toFixed(1));
 
     // ── 3. e non si sceglie due volte ──────────────────────────────────────
     const prima = window.__chiestoQuante || 0;
