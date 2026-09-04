@@ -10483,7 +10483,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.78.26</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.78.27</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -13963,15 +13963,7 @@ async function mm2CercaAvversario(){
   if(_mm2Cercando){ mm2AnnullaRicerca(); return; }
 
   // Contro l'IA non c'e' niente da cercare: si parte e basta.
-  if(_mm2Vista === 'ai'){
-    // v0.78.25 — contro l'IA non c'e' nessuno da trovare, ma il momento e' lo
-    // stesso: da qui in poi si gioca. Lo stesso suono della partita trovata in
-    // rete (vedi dove si riceve l'accoppiamento), cosi' le due strade cominciano
-    // allo stesso modo.
-    try{ playSfxFile('match-found.mp3'); }catch(_){}
-    try{ requestNewGame(true); }catch(_){}
-    return;
-  }
+  if(_mm2Vista === 'ai'){ try{ requestNewGame(true); }catch(_){} return; }
 
   // v0.78.4 — col casuale se ne genera uno adesso: vedi mazzoConCuiGiocare.
   const mio = (typeof mazzoConCuiGiocare === 'function') ? mazzoConCuiGiocare() : null;
@@ -19349,6 +19341,18 @@ function requestNewGame(vsAI){
   fermaTuttiISuoni();
   // La fazione e' gia' decisa: si applica e si parte, senza fermare nessuno.
   impostaFazioneUmano(fazioneUmano());
+  // ── v0.78.27 — IL SUONO DELLA PARTITA TROVATA, ANCHE CONTRO L'IA ───────
+  // Contro l'IA non c'e' nessuno da trovare, ma il momento e' lo stesso: da qui
+  // in poi si gioca.
+  // Sta QUI per due ragioni, e la seconda e' quella che conta. La prima: questo
+  // e' l'unico imbuto, quindi il suono arriva anche dalle partite di prova e da
+  // qualunque strada verra' aggiunta domani. La seconda: qualche riga piu' su
+  // c'e' `fermaTuttiISuoni()`, e suonandolo PRIMA — com'era alla v0.78.25 —
+  // veniva zittito un istante dopo essere partito. Da fuori: nessun suono, e
+  // nessun errore da nessuna parte.
+  // In rete non si ripete: li' suona gia' quando l'accoppiamento arriva, e
+  // sentirlo due volte a mezzo secondo di distanza si nota.
+  if(vsAI){ try{ playSfxFile('match-found.mp3'); }catch(_){} }
   // ── v0.78.23 — PRIMA SI GUARDA IN FACCIA CHI SI HA DAVANTI ─────────────
   // La schermata versus copre tutto per quattro secondi e sotto, mentre
   // copre, la partita viene costruita: quando se ne va, il tabellone e- gia-
@@ -19642,7 +19646,7 @@ const VERSUS_MS = 6000;
 // E la mano non si da' mentre la schermata e' ancora in scena: si sentiva
 // distribuire dietro a un fondale che non era ancora andato via. Un secondo
 // dopo che se n'e' andata, che e' il tempo di posare gli occhi sul tabellone.
-const VERSUS_MANO_MS = 1000;
+const VERSUS_MANO_MS = 0;
 // La scaletta, in millisecondi dall'inizio. Sta tutta qui perche' e' una
 // SCENA: leggerla come un elenco di istanti e' l'unico modo di capire se
 // funziona senza guardarla.
@@ -28374,6 +28378,14 @@ const TILE_ABILITIES_DEF = {
   // the board and in your hand.") — left in English verbatim per the
   // standing rule that user-dictated ability text is never auto-translated.
   smol_friends:  { carta:'Snow White', name:'Smol Friends', desc:'+1 Power ALL for every /Small/ character on the board.' },
+  // ── v0.78.27 — BAGHEERA, "Back off" ─────────────────────────────────────
+  // Gli alleati che le stanno accanto possono ricevere buff, mai debuff, finche'
+  // lei e' in campo e accanto a loro.
+  // Scritta a mano e non dal foglio: il foglio sa dire "immune adjacent", cioe'
+  // TUTTI gli adiacenti, e sa dire "ally", cioe' tutti i propri ovunque — ma non
+  // sa dire "gli alleati adiacenti", che e' quel che questa carta promette.
+  // Finche' quel termine non esiste nel vocabolario, la carta va scritta qui.
+  back_off:      { carta:'Bagheera', name:'Back off', desc:'Adjacent /allies/ can be *Buffed*, never *Debuffed*.' },
   // Merlin, display name "A Kind of Magic" (v0.72.0 rename — internal key
   // stays a_kind_of_magic, unchanged everywhere else in the file, since it's
   // never shown to the player): no value mutation at all (unlike every
@@ -29074,13 +29086,17 @@ function initGame(vsAI){
   // "catching up" all at once. Hands/decks are already correctly shaped in
   // G at this point (empty hands, full decks), so rendering them now is
   // harmless — they're re-rendered again as cards are actually drawn.
-  render();
-  // Both players draw their initial hand before the game starts
+  // v0.78.27 — ANCHE LA CADUTA DEI TASSELLI ASPETTA.
+  // Questo render fa partire l-introduzione del tabellone, i tasselli che
+  // cadono dall-alto. Girava mentre la schermata versus copriva ancora, quindi
+  // quello spettacolo se lo guardava il fondale: quando la schermata si
+  // alzava, il tabellone era gia- posato.
+  // Adesso parte insieme alla mano, cioe- quando c-e- qualcuno a vederlo.
   // v0.78.24 — la mano aspetta che la schermata versus se ne sia andata:
   // distribuirla dietro al fondale si SENTE, e quel suono racconta una cosa
   // che non si sta vedendo. Fuori dalla schermata versus questa funzione non
   // fa niente e la mano parte subito, come sempre.
-  conLaManoQuandoSiPuo(()=> drawInitialHands(()=>{
+  conLaManoQuandoSiPuo(()=>{ render(); drawInitialHands(()=>{
     // Don't start the countdown yet: the board's tile-drop intro (~2.5s) and
     // its trailing "Turno del Player X" banner haven't played out yet at
     // this point (the drop is still running when this callback fires, since
@@ -29115,7 +29131,7 @@ function initGame(vsAI){
     // since normal turns trigger the AI via startTurn()/maybeTriggerAiTurn()
     // but this very first turn bypasses startTurn() entirely.
     maybeTriggerAiTurn();
-  }));
+  }); });
 }
 
 function key(q,r){return`${q},${r}`;}
@@ -29599,8 +29615,69 @@ function _ambitoDiLati(lati){
 // `fonte`, quando c'e', e' {chiave, da}: chi ha causato la modifica. Chi non la
 // passa non compare nell'elenco — un effetto senza un nome da mostrare e'
 // peggio di nessuna riga, perche' fa cercare una causa che non si trova.
+// ══════════════════════════════════════════════════════════════════════════
+// v0.78.27 — BAGHEERA, "Back off"
+// ══════════════════════════════════════════════════════════════════════════
+// Chi le sta accanto, dalla sua parte, non puo' essere indebolito: i buff
+// arrivano, i debuff no. Vale finche' lei e' in campo E accanto — quindi non e'
+// una marchiatura sulla carta protetta, e' una DOMANDA che si fa nell'istante
+// in cui il colpo starebbe per arrivare. Marchiarla vorrebbe dire ricordarsi di
+// togliere il marchio quando Bagheera muore o quando una delle due si sposta, e
+// quello e' esattamente il genere di cosa che ci si dimentica.
+//
+// La domanda si fa in DUE porte, che sono le due strade da cui un valore puo'
+// scendere:
+//   - modificaValori, per i colpi una tantum (un furto, una vendetta);
+//   - il ricalcolo delle sinergie vive, per le penalita' continue.
+// Chiuderne una sola vorrebbe dire una carta che si difende da meta' del gioco.
+// ── v0.78.27 — RICONOSCERE UN'ABILITA' ANCHE PRIMA DI UNA REIMPORTAZIONE ──
+// La chiave di un'abilita' non nasce nel gioco: nasce all'IMPORTAZIONE, dove il
+// nome del personaggio scritto nel foglio viene risolto contro questo registro.
+// Una carta che entra nel registro oggi porta quindi ancora, nel catalogo gia'
+// importato, il segnaposto "!nome" — e continuera' a portarlo finche' non si
+// reimporta.
+// Non e' un dettaglio da rimandare: fra scrivere un'abilita' e poter reimportare
+// puo' passare del tempo (oggi, per esempio, l'importazione e' ferma su
+// un'altra riga del foglio), e nel frattempo la carta sarebbe muta senza che
+// nulla lo dica.
+// Si accetta quindi anche il legame vero, quello su cui il registro stesso e'
+// costruito: il PERSONAGGIO. Dopo la reimportazione vale il primo ramo, che e'
+// piu' diretto; prima, il secondo.
+function _haAbilita(card, chiave){
+  if(!card) return false;
+  let attiva = null;
+  try{ attiva = abilitaAttivaDi(card); }catch(_){ }
+  if(attiva === chiave) return true;
+  if(!attiva) return false;      // spenta, o sotto al livello di sblocco
+  const voce = (typeof TILE_ABILITIES_DEF === 'object' && TILE_ABILITIES_DEF)
+    ? TILE_ABILITIES_DEF[chiave] : null;
+  if(!voce || !voce.carta) return false;
+  const pulisci = s => String(s||'').trim().toLowerCase().replace(/[^a-z0-9]+/g,'');
+  return pulisci(card.name) === pulisci(voce.carta);
+}
+function protettoDaBagheera(card){
+  if(!card || !G || !G.board) return false;
+  const cella = _cellaDellaCarta(card);
+  if(!cella) return false;                       // in mano non la protegge nessuno
+  const pezzi = String(cella).split(',');
+  const q = Number(pezzi[0]), r = Number(pezzi[1]);
+  if(isNaN(q) || isNaN(r)) return false;
+  for(const d of DIRS){
+    const vicino = G.board[key(q + d.dq, r + d.dr)];
+    const guardia = vicino && vicino.card;
+    if(!guardia) continue;
+    if(guardia === card) continue;               // "intorno a lei", non lei stessa
+    if(vicino.owner !== undefined && card.owner !== undefined
+       && vicino.owner !== card.owner) continue; // alleati, non chiunque
+    if(_haAbilita(guardia, 'back_off')) return true;
+  }
+  return false;
+}
 function modificaValori(card, lati, delta, pavimento, fonte){
   if(!card || !lati || !lati.length || !delta) return;
+  // v0.78.27 — un colpo che TOGLIE non arriva a chi sta accanto a Bagheera.
+  // I buff passano: e' una protezione, non una campana di vetro.
+  if(delta < 0 && protettoDaBagheera(card)) return;
   const minimo = (typeof pavimento === 'number') ? pavimento : -Infinity;
   // v0.73.77 — l'istantanea di partenza serve al lampo: passando TUTTI da qui,
   // ogni dono e ogni furto ottiene il suo verde o il suo rosso senza che
@@ -30269,6 +30346,19 @@ function ricalcolaValoriVivi(card, cella){
   if(sinergieDalFoglio()){
     if(!card.valoriBase) card.valoriBase = {...card.values};
     card.values = ABILITA_MOTORE.valoriEffettivi(card, _scenaTabellone());
+    // v0.78.27 — e se accanto c'e' Bagheera, nessuna sinergia puo' portare un
+    // valore SOTTO la sua base. Si taglia il risultato invece di filtrare i
+    // contributi uno per uno: al motore non si chiede di conoscere una carta,
+    // e la regola resta vera anche per le sinergie che verranno scritte domani.
+    // La base e' cio' che la carta ha addosso di permanente: un debuff subito
+    // PRIMA che Bagheera arrivasse resta, ed e' giusto — la protezione comincia
+    // quando comincia lei.
+    if(protettoDaBagheera(card)){
+      for(const lato of SIDES){
+        const base = card.valoriBase[lato];
+        if(typeof base === 'number' && card.values[lato] < base) card.values[lato] = base;
+      }
+    }
     return;
   }
   recalcHoorayShesStays(card);

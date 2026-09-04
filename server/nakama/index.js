@@ -1286,7 +1286,15 @@ var TURNO_MS = 60000;        // i sessanta secondi del turno
 // quanto tempo in piu- ha il primo turno. Sta qui e non solo nel client perche-
 // e- il server a tenere l-orologio: se il client la allunga senza dirlo, i
 // secondi tornano a mancare, e questo numero e- il posto in cui accordarsi.
-var VERSUS_MS = 7000;   // sei secondi di scena piu- uno prima della mano
+// v0.78.27 — quanto passa fra "la partita comincia sul server" e "il giocatore
+// puo- davvero calare una carta": sei secondi di schermata versus, poi la
+// caduta dei tasselli (TILE_DROP_TOTAL_MS, 1410) e il banner del turno, che
+// adesso girano DOPO la schermata invece che dietro di essa.
+// I 1600 del banner sono una stima, non una misura: e- l-unico pezzo di questo
+// conto che non ho misurato. La strada pulita, il giorno in cui quei secondi
+// contassero davvero, e- che sia il client a dire al server "sono pronto"
+// invece che il server a indovinare quanto ci mette.
+var VERSUS_MS = 9000;
 var GRAZIA_MS = 2500;        // quanto si aspetta oltre la scadenza prima di troncare
 var MANO_INIZIALE = 4;
 var ATTESA_INGRESSO_MS = 30000;  // se il secondo non entra, la partita muore da sola
