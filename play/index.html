@@ -7036,7 +7036,6 @@ body.prova-senza-willchange #mm-book-rot{
    che sborda dalla carta a cui appartiene non sembra suo. */
 .pack-scelta-btn{
   position:absolute; left:50%; top:100%;
-  margin-top:18px;
   transform:translateX(-50%) scale(0.9);
   transform-origin:top center;
   white-space:nowrap;
@@ -7044,6 +7043,53 @@ body.prova-senza-willchange #mm-book-rot{
   transition:opacity .22s ease, visibility .22s;
 }
 .pack-scelta-btn.pack-nascosto{ opacity:0; visibility:hidden; pointer-events:none; }
+/* ── v0.79.7 — TRENTA PIXEL PIU- IN BASSO, E STAVOLTA DAVVERO ─────────────
+   Qui c'era `margin-top:18px`, e non ha mai spostato niente: la famiglia
+   .hx-btn dichiara `margin:0`, sta PIU- AVANTI nel foglio e ha la stessa
+   forza (una classe contro una classe), quindi vinceva lei. Il pulsante era
+   attaccato al bordo basso della carta, che e- esattamente cio- che si vedeva.
+   Il selettore composto (.pack-card .pack-scelta-btn) e- piu- forte di .hx-btn,
+   quindi questa volta il numero arriva a destinazione. E- l'unica ragione per
+   cui e- scritto cosi- invece che nella regola qui sopra. */
+.pack-card .pack-scelta-btn{ margin-top:30px; }
+/* ── v0.79.7 — CHE COSA E' USCITO DALLA BUSTINA ───────────────────────────
+   Due casi e due etichette, e non convivono mai: o la carta e' nuova, o se ne
+   ha gia' qualcuna.
+   Il NASTRO e' quello della Collezione — stesso file, stessa forma — e le sue
+   misure sono quelle di la' moltiplicate per 1,15, che e' esattamente quanto
+   questa carta e' piu' grande (210x360 contro 242x414). Sono scritte cosi' e
+   non a occhio: e' la stessa etichetta sulla stessa carta, vista piu' da
+   vicino.
+   Qui il nastro NON sparisce mai. In Collezione se ne va al primo sguardo,
+   perche' li' "nuova" vuol dire "non ancora guardata"; in questa pagina vuol
+   dire "non ce l'avevi", e passarci sopra col puntatore non cambia quel fatto.
+   Tutte e due stanno FUORI dal piano che gira (sono figlie della carta, come
+   il pulsante): dentro, girerebbero con lei e si leggerebbero al contrario. */
+.pack-card .nuova-nastro{
+  position:absolute; left:-2.3px; top:74.75px;
+  height:46px; width:auto; z-index:7;
+  pointer-events:none; user-select:none; -webkit-user-drag:none;
+  opacity:0; transition:opacity .25s ease;
+}
+/* Il conto delle copie, sopra al bordo alto della carta e centrato su di lei. */
+.pack-owned{
+  position:absolute; left:50%; bottom:100%;
+  margin-bottom:14px;
+  transform:translateX(-50%);
+  font-family:'Rosarivo',serif; font-size:22px; line-height:1;
+  color:#EDE0C6; white-space:nowrap;
+  text-shadow:0 0 6px rgba(0,0,0,0.9);
+  z-index:7; pointer-events:none;
+  opacity:0; transition:opacity .25s ease;
+}
+/* Compaiono a carta GIRATA, non prima: finche' si vede il dorso non c'e'
+   ancora niente da dire su quella carta. */
+.pack-card.mostra-etichetta .nuova-nastro,
+.pack-card.mostra-etichetta .pack-owned{ opacity:1; }
+/* La carta lasciata sbiadisce, e la sua etichetta con lei: appartiene a quella
+   carta, non alla pagina. */
+.pack-card.scartata .nuova-nastro,
+.pack-card.scartata .pack-owned{ opacity:0.4; }
 /* L'icona della polvere dentro all'etichetta "Keep for 200". */
 .pack-scelta-btn .hxb-label img,
 #pack-collect .hxb-label img{
@@ -7610,7 +7656,7 @@ body.prova-senza-willchange #mm-book-rot{
    misura, e' cio' che lo fa leggere come un'etichetta APPICCICATA sopra alla
    carta invece che come una parte del disegno. */
 .card-db-card-slot.carta-nuova{
-  filter:drop-shadow(0 0 20px #fff);
+  filter:drop-shadow(0 0 10px #fff);   /* v0.79.7 — era 20 */
 }
 .card-db-card-slot .nuova-nastro{
   position:absolute; left:-2px; top:65px;
@@ -10724,7 +10770,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.6</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.7</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -14873,6 +14919,10 @@ async function riferisciPartita(vinta, pari, controIA){
 const CHIAVE_CATALOGO = 'hextale.catalogo';
 const CHIAVE_POSSESSO = 'hextale.possesso';
 let CARTE_POSSEDUTE = {};      // slug -> livello
+// v0.79.7 — slug -> quante se ne hanno. Le conta il server (vedi _copieDi):
+// qui non si somma niente a mano, altrimenti il numero a schermo sarebbe una
+// nostra opinione — la stessa regola del saldo e del roster.
+let CARTE_COPIE = {};
 let GIOCATORE_ADMIN = false;
 // "Non ne so niente" e "ne so, ed e' vuoto" sono stati diversi: senza questa
 // distinzione un giocatore scollegato vedrebbe una Collezione vuota invece
@@ -15002,6 +15052,7 @@ async function caricaCarteDalServer(){
     } catch(_){ }
   }
   CARTE_POSSEDUTE = risposta.possedute || {};
+  CARTE_COPIE = risposta.copie || {};
   GIOCATORE_ADMIN = !!risposta.admin;
   try{ aggiornaAccessoDebug(); }catch(_){ }
   // v0.78.16 — e quali carte non sono ancora state guardate in Collezione.
@@ -23797,8 +23848,44 @@ function aggiornaSceltaBustina(){
 // Mostra i due pulsanti della scelta: succede quando ENTRAMBE le carte sono
 // girate, non prima — scegliere fra una carta vista e una coperta non sarebbe
 // una scelta.
+// ── v0.79.7 — QUANTE SE NE HANNO GIA' ────────────────────────────────────
+// Zero vuol dire "nuova". Il numero lo dice il server; se non ha ancora
+// risposto — o si sta giocando scollegati — si guarda almeno il possesso, che
+// e' l'unica cosa che si sa: una copia, quella che si ha.
+function copiePossedute(entry){
+  if(!entry) return 0;
+  const slug = String(entry.slug || '');
+  const n = CARTE_COPIE[slug];
+  if(typeof n === 'number' && n > 0) return n;
+  return (CARTE_POSSEDUTE && CARTE_POSSEDUTE[slug]) ? 1 : 0;
+}
+// L'etichetta sopra a una carta sbustata: il nastro "New" se non ce l'avevi,
+// il conto delle copie se ce l'hai gia'. Si costruisce UNA volta per carta —
+// due chiamate non devono poter lasciare due nastri sovrapposti.
+function vestiEtichettaBustina(carta){
+  if(!carta || carta.__etichettaFatta) return;
+  carta.__etichettaFatta = true;
+  const entry = carta.__entry;
+  const quante = copiePossedute(entry);
+  if(quante <= 0){
+    const nastro = document.createElement('img');
+    nastro.className = 'nuova-nastro';
+    nastro.alt = 'New'; nastro.draggable = false;
+    impostaImgDaCandidati(nastro, uiFileCandidati('new-card-banner.png'));
+    carta.appendChild(nastro);
+  } else {
+    const et = document.createElement('div');
+    et.className = 'pack-owned';
+    et.textContent = quante + ' owned';
+    carta.appendChild(et);
+  }
+  // Un fotogramma di distanza fra "esiste" e "si accende": senza, il browser
+  // vede una cosa nata gia' visibile e non ha niente da dissolvere.
+  requestAnimationFrame(()=>requestAnimationFrame(()=>carta.classList.add('mostra-etichetta')));
+}
 function mostraSceltaBustina(){
   aggiornaSceltaBustina();
+  for(const c of _carteBustina()) vestiEtichettaBustina(c);
   for(const c of _carteBustina()){
     const b = c.__sceltaBtn;
     if(!b) continue;
@@ -24408,6 +24495,7 @@ async function raccogliCarte(){
       try{ carteNuoveDalServer(r && r.nuove); }catch(_){ }
       if(r && r.possedute){
         CARTE_POSSEDUTE = r.possedute;
+        if(r.copie) CARTE_COPIE = r.copie;
         _possessoNoto = true;
         salvaPossessoInCache();
         // La Collezione e i mazzi guardano CARTE_POSSEDUTE: adesso che e'
@@ -24974,6 +25062,11 @@ function packToggleVariant(){
         nb.style.display = vb.style.display;
         nb.classList.toggle('pack-nascosto', vb.classList.contains('pack-nascosto'));
       }
+      // v0.79.7 — e l'etichetta si rifa'. Ricopiare className porta con se' la
+      // classe che la accende, ma non l'ELEMENTO: quello e' figlio della carta
+      // vecchia e se ne va con lei. Senza questa riga, cambiando versione il
+      // nastro "New" e il conto delle copie sparivano.
+      if(vecchia.__etichettaFatta){ try{ vestiEtichettaBustina(nuova); }catch(_){ } }
       vecchia.replaceWith(nuova);
       const swap = nuova.querySelector('.pack-card-swap');
       if(swap){

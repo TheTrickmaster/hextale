@@ -618,6 +618,8 @@ function rpcAvvio(ctx, logger, nk, payload) {
     versoBustina: possesso.versoBustina || 0,
     // v0.78.16 — quali carte non sono ancora state guardate in Collezione.
     nuove: _nuoveDi(possesso),
+    // v0.79.7 — quante copie di ciascuna carta posseduta. Vedi _copieDi.
+    copie: _copieDi(possesso, possedute),
     partitePerBustina: PARTITE_PER_BUSTINA,
     // v0.77.53 — l'avatar dell'account, che i pannelli di partita mostrano
     // accanto al nome. Sta fra i campi che Nakama tiene da se' (non nei
@@ -710,6 +712,36 @@ function dopoAccesso(ctx, logger, nk, data, request) {
 
 // Cosa possiede un giocatore, dato il catalogo e il suo profilo. Un admin ha
 // tutto al livello massimo; gli altri le carte dei mazzi starter che hanno.
+// ══════════════════════════════════════════════════════════════════════════
+// v0.79.7 — QUANTE COPIE SE NE HANNO
+// ══════════════════════════════════════════════════════════════════════════
+// Fino a ieri una carta si aveva o non si aveva: `possesso.carte[slug]` e' un
+// LIVELLO, non un numero di esemplari, e sbustare un doppione non cambiava
+// niente (LIVELLO_SBUSTATA e' 1, e il livello non scende mai). Il doppione
+// spariva senza lasciare traccia.
+// Adesso si contano, perche' la pagina dello sbusto lo dice in faccia: "3
+// owned" sopra a una carta che si ha gia'. Un numero mostrato dev'essere un
+// numero vero — e non esisteva.
+//
+// Le copie NON fanno niente nel gioco: non sbloccano, non salgono di livello,
+// non si scambiano. Oggi sono un conto e basta. E' voluto: il posto in cui
+// contarle e' uno solo, ed e' qui, quindi il giorno in cui serviranno a
+// qualcosa il numero c'e' gia' e non va ricostruito dal nulla.
+//
+// CHI C'ERA PRIMA parte da una copia per ogni carta che possiede. Non e' una
+// stima: e' l'unica cosa vera che si puo' dire di una storia che non e' stata
+// scritta. Meglio un numero onesto e basso che un numero inventato.
+function _copieDi(possesso, sue) {
+  var copie = (possesso && possesso.copie && typeof possesso.copie === 'object') ? possesso.copie : null;
+  var fuori = {};
+  for (var slug in sue) {
+    if (!Object.prototype.hasOwnProperty.call(sue, slug)) continue;
+    var n = copie ? copie[slug] : 0;
+    fuori[slug] = (typeof n === 'number' && n > 0) ? n : 1;
+  }
+  return fuori;
+}
+
 function _possedute(carte, possesso, admin) {
   var out = {};
   var extra = (possesso && possesso.carte) || {};
@@ -912,8 +944,17 @@ function rpcBustinaRaccogli(ctx, logger, nk, payload) {
   }
 
   if (!possesso.carte) possesso.carte = {};
+  // v0.79.7 — e il conto delle copie sale. Sta QUI, nella stessa scrittura che
+  // consegna le carte: contarle altrove vorrebbe dire un istante in cui la
+  // carta e' arrivata e il conto no.
+  if (!possesso.copie) possesso.copie = {};
   for (var j = 0; j < tieni.length; j++) {
     var avuto = possesso.carte[tieni[j]] || 0;
+    // Chi ce l'aveva gia' senza che nessuno contasse vale una copia: e' lo
+    // stesso ripiego di _copieDi, e i due devono dire la stessa cosa.
+    var gia = possesso.copie[tieni[j]];
+    if (typeof gia !== 'number' || gia < 1) gia = avuto ? 1 : 0;
+    possesso.copie[tieni[j]] = gia + 1;
     possesso.carte[tieni[j]] = Math.max(avuto, LIVELLO_SBUSTATA);
   }
   possesso.valute = valute;
@@ -956,7 +997,9 @@ function rpcBustinaRaccogli(ctx, logger, nk, payload) {
     // l-elenco aggiornato subito, cosi- il pallino compare tornando al menu
     // senza aspettare la prossima lettura del profilo.
     nuove: _nuoveDi(possesso),
-    possedute: _possedute(carte, possesso, admin)
+    possedute: _possedute(carte, possesso, admin),
+    // v0.79.7 — e quante se ne hanno adesso, questa compresa.
+    copie: _copieDi(possesso, _possedute(carte, possesso, admin))
   });
 }
 

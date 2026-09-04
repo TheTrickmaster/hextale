@@ -168,5 +168,36 @@ dice(!!uscita && uscita.indexOf('await lasciaLaSedia') >= 0,
   'Senza l-attesa la richiesta muore con la ricarica, e si resta chiusi fuori\n' +
   '        dal proprio account per tre quarti di minuto.');
 
+console.log('\nLE COPIE DI UNA CARTA\n');
+
+// v0.79.7 — la pagina dello sbusto scrive "3 owned" sopra a una carta che si ha
+// gia'. Un numero mostrato dev'essere un numero vero, e prima non esisteva:
+// sbustare un doppione non lasciava traccia da nessuna parte.
+const copieDi = corpo(server, '_copieDi');
+dice(!!copieDi, 'il server sa contare le copie');
+dice(!!copieDi && copieDi.indexOf('? n : 1') >= 0,
+  'e chi c-era prima parte da una',
+  "E- l'unica cosa vera che si puo- dire di una storia che non e- stata\n" +
+  '        scritta. Meglio un numero onesto e basso che uno inventato.');
+
+const raccogli = corpo(server, 'rpcBustinaRaccogli');
+dice(!!raccogli && raccogli.indexOf('possesso.copie[tieni[j]] = gia + 1') >= 0,
+  'il conto sale nella STESSA scrittura che consegna le carte',
+  "Contarle altrove vorrebbe dire un istante in cui la carta e- arrivata e il\n" +
+  '        conto no.');
+
+for (const [rpc, dove] of [['rpcAvvio', "all'avvio"], ['rpcBustinaRaccogli', 'dopo la raccolta']]) {
+  const c = corpo(server, rpc);
+  dice(!!c && c.indexOf('copie:') >= 0, 'e il client le riceve ' + dove);
+}
+dice(gioco.indexOf('let CARTE_COPIE') >= 0 && gioco.indexOf('risposta.copie') >= 0,
+  'il client le legge e non le somma da se-',
+  'Un conto tenuto anche di qua sarebbe una nostra opinione, non un dato.');
+
+const quante = corpo(gioco, 'copiePossedute');
+dice(!!quante && quante.indexOf('CARTE_POSSEDUTE') >= 0,
+  'e scollegati ripiega sul possesso',
+  'Se il server non ha risposto si sa almeno se la carta ce l-hai: una copia.');
+
 console.log('\n' + (ko ? 'FALLITO: ' + ko : 'OK: client e server dicono la stessa cosa'));
 process.exit(ko ? 1 : 0);
