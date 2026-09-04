@@ -111,3 +111,27 @@ legge il riquadro "Buffs/debuffs" che ne esce, cercando righe senza un nome.
 Le righe vengono da tre posti (lo scarto dai valori stampati, le sinergie
 chieste al motore, il registro `card.modificatori`) e solo gli ultimi due hanno
 un nome sopra: quando tacciono resta il totale muto.
+
+## controlla-asset.js — quali file non li usa piu' nessuno
+
+    node strumenti/controlla-asset.js            l'elenco
+    node strumenti/controlla-asset.js --tutti    anche chi e' usato, e come
+
+Sembra un lavoro da `grep` e non lo e', per due ragioni che si scoprono
+sbagliando: meta' degli asset non compare MAI per intero (il nome viene
+composto — `'archetype-icon-' + tratto + '-' + variante + '.png'`), e due file
+diversi hanno spesso lo STESSO nome in due cartelle diverse (`right-button.png`
+sta in `ui/` e in `player-ui/`, `glow.png` in `main-menu/` e in
+`loading-screen/`). Cercare il nome e basta salva dei morti e condanna dei vivi.
+
+Quindi la domanda che fa e' un'altra: **questo nome compare insieme alla sua
+cartella?** Ogni cartella ha il suo modo di essere nominata — una costante
+(`MENU_BASE`), una funzione (`uiFileCandidati`), o il percorso per esteso — e
+l'elenco sta in cima al programma. Il giorno in cui nasce una cartella nuova,
+va aggiunta li' o i suoi file risulteranno tutti orfani.
+
+**Il programma segnala e non cancella**, e con questi file e' la differenza fra
+un ripostiglio e un disastro: la cartella del gioco E' il sito, quindi spostare
+un asset ancora in uso lo rompe per tutti, subito. L'elenco che esce e' un punto
+di partenza da verificare a mano, cartella per cartella — vedi `_old/LEGGIMI.md`
+per come e' andata la prima volta.

@@ -5329,8 +5329,21 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
    #pack-overlay a z-index 4000, quindi la finestra si apriva sotto la pagina e
    non si vedeva ne' si poteva cliccare. 5200 la mette sopra le pagine
    restando sotto ai messaggi di servizio (9000). */
-#card-modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);align-items:center;justify-content:center;z-index:5200;}
+/* v0.79.19 — lo stesso velo di ogni altra finestra: stesso nero, stessa
+   sfocatura dietro. Prima era un grigio piatto al 40% e nient'altro, e si
+   vedeva: la pagina sotto restava leggibile e la carta grande sembrava
+   appoggiata sopra invece che davanti.
+   In COLONNA, perche' sotto alla finestra adesso c'e' il pulsante: i 40px sono
+   il gap, cioe' una misura sola invece di un margine da tenere d'accordo con
+   qualcos'altro. */
+#card-modal-overlay{
+  display:none; position:fixed; inset:0; z-index:5200;
+  flex-direction:column; align-items:center; justify-content:center; gap:40px;
+  background:rgba(3,7,7,0.7);
+  -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px);
+}
 #card-modal-overlay.show{display:flex;}
+#card-modal-overlay *{ cursor:var(--cursore); }
 /* v0.71.8 FIX: #card-modal-info (the old HTML text panel) is no longer
    populated — openCardModal() now shows one big full-card SVG (see that
    function's own comment) instead of a bare hex + separate info box, so the
@@ -5354,6 +5367,10 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
   width:auto; gap:26px; padding:26px 30px;
   max-width:1728px; max-height:972px; overflow:visible;
 }
+/* La carta sborda dal pannello con la sua ombra, e il ritaglio del ::before
+   della trama non deve tagliarla: il pannello ha overflow visibile (sopra), e
+   la trama resta dentro al suo raggio perche' e' lo pseudo-elemento a portare
+   il border-radius. */
 #card-modal-card{display:flex;align-items:center;justify-content:center;}
 #card-modal-card svg{filter:drop-shadow(0 12px 40px rgba(0,0,0,0.7));}
 /* Il pannello destro. La larghezza e' legata a quella della carta (vedi
@@ -5442,10 +5459,25 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
 #card-modal-info .cm-sblocco b{ font-size:30px; font-weight:400; }
 /* La riga in fondo: frecce e livello. Le frecce sono i due tappi dei pulsanti
    gia' in uso altrove, quindi non c'e' nessun disegno nuovo da mantenere. */
+/* ── v0.79.19 — LA RIGA DEI LIVELLI STA IN UNA CASELLA ───────────────────
+   Le due frecce e il numero galleggiavano in fondo alla colonna, senza niente
+   attorno: tre pezzi allineati che non si leggevano come una cosa sola. Adesso
+   stanno dentro al riquadro delle caselle di testo — stesso fondo incassato,
+   stesso bordo, stesso raggio — che e' il modo in cui questo gioco dice "questo
+   e' un campo su cui si agisce".
+   Le misure NON si ricopiano: la casella e' .hx-campo, la stessa classe delle
+   textbox. Qui restano solo le differenze vere — e' una riga di tre cose, non
+   un campo da scrivere. */
 #card-modal-info .cm-livello{
   display:flex; align-items:center; justify-content:center; gap:14px;
-  margin-top:auto; padding-top:16px;
+  margin-top:auto;
   font-family:'Rosarivo',serif; font-size:19px;
+}
+#card-modal-info .cm-livello.hx-campo{
+  height:auto; min-height:56px; padding:8px 14px;
+  /* La casella e' larga quanto la colonna, e il margine che la stacca da cio'
+     che le sta sopra e' quello che prima era padding-top. */
+  margin-top:16px; flex:0 0 auto;
 }
 /* "Level:" e' un'etichetta, il numero e' il dato: due colori diversi, come nel
    resto della scheda. */
@@ -5460,7 +5492,7 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
 #card-modal-info .cm-freccia[data-cm-passo="1"]{ margin-left:auto; }
 #card-modal-info .cm-freccia{
   width:38px; height:38px; padding:0; border:none; background:transparent;
-  cursor:var(--cursore); position:relative;
+  cursor:var(--cursore); position:relative; flex:0 0 auto;
   transition:transform .08s ease-out, filter .15s ease-out;
 }
 #card-modal-info .cm-freccia img{ width:100%; height:100%; object-fit:contain; display:block; }
@@ -5486,19 +5518,9 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
    Posizione: appena FUORI dalla carta, sulla destra, allineato al suo bordo
    superiore. `left:100%` lo mette subito oltre il lato destro, `top:0` lo
    allinea in cima; il margine lo stacca dal bordo. */
-#card-modal-close{
-  position:absolute; left:100%; top:0; margin-left:18px;
-  width:28px; height:28px;
-  padding:0; border:none; background:transparent;
-  cursor:var(--cursore);
-  z-index:2;
-}
-#card-modal-close img{ width:100%; height:100%; display:block; pointer-events:none; }
-#card-modal-close::after{
-  content:''; position:absolute; inset:0; border-radius:50%;
-  background:#fff; opacity:0; mix-blend-mode:overlay; transition:opacity .15s ease; pointer-events:none;
-}
-#card-modal-close:hover::after{ opacity:0.3; }
+/* v0.79.19 — qui viveva #card-modal-close, la crocetta appesa fuori dal
+   riquadro (left:100%, cioe' oltre il bordo destro). Se n'e' andata insieme al
+   suo markup: adesso si chiude col "Close" sotto alla finestra. */
 
 /* ── settings modal ── */
 /* Replaces the old always-visible bottom-right volume bar with a gear icon
@@ -10796,12 +10818,23 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
     </div>
   </div>
 </div>
+<!-- ── v0.79.19 — LA CARTA INGRANDITA, VESTITA COME LE ALTRE ──────────────
+     Il fondo e' quello dei pannelli nuovi (.hx-pannello: gradiente, trama al
+     40% in overlay, bordo tenue) e non piu' quello della vecchia .hx-modal-box,
+     e il velo dietro sfoca come in ogni altra finestra.
+     La chiusura era una crocetta appesa FUORI dal riquadro, in alto a destra:
+     un comando che galleggiava nel vuoto e che non somigliava a nessun altro
+     pulsante del gioco. Adesso e' un "Close" sotto alla finestra, a quaranta
+     pixel da lei, uguale a tutti gli altri. -->
 <div id="card-modal-overlay">
-  <div id="card-modal" class="hx-modal-box">
-    <button id="card-modal-close" aria-label="Close"><img src="https://hextalegame.com/ui/close-icon.png" alt="" draggable="false"></button>
+  <div id="card-modal" class="hx-pannello">
     <div id="card-modal-card"></div>
     <div id="card-modal-info"></div>
   </div>
+  <button class="hx-btn" type="button" id="card-modal-chiudi" onclick="closeCardModal()">
+    <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
+    <span class="hxb-label">Close</span>
+  </button>
 </div>
 <div id="toast"></div>
 <!-- ── bottom timer bar (v0.31.0) ──────────────────────────────────
@@ -10978,7 +11011,7 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.18</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.19</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -49786,7 +49819,21 @@ function openCardModal(card, playerIdx){
 // Ridisegna carta e scheda al livello scelto. Chiamata anche dalle frecce:
 // cambiare livello vuol dire ridisegnare TUTTO, perche' col livello cambiano i
 // numeri sull'esagono, gli incastonatori e il riquadro in fondo alla carta.
+// v0.79.19 — la trama del pannello e i pezzi del pulsante. Si montano al primo
+// bisogno e non all'avvio della partita: questa finestra si apre anche dalla
+// Collezione e dalle bustine, dove montaGraficaPartita non passa mai.
+let _finestraCartaVestita = false;
+function _vestiFinestraCarta(){
+  if(_finestraCartaVestita) return;
+  _finestraCartaVestita = true;
+  try{
+    impostaVariabileDaCandidati(document.getElementById('card-modal'),
+      '--hx-trama', uiFileCandidati('brushed-texture.jpg'));
+    vestiPulsante(document.getElementById('card-modal-chiudi'));
+  }catch(e){ _finestraCartaVestita = false; }
+}
 function disegnaCardModal(card, playerIdx){
+  _vestiFinestraCarta();
   const overlay=document.getElementById('card-modal-overlay');
   const cardHost=document.getElementById('card-modal-card');
   const infoHost=document.getElementById('card-modal-info');
@@ -49799,6 +49846,12 @@ function disegnaCardModal(card, playerIdx){
     // le tre gemme devono stare tutte sulla stessa linea.
     infoHost.style.width = (Math.round(210*EXPANDED_SCALE*1.15) + 150)+'px';
     infoHost.innerHTML = costruisciSchedaCarta(card, _cmLivello, _cmConSelettore);
+    // v0.79.19 — le due frecce arrivano dalla cartella ui come ogni altra
+    // icona: prima accanto al file, poi sul repository (vedi _candidati). Il
+    // nome lo porta il markup, cosi' chi costruisce la riga non deve sapere da
+    // dove si prendono le immagini.
+    infoHost.querySelectorAll('[data-cm-icona]').forEach(im=>
+      impostaImgDaCandidati(im, uiFileCandidati(im.getAttribute('data-cm-icona'))));
     infoHost.querySelectorAll('[data-cm-passo]').forEach(b=>{
       b.addEventListener('click', ()=>{
         const passo = parseInt(b.getAttribute('data-cm-passo'),10) || 0;
@@ -49950,17 +50003,23 @@ function costruisciSchedaCarta(card, livello, conSelettore){
   // abilita' dicono cosa QUELLA CARTA E'; questa riga dice cosa le sta
   // succedendo adesso, ed e' giusto che venga dopo.
   html += bloccoModificatoriHTML(card);
-  html += '<div class="cm-livello">';
+  // v0.79.19 — la riga sta dentro a una casella, e solo quando c'e' qualcosa
+  // da sfogliare: in partita il livello e' un fatto e non una scelta (vedi
+  // sotto), e un campo su cui non si agisce e' un invito che non porta a
+  // niente.
+  // Le frecce sono quelle di ui/ — back-button e right-button, le stesse del
+  // resto delle finestre nuove — e non piu' i tappi di player-ui.
+  html += '<div class="cm-livello'+(conSelettore?' hx-campo':'')+'">';
   if(conSelettore){
     html += '<button class="cm-freccia" data-cm-passo="-1"'+(livello<=1?' disabled':'')+'>'
-          + '<img src="'+PLAYER_UI_BASE+'left-button.png" alt="&lt;"></button>';
+          + '<img data-cm-icona="back-button.png" alt="&lt;"></button>';
   }
   html += '<span class="cm-lv-et">Level:</span>'
         + '<span class="cm-lv-val"><b>'+livello+'</b>/<b>'+CM_LIVELLO_MAX+'</b>'
         + (conSelettore && livello===(card.level||1) ? ' (Current)' : '')+'</span>';
   if(conSelettore){
     html += '<button class="cm-freccia" data-cm-passo="1"'+(livello>=CM_LIVELLO_MAX?' disabled':'')+'>'
-          + '<img src="'+PLAYER_UI_BASE+'right-button.png" alt="&gt;"></button>';
+          + '<img data-cm-icona="right-button.png" alt="&gt;"></button>';
   }
   html += '</div>';
   return html;
@@ -50037,8 +50096,10 @@ function closeCardModal(){
   // suo pulsante in fondo o cliccando fuori, e quest'ultimo sta adesso
   // sull'onclick del velo, come nelle altre due finestre. Un ascoltatore qui
   // avrebbe fatto la stessa cosa in un secondo posto.
-  const closeBtn=document.getElementById('card-modal-close');
-  if(closeBtn) closeBtn.addEventListener('click',closeCardModal);
+  // v0.79.19 — la crocetta appesa fuori dal riquadro non c'e' piu': si chiude
+  // col pulsante "Close" sotto alla finestra (che porta il suo onclick nel
+  // markup) o cliccando sul velo. Qui restava un ascoltatore su un elemento
+  // che non esiste: non faceva danni, ma diceva il falso a chi legge.
   if(overlay) overlay.addEventListener('click',(e)=>{ if(e.target===overlay) closeCardModal(); });
   document.addEventListener('keydown',(e)=>{
     if(e.key!=='Escape') return;
