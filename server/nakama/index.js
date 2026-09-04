@@ -1286,7 +1286,7 @@ var TURNO_MS = 60000;        // i sessanta secondi del turno
 // quanto tempo in piu- ha il primo turno. Sta qui e non solo nel client perche-
 // e- il server a tenere l-orologio: se il client la allunga senza dirlo, i
 // secondi tornano a mancare, e questo numero e- il posto in cui accordarsi.
-var VERSUS_MS = 4000;
+var VERSUS_MS = 7000;   // sei secondi di scena piu- uno prima della mano
 var GRAZIA_MS = 2500;        // quanto si aspetta oltre la scadenza prima di troncare
 var MANO_INIZIALE = 4;
 var ATTESA_INGRESSO_MS = 30000;  // se il secondo non entra, la partita muore da sola

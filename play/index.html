@@ -4875,7 +4875,10 @@ body.io-sono-2 #p1-info .player-avatar-photo{ transform:scaleX(-1); }
 #versus{
   position:absolute; inset:0; z-index:3500;
   display:none; overflow:hidden;
-  background:#05080a;          /* sotto le due art non deve trasparire niente */
+  /* v0.78.24 — NIENTE FONDO. Ce n'era uno scuro, e copriva il menu nell'istante
+     in cui la schermata compariva: si vedeva il menu sparire e solo dopo
+     arrivare le due illustrazioni. A coprire devono essere LORO, entrando —
+     finche' non sono arrivate, sotto si continua a vedere quel che c'era. */
 }
 #versus.mostra{ display:block; }
 .vs-lato{
@@ -4886,13 +4889,27 @@ body.io-sono-2 #p1-info .player-avatar-photo{ transform:scaleX(-1); }
 .vs-dx{ clip-path:polygon(53.9635% 0, 100% 0, 100% 100%, 46.0365% 100%); }
 /* L'illustrazione riempie la sua meta' e ne avanza: deve poter scorrere senza
    scoprire un bordo. E' alta il 130% e parte fuori campo. */
+/* v0.78.24 — L'ILLUSTRAZIONE COPRE LA SUA META', NON LO SCHERMO INTERO.
+   Erano centrate tutte e due a meta' schermo e larghe quanto bastava a coprirlo
+   tutto: di ognuna si vedeva quindi meta', tagliata dalla maschera, e per
+   giunta stirata. Adesso ognuna sta al centro della PROPRIA meta' ed e' larga
+   quanto serve a riempirla — un po' di piu', perche' il taglio e' obliquo e
+   agli angoli la meta' e' piu' larga del 50%.
+   `object-fit:cover` con una scatola dichiarata: si ritaglia, non si deforma. */
 .vs-art{
-  position:absolute; left:50%; top:50%;
-  width:auto; height:130%; min-width:104%;
-  transform:translate(-50%,-50%);
-  object-fit:cover; pointer-events:none; user-select:none;
+  position:absolute; top:50%;
+  /* v0.78.24 — il fondo scuro sta SULL-IMMAGINE, non sulla schermata. Sulla
+     schermata copriva il menu nell-istante in cui compariva; qui viaggia con
+     l-illustrazione, quindi copre esattamente quando lei copre — ed e- anche
+     cio- che si vede se l-arte non arriva, invece del menu in trasparenza. */
+  background:#05080a;
+  width:62%; height:132%;
+  object-fit:cover; object-position:center;
+  pointer-events:none; user-select:none;
   will-change:transform;
 }
+.vs-sx .vs-art{ left:27%; }
+.vs-dx .vs-art{ left:73%; }
 /* Il colpo di bianco quando le due meta' finiscono di arrivare. */
 .vs-lampo{
   position:absolute; inset:0; background:#fff;
@@ -4918,15 +4935,18 @@ body.io-sono-2 #p1-info .player-avatar-photo{ transform:scaleX(-1); }
   opacity:0;
   filter:drop-shadow(0 6px 30px rgba(0,0,0,0.85));
 }
-#vs-lettera-v{ left:50%; transform:translate(-104%,-190%); }
-#vs-lettera-s{ left:50%; transform:translate(4%,-10%); }
+/* v0.78.24 — praticamente attaccate, e la coppia centrata sullo schermo.
+   Erano staccate di un'incollatura per parte: le due lettere si leggevano come
+   due segni vicini invece che come una parola sola. */
+#vs-lettera-v{ left:50%; transform:translate(-98%,-190%); }
+#vs-lettera-s{ left:50%; transform:translate(-2%,-10%); }
 #vs-lettera-v.dentro{
   transition:transform 300ms cubic-bezier(.2,.8,.3,1), opacity 220ms ease-out;
-  transform:translate(-104%,-50%); opacity:1;
+  transform:translate(-98%,-50%); opacity:1;
 }
 #vs-lettera-s.dentro{
   transition:transform 300ms cubic-bezier(.2,.8,.3,1), opacity 220ms ease-out;
-  transform:translate(4%,-50%); opacity:1;
+  transform:translate(-2%,-50%); opacity:1;
 }
 
 /* ── LA SCHEDA DI UN GIOCATORE ─────────────────────────────────────────────
@@ -4935,7 +4955,9 @@ body.io-sono-2 #p1-info .player-avatar-photo{ transform:scaleX(-1); }
    invece di un rettangolo con dentro una faccia. */
 .vs-scheda{
   position:absolute; top:50%; z-index:5; overflow:visible;
-  width:300px; padding:18px 0 34px;
+  /* v0.78.24 — 450 di larghezza, e cento pixel piu' alta: il drappo ci sta
+     dentro invece di uscire subito, e il contenuto ha aria attorno. */
+  width:450px; padding:20px 0 134px;
   transform:translateY(-50%);
   border-radius:22px;
   background-image:linear-gradient(135deg, rgba(84,96,98,0.5) 0%, rgba(29,38,39,0.5) 100%);
@@ -4944,12 +4966,15 @@ body.io-sono-2 #p1-info .player-avatar-photo{ transform:scaleX(-1); }
   display:flex; flex-direction:column; align-items:center;
   opacity:0;
 }
-.vs-scheda-sx{ left:calc(25% - 150px + 40px); }
-.vs-scheda-dx{ left:calc(75% - 150px - 40px); }
+.vs-scheda-sx{ left:calc(25% - 225px); }
+.vs-scheda-dx{ left:calc(75% - 225px); }
 /* Il drappo, dietro a tutto e piu' lungo della scheda. */
+/* v0.78.24 — attaccato al bordo ALTO della scheda, e largo 320. Prima
+   galleggiava otto pixel piu' in basso, e da li' nasceva tutto lo sfasamento
+   fra il rombo e l'icona del rank. */
 .vs-banner{
-  position:absolute; left:50%; top:8px;
-  width:212px; height:auto;
+  position:absolute; left:50%; top:0;
+  width:320px; height:auto;
   transform:translateX(-50%);
   z-index:0; pointer-events:none; user-select:none;
   filter:drop-shadow(6px 6px 26px rgba(0,0,0,0.45));
@@ -4961,23 +4986,29 @@ body.io-sono-2 #p1-info .player-avatar-photo{ transform:scaleX(-1); }
 .vs-scheda > *:not(.vs-banner):not(.vs-rank){ position:relative; z-index:1; }
 .vs-nome{
   font-family:'Marcellus',var(--font-display),serif;
-  font-size:22px; color:#EDE0C6; text-align:center;
+  font-size:24px; color:#EDE0C6; text-align:center;
   text-shadow:0 0 6px rgba(0,0,0,1);
-  max-width:250px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-  margin-bottom:10px;
+  max-width:390px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  /* v0.78.24 — venti pixel piu' in basso, tutti e due: il drappo adesso comincia
+     dal bordo, e senza questi il nome ci finirebbe sopra. */
+  margin-top:20px; margin-bottom:12px;
 }
+/* v0.78.24 — 280 di larghezza. L'altezza la detta la proporzione della cornice
+   (749x834), che e' la stessa dei pannelli di partita. */
 .vs-avatar{
   position:relative; left:auto; top:auto; transform:none;
-  height:150px; width:calc(150px * 749 / 834);
+  width:280px; height:calc(280px * 834 / 749);
   margin-bottom:6px;
 }
-/* Il rank non sta in fila con gli altri: sta DENTRO al quadrato dorato del
-   drappo, che cade sotto al bordo della scheda. Per questo e- assoluto e per
-   questo la scheda non taglia quel che le esce di sotto. */
+/* Il rank non sta in fila con gli altri: sta DENTRO al rombo a filigrana del
+   drappo. Si misura dall'ALTO della scheda e non dal basso, perche' e' del
+   drappo che deve seguire il disegno, e il drappo comincia dal bordo alto.
+   Il drappo e' largo 320 su una tela 536x1200, quindi alto 716; il rombo ha il
+   suo centro poco sotto la meta'. */
 .vs-rank{
-  position:absolute; left:50%; bottom:-72px;
-  transform:translateX(-50%);
-  height:52px; width:auto; display:block; z-index:2;
+  position:absolute; left:50%; top:437px;
+  transform:translate(-50%,-50%);
+  width:110px; height:auto; display:block; z-index:2;
 }
 .vs-rank[src=""]{ visibility:hidden; }
 /* L'entrata: la sinistra scende, la destra sale. */
@@ -10448,7 +10479,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.78.23</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.78.24</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -19592,7 +19623,14 @@ function assegnaAvatarDeiGiocatori(){
 // partita si troverebbe con meno secondi degli altri per una cosa che non ha
 // nemmeno visto succedere. Allungare questa scena senza allungare quello vuol
 // dire rubare tempo al primo giocatore.
-const VERSUS_MS = 4000;
+// v0.78.24 — due secondi in piu' di posa: sei in tutto. Sono anche i secondi
+// che il server regala al primo turno, e li' il numero e' VERSUS_MS + il
+// ritardo della mano qui sotto.
+const VERSUS_MS = 6000;
+// E la mano non si da' mentre la schermata e' ancora in scena: si sentiva
+// distribuire dietro a un fondale che non era ancora andato via. Un secondo
+// dopo che se n'e' andata, che e' il tempo di posare gli occhi sul tabellone.
+const VERSUS_MANO_MS = 1000;
 // La scaletta, in millisecondi dall'inizio. Sta tutta qui perche' e' una
 // SCENA: leggerla come un elenco di istanti e' l'unico modo di capire se
 // funziona senza guardarla.
@@ -19603,10 +19641,13 @@ const VS_SCALETTA = {
   lettere:   620,     // la "v" cala, la "s" sale
   lampo:     800,     // arrivate a coprire: colpo di bianco
   schede:    880,     // e i due riquadri coi dati
-  schedeVia:3150,     // si comincia a uscire: prima i riquadri
-  artiVia:  3410,     // poi le illustrazioni si aprono e scoprono la partita
+  // I due secondi in piu' stanno TUTTI qui, nella posa: l'entrata e l'uscita
+  // restano quelle, ed e' giusto — a doversi guardare sono i due avversari,
+  // non l'animazione.
+  schedeVia:5150,     // si comincia a uscire: prima i riquadri
+  artiVia:  5410,     // poi le illustrazioni si aprono e scoprono la partita
   artiViaDurata:390,
-  resto:    3800      // e in ultimo se ne va tutto il resto
+  resto:    5800      // e in ultimo se ne va tutto il resto
 };
 
 // ── CHI SI VEDE, E CON CHE FACCIA ─────────────────────────────────────────
@@ -19649,8 +19690,14 @@ function _vsChiSonoIo(){
 function _vsDatiGiocatore(mio){
   const prof = (typeof PROFILO_STAGIONE !== 'undefined' && PROFILO_STAGIONE) ? PROFILO_STAGIONE : null;
   if(mio){
+    // v0.78.24 — il nome dell'ACCOUNT, non quello di cortesia del menu.
+    // `MENU_GIOCATORE.nome` e' il segnaposto che il menu mostra finche' il
+    // server non ha risposto, e qui usciva "Player name". Il nome vero lo da'
+    // nomeGiocatore(), che e' la stessa fonte da cui lo prendono i pannelli di
+    // partita: una domanda sola, una risposta sola.
     return {
-      nome: (MENU_GIOCATORE && MENU_GIOCATORE.nome) || 'Player',
+      nome: (typeof nomeGiocatore === 'function' && nomeGiocatore())
+            || (MENU_GIOCATORE && MENU_GIOCATORE.nome) || 'Player',
       rank: prof && typeof prof.rank === 'number' ? prof.rank : null
     };
   }
@@ -19695,6 +19742,21 @@ function _vsRiempiLato(lato, numero, ritratto, dati){
 }
 
 let _vsInCorso = false;
+// ── v0.78.24 — LA MANO ASPETTA CHE LA SCHERMATA SE NE SIA ANDATA ──────────
+// Il tabellone si costruisce mentre la schermata copre — e' quel che la fa
+// sparire su una partita gia' pronta — ma la MANO no: distribuirla dietro al
+// fondale si sente, e quel suono racconta una cosa che non si sta vedendo.
+// Chi distribuisce non deve sapere niente di tutto questo: chiede il permesso
+// a questa funzione, e se non e' il momento glielo si concede piu' tardi.
+let _vsManoInAttesa = null;
+function conLaManoQuandoSiPuo(fare){
+  if(!_vsInCorso){ fare(); return; }
+  _vsManoInAttesa = fare;
+}
+function _vsLiberaLaMano(){
+  const fare = _vsManoInAttesa; _vsManoInAttesa = null;
+  if(fare) setTimeout(()=>{ try{ fare(); }catch(e){ console.error('[versus] la mano non arriva: ' + (e && e.message)); } }, VERSUS_MANO_MS);
+}
 // Mostra la scena e, quando ha finito, chiama `poi`. Chi chiama non deve sapere
 // niente della scaletta: passa quel che va fatto sotto, e lo si fa mentre la
 // schermata copre.
@@ -19779,10 +19841,13 @@ function mostraVersus(poi){
   quando(VERSUS_MS, ()=>{
     radice.classList.remove('mostra','svanisce');
     _vsInCorso = false;
-    // Il cronometro del primo turno comincia ADESSO, non quattro secondi fa.
-    // In rete si riallinea da se' alla scadenza del server, che quei quattro
-    // secondi li ha gia' contati.
-    try{ if(G && !G.gameOver) startTimer(); }catch(_){ }
+    // Adesso il tabellone e' scoperto: fra un secondo si distribuisce.
+    _vsLiberaLaMano();
+    // Il cronometro NON si fa ripartire da qui. Con la mano rimandata, a farlo
+    // partire e- la strada di sempre — startTimerRespectingBanner, dopo che le
+    // carte sono state distribuite e il banner del turno se n-e- andato.
+    // Una seconda partenza qui lo avrebbe avviato prima che ci fosse qualcosa
+    // da giocare.
   });
 }
 
@@ -28992,7 +29057,11 @@ function initGame(vsAI){
   // harmless — they're re-rendered again as cards are actually drawn.
   render();
   // Both players draw their initial hand before the game starts
-  drawInitialHands(()=>{
+  // v0.78.24 — la mano aspetta che la schermata versus se ne sia andata:
+  // distribuirla dietro al fondale si SENTE, e quel suono racconta una cosa
+  // che non si sta vedendo. Fuori dalla schermata versus questa funzione non
+  // fa niente e la mano parte subito, come sempre.
+  conLaManoQuandoSiPuo(()=> drawInitialHands(()=>{
     // Don't start the countdown yet: the board's tile-drop intro (~2.5s) and
     // its trailing "Turno del Player X" banner haven't played out yet at
     // this point (the drop is still running when this callback fires, since
@@ -29027,7 +29096,7 @@ function initGame(vsAI){
     // since normal turns trigger the AI via startTurn()/maybeTriggerAiTurn()
     // but this very first turn bypasses startTurn() entirely.
     maybeTriggerAiTurn();
-  });
+  }));
 }
 
 function key(q,r){return`${q},${r}`;}
