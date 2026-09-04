@@ -10768,7 +10768,7 @@ body.io-sono-2 #p1-info .player-avatar-photo{ transform:scaleX(-1); }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.9</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.10</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -19913,6 +19913,12 @@ function requestNewGame(vsAI){
   // mentre la scena precedente puo' avere ancora qualcosa in canna.
   fermaTuttiISuoni();
   // La fazione e' gia' decisa: si applica e si parte, senza fermare nessuno.
+  // v0.79.10 — e i due ritratti si azzerano QUI, prima di tutto. Li riempie la
+  // schermata versus e li legge la partita; azzerarli di la' bastava finche' i
+  // pannelli li riscrivevano comunque, ma adesso un ritratto scelto resta —
+  // quindi il posto va svuotato dove passano TUTTE le partite, non solo quelle
+  // che quella schermata la mostrano.
+  try{ AVATAR_DEI_GIOCATORI[1] = null; AVATAR_DEI_GIOCATORI[2] = null; }catch(_){ }
   // v0.79.0 — con "Random" il dado si tira QUI, una volta per partita.
   impostaFazioneUmano(fazioneDaGiocare());
   // ── v0.78.27 — IL SUONO DELLA PARTITA TROVATA, ANCHE CONTRO L'IA ───────
@@ -20071,8 +20077,20 @@ function _vestiUnPannello(quale, dati){
   // il giorno in cui la fonte sbaglia.
   // v0.79.0 — e si annota nella fazione di QUEL giocatore: la stessa carta ha
   // due facce, e a ciascuno tocca quella del proprio colore.
+  // ── v0.79.10 — MA NON CANCELLA UN RITRATTO GIA' SCELTO ──────────────────
+  // L'IA non ha un account, quindi non ha un avatar: qui arrivava con la
+  // stringa vuota e questa riga SOVRASCRIVEVA quello che la schermata versus
+  // aveva appena scelto per lei. Poi assegnaAvatarDeiGiocatori, trovando il
+  // posto vuoto, ne pescava un altro a caso — e le due facce erano diverse.
+  // Non e' un caso di bordo: l'ordine e' sempre quello. La versus riempie a
+  // 880ms, la partita si costruisce a 1000, e chi arriva dopo vince.
+  // Chi ha qualcosa da scrivere scrive; chi non ha niente lascia stare. Il
+  // posto e' stato azzerato all'inizio di questa partita (vedi
+  // requestNewGame), quindi cio' che ci trova o e' di adesso o non c'e'.
   const _n = (quale === 'p1' ? 1 : 2);
-  AVATAR_DEI_GIOCATORI[_n] = avatarCandidati(dati.avatar, playerFactionIsDark(_n) ? 'dark' : 'light');
+  const _suo = avatarCandidati(dati.avatar, playerFactionIsDark(_n) ? 'dark' : 'light');
+  const _gia = AVATAR_DEI_GIOCATORI[_n];
+  if(_suo.length || !(_gia && _gia.length)) AVATAR_DEI_GIOCATORI[_n] = _suo;
 }
 
 // ── v0.77.86 — I PANNELLI SEGUONO IL NUMERO, COME TUTTO IL RESTO ──────────
@@ -20428,7 +20446,10 @@ function mostraVersus(poi){
   // sola, e la persona sta a sinistra.
   const io = _vsChiSonoIo(), lui = (io === 2) ? 1 : 2;
   const ritratti = _vsScegliRitratti();
-  try{ AVATAR_DEI_GIOCATORI[1] = null; AVATAR_DEI_GIOCATORI[2] = null; }catch(_){ }
+  // v0.79.10 — l'azzeramento non sta piu' qui: sta in requestNewGame, che e'
+  // l'unico imbuto. Da qui valeva solo per le partite che passano da questa
+  // schermata, e ora che il pannello NON sovrascrive piu' un ritratto gia'
+  // scelto, una partita senza versus si sarebbe tenuta quello di prima.
   _vsRiempiLato('sx', io,  ritratti[io],  _vsDatiGiocatore(true));
   _vsRiempiLato('dx', lui, ritratti[lui], _vsDatiGiocatore(false));
 
