@@ -10258,7 +10258,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.78.21</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.78.22</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -16074,11 +16074,17 @@ function mm2FermaRicerca(){
 // Nome, valute e numero di versione. Separata dal montaggio perche' questi
 // sono gli unici dati che cambieranno davvero, e devono poter essere
 // riscritti a ogni entrata senza ricaricare niente.
+// ── ATTENZIONE: QUESTA FUNZIONE NON LA CHIAMA NESSUNO ─────────────────────
+// v0.78.22 — verificato: in tutto il file compare una volta sola, qui dove e'
+// definita. E' rimasta da una versione precedente del menu.
+// Ci avevo appeso l'avvio del contatore dei giocatori (v0.78.16), ed e' il
+// motivo per cui quel contatore non ha mai mostrato un numero per sei
+// versioni: partiva da un posto che non viene mai raggiunto. Il codice era
+// giusto, il gancio no — ed e' un errore che non lascia traccia, perche' non
+// fallisce: semplicemente non accade.
+// Chi passa di qui e ha qualcosa da far partire all'ingresso nel menu lo
+// attacchi ad apriMenuPrincipale, che e' la porta vera.
 function aggiornaDatiMenu(){
-  // v0.78.16 — il contatore dei giocatori comincia a battere da qui: e' il
-  // momento in cui il menu entra in scena, e da qui in poi si sorveglia da se'.
-  try{ avviaContatoreOnline(); }catch(_){ }
-  try{ aggiornaPallinoNovita(); }catch(_){ }
   const nome = document.getElementById('mm-player-name-label');
   if(nome) nome.textContent = MENU_GIOCATORE.nome;
   // v0.75.21 — i numeri li scrive aggiornaValuteAVideo, che li scrive in TUTTI
@@ -18911,6 +18917,11 @@ function apriMenuPrincipale(){
   // v0.78.21 — da qui in poi il giocatore e' DENTRO: da adesso l'avviso di
   // versione vecchia puo' comparire, e da adesso si guarda a intervalli.
   try{ sorvegliaLaVersione(); }catch(_){ }
+  // v0.78.22 — e da qui parte il battito che dice al server "ci sono" e chiede
+  // quanti siamo. Stava su aggiornaDatiMenu, che non chiama nessuno: vedi il
+  // cartello li' sopra.
+  try{ avviaContatoreOnline(); }catch(_){ }
+  try{ aggiornaPallinoNovita(); }catch(_){ }
   if(!_patchNotesProposte){
     _patchNotesProposte = true;
     setTimeout(()=>{ try { caricaPatchNotes({automatico:true}); } catch(_){} }, 500);
