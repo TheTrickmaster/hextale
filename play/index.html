@@ -10968,7 +10968,7 @@ body.io-sono-2 #p1-info .player-avatar-photo{ transform:scaleX(-1); }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.16</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.17</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -18547,11 +18547,19 @@ var ABILITA_MOTORE = (function () {
           var r = (scena && typeof scena.sorte === 'number') ? scena.sorte : Math.random();
           v = eff.quanto.da + Math.floor(r * (eff.quanto.a - eff.quanto.da + 1));
         }
-        fuori.push({ carta: bersaglio, lati: lati, valore: v, azione: 'set' });
+        // ── v0.79.17 — E CHI L-HA FATTO ─────────────────────────────────
+        // Da qui uscivano cambiamenti orfani: il bersaglio, i lati e il
+        // numero, ma non chi lo stava facendo. Chi esegue (applicaCambiamenti,
+        // nel gioco) non aveva quindi un nome da scrivere nel registro dei
+        // modificatori, e il riquadro "Buffs/debuffs" mostrava un "+2 ALL"
+        // senza nessuno accanto — per meta- del mazzo.
+        // La fonte ce l-abbiamo qui da sempre: e- il primo argomento di questa
+        // funzione. Va solo detta.
+        fuori.push({ carta: bersaglio, lati: lati, valore: v, azione: 'set', fonte: fonte });
       } else {
         var d = (az === 'debuff' || az === 'steal') ? -q : q;
         if (!d) continue;
-        fuori.push({ carta: bersaglio, lati: lati, delta: d, azione: az });
+        fuori.push({ carta: bersaglio, lati: lati, delta: d, azione: az, fonte: fonte });
       }
     }
   }
@@ -31043,7 +31051,15 @@ function annotaModificatore(card, chiave, da, delta, ambito){
   if(!delta){ delete card.modificatori[chiave]; return; } // un bonus a zero non e' un bonus
   card.modificatori[chiave] = { da: da||'', delta: delta, ambito: ambito||'' };
 }
-function sommaModificatore(card, chiave, da, delta, ambito){
+// ── v0.79.17 — E L'ID DI CHI HA COLPITO, NON SOLO IL SUO NOME ────────────
+// Serve a rispondere a una domanda sola: e' stata lei stessa? Il riquadro dice
+// "Self" quando una carta si e' fatta qualcosa da sola e "from X" quando gliel'ha
+// fatto qualcun altro, ed e' una distinzione che il NOME non basta a fare —
+// "+1 from Aladdin" scritto su Aladdin e' vero e non serve a niente.
+// Le sinergie continue questa distinzione ce l'hanno da v0.78.15 (vedi
+// _modificatoriDalMotore, che confronta gli id): qui si allinea l'altro elenco,
+// cosi' le due meta' del riquadro parlano la stessa lingua.
+function sommaModificatore(card, chiave, da, delta, ambito, id){
   if(_simulazioneInCorso) return;
   if(!card || !chiave || !delta) return;
   if(!card.modificatori) card.modificatori = {};
@@ -31053,7 +31069,8 @@ function sommaModificatore(card, chiave, da, delta, ambito){
   // L'ambito si allarga: chi ha ricevuto prima un colpo su un gruppo e poi uno
   // su tutti, dalla stessa fonte, ha subito qualcosa che riguarda tutti i lati.
   const ambitoNuovo = (gia && gia.ambito === 'ALL') ? 'ALL' : (ambito||'');
-  card.modificatori[chiave] = { da: da || (gia && gia.da) || '', delta: totale, ambito: ambitoNuovo };
+  card.modificatori[chiave] = { da: da || (gia && gia.da) || '', delta: totale,
+                                ambito: ambitoNuovo, id: id || (gia && gia.id) || null };
 }
 // L'elenco pronto da mostrare: una riga per fonte, il segno gia' scritto.
 // Ordinate come sono arrivate: e' l'ordine in cui le cose sono successe, che e'
@@ -31070,8 +31087,14 @@ function elencoModificatori(card){
     // Sea Witch". Il segno meno e' quello tipografico (U+2212) e non il
     // trattino della tastiera: ha la stessa larghezza del piu', quindi le
     // righe restano incolonnate una sotto l'altra.
+    // v0.79.17 — "Self" quando la fonte E' questa carta, "from X" quando e'
+    // un'altra. Stessa forma delle righe che vengono dalle sinergie continue:
+    // chi legge sta guardando un elenco di CHI le ha messo le mani addosso, e
+    // due elenchi con due grammatiche diverse si leggono come due cose diverse.
+    const suDiSe = !!(m.id && card.id && m.id === card.id);
     righe.push({
-      testo: segno + Math.abs(m.delta) + (m.ambito ? ' '+m.ambito : '') + (m.da ? ' from '+m.da : ''),
+      testo: segno + Math.abs(m.delta) + (m.ambito ? ' '+m.ambito : '')
+           + (suDiSe ? ' Self' : (m.da ? ' from '+m.da : '')),
       positivo: m.delta > 0,
     });
   }
@@ -31181,7 +31204,7 @@ function modificaValori(card, lati, delta, pavimento, fonte){
   if(fonte && fonte.chiave){
     let applicatoDavvero = 0;
     for(const s of lati) applicatoDavvero = Math.max(applicatoDavvero, Math.abs((card.values[s]||0) - (prima[s]||0)));
-    if(applicatoDavvero) sommaModificatore(card, fonte.chiave, fonte.da, Math.sign(delta)*applicatoDavvero, _ambitoDiLati(lati));
+    if(applicatoDavvero) sommaModificatore(card, fonte.chiave, fonte.da, Math.sign(delta)*applicatoDavvero, _ambitoDiLati(lati), fonte.id);
   }
   lampeggiaDifferenzaValori(card, prima);
 }
@@ -33915,6 +33938,29 @@ function cartaCongelata(card){
   return !!(card && card.congelataFinoAlTurno && (G.numeroTurno||1) < card.congelataFinoAlTurno);
 }
 
+// ── v0.79.17 — DA CHI VIENE UN COLPO DECISO DAL MOTORE ────────────────────
+// Qui si passava la stringa 'abilita', che non e' una fonte: modificaValori si
+// aspetta un oggetto e legge `fonte.chiave`, quindi su una stringa non trovava
+// niente e NON scriveva niente nel registro. Risultato: ogni effetto una tantum
+// deciso dal foglio — il -1 di Carabosse, il +2 di Ginevra, la vendetta di Baba
+// Yaga — muoveva i numeri e non lasciava il nome. Il riquadro cadeva allora
+// sull'ultima rete che ha, il totale anonimo, e diceva "-1 ALL" e basta.
+//
+// Sembrava casuale, e non lo era: gli effetti che una carta fa a SE STESSA un
+// nome ce l'avevano lo stesso (bloccoModificatoriHTML deduce "Self" dalla riga
+// del foglio), quelli che fa AGLI ALTRI no. Meta' dei casi funzionava, ed e' il
+// modo piu' rapido per far sembrare rotto a caso qualcosa che e' rotto sempre.
+//
+// La chiave e' UNA per carta-fonte, non una per effetto: due colpi di Carabosse
+// alla stessa vittima si leggono "-2 from Carabosse" e non due righe uguali. E
+// contiene l'id, cosi' due Carabosse diverse restano due fonti diverse.
+function _fonteDelFoglio(c){
+  const f = c && c.fonte;
+  if(!f) return null;                       // niente fonte: meglio il totale anonimo che un nome inventato
+  const nome = f.name || '';
+  const id = f.id || nome || '?';
+  return { chiave: 'foglio:' + id, da: nome, id: f.id || null };
+}
 function applicaCambiamenti(elenco){
   for(const c of (elenco || [])){
     if(!c) continue;
@@ -33924,13 +33970,33 @@ function applicaCambiamenti(elenco){
       continue;
     }
     if(!c.carta || !c.lati || !c.lati.length) continue;
+    const fonte = _fonteDelFoglio(c);
     if(c.azione === 'set'){
+      // "set" porta ogni lato allo STESSO valore, quindi lati che partivano da
+      // numeri diversi si muovono di quantita' diverse: vanno applicati uno per
+      // uno. Il registro pero' vuole UNA riga — "−3 ALL from Mad Hatter" — e non
+      // sei: passando la fonte a ogni lato la sommerebbe sei volte sulla stessa
+      // chiave, e il Cappellaio si prendeva la colpa di un −18 che non e' mai
+      // successo. Quindi i lati si muovono senza nome, e il nome si scrive una
+      // volta sola qui sotto, con la variazione piu' grande fra quelle avvenute
+      // davvero — che e' la stessa che modificaValori scriverebbe da sola su una
+      // chiamata sola.
+      let piuGrande = 0;
+      const toccati = [];
       for(const l of c.lati){
-        const d = c.valore - (c.carta.values[l] || 0);
-        if(d) modificaValori(c.carta, [l], d, 0, 'abilita');
+        const prima = c.carta.values[l] || 0;
+        const d = c.valore - prima;
+        if(!d) continue;
+        modificaValori(c.carta, [l], d, 0, null);
+        const fatto = (c.carta.values[l] || 0) - prima;
+        if(!fatto) continue;
+        toccati.push(l);
+        if(Math.abs(fatto) > Math.abs(piuGrande)) piuGrande = fatto;
       }
+      if(fonte && piuGrande)
+        sommaModificatore(c.carta, fonte.chiave, fonte.da, piuGrande, _ambitoDiLati(toccati), fonte.id);
     } else if(c.delta){
-      modificaValori(c.carta, c.lati, c.delta, 0, 'abilita');
+      modificaValori(c.carta, c.lati, c.delta, 0, fonte);
     }
   }
 }
@@ -35939,6 +36005,8 @@ function sceltaDalFoglio(card, q, r, giocatore){
     if(!eff || !eff.scelta) continue;
     if(eff.azione === 'swap' && eff.cosa === 'position') return _sceltaScambioPosizioni(card, q, r, giocatore, a, eff);
     if(eff.azione === 'copy' && eff.cosa === 'trait')     return _sceltaCopiaTratti(card, q, r, giocatore, a, eff);
+    if(eff.azione === 'move' && eff.dove === 'board' && _muoveQualcuno(eff))
+      return _sceltaSpostaOvunque(card, q, r, giocatore, a, eff);
   }
   return null;
 }
@@ -36216,6 +36284,128 @@ function _sceltaCopiaTratti(card, q, r, giocatore, a, eff){
   };
 }
 
+// ── v0.79.17 — CHI SI SPOSTA LO DICE "WHO", NON "WHAT" ────────────────────
+// Il foglio ha due righe che dicono "move ... tile" e vogliono dire due cose
+// diverse:
+//
+//   Ali Baba      Who=-      What=tile  Which=blocked  -> si sposta il MURO
+//   Jack          Who=ally   What=tile  Which=single   -> si sposta un ALLEATO
+//   Principesse   Who=self   What=tile  Where=adjacent -> si sposta LEI
+//
+// Letto cosi' e' coerente: quando "Who" nomina qualcuno, cio' che si sposta e'
+// un personaggio e `What = tile` dice DOVE va a finire — su un tassello. Quando
+// "Who" e' vuoto non c'e' nessun personaggio nella frase, e allora l'unica cosa
+// che puo' spostarsi e' il tassello stesso.
+//
+// La regola sta scritta qui, in una funzione sola, invece che dentro alla
+// costruzione dei bersagli: candidatiDalFoglio ha un ramo che su `cosa==='tile'`
+// va a cercare fra le CASELLE, ed e' giusto che ci resti — a chiamarlo sono
+// anche le Principesse, per cui il bersaglio e' davvero una casella (quella su
+// cui saltare). Qui invece il bersaglio e' una carta, e la casella arriva dopo.
+//
+// Se un domani il foglio scrivesse `What = card` la riga direbbe la stessa cosa
+// in modo meno ambiguo, e questo controllo continuerebbe a valere: guarda "Who",
+// non "What".
+function _muoveQualcuno(eff){
+  return ['self', 'ally', 'opponent', 'any'].indexOf(eff && eff.chi) >= 0;
+}
+
+// ── v0.79.17 — JACK AND THE BEANSTALK, "Up You Go!" ───────────────────────
+// "Puo' spostare un alleato ovunque sul tabellone". Due domande, quindi due
+// finestre in fila: PRIMA chi si sposta, POI dove va. La seconda si apre dentro
+// `applicaEAspetta` della prima e si prende la sua continuazione, cosi' il
+// turno riprende una volta sola, in fondo a tutte e due — e' lo stesso schema
+// dello sceriffo che usa subito l'abilita' appena rubata.
+//
+// Perche' due e non una: il Tricheco chiede solo CHI e la destinazione la
+// decide il tabellone, ma li' "dove" non e' scritto sulla carta. Qui c'e', ed e'
+// "ovunque": scegliere al posto del giocatore vorrebbe dire togliergli proprio
+// la cosa che la carta gli promette.
+function _cartaPuoSpostarsi(){
+  return (typeof celleLibere === 'function') ? celleLibere() : [];
+}
+function _sceltaSpostaOvunque(card, q, r, giocatore, a, eff){
+  // Nessun posto dove andare: niente finestra e niente pausa. Aprirla vorrebbe
+  // dire far scegliere una carta per poi non poterla mettere da nessuna parte.
+  if(!_cartaPuoSpostarsi().length) return null;
+  // I bersagli si chiedono alla porta di tutti, ma dicendo che si sta scegliendo
+  // una CARTA: con `cosa` invariato candidatiDalFoglio andrebbe a cercare fra i
+  // tasselli (vedi _muoveQualcuno). Tutto il resto — "Who", la condizione "If",
+  // Excalibur che non si tocca — resta il filtro condiviso, e non una seconda
+  // copia scritta qui.
+  const comeCarta = Object.assign({}, eff, { cosa: 'card' });
+  const bersagli = candidatiDalFoglio(card, q, r, giocatore, a, comeCarta);
+  if(!bersagli.length) return null;
+  return {
+    chiave: 'sposta_ovunque',
+    giocatore,
+    // La mano, come per il Tricheco: non si colpisce nessuno, si prende
+    // qualcuno e lo si mette altrove.
+    icona: ICONA_MANO,
+    cellaOrigine: key(q, r),
+    bersagli,
+    applicaEAspetta: (cella, poi) => {
+      if(!_apriDoveMetterla(cella, giocatore, poi)) poi();
+    },
+    rinuncia: () => {},
+    // L'IA sposta l'alleato che sta nel posto peggiore, e solo se ce n'e' uno
+    // migliore libero. La misura e' quella che l'IA usa gia' per decidere quanto
+    // rende una casella: qui non nasce un secondo metro.
+    valuta: (sc) => {
+      const libere = _cartaPuoSpostarsi();
+      if(!libere.length) return null;
+      const quanto = (k) => {
+        const p = String(k).split(',').map(Number);
+        return (typeof aiVicinatoUtile === 'function') ? aiVicinatoUtile(p[0], p[1]) : 0;
+      };
+      const meglio = Math.max.apply(null, libere.map(quanto));
+      let scelto = null, peggio = Infinity;
+      for(const k of sc.bersagli){
+        const v = quanto(k);
+        if(v < peggio){ peggio = v; scelto = k; }
+      }
+      // Se sta gia' meglio di qualunque casella libera, spostarlo lo peggiora.
+      return (scelto !== null && peggio < meglio) ? scelto : null;
+    },
+  };
+}
+// La seconda finestra: dove va a finire. I bersagli sono le caselle libere —
+// "ovunque" vuol dire quello, e `celleLibere` e' gia' l'unica voce del gioco su
+// cosa sia una casella libera.
+// Rinunciare qui lascia la carta dov'e': l'abilita' e' stata offerta, non
+// pagata, e a meta' strada si puo' ancora cambiare idea.
+function _apriDoveMetterla(daCella, giocatore, poi){
+  const libere = _cartaPuoSpostarsi().filter(k => k !== daCella);
+  if(!libere.length) return false;
+  G.sceltaBersaglio = {
+    chiave: 'sposta_ovunque_dove', chiaveAbilita: 'sposta_ovunque_dove',
+    giocatore,
+    icona: ICONA_MANO,
+    // La X per rinunciare sta sulla carta che si e' presa: e' li' che il
+    // giocatore sta guardando, ed e' la cosa che la finestra riguarda.
+    cellaOrigine: daCella,
+    bersagli: libere,
+    applicaEAspetta: (dove, fine) => spostaCartaConSalto(daCella, dove, fine),
+    rinuncia: () => {},
+    alTermine: (typeof poi === 'function') ? poi : undefined,
+    valuta: (sc) => {
+      let scelto = null, meglio = -Infinity;
+      for(const k of sc.bersagli){
+        const p = String(k).split(',').map(Number);
+        const v = (typeof aiVicinatoUtile === 'function') ? aiVicinatoUtile(p[0], p[1]) : 0;
+        if(v > meglio){ meglio = v; scelto = k; }
+      }
+      return scelto;
+    },
+  };
+  try { renderBoard(); } catch(_){ }
+  // Il tempo riparte, o questa seconda finestra resterebbe aperta per sempre:
+  // il timer era stato fermato dalla prima.
+  try { startTimer(); } catch(_){ }
+  if(typeof giocatoreUmano === 'function' && !giocatoreUmano(giocatore)) aiResolvePendingAbilityIfAny();
+  return true;
+}
+
 // Due caselle si scambiano quel che hanno sopra: la carta E il proprietario,
 // perche' il personaggio si sposta con la sua fazione addosso.
 // I valori non si toccano — cambia dove sono, non quanto valgono — ma le
@@ -36263,7 +36453,10 @@ function avvisaCartaSpostata(card, daCella, aCella, poi){
       const cambi = _motore().cambiamentiAllEvento(copia, 'on_moved', _scenaEvento(card, aCella));
       card._scatti = copia._scatti;
       if(!cambi.length) continue;
-      for(const x of cambi) if(x.carta === copia) x.carta = card;
+      // v0.79.17 — anche la FONTE: senza, il registro dei modificatori si
+      // ricorderebbe della copia di lavoro invece che della carta vera, e la
+      // riga direbbe "from" un oggetto che non e' su nessun tabellone.
+      for(const x of cambi){ if(x.carta === copia) x.carta = card; if(x.fonte === copia) x.fonte = card; }
       const prima = {...card.values};
       applicaCambiamenti(cambi);
       lampeggiaDifferenzaValori(card, prima);
@@ -49179,7 +49372,11 @@ function bloccoModificatoriHTML(card){
   for(let i = righe.length - 1; i >= 0; i--){
     const r = righe[i];
     if(!r.forte) continue;
-    if(nomi.some(n => n.testo.indexOf(r.testo + ' from ') === 0)) righe.splice(i, 1);
+    // v0.79.17 — e anche "… Self", che e' l'altra forma in cui una riga dice da
+    // chi. Finche' si guardava solo " from ", un effetto che una carta si fa da
+    // sola produceva due righe: il totale muto e la sua spiegazione.
+    if(nomi.some(n => n.testo.indexOf(r.testo + ' from ') === 0 || n.testo === r.testo + ' Self'))
+      righe.splice(i, 1);
   }
   for(const n of nomi) righe.push(n);
   if(!righe.length) return '';

@@ -710,11 +710,19 @@ var ABILITA_MOTORE = (function () {
           var r = (scena && typeof scena.sorte === 'number') ? scena.sorte : Math.random();
           v = eff.quanto.da + Math.floor(r * (eff.quanto.a - eff.quanto.da + 1));
         }
-        fuori.push({ carta: bersaglio, lati: lati, valore: v, azione: 'set' });
+        // ── v0.79.17 — E CHI L-HA FATTO ─────────────────────────────────
+        // Da qui uscivano cambiamenti orfani: il bersaglio, i lati e il
+        // numero, ma non chi lo stava facendo. Chi esegue (applicaCambiamenti,
+        // nel gioco) non aveva quindi un nome da scrivere nel registro dei
+        // modificatori, e il riquadro "Buffs/debuffs" mostrava un "+2 ALL"
+        // senza nessuno accanto — per meta- del mazzo.
+        // La fonte ce l-abbiamo qui da sempre: e- il primo argomento di questa
+        // funzione. Va solo detta.
+        fuori.push({ carta: bersaglio, lati: lati, valore: v, azione: 'set', fonte: fonte });
       } else {
         var d = (az === 'debuff' || az === 'steal') ? -q : q;
         if (!d) continue;
-        fuori.push({ carta: bersaglio, lati: lati, delta: d, azione: az });
+        fuori.push({ carta: bersaglio, lati: lati, delta: d, azione: az, fonte: fonte });
       }
     }
   }

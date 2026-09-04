@@ -81,8 +81,14 @@ app.whenReady().then(async () => {
     dice(b.indexOf(key(0,1)) >= 0, 'e la vicina AVVERSARIA');
     dice(b.indexOf(key(-1,0)) < 0, 'non la vicina senza tratti',
       'Copiare da chi non ha niente non e- un-azione: non e- un bersaglio.');
-    dice(b.indexOf(key(2,0)) < 0, 'e non una carta lontana',
-      'Il foglio dice "Where = adjacent".');
+    // Vicina o su tutto il tabellone lo decide il FOGLIO, non questo banco: la
+    // colonna Where e' passata da "adjacent" a "board" il giorno stesso in cui
+    // l'abilita' e' nata. Un banco che sa gia' la risposta smette di essere un
+    // banco e diventa una seconda copia della decisione.
+    const lontano = RIGA.abilita.effetto.dove === 'board';
+    dice(lontano ? (b.indexOf(key(2,0)) >= 0) : (b.indexOf(key(2,0)) < 0),
+      lontano ? 'e anche una carta lontana (Where = board)'
+              : 'e non una carta lontana (Where = adjacent)');
     dice(b.indexOf(key(0,0)) < 0, 'ne- se stessa');
 
     // ── 2. l-IA prende quella che le porta piu- tratti nuovi ────────────────

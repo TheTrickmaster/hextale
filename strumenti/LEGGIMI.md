@@ -82,3 +82,32 @@ senza tratti, una lontana) e poi si chiamano `sceltaDalFoglio` e la sua
 `applica`. Controlla anche il furto di Rumpelstiltskin, che e' l'altra meta'
 della stessa faccenda: i tratti stanno in due elenchi paralleli e chi ne cambia
 uno solo fa una carta che mostra quel che non ha, o ha quel che non mostra.
+
+## prova-scelte.js — chi deve chiedere un bersaglio, lo chiede?
+
+Il foglio ha una colonna "Player selection". Quando dice yes, calare quella
+carta deve fermare il turno e aprire una finestra. Quando non succede, da fuori
+e' identico a un'abilita' che non esiste. Il banco le prova tutte su un
+tabellone apparecchiato apposta.
+
+**Le porte sono tre, non una**, e sbagliarla fa sembrare muta una carta che
+parla benissimo — ci sono cascato scrivendo questo banco:
+
+    on_play     SCELTE_PIAZZAMENTO, e in mancanza sceltaDalFoglio
+    on_conquer  SCELTE_DOPO_CONQUISTA (vuole sapere cosa e' stato conquistato)
+    on_moved    avvisaCartaSpostata, che apre da se' la sua finestra
+
+## prova-jack.js — due finestre in fila
+
+"Sposta un alleato ovunque" sono due domande, e due finestre in fila sono il
+punto in cui e' piu' facile lasciare il turno fermo per sempre: basta che la
+seconda non si apra, o che la continuazione della prima non arrivi in fondo.
+Il banco controlla anche che il turno riprenda UNA volta sola.
+
+## prova-attribuzione.js — se un numero cambia, chi e' stato?
+
+Fa scattare una per una tutte le abilita' del foglio che cambiano un valore e
+legge il riquadro "Buffs/debuffs" che ne esce, cercando righe senza un nome.
+Le righe vengono da tre posti (lo scarto dai valori stampati, le sinergie
+chieste al motore, il registro `card.modificatori`) e solo gli ultimi due hanno
+un nome sopra: quando tacciono resta il totale muto.
