@@ -10724,7 +10724,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.4</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.5</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -11704,10 +11704,10 @@ if(document.readyState==='loading'){
       // v0.77.79 — DEVE SEMBRARE UN FILE.
       // Il nome si legge dal PRIMO pezzo di testo fra parentesi, ma certe
       // chiamate lo costruiscono al volo — per esempio iconaDelRank, che
-      // scrive 'ranks/' + chiave + '-rank-icon.png', e la gemma del livello,
-      // che scrive 'level-gem-' + rarita + '.png'.
+      // scrive 'ranks/' + chiave + '-rank-icon.png', e la gemma della rarita',
+      // che scrive 'gem-' + rarita + '.png'.
       // Li' quel pezzo e' solo un PREFISSO, e il precaricatore finiva col
-      // chiedere ui/ranks/ e ui/level-gem-: due indirizzi che non sono file,
+      // chiedere ui/ranks/ e ui/gem-: due indirizzi che non sono file,
       // e due 404 fissi in console.
       // Lo stesso controllo lo faceva gia' il ramo qui sotto, quello di
       // BASE+'nome'. Mancava solo qui — ed e' il motivo per cui questi due si
@@ -15538,6 +15538,32 @@ function vestiOcchio(bottone){
 // caricamenti e sfarfallare le immagini, che e' il motivo per cui il menu e le
 // bustine fanno gia' cosi' con le proprie.
 let _accessoMontato = false;
+// ── v0.79.5 — UN CAMPO RIEMPITO DAL BROWSER NON ASPETTA IL CARATTERE ──────
+// I caratteri arrivano dalla rete e sono dichiarati "swap": finche' non sono
+// qui si disegna col ripiego di sistema, e appena arrivano il browser
+// ridisegna tutto — tranne il testo che ha messo LUI dentro a un campo
+// riempito automaticamente. Quello resta col carattere sbagliato finche'
+// qualcosa non lo tocca, ed e' esattamente cio' che si vedeva aprendo il gioco:
+// il colore era gia' quello giusto (vedi la regola :-webkit-autofill), il
+// carattere no.
+// Non esiste una proprieta' che chieda "ridisegnati": si toglie e si rimette il
+// campo dal flusso, che e' il modo piu' corto di dirlo. Il VALORE non si tocca —
+// riscriverlo scollegherebbe il campo dal gestore di password, e il campo con
+// il fuoco si salta, perche' toglierlo dal flusso glielo farebbe perdere.
+function ridisegnaICampi(){
+  const attivo = document.activeElement;
+  document.querySelectorAll('.hx-campo').forEach(el=>{
+    if(el === attivo) return;
+    const prima = el.style.display;
+    el.style.display = 'none';
+    void el.offsetHeight;
+    el.style.display = prima;
+  });
+}
+function ridisegnaICampiQuandoCiSonoIFont(){
+  if(!(typeof document !== 'undefined' && document.fonts && document.fonts.ready)) return;
+  document.fonts.ready.then(()=>{ try{ ridisegnaICampi(); }catch(_){ } });
+}
 function montaColonnaAccesso(){
   if(_accessoMontato) return;
   const dentro = document.getElementById('start-accesso');
@@ -15547,6 +15573,8 @@ function montaColonnaAccesso(){
   // copia (vedi .start-radial nel CSS).
   impostaImgDaCandidati(document.getElementById('start-radial-a'), menuFileCandidati('radial-glow.png'));
   impostaImgDaCandidati(document.getElementById('start-radial-b'), menuFileCandidati('radial-glow-flipped.png'));
+  // v0.79.5 — e quando i caratteri sono arrivati, i campi si ridisegnano.
+  ridisegnaICampiQuandoCiSonoIFont();
   impostaImgDaCandidati(document.getElementById('start-effetti'), uiFileCandidati('start-screen-effects.png'));
   impostaImgDaCandidati(document.getElementById('login-google-icon'), uiFileCandidati('google-icon.png'));
   dentro.querySelectorAll('.hx-indietro img').forEach(el=>
@@ -18904,7 +18932,7 @@ function _rigaCartaMazzo(entry){
   const gemma = document.createElement('img');
   gemma.className = 'deck-card-row-gemma'; gemma.alt=''; gemma.draggable=false;
   const rar = String(entry.rarity||'common').toLowerCase();
-  impostaImgDaCandidati(gemma, uiFileCandidati('level-gem-'+rar+'.png'));
+  impostaImgDaCandidati(gemma, uiFileCandidati('gem-'+rar+'.png'));
   const nome = document.createElement('span');
   nome.className = 'deck-card-row-nome';
   nome.textContent = entry.name || '';
@@ -21454,8 +21482,9 @@ const FINAL_CARDS = [
     cardAbility:'eat_the_rich',
     traits:['trickster','royal'],
     // v0.72.2 NEW ("Robin hood rare, merlin epic, snow white common... Alice
-    // legendary"): rarity field, drives the level-gem color (see
-    // CARD_LEVEL_GEM_IMG_BY_RARITY) and the Collezione's Rarità filter.
+    // legendary"): rarity field. Oggi decide il name-wrapper della carta e la
+    // gemma del filtro Rarità in Collezione (gemmaRaritaSrc) — non piu' la
+    // gemma del livello, che dalla v0.79.5 segue la fazione.
     rarity:'rare',
     level:1, // Robin Hood — governa gemme livello + tier effetti in Collezione (v0.72.15)
   },
@@ -25823,14 +25852,13 @@ function cardDbAnimateFilterChange(matchResults, animate){
 // v0.72.75 — le gemme di rarita' accanto ai nomi nel filtro. Stessa idea del
 // filtro tratti qui sotto, con una differenza: queste quattro voci non
 // dipendono dal foglio, quindi l'elenco e' fisso e l'unica cosa che cambia e'
-// l'icona. Le immagini sono le stesse che la carta usa per la gemma di livello
-// (CARD_LEVEL_GEM_IMG_BY_RARITY), cosi' il colore che si sceglie nel filtro e'
-// esattamente quello che si vede sulle carte.
+// l'icona. Sono le gemme di rarita' (gem-<rarita>.png, vedi gemmaRaritaSrc),
+// cosi' il colore che si sceglie nel filtro e' esattamente quello che si vede
+// sulle carte.
 // Queste gemme NON sono faction-coded — esiste una sola versione per rarita' —
 // quindi, a differenza delle icone tratto, non cambiano col dark/light.
 // v0.72.79 FIX ("hai sbagliato gemmette rarity, l'hai messa uguale per tutti,
-// quella del livello"): giusto. Avevo usato CARD_LEVEL_GEM_IMG_BY_RARITY, che
-// e' la gemma del LIVELLO — e dalla v0.72.18 quella e' volutamente di un solo
+// quella del livello"): giusto. Avevo usato la mappa della gemma del LIVELLO — e dalla v0.72.18 quella e' volutamente di un solo
 // colore per tutte le rarita', perche' il segno della rarita' l'ha preso il
 // name wrapper. Quella mappa punta quindi allo stesso file quattro volte, ed e'
 // esattamente quello che si vedeva.
@@ -25864,7 +25892,9 @@ function coloreRarita(chiave){
   return COLORI_RARITA[chiave] || COLORI_RARITA.common;
 }
 function gemmaRaritaSrc(chiave){
-  return CARD_PARTS_BASE + 'level-gem-' + chiave + '.png';
+  // v0.79.5 — si chiamavano 'level-gem-<rarita>', che era il nome dell'ALTRA
+  // gemma (vedi CARD_LEVEL_GEM_DARK): due cose diverse con lo stesso nome.
+  return CARD_PARTS_BASE + 'gem-' + chiave + '.png';
 }
 const CARD_DB_RARITA = [
   {chiave:'common',   testo:'Common'},
@@ -25996,7 +26026,7 @@ function cardDbBuildRarityFilter(){
   box.innerHTML = '';
   for(const chiave of ORDINE_RARITA){
     const nome = chiave.charAt(0).toUpperCase() + chiave.slice(1);
-    box.appendChild(_filtroOpzione(chiave, nome, 'level-gem-'+chiave+'.png', 'rarityFilter', spuntate.has(chiave)));
+    box.appendChild(_filtroOpzione(chiave, nome, 'gem-'+chiave+'.png', 'rarityFilter', spuntate.has(chiave)));
   }
 }
 function cardDbBuildTraitFilter(){
@@ -41691,8 +41721,13 @@ const CARD_GEM_SOCKET_DARK  = CARD_PARTS_BASE+'card-gem-socket-dark.png';
 const CARD_GEM_SOCKET_LIGHT = CARD_PARTS_BASE+'card-gem-socket-light.png';
 const CARD_GEM_SOCKET_IMG = CARD_GEM_SOCKET_DARK;
 const CARD_GEM_IMG        = CARD_PARTS_BASE+'card-gem.png';
-const CARD_FILL_BOTTOM_DARK  = CARD_PARTS_BASE+'card-fill-bottom-dark.png';
-const CARD_FILL_BOTTOM_LIGHT = CARD_PARTS_BASE+'card-fill-bottom-light.png';
+// v0.79.5 — QUI STAVANO I DUE card-fill-bottom, e non esistono piu'.
+// Erano il pannello che faceva da fondo alla parte bassa della carta, sotto
+// alla citazione e all'abilita'. Tolti su richiesta: adesso quel testo sta
+// direttamente sulla carta.
+// Sono TOLTI e non commentati: un indirizzo che non serve piu' e' identico a
+// uno che serve, e la prossima volta che si cerchera' "cosa disegna questa
+// parte" sarebbe una risposta sbagliata da scartare.
 const CARD_DECO_BOTTOM_IMG = CARD_PARTS_BASE+'card-deco-bottom.png';
 const CARD_LEVEL_SOCKET_DARK  = CARD_PARTS_BASE+'card-level-socket-dark.png';
 const CARD_LEVEL_SOCKET_LIGHT = CARD_PARTS_BASE+'card-level-socket-light.png';
@@ -41701,27 +41736,26 @@ const CARD_LEVEL_SOCKET_IMG = CARD_LEVEL_SOCKET_DARK;
 // della carta... ho caricato le nuove varianti"): the old single level-gem.png
 // (one flat color for every card, no rarity distinction) is replaced by 4
 // rarity-coded variants — the color IS the rarity's visual cue, per explicit
-// spec. CARD_LEVEL_GEM_IMG is kept as a common-rarity alias (nothing else
-// referenced the bare filename, but kept for safety) — every real call site
-// below now picks the right variant via CARD_LEVEL_GEM_IMG_BY_RARITY[card.rarity].
+// spec. (v0.79.5 — quel blocco di alias non esiste piu': vedi
+// CARD_LEVEL_GEM_DARK/LIGHT qui sotto.)
 // v0.72.18 ("le level-gem tornano ad essere tutte dello stesso colore a
 // prescindere dalla rarita'"): un solo asset. Le 4 varianti per rarita'
 // introdotte in v0.72.2 sono state ritirate — ora e' il NAME WRAPPER a
 // portare il segno della rarita' (vedi CARD_NAME_WRAPPER_BY_RARITY).
 // Gli alias per rarita' restano come sinonimi dello stesso file, cosi'
 // nessun riferimento residuo puo' rompersi.
-const CARD_LEVEL_GEM_SINGLE_IMG    = CARD_PARTS_BASE+'level-gem.png';
-const CARD_LEVEL_GEM_COMMON_IMG    = CARD_LEVEL_GEM_SINGLE_IMG;
-const CARD_LEVEL_GEM_RARE_IMG      = CARD_LEVEL_GEM_SINGLE_IMG;
-const CARD_LEVEL_GEM_MYTHIC_IMG    = CARD_LEVEL_GEM_SINGLE_IMG;
-const CARD_LEVEL_GEM_TIMELESS_IMG  = CARD_LEVEL_GEM_SINGLE_IMG;
-const CARD_LEVEL_GEM_IMG_BY_RARITY = {
-  common:    CARD_LEVEL_GEM_COMMON_IMG,
-  rare:      CARD_LEVEL_GEM_RARE_IMG,
-  mythic:    CARD_LEVEL_GEM_MYTHIC_IMG,
-  timeless:  CARD_LEVEL_GEM_TIMELESS_IMG,
-};
-const CARD_LEVEL_GEM_IMG = CARD_LEVEL_GEM_COMMON_IMG; // alias/fallback for any card with no rarity set
+// ── v0.79.5 — DUE COSE CHE SI CHIAMAVANO UGUALE ───────────────────────────
+// "level-gem" indicava DUE gemme diverse, ed e' il motivo per cui questo blocco
+// ha cambiato idea tre volte in tre versioni:
+//   - la gemma che riempie i quattro incastri del LIVELLO;
+//   - la gemma che nella Collezione e nei mazzi segna la RARITA'.
+// Adesso i nomi dei file le distinguono: "level-gem-dark/light" la prima,
+// "gem-common/rare/mythic/timeless" la seconda (vedi gemmaRaritaSrc).
+// La prima e' faction coded come ogni altro pezzo della carta: la porta la
+// carta, e la carta ha un colore. La seconda no — la rarita' e' la stessa da
+// tutte e due le parti del tavolo.
+const CARD_LEVEL_GEM_DARK  = CARD_PARTS_BASE+'level-gem-dark.png';
+const CARD_LEVEL_GEM_LIGHT = CARD_PARTS_BASE+'level-gem-light.png';
 // v0.71.16 NEW: the on-board tooltip's corner-connector asset (see
 // buildBoardCardTooltipHTML/.ctb-corner) is also faction-coded — drawn with
 // its own right-angle at the asset's top-left corner; rotated via CSS
@@ -41785,7 +41819,6 @@ const CARD_VALUE_VISUAL_HINT_NATIVE_W = 138, CARD_VALUE_VISUAL_HINT_NATIVE_H = 1
 // v0.72.73 — le misure delle icone tratto non stanno piu' qui: si
 // leggono dal file (vedi verificaIconeTratti).
 const CARD_GEM_SOCKET_NATIVE = 80, CARD_GEM_NATIVE = 60;
-const CARD_FILL_BOTTOM_NATIVE_W = 976, CARD_FILL_BOTTOM_DARK_NATIVE_H = 474, CARD_FILL_BOTTOM_LIGHT_NATIVE_H = 486;
 const CARD_DECO_BOTTOM_NATIVE_W = 840, CARD_DECO_BOTTOM_NATIVE_H = 347;
 // v0.72.18 ("falle che coprono totalmente card-level-socket"): la gemma era
 // 34px contro un socket da 55 e lasciava scoperto un anello di socket. Ora e'
@@ -44222,36 +44255,16 @@ function buildFullHandCardSVG(card, boxW, boxH, preview){
     archX += aw+archGap;
   }
 
-  // Layer: card-fill-bottom — separate background wrapper for the bottom
-  // section, touching the card's own bottom edge (per explicit spec
-  // "questo card fill bottom deve toccare il bordo inferiore della carta").
-  // v0.71.4 FIX ("metti un po' di spacing tra questo fill bottom e gli
-  // elementi precedenti"): explicit named gap (was a bare 12*scale) between
-  // the trait/gem row and card-fill-bottom's own top edge.
-  // v0.71.5 FIX ("abbassa il card-fill-bottom di 20px. ci vuole più spazio"):
-  // was 18px at native res, now +20px -> 38px.
+  // ── v0.79.5 — QUI C'ERA card-fill-bottom, E NON C'E' PIU' ────────────────
+  // Era il pannello che faceva da fondo a tutta la parte bassa della carta —
+  // citazione, abilita', deco e livelli ci stavano sopra. Tolto su richiesta:
+  // quel testo sta adesso direttamente sulla carta.
+  // Di quel blocco resta UN NUMERO, `bassoY`: la quota da cui comincia la
+  // parte bassa. Non e' un residuo — e' il riferimento da cui il testo si
+  // centra, e lo era gia' prima (si chiamava fillTopY). Il pannello e' sparito,
+  // il posto in cui stava no.
   const FILL_TOP_GAP = 38*scale;
-  const fillTopY = Math.max(hexBottomY, socketY+socketSize)+FILL_TOP_GAP;
-  const fillW = CARD_FILL_BOTTOM_NATIVE_W*scale;
-  const fillNativeH = isDark?CARD_FILL_BOTTOM_DARK_NATIVE_H:CARD_FILL_BOTTOM_LIGHT_NATIVE_H;
-  // v0.71.8 FIX ("alza il bg di card fill bottom di 20px verso l'alto e
-  // lascia la posizione di tutti gli elementi al suo interno posizionata
-  // com'è ora"): ONLY the background image itself moves up — every element
-  // that lives "inside" this section (quote/ability text, deco-bottom,
-  // level sockets) is positioned off of fillTopY, which is intentionally
-  // left untouched below, so none of them shift. Only the image's own y/
-  // height (fillImgY/fillImgH) are raised by FILL_BG_RAISE, extending the
-  // art upward past fillTopY so it still fully covers everything sitting
-  // on top of it.
-  const FILL_BG_RAISE = 20*scale;
-  const fillImgY = fillTopY-FILL_BG_RAISE;
-  const fillH = boxH-fillImgY; // stretch to the card's own bottom edge, not the asset's native aspect ratio
-  const fillImg=document.createElementNS('http://www.w3.org/2000/svg','image');
-  fillImg.setAttribute('href', isDark?CARD_FILL_BOTTOM_DARK:CARD_FILL_BOTTOM_LIGHT);
-  fillImg.setAttribute('x','0'); fillImg.setAttribute('y', fillImgY.toFixed(2));
-  fillImg.setAttribute('width', fillW.toFixed(2)); fillImg.setAttribute('height', fillH.toFixed(2));
-  fillImg.setAttribute('preserveAspectRatio','none'); // stretched to fill the remaining height down to the card's bottom edge
-  chromeGroup.appendChild(fillImg);
+  const bassoY = Math.max(hexBottomY, socketY+socketSize)+FILL_TOP_GAP;
 
   // Layer: card-deco-bottom — ornamental line "embracing" the quote/ability
   // text from below, per the reference screenshot; card-level-socket ×4
@@ -44307,20 +44320,36 @@ function buildFullHandCardSVG(card, boxW, boxH, preview){
   const levelGemSize = CARD_LEVEL_GEM_NATIVE*scale;
   const levelGap = 6*scale;
   const levelRowW = LEVEL_SLOTS*levelSocketSize+(LEVEL_SLOTS-1)*levelGap;
-  let levelX = (boxW-levelRowW)/2;
-  // v0.71.4 FIX ("non sembra che i socket dei livelli carta siano allineati
-  // con la linea dorata del deco-bottom"): card-deco-bottom.png's own thin
-  // gold line does NOT sit at the very bottom of its 347px-tall native
-  // canvas (DECO_LINE_FRAC, computed above where decoY itself is now solved
-  // from it — see that comment) — the level row centers on the ACTUAL line
-  // rather than the asset's bottom edge.
+  // ── v0.79.5 — IL CONTO DEI LIVELLI SALE SULLA RIGA DEI TRATTI ────────────
+  // Stava in fondo alla carta, centrato sulla linea dorata di card-deco-bottom.
+  // Adesso sta sulla stessa riga delle icone dei tratti — loro a sinistra
+  // dell'esagono, lui a destra — e finisce esatto sul bordo destro
+  // dell'hextile.
+  // Le due quote non si scrivono: si prendono da dove stanno gia' le cose a cui
+  // deve allinearsi. `socketCenterY` e' la stessa riga su cui si centrano i
+  // tratti, `hexRightX` e' lo stesso bordo su cui finiscono le gemme del
+  // valore. Cambiando domani la grandezza dell'esagono, questo li segue.
+  // ATTENZIONE PER DOMANI: su quel bordo destro, sulla STESSA riga, ci vanno
+  // anche gli incastonatori delle gemme del valore (vedi gemRightX qui sopra).
+  // Oggi non si vedono perche' GEMME_ATTIVE e' false e nessuna carta ne ha; il
+  // giorno in cui si riaccendono, le due file si trovano nello stesso posto e
+  // una delle due va spostata. Non lo si risolve adesso: una difesa scritta
+  // contro un caso che non esiste sarebbe un pezzo di codice che nessuno puo'
+  // provare.
+  let levelX = hexRightX-levelRowW;
+  const levelY = socketCenterY-levelSocketSize/2;
+  // La linea dorata di card-deco-bottom resta dov'e': non ci sta piu' sopra
+  // niente, ma e' ancora il PAVIMENTO del testo (vedi testoFineY qui sotto).
   const decoLineY = decoY+decoH*DECO_LINE_FRAC;
-  const levelY = decoLineY-levelSocketSize/2; // centered on deco-bottom's own actual gold line
-  // v0.72.2 FIX ("i level gem devono essere colorati in base alla rarità"):
-  // pick the rarity-coded gem variant once per card (falls back to the common
-  // variant for any card with no rarity set) instead of the old flat
-  // CARD_LEVEL_GEM_IMG for every card regardless of rarity.
-  const levelGemSrc = CARD_LEVEL_GEM_IMG_BY_RARITY[card.rarity] || CARD_LEVEL_GEM_COMMON_IMG;
+  // Fin dove puo' scendere il testo. Prima era il bordo superiore della fila
+  // dei livelli; adesso che la fila non e' piu' li', e' la stessa quota
+  // calcolata dalla linea dorata — cosi' il testo non si sposta di un pixel
+  // per il solo fatto che i livelli hanno cambiato posto.
+  const testoFineY = decoLineY-levelSocketSize/2;
+  // v0.79.5 — la gemma del livello e' faction coded come tutto il resto della
+  // carta. La rarita' non c'entra piu': quella la dice il name-wrapper, e la
+  // sua gemma adesso ha un nome tutto suo (vedi gemmaRaritaSrc).
+  const levelGemSrc = isDark?CARD_LEVEL_GEM_DARK:CARD_LEVEL_GEM_LIGHT;
   for(let i=0;i<LEVEL_SLOTS;i++){
     const sockImg=document.createElementNS('http://www.w3.org/2000/svg','image');
     // v0.71.16 FIX ("card-level-socket... non era faction coded"): same
@@ -44391,6 +44420,11 @@ function buildFullHandCardSVG(card, boxW, boxH, preview){
   // also left as-is.
   // v0.71.90 ("rimpicciolisci di nuovo il nuovo font di altri 3px"): -3 more, 54->51.
   const titleSize=68*scale, bodySize=51*scale, lineHeight=60*scale, titleGap=10*scale;
+  // v0.79.5 — dieci pixel piu' in basso, la citazione e la descrizione
+  // dell'abilita'. Un numero solo per tutte e due: sono la stessa riga di
+  // testo, mostrata in due casi che si escludono a vicenda, e vederle a due
+  // altezze diverse a seconda della carta si noterebbe.
+  const TESTO_PIU_GIU = 10*scale;
   // v0.72.62 — un'abilita' presente nel foglio ma NON ancora programmata non
   // ha voce in TILE_ABILITIES_DEF. Invece di non disegnare nulla (che rendeva
   // invisibile il lavoro ancora da fare), si costruisce una voce al volo con i
@@ -44420,12 +44454,12 @@ function buildFullHandCardSVG(card, boxW, boxH, preview){
     // v0.71.7: centered within [fillTopY, levelY] (levelY = level-socket
     // row's own top edge) instead of [fillTopY, boxH] — see this whole
     // section's own v0.71.7 comment above for why.
-    const fillCenterY = fillTopY+(levelY-fillTopY)/2;
+    const fillCenterY = bassoY+(testoFineY-bassoY)/2;
     // v0.71.82 ("sposta di 10px più in basso titolo e descrizione abilità"):
     // whole ability text block (title + desc) nudged down 10px, scaled like
     // every other measurement in this function.
     const ABILITY_TEXT_Y_NUDGE = 10*scale;
-    let textY = fillCenterY-blockH/2+ABILITY_TEXT_Y_NUDGE;
+    let textY = fillCenterY-blockH/2+ABILITY_TEXT_Y_NUDGE+TESTO_PIU_GIU;
 
     const titleText=document.createElementNS('http://www.w3.org/2000/svg','text');
     titleText.setAttribute('x', (boxW/2).toFixed(2));
@@ -44506,8 +44540,8 @@ function buildFullHandCardSVG(card, boxW, boxH, preview){
     const quoteLines = svgWrapText(quote, fillTextW, "'Rosarivo',serif", bodySize);
     const blockH = quoteLines.length>0?(quoteLines.length-1)*lineHeight+bodySize:0;
     // v0.71.7: see the ability branch's own matching comment just above.
-    const fillCenterY = fillTopY+(levelY-fillTopY)/2;
-    const textY = fillCenterY-blockH/2;
+    const fillCenterY = bassoY+(testoFineY-bassoY)/2;
+    const textY = fillCenterY-blockH/2+TESTO_PIU_GIU;
 
     const quoteEl=document.createElementNS('http://www.w3.org/2000/svg','text');
     quoteEl.setAttribute('x', (boxW/2).toFixed(2));
@@ -48800,9 +48834,9 @@ function buildBoardCardTooltipHTML(card){
   // same reasoning as buildFullHandCardSVG's own v0.72.2 fix.
   const cardLevel = card.level || 1;
   const levelSocketSrc = isDark?CARD_LEVEL_SOCKET_DARK:CARD_LEVEL_SOCKET_LIGHT;
-  // v0.72.2 FIX ("i level gem devono essere colorati in base alla rarità"):
-  // same rarity-coded gem lookup as buildFullHandCardSVG's own level-gem loop.
-  const levelGemSrc = CARD_LEVEL_GEM_IMG_BY_RARITY[card.rarity] || CARD_LEVEL_GEM_COMMON_IMG;
+  // v0.79.5 — faction coded, come sulla carta grande: la gemma del livello la
+  // porta la carta, e la carta ha un colore. La rarita' non c'entra piu'.
+  const levelGemSrc = isDark?CARD_LEVEL_GEM_DARK:CARD_LEVEL_GEM_LIGHT;
   const LEVEL_SLOTS = 4;
   let levelSocketsHtml='';
   for(let i=0;i<LEVEL_SLOTS;i++){
