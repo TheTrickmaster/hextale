@@ -4857,10 +4857,15 @@ body.io-sono-2 #p1-info .player-avatar-photo{ transform:scaleX(-1); }
    level-gem, faction-coded), just expressed as HTML/CSS at a smaller fixed
    size suited to the tooltip. Sits directly after .ctb-quote now that the
    text label above it is gone. */
+/* v0.79.9 — non piu' centrata sotto alla citazione: adesso e' l'ultimo gruppo
+   della riga dei tratti, contro il bordo destro. Da qui via il margine di
+   sopra, che serviva a staccarla dal testo. */
 #card-tooltip.ctb-board .ctb-level-sockets{
-  display:flex; align-items:center; justify-content:center;
-  gap:4px; margin-top:14px;
+  display:flex; align-items:center; gap:4px;
 }
+/* Il lato destro della riga: le gemme del valore e i livelli, in fila, tutti
+   spinti contro il bordo. */
+#card-tooltip.ctb-board .ctb-row-destra{ margin-left:auto; gap:10px; }
 #card-tooltip.ctb-board .ctb-level-socket{
   position:relative; width:26px; height:26px; flex-shrink:0;
   background-size:100% 100%; background-repeat:no-repeat;
@@ -10763,7 +10768,7 @@ body.io-sono-2 #p1-info .player-avatar-photo{ transform:scaleX(-1); }
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.8</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.9</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -48534,11 +48539,35 @@ function buildBoardCardTooltipHTML(card){
   // basso, dopo la citazione, con sotto le 4 card-level-socket"): the level
   // label no longer lives in this row at all — see the quote block further
   // down for its new home. This row is now JUST the traits/gems pair.
+  // ── v0.79.9 — I LIVELLI SALGONO SULLA RIGA DEI TRATTI ────────────────────
+  // Stavano sotto alla citazione, in fondo al tooltip. Adesso stanno dove
+  // stanno sulla CARTA (v0.79.5): tratti a sinistra, livelli tutti a destra.
+  // I due posti che mostrano la stessa carta devono mostrarla nello stesso
+  // modo — se il tooltip la raccontasse in un altro ordine, sarebbe una carta
+  // diversa ogni volta che si passa dal tavolo alla mano.
+  // v0.72.2 FIX ("fai diventare tutte le carte livello 1"): ripiego 2->1.
+  const cardLevel = card.level || 1;
+  const levelSocketSrc = isDark?CARD_LEVEL_SOCKET_DARK:CARD_LEVEL_SOCKET_LIGHT;
+  // v0.79.5 — faction coded, come sulla carta grande: la gemma del livello la
+  // porta la carta, e la carta ha un colore. La rarita' non c'entra piu'.
+  const levelGemSrc = isDark?CARD_LEVEL_GEM_DARK:CARD_LEVEL_GEM_LIGHT;
+  const LEVEL_SLOTS = 4;
+  let levelSocketsHtml='';
+  for(let i=0;i<LEVEL_SLOTS;i++){
+    const filled = i<cardLevel;
+    levelSocketsHtml += `<span class="ctb-level-socket" style="background-image:url('${levelSocketSrc}')">${filled?`<span class="ctb-level-gem" style="background-image:url('${levelGemSrc}')"></span>`:''}</span>`;
+  }
   html += `<div class="ctb-row">`;
   html += `<div class="ctb-row-side">${archHtml}</div>`;
+  // A destra ci stanno le gemme del valore E i livelli, in quest'ordine e
+  // dentro allo stesso lato. Sono due file diverse e finiscono sullo stesso
+  // bordo: mettendole in due lati separati di una riga space-between si
+  // spartirebbero lo spazio, e i livelli non sarebbero piu' "tutti a destra".
+  // In fila invece si accodano, e oggi che le gemme del valore sono spente
+  // (GEMME_ATTIVE) restano i livelli soli, contro il bordo.
   // v0.71.16 FIX ("riduci lo spazio tra i gem socket del tooltip di 4px"):
-  // ctb-gems-side gives just this side its own smaller gap (see CSS).
-  html += `<div class="ctb-row-side ctb-gems-side">${gemsHtml}</div>`;
+  // ctb-gems-side gives just this group its own smaller gap (see CSS).
+  html += `<div class="ctb-row-side ctb-row-destra"><span class="ctb-row-side ctb-gems-side">${gemsHtml}</span><span class="ctb-level-sockets">${levelSocketsHtml}</span></div>`;
   html += `</div>`;
 
   // Ability box — v0.71.14 NEW: the ability's own NAME (Marcellus SC, 24px,
@@ -48555,27 +48584,6 @@ function buildBoardCardTooltipHTML(card){
   }
 
   html += `<div class="ctb-quote${card.arcobaleno?' frase-arcobaleno':''}">"${escapeHtml(card.quote || 'Un racconto ancora da scrivere.')}"</div>`;
-
-  // v0.71.17 ("mettiamola in basso, dopo la citazione... con sotto, molto
-  // attaccate, le 4 card-level-socket") + v0.71.18 FIX ("rimuoviamo la
-  // dicitura 'Level N card' dal tooltip"): the text label itself is gone
-  // now — only the 4-socket level indicator remains, still living right
-  // after the quote (mirrors buildFullHandCardSVG's own LEVEL_SLOTS loop —
-  // filled sockets get level-gem.png, empty ones stay bare).
-  // v0.72.2 FIX ("fai diventare tutte le carte livello 1"): fallback 2->1,
-  // same reasoning as buildFullHandCardSVG's own v0.72.2 fix.
-  const cardLevel = card.level || 1;
-  const levelSocketSrc = isDark?CARD_LEVEL_SOCKET_DARK:CARD_LEVEL_SOCKET_LIGHT;
-  // v0.79.5 — faction coded, come sulla carta grande: la gemma del livello la
-  // porta la carta, e la carta ha un colore. La rarita' non c'entra piu'.
-  const levelGemSrc = isDark?CARD_LEVEL_GEM_DARK:CARD_LEVEL_GEM_LIGHT;
-  const LEVEL_SLOTS = 4;
-  let levelSocketsHtml='';
-  for(let i=0;i<LEVEL_SLOTS;i++){
-    const filled = i<cardLevel;
-    levelSocketsHtml += `<span class="ctb-level-socket" style="background-image:url('${levelSocketSrc}')">${filled?`<span class="ctb-level-gem" style="background-image:url('${levelGemSrc}')"></span>`:''}</span>`;
-  }
-  html += `<div class="ctb-level-sockets">${levelSocketsHtml}</div>`;
 
   // v0.75.51 — E QUI I BONUS E I MALUS. Il tooltip delle carte IN CAMPO ha un
   // costruttore tutto suo (fillCardTooltip sceglie fra i due in base a
