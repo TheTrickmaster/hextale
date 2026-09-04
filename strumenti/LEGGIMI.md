@@ -121,8 +121,10 @@ Sembra un lavoro da `grep` e non lo e', per due ragioni che si scoprono
 sbagliando: meta' degli asset non compare MAI per intero (il nome viene
 composto — `'archetype-icon-' + tratto + '-' + variante + '.png'`), e due file
 diversi hanno spesso lo STESSO nome in due cartelle diverse (`right-button.png`
-sta in `ui/` e in `player-ui/`, `glow.png` in `main-menu/` e in
+stava in `ui/` e in `player-ui/`, `glow.png` in `main-menu/` e in
 `loading-screen/`). Cercare il nome e basta salva dei morti e condanna dei vivi.
+E' proprio guardando questi doppioni che si e' visto che tre cartelle
+d'interfaccia erano due di troppo: dalla v0.79.20 ce n'e' una sola, `ui/`.
 
 Quindi la domanda che fa e' un'altra: **questo nome compare insieme alla sua
 cartella?** Ogni cartella ha il suo modo di essere nominata — una costante

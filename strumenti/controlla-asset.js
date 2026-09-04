@@ -10,11 +10,14 @@
 //      'archetype-icon-' + tratto + '-' + variante + '.png' — quindi cercare il
 //      nome intero direbbe che sono inutilizzati quasi tutti. E' il modo piu'
 //      rapido per cancellare mezzo gioco.
-//   2. DUE FILE DIVERSI HANNO LO STESSO NOME. C'e' un right-button.png in ui/ e
-//      un altro in player-ui/, un glow.png in main-menu/ e un altro in
-//      loading-screen/. Cercare solo il nome del file li fa passare tutti e due
-//      appena UNO dei due e' usato — e quello morto resta li' per sempre,
-//      oppure lo si sposta e si porta via anche il vivo.
+//   2. DUE FILE DIVERSI POSSONO AVERE LO STESSO NOME in due cartelle diverse.
+//      Cercare solo il nome del file li fa passare tutti e due appena UNO dei
+//      due e' usato — e quello morto resta li' per sempre, oppure lo si sposta
+//      e si porta via anche il vivo.
+//      (Era il caso di right-button.png, in ui/ e in player-ui/, e di glow.png,
+//      in main-menu/ e in loading-screen/. Da v0.79.20 le prime due cartelle
+//      non esistono piu': e' proprio guardando questi doppioni che si e' visto
+//      che tre cartelle d'interfaccia erano due di troppo.)
 //
 // Quindi la domanda giusta non e' "questo nome c'e' nel codice?" ma "questo
 // nome c'e' nel codice INSIEME ALLA SUA CARTELLA?". Ogni cartella ha il suo
@@ -33,8 +36,10 @@ const ESTENSIONI = ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg', '.mp3', '.
                     '.mp4', '.ttf', '.otf', '.woff', '.woff2'];
 // `desktop`, `test` e `versions` restano fuori: applicazione impacchettata,
 // materiale di prova, e copie vecchie del gioco.
-const CARTELLE = ['audio', 'buttons', 'cards', 'fonts', 'loading-screen', 'main-menu',
-                  'player-ui', 'timer', 'ui', 'unpack-screen'];
+// v0.79.20 — 'main-menu', 'player-ui' e 'buttons' non esistono piu': la prima e
+// la seconda sono state svuotate dentro a ui/, la terza in _old/.
+const CARTELLE = ['audio', 'cards', 'fonts', 'loading-screen',
+                  'timer', 'ui', 'unpack-screen'];
 const CODICE = ['play/index.html', 'server', 'strumenti', 'desktop/main.js', 'desktop/preload.js'];
 
 // Come si nomina, nel codice, la cartella di un asset. La prima che combacia
@@ -48,15 +53,12 @@ const PORTE = [
   ['audio/voices',                ['VOCI_BASE', 'VOCI_REL', 'audio/voices/']],
   ['audio/music',                 ['audio/music/']],
   ['audio',                       ['audio/']],
-  ['main-menu',                   ['MENU_BASE', 'menuFileCandidati', 'main-menu/']],
-  ['player-ui',                   ['PLAYER_UI_BASE', 'player-ui/']],
   ['loading-screen',              ['loading-screen/']],
   ['unpack-screen',               ['unpack-screen/']],
   ['ui/ranks',                    ['ranks/']],
   ['ui/tiles',                    ['tiles/']],
   ['ui',                          ['UI_BASE', 'uiFileCandidati', '/ui/']],
   ['timer',                       ['timer/']],
-  ['buttons',                     ['buttons/']],
   ['fonts',                       ['fonts/']],
 ];
 

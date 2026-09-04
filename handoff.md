@@ -25,8 +25,8 @@ pubblicazione.
 | Applicazione desktop | `desktop/` — vedi piu' sotto |
 | Illustrazioni carte | `cards/art/<personaggio>/` |
 | Voci | `audio/voices/` |
-| Interfaccia di gioco | `player-ui/`, `card-parts/`, `buttons/`, `tiles/` |
-| Menu principale | `main-menu/` |
+| Interfaccia, menu compreso | `ui/` — dalla v0.79.20 e' una sola: `player-ui/`, `main-menu/` e `buttons/` non esistono piu' |
+| Pezzi delle carte | `cards/card-parts/`, `ui/tiles/` |
 | Bustine | `cards/packs/` |
 | Schermata iniziale | `loading-screen/` |
 

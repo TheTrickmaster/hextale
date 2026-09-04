@@ -1583,12 +1583,17 @@ function applicaEsito(nk, userId, vinta, pari, controIA, turni, modo) {
 
   // ── rank ────────────────────────────────────────────────────────────────
   var salito = false, sceso = false;
-  // v0.78.11 — una partita che nessuno ha concluso non muove il rank. Il
-  // server non puo' distinguere un crash da un abbandono per ripicca, e
-  // trattarli come una sconfitta punirebbe chi ha perso la corrente. In
-  // compenso non premia nemmeno chi resta: il rank misura le partite giocate
-  // fino in fondo.
-  var conclusa = (modo !== 'uscito' && modo !== 'resta');
+  // ── v0.79.20 — CHI ESCE PERDE ANCHE I PUNTI RANK ────────────────────────
+  // Deciso da Lorenzo. Prima non li perdeva: la v0.78.11 diceva che il server
+  // non sa distinguere un crash da un abbandono per ripicca, e che punire chi
+  // ha perso la corrente sarebbe peggio del problema. Vero, ma il conto lo
+  // pagava dall'altra parte: uscire era il modo gratis per non perdere un
+  // gradino quando la partita stava andando male.
+  // Adesso 'uscito' conta come una sconfitta a tutti gli effetti, tre di fila
+  // comprese. Chi RESTA invece non guadagna punti: la sua vittoria e' vera —
+  // prende l'esperienza e l'inchiostro di una vittoria — ma non l'ha giocata
+  // fino in fondo, e il rank misura le partite giocate fino in fondo.
+  var conclusa = (modo !== 'resta');
   if (premia && !pari && conclusa) {
     if (vinta) {
       p.sconfitteDiFila = 0;

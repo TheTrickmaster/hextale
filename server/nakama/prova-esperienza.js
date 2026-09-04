@@ -6,8 +6,10 @@
 //   - + 20 se si conclude in sconfitta;
 //   - + 20 a chi si arrende: arrendersi e' CONCLUDERE, e' una sconfitta scelta;
 //   - + 0 a chi si disconnette, crasha, o esce per qualunque altra ragione che
-//     non sia la sconfitta: la sua partita non si e' conclusa in nessun modo.
-//     I turni giocati restano suoi, perche' quelli li ha giocati;
+//     non sia la sconfitta. I turni giocati restano suoi, perche' quelli li ha
+//     giocati; da v0.79.20 pero' l'uscita costa anche i punti RANK, come una
+//     sconfitta qualunque: senza, uscire era il modo gratis per non perdere un
+//     gradino quando la partita stava andando male;
 //   - a chi RESTA dopo che l'altro e' uscito: + 50, come una vittoria. Perche'
 //     e' una vittoria: da v0.79.18 chi abbandona PERDE, sempre, e non importa
 //     chi fosse avanti. Il ramo "restava perdendo" (+ 35) e' sparito con la
@@ -167,6 +169,11 @@ const strade = [
   { nome: 'l-abbandono dichiara un vincitore', prova: /vincitore: restaInPiedi/ },
   { nome: 'e chi resta ha vinto, comunque fosse messo',
     prova: /applicaEsito\(nk, u, !uscito, false, false,/ },
+  // v0.79.20 — e chi esce paga anche il rank. Il ramo del rank si apre per
+  // tutto tranne 'resta': l'uscita e' una sconfitta a tutti gli effetti, le tre
+  // di fila comprese. Chi resta no — la sua vittoria e' vera ma non l'ha
+  // giocata fino in fondo.
+  { nome: 'chi esce perde anche i punti rank', prova: /var conclusa = \(modo !== 'resta'\);/ },
   { nome: 'la partita contro l-IA', prova: /dati\.turni, 'finita'/ },
   { nome: 'e i turni li conta il server, non il client', prova: /state\.turniGiocati\[chi\] = \(state\.turniGiocati\[chi\] \|\| 0\) \+ 1/ },
 ];

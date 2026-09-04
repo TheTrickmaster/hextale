@@ -33,9 +33,30 @@ cartella?**
 - `loading-screen/loading-bg.png`: il fondale adesso e' `start-screen-bg.png`.
   Il vecchio nome sopravvive in un commento, e un commento non e' un uso.
 
+## Il giro dopo (v0.79.20)
+
+Le cartelle `main-menu/` e `player-ui/` non esistono piu': Lorenzo le ha
+ripulite e quel che restava e' finito in `ui/`. Qui dentro sono rimasti i tre
+doppioni, cioe' i soli file che sarebbero andati a sovrascriverne uno gia'
+presente in `ui/`:
+
+- `main-menu/magic-ink-icon.png` — byte per byte identico a quello di `ui/`.
+- `main-menu/fairy-dust-icon.png` — la stessa illustrazione riesportata (29736
+  byte contro 29668): messe una accanto all'altra non si distinguono.
+- `player-ui/sound-icon.png` — questo e' un disegno DIVERSO, un altoparlante
+  azzurro invece di quello dorato del resto dell'interfaccia. Non lo chiedeva
+  piu' nessuno: il gioco passa da `uiFileCandidati`, cioe' dalla copia in
+  `ui/`. Questa e' l'arte vecchia.
+
+E quattro file che Lorenzo aveva tolto sono tornati al loro posto, in `ui/`:
+`damage-anim.mp4`, `damage-bubble-dark.png`, `damage-bubble-light.png` e
+`healing-bubble.png`. Non erano morti: li usa ancora showHpDamagePopup, che e'
+la bolla del danno di ogni scontro. Se vanno tolti davvero, va tolta prima
+quella.
+
 ## Cosa NON e' finito qui, pur sembrando morto
 
-`player-ui/` ha una porta che accetta un nome qualunque: un avatar salvato come
-nome di file (`avatarCandidati`) diventa `PLAYER_UI_BASE + quel nome`. Finche'
-quella riga esiste, qualunque file di quella cartella puo' essere chiesto da un
-account vecchio, e nessuno di loro si puo' dichiarare morto guardando il codice.
+`audio/sfx/` tiene cinque suoni che non suona nessuno — `arcane`, `chain`,
+`drain`, `howl`, `card-pick` — ma che stanno nella mappa dei suoni: sono
+registrati, non orfani. Toglierli vorrebbe dire togliere anche la riga che li
+nomina, ed e' una decisione sulle abilita', non sugli asset.
