@@ -493,6 +493,196 @@ function rpcPreferenze(ctx, logger, nk, payload) {
 //
 // La sigla vuota e' ammessa e vuol dire "torna a quello di partenza": e' il
 // modo in cui si ripara un avatar rimasto su una carta che non c'e' piu'.
+// ══════════════════════════════════════════════════════════════════════════
+// v0.79.12 — LE SEGNALAZIONI DI GUASTO
+// ══════════════════════════════════════════════════════════════════════════
+// La finestra dice "submitted successfully", quindi la segnalazione deve
+// ARRIVARE da qualche parte: un ringraziamento per un messaggio buttato via
+// sarebbe la cosa peggiore che questa schermata possa fare.
+//
+// Una segnalazione = un oggetto, con una chiave che porta il momento in cui e'
+// arrivata. Non si accodano dentro a un unico elenco perche' due giocatori che
+// scrivono nello stesso istante si sovrascriverebbero a vicenda: chi legge per
+// ultimo vince, e a perdersi sarebbe proprio il difetto che qualcuno ha avuto
+// la pazienza di raccontare.
+//
+// Si legge dal server con storageList sulla collezione "segnalazioni".
+var COLL_SEGNALAZIONI = 'segnalazioni';
+// Quanto puo' essere lunga ogni risposta. Non e' avarizia: un campo senza
+// limite e' un modo di riempire il disco di qualcun altro, e nessuno descrive
+// un difetto in duemila caratteri.
+var SEGN_TESTO_MAX = 2000;
+// E quanto puo' pesare l'immagine, gia' rimpicciolita dal client. Sopra questa
+// soglia la segnalazione si salva LO STESSO, senza figura: il testo e' la
+// parte che conta, e rifiutare tutto per una foto troppo grande vorrebbe dire
+// perdere il racconto per colpa dell'allegato.
+var SEGN_FOTO_MAX = 400 * 1024;
+
+var SEGN_CATEGORIE = ['gameplay', 'cards', 'match', 'ui', 'collection',
+  'rewards', 'performance', 'visual', 'account', 'other'];
+var SEGN_FREQUENZE = ['once', 'sometimes', 'always'];
+
+function _inElenco(elenco, v) {
+  for (var i = 0; i < elenco.length; i++) if (elenco[i] === v) return true;
+  return false;
+}
+function _testoPulito(v) {
+  return String(v == null ? '' : v).slice(0, SEGN_TESTO_MAX);
+}
+
+// ── LA POSTA ──────────────────────────────────────────────────────────────
+// Le caselle di posta di Hextale stanno da un registrar e parlano SMTP.
+// Nakama non parla SMTP: sa fare chiamate HTTP e basta. In mezzo ci va quindi
+// un pezzo piccolissimo — il servizio in server/posta/ — che riceve una
+// chiamata HTTP e la imbuca. Non e' un giro largo: e' l'unico modo di far
+// arrivare una email da qui, e quel pezzo fa una cosa sola.
+//
+// La CHIAVE non sta in questo file. Questo repository e' pubblico —
+// hextalegame.com serve i suoi file — e una chiave scritta qui sarebbe
+// pubblica dal primo push, per sempre, anche togliendola il minuto dopo. Sta
+// in un oggetto del server, scritto una volta con hx_posta_config.
+// La password della casella non passa nemmeno di qui: la conosce solo il
+// servizio di inoltro, dal suo file di ambiente sul server.
+var KEY_POSTA = 'posta';
+var SEGN_DESTINATARIO = 'support@hextalegame.com';
+// Il servizio vive accanto a Nakama, sulla rete interna di docker: da fuori
+// non e' raggiungibile, ed e' voluto — non ha nessuna ragione di esserlo.
+var POSTA_URL = 'http://posta:8081/invia';
+
+function _postaConfig(nk) {
+  var c = null;
+  try { c = leggiSistema(nk, KEY_POSTA); } catch (e) { c = null; }
+  if (!c || !c.chiave) return null;
+  return c;
+}
+
+// Il corpo del messaggio: testo semplice. Chi legge una segnalazione vuole
+// leggerla, non guardarla.
+function _postaTesto(s, chiave) {
+  var righe = [
+    'Categoria: ' + s.categoria,
+    'Frequenza: ' + s.frequenza,
+    'Giocatore: ' + (s.nome || '(senza nome)') + '  [' + s.chi + ']',
+    'Versione:  ' + (s.versione || '?') + '   schermo ' + (s.schermo || '?'),
+    'Browser:   ' + (s.agente || '?'),
+    '',
+    '--- Cosa e successo ---',
+    s.cosa,
+    '',
+    '--- Cosa si aspettava ---',
+    (s.atteso || '(non risposto)'),
+    '',
+    '---',
+    'Sul server: ' + COLL_SEGNALAZIONI + '/' + chiave
+  ];
+  if (s.conFoto) righe.push('Schermata allegata (anche in ' + COLL_SEGNALAZIONI + '/' + chiave + '-foto)');
+  return righe.join('\n');
+}
+
+// Spedisce, e se non ci riesce lo dice al registro e basta: la segnalazione e'
+// gia' salvata, e far fallire la chiamata del giocatore perche' la posta e'
+// giu' vorrebbe dire perdere il racconto per un problema che non e' suo.
+function _spedisciSegnalazione(nk, logger, s, chiave, foto) {
+  var cfg = _postaConfig(nk);
+  if (!cfg) { logger.info('posta non configurata: la segnalazione %s resta solo sul server', chiave); return false; }
+  var corpo = {
+    a: SEGN_DESTINATARIO,
+    oggetto: '[Hextale] ' + s.categoria + ' - ' + String(s.cosa).slice(0, 60).replace(/\s+/g, ' '),
+    testo: _postaTesto(s, chiave),
+    allegato: foto || ''
+  };
+  try {
+    var r = nk.httpRequest(POSTA_URL, 'post',
+      { 'Content-Type': 'application/json', 'X-Hextale-Chiave': cfg.chiave },
+      JSON.stringify(corpo), 20);
+    if (r.code >= 200 && r.code < 300) return true;
+    logger.warn('la posta ha risposto %d per la segnalazione %s: %s', r.code, chiave, String(r.body).slice(0, 300));
+  } catch (e) {
+    logger.warn('la segnalazione %s non e partita per posta: %s', chiave, String(e));
+  }
+  return false;
+}
+
+// Si scrive una volta, da un admin, e non compare mai in questo file:
+//   {"chiave":"<la stessa che sta nell'ambiente del servizio di inoltro>"}
+function rpcPostaConfig(ctx, logger, nk, payload) {
+  if (!ctx.userId) throw Error('serve un accesso');
+  var possesso = assicuraPossesso(ctx, nk, logger, ctx.userId, ctx.username);
+  if (!possesso.admin) throw Error('non sei un admin');
+  var d = {};
+  try { d = payload ? JSON.parse(payload) : {}; } catch (e) { d = {}; }
+  if (!d.chiave) throw Error('serve la chiave');
+  scriviSistema(nk, KEY_POSTA, { chiave: String(d.chiave) });
+  logger.info('posta configurata da %s', ctx.userId);
+  // La chiave non torna indietro: chi l'ha scritta ce l'ha gia', e chiunque
+  // altro non deve poterla rileggere da qui.
+  return JSON.stringify({ fatto: true });
+}
+
+function rpcSegnalazione(ctx, logger, nk, payload) {
+  if (!ctx.userId) throw Error('serve un accesso');
+  var dentro = {};
+  try { dentro = payload ? JSON.parse(payload) : {}; } catch (e) { dentro = {}; }
+
+  var categoria = String(dentro.categoria || '');
+  if (!_inElenco(SEGN_CATEGORIE, categoria)) throw Error('categoria non valida');
+  var frequenza = String(dentro.frequenza || '');
+  if (!_inElenco(SEGN_FREQUENZE, frequenza)) throw Error('frequenza non valida');
+  var cosa = _testoPulito(dentro.cosa);
+  if (!cosa) throw Error('serve una descrizione');
+
+  var foto = String(dentro.schermata || '');
+  var conFoto = foto.length > 0 && foto.length <= SEGN_FOTO_MAX;
+  if (foto.length > SEGN_FOTO_MAX) {
+    logger.info('segnalazione di %s: figura da %d byte, troppo grande, si salva senza', ctx.userId, foto.length);
+  }
+
+  var quando = Date.now();
+  var chiave = 'segn-' + quando + '-' + Math.floor(Math.random() * 1e6);
+  var segnalazione = {
+    quando: quando,
+    chi: ctx.userId,
+    nome: ctx.username || '',
+    categoria: categoria,
+    frequenza: frequenza,
+    cosa: cosa,
+    atteso: _testoPulito(dentro.atteso),
+    versione: _testoPulito(dentro.versione).slice(0, 20),
+    schermo: _testoPulito(dentro.schermo).slice(0, 40),
+    agente: _testoPulito(dentro.agente).slice(0, 300),
+    conFoto: conFoto
+  };
+  // La figura in un oggetto SUO. Cosi' chi legge l'elenco delle segnalazioni
+  // si porta dietro solo il testo — e un elenco che pesa un megabyte a riga
+  // non lo apre nessuno.
+  nk.storageWrite([{
+    collection: COLL_SEGNALAZIONI, key: chiave,
+    userId: '00000000-0000-0000-0000-000000000000',
+    value: segnalazione,
+    permissionRead: 0, permissionWrite: 0
+  }]);
+  if (conFoto) {
+    try {
+      nk.storageWrite([{
+        collection: COLL_SEGNALAZIONI, key: chiave + '-foto',
+        userId: '00000000-0000-0000-0000-000000000000',
+        value: { dati: foto },
+        permissionRead: 0, permissionWrite: 0
+      }]);
+    } catch (e) {
+      // Il racconto e' gia' salvato: se la figura non entra, si perde la
+      // figura e non la segnalazione.
+      logger.warn('figura della segnalazione %s non scritta: %s', chiave, String(e));
+    }
+  }
+  logger.info('segnalazione da %s (%s): %s', ctx.userId, categoria, chiave);
+  // E parte per posta. DOPO il salvataggio, e senza poter far fallire niente:
+  // la segnalazione e' gia' al sicuro, e il giocatore ha gia' fatto la sua
+  // parte. Se la posta e' giu', a saperlo e' il registro del server.
+  var spedita = _spedisciSegnalazione(nk, logger, segnalazione, chiave, conFoto ? foto : '');
+  return JSON.stringify({ ricevuta: true, spedita: spedita });
+}
+
 // ── v0.79.8 — AZZERARE L'ATTESA DELLA BUSTINA, DAL MENU DI DEBUG ──────────
 // Il pulsante c'era gia' e non funzionava piu': cancellava una chiave di
 // localStorage, e dalla v0.77.90 l'attesa non sta piu' li' — la tiene il
@@ -3457,6 +3647,8 @@ function InitModule(ctx, logger, nk, initializer) {
   initializer.registerRpc('hx_preferenze', rpcPreferenze);
   initializer.registerRpc('hx_avatar', rpcAvatar);
   initializer.registerRpc('hx_bustina_azzera', rpcBustinaAzzera);
+  initializer.registerRpc('hx_segnalazione', rpcSegnalazione);
+  initializer.registerRpc('hx_posta_config', rpcPostaConfig);
   initializer.registerRpc('hx_elimina_account', rpcEliminaAccount);
   initializer.registerRpc('hx_giocatori', rpcGiocatoriOnline);
   initializer.registerRpc('hx_entro', rpcEntro);
