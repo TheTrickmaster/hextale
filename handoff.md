@@ -2269,6 +2269,26 @@ zone, caricando il gioco e verificando che le funzioni chiave esistano ancora.
   c'e' mezzo secondo scoperto, e in quel mezzo secondo si vedeva la partita di
   prima. Chi rimanda un disegno deve anche svuotare (v0.78.29,
   `svuotaLaScena`).
+- **Un contatore di generazioni va tenuto SULL'ELEMENTO, non uno per tutti.**
+  Serve a far tacere un caricamento sorpassato: si prova un indirizzo e, quando
+  finalmente risponde, puo' essere gia' passata una richiesta piu' recente. Ma
+  "piu' recente" deve voler dire piu' recente PER QUELL'IMMAGINE. Con un
+  contatore condiviso, due immagini diverse chieste una dopo l'altra si tolgono
+  la parola a vicenda: cambiando avatar, la richiesta del menu zittiva quella di
+  Customize, e l'avatar cambiava dappertutto tranne che nella finestra in cui lo
+  si era appena scelto (v0.79.1, `mostraAvatarSu`).
+- **Un valore di ripiego che si VEDE e' un'informazione falsa, non un'attesa.**
+  L'avatar ripiegava su Fox finche' il server non rispondeva: all'ingresso
+  lampeggiava per un secondo la volpe di tutti. La differenza fra "non lo so
+  ancora" e "e' questo" la deve raccontare l'interfaccia — non si mostra niente
+  — ed e' la stessa regola gia' scritta per `carteDelGiocatore`, che a possesso
+  ignoto non mostra una collezione finta.
+- **`clip-path` viene applicato DOPO `filter`.** Ritagliando e sfocando lo
+  stesso elemento, la sfocatura viene tagliata via sul bordo della forma e non
+  esce di un pixel: un bagliore esagonale sfocato non si vedrebbe affatto. Il
+  ritaglio sta in un elemento, la sfocatura nel suo genitore (v0.79.1,
+  `.avatar-glow`). E' la stessa trappola gia' elencata qui sopra per il blur
+  ritagliato, incontrata una seconda volta.
 - **Una lista calcolata fuori dal ciclo non puo' dipendere da cio' che il ciclo
   guarda.** `aiChooseMove` si faceva l'elenco delle caselle una volta sola,
   prima di guardare le carte: era quindi lo stesso per tutte, e una carta che

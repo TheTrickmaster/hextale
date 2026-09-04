@@ -78,9 +78,18 @@ console.log('\nL-AVATAR\n');
 dice(server.indexOf("var AVATAR_DI_PARTENZA = 'fox';") >= 0,
   'il server da- Fox a chi comincia',
   "E- l'unica carta che tutti e tre i mazzi starter hanno.");
-dice(gioco.indexOf("const AVATAR_DI_PARTENZA = 'fox';") >= 0,
-  'e il client sa che e- Fox anche prima della risposta',
-  'Altrimenti si vedrebbe il ritratto di ripiego finche- il server non parla.');
+// v0.79.1 — e il client NON ha un avatar di ripiego suo. Ne aveva uno, ed era
+// sbagliato: entrando in gioco si vedeva per un secondo la volpe di tutti prima
+// del proprio avatar. Un valore di ripiego che si vede e' un'informazione
+// falsa, non un'attesa.
+const sigla = corpo(gioco, 'miaSiglaAvatar');
+dice(!!sigla && sigla.indexOf('AVATAR_DI_PARTENZA') < 0,
+  'e il client non ci ripiega sopra finche- non sa',
+  "Con un ripiego, all'ingresso lampeggia la volpe di tutti e poi arriva il\n" +
+  '        proprio avatar: si vede una faccia che non e- la tua.');
+dice(gioco.indexOf('const AVATAR_DI_PARTENZA') < 0,
+  'e non se ne tiene una copia da questa parte',
+  "Chi assegna l'avatar iniziale e- il server: e- un fatto dell'account.");
 
 const cand = corpo(gioco, 'avatarCandidati');
 dice(!!cand && cand.indexOf('artUrlVariante') >= 0,

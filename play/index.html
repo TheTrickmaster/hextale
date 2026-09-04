@@ -666,7 +666,12 @@ body.mouse-down, body.mouse-down *{
 #mm2-avatar{
   position:relative; left:auto; top:-30px; transform:none;
   height:225px; width:calc(225px * 749 / 834); flex:0 0 auto;
+  cursor:var(--cursore);
 }
+/* v0.79.1 — si puo' cliccare per cambiarlo. Il livello che ci sta appeso sotto
+   no: e' un numero, non un comando, e cliccarlo per sbaglio aprirebbe una
+   finestra che non si stava cercando. */
+#mm2-avatar #mm2-orb{ pointer-events:none; }
 /* Foto e cornice restano assolute DENTRO all'avatar, com'e' in partita: sono
    le loro percentuali a incastrare il ritratto nell'esagono della cornice. */
 #mm2-avatar .player-avatar-frame{ inset:0; width:100%; height:100%; }
@@ -8164,6 +8169,17 @@ body.prova-senza-willchange #mm-book-rot{
 /* Il pulsante rosso non e' largo quanto la finestra: e' l'ultima cosa che si
    preme e non deve avere l'aria di una voce dell'elenco. */
 #settings-uscita{ align-items:center; }
+/* ── v0.79.1 — LA TENDINA STA SOPRA ────────────────────────────────────────
+   Ogni figlio diretto del pannello riceve `z-index:1` (vedi #settings-pannello
+   > *), quindi l'esagono di aiuto e il pulsante di chiusura, che vengono DOPO,
+   finivano davanti all'elenco aperto: le tre voci si leggevano attraverso di
+   loro. E' lo stesso difetto gia' corretto nella finestra dei filtri, e si
+   corregge allo stesso modo — al gruppo che contiene la tendina serve una
+   forza maggiore, non alla tendina, che di suo sta gia' dentro a un figlio
+   con z-index 1. */
+#settings-pannello > #settings-fazione{ z-index:20; }
+/* E le tre voci si leggono a destra, incolonnate sotto al valore scelto. */
+#fazione-dropdown-voci .hx-dropdown-voce{ text-align:right; }
 #settings-uscita .hx-btn{ width:290px; }
 
 /* ── Customize ─────────────────────────────────────────────────────────────
@@ -8187,12 +8203,12 @@ body.prova-senza-willchange #mm-book-rot{
    cornice (vedi .player-avatar-photo), e il suo vertice cade al 13% + 72%,
    cioe' all'85% dell'altezza. Il numero viene da li' e non da un occhio. */
 #customize-faccia{
-  position:relative; width:150px; margin:0 auto;
+  position:relative; width:300px; margin:0 auto;
   padding-bottom:26px;
 }
 #customize-avatar{
   position:relative; left:auto; top:auto; transform:none;
-  width:150px; height:calc(150px * 834 / 749);
+  width:300px; height:calc(300px * 834 / 749);
 }
 #customize-edit{
   position:absolute; left:50%; top:85%;
@@ -8256,16 +8272,20 @@ body.prova-senza-willchange #mm-book-rot{
 /* Tre colonne da 150 con dodici di distanza: 474 di griglia, piu' i trenta di
    bordo del pannello per parte. La larghezza della finestra si scrive di
    conseguenza invece di essere indovinata. */
-#avatar-box{ width:534px; }
+/* v0.79.1 — tre colonne da 300 con quattro virgola otto di distanza (i dodici
+   di prima meno il sessanta per cento): 909,6 di griglia, piu' i trenta di
+   bordo del pannello per parte. La larghezza della finestra si scrive di
+   conseguenza invece di essere indovinata. */
+#avatar-box{ width:970px; }
 #avatar-griglia{
-  display:grid; grid-template-columns:repeat(3,150px);
-  gap:12px; justify-content:center;
-  max-height:60vh; overflow-y:auto;
+  display:grid; grid-template-columns:repeat(3,300px);
+  gap:4.8px; justify-content:center;
+  max-height:64vh; overflow-y:auto;
   scrollbar-width:none;
 }
 #avatar-griglia::-webkit-scrollbar{ display:none; width:0; height:0; }
 .avatar-scelta{
-  position:relative; width:150px; height:calc(150px * 834 / 749);
+  position:relative; width:300px; height:calc(300px * 834 / 749);
   background:none; border:0; padding:0;
   cursor:var(--cursore);
 }
@@ -8273,19 +8293,30 @@ body.prova-senza-willchange #mm-book-rot{
   position:absolute; inset:0; left:0; top:0; transform:none;
   width:100%; height:100%;
 }
-/* Il bagliore sta SOTTO alla cornice e sfonda oltre il riquadro: e' quello che
-   dice "questa". Un bordo non basterebbe — la cornice ne ha gia' uno suo. */
-.avatar-scelta::before{
-  content:''; position:absolute; left:50%; top:50%;
-  width:132%; height:132%;
-  transform:translate(-50%,-50%);
-  border-radius:50%;
-  background:radial-gradient(circle, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.45) 45%, rgba(255,255,255,0) 72%);
+/* ── v0.79.1 — IL BAGLIORE E' LO STESSO ESAGONO ───────────────────────────
+   Sta SOTTO all'avatar e ha la sua identica forma e posizione: le percentuali
+   sono quelle di .player-avatar-photo, cioe' l'apertura vera della cornice.
+   E' DUE ELEMENTI e non uno, e non e' una complicazione gratuita: `clip-path`
+   viene applicato DOPO `filter`, quindi ritagliando e sfocando lo stesso
+   elemento la sfocatura verrebbe tagliata via sul bordo dell'esagono e non
+   uscirebbe di un pixel. Il ritaglio sta dentro, la sfocatura fuori. */
+/* Le misure non sono quelle della FOTO (15.5/13/69/72) ma quelle della
+   CORNICE, cioe' un filo piu' larghe: allineato alla foto, il bagliore
+   resterebbe tutto sotto al bordo dorato e i dieci pixel di sfocatura non
+   uscirebbero mai da sotto. Sotto all'avatar, non sotto alla foto. */
+.avatar-glow{
+  position:absolute; left:9.5%; top:6.5%; width:81%; height:87%;
+  filter:blur(10px);
   opacity:0; transition:opacity 0.16s ease;
   pointer-events:none; z-index:0;
 }
-.avatar-scelta:hover::before{ opacity:0.28; }
-.avatar-scelta.scelta::before{ opacity:1; }
+.avatar-glow > span{
+  display:block; width:100%; height:100%;
+  background:#A1D3DB;
+  clip-path:polygon(50% 0%, 100% 25.1%, 100% 74.5%, 50% 100%, 0% 74.5%, 0% 25.1%);
+}
+.avatar-scelta:hover .avatar-glow{ opacity:0.35; }
+.avatar-scelta.scelta .avatar-glow{ opacity:1; }
 .avatar-scelta .player-avatar{ z-index:1; }
 .avatar-nome{
   position:absolute; left:0; right:0; bottom:-2px; z-index:2;
@@ -9973,7 +10004,9 @@ body.prova-senza-willchange #mm-book-rot{
       <div class="mm2-box" id="mm2-stats">
         <div id="mm2-drappo">
           <div id="mm2-nome">Player name</div>
-          <div class="player-avatar" id="mm2-avatar">
+          <!-- v0.79.1 — si clicca per cambiarlo: e- la propria faccia, ed e-
+               il posto in cui la si guarda piu- spesso. -->
+          <div class="player-avatar" id="mm2-avatar" onclick="apriSceltaAvatar()" title="Change avatar">
             <img class="player-avatar-photo" alt="" draggable="false">
             <img class="player-avatar-frame" alt="" draggable="false">
             <div id="mm2-orb"><img alt="" draggable="false"><span id="mm2-livello">2</span></div>
@@ -10637,7 +10670,7 @@ body.prova-senza-willchange #mm-book-rot{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.0</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.1</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -10719,6 +10752,25 @@ body.prova-senza-willchange #mm-book-rot{
         <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
         <span class="hxb-label">Customize</span>
       </button>
+      <!-- v0.79.1 — LA DONAZIONE, sotto a Customize e solo dal menu principale.
+           Stava in fondo a tutto, sotto al pulsante di chiusura, con una riga
+           di separazione tutta sua: due voci separate da una riga quando sono
+           le uniche due voci di quella zona.
+           target="_blank" e non "_top": dentro all'applicazione desktop "_top"
+           porterebbe la finestra del gioco su paypal.com, senza barra degli
+           indirizzi e senza un pulsante indietro. Con "_blank" interviene il
+           gestore gia' scritto in desktop/main.js.
+           v0.78.15 — e' lo stesso pulsante del menu principale, non piu' la GIF
+           di PayPal: il modulo resta identico, cambia il vestito. -->
+      <form class="donate-form" action="https://www.paypal.com/donate" method="post" target="_blank" rel="noopener">
+        <input type="hidden" name="business" value="4HZY4JGJ2A358">
+        <input type="hidden" name="no_recurring" value="0">
+        <input type="hidden" name="currency_code" value="EUR">
+        <button class="hx-btn settings-azione hx-donate-btn" type="submit">
+          <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
+          <span class="hxb-label"><img class="hx-donate-logo" alt="" draggable="false">Donate</span>
+        </button>
+      </form>
       </div>
       <div class="filters-riga"></div>
       <div class="settings-row">
@@ -10759,7 +10811,7 @@ body.prova-senza-willchange #mm-book-rot{
            La riga di separazione sta DENTRO al gruppo, non dopo: un gruppo che
            si nasconde deve portarsi via anche la propria riga, o in partita
            resterebbero due separatori appiccicati. -->
-      <div class="settings-voci" data-quando="menu">
+      <div class="settings-voci" data-quando="menu" id="settings-fazione">
         <div class="hx-dropdown" id="fazione-dropdown">
           <button type="button" class="hx-dropdown-testa" onclick="apriChiudiTendinaFazione(event)">
             <span class="hx-dropdown-et">Play as:</span>
@@ -10786,28 +10838,6 @@ body.prova-senza-willchange #mm-book-rot{
         <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
         <span class="hxb-label">Close</span>
       </button>
-      <!-- v0.75.79 — LA DONAZIONE, in fondo a tutto e solo dal menu principale.
-           target="_blank" e non "_top": dentro all'applicazione desktop "_top"
-           porterebbe la finestra del gioco su paypal.com, senza barra degli
-           indirizzi e senza un pulsante indietro. Con "_blank" interviene il
-           gestore gia' scritto in desktop/main.js. -->
-      <div class="settings-voci" data-quando="menu">
-        <div class="filters-riga"></div>
-        <!-- v0.78.15 — lo stesso pulsante del menu principale, non piu' la
-             GIF di PayPal. Il modulo resta identico — si cambia il vestito del
-             pulsante, non cio' che fa — ed e' l'unico modo perche' i due
-             posti da cui si dona abbiano la stessa faccia: prima uno era un
-             pulsante del gioco e l'altro un'immagine presa da paypal.com. -->
-        <form class="donate-form" action="https://www.paypal.com/donate" method="post" target="_blank" rel="noopener">
-          <input type="hidden" name="business" value="4HZY4JGJ2A358">
-          <input type="hidden" name="no_recurring" value="0">
-          <input type="hidden" name="currency_code" value="EUR">
-          <button class="hx-btn settings-azione hx-donate-btn" type="submit">
-            <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
-            <span class="hxb-label"><img class="hx-donate-logo" alt="" draggable="false">Donate</span>
-          </button>
-        </form>
-      </div>
     </div>
   </div>
 
@@ -14546,27 +14576,42 @@ function mm2RinfrescaGiocatore(){
 // Ha un contatore suo e non quello dei pannelli di partita: sono due immagini
 // diverse, e un giro di pannelli non deve poter zittire il menu a meta'
 // caricamento.
-let _avatarMenuGen = 0;
 function mm2AggiornaAvatar(){
   const foto = document.querySelector('#mm2-avatar .player-avatar-photo');
   if(!foto) return;
   mostraAvatarSu(foto, miaSiglaAvatar());
 }
 // Usata da tutti i posti FUORI dalla partita che mostrano la mia faccia: il
-// menu, le impostazioni, la finestra di scelta. Dentro alla partita comanda
+// menu, Customize, la finestra di scelta. Dentro alla partita comanda
 // assegnaAvatarDeiGiocatori, che ha due giocatori e due fazioni da tenere
 // insieme.
+//
+// ── v0.79.1 — IL TURNO E' DELL'IMMAGINE, NON DI CHI DISEGNA ───────────────
+// Il contatore delle generazioni era UNO SOLO per tutte le immagini. Serve a
+// far tacere un caricamento sorpassato — si prova un indirizzo, e quando
+// finalmente risponde puo' essere passata un'altra richiesta piu' recente — ma
+// "piu' recente" deve voler dire piu' recente PER QUELL'IMMAGINE.
+// Con un contatore condiviso, cambiando avatar succedeva questo: Customize
+// chiedeva la faccia nuova, il menu la chiedeva subito dopo, e la richiesta del
+// menu zittiva quella di Customize a meta' strada. Da fuori: l'avatar cambiava
+// dappertutto tranne che nella finestra in cui lo si era appena scelto, e
+// tornava buono solo chiudendo e riaprendo.
+// Il contatore sta quindi SULL'ELEMENTO: ogni immagine ha il suo turno, e due
+// immagini diverse non si tolgono la parola a vicenda.
+//
+// E se non c'e' niente da mostrare l'immagine si NASCONDE, invece di ripiegare
+// su un ritratto qualunque: vedi miaSiglaAvatar.
 function mostraAvatarSu(el, sigla, fazione){
   if(!el) return;
   const cand = avatarCandidati(sigla, fazione || fazioneUmano());
-  if(!cand.length){ el.src = PLAYER_UI_BASE + AVATAR_RIPIEGO; return; }
-  const gen = ++_avatarMenuGen;
+  const gen = (el.__avatarGen = (el.__avatarGen || 0) + 1);
+  if(!cand.length){ el.removeAttribute('src'); el.style.visibility = 'hidden'; return; }
   let i = 0;
   const prova = ()=>{
-    if(gen !== _avatarMenuGen || i >= cand.length) return;
+    if(gen !== el.__avatarGen || i >= cand.length) return;
     const url = cand[i++];
     const test = new Image();
-    test.onload = ()=>{ if(gen === _avatarMenuGen) el.src = url; };
+    test.onload = ()=>{ if(gen === el.__avatarGen){ el.src = url; el.style.visibility = ''; } };
     test.onerror = prova;
     test.src = url;
   };
@@ -19855,7 +19900,11 @@ const AVATAR_RIPIEGO = 'pinocchio-avatar-test.png';
 // indirizzo del sito): un avatar vecchio non deve sparire per un cambio di
 // formato. Tutto il resto — un'immagine presa da un altro sito, per esempio da
 // un profilo Google — non passa, ne' qui ne' sul server.
-const AVATAR_DI_PARTENZA = 'fox';
+// v0.79.1 — qui stava AVATAR_DI_PARTENZA, la volpe da mostrare finche' la
+// risposta del server non fosse arrivata. E' stata tolta, non spostata: chi
+// assegna l'avatar iniziale e' il SERVER (AVATAR_DI_PARTENZA di la'), perche' e'
+// un fatto dell'account. Da questa parte, finche' non si sa, non si mostra
+// niente — vedi miaSiglaAvatar.
 function avatarCandidati(sigla, fazione){
   const v = String(sigla || '').trim();
   if(!v) return [];
@@ -19867,11 +19916,18 @@ function avatarCandidati(sigla, fazione){
   const f = (fazione === 'light') ? 'light' : 'dark';
   try{ return (artUrlVariante(v.toLowerCase(), f).senzaNumero) || []; }catch(_){ return []; }
 }
-// La sigla che vale per me: quella scelta, o Fox finche' non se ne sceglie una.
-// Fox e' anche cio' che il server assegna a chi comincia (AVATAR_DI_PARTENZA
-// di la'): i due valori dicono la stessa cosa, e uno dei due e' quello che si
-// vede mentre la risposta del server e' ancora per strada.
-function miaSiglaAvatar(){ return MIO_AVATAR || AVATAR_DI_PARTENZA; }
+// ── v0.79.1 — FINCHE' NON SI SA, NON SI MOSTRA NIENTE ─────────────────────
+// Qui c'era scritto `MIO_AVATAR || AVATAR_DI_PARTENZA`, cioe' "Fox finche' la
+// risposta non arriva". Sembrava gentile ed era sbagliato: entrando in gioco si
+// vedeva per un secondo la volpe di tutti, e poi il proprio avatar al suo
+// posto. Un valore di ripiego che si vede e' un'informazione falsa, non
+// un'attesa — e la differenza fra "non lo so ancora" e "e' questo" la deve
+// raccontare l'interfaccia, non un segnaposto (e' la stessa regola di
+// carteDelGiocatore, che a possesso ignoto non mostra niente invece di una
+// collezione finta).
+// Fox resta l'avatar di partenza: lo assegna il SERVER a chi comincia, ed e'
+// il posto giusto perche' e' un fatto dell'account, non di questa schermata.
+function miaSiglaAvatar(){ return MIO_AVATAR || ''; }
 
 function _vestiUnPannello(quale, dati){
   const nome = document.getElementById(quale + '-name-label');
@@ -21067,6 +21123,12 @@ function costruisciGrigliaAvatar(){
     b.className = 'avatar-scelta' + (slug === _avatarInForse ? ' scelta' : '');
     b.setAttribute('data-slug', slug);
     b.title = entry.name || slug;
+    // Il bagliore della selezione: due elementi annidati, e il perche' sta nel
+    // foglio di stile accanto a .avatar-glow.
+    const bagliore = document.createElement('span');
+    bagliore.className = 'avatar-glow';
+    bagliore.appendChild(document.createElement('span'));
+    b.appendChild(bagliore);
     const cornice = document.createElement('div');
     cornice.className = 'player-avatar';
     const foto = document.createElement('img');
