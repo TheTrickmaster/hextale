@@ -1193,6 +1193,69 @@ function _chiHaLEmail(nk, logger, email) {
   return '';
 }
 
+// ── v0.79.35 — "I WANT TO KNOW MORE": LA POSTA DAL SITO ──────────────────
+// La finestra dei contatti della pagina d'ingresso. Passa dalla stessa porta
+// pubblica del recupero password e per la stessa ragione: chi visita il sito
+// non ha nessuna sessione, e senza sessione Nakama non risponde.
+//
+// NON E' UN MODULO CHE MANDA QUELLO CHE GLI SI DA'. Il destinatario e' scritto
+// qui — support@hextalegame.com — e non arriva dalla richiesta: un servizio che
+// spedisce a un indirizzo passato da fuori e' un servizio che spedisce posta
+// per conto di chiunque, e prima o poi qualcuno se ne accorge. Dalla richiesta
+// arrivano solo l'indirizzo di CHI SCRIVE, che finisce nel corpo e nel
+// "rispondi a", e il messaggio.
+var CONTATTO_ATTESA_S = 30;      // un messaggio ogni mezzo minuto per indirizzo
+var CONTATTO_MAX = 4000;         // e non piu' lungo di cosi'
+
+function rpcContatto(ctx, logger, nk, payload) {
+  var d = {};
+  try { d = payload ? JSON.parse(payload) : {}; } catch (e) { d = {}; }
+  var email = _emailPulita(d.email);
+  var testo = String(d.messaggio || '').slice(0, CONTATTO_MAX).trim();
+  if (!email || email.indexOf('@') < 1) throw Error('scrivi un indirizzo email');
+  if (testo.length < 10) throw Error('scrivi qualcosa di piu');
+
+  // Lo stesso freno del recupero, e per lo stesso motivo: ogni chiamata qui e'
+  // una email vera.
+  var chiave = 'contatto-' + email.slice(0, 100);
+  var prima = null;
+  try { prima = leggiSistema(nk, chiave); } catch (e) { prima = null; }
+  var ora = Date.now();
+  if (prima && prima.quando && (ora - prima.quando) < CONTATTO_ATTESA_S * 1000) {
+    return JSON.stringify({ inviato: true, ripetuto: true });
+  }
+
+  var cfg = _postaConfig(nk);
+  if (!cfg) { logger.warn('posta non configurata: il messaggio dal sito non parte'); throw Error('non riesco a mandare l email'); }
+  var corpo = {
+    a: SEGN_DESTINATARIO,
+    oggetto: '[Hextale] Message from the website - ' + email,
+    testo: 'From: ' + email + '\n\n' + testo,
+    html: '<div style="background:#141B1C;padding:26px;font-family:Georgia,serif">' +
+          '<div style="max-width:640px;margin:0 auto;background:#333A3A;border-radius:14px;padding:26px;color:#EDE0C6">' +
+          '<div style="font:bold 22px/1.2 Georgia,serif;margin-bottom:14px">Message from the website</div>' +
+          '<div style="color:#8a9a9c;font-size:14px;margin-bottom:18px">From: <span style="color:#EDE0C6">' + _html(email) + '</span></div>' +
+          '<div style="height:1px;background:#464C4C;margin:0 0 18px"></div>' +
+          '<div style="font:16px/1.5 Georgia,serif;white-space:pre-wrap">' + _html(testo) + '</div>' +
+          '</div></div>'
+  };
+  try {
+    var intestazioni = { 'Content-Type': 'application/json' };
+    if (cfg.chiave) intestazioni['X-Hextale-Chiave'] = cfg.chiave;
+    var r = nk.httpRequest(POSTA_URL, 'post', intestazioni, JSON.stringify(corpo), 25000);
+    if (!(r.code >= 200 && r.code < 300)) {
+      logger.warn('la posta ha risposto %d al messaggio dal sito', r.code);
+      throw Error('non riesco a mandare l email');
+    }
+  } catch (e) {
+    logger.warn('il messaggio dal sito non e partito: %s', String(e));
+    throw Error('non riesco a mandare l email');
+  }
+  scriviSistema(nk, chiave, { quando: ora });
+  logger.info('messaggio dal sito, da %s', email);
+  return JSON.stringify({ inviato: true });
+}
+
 function rpcRecuperoChiedi(ctx, logger, nk, payload) {
   var d = {};
   try { d = payload ? JSON.parse(payload) : {}; } catch (e) { d = {}; }
@@ -4478,6 +4541,7 @@ function InitModule(ctx, logger, nk, initializer) {
   // runtime, perche' chi ha perso la password una sessione non ce l'ha.
   initializer.registerRpc('hx_recupero_chiedi', rpcRecuperoChiedi);
   initializer.registerRpc('hx_recupero_cambia', rpcRecuperoCambia);
+  initializer.registerRpc('hx_contatto', rpcContatto);
   initializer.registerRpc('hx_elimina_account', rpcEliminaAccount);
   initializer.registerRpc('hx_giocatori', rpcGiocatoriOnline);
   initializer.registerRpc('hx_entro', rpcEntro);

@@ -31,6 +31,7 @@ porta da nessuna parte.
 | Pezzi delle carte | `cards/card-parts/`, `ui/tiles/` |
 | Bustine | `cards/packs/` |
 | Schermata iniziale | `loading-screen/` |
+| Pagina d'ingresso | `index.html` in radice — vedi piu' sotto |
 | Pagina 404 | `404.html` in radice — vedi piu' sotto |
 | Grafica del sito (non del gioco) | `web-assets/` |
 
@@ -192,13 +193,19 @@ salvato il link si ritrovava a giocare una versione vecchia senza accorgersene.
 Un indirizzo fisso toglie il problema alla radice.
 
 **L'indirizzo del gioco e' `https://hextalegame.com/play/`** (dal 28/08/2026).
-In radice non c'e' piu' niente: c'era un `index.html` che chiedeva alla API di
-GitHub l'elenco dei file e rediregeva al `Hextale_*.html` col numero piu' alto,
-ed e' stato tolto. Faceva due cose sbagliate — cercava in un posto dove i file
-non stanno piu', e per farlo usava una chiamata NON autenticata, cioe' 60
-richieste all'ora per indirizzo IP: bastava qualche ricarica di troppo, o un IP
-condiviso, perche' il gioco non si aprisse. Un indirizzo fisso non ha niente da
-cercare. **Non rimetterlo.**
+Il vecchio `index.html` in radice chiedeva alla API di GitHub l'elenco dei file
+e rediregeva al `Hextale_*.html` col numero piu' alto, ed e' stato tolto.
+Faceva due cose sbagliate — cercava in un posto dove i file non stanno piu', e
+per farlo usava una chiamata NON autenticata, cioe' 60 richieste all'ora per
+indirizzo IP: bastava qualche ricarica di troppo, o un IP condiviso, perche' il
+gioco non si aprisse. **Quel redirettore non va rimesso**, e la regola vale
+ancora: nessuna pagina in radice deve CERCARE dove sta il gioco.
+
+**Dal 07/09/2026 in radice c'e' pero' una pagina d'ingresso vera**
+(`index.html`), disegnata da Lorenzo in Figma. Non e' quello che la regola
+vietava: non cerca niente e non redirige nessuno — e' una pagina che racconta
+il gioco, e a `/play/` ci si arriva con un collegamento scritto a mano. Il
+divieto era sul redirettore, non sull'esistenza di una pagina.
 
 Lorenzo ha fatto lo spostamento a mano per la v0.77.51. **Da lì in poi tocca a
 chi pubblica**, e va fatto **prima** del push, non dopo.
