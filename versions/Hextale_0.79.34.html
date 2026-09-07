@@ -11405,7 +11405,7 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.35</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.34</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -24132,36 +24132,24 @@ function cartaAlLivello(card, livello){
 // sbloccabili: previste, non ancora implementate, qui non vengono guardate.
 
 const ART_BASE = 'https://hextalegame.com/cards/art/';
-// ── v0.79.35 — L'ARTE DELLE CARTE: TRE ESTENSIONI ─────────────────────────
-// Era una sola, il .jpg, e chi caricava un'illustrazione in .png o in .jpeg
-// non lo scopriva: il gioco chiedeva un indirizzo che non esiste, non trovava
-// niente, e la carta restava col segnaposto. Nessun errore, nessun avviso.
-// Cinque personaggi — Fairy Godmother, Mulan, Sherazade, Snow Queen, Wicked
-// Witch — hanno l'arte in .png e non si sono mai visti.
+// ── v0.75.82 — L'ARTE DELLE CARTE E' .jpg ─────────────────────────────────
+// Era .png, scritto a mano in cinque punti diversi. Adesso e' scritto QUI e
+// basta: chi compone un indirizzo dell'arte chiede l'estensione a questa
+// costante invece di ricordarsela. Il giorno in cui si cambia di nuovo — o si
+// aggiunge il .webp — e' una riga.
 //
-// PERCHE' ADESSO SI PUO' E PRIMA NO. Fino alla v0.77.99 questa ricerca la
-// faceva OGNI GIOCATORE A OGNI AVVIO — centinaia di richieste in un colpo solo
-// — e provare tre estensioni al posto di una le avrebbe triplicate. Da allora
-// la ricerca si fa UNA VOLTA, in importazione (server/importazione/converti.js
-// chiama verificaArtCarte e scrive la risposta nel catalogo), e chi gioca la
-// legge. Il triplo di richieste lo paga percio' l'importazione, che gira una
-// volta ogni tanto su una macchina sola.
-// A chi gioca resta il ricontrollo delle carte SENZA arte — poche, e sono
-// esattamente quelle a cui le due estensioni in piu' servono.
-//
-// L'ORDINE E' QUELLO GIUSTO: .jpg per primo perche' e' quasi tutta l'arte, e
-// chi lo trova al primo colpo non paga le altre due.
+// UNA SOLA ESTENSIONE, non due provate a turno. La tentazione sarebbe
+// chiedere prima il .jpg e poi il .png come rete: non si fa, ed e' la stessa
+// lezione dei suoni (vedi ESTENSIONI_SUONO). Ogni sonda e' una richiesta vera,
+// e verificaArtCarte ne fa gia' centinaia in un colpo solo — raddoppiarle per
+// coprire dei file che non esistono piu' vorrebbe dire pagare a ogni avvio il
+// prezzo di una migrazione fatta una volta.
 //
 // ATTENZIONE: vale per cards/art/ e basta. Le cornici, gli incastonatori, le
 // icone dei tratti, i dorsi, le bustine e i tasselli sono ancora .png, e
 // hanno bisogno della trasparenza che il .jpg non ha: non vanno convertiti
 // senza prima guardare cosa ci si vede attraverso.
-const EST_ART = ['jpg', 'png', 'jpeg'];
-// Gli indirizzi di un pezzo d'arte, in tutte le estensioni ammesse e in
-// entrambe le forme (locale e remota, vedi _candidati). Chi compone un
-// indirizzo dell'arte passa DI QUI: era in cinque punti diversi, e il giorno in
-// cui si aggiunge il .webp resta una riga sola da toccare.
-// Sta piu' in basso, subito dopo _candidati, perche' e' li' che quella nasce.
+const EST_ART = 'jpg';
 // v0.73.21 — il dischetto che copre un valore quando la carta e' nel fumo.
 // Sta nella cartella di The Caterpillar perche' e' li' che e' stato caricato,
 // ma non e' suo: e' l'aspetto che ha "questo numero non si puo' leggere", e
@@ -24210,14 +24198,6 @@ const VOCI_REL = 'audio/voices/';
 // anche al motore dei suoni, che parte molto prima di questo punto.
 function _candidati(relativo, remoto){
   return _daFileLocale ? [relativo, remoto] : [remoto];
-}
-// Gli indirizzi di un pezzo d'arte in tutte le estensioni ammesse: si passa la
-// coda senza estensione ("alice/alice-dark") e si ottiene la lista da provare
-// in ordine. Vedi EST_ART per il perche' siano tre.
-function _candidatiArt(coda){
-  const fuori = [];
-  for(const est of EST_ART) fuori.push(..._candidati(ART_REL + coda + '.' + est, ART_BASE + coda + '.' + est));
-  return fuori;
 }
 // Il primo URL della lista che esiste davvero, o null se nessuno.
 function _primoCheEsiste(urls, prova){
@@ -24284,9 +24264,9 @@ function artUrlVariante(slug, fazione){
   const coda = slug + '/' + slug + '-' + fazione;
   const per = {};
   for(const n of ART_LIVELLI){
-    per[n] = _candidatiArt(coda + '-layer' + n);
+    per[n] = _candidati(ART_REL + coda + '-layer' + n + '.' + EST_ART, ART_BASE + coda + '-layer' + n + '.' + EST_ART);
   }
-  return {per, senzaNumero: _candidatiArt(coda)};
+  return {per, senzaNumero: _candidati(ART_REL + coda + '.' + EST_ART, ART_BASE + coda + '.' + EST_ART)};
 }
 
 // Un file esiste? Provare a caricarlo e' l'unico modo. Cio' che risponde
@@ -24686,13 +24666,15 @@ function verificaArtCarte(avanzamento){
     const abilitaDellaCarta = entry.cardAbility || null;
     if(abilitaDellaCarta === 'exaketededly'){
       for(const fazione of ['dark','light']){
-        lavori.push(_primoCheEsiste(_candidatiArt(slug+'/'+slug+'-smoke-'+fazione), _provaImmagine)
+        lavori.push(_primoCheEsiste(_candidati(ART_REL+slug+'/'+slug+'-smoke-'+fazione+'.'+EST_ART,
+                                               ART_BASE+slug+'/'+slug+'-smoke-'+fazione+'.'+EST_ART), _provaImmagine)
           .then(u=>{ entry[fazione==='dark'?'artFumoDark':'artFumoLight'] = u || null; }));
       }
     }
     if(abilitaDellaCarta === 'nightmare'){
       for(const fazione of ['dark','light']){
-        lavori.push(_primoCheEsiste(_candidatiArt(slug+'/'+slug+'-night-'+fazione), _provaImmagine)
+        lavori.push(_primoCheEsiste(_candidati(ART_REL+slug+'/'+slug+'-night-'+fazione+'.'+EST_ART,
+                                               ART_BASE+slug+'/'+slug+'-night-'+fazione+'.'+EST_ART), _provaImmagine)
           .then(u=>{ entry[fazione==='dark'?'artNotteDark':'artNotteLight'] = u || null; }));
       }
     }
@@ -33352,7 +33334,7 @@ function calaLaNotteSu(card){
   // cambio d'abito, e lo si dice, invece di restare muti su tutto.
   if(!card.artNotteDark && !card.artNotteLight){
     console.warn('[Nightmare] "'+(card.name||card.id)+'" non ha l\'arte notturna:'
-      + ' servono cards/art/<slug>/<slug>-night-dark.<' + EST_ART.join('|') + '> e -night-light.'
+      + ' servono cards/art/<slug>/<slug>-night-dark.'+EST_ART+' e -night-light.'+EST_ART+'.'
       + ' Il +2 e la risata ci sono lo stesso, il cambio d\'illustrazione no.');
     return;
   }

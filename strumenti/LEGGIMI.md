@@ -500,3 +500,39 @@ vedere.
 
 Gli indirizzi assoluti (`hextalegame.com/...`) diventano relativi alla radice,
 cosi' la stessa carta funziona sul sito vero e su un server di prova.
+
+---
+
+## prova-arte.js — l'illustrazione di una carta si aggancia
+
+    $ELECTRON strumenti/prova-arte.js
+
+Il gioco cercava l'illustrazione di una carta **solo in `.jpg`**. Chi ne
+caricava una in `.png` o in `.jpeg` non lo scopriva: nessun errore, nessun
+avviso. Il gioco chiedeva un indirizzo che non esiste, non trovava niente, e la
+carta restava col segnaposto — e cinque personaggi sono rimasti invisibili cosi'
+per settimane.
+
+**Perche' non basta guardare la costante.** Che `EST_ART` sia diventata una
+lista di tre lo si vede leggendo il file; che il gioco le USI tutte e tre no.
+Fra la costante e la richiesta ci sono `_candidatiArt`, `artUrlVariante`,
+`_livelliDiVariante` e `_primoCheEsiste`, e basta che uno dei quattro sia
+rimasto indietro perche' non cambi niente. Il banco chiama percio'
+`artUrlVariante` e guarda **quali indirizzi ne escono**: e' il punto a valle di
+tutti e quattro.
+
+**Non si scarica niente, e non e' una scelta.** Il primo tentativo tirava su un
+server finto e gli puntava `ART_BASE` addosso. Non funziona: `ART_BASE` e' un
+`const` di primo livello, e **un `const` non finisce su `window`** —
+`window.ART_BASE = ...` crea una seconda proprieta' che il gioco non legge, e le
+richieste continuano ad andare al sito vero. Il banco diceva zero richieste su
+tre estensioni e sembrava che la correzione non funzionasse.
+
+Il banco guarda anche **la cartella**, che e' l'altra meta' del problema:
+
+- se c'e' un'illustrazione in un formato non ammesso, lo dice e fallisce;
+- se un file non si chiama come la sua cartella lo **riferisce senza bocciare**.
+  Il gioco cerca `cards/art/<slug>/<slug>-<fazione>.<est>`: un file chiamato
+  diversamente non lo trova nessuno, con qualunque estensione. Non e' pero' un
+  errore del codice, e non e' sempre uno sbaglio — l'arte di una carta in cui
+  un'altra si trasforma sta di casa nella cartella della prima.
