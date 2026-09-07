@@ -346,3 +346,37 @@ Due trappole trovate scrivendolo:
 - **La colonna dell'accesso nasce a opacita' zero** e si accende quando il
   caricamento finisce. In una finestra nascosta quel momento non arriva mai:
   senza accenderla a mano, la fotografia e' la schermata di caricamento.
+
+## prova-dissolvenze.js — ogni finestra compare e sparisce in dissolvenza
+
+    $ELECTRON strumenti/prova-dissolvenze.js [scatto.png]
+
+Fino alla v0.79.33 ogni finestra appariva di colpo: `display:none` che diventa
+`display:flex`, e in mezzo niente. **Non si rimediava con una transizione**:
+`display` non e' un numero, e fra "non c'e'" e "c'e'" non esistono valori in
+mezzo. In chiusura era anche peggio — `display:none` fa sparire l'elemento
+nell'istante stesso, e non resta niente da dissolvere.
+
+Il banco **non prova le finestre che conosce: le cerca** (`[id$="-overlay"]`
+piu' le due classi condivise). E' la differenza fra un controllo che vale oggi
+e uno che vale anche per la finestra aggiunta il mese prossimo — la quale, se
+nascesse col vecchio `display:none`, apparirebbe di colpo e nessuno se ne
+accorgerebbe finche' non la guarda aprire. Le tre escluse sono escluse **per
+nome e con la ragione scritta accanto**.
+
+Tre trappole, tutte pagate scrivendolo:
+
+- **L'opacita' letta subito dopo il cambio di classe e' quella di PARTENZA.**
+  La transizione e' appena cominciata, quindi una finestra che si sta aprendo
+  risponde "opacita' zero" — ed e' giusto, ed e' anche il motivo per cui la
+  dissolvenza si vede. Gli stati fermi si misurano a **transizioni spente**
+  (`el.style.transition='none'`), la transizione dichiarata a transizioni
+  accese: sono due domande che vogliono due condizioni opposte.
+- **In una colonna flex, `flex-basis` e' l'ALTEZZA.** Scritto `flex:0 0 600px`
+  sulla barra di "Pick a letter" per farla larga 600, e' venuta larga giusta e
+  **alta seicento**, spingendo le tre lettere fuori dallo schermo. Il controllo
+  guardava solo la larghezza e diceva di si'. Adesso guarda anche l'altezza.
+- **Un `animation` con `both` tiene il suo valore finale anche da ferma**, e
+  resterebbe a battersi con la transizione che deve venire dopo. Per questo la
+  classe che porta l'entrata delle tre colonne viene tolta a corsa finita, e il
+  banco verifica proprio che se ne vada.

@@ -10143,93 +10143,6 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
 }
 .mm-cur-plus img{ display:block; width:100%; height:100%; pointer-events:none; user-select:none; -webkit-user-drag:none; }
 .mm-cur-plus:hover{ transform:translateY(-50%) scale(1.12); filter:brightness(1.2); }
-
-/* ══════════════════════════════════════════════════════════════════════════
-   v0.79.33 — OGNI FINESTRA COMPARE E SPARISCE IN DISSOLVENZA
-   ══════════════════════════════════════════════════════════════════════════
-   Fino a ieri ogni finestra del gioco appariva di colpo: `display:none` che
-   diventa `display:flex`, e in mezzo niente. E' il modo piu' comune di aprire
-   una modale ed e' anche il piu' brusco — a schermo pieno, un riquadro che
-   compare in un fotogramma si legge come uno sbalzo, non come qualcosa che si
-   apre.
-
-   PERCHE' NON BASTAVA AGGIUNGERE UNA TRANSIZIONE. `display` non si dissolve:
-   non e' un numero, e fra "non c'e'" e "c'e'" non esistono valori in mezzo. Una
-   `transition:opacity` su un elemento che passa da `display:none` non parte
-   nemmeno, perche' nel fotogramma in cui l'elemento nasce non c'e' nessuno
-   stato "prima" da cui muoversi. In CHIUSURA e' anche peggio: `display:none`
-   lo fa sparire nell'istante stesso, e non resta niente da dissolvere.
-
-   Quindi le finestre non nascono e non muoiono piu': ci sono sempre, e sono
-   NASCOSTE. `visibility:hidden` le toglie dal disegno, `pointer-events:none`
-   le toglie dai clic, e l'opacita' — che e' un numero — puo' finalmente fare
-   la strada in mezzo.
-   Il ritardo sulla `visibility` in uscita e' il punto della regola: la si
-   nasconde DOPO che la dissolvenza e' finita, non insieme. Senza quel ritardo
-   sparirebbe subito e la dissolvenza non si vedrebbe, che e' esattamente il
-   difetto di partenza.
-
-   COSA CAMBIA PER CHI SCRIVE CODICE: niente. Le finestre si aprono e si
-   chiudono ancora con `classList.add('show')` / `remove('show')`, e in tutto
-   il gioco nessuno chiede a una finestra se e' aperta guardandone il
-   `display`: lo si chiede con `classList.contains('show')`, che continua a
-   rispondere come prima.
-
-   150 millisecondi, chiesti da Lorenzo. Sta in una variabile perche' un tempo
-   scritto in dodici punti e' un tempo che prima o poi vale due cose diverse. */
-:root{ --hx-dissolvenza:150ms; }
-#filters-overlay, .hx-overlay, .hx-modal-overlay,
-#card-db-overlay, #card-modal-overlay, #pack-overlay, #delete-overlay,
-#settings-modal-overlay, #mm2-deck-overlay, #patch-notes-overlay{
-  display:flex;
-  opacity:0; visibility:hidden; pointer-events:none;
-  transition:opacity var(--hx-dissolvenza) ease,
-             visibility 0s linear var(--hx-dissolvenza);
-}
-#filters-overlay.show, .hx-overlay.show, .hx-modal-overlay.show,
-#card-db-overlay.show, #card-modal-overlay.show, #pack-overlay.show, #delete-overlay.show,
-#settings-modal-overlay.show, #mm2-deck-overlay.show, #patch-notes-overlay.show{
-  opacity:1; visibility:visible; pointer-events:auto;
-  transition:opacity var(--hx-dissolvenza) ease,
-             visibility 0s linear 0s;
-}
-/* ── E LE TRE LETTERE, UNA DIETRO L'ALTRA ─────────────────────────────────
-   La finestra si dissolve, e appena finita entrano le colonne a scalare. Non
-   e' un vezzo: tre cose che compaiono insieme si guardano come un blocco solo,
-   tre che compaiono una dietro l'altra si guardano una per una — ed e'
-   esattamente quello che si deve fare con tre lettere fra cui scegliere.
-   E' un'ANIMAZIONE e non una transizione perche' le colonne una transizione
-   sull'opacita' ce l'hanno gia', ed e' quella che le fa sparire quando se ne
-   sceglie una: due cose diverse sulla stessa proprieta' non convivono.
-   La classe che la porta viene tolta a corsa finita (vedi apriSceltaStarter):
-   un'animazione con `both` tiene il suo valore finale anche da ferma, e
-   resterebbe li' a battersi con la transizione che deve venire dopo. E' la
-   stessa trappola gia' pagata due volte in questo file. */
-@keyframes starterColonnaEntra{
-  from{ opacity:0; transform:translateY(12px); }
-  to  { opacity:1; transform:none; }
-}
-#starter-overlay.starter-apre .starter-col{
-  animation:starterColonnaEntra .26s cubic-bezier(.4,0,.2,1) both;
-}
-#starter-overlay.starter-apre .starter-col:nth-child(1){ animation-delay:0ms; }
-#starter-overlay.starter-apre .starter-col:nth-child(2){ animation-delay:110ms; }
-#starter-overlay.starter-apre .starter-col:nth-child(3){ animation-delay:220ms; }
-
-/* ── LA BARRA DEL TITOLO DI "PICK A LETTER" ───────────────────────────────
-   Era larga quanto le tre colonne — 1050px — perche' .hx-titlebar si allunga a
-   riempire quello che trova, e quello che trovava era il riquadro delle tre
-   lettere. Seicento, e in mezzo alle colonne invece che addosso ai loro bordi.
-   E il titolo si centra: il centro della barra e' una fila che parte da
-   sinistra, e senza questa riga il titolo restava appoggiato al bordo. E' la
-   stessa aggiunta che hanno gia' login, registrazione e le altre. */
-/* `flex:0 0 auto` e non `flex:0 0 600px`: il riquadro e' una COLONNA, e in una
-   colonna flex-basis e' l'ALTEZZA, non la larghezza. Scritto 600 li' dentro, la
-   barra diventava alta seicento pixel e spingeva le tre lettere fuori dallo
-   schermo — larga giusta e alta come una porta. E' la stessa trappola gia'
-   pagata con l'anteprima del mazzo dentro alla lettera. */
-#starter-titlebar{ flex:0 0 auto; width:600px; align-self:center; }
-#starter-titlebar .hx-titlebar-center{ justify-content:center; }
 </style>
 </head>
 <body>
@@ -11317,7 +11230,7 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.33</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.32</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -22461,14 +22374,6 @@ function apriSceltaStarter(){
   // scelta di prima si vedrebbe tutta.
   ov.classList.remove('starter-solo', 'starter-chiude');
   _starterEsce = false;
-  // v0.79.33 — le tre lettere entrano a scalare, appena finita la dissolvenza
-  // della finestra. La classe si toglie a corsa finita: un'animazione con
-  // `both` tiene il suo valore finale anche da ferma, e resterebbe a battersi
-  // con la transizione che fa sparire le due lettere non scelte.
-  ov.classList.remove('starter-apre');
-  void ov.offsetWidth;                 // forza il reflow, o riaprendo non riparte
-  ov.classList.add('starter-apre');
-  setTimeout(()=>ov.classList.remove('starter-apre'), STARTER_ENTRATA_MS);
   ov.querySelectorAll('.starter-col').forEach(c=>{
     c.classList.remove('starter-via','starter-presa','starter-fatta','starter-lampo','starter-esce');
     const a = c.querySelector('.starter-anteprima'); if(a) a.innerHTML = '';
@@ -22488,10 +22393,6 @@ function apriSceltaStarter(){
 }
 // Quanto dura l'uscita. E' lo stesso numero dell'animazione qui sopra, ed e'
 // l'unico posto in cui le due cose devono restare d'accordo.
-// Quanto dura l'entrata delle tre colonne: l'ultima parte a 220ms e ci mette
-// 260, piu' un dito di margine. E' l'unico posto in cui questo numero e quelli
-// del CSS devono restare d'accordo.
-const STARTER_ENTRATA_MS = 560;
 const STARTER_USCITA_MS = 460;
 let _starterEsce = false;
 function chiudiSceltaStarter(){

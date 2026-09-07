@@ -2265,6 +2265,23 @@ zone, caricando il gioco e verificando che le funzioni chiave esistano ancora.
 
 ## Trappole gia' incontrate (per non ripeterle)
 
+- **`display` non si dissolve.** Non e' un numero, e fra "non c'e'" e "c'e'"
+  non ci sono valori in mezzo: una `transition:opacity` su un elemento che
+  passa da `display:none` non parte nemmeno, perche' nel fotogramma in cui
+  nasce non c'e' nessuno stato "prima". In chiusura e' peggio — sparisce
+  nell'istante stesso e non resta niente da dissolvere. La coppia che funziona
+  e' `visibility` + `opacity`, col ritardo sulla visibility solo in USCITA.
+  (v0.79.33: tutte le finestre del gioco.)
+- **In una colonna flex, `flex-basis` e' l'ALTEZZA.** Terza volta: la casella
+  del mazzo dentro alla lettera (70px di altezza diventati 70px di larghezza) e
+  la barra del titolo di "Pick a letter" (`flex:0 0 600px` per farla larga
+  600: e' venuta alta 600). Quando si vuole una LARGHEZZA in una colonna, si
+  scrive `width`, e `flex` resta `0 0 auto`.
+- **Un controllo che guarda una misura sola dice di si' mentre l'altra e'
+  sbagliata.** Il banco della barra guardava `offsetWidth`: 600, giusto — e
+  intanto l'altezza era 600 e le tre lettere erano fuori dallo schermo. Se una
+  regola tocca due misure, il controllo ne guarda due.
+
 - **Una domanda con la E usata come interruttore spegne anche cio' che
   funzionava.** `motoreFaLEvento` chiede "il motore sa fare ENTRAMBE le meta'
   della riga?" — domanda giusta — ma un "no" faceva rinunciare a tutte e due,
