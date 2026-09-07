@@ -946,7 +946,13 @@ function _verificaHtml(nome, codice, dice) {
       // Il riquadro. Il gradiente del disegno diventa un colore solo: in posta
       // un gradiente CSS non lo disegna quasi nessuno, e mezzo gradiente e'
       // peggio di nessun gradiente.
-      '<tr><td style="background:#333A3A;border:1px solid #4A5150;border-radius:28px;padding:40px">' +
+      // v0.79.35 — niente bordo. Gli angoli arrotondati e il bordo sono due
+      // cose che i client di posta trattano separatamente: parecchi disegnano
+      // il fondo con gli angoli tondi e il bordo dritto, e quel che si vede e'
+      // un rettangolo appoggiato male sopra a un riquadro arrotondato. Senza
+      // bordo il riquadro si legge lo stesso — e' il colore a separarlo dalla
+      // pagina — e non c'e' piu' niente che possa cadere storto.
+      '<tr><td style="background:#333A3A;border-radius:28px;padding:40px">' +
         '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse">' +
           '<tr><td align="center" style="font-family:\'Marcellus SC\',Georgia,\'Times New Roman\',serif;' +
               'font-size:32px;line-height:1.2;color:#EDE0C6;padding:0 0 12px;mso-line-height-rule:exactly">' +
