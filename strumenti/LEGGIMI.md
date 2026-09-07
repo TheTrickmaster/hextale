@@ -406,3 +406,56 @@ di virgolette**. La barra rovesciata e' stata mangiata due volte,
 **commento** — e la riga si e' saldata con quella dopo. Il controllo non
 girava, e passava lo stesso, perche' quel che restava era `chieste.length === 1
 && 'del testo'`. Adesso c'e' `endsWith`, che non ha niente da sfuggire.
+
+---
+
+## prova-sito.js — la pagina d'ingresso
+
+    $ELECTRON strumenti/prova-sito.js [scatto.png]
+    HX_SCHERMO=390x844 $ELECTRON strumenti/prova-sito.js [scatto.png]
+
+Come la 404, **non apre il file: tira su un server sulla radice del sito**.
+Tutti gli indirizzi di `index.html` partono da `/` — devono, perche'
+hextalegame.com/ *e'* la radice — e aprendola come file quelli punterebbero al
+disco. Servendola si vede anche l'altra meta' della cosa: quali file la pagina
+chiede davvero, e se qualcuno non c'e'.
+
+Le tre cose che il banco guarda e che a occhio si sbagliano:
+
+**Le targhe dei titoli non si stirano.** Il difetto era che erano immagini
+allungate. Adesso sono una sola immagine tagliata in tre — `border-image` — e a
+stirarsi e' solo la fascia di mezzo. Il segno che sia davvero cosi' non e' che
+il titolo *sembri* giusto: e' che i bordi laterali abbiano una larghezza loro
+invece di zero, ed e' quello che il banco misura.
+
+**Il palco occupa esattamente il posto che gli serve.** Due sezioni impaginano
+in coordinate assolute; il palco tiene le misure del disegno e si rimpicciolisce
+tutto insieme, e il guscio deve essere alto quanto il palco *rimpicciolito*.
+Se resta alto quanto quello intero si apre un buco, se resta a zero le cose
+sopra e sotto si accavallano. Il banco ricava il fattore dalla matrice della
+trasformazione e lo moltiplica: e' l'unico modo di controllarlo che non sia
+riscrivere il conto che si sta controllando.
+
+**Niente scorre di lato.** E' la firma di un palco che non si e' rimpicciolito,
+e su un telefono e' il difetto piu' facile da lasciarsi dietro.
+
+Tre trappole che questo banco ha gia' pagato:
+
+- **In una finestra che non e' a schermo le transizioni CSS non avanzano.**
+  Misurando l'altezza di una risposta a meta' di una transizione ferma si legge
+  sempre il valore di *partenza*, cioe' zero: il banco diceva che l'accordion
+  era rotto quando era rotto lui. Adesso le spegne prima di misurare.
+- **`capturePage` restituisce il fotogramma precedente.** Il primo scatto dopo
+  ogni scorrimento si butta, altrimenti ogni immagine esce con la posizione di
+  quella prima — e ci si mette mezz'ora a capire perche' la sezione fotografata
+  non e' quella chiesta.
+- **Le immagini sotto alla prima schermata si caricano quando ci si arriva.**
+  Il banco fa un giro di tutta la pagina prima di misurare e **resta in fondo**:
+  risalendo subito, l'ultima immagine — Geppetto, dietro alle domande — comincia
+  a caricarsi e il browser lascia perdere, e il banco la trova vuota.
+
+Su `HX_SCHERMO=390x844` cambiano tre cose e le controlla tutte: la carta torna
+nel flusso, i cinque cartellini spariscono, e al loro posto c'e' il riquadro che
+si riempie toccando un pezzo della carta — con **lo stesso testo dei
+cartellini**, preso da li'. Il banco tocca davvero, e guarda che compaia quello
+giusto.

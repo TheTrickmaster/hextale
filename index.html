@@ -14,23 +14,22 @@
 /* ══════════════════════════════════════════════════════════════════════════
    HEXTALE — LA PAGINA D'INGRESSO
    ══════════════════════════════════════════════════════════════════════════
-   Sta in radice e da oggi e' quello che si vede aprendo hextalegame.com. Fino
-   a ieri li' non c'era niente: la REGOLA FISSA del 28/08/2026 diceva "in radice
-   non ci va nessun Hextale_*.html e non rimettere l'index" — e vale ancora per
-   quello che vietava, cioe' il vecchio index che chiedeva alla API di GitHub
-   l'elenco dei file e rediregeva alla versione col numero piu' alto. Questa e'
-   un'altra cosa: una pagina che non cerca niente e non redirige nessuno. Il
-   gioco resta a /play/, e da qui ci si arriva con un collegamento.
+   Sta in radice ed e' quello che si vede aprendo hextalegame.com. La REGOLA
+   FISSA del 28/08/2026 vietava il REDIRETTORE che chiedeva alla API di GitHub
+   dove fosse il gioco: questa non cerca niente e non redirige nessuno, e a
+   /play/ ci si arriva con un collegamento scritto a mano.
 
-   E' disegnata da Lorenzo in Figma (pagina "Website", desktop e mobile) e
-   rifatta qui a mano. Le misure sono quelle del disegno; dove il disegno usa
-   cose che il web non ha — fusioni, maschere annidate, un centinaio di vettori
-   per una carta sola — si e' preso il disegno esportato.
+   USA L'ARTE DEL GIOCO. I pulsanti sono i cinque pezzi di /ui/, la targa dei
+   titoli e' il name-wrapper delle carte, il marchio e i suoi aloni sono i file
+   della schermata d'accesso, e la carta della sezione "Collect 100+" e' la
+   carta VERA — l'SVG che il gioco costruisce, non una fotografia. Niente di
+   tutto questo e' una copia esportata: il giorno in cui quei disegni cambiano
+   cambia anche questa pagina.
 
-   COME E' ORGANIZZATA. Una sezione per schermata, nell'ordine in cui si
-   scorre, e ogni sezione porta il proprio fondale. Le misure grosse stanno
-   nelle variabili qui sotto: il disegno e' fatto su una larghezza di 1440, e
-   tutto quello che si muove con la finestra si misura da li'. */
+   Le misure sono quelle del disegno (Figma, pagina "Website"), e dove il
+   disegno impagina in coordinate assolute — la carta coi suoi cartellini, le
+   quattro carte del mazzo — qui c'e' un PALCO di misura fissa che si
+   rimpicciolisce tutto insieme invece di riposizionare i pezzi uno per uno. */
 @font-face{
   font-family:'Marcellus SC';
   src:url('/fonts/MarcellusSC-Regular.ttf') format('truetype');
@@ -50,19 +49,15 @@
 :root{
   --oro:#EDE0C6;
   --oro-caldo:#FBEAC4;
-  --oro-pulsante:#DDCAA1;
-  --fondo:#1B2325;
+  --oro-scritta:#E9D8B3;
   --grigio:#9FB1B3;
-  --bordo:#2C3536;
-  --riquadro:#374346;
-  /* Quanto dura una comparsa. Un numero solo, perche' un tempo scritto in
-     venti punti e' un tempo che prima o poi ne vale due. */
+  --grigio-chiaro:#A3B2B4;
+  --fondo:#1B2325;
+  --bordo:#4E5455;
   --entra:.7s;
   --molla:cubic-bezier(.22,1,.36,1);
 }
 html{ scroll-behavior:smooth; }
-/* Chi ha chiesto al sistema di non vedere animazioni non le vede: non e' una
-   cortesia, per qualcuno e' la differenza fra poter leggere una pagina e no. */
 @media (prefers-reduced-motion: reduce){
   html{ scroll-behavior:auto; }
   *, *::before, *::after{
@@ -77,9 +72,6 @@ body{
   overflow-x:hidden;
   -webkit-font-smoothing:antialiased;
 }
-/* La trama sopra a tutta la pagina, come nel disegno: un'immagine sola,
-   ripetuta, fusa in overlay. Sta su un elemento suo e non sul body perche' il
-   body scorre e lei deve restare ferma. */
 #trama{
   position:fixed; inset:0; z-index:0; pointer-events:none;
   background:url('/web-assets/sito/hextale-landing-page-desktop.png') top left repeat;
@@ -89,82 +81,86 @@ body{
 main{ position:relative; z-index:1; }
 img{ display:block; max-width:100%; }
 a{ color:inherit; text-decoration:none; }
-
-/* ── LA MISURA DELLA PAGINA ───────────────────────────────────────────────
-   Il disegno e' largo 1440 e il contenuto vive in 787 al centro. Qui il
-   contenuto ha un tetto e respira ai lati, cosi' una finestra da 1600 non
-   lascia due bande vuote e una da 1100 non taglia niente. */
-.dentro{ width:min(1180px, calc(100% - 48px)); margin:0 auto; }
+.dentro{ width:min(1240px, calc(100% - 48px)); margin:0 auto; }
 .stretto{ width:min(787px, calc(100% - 48px)); margin:0 auto; }
+.centrato{ text-align:center; }
 
 /* ── I PULSANTI ───────────────────────────────────────────────────────────
-   Sono i pulsanti DEL GIOCO, con la sua arte, presa da dove sta gia' (/ui/):
-   non una copia esportata da Figma che gli somiglia. Il giorno in cui quei
-   disegni cambiano cambia anche questa pagina, senza che nessuno debba
-   ricordarsene — ed e' la stessa ragione per cui lo fa anche la pagina 404.
-   Cinque pezzi in fila: due tappi, un centro e due riempitivi che si prendono
-   quel che avanza. L'etichetta sta nel flusso normale ed e' lei a dare la
-   larghezza; la striscia e' uno strato assoluto dietro, che si adatta.
-   Le due famiglie sono quelle del gioco: "important" per il richiamo
-   all'azione — il grande pulsante d'oro del menu — e "opaque" per tutto il
-   resto. I fregi sopra e sotto l'etichetta stanno gia' dentro a quell'arte:
-   nel disegno erano due SVG a parte, qui non servono. */
+   I pulsanti DEL GIOCO, con la sua arte: cinque pezzi in fila — due tappi, un
+   centro e due riempitivi che si prendono quel che avanza. L'etichetta sta nel
+   flusso e da' la larghezza; la striscia e' uno strato assoluto dietro.
+   Due famiglie: "important" per il richiamo all'azione (il grande pulsante
+   d'oro del menu) e "opaque" per il resto. I fregi sopra e sotto l'etichetta
+   stanno gia' dentro a quell'arte. */
 .btn{
   --cap:49px; --mid:58px;
   position:relative; display:inline-flex; align-items:center; justify-content:center;
   height:68px; min-width:200px; padding:0 34px;
   border:0; background:none;
   font-family:'Marcellus SC',Georgia,serif; font-size:22px; line-height:1;
-  color:var(--oro-pulsante); white-space:nowrap; cursor:pointer;
+  color:#DDCAA1; white-space:nowrap; cursor:pointer;
   filter:drop-shadow(0 2px 5px rgba(0,0,0,.3));
   transition:filter .18s ease, transform .18s ease;
 }
-.btn:hover{ filter:drop-shadow(0 2px 5px rgba(0,0,0,.3)) brightness(1.15); }
+.btn:hover{ filter:drop-shadow(0 2px 5px rgba(0,0,0,.3)) brightness(1.12); }
 .btn:active{ transform:scale(.985); }
-.btn .pezzi{
-  position:absolute; inset:0; z-index:0; display:flex; align-items:stretch;
-  pointer-events:none;
-}
+.btn .pezzi{ position:absolute; inset:0; z-index:0; display:flex; align-items:stretch; pointer-events:none; }
 .btn .pezzi > span{
   background-repeat:no-repeat; background-size:100% 100%;
-  /* Un pixel di sovrapposizione fra un pezzo e l'altro: e' il mezzo pixel su
-     cui cade un bordo quando la larghezza non e' intera, e senza si vede una
-     righina di fondale. Si puo' fare perche' quest'arte e' piena — su quella
-     semitrasparente due strati sommerebbero la loro opacita' e la giuntura
-     verrebbe piu' scura della zona accanto. */
+  /* Un pixel di sovrapposizione: e' il mezzo pixel su cui cade un bordo quando
+     la larghezza non e' intera, e senza si vede una righina di fondale. Si puo'
+     fare perche' quest'arte e' piena — su quella semitrasparente due strati
+     sommerebbero la loro opacita' e la giuntura verrebbe piu' scura. */
   margin-right:-1px;
 }
 .btn .pezzi > span:last-child{ margin-right:0; }
 .btn .cap-sx, .btn .cap-dx{ flex:0 0 var(--cap); }
 .btn .mezzo{ flex:0 0 var(--mid); }
-/* Il riempitivo e' una fetta larga due pixel: si RIPETE invece di stirarsi,
-   cosi' la trama resta della sua densita' su un pulsante lungo come su uno
-   corto. */
+/* Il riempitivo e' una fetta larga due pixel: si RIPETE invece di stirarsi. */
 .btn .fill{ flex:1 1 0; min-width:0; background-repeat:repeat-x; background-size:auto 100%; }
+.btn .etichetta{ position:relative; z-index:1; }
 .btn.opaque .cap-sx{ background-image:url('/ui/button-opaque-left.png'); }
 .btn.opaque .mezzo { background-image:url('/ui/button-opaque-center.png'); }
 .btn.opaque .cap-dx{ background-image:url('/ui/button-opaque-right.png'); }
 .btn.opaque .fill  { background-image:url('/ui/button-opaque-filler.png'); }
-/* L'arte "important" e' piu' alta (164 invece di 136) e ha proporzioni sue:
-   alla stessa altezza di 68 i suoi tappi vogliono 49 e il centro 47. Numeri
-   INTERI e non calcolati — una larghezza frazionaria cade su mezzo pixel e
-   lascia una fessura. */
-.btn.important{ --cap:49px; --mid:47px; }
+/* L'arte "important" e' piu' alta (164 invece di 136): alla stessa altezza di
+   68 i suoi tappi vogliono 49 e il centro 47. Numeri interi, non calcolati —
+   una larghezza frazionaria cade su mezzo pixel e lascia una fessura.
+   L'etichetta e' SCURA: su un fondo d'oro chiaro una scritta chiara non si
+   legge, ed e' lo stesso colore che il gioco usa sul suo pulsante d'oro. */
+.btn.important{ --cap:49px; --mid:47px; color:#322C1D; }
 .btn.important .cap-sx{ background-image:url('/ui/button-important-left.png'); }
 .btn.important .mezzo { background-image:url('/ui/button-important-center.png'); }
 .btn.important .cap-dx{ background-image:url('/ui/button-important-right.png'); }
 .btn.important .fill  { background-image:url('/ui/button-important-filler.png'); }
-.btn .etichetta{ position:relative; z-index:1; }
+.btn.largo300{ width:300px; min-width:0; padding:0; }
 
-/* ── LA COMPARSA ──────────────────────────────────────────────────────────
-   Ogni blocco entra quando arriva a schermo: sale di poco e si accende. Non e'
-   decorazione — su una pagina lunga dice "sei arrivato qui", che e' quello che
-   in un libro fa il voltare pagina.
-   Chi non ha JavaScript la vede gia' arrivata: la classe che nasconde la mette
-   lo script, quindi senza script non nasconde niente. */
-/* Nasconde solo se lo script gira: la classe `vivo` la mette lui sulla radice
-   come PRIMA cosa. Scritto senza quella condizione, una pagina con JavaScript
-   spento resterebbe vuota — cioe' l'abbellimento diventerebbe una trappola. */
+/* ── LE TARGHE DEI TITOLI ─────────────────────────────────────────────────
+   Il name-wrapper delle carte, UNA immagine sola. Non si stira: si TAGLIA in
+   tre con border-image — i due fregi alle estremita' restano della loro misura
+   e solo la fascia in mezzo si allunga. E' la stessa cosa che il disegno fa
+   con tre pezzi separati, ottenuta con un file solo.
+   Il taglio e' a 92 pixel dell'immagine (larga 852) perche' li' finisce
+   l'ornamento; i 63 pixel di bordo sono quanto quel pezzo occupa a schermo. */
+.titolo{
+  position:relative; display:inline-flex; align-items:center; justify-content:center;
+  height:124px; padding:0 20px;
+  border-style:solid; border-width:0 63px;
+  border-image-source:url('/cards/card-parts/name-wrapper-timeless.png');
+  border-image-slice:0 92 fill;
+  border-image-repeat:stretch;
+  font-family:'Marcellus SC',Georgia,serif; font-weight:400;
+  font-size:32px; line-height:43px;
+  background:linear-gradient(115deg, #E6CA8E 23.78%, #FFF5E4 50.28%, #E6CA8E 81.04%);
+  -webkit-background-clip:text; background-clip:text; color:transparent;
+  white-space:nowrap;
+}
+.occhiello{ font-family:'Marcellus SC',Georgia,serif; font-size:24px; line-height:27px; color:var(--grigio-chiaro); text-shadow:0 0 4.1px #120B07; }
+.corpo{ font-size:16px; line-height:1.2; color:var(--oro-caldo); text-shadow:0 0 4.1px #120B07; }
+.corpo + .corpo{ margin-top:10px; }
+.riga{ width:242px; height:1px; background:linear-gradient(90deg, transparent, rgba(237,224,198,.45), transparent); }
+
+/* ── LA COMPARSA ──────────────────────────────────────────────────────── */
 .vivo .entra{ opacity:0; transform:translateY(26px); }
 .vivo .entra.dentro-vista{
   opacity:1; transform:none;
@@ -180,24 +176,15 @@ a{ color:inherit; text-decoration:none; }
 #cappello{
   position:relative; min-height:847px;
   display:flex; flex-direction:column; align-items:center; justify-content:center;
-  padding:140px 0 60px; overflow:hidden;
+  padding:150px 0 70px; overflow:hidden;
 }
-#cappello .fondo{
-  position:absolute; inset:0; z-index:0; pointer-events:none;
-}
-#cappello .fondo img{
-  position:absolute; inset:0; width:100%; height:100%; object-fit:cover;
-}
-/* Il velo che spegne il fondale verso il basso, cosi' la sezione dopo non
-   comincia con uno stacco netto ma esce dal buio. */
+#cappello .fondo{ position:absolute; inset:0; z-index:0; pointer-events:none; }
+#cappello .fondo img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
 #cappello .fondo .velo{
   position:absolute; inset:0;
   background:linear-gradient(180deg, rgba(27,35,37,0) 45%, var(--fondo) 100%);
 }
 #cappello .fondo .trama{ mix-blend-mode:overlay; opacity:.58; object-position:bottom; }
-/* Le tre tele della polvere. Stessi piani del gioco, e sfocate per piano: a
-   fuoco quello di mezzo, sfocati quello davanti e quello dietro — il davanti
-   di piu', perche' e' piu' vicino. */
 .polvere{
   position:absolute; inset:0; width:100%; height:100%;
   pointer-events:none; user-select:none; z-index:1;
@@ -206,90 +193,108 @@ a{ color:inherit; text-decoration:none; }
 #polvere-lontano{ filter:blur(1px); }
 #polvere-mezzo{ filter:none; }
 #polvere-vicino{ filter:blur(3.5px); }
-
 #cappello .contenuto{ position:relative; z-index:2; text-align:center; }
-/* ── IL MARCHIO E IL SUO ALONE ────────────────────────────────────────────
-   Il marchio e il suo alone sono i DUE FILE DEL GIOCO: /loading-screen/
-   logo.png e logo-blur.png, che e' lo stesso disegno sfocato. Il gioco li usa
-   gia' cosi', uno sopra l'altro, ed e' meglio che rifare l'alone con cinque
-   ellissi esportate — quelle sono la forma che il disegno aveva in Figma, non
-   il disegno.
-   L'alone respira: due tempi diversi e non multipli fra loro, perche' con
-   tempi multipli tornerebbero in fase ogni pochi secondi e il respiro si
-   vedrebbe come un battito. */
-#logo-hextale{
+
+/* ── IL MARCHIO ───────────────────────────────────────────────────────────
+   La stessa costruzione della schermata d'accesso del gioco, alla misura di
+   questa pagina: due raggiere che girano lentamente in versi opposti, la
+   macchia di luce che respira sopra di loro, e il marchio davanti col suo
+   riflesso che ogni tanto lo attraversa.
+   Le due raggiere girano a 140 e 190 secondi: tempi lunghi e non multipli fra
+   loro, cosi' il disegno che formano insieme non si ripete mai uguale. */
+#marchio{
   position:relative; width:min(404px, 82vw); margin:0 auto;
   aspect-ratio:836/410;
 }
-#logo-hextale img{ position:absolute; inset:0; width:100%; height:100%; object-fit:contain; }
-#logo-hextale .alone{
-  mix-blend-mode:plus-lighter;
-  transform-origin:center;
-  animation:respiro 5.3s ease-in-out infinite;
+#marchio .raggiera{
+  position:absolute; left:50%; top:50%;
+  width:230%; aspect-ratio:1; height:auto;
+  transform:translate(-50%,-50%);
+  pointer-events:none; opacity:.5; mix-blend-mode:plus-lighter;
 }
-/* Una seconda copia, piu' larga e piu' lenta: due luci sfasate fanno una luce
-   che si muove, una sola fa una luce che lampeggia. */
-#logo-hextale .alone.largo{
-  transform:scale(1.35);
-  opacity:.5;
-  animation:respiro 7.9s ease-in-out infinite .6s;
+#marchio .raggiera.a{ animation:giraOrario 140s linear infinite; }
+#marchio .raggiera.b{ animation:giraAntiorario 190s linear infinite; }
+@keyframes giraOrario    { from{ transform:translate(-50%,-50%) rotate(0deg); }   to{ transform:translate(-50%,-50%) rotate(360deg); } }
+@keyframes giraAntiorario{ from{ transform:translate(-50%,-50%) rotate(360deg); } to{ transform:translate(-50%,-50%) rotate(0deg); } }
+/* La macchia di luce: respira in quattro secondi, andata e ritorno.
+   `alternate` e non un ciclo intero — cosi' il ritorno e' lento quanto
+   l'andata e non c'e' lo scatto di chi riparte da capo. */
+#marchio .effetti{
+  position:absolute; left:50%; top:50%;
+  width:170%; height:auto;
+  transform:translate(-50%,-50%);
+  pointer-events:none; mix-blend-mode:plus-lighter;
+  animation:respiraEffetti 4s ease-in-out infinite alternate;
 }
-#logo-hextale .segno{
-  filter:drop-shadow(0 0 22px rgba(234,226,209,.45));
+@keyframes respiraEffetti{ from{ opacity:1; } to{ opacity:.45; } }
+#marchio .segno, #marchio .riflesso{
+  position:absolute; left:0; top:0; width:100%; height:100%; object-fit:contain;
 }
-@keyframes respiro{
-  0%,100%{ opacity:.45; transform:scale(.99); }
-  50%    { opacity:.95; transform:scale(1.05); }
+#marchio .segno{ filter:drop-shadow(0 4px 24px rgba(0,0,0,.7)); }
+/* Il riflesso sta esattamente sopra al marchio — stessa misura nativa — e si
+   vede solo attraverso una fessura diagonale che lo attraversa. Non e' un
+   ciclo continuo: una cosa che luccica sempre smette di luccicare, perche'
+   l'occhio la smette di vedere. Lo fa partire lo script, ogni tanto. */
+#marchio .riflesso{
+  opacity:0; pointer-events:none;
+  -webkit-mask-image:linear-gradient(45deg, transparent 27%, rgba(0,0,0,.35) 38%, #000 44%, #000 56%, rgba(0,0,0,.35) 62%, transparent 73%);
+          mask-image:linear-gradient(45deg, transparent 27%, rgba(0,0,0,.35) 38%, #000 44%, #000 56%, rgba(0,0,0,.35) 62%, transparent 73%);
+  -webkit-mask-size:300% 300%; mask-size:300% 300%;
+  -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat;
+  -webkit-mask-position:100% 50%; mask-position:100% 50%;
 }
-#logo-hextale .alone.largo{ animation-name:respiroLargo; }
-@keyframes respiroLargo{
-  0%,100%{ opacity:.28; transform:scale(1.30); }
-  50%    { opacity:.62; transform:scale(1.42); }
+/* Due nomi identici, alternati dallo script: riassegnare la STESSA animazione
+   non la fa ripartire — il browser vede lo stesso animation-name e non fa
+   niente. E' la stessa trappola che il gioco ha gia' pagato col suo logo. */
+@keyframes riflessoA{
+  0%{ opacity:0; -webkit-mask-position:100% 50%; mask-position:100% 50%; }
+  12%{ opacity:1; } 88%{ opacity:1; }
+  100%{ opacity:0; -webkit-mask-position:0% 50%; mask-position:0% 50%; }
 }
-/* Il lampo che ogni tanto attraversa il logo, come nel gioco: una banda chiara
-   che passa e se ne va. Non e' un ciclo continuo — una cosa che luccica sempre
-   smette di luccicare, perche' l'occhio la smette di vedere. */
-#logo-hextale .segno::after{ content:none; }
-#logo-hextale::after{
-  content:''; position:absolute; inset:0; pointer-events:none;
-  background:linear-gradient(105deg, transparent 38%, rgba(255,245,220,.55) 50%, transparent 62%);
-  background-size:250% 100%; background-position:150% 0;
-  mix-blend-mode:plus-lighter;
-  animation:lampo 9s ease-in-out infinite 3s;
+@keyframes riflessoB{
+  0%{ opacity:0; -webkit-mask-position:100% 50%; mask-position:100% 50%; }
+  12%{ opacity:1; } 88%{ opacity:1; }
+  100%{ opacity:0; -webkit-mask-position:0% 50%; mask-position:0% 50%; }
 }
-@keyframes lampo{
-  0%,72%,100%{ background-position:150% 0; }
-  86%       { background-position:-50% 0; }
-}
+#marchio .riflesso.a{ animation:riflessoA 900ms ease-in-out 1 both; }
+#marchio .riflesso.b{ animation:riflessoB 900ms ease-in-out 1 both; }
+
 h1{
   margin:26px auto 0; width:min(787px, 100%);
   font-family:'Marcellus SC',Georgia,serif; font-weight:400;
   font-size:46px; line-height:43px;
-  background:linear-gradient(110.87deg, #1C1209 23.78%, #896935 50.28%, #1C1209 81.04%);
-  -webkit-background-clip:text; background-clip:text;
-  color:transparent;
   /* Le lettere sono scure e la luce sta DIETRO: e' l'oro inciso del disegno.
-     Senza l'ombra chiara si leggerebbe come testo nero su fondo scuro. */
+     Il gradiente corre da sinistra a destra — scuro, oro, scuro. */
+  background:linear-gradient(90deg, #1C1209 0%, #896935 50%, #1C1209 100%);
+  -webkit-background-clip:text; background-clip:text; color:transparent;
   text-shadow:0 0 13.3px #F3DBA7, 0 0 20.7px #FDEFD3;
-  filter:drop-shadow(0 0 18px rgba(253,239,211,.45));
   animation:brillaTitolo 6.5s ease-in-out infinite;
+  position:relative;
+}
+h1::before{
+  content:''; position:absolute; left:50%; top:50%; z-index:-1;
+  width:118%; height:250%; transform:translate(-50%,-50%);
+  pointer-events:none;
+  background:radial-gradient(ellipse at center,
+             rgba(255,245,218,.82) 0%, rgba(253,226,168,.40) 38%, rgba(253,222,160,0) 72%);
+  filter:blur(26px);
+  animation:respiraAlone 6.5s ease-in-out infinite;
+}
+@keyframes respiraAlone{
+  0%,100%{ opacity:.72; transform:translate(-50%,-50%) scale(.97); }
+  50%    { opacity:1;   transform:translate(-50%,-50%) scale(1.05); }
 }
 @keyframes brillaTitolo{
   0%,100%{ filter:drop-shadow(0 0 12px rgba(253,239,211,.30)); }
   50%    { filter:drop-shadow(0 0 26px rgba(253,239,211,.60)); }
 }
-.riga{ width:242px; height:1px; margin:34px auto; background:linear-gradient(90deg, transparent, rgba(237,224,198,.45), transparent); }
+#cappello .riga{ margin:34px auto; }
 #cappello p.claim{
   width:min(787px, 100%); margin:0 auto;
-  font-size:20px; line-height:1.2; color:var(--oro-caldo);
-  text-shadow:0 0 4.1px #120B07;
+  font-size:20px; line-height:1.2; color:var(--oro-caldo); text-shadow:0 0 4.1px #120B07;
 }
 #cappello .bottoni{ display:flex; gap:15px; justify-content:center; flex-wrap:wrap; margin-top:34px; }
 
-/* ── LA BARRA IN ALTO ─────────────────────────────────────────────────────
-   Sta sopra al cappello e si stacca dal fondo appena si comincia a scorrere:
-   finche' si e' in cima non ha niente da separare, e un fondo dietro a un
-   marchio che sta gia' su un'illustrazione sarebbe una scatola dentro un'altra. */
 #barra{
   position:fixed; top:0; left:0; right:0; z-index:50;
   display:flex; align-items:center; justify-content:space-between;
@@ -297,18 +302,17 @@ h1{
   transition:background .3s ease, padding .3s ease, backdrop-filter .3s ease;
 }
 #barra.staccata{
-  padding:10px 14px;
-  background:rgba(17,23,24,.82);
+  padding:10px 14px; background:rgba(17,23,24,.82);
   -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px);
   box-shadow:0 1px 0 rgba(255,255,255,.06);
 }
-#barra .marchio{ width:64px; height:68px; }
-#barra .marchio img{ width:100%; height:100%; object-fit:contain; }
+#barra .marchio-piccolo{ width:64px; height:68px; }
+#barra .marchio-piccolo img{ width:100%; height:100%; object-fit:contain; }
 
 /* ══════════════════════════════════════════════════════════════════════════
    IL VIDEO
    ══════════════════════════════════════════════════════════════════════════ */
-#video{ position:relative; padding:0 0 40px; display:flex; justify-content:center; }
+#video{ position:relative; padding:0 0 40px; display:flex; justify-content:center; overflow:hidden; }
 #video .alone{
   position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
   width:1440px; max-width:none; pointer-events:none; opacity:.9;
@@ -321,8 +325,6 @@ h1{
 }
 #video .schermo:hover{ transform:translateY(-4px); }
 #video .schermo img.scena{ width:100%; height:auto; }
-/* Il pulsante finto di YouTube: per ora e' l'immagine del disegno, come
-   chiesto. Batte piano, cosi' si capisce che e' il posto da guardare. */
 #video .play{
   position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
   width:88px; height:70px;
@@ -335,220 +337,203 @@ h1{
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
-   LE SEZIONI DI RACCONTO
-   ══════════════════════════════════════════════════════════════════════════ */
-section{ position:relative; padding:110px 0; }
-.titolo{
-  position:relative; display:inline-block; padding:10px 54px;
-  font-family:'Marcellus SC',Georgia,serif; font-weight:400;
-  font-size:34px; line-height:1.2; color:var(--oro);
-  text-shadow:0 0 10px rgba(0,0,0,.9);
-}
-/* La targa dietro al titolo e' il "name-wrapper" delle CARTE, preso da dove
-   sta gia': /cards/card-parts/. UNA immagine, non un mucchio di pezzi — e'
-   cosi' che la usa il gioco, ed e' cosi' che deve stare qui.
-   Sta dietro e non dentro perche' il titolo cambia lunghezza e la targa deve
-   seguirlo. */
-.titolo::before{
-  content:''; position:absolute; inset:0; z-index:-1;
-  background:url('/cards/card-parts/name-wrapper-timeless.png') center / 100% 100% no-repeat;
-  opacity:.95;
-}
-.centrato{ text-align:center; }
-.occhiello{ font-size:17px; line-height:1.45; color:var(--grigio); }
-.corpo{ font-size:17px; line-height:1.5; color:#C9D3D4; }
-.corpo b, .corpo strong{ color:var(--oro); font-weight:400; }
+   IL PALCO
+   ══════════════════════════════════════════════════════════════════════════
+   Due sezioni impaginano in coordinate assolute — la carta coi suoi cartellini
+   e le quattro carte del mazzo. Invece di riposizionare ogni pezzo a ogni
+   larghezza di finestra, il palco tiene la misura del disegno e si
+   RIMPICCIOLISCE tutto insieme. La disposizione e' quella, non una che le
+   somiglia, e non ci sono venti numeri da rifare a ogni ripensamento. */
+.guscio{ position:relative; width:100%; }
+.palco{ position:absolute; top:0; left:50%; transform-origin:top center; }
+.palco > *{ position:absolute; }
 
-/* ── LA COLLEZIONE ────────────────────────────────────────────────────────
-   Il fondale di questa sezione si muove in parallasse: due strati che salgono
-   piu' piano della pagina. Non e' un effetto a se' — dice che il fondo e'
-   lontano, ed e' l'unico modo di dare profondita' a un'immagine ferma. */
-#collezione{ overflow:hidden; }
-#collezione .sfondo{ position:absolute; inset:-8% 0; z-index:0; pointer-events:none; opacity:.35; }
-#collezione .sfondo img{
-  position:absolute; top:0; width:auto; height:100%; max-width:none;
-  will-change:transform;
+/* ── LA COLLEZIONE ────────────────────────────────────────────────────── */
+#collezione{ position:relative; padding:110px 0 90px; overflow:hidden; }
+/* Il fondale della sezione: nel disegno esce dai bordi di una ventina di pixel
+   per parte, non di piu'. Si muove in parallasse — dice che e' lontano, ed e'
+   l'unico modo di dare profondita' a un'immagine ferma. */
+#collezione .sfondo{
+  position:absolute; left:-20px; right:-20px; top:150px; z-index:0;
+  pointer-events:none; opacity:.9;
 }
-#collezione .sfondo img.sx{ left:-4%; }
-#collezione .sfondo img.dx{ right:-4%; }
+#collezione .sfondo img{ width:100%; height:auto; will-change:transform; }
 #collezione .contenuto{ position:relative; z-index:1; }
+.anatomia{ margin-top:44px; }
 
-/* La carta e i suoi cartellini. */
-.anatomia{
-  position:relative; margin:70px auto 0;
-  width:min(1100px, calc(100% - 48px));
-  display:flex; align-items:center; justify-content:center;
-}
-.carta-scena{ position:relative; perspective:1200px; flex:0 0 auto; }
+.carta-scena{ position:absolute; left:450px; top:0; width:333px; height:572px; perspective:1200px; z-index:2; }
 .carta-piano{
-  position:relative; width:374px; height:613px;
+  position:relative; width:100%; height:100%;
   transform-style:preserve-3d;
   transition:transform .28s ease-out;
   will-change:transform;
 }
 .carta-scena.viva .carta-piano{ transition:none; }
-.carta-piano img.faccia{ width:100%; height:100%; border-radius:20px; }
-/* I tre strati che il gioco mette su una carta di livello 4, nell'ordine in
-   cui li mette lui: il riflesso (glare), la lucentezza per materiale
-   (specular) e la lamina (foil). Qui la carta e' un'immagine sola e non un
-   SVG a pezzi, quindi la lucentezza si prende la carta intera invece dei soli
-   metalli: e' l'unica differenza, e si vede solo sapendo che c'e'. */
-.carta-piano .glare, .carta-piano .specular, .carta-piano .foil{
+.carta-piano svg{ width:100%; height:100%; display:block; }
+/* I gradini che il gioco mette su una carta di livello 4. La lucentezza per
+   materiale qui non c'e' come nel gioco — la' e' l'alfa dei PNG dei metalli a
+   fare da maschera — e al suo posto c'e' una banda di luce che attraversa la
+   carta seguendo il puntatore. Il resto e' lo stesso: riflesso e lamina. */
+.carta-piano .glare, .carta-piano .lamina, .carta-piano .banda{
   position:absolute; inset:0; border-radius:20px; pointer-events:none;
   opacity:0; transition:opacity .3s ease;
 }
-.carta-scena.viva .glare, .carta-scena.viva .specular, .carta-scena.viva .foil{ transition:none; }
+.carta-scena.viva .glare, .carta-scena.viva .lamina, .carta-scena.viva .banda{ transition:none; }
 .carta-piano .glare{
   background:radial-gradient(circle at var(--mx,50%) var(--my,50%),
-             rgba(255,255,255,.30) 0%, rgba(255,255,255,.10) 26%, transparent 58%);
+             rgba(255,255,255,.28) 0%, rgba(255,255,255,.09) 26%, transparent 58%);
   mix-blend-mode:plus-lighter;
 }
-.carta-piano .specular{
-  background-image:var(--faccia);
-  background-size:100% 100%;
-  mix-blend-mode:screen; filter:brightness(1.35);
-  -webkit-mask-image:linear-gradient(var(--ang,135deg), transparent 35%, #000 50%, transparent 65%);
-          mask-image:linear-gradient(var(--ang,135deg), transparent 35%, #000 50%, transparent 65%);
-  -webkit-mask-size:300% 300%; mask-size:300% 300%;
-  -webkit-mask-position:var(--mx,50%) var(--my,50%); mask-position:var(--mx,50%) var(--my,50%);
+.carta-piano .banda{
+  background:linear-gradient(var(--ang,115deg), transparent 38%, rgba(255,247,220,.42) 50%, transparent 62%);
+  mix-blend-mode:plus-lighter;
 }
-.carta-piano .foil{
+.carta-piano .lamina{
   background:linear-gradient(var(--ang,115deg),
     hsl(calc(var(--hue,0) + 0) 90% 62%) 0%,
-    hsl(calc(var(--hue,0) + 60) 90% 62%) 18%,
-    hsl(calc(var(--hue,0) + 130) 90% 62%) 38%,
-    hsl(calc(var(--hue,0) + 200) 90% 62%) 60%,
-    hsl(calc(var(--hue,0) + 280) 90% 62%) 82%,
-    hsl(calc(var(--hue,0) + 340) 90% 62%) 100%);
+    hsl(calc(var(--hue,0) + 70) 90% 62%) 22%,
+    hsl(calc(var(--hue,0) + 150) 90% 62%) 46%,
+    hsl(calc(var(--hue,0) + 230) 90% 62%) 72%,
+    hsl(calc(var(--hue,0) + 320) 90% 62%) 100%);
   mix-blend-mode:color-dodge;
 }
 .carta-scena.viva .glare{ opacity:1; }
-.carta-scena.viva .specular{ opacity:1; }
-.carta-scena.viva .foil{ opacity:.20; }
-/* Il quarto gradino: l'illustrazione si stacca dalla cornice e si muove di
-   suo. E' quello che nel gioco fa il parallax dei livelli d'arte. */
-.carta-piano .arte{
-  position:absolute; left:11%; top:12.5%; width:78%; height:55%;
-  border-radius:10px; overflow:hidden; pointer-events:none;
-  opacity:0; transition:opacity .3s ease;
-}
-.carta-piano .arte img{
-  width:112%; height:112%; margin:-6% 0 0 -6%; object-fit:cover;
-  transition:transform .28s ease-out; will-change:transform;
-}
-.carta-scena.viva .arte{ opacity:1; }
-.carta-scena.viva .arte img{ transition:none; }
+.carta-scena.viva .banda{ opacity:1; }
+.carta-scena.viva .lamina{ opacity:.18; }
 
-/* I cartellini attorno alla carta. Su schermo largo stanno ai lati, come nel
-   disegno; sotto ai 1000 si mettono in colonna e diventano un elenco. */
+/* I cartellini. Le posizioni sono quelle del disegno, dentro al palco.
+   L'angolo che guarda la carta e' SQUADRATO e porta una freccetta: e' lui a
+   dire di quale pezzo si sta parlando, e per questo e' l'unico dei quattro
+   angoli a non essere arrotondato. */
 .cartellino{
-  position:absolute; width:288px; padding:20px;
-  background:var(--riquadro);
-  border:1.5px solid var(--bordo);
-  border-radius:20px 20px 20px 20px;
+  z-index:1;
+  padding:20px;
+  background:#374346;
+  border:1.5px solid #2C3536;
+  border-radius:20px;
   box-shadow:0 18px 40px rgba(0,0,0,.35);
 }
 .cartellino h3{
   font-family:'Marcellus SC',Georgia,serif; font-weight:400;
-  font-size:24px; line-height:1.1; color:#E8D4A9; margin-bottom:12px;
+  font-size:26px; line-height:1.1; color:var(--oro-scritta); margin-bottom:12px;
 }
-.cartellino p{ font-size:13px; line-height:1.35; color:var(--grigio); }
+.cartellino p{ font-size:13px; line-height:1.2; color:var(--grigio); }
 .cartellino p + p{ margin-top:8px; }
 .cartellino b{ color:var(--oro); font-weight:400; }
-/* Il puntino che lega il cartellino al punto della carta di cui parla. */
-.cartellino::after{
-  content:''; position:absolute; width:9px; height:9px; border-radius:50%;
-  background:#E8D4A9; box-shadow:0 0 10px rgba(232,212,169,.9);
-}
-.cartellino.a-destra::after{ left:-5px; top:26px; }
-.cartellino.a-sinistra::after{ right:-5px; top:26px; }
-.c-nome    { left:calc(50% + 150px); top:-10px; }
-.c-potere  { right:calc(50% + 150px); top:120px; width:330px; }
-.c-livello { left:calc(50% + 150px); top:210px; }
-.c-abilita { right:calc(50% + 150px); top:400px; width:330px; }
-.c-tratti  { left:calc(50% + 150px); top:440px; }
+/* Quanto di ogni cartellino sta sotto alla carta, piu' i venti d'imbottitura
+   che hanno tutti. Su schermo stretto non serve: li' i cartellini non ci sono. */
+.cartellino.c-nome   { padding-right:104px; }
+.cartellino.c-potere { padding-right:58px; }
+.cartellino.c-tratti { padding-right:84px; }
+.cartellino.c-livello{ padding-left:30px; }
+.cartellino.c-abilita{ padding-left:66px; }
+.cartellino::after{ content:''; position:absolute; width:0; height:0; border:9px solid transparent; }
+/* La punta guarda la carta: da un cartellino a sinistra della carta punta a
+   destra, da uno a destra punta a sinistra. */
+.cartellino.punta-dx{ border-top-right-radius:0; }
+.cartellino.punta-dx::after{ right:-18px; top:-1.5px; border-left-color:#2C3536; border-top-color:#2C3536; }
+.cartellino.punta-sx{ border-top-left-radius:0; }
+.cartellino.punta-sx::after{ left:-18px; top:-1.5px; border-right-color:#2C3536; border-top-color:#2C3536; }
 
-/* ── IL MAZZO ─────────────────────────────────────────────────────────────*/
-#mazzo .riga-due{
-  display:flex; gap:58px; align-items:center; justify-content:center; flex-wrap:wrap;
-}
-#mazzo .testo{ flex:1 1 420px; max-width:520px; }
+/* ── IL MAZZO ─────────────────────────────────────────────────────────── */
+#mazzo{ position:relative; padding:90px 0; }
+#mazzo .riga-due{ display:flex; gap:40px; align-items:center; justify-content:center; flex-wrap:wrap; }
+#mazzo .testo{ flex:1 1 380px; max-width:607px; }
 #mazzo .testo .titolo{ margin-bottom:30px; }
-#mazzo .testo p + p{ margin-top:16px; }
-#mazzo .ventaglio{ flex:0 0 auto; position:relative; width:min(560px, 100%); height:520px; }
-#mazzo .ventaglio img{
-  position:absolute; width:230px; border-radius:14px;
-  box-shadow:0 24px 60px rgba(0,0,0,.55);
-  transition:transform .6s var(--molla);
-}
-/* Tre carte a ventaglio: ferme sono un mazzo, al passaggio si aprono. */
-#mazzo .ventaglio img:nth-child(1){ left:20px;  top:120px; transform:rotate(-14deg); z-index:1; }
-#mazzo .ventaglio img:nth-child(2){ left:160px; top:70px;  transform:rotate(-2deg);  z-index:2; }
-#mazzo .ventaglio img:nth-child(3){ left:300px; top:120px; transform:rotate(11deg);  z-index:1; }
-#mazzo .ventaglio:hover img:nth-child(1){ transform:rotate(-20deg) translate(-26px,-14px); }
-#mazzo .ventaglio:hover img:nth-child(2){ transform:rotate(-2deg) translateY(-24px); }
-#mazzo .ventaglio:hover img:nth-child(3){ transform:rotate(17deg) translate(26px,-14px); }
+#mazzo .testo .riga{ margin:24px 0; }
+#mazzo .testo .occhiello{ display:block; margin-top:20px; }
+#mazzo .testo .fondo-bottone{ margin-top:44px; }
+/* Le carte crescono una volta e mezzo il testo: e' la proporzione del disegno,
+   e lasciando crescere di piu' il testo le carte diventavano francobolli. */
+#mazzo .carte{ flex:1.5 1 380px; max-width:673.6px; }
+#mazzo .carte img.carta{ border-radius:14px; transition:transform .55s var(--molla); }
+#mazzo .carte img.alone{ pointer-events:none; opacity:.8; mix-blend-mode:plus-lighter; }
+/* Ferme sono un mazzo; al passaggio si aprono di poco. Poco: sono quattro
+   carte appoggiate, non un ventaglio da prestigiatore. */
+#mazzo .carte:hover img.carta:nth-of-type(1){ transform:translate(-16px,10px); }
+#mazzo .carte:hover img.carta:nth-of-type(2){ transform:translateY(-10px); }
+#mazzo .carte:hover img.carta:nth-of-type(3){ transform:translateY(-16px); }
+#mazzo .carte:hover img.carta:nth-of-type(4){ transform:rotate(15.57deg) translate(18px,-12px); }
 
-/* ── LA SFIDA ─────────────────────────────────────────────────────────────*/
-#sfida{ text-align:center; overflow:hidden; }
+/* ── LA SFIDA ─────────────────────────────────────────────────────────────
+   Il tabellone sta SOPRA al riquadro del testo, e il riquadro gli scivola
+   sotto: e' il disegno, ed e' anche quel che dice la scena — il tavolo da
+   gioco davanti, il racconto dietro. */
+#sfida{ position:relative; padding:90px 0 110px; text-align:center; overflow:hidden; }
 #sfida .sfondo{ position:absolute; inset:-10% 0; z-index:0; opacity:.5; pointer-events:none; }
 #sfida .sfondo img{ position:absolute; left:50%; top:0; transform:translateX(-50%); height:100%; width:auto; max-width:none; will-change:transform; }
 #sfida .contenuto{ position:relative; z-index:1; }
-#sfida .tavolo{ width:min(760px, calc(100% - 48px)); margin:50px auto 0; }
+#sfida .scena{ position:relative; width:min(900px, calc(100% - 48px)); margin:46px auto 0; }
+#sfida .tavolo{ position:relative; z-index:2; width:min(760px, 100%); margin:0 auto; }
 #sfida .pannello{
-  width:min(700px, calc(100% - 48px)); margin:44px auto 0; padding:30px;
+  position:relative; z-index:1;
+  width:min(700px, 100%); margin:-90px auto 0; padding:120px 30px 30px;
   background:linear-gradient(135deg, rgba(84,96,98,.5), rgba(29,38,39,.5));
   border:1.5px solid rgba(255,255,255,.2); border-radius:28px;
   -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
 }
-#sfida .pannello p + p{ margin-top:14px; }
+#sfida .pannello .occhiello{ display:block; margin-top:16px; }
+#sfida .fondo-bottone{ margin-top:40px; }
 
-/* ── LE DOMANDE ───────────────────────────────────────────────────────────*/
-#faq{ padding-bottom:60px; }
-#faq .lista{ width:min(787px, calc(100% - 48px)); margin:46px auto 0; }
+/* ══════════════════════════════════════════════════════════════════════════
+   LE DOMANDE
+   ══════════════════════════════════════════════════════════════════════════
+   Ogni domanda e' un riquadro suo — fondo, bordo, angoli tondi e sfocatura
+   dietro — e fra un riquadro e l'altro non c'e' nessuna riga: a separarli sono
+   i venti pixel di stacco, che e' quello che fa il disegno.
+   Geppetto sta dietro a tutta la sezione, grande. */
+#faq{ position:relative; padding:90px 0 120px; overflow:hidden; }
+#faq .geppetto{
+  position:absolute; z-index:0; pointer-events:none;
+  width:907px; max-width:none; height:auto;
+  left:calc(50% + 230px); bottom:-85px;
+  will-change:transform;
+  -webkit-mask-image:linear-gradient(180deg, #000 76%, transparent 97%);
+          mask-image:linear-gradient(180deg, #000 76%, transparent 97%);
+}
+#faq .contenuto{ position:relative; z-index:1; }
+#faq .lista{ width:min(701px, calc(100% - 48px)); margin:40px auto 0; display:flex; flex-direction:column; gap:20px; }
 .domanda{
-  border-bottom:1px solid rgba(255,255,255,.10);
+  border:1px solid var(--bordo); border-radius:16px;
+  background-image:linear-gradient(90deg, rgba(37,32,29,.53) 0%, rgba(87,77,72,0) 100%),
+                   linear-gradient(90deg, rgba(24,36,38,.5) 0%, rgba(24,36,38,.5) 100%);
+  -webkit-backdrop-filter:blur(15px); backdrop-filter:blur(15px);
+  box-shadow:0 2px 10px rgba(0,0,0,.3);
+  overflow:hidden;
+  transition:border-color .25s ease;
 }
+.domanda:hover{ border-color:#6B7273; }
 .domanda > button{
-  width:100%; display:flex; align-items:center; justify-content:space-between; gap:20px;
-  padding:22px 4px; background:none; border:0; cursor:pointer;
-  font-family:'Marcellus SC',Georgia,serif; font-size:20px; color:var(--oro);
-  text-align:left;
-  transition:color .2s ease;
+  width:100%; min-height:70px;
+  display:flex; align-items:center; justify-content:space-between; gap:20px;
+  padding:16px 20px; background:none; border:0; cursor:pointer;
+  font-family:'Marcellus SC',Georgia,serif; font-size:26px; line-height:1.2;
+  color:var(--oro-scritta); text-align:left;
 }
-.domanda > button:hover{ color:#FFF3D6; }
-.domanda .segno{
-  flex:0 0 auto; width:22px; height:22px; position:relative;
-  transition:transform .3s var(--molla);
-}
+/* Il segno: due tratti che formano un piu' e che aprendosi diventano un meno.
+   E' l'icona del gioco (una croce ruotata di 45 gradi) rifatta con due righe
+   invece che con un'immagine — a questa misura una riga e' piu' nitida di un
+   disegno rimpicciolito. */
+.domanda .segno{ flex:0 0 auto; width:32px; height:32px; position:relative; transition:transform .3s var(--molla); }
 .domanda .segno::before, .domanda .segno::after{
-  content:''; position:absolute; left:50%; top:50%; background:var(--oro-caldo);
-  transform:translate(-50%,-50%);
+  content:''; position:absolute; left:50%; top:50%; background:#E9D8B3;
+  transform:translate(-50%,-50%); border-radius:1px;
 }
-.domanda .segno::before{ width:18px; height:1.5px; }
-.domanda .segno::after{ width:1.5px; height:18px; transition:opacity .3s ease, transform .3s ease; }
+.domanda .segno::before{ width:22px; height:2px; }
+.domanda .segno::after{ width:2px; height:22px; transition:opacity .3s ease, transform .3s ease; }
 .domanda.aperta .segno{ transform:rotate(180deg); }
 .domanda.aperta .segno::after{ opacity:0; transform:translate(-50%,-50%) scaleY(0); }
-/* La risposta si apre misurando la propria altezza: `height:auto` non si
-   anima, e un valore fisso scritto a mano sarebbe sbagliato al primo testo
-   piu' lungo. Il numero lo mette lo script, che l'altezza la sa. */
-.domanda .risposta{
-  overflow:hidden; height:0;
-  transition:height .35s var(--molla);
-}
-.domanda .risposta .dentro-r{ padding:0 4px 24px; font-size:16px; line-height:1.55; color:#C9D3D4; }
+/* La risposta si apre misurando la propria altezza: `height:auto` non si anima,
+   e un numero scritto a mano sarebbe sbagliato al primo testo piu' lungo. */
+.domanda .risposta{ overflow:hidden; height:0; transition:height .35s var(--molla); }
+.domanda .risposta .dentro-r{ padding:0 20px 18px; font-size:16px; line-height:1.2; color:var(--grigio); text-shadow:0 0 4.1px #120B07; }
+.domanda .risposta p + p{ margin-top:10px; }
 
-/* ── IL PIEDE ─────────────────────────────────────────────────────────────*/
-footer{
-  position:relative; margin-top:40px; padding:120px 0 46px; overflow:hidden;
-  text-align:center;
-}
-footer .geppetto{
-  position:absolute; right:0; bottom:0; z-index:0; height:118%; width:auto; max-width:none;
-  pointer-events:none; opacity:.9; will-change:transform;
-}
-footer .velo{ position:absolute; inset:0; z-index:1; background:linear-gradient(180deg, var(--fondo) 0%, rgba(27,35,37,0) 40%, rgba(27,35,37,.85) 100%); pointer-events:none; }
-footer .contenuto{ position:relative; z-index:2; }
+/* ── IL PIEDE ─────────────────────────────────────────────────────────────
+   Nessun velo e nessun colore suo: il piede sta sullo stesso fondo di tutta la
+   pagina. Un piede di un altro colore sarebbe una fascia, e qui non c'e'
+   nessuna fascia da fare. */
+footer{ position:relative; background:var(--fondo); padding:46px 0; text-align:center; }
 footer .logo-studio{ width:96px; margin:0 auto 14px; opacity:.9; }
 footer .nota{ font-size:13px; color:#7E8D8F; line-height:1.7; }
 footer .nota a{ color:var(--oro-caldo); }
@@ -556,9 +541,7 @@ footer .nota a:hover{ text-decoration:underline; }
 
 /* ══════════════════════════════════════════════════════════════════════════
    LA FINESTRA DEI CONTATTI
-   ══════════════════════════════════════════════════════════════════════════
-   Stessa dissolvenza delle finestre del gioco: c'e' sempre ed e' nascosta,
-   perche' `display` non si dissolve. */
+   ══════════════════════════════════════════════════════════════════════════ */
 #contatto{
   position:fixed; inset:0; z-index:100;
   display:flex; align-items:center; justify-content:center; padding:24px;
@@ -572,30 +555,25 @@ footer .nota a:hover{ text-decoration:underline; }
   transition:opacity .2s ease, visibility 0s linear 0s;
 }
 #contatto .riquadro{
-  width:min(530px, 100%); padding:30px;
+  position:relative; width:min(530px, 100%); padding:30px;
   background:linear-gradient(135deg, rgba(84,96,98,.55), rgba(29,38,39,.55));
   border:1.5px solid rgba(255,255,255,.2); border-radius:28px;
   transform:translateY(18px) scale(.98);
   transition:transform .3s var(--molla);
 }
 #contatto.aperta .riquadro{ transform:none; }
-#contatto h2{
-  font-family:'Marcellus SC',Georgia,serif; font-weight:400; font-size:30px;
-  color:var(--oro); text-align:center; margin-bottom:6px;
-}
+#contatto h2{ font-family:'Marcellus SC',Georgia,serif; font-weight:400; font-size:30px; color:var(--oro); text-align:center; margin-bottom:6px; }
 #contatto .sotto{ text-align:center; color:var(--grigio); font-size:15px; margin-bottom:22px; }
 #contatto label{ display:block; font-size:13px; color:var(--grigio); margin:0 0 6px 2px; }
 .campo{
   width:100%; padding:13px 16px; margin-bottom:16px;
   font-family:'Rosarivo',Georgia,serif; font-size:16px; color:var(--oro);
-  background:rgba(0,0,0,.22);
-  border:1px solid rgba(255,255,255,.2); border-radius:14px;
-  outline:none;
-  transition:border-color .16s ease, background .16s ease;
+  background:rgba(0,0,0,.22); border:1px solid rgba(255,255,255,.2); border-radius:14px;
+  outline:none; transition:border-color .16s ease, background .16s ease;
 }
 .campo:focus{ border-color:rgba(255,231,178,.75); background:rgba(0,0,0,.32); }
 textarea.campo{ resize:vertical; min-height:120px; }
-#contatto .fondo-riga{ display:flex; gap:12px; justify-content:center; margin-top:6px; }
+#contatto .fondo-riga{ display:flex; justify-content:center; margin-top:6px; }
 #contatto .esito{ min-height:22px; text-align:center; font-size:14px; margin:10px 0 0; }
 #contatto .esito.ok{ color:#9BD8A6; }
 #contatto .esito.no{ color:#E29A98; }
@@ -610,44 +588,9 @@ textarea.campo{ resize:vertical; min-height:120px; }
 /* ══════════════════════════════════════════════════════════════════════════
    LO SCHERMO STRETTO
    ══════════════════════════════════════════════════════════════════════════
-   Il disegno mobile e' largo 402. Qui non si costruisce una seconda pagina: la
-   stessa pagina si ripiega, perche' due pagine sono due cose da tenere
-   d'accordo e prima o poi non lo sono piu'. Cambiano le misure, l'ordine dei
-   blocchi e — questo si', ed e' l'unica differenza vera — il modo di guardare
-   la carta: col dito invece che col puntatore. */
-@media (max-width:900px){
-  #cappello{ min-height:auto; padding:120px 0 40px; }
-  #logo-hextale{ width:min(300px, 76vw); }
-  h1{ font-size:30px; line-height:30px; }
-  .riga{ margin:26px auto; }
-  #cappello p.claim{ font-size:17px; }
-  .btn{ font-size:19px; height:60px; min-width:0; padding:0 22px; --cap:43px; }
-  .btn .mezzo::before{ top:2px; }
-  .btn .mezzo::after{ top:46px; }
-  #barra .marchio{ width:48px; height:52px; }
-  section{ padding:70px 0; }
-  .titolo{ font-size:26px; padding:8px 30px; }
-  .anatomia{ margin-top:40px; display:block; }
-  .carta-scena{ margin:0 auto; width:min(300px, 78vw); }
-  .carta-piano{ width:100%; height:auto; aspect-ratio:374/613; }
-  /* I cartellini non stanno piu' attorno alla carta: su 400 pixel non c'e'
-     spazio, e affastellarli sarebbe peggio che spostarli. Diventano UNO, sotto
-     alla carta, e si riempie toccando il pezzo di carta di cui si vuole
-     sapere. */
-  .cartellino{ display:none; }
-  .anatomia .tocco{ display:block; }
-  #mazzo .riga-due{ flex-direction:column; gap:34px; }
-  #mazzo .ventaglio{ height:360px; width:min(420px,100%); margin:0 auto; }
-  #mazzo .ventaglio img{ width:165px; }
-  #mazzo .ventaglio img:nth-child(1){ left:0;    top:80px; }
-  #mazzo .ventaglio img:nth-child(2){ left:110px; top:40px; }
-  #mazzo .ventaglio img:nth-child(3){ left:220px; top:80px; }
-  #sfida .pannello{ padding:22px; }
-  footer .geppetto{ height:auto; width:150%; right:-25%; opacity:.55; }
-}
-/* I punti da toccare sulla carta: esistono solo sullo schermo stretto. Sono
-   riquadri trasparenti sopra alla carta, uno per pezzo, e quando si toccano si
-   accendono — cosi' si vede DI COSA si sta leggendo. */
+   Non una seconda pagina: la stessa che si ripiega. Cambiano le misure,
+   l'ordine dei blocchi e — questo si', ed e' l'unica differenza vera — il modo
+   di guardare la carta: col dito invece che col puntatore. */
 .tocco{ display:none; position:absolute; inset:0; }
 .tocco b{
   position:absolute; border-radius:10px; cursor:pointer;
@@ -655,36 +598,70 @@ textarea.campo{ resize:vertical; min-height:120px; }
   transition:border-color .25s ease, background .25s ease, box-shadow .25s ease;
 }
 .tocco b.acceso{
-  border-color:rgba(255,231,178,.9);
-  background:rgba(255,231,178,.12);
+  border-color:rgba(255,231,178,.9); background:rgba(255,231,178,.12);
   box-shadow:0 0 22px rgba(255,231,178,.45), inset 0 0 18px rgba(255,231,178,.25);
 }
-/* Le zone, in percentuale sulla carta: cosi' seguono la carta a qualunque
-   misura invece di essere quattro numeri buoni per un telefono solo. */
-.tocco b[data-che="nome"]   { left:14%; top:60.5%; width:72%; height:7%; }
-.tocco b[data-che="potere"] { left:8%;  top:14%;   width:84%; height:44%; }
-.tocco b[data-che="livello"]{ left:56%; top:61.5%; width:32%; height:5.5%; }
-.tocco b[data-che="abilita"]{ left:10%; top:69%;   width:80%; height:19%; }
-.tocco b[data-che="tratti"] { left:9%;  top:5%;    width:22%; height:9%; }
+/* Le zone in percentuale sulla carta: seguono la carta a qualunque misura
+   invece di essere cinque numeri buoni per un telefono solo. */
+.tocco b[data-che="nome"]   { left:14%; top:7.5%;  width:72%; height:8%; }
+.tocco b[data-che="potere"] { left:8%;  top:22%;   width:84%; height:52%; }
+.tocco b[data-che="tratti"] { left:8%;  top:75.5%; width:26%; height:7%; }
+.tocco b[data-che="livello"]{ left:62%; top:75.5%; width:30%; height:7%; }
+.tocco b[data-che="abilita"]{ left:8%;  top:85%;   width:84%; height:12%; }
 #tocco-detto{
-  display:none; margin:26px auto 0; width:min(360px, 88vw); padding:20px;
-  background:var(--riquadro); border:1.5px solid var(--bordo); border-radius:20px;
-  text-align:left;
+  display:none; margin:26px auto 0; width:min(380px, 88vw); padding:20px;
+  background:#374346; border:1.5px solid #2C3536; border-radius:20px; text-align:left;
   opacity:0; transform:translateY(10px);
   transition:opacity .3s ease, transform .3s var(--molla);
 }
 #tocco-detto.visto{ opacity:1; transform:none; }
-#tocco-detto h3{ font-family:'Marcellus SC',Georgia,serif; font-weight:400; font-size:22px; color:#E8D4A9; margin-bottom:10px; }
-#tocco-detto p{ font-size:14px; line-height:1.45; color:var(--grigio); }
+#tocco-detto h3{ font-family:'Marcellus SC',Georgia,serif; font-weight:400; font-size:22px; color:var(--oro-scritta); margin-bottom:10px; }
+#tocco-detto p{ font-size:14px; line-height:1.3; color:var(--grigio); }
 #tocco-detto p + p{ margin-top:8px; }
-@media (max-width:900px){ #tocco-detto{ display:block; } }
+
+@media (max-width:980px){
+  #cappello{ min-height:auto; padding:120px 0 50px; }
+  h1{ font-size:30px; line-height:32px; }
+  #cappello p.claim{ font-size:17px; }
+  .btn{ font-size:19px; height:60px; min-width:180px; padding:0 22px; --cap:43px; --mid:51px; }
+  .btn.largo300{ width:min(300px, 78vw); }
+  #barra .marchio-piccolo{ width:48px; height:52px; }
+  .titolo{ font-size:22px; height:88px; border-width:0 45px; padding:0 12px; white-space:normal; text-align:center; line-height:1.15; }
+  .occhiello{ font-size:19px; line-height:1.2; }
+  #collezione, #mazzo, #sfida, #faq{ padding:64px 0; }
+  /* Il palco della carta diventa una colonna: la carta sopra e, sotto, UN
+     cartellino che si riempie toccando un pezzo. Su quattrocento pixel i
+     cinque cartellini non ci stanno, e affastellarli sarebbe peggio che
+     spostarli. */
+  /* Su schermo stretto il palco smette di essere un palco: la carta torna nel
+     flusso e i cartellini spariscono — al loro posto c'e' il riquadro sotto,
+     che si riempie toccando un pezzo. */
+  .anatomia{ height:auto !important; }
+  .anatomia .palco{ position:static; width:auto !important; height:auto !important;
+                    margin-left:0 !important; transform:none !important; }
+  .anatomia .cartellino{ display:none; }
+  .carta-scena{ position:relative; left:auto; top:auto; margin:0 auto; width:min(300px,78vw); height:auto; aspect-ratio:333/572; }
+  .tocco{ display:block; }
+  #tocco-detto{ display:block; }
+  #collezione .sfondo{ top:90px; }
+  #mazzo .riga-due{ flex-direction:column; gap:30px; }
+  /* In colonna flex-basis e' l'ALTEZZA, e le basi di 380 pensate per la riga
+     diventerebbero l'altezza dei due blocchi. Qui ognuno e' alto quanto il suo
+     contenuto. */
+  #mazzo .testo, #mazzo .carte{ flex:0 0 auto; }
+  #mazzo .testo{ max-width:none; }
+  #sfida .pannello{ margin-top:-50px; padding:80px 20px 24px; }
+  .domanda > button{ font-size:20px; min-height:60px; padding:14px 16px; }
+  .domanda .risposta .dentro-r{ padding:0 16px 16px; font-size:15px; }
+  #faq .geppetto{ width:150%; left:auto; right:-40%; bottom:-40px; opacity:.5; }
+}
 </style>
 </head>
 <body>
 <div id="trama" aria-hidden="true"></div>
 
 <nav id="barra">
-  <a class="marchio" href="#cappello" aria-label="Hextale"><img src="/ui/hextale-logo-topbar.png" alt="Hextale"></a>
+  <a class="marchio-piccolo" href="#cappello" aria-label="Hextale"><img src="/ui/hextale-logo-topbar.png" alt="Hextale"></a>
   <a class="btn important" href="/play/">
     <span class="pezzi" aria-hidden="true"><span class="cap-sx"></span><span class="fill"></span><span class="mezzo"></span><span class="fill"></span><span class="cap-dx"></span></span>
     <span class="etichetta">Play now for free</span>
@@ -692,10 +669,9 @@ textarea.campo{ resize:vertical; min-height:120px; }
 </nav>
 
 <main>
-  <!-- ══ IL CAPPELLO ══════════════════════════════════════════════════ -->
   <header id="cappello">
     <div class="fondo" aria-hidden="true">
-      <img src="/web-assets/sito/header.png" alt="">
+      <img src="/web-assets/sito/header.png" alt="" fetchpriority="high">
       <img class="trama" src="/web-assets/sito/header1.png" alt="">
       <div class="velo"></div>
     </div>
@@ -704,20 +680,22 @@ textarea.campo{ resize:vertical; min-height:120px; }
     <canvas class="polvere" id="polvere-vicino"  aria-hidden="true"></canvas>
 
     <div class="contenuto stretto">
-      <div id="logo-hextale">
-        <img class="alone largo" src="/loading-screen/logo-blur.png" alt="" aria-hidden="true">
-        <img class="alone" src="/loading-screen/logo-blur.png" alt="" aria-hidden="true">
+      <div id="marchio">
+        <img class="raggiera a" src="/ui/radial-glow.png" alt="" aria-hidden="true">
+        <img class="raggiera b" src="/ui/radial-glow-flipped.png" alt="" aria-hidden="true">
+        <img class="effetti" src="/ui/start-screen-effects.png" alt="" aria-hidden="true">
         <img class="segno" src="/loading-screen/logo.png" alt="Hextale">
+        <img class="riflesso" src="/loading-screen/logo-blur.png" alt="" aria-hidden="true">
       </div>
       <h1>The only Strategy Card Game where thousands of Tales unfold</h1>
       <div class="riga"></div>
       <p class="claim">Collect and upgrade powerful cards, discover strategies, master your deck and write your own legend one match at a time.</p>
       <div class="bottoni">
-        <a class="btn important" href="/play/">
+        <a class="btn important largo300" href="/play/">
           <span class="pezzi" aria-hidden="true"><span class="cap-sx"></span><span class="fill"></span><span class="mezzo"></span><span class="fill"></span><span class="cap-dx"></span></span>
           <span class="etichetta">Play</span>
         </a>
-        <a class="btn opaque" href="#collezione">
+        <a class="btn opaque largo300" href="#collezione">
           <span class="pezzi" aria-hidden="true"><span class="cap-sx"></span><span class="fill"></span><span class="mezzo"></span><span class="fill"></span><span class="cap-dx"></span></span>
           <span class="etichetta">Explore the game</span>
         </a>
@@ -725,72 +703,70 @@ textarea.campo{ resize:vertical; min-height:120px; }
     </div>
   </header>
 
-  <!-- ══ IL VIDEO ═════════════════════════════════════════════════════ -->
   <section id="video">
-    <img class="alone" src="/web-assets/sito/glow.svg" alt="" aria-hidden="true">
+    <img class="alone" src="/web-assets/sito/glow.svg" loading="lazy" decoding="async" alt="" aria-hidden="true">
     <div class="schermo entra">
-      <img class="scena" src="/web-assets/sito/main-menu.png" alt="A look at Hextale">
-      <img class="play" src="/web-assets/sito/image5.png" alt="" aria-hidden="true">
+      <img class="scena" src="/web-assets/sito/main-menu.png" loading="lazy" decoding="async" alt="A look at Hextale">
+      <img class="play" src="/web-assets/sito/image5.png" loading="lazy" decoding="async" alt="" aria-hidden="true">
     </div>
   </section>
 
-  <!-- ══ LA COLLEZIONE ════════════════════════════════════════════════ -->
   <section id="collezione">
     <div class="sfondo" aria-hidden="true">
-      <img class="sx" data-parallasse="0.10" src="/web-assets/sito/image1.png" alt="">
-      <img class="dx" data-parallasse="0.16" src="/web-assets/sito/image3.png" alt="">
+      <img data-parallasse="0.06" src="/web-assets/sito/bg-collezione.png" loading="lazy" decoding="async" alt="">
     </div>
-    <div class="contenuto dentro centrato">
+    <div class="contenuto centrato">
       <h2 class="titolo entra">Collect 100+ unique cards</h2>
-      <div class="stretto entra r1" style="margin-top:26px">
-        <p class="corpo">The game will feature more than one hundred unique cards at launch, with legendary characters from world famous tales, nursery rhymes, timeless stories, folkloristic creatures and much more!</p>
-        <p class="occhiello" style="margin-top:18px">New powerful cards are added every month!</p>
+      <div class="stretto entra r1" style="margin-top:22px">
+        <p class="corpo" style="font-size:18px">The game will feature more than one hundred unique cards at launch, with legendary characters from world famous tales, nursery rhymes, timeless stories, folkloristic creatures and much more!</p>
+        <div class="riga" style="margin:26px auto"></div>
+        <p class="occhiello">New powerful cards are added every month!</p>
       </div>
 
-      <div class="anatomia entra r2">
+      <!-- Il palco della carta: 1261.5 x 619, le misure del disegno. -->
+      <div class="guscio anatomia entra r2">
+      <div class="palco" data-largo="1261.5" data-alto="619">
         <div class="carta-scena" id="carta">
           <div class="carta-piano" id="carta-piano">
-            <img class="faccia" src="/web-assets/sito/carta-anatomia.png" alt="Anatomy of a Hextale card">
-            <div class="arte" aria-hidden="true"><img src="/web-assets/sito/art3.png" alt=""></div>
-            <div class="specular" aria-hidden="true"></div>
-            <div class="foil" aria-hidden="true"></div>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 374 642" data-hex-clip="93.709% 58.849%, 50.000% 73.550%, 6.291% 58.849%, 6.291% 29.447%, 50.000% 14.746%, 93.709% 29.447%" preserveAspectRatio="xMidYMid meet"><defs><clipPath id="hcf-mask-0yo5we5x7xu"><rect x="0" y="0" width="374" height="642" rx="22.99" ry="22.99"/></clipPath><linearGradient id="hcf-bordergrad-vupzp204cr" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2C646C"/><stop offset="0.5" stop-color="#FFFFFF"/><stop offset="1" stop-color="#1A2C2F"/></linearGradient></defs><g clip-path="url(#hcf-mask-0yo5we5x7xu)"><defs><clipPath id="hc-pclip-0q8qt8"><polygon points="350.47,377.81 187.00,472.19 23.53,377.81 23.53,189.05 187.00,94.67 350.47,189.05"/></clipPath><clipPath id="holo-c-mv6p27"><polygon points="350.47,377.81 187.00,472.19 23.53,377.81 23.53,189.05 187.00,94.67 350.47,189.05"/></clipPath><pattern id="holo-ga-mv6p27" class="card-holo-grad-a" patternUnits="userSpaceOnUse" x="-222.58" y="-126.14" width="819.15" height="819.15"><image href="/cards/foil/foil-rainbow-brushed.png" x="0" y="0" width="819.15" height="819.15" preserveAspectRatio="none"/></pattern><pattern id="holo-gb-mv6p27" class="card-holo-grad-b" patternUnits="userSpaceOnUse" x="-106.83" y="-10.39" width="587.65" height="587.65"><image href="/cards/foil/foil-laminar-stars.png" x="0" y="0" width="587.65" height="587.65" preserveAspectRatio="none"/></pattern><mask id="holo-bands-mv6p27" maskUnits="userSpaceOnUse" x="-115.02" y="-18.59" width="604.03" height="604.03"><g class="card-holo-bands" data-cx="187.00" data-cy="283.43" transform="rotate(45,187.00,283.43)"><image href="/cards/foil/mask-bands.png" x="-740.35" y="-643.92" width="1854.71" height="1854.71" preserveAspectRatio="none"/></g></mask><filter id="holo-lum-mv6p27" x="-10%" y="-10%" width="120%" height="120%"><feColorMatrix type="luminanceToAlpha"/><feComponentTransfer><feFuncA type="linear" slope="0.45" intercept="0.55"/></feComponentTransfer></filter><mask id="holo-m-mv6p27" maskUnits="userSpaceOnUse" x="-115.02" y="-18.59" width="604.03" height="604.03"><rect x="-115.02" y="-18.59" width="604.03" height="604.03" fill="#ffffff"/><image href="/cards/tile-parts/art-placeholder-dark.png" x="23.53" y="94.67" width="326.94" height="377.52" preserveAspectRatio="xMidYMid slice" filter="url(#holo-lum-mv6p27)"/></mask><linearGradient id="sep-fade-e10lpl" gradientUnits="userSpaceOnUse" x1="187.00" y1="283.43" x2="342.30" y2="373.09"><stop offset="0%" stop-color="#FFFFFF" stop-opacity="1"/><stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/></linearGradient><linearGradient id="sep-fade-kfyxp0" gradientUnits="userSpaceOnUse" x1="187.00" y1="283.43" x2="31.70" y2="373.09"><stop offset="0%" stop-color="#FFFFFF" stop-opacity="1"/><stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/></linearGradient><linearGradient id="sep-fade-puppsa" gradientUnits="userSpaceOnUse" x1="187.00" y1="283.43" x2="187.00" y2="104.11"><stop offset="0%" stop-color="#FFFFFF" stop-opacity="1"/><stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/></linearGradient></defs><g class="hand-card-full-chrome"><image href="/cards/card-parts/card-base-dark.png" x="0" y="0" width="374" height="642" preserveAspectRatio="xMidYMid slice"/><rect x="0.57" y="0.57" width="372.85" height="640.85" rx="22.42" ry="22.42" fill="none" stroke="url(#hcf-bordergrad-vupzp204cr)" stroke-width="1.15" opacity="0.2"/><image href="/cards/card-parts/name-wrapper-timeless.png" x="23.53" y="17.93" width="326.94" height="69.07"/><text data-card-name="1" x="187.00" y="52.47" text-anchor="middle" dominant-baseline="central" font-family="'Marcellus SC','Marcellus',serif" font-size="22.99" fill="#F4E9D7">Alice</text><image href="/cards/card-parts/Archetypes/archetype-icon-explorer-dark.png" x="23.53" y="442.69" width="29.89" height="28.36"/><image href="/cards/card-parts/Archetypes/archetype-icon-small-dark.png" x="57.25" y="442.69" width="29.89" height="28.36"/><image href="/cards/card-parts/card-deco-bottom.png" x="26.06" y="488.15" width="321.89" height="132.97"/><image href="/cards/card-parts/card-level-socket-dark.png" x="259.27" y="446.33" width="21.08" height="21.08"/><image href="/cards/card-parts/level-gem-dark.png" x="259.27" y="446.33" width="21.08" height="21.08"/><image href="/cards/card-parts/card-level-socket-dark.png" x="282.65" y="446.33" width="21.08" height="21.08"/><image href="/cards/card-parts/level-gem-dark.png" x="282.65" y="446.33" width="21.08" height="21.08"/><image href="/cards/card-parts/card-level-socket-dark.png" x="306.02" y="446.33" width="21.08" height="21.08"/><image href="/cards/card-parts/level-gem-dark.png" x="306.02" y="446.33" width="21.08" height="21.08"/><image href="/cards/card-parts/card-level-socket-dark.png" x="329.40" y="446.33" width="21.08" height="21.08"/><image href="/cards/card-parts/level-gem-dark.png" x="329.40" y="446.33" width="21.08" height="21.08"/><text x="187.00" y="509.87" text-anchor="middle" dominant-baseline="hanging" font-family="'Marcellus SC','Marcellus',serif" font-size="26.06" fill="#9A733D">Eat Me, Drink Me</text><text x="187.00" y="539.76" text-anchor="start" dominant-baseline="hanging" font-family="'Rosarivo',serif" font-size="19.54" fill="#F4E9D7"><tspan x="60.73" dy="0" font-weight="bold">Rotates</tspan><tspan> its Power clockwise</tspan><tspan x="77.46" dy="22.99">each turn while in hand</tspan></text></g><image href="/cards/tile-parts/card-height-dark.png" x="23.53" y="94.67" width="326.94" height="375.98" preserveAspectRatio="xMidYMid meet" data-role="owner-height" style="pointer-events: none;"/><g clip-path="url(#hc-pclip-0q8qt8)" data-role="owner-art-layers"><image href="/cards/art/alice/alice-dark.jpg" x="23.52827868852455" y="94.67009928422996" width="326.9434426229509" height="377.5217692162872" preserveAspectRatio="xMidYMid slice" class="hex-art-parallax-layer" data-layer-index="0" data-parallax-depth="0" style="pointer-events: none; transform: scale(1.06);"/></g><g class="card-holo-layer" clip-path="url(#holo-c-mv6p27)" data-holo-variant="dark" style="pointer-events: none; mix-blend-mode: difference;"><rect x="-115.02" y="-18.59" width="604.03" height="604.03" fill="url(#holo-gb-mv6p27)" opacity="0.6" class="card-holo-stars" mask="url(#holo-bands-mv6p27)"/></g><g class="card-holo-layer" clip-path="url(#holo-c-mv6p27)" data-holo-variant="dark" style="pointer-events: none; mix-blend-mode: overlay;"><rect x="-115.02" y="-18.59" width="604.03" height="604.03" fill="url(#holo-ga-mv6p27)" opacity="0.6" class="card-holo-rainbow" style="filter: saturate(2) hue-rotate(var(--foil-hue, 0deg));"/></g><image href="/cards/tile-parts/card-frame-dark.png" x="23.53" y="94.67" width="326.94" height="377.54" preserveAspectRatio="xMidYMid meet" data-role="owner-frame" style="pointer-events: none;"/><path d="M350.47,369.81Q350.47,377.81 343.54,381.81L193.93,468.19Q187.00,472.19 180.07,468.19L30.46,381.81Q23.53,377.81 23.53,369.81L23.53,197.05Q23.53,189.05 30.46,185.05L180.07,98.67Q187.00,94.67 193.93,98.67L343.54,185.05Q350.47,189.05 350.47,197.05Z" fill="transparent" stroke="none"/><line x1="187.00" y1="283.43" x2="342.30" y2="373.09" stroke="url(#sep-fade-e10lpl)" stroke-width="1" stroke-linecap="round" class="hex-card-group-sep" style="transition: opacity 0.12s;"/><line x1="187.00" y1="283.43" x2="342.30" y2="373.09" stroke="#FFFFFF" stroke-width="1" stroke-linecap="round" opacity="0" class="hex-card-group-sep-flat" style="transition: opacity 0.12s; pointer-events: none;"/><image href="/cards/tile-parts/card-corner-dark.png" x="316.97" y="377.81" width="67.01" height="38.75" preserveAspectRatio="xMidYMid meet" transform="rotate(120.00,350.47,377.81)" data-role="owner-corner" style="pointer-events: none;"/><line x1="187.00" y1="283.43" x2="31.70" y2="373.09" stroke="url(#sep-fade-kfyxp0)" stroke-width="1" stroke-linecap="round" class="hex-card-group-sep" style="transition: opacity 0.12s;"/><line x1="187.00" y1="283.43" x2="31.70" y2="373.09" stroke="#FFFFFF" stroke-width="1" stroke-linecap="round" opacity="0" class="hex-card-group-sep-flat" style="transition: opacity 0.12s; pointer-events: none;"/><image href="/cards/tile-parts/card-corner-dark.png" x="-9.97" y="377.81" width="67.01" height="38.75" preserveAspectRatio="xMidYMid meet" transform="rotate(240.00,23.53,377.81)" data-role="owner-corner" style="pointer-events: none;"/><line x1="187.00" y1="283.43" x2="187.00" y2="104.11" stroke="url(#sep-fade-puppsa)" stroke-width="1" stroke-linecap="round" class="hex-card-group-sep" style="transition: opacity 0.12s;"/><line x1="187.00" y1="283.43" x2="187.00" y2="104.11" stroke="#FFFFFF" stroke-width="1" stroke-linecap="round" opacity="0" class="hex-card-group-sep-flat" style="transition: opacity 0.12s; pointer-events: none;"/><image href="/cards/tile-parts/card-corner-dark.png" x="153.50" y="94.67" width="67.01" height="38.75" preserveAspectRatio="xMidYMid meet" transform="rotate(0.00,187.00,94.67)" data-role="owner-corner" style="pointer-events: none;"/><image href="/cards/tile-parts/value-circle-dark.png" x="277.28" y="172.59" width="74.45" height="74.45" preserveAspectRatio="xMidYMid meet" data-role="owner-value-circle" data-hex-c="187.00,283.43" style="pointer-events: none;"/><text x="314.51" y="209.81" text-anchor="middle" dominant-baseline="central" font-size="53.60" font-weight="700" font-family="'Marcellus SC','Marcellus',serif" fill="#F4E9D7" data-role="owner-value-text" data-value-side-NE="1" data-value-side-E="1" data-value-group="NE|E" data-hex-c="187.00,283.43">12</text><image href="/cards/tile-parts/value-circle-dark.png" x="149.77" y="393.44" width="74.45" height="74.45" preserveAspectRatio="xMidYMid meet" data-role="owner-value-circle" data-hex-c="187.00,283.43" style="pointer-events: none;"/><text x="187.00" y="430.66" text-anchor="middle" dominant-baseline="central" font-size="53.60" font-weight="700" font-family="'Marcellus SC','Marcellus',serif" fill="#F4E9D7" data-role="owner-value-text" data-value-side-SE="1" data-value-side-SW="1" data-value-group="SE|SW" data-hex-c="187.00,283.43">6</text><image href="/cards/tile-parts/value-circle-dark.png" x="22.27" y="172.59" width="74.45" height="74.45" preserveAspectRatio="xMidYMid meet" data-role="owner-value-circle" data-hex-c="187.00,283.43" style="pointer-events: none;"/><text x="59.49" y="209.81" text-anchor="middle" dominant-baseline="central" font-size="53.60" font-weight="700" font-family="'Marcellus SC','Marcellus',serif" fill="#F4E9D7" data-role="owner-value-text" data-value-side-W="1" data-value-side-NW="1" data-value-group="W|NW" data-hex-c="187.00,283.43">8</text></g></svg>
+            <div class="banda" aria-hidden="true"></div>
+            <div class="lamina" aria-hidden="true"></div>
             <div class="glare" aria-hidden="true"></div>
             <div class="tocco" id="tocco">
-              <b data-che="tratti"></b>
-              <b data-che="potere"></b>
               <b data-che="nome"></b>
+              <b data-che="potere"></b>
+              <b data-che="tratti"></b>
               <b data-che="livello"></b>
               <b data-che="abilita"></b>
             </div>
           </div>
         </div>
 
-        <div class="cartellino c-nome a-destra">
+        <div class="cartellino punta-dx c-nome" style="left:250.5px; top:36px; width:284px">
           <h3>Name</h3>
           <p>The name of the character represented in the card</p>
         </div>
-        <div class="cartellino c-potere a-sinistra">
+        <div class="cartellino punta-dx c-potere" style="left:0; top:246px; width:488px">
           <h3>Card power</h3>
           <p>A card can have <b>2 to 4 different values</b> on it. The sides of the hexagon affected by a value are divided by lines that cross its artwork.</p>
-          <p>For example, this card here has a value of 12 on the three sides on the left, and 4 on the ones on the right.</p>
+          <p>For example, this card here has a value of 12 on the two sides on the right, 8 on the two on the left and 6 on the two at the bottom.</p>
         </div>
-        <div class="cartellino c-livello a-destra">
+        <div class="cartellino punta-sx c-livello" style="left:773.5px; top:236px; width:488px">
           <h3>Level</h3>
           <p>You can level up a card <b>up to level 4</b>.</p>
           <p>Each level grants the card a buff on its power and in some cases can <b>unlock game-changing abilities</b>!</p>
           <p>A card that looks weak on level 1 can become extremely strong or useful if you level it up enough.</p>
         </div>
-        <div class="cartellino c-abilita a-sinistra">
+        <div class="cartellino punta-sx c-abilita" style="left:736.5px; top:501px; width:430px">
           <h3>Ability description / Flavor text</h3>
           <p>A card with ability has the ability name and description written at its bottom. A card without ability, on the other hand, will show a flavor text with a quote of the character.</p>
         </div>
-        <div class="cartellino c-tratti a-destra">
+        <div class="cartellino punta-dx c-tratti" style="left:136.5px; top:413px; width:378px">
           <h3>Traits</h3>
           <p>Traits are mostly determined by a character’s lore and story. Learn to use them in <b>combo with powerful abilities</b> to destroy your opponent!</p>
         </div>
       </div>
-      <!-- Solo sullo schermo stretto: il cartellino unico che si riempie
-           toccando un pezzo della carta. -->
+      </div>
       <div id="tocco-detto" aria-live="polite">
         <h3>Tap the card</h3>
         <p>Tap any part of the card to find out what it is and what it does.</p>
@@ -798,7 +774,6 @@ textarea.campo{ resize:vertical; min-height:120px; }
     </div>
   </section>
 
-  <!-- ══ IL MAZZO ═════════════════════════════════════════════════════ -->
   <section id="mazzo">
     <div class="dentro riga-due">
       <div class="testo entra">
@@ -806,36 +781,43 @@ textarea.campo{ resize:vertical; min-height:120px; }
         <p class="corpo">Carefully select the best cards that suit your playstyle the most. Aggro, defensive, RnD, glass cannon, assassin, magic, trap, and many more.</p>
         <p class="corpo">Compose a deck of 12 cards to play against your opponents and show no mercy.</p>
         <p class="corpo">You need to be smart and predict the moves of your opponent: if your cards get conquered, they will no longer be yours (until the end of the game, of course!).</p>
-        <p class="occhiello">With our power capacity system, there are virtually infinite deck combinations!</p>
-        <p style="margin-top:30px">
+        <div class="riga"></div>
+        <span class="occhiello">With our power capacity system, there are virtually infinite deck combinations!</span>
+        <p class="fondo-bottone">
           <button class="btn opaque" type="button" id="apri-contatto">
             <span class="pezzi" aria-hidden="true"><span class="cap-sx"></span><span class="fill"></span><span class="mezzo"></span><span class="fill"></span><span class="cap-dx"></span></span>
             <span class="etichetta">I want to know more</span>
           </button>
         </p>
       </div>
-      <div class="ventaglio entra r1" aria-hidden="true">
-        <img src="/web-assets/sito/image6.png" alt="">
-        <img src="/web-assets/sito/image8.png" alt="">
-        <img src="/web-assets/sito/image9.png" alt="">
+      <!-- Le quattro carte, alle posizioni del disegno. -->
+      <div class="guscio carte entra r1" aria-hidden="true">
+      <div class="palco" data-largo="673.6" data-alto="546">
+        <img class="alone" src="/web-assets/sito/alone-mazzo.svg" decoding="async" alt="" style="left:-30px; top:60px; width:734px">
+        <img class="carta" src="/web-assets/sito/carta1.png" decoding="async" alt="" style="left:0;        top:126.97px; width:300px">
+        <img class="carta" src="/web-assets/sito/carta2.png" decoding="async" alt="" style="left:122.96px; top:76.07px;  width:254px">
+        <img class="carta" src="/web-assets/sito/carta3.png" decoding="async" alt="" style="left:250.87px; top:38.66px;  width:273px">
+        <img class="carta" src="/web-assets/sito/carta4.png" decoding="async" alt="" style="left:421px;    top:21px;     width:208px; transform:rotate(15.57deg); box-shadow:0 0 20px rgba(0,0,0,.6); border-radius:18px">
+      </div>
       </div>
     </div>
   </section>
 
-  <!-- ══ LA SFIDA ═════════════════════════════════════════════════════ -->
   <section id="sfida">
     <div class="sfondo" aria-hidden="true">
-      <img data-parallasse="0.12" src="/web-assets/sito/bg2.png" alt="">
+      <img data-parallasse="0.10" src="/web-assets/sito/bg2.png" loading="lazy" decoding="async" alt="">
     </div>
     <div class="contenuto">
       <h2 class="titolo entra">Fight against other players</h2>
-      <img class="tavolo entra r1" src="/web-assets/sito/board.png" alt="The hexagonal battlefield">
-      <div class="pannello entra r2">
-        <p class="corpo">The battlefield is made of 19 hexagonal tiles that serve infinite combinations.</p>
-        <p class="corpo">The rules are simple: play a card with a higher power than your opponent to conquer it and make it yours, play defensively or setup game-breaking traps.</p>
-        <p class="occhiello">Every match is unique, every strategy is allowed.</p>
+      <div class="scena">
+        <img class="tavolo entra r1" src="/web-assets/sito/board.png" loading="lazy" decoding="async" alt="The hexagonal battlefield">
+        <div class="pannello entra r2">
+          <p class="corpo" style="font-size:17px">The battlefield is made of 19 hexagonal tiles that serve infinite combinations.</p>
+          <p class="corpo" style="font-size:17px">The rules are simple: play a card with a higher power than your opponent to conquer it and make it yours, play defensively or setup game-breaking traps.</p>
+          <span class="occhiello">Every match is unique, every strategy is allowed.</span>
+        </div>
       </div>
-      <p style="margin-top:36px" class="entra r3">
+      <p class="fondo-bottone entra r3">
         <a class="btn important" href="/play/">
           <span class="pezzi" aria-hidden="true"><span class="cap-sx"></span><span class="fill"></span><span class="mezzo"></span><span class="fill"></span><span class="cap-dx"></span></span>
           <span class="etichetta">Play now for free</span>
@@ -844,18 +826,18 @@ textarea.campo{ resize:vertical; min-height:120px; }
     </div>
   </section>
 
-  <!-- ══ LE DOMANDE ═══════════════════════════════════════════════════ -->
   <section id="faq">
-    <div class="centrato"><h2 class="titolo entra">Frequently asked questions</h2></div>
-    <div class="lista" id="lista-faq"></div>
+    <img class="geppetto" data-parallasse="0.05" src="/web-assets/sito/geppetto.png" loading="lazy" decoding="async" alt="" aria-hidden="true">
+    <div class="contenuto">
+      <div class="centrato"><h2 class="titolo entra">Frequently asked questions</h2></div>
+      <div class="lista" id="lista-faq"></div>
+    </div>
   </section>
 </main>
 
 <footer>
-  <img class="geppetto" data-parallasse="0.08" src="/web-assets/sito/section-bg-geppetto.png" alt="" aria-hidden="true">
-  <div class="velo" aria-hidden="true"></div>
-  <div class="contenuto dentro">
-    <img class="logo-studio" src="/loading-screen/big-fennel-logo.png" alt="Big Fennel">
+  <div class="dentro">
+    <img class="logo-studio" src="/loading-screen/big-fennel-logo.png" loading="lazy" decoding="async" alt="Big Fennel">
     <p class="nota">
       Hextale is made by Big Fennel.<br>
       Questions? Write to <a href="mailto:support@hextalegame.com">support@hextalegame.com</a>.
@@ -863,9 +845,8 @@ textarea.campo{ resize:vertical; min-height:120px; }
   </div>
 </footer>
 
-<!-- ══ LA FINESTRA DEI CONTATTI ═══════════════════════════════════════ -->
 <div id="contatto" role="dialog" aria-modal="true" aria-labelledby="contatto-titolo" aria-hidden="true">
-  <div class="riquadro" style="position:relative">
+  <div class="riquadro">
     <button class="chiudi-x" type="button" id="chiudi-contatto" aria-label="Close">
       <img src="/ui/close-icon-red.png" alt="">
     </button>
@@ -888,397 +869,481 @@ textarea.campo{ resize:vertical; min-height:120px; }
 </div>
 <script>
 /* ══════════════════════════════════════════════════════════════════════════
-   QUEL CHE SI MUOVE
+   HEXTALE — LA PAGINA D'INGRESSO, LA PARTE VIVA
    ══════════════════════════════════════════════════════════════════════════
-   Tutto quel che segue e' facoltativo: senza JavaScript la pagina resta
-   leggibile e navigabile — i blocchi sono gia' visibili, le domande gia'
-   aperte, i collegamenti funzionano. Le classi che nascondono le mette lo
-   script, quindi se lo script non gira non nasconde niente. E' la sola
-   disposizione onesta per una pagina che deve raccontare un gioco a chi non
-   l'ha ancora installato. */
+   Niente librerie e niente memoria: questa pagina non scrive un solo dato nel
+   browser — ne' localStorage ne' cookie — perche' e' la regola della casa e
+   perche' non ha niente da ricordare.
+   Un ciclo solo di disegno per la polvere, un osservatore per le comparse, un
+   ascoltatore di scorrimento per la parallasse e la barra. */
 (function(){
 'use strict';
-const $  = (s,d)=> (d||document).querySelector(s);
-const $$ = (s,d)=> [...(d||document).querySelectorAll(s)];
-const pigro = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-/* ── LA POLVERE ─────────────────────────────────────────────────────────────
-   Le stesse tre tele del menu principale del gioco, con gli stessi numeri:
-   novanta granelli piccoli e lenti in fondo, ottanta medi a fuoco, trenta
-   grandi e veloci davanti. Salgono e ondeggiano, e non svaniscono mai mentre
-   sono a schermo — spariscono solo quando l'ultimo pixel del loro raggio ha
-   passato il bordo alto, e solo allora rinascono dal basso. Un granello che si
-   dissolve a meta' schermo si vede, e si vede come un difetto. */
-const PIANI = [
-  { id:'polvere-lontano', quante:90, rMin:0.3, rMax:0.7, vMin:5,  vMax:11, aMin:.25, aMax:.55, oMin:2,  oMax:7  },
-  { id:'polvere-mezzo',   quante:80, rMin:0.7, rMax:1.5, vMin:12, vMax:22, aMin:.45, aMax:.90, oMin:5,  oMax:14 },
-  { id:'polvere-vicino',  quante:30, rMin:2.5, rMax:5.5, vMin:22, vMax:40, aMin:.18, aMax:.40, oMin:10, oMax:26 }
+var stretto = window.matchMedia('(max-width:980px)');
+var fermo   = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+// ── LE COMPARSE ───────────────────────────────────────────────────────────
+// Ogni blocco marcato `entra` sale di ventisei pixel entrando in vista, una
+// volta sola. La classe `vivo` sul body accende le regole di partenza solo
+// adesso: senza JavaScript la pagina si legge tutta, invece di restare
+// invisibile in attesa di un osservatore che non arrivera' mai.
+document.body.classList.add('vivo');
+var occhio = new IntersectionObserver(function(voci){
+  voci.forEach(function(v){
+    if(!v.isIntersecting) return;
+    v.target.classList.add('dentro-vista');
+    occhio.unobserve(v.target);
+  });
+}, { rootMargin:'0px 0px -12% 0px', threshold:0.06 });
+Array.prototype.forEach.call(document.querySelectorAll('.entra'), function(el){ occhio.observe(el); });
+
+// ── LA BARRA ──────────────────────────────────────────────────────────────
+var barra = document.getElementById('barra');
+
+// ── LA PARALLASSE ─────────────────────────────────────────────────────────
+// Ogni fondale marcato `data-parallasse` si muove di una frazione dello
+// scorrimento. La frazione E' la distanza: piu' e' piccola, piu' quella cosa
+// sembra lontana.
+// Il calcolo parte dal centro dell'elemento rispetto al centro dello schermo,
+// non dallo scorrimento assoluto: cosi' ogni fondale e' nella sua posizione
+// giusta quando gli si passa davanti, indipendentemente da dove sta nella
+// pagina e da quanto e' lunga.
+var fondali = Array.prototype.map.call(document.querySelectorAll('[data-parallasse]'), function(el){
+  return { el: el, quanto: parseFloat(el.getAttribute('data-parallasse')) || 0.06, y: 0 };
+});
+var inclina = { x:0, y:0 };   // quanto e' inclinato il telefono, da -1 a 1
+
+function passoScorrimento(){
+  var s = window.pageYOffset || document.documentElement.scrollTop;
+  if(barra) barra.classList.toggle('staccata', s > 40);
+  var mezzo = window.innerHeight / 2;
+  for(var i=0;i<fondali.length;i++){
+    var f = fondali[i];
+    var r = f.el.getBoundingClientRect();
+    if(r.bottom < -400 || r.top > window.innerHeight + 400) continue;
+    var dal = (r.top + r.height/2) - mezzo;
+    // Il telefono aggiunge la sua parte: inclinandolo il fondale scorre,
+    // com'e' scorso a chi lo guarda da fermo muovendo la pagina.
+    var dx = inclina.x * 26 * (f.quanto / 0.06);
+    f.el.style.transform = 'translate3d(' + dx.toFixed(1) + 'px,' +
+                           (-dal * f.quanto).toFixed(1) + 'px,0)';
+  }
+}
+var inCoda = false;
+function chiediPasso(){
+  if(inCoda) return;
+  inCoda = true;
+  requestAnimationFrame(function(){ inCoda = false; passoScorrimento(); });
+}
+window.addEventListener('scroll', chiediPasso, { passive:true });
+window.addEventListener('resize', chiediPasso);
+passoScorrimento();
+
+// ── I PALCHI ──────────────────────────────────────────────────────────────
+// Due sezioni impaginano in coordinate assolute. Il palco tiene le misure del
+// disegno e si RIMPICCIOLISCE tutto insieme: la disposizione resta quella, non
+// una che le somiglia, e non ci sono venti numeri da rifare a ogni
+// ripensamento. Il guscio e' il posto che il palco occupa nella pagina, e
+// tiene l'altezza giusta dopo il rimpicciolimento.
+var palchi = Array.prototype.map.call(document.querySelectorAll('.palco'), function(p){
+  return { palco:p, guscio:p.parentNode,
+           largo: parseFloat(p.getAttribute('data-largo')),
+           alto:  parseFloat(p.getAttribute('data-alto')) };
+});
+function misuraPalchi(){
+  for(var i=0;i<palchi.length;i++){
+    var q = palchi[i];
+    // Su schermo stretto il palco della carta torna nel flusso: il foglio di
+    // stile lo dice, e qui non si deve rimettere quel che il foglio ha tolto.
+    if(getComputedStyle(q.palco).position === 'static'){ q.guscio.style.height = ''; continue; }
+    var largoDisponibile = q.guscio.clientWidth;
+    var s = Math.min(1, largoDisponibile / q.largo);
+    q.palco.style.width = q.largo + 'px';
+    q.palco.style.height = q.alto + 'px';
+    q.palco.style.marginLeft = (-q.largo/2) + 'px';
+    q.palco.style.transform = 'scale(' + s.toFixed(4) + ')';
+    q.guscio.style.height = Math.round(q.alto * s) + 'px';
+  }
+}
+window.addEventListener('resize', misuraPalchi);
+misuraPalchi();
+// Le targhe dei titoli e le carte cambiano l'altezza dei palchi quando
+// arrivano: si rimisura a caricamento finito, che e' l'unico momento in cui si
+// sa davvero quanto e' alta ogni cosa.
+window.addEventListener('load', function(){ misuraPalchi(); chiediPasso(); });
+
+// ══════════════════════════════════════════════════════════════════════════
+// LA POLVERE
+// ══════════════════════════════════════════════════════════════════════════
+// La stessa del gioco, stessi numeri: tre piani di granelli che salgono
+// ondeggiando, piu' veloci e piu' grandi via via che si avvicinano. La
+// velocita' che cresce con la vicinanza E' la profondita': la sfocatura da
+// sola direbbe soltanto "sfocato".
+// Un granello non svanisce mai mentre e' a schermo — l'opacita' e' fissa dalla
+// nascita — e rinasce dal basso solo quando l'ultimo pixel del suo raggio ha
+// superato il bordo alto.
+var POLVERE_COLORE = '#FFF8C3';
+var PIANI = [
+  { id:'polvere-lontano', quante:90, rMin:0.3, rMax:0.7, vMin:5,  vMax:11, alfaMin:0.25, alfaMax:0.55, ondaMin:2,  ondaMax:7  },
+  { id:'polvere-mezzo',   quante:80, rMin:0.7, rMax:1.5, vMin:12, vMax:22, alfaMin:0.45, alfaMax:0.90, ondaMin:5,  ondaMax:14 },
+  { id:'polvere-vicino',  quante:30, rMin:2.5, rMax:5.5, vMin:22, vMax:40, alfaMin:0.18, alfaMax:0.40, ondaMin:10, ondaMax:26 }
 ];
-const COLORE = 'rgba(255,241,205,';
-const caso = (a,b)=> a + Math.random()*(b-a);
+var caso = function(a,b){ return a + Math.random()*(b-a); };
 function granello(p, w, h, sparso){
-  const r = caso(p.rMin, p.rMax);
+  var r = caso(p.rMin, p.rMax);
   return {
     x: caso(-20, w+20),
+    // Nascendo di nuovo entra dal bordo basso, appena fuori: cosi' non lo si
+    // vede comparire dal nulla. Al primo fotogramma invece sono sparsi
+    // ovunque — partire tutti dal basso darebbe una marea che sale, non della
+    // polvere gia' sospesa.
     y: sparso ? caso(-20, h+20) : h + r + caso(4, Math.min(90, Math.max(8, h*0.25))),
-    r, v: caso(p.vMin, p.vMax),
-    onda: caso(p.oMin, p.oMax), freq: caso(0.10, 0.34),
-    fase: Math.random()*Math.PI*2, alfa: caso(p.aMin, p.aMax)
+    r: r,
+    v: caso(p.vMin, p.vMax),
+    onda: caso(p.ondaMin, p.ondaMax),
+    freq: caso(0.10, 0.34),
+    fase: Math.random()*Math.PI*2,
+    alfa: caso(p.alfaMin, p.alfaMax)
   };
 }
+var strati = [], girano = null, ultimo = 0;
+function dimensiona(s){
+  // Oltre due volte la densita' non si vede: si paga e basta.
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  var r = s.tela.getBoundingClientRect();
+  s.w = r.width || window.innerWidth;
+  s.h = r.height || 600;
+  s.tela.width  = Math.max(1, Math.round(s.w*dpr));
+  s.tela.height = Math.max(1, Math.round(s.h*dpr));
+  s.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
 function avviaPolvere(){
-  if(pigro) return;
-  const strati = [];
-  for(const p of PIANI){
-    const tela = document.getElementById(p.id);
+  if(fermo.matches) return;
+  for(var i=0;i<PIANI.length;i++){
+    var tela = document.getElementById(PIANI[i].id);
     if(!tela || !tela.getContext) continue;
-    const ctx = tela.getContext('2d');
-    const s = { p, tela, ctx, gr:[], w:0, h:0 };
-    misura(s);
-    for(let i=0;i<p.quante;i++) s.gr.push(granello(p, s.w, s.h, true));
+    var s = { piano:PIANI[i], tela:tela, ctx:tela.getContext('2d'), granelli:[], w:0, h:0 };
+    dimensiona(s);
+    for(var k=0;k<PIANI[i].quante;k++) s.granelli.push(granello(PIANI[i], s.w, s.h, true));
     strati.push(s);
   }
   if(!strati.length) return;
-  function misura(s){
-    // Oltre due volte la densita' dello schermo non si vede e si paga: il
-    // limite e' lo stesso del gioco.
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const r = s.tela.getBoundingClientRect();
-    s.w = r.width || window.innerWidth;
-    s.h = r.height || window.innerHeight;
-    s.tela.width = Math.max(1, Math.round(s.w*dpr));
-    s.tela.height = Math.max(1, Math.round(s.h*dpr));
-    s.ctx.setTransform(dpr,0,0,dpr,0,0);
-  }
-  addEventListener('resize', ()=>strati.forEach(misura), {passive:true});
-  let ultimo = 0, vivo = true;
-  // Uscita di scena: quando il cappello non e' piu' a schermo la polvere si
-  // ferma. Far girare un'animazione sotto a qualcosa che nessuno guarda
-  // consuma batteria e basta.
-  const capp = document.getElementById('cappello');
-  if('IntersectionObserver' in window){
-    new IntersectionObserver(v=>{ vivo = v[0].isIntersecting; if(vivo){ ultimo = 0; requestAnimationFrame(passo); } })
-      .observe(capp);
-  }
-  function passo(ora){
-    if(!vivo) return;
-    requestAnimationFrame(passo);
-    // Primo giro, o ritorno da una scheda in secondo piano: un dt enorme
-    // teletrasporterebbe tutta la polvere in cima. Si taglia a 50ms.
-    const dt = ultimo ? Math.min((ora-ultimo)/1000, .05) : .016;
-    ultimo = ora;
-    const t = ora/1000;
-    for(const s of strati){
-      s.ctx.clearRect(0,0,s.w,s.h);
-      for(const g of s.gr){
-        g.y -= g.v*dt;
-        if(g.y < -(g.r + 24)){ Object.assign(g, granello(s.p, s.w, s.h, false)); continue; }
-        const x = g.x + Math.sin(t*g.freq*Math.PI*2 + g.fase)*g.onda;
-        s.ctx.fillStyle = COLORE + g.alfa.toFixed(3) + ')';
-        s.ctx.beginPath();
-        s.ctx.arc(x, g.y, g.r, 0, Math.PI*2);
-        s.ctx.fill();
-      }
+  window.addEventListener('resize', function(){ for(var i=0;i<strati.length;i++) dimensiona(strati[i]); });
+  girano = requestAnimationFrame(passoPolvere);
+}
+function passoPolvere(ora){
+  girano = requestAnimationFrame(passoPolvere);
+  // Primo giro, o ritorno da una scheda lasciata in secondo piano: un passo
+  // enorme teletrasporterebbe tutta la polvere. Si taglia a cinquanta
+  // millesimi.
+  var dt = ultimo ? Math.min((ora-ultimo)/1000, 0.05) : 0.016;
+  ultimo = ora;
+  var t = ora/1000;
+  for(var i=0;i<strati.length;i++){
+    var s = strati[i], c = s.ctx;
+    c.clearRect(0, 0, s.w, s.h);
+    c.fillStyle = POLVERE_COLORE;
+    for(var k=0;k<s.granelli.length;k++){
+      var g = s.granelli[k];
+      g.y -= g.v * dt;
+      // Uscito col tutto il suo raggio, e con un margine per la sfocatura che
+      // lo allarga oltre il raggio: solo ora rientra dal basso.
+      if(g.y < -(g.r + 24)){ s.granelli[k] = granello(s.piano, s.w, s.h, false); continue; }
+      var x = g.x + Math.sin(t*g.freq*Math.PI*2 + g.fase) * g.onda;
+      c.globalAlpha = g.alfa;
+      c.beginPath();
+      c.arc(x, g.y, g.r, 0, Math.PI*2);
+      c.fill();
     }
+    c.globalAlpha = 1;
   }
-  requestAnimationFrame(passo);
 }
+// Con la scheda in secondo piano il ciclo si ferma: e' polvere, non ha niente
+// da recuperare al ritorno.
+document.addEventListener('visibilitychange', function(){
+  if(document.hidden){ if(girano){ cancelAnimationFrame(girano); girano = null; } }
+  else if(!girano && strati.length && !fermo.matches){ ultimo = 0; girano = requestAnimationFrame(passoPolvere); }
+});
+avviaPolvere();
 
-/* ── I BLOCCHI CHE ENTRANO ───────────────────────────────────────────────── */
-function avviaComparse(){
-  // Si nasconde qui e non nel foglio: la classe si mette un istante prima di
-  // accendere l'osservatore che li fara' comparire, cosi' non esiste nessun
-  // percorso in cui qualcosa resta nascosto per sempre.
-  document.documentElement.classList.add('vivo');
-  const roba = $$('.entra');
-  if(pigro || !('IntersectionObserver' in window)){
-    roba.forEach(e=>e.classList.add('dentro-vista'));
-    return;
+// ── IL RIFLESSO SUL MARCHIO ───────────────────────────────────────────────
+// Un lampo ogni tre-cinque secondi, sorteggiati a ogni giro: un intervallo
+// fisso darebbe un battito regolare, che l'occhio impara subito e legge come
+// meccanico invece che come luce.
+// Le due classi si alternano perche' riassegnare la STESSA animazione non la
+// fa ripartire — il browser vede lo stesso nome e non fa niente.
+var riflesso = document.querySelector('#marchio .riflesso');
+var altroRiflesso = false;
+function unLampo(){
+  if(!riflesso || !riflesso.isConnected || fermo.matches) return;
+  if(!document.hidden){
+    riflesso.classList.remove('a','b');
+    void riflesso.getBoundingClientRect();     // il reflow, prima di rimettere
+    riflesso.classList.add(altroRiflesso ? 'b' : 'a');
+    altroRiflesso = !altroRiflesso;
   }
-  const oss = new IntersectionObserver((voci)=>{
-    voci.forEach(v=>{
-      if(!v.isIntersecting) return;
-      v.target.classList.add('dentro-vista');
-      // Una volta entrata, e' entrata: rifarla a ogni passaggio la
-      // trasformerebbe in un tic.
-      oss.unobserve(v.target);
-    });
-  }, { threshold:.18, rootMargin:'0px 0px -8% 0px' });
-  roba.forEach(e=>oss.observe(e));
+  setTimeout(unLampo, 3000 + Math.random()*2000);
 }
+setTimeout(unLampo, 1600);
 
-/* ── LA BARRA CHE SI STACCA ──────────────────────────────────────────────── */
-function avviaBarra(){
-  const barra = document.getElementById('barra');
-  const guarda = ()=> barra.classList.toggle('staccata', scrollY > 40);
-  guarda();
-  addEventListener('scroll', guarda, {passive:true});
+// ══════════════════════════════════════════════════════════════════════════
+// LA CARTA CHE SI INCLINA
+// ══════════════════════════════════════════════════════════════════════════
+// I gradini che il gioco mette su una carta di livello 4: il riflesso che
+// segue il puntatore, la banda di luce che attraversa la carta e la lamina
+// iridescente che cambia tinta con l'angolo.
+// Col puntatore l'angolo lo da' il mouse; col telefono lo da' l'inclinazione,
+// che e' la stessa cosa vista dall'altra parte — invece di muovere la testa si
+// muove la carta.
+var scena = document.getElementById('carta');
+var piano = document.getElementById('carta-piano');
+var MAX_GRADI = 13;
+function inclinaCarta(nx, ny){    // nx, ny da -1 a 1
+  if(!piano) return;
+  var rx = (-ny * MAX_GRADI).toFixed(2);
+  var ry = ( nx * MAX_GRADI).toFixed(2);
+  piano.style.transform = 'rotateX(' + rx + 'deg) rotateY(' + ry + 'deg)';
+  piano.style.setProperty('--mx', (50 + nx*50).toFixed(1) + '%');
+  piano.style.setProperty('--my', (50 + ny*50).toFixed(1) + '%');
+  // L'angolo della banda e della lamina segue la direzione da cui arriva la
+  // luce: e' quel che rende il riflesso una cosa sola col movimento invece di
+  // due effetti che capitano insieme.
+  piano.style.setProperty('--ang', (115 + nx*55 - ny*20).toFixed(0) + 'deg');
+  piano.style.setProperty('--hue', ((nx+1)*140 + (ny+1)*60).toFixed(0));
 }
-
-/* ── LA PARALLASSE ──────────────────────────────────────────────────────────
-   I fondali salgono piu' piano della pagina. Il conto e' sulla distanza dal
-   CENTRO della finestra e non dalla cima del documento: cosi' ogni elemento e'
-   fermo quando gli si sta davanti, e si muove entrando e uscendo — che e'
-   quello che fa una cosa lontana quando ci si passa accanto.
-   Si scrive solo dentro a requestAnimationFrame: toccare uno stile a ogni
-   evento di scorrimento vuol dire chiedere al browser di ridisegnare piu'
-   volte per fotogramma. */
-function avviaParallasse(){
-  const roba = $$('[data-parallasse]');
-  if(!roba.length || pigro) return;
-  let inCoda = false;
-  function disegna(){
-    inCoda = false;
-    const mezzo = innerHeight/2;
-    for(const el of roba){
-      const r = el.getBoundingClientRect();
-      const d = (r.top + r.height/2) - mezzo;
-      el.style.transform = 'translate3d(0,' + (-d*parseFloat(el.dataset.parallasse)).toFixed(1) + 'px,0)';
-    }
-  }
-  const chiedi = ()=>{ if(!inCoda){ inCoda = true; requestAnimationFrame(disegna); } };
-  addEventListener('scroll', chiedi, {passive:true});
-  addEventListener('resize', chiedi, {passive:true});
-  disegna();
+function riposaCarta(){
+  if(!piano) return;
+  piano.style.transform = '';
+  piano.style.removeProperty('--mx'); piano.style.removeProperty('--my');
+  piano.style.removeProperty('--ang'); piano.style.removeProperty('--hue');
 }
-
-/* ── LA CARTA ───────────────────────────────────────────────────────────────
-   Si inclina seguendo il puntatore, e con lei si muovono i quattro strati che
-   nel gioco fa una carta di livello 4: il riflesso, la lucentezza, la lamina e
-   il parallax dell'illustrazione. I numeri sono gli stessi del gioco — quindici
-   gradi di inclinazione, la banda di luce che attraversa, la tinta della lamina
-   che gira col puntatore.
-   Sul telefono il puntatore non c'e' e al suo posto c'e' il TELEFONO: la carta
-   segue l'inclinazione dell'apparecchio. Il permesso, dove serve chiederlo, si
-   chiede al primo tocco e non all'apertura della pagina — una domanda che
-   arriva prima che si sia capito di cosa si tratta e' una domanda a cui si
-   risponde di no. */
-function avviaCarta(){
-  const scena = document.getElementById('carta');
-  const piano = document.getElementById('carta-piano');
-  if(!scena || !piano) return;
-  const faccia = $('.faccia', piano);
-  const arte = $('.arte img', piano);
-  // Lo strato della lucentezza disegna la carta stessa, schiarita e ritagliata
-  // da una banda: e' il modo di far accendere i metalli senza avere le
-  // maschere per materiale che ha il gioco.
-  piano.style.setProperty('--faccia', 'url("' + faccia.getAttribute('src') + '")');
-
-  const MAX = 15;                 // gradi
-  function applica(px, py){       // px,py da 0 a 1
-    const rx = (py*2 - 1), ry = (px*2 - 1);
-    piano.style.transform =
-      'rotateX(' + (-rx*MAX).toFixed(2) + 'deg) rotateY(' + (ry*MAX).toFixed(2) + 'deg)';
-    piano.style.setProperty('--mx', (px*100).toFixed(1) + '%');
-    piano.style.setProperty('--my', (py*100).toFixed(1) + '%');
-    piano.style.setProperty('--ang', (115 + ry*40).toFixed(1) + 'deg');
-    piano.style.setProperty('--hue', (ry*120 + py*60).toFixed(1));
-    if(arte) arte.style.transform = 'translate(' + (-ry*10).toFixed(1) + 'px,' + (-rx*10).toFixed(1) + 'px)';
-  }
-  function ferma(){
-    scena.classList.remove('viva');
-    piano.style.transform = '';
-    if(arte) arte.style.transform = '';
-  }
-  scena.addEventListener('pointerenter', ()=>scena.classList.add('viva'));
-  scena.addEventListener('pointerleave', ferma);
-  scena.addEventListener('pointermove', (e)=>{
-    const r = piano.getBoundingClientRect();
-    applica(Math.min(1,Math.max(0,(e.clientX-r.left)/r.width)),
-            Math.min(1,Math.max(0,(e.clientY-r.top )/r.height)));
-  });
-
-  // Il giroscopio. Si accende solo su uno schermo che si tocca, e solo dopo che
-  // il visitatore ha toccato qualcosa: iOS non concede il permesso se non
-  // dentro a un gesto suo.
-  let giroAcceso = false;
-  function daGiroscopio(e){
-    const g = e.gamma, b = e.beta;   // sinistra/destra, avanti/indietro
-    if(g == null || b == null) return;
+if(scena && !fermo.matches){
+  scena.addEventListener('pointermove', function(e){
+    if(e.pointerType !== 'mouse') return;
+    var r = scena.getBoundingClientRect();
     scena.classList.add('viva');
-    // Trenta gradi di escursione in tutte e due i versi: oltre, il telefono e'
-    // girato e non lo si sta piu' guardando.
-    applica(Math.min(1, Math.max(0, .5 + g/60)),
-            Math.min(1, Math.max(0, .5 + (b-40)/60)));
-  }
-  function accendiGiroscopio(){
-    if(giroAcceso) return;
-    if(!('DeviceOrientationEvent' in window)) return;
-    const parti = ()=>{ giroAcceso = true; addEventListener('deviceorientation', daGiroscopio, true); };
-    const D = window.DeviceOrientationEvent;
-    if(typeof D.requestPermission === 'function'){
-      D.requestPermission().then(r=>{ if(r === 'granted') parti(); }).catch(()=>{});
-    } else parti();
-  }
-  if(matchMedia('(hover: none)').matches){
-    // Il primo tocco sulla pagina, ovunque sia: e' il gesto dentro al quale si
-    // puo' chiedere il permesso.
-    addEventListener('touchstart', accendiGiroscopio, { once:true, passive:true });
-  }
-
-  /* I punti da toccare, sullo schermo stretto. Il testo lo si prende dai
-     cartellini che sul desktop stanno attorno alla carta: uno solo, e non due
-     copie da tenere d'accordo. */
-  const detto = document.getElementById('tocco-detto');
-  const DOVE = { nome:'.c-nome', potere:'.c-potere', livello:'.c-livello', abilita:'.c-abilita', tratti:'.c-tratti' };
-  $$('#tocco b').forEach(zona=>{
-    zona.addEventListener('click', (e)=>{
-      e.stopPropagation();
-      const gia = zona.classList.contains('acceso');
-      $$('#tocco b').forEach(z=>z.classList.remove('acceso'));
-      if(gia){ detto.classList.remove('visto'); return; }
-      zona.classList.add('acceso');
-      const sorgente = $(DOVE[zona.dataset.che]);
-      if(sorgente) detto.innerHTML = sorgente.innerHTML;
-      detto.classList.remove('visto');
-      // Un fotogramma di respiro, o il cambio di testo e la comparsa
-      // succederebbero nello stesso istante e non si vedrebbe nessuno dei due.
-      requestAnimationFrame(()=>requestAnimationFrame(()=>detto.classList.add('visto')));
-    });
+    inclinaCarta((e.clientX - r.left)/r.width*2 - 1, (e.clientY - r.top)/r.height*2 - 1);
   });
+  scena.addEventListener('pointerleave', function(){ scena.classList.remove('viva'); riposaCarta(); });
 }
 
-/* ── LE DOMANDE ─────────────────────────────────────────────────────────────
-   I testi stanno qui e non nel markup perche' sono i miei, non quelli di
-   Lorenzo: quando arrivano i suoi si cambia questo elenco e basta. Il primo
-   nasce aperto, come nel disegno. */
-const DOMANDE = [
-  ['What is Hextale?',
-   'Hextale is a strategic card game where deck building meets tactical board play. Build your deck, place your cards on the hexagonal battlefield, and outsmart your opponent through clever positioning and calculated decisions.<br><br>Climb up the leaderboards, earn unique cards and become the best storyteller that ever lived!'],
-  ['How do I start playing?',
-   'Open the game in your browser, create an account with your email address, and pick one of the three starter decks. There is nothing to download and nothing to install: you are in a match within a couple of minutes.'],
-  ['Is Hextale a free-to-play game?',
-   'Yes. The whole game is free: every card can be earned by playing, and nothing you can buy is required to build a competitive deck.'],
-  ['Does it contain micro-transactions?',
-   'Not today. Hextale is in playtest and there is nothing to buy. If that ever changes, it will be for cosmetics and shortcuts — never for cards or power that a player cannot earn by playing.'],
-  ['Is Hextale a multiplayer game?',
-   'Yes. You can play against other players online, or against the computer when you feel like practising a new deck. Online opponents are matched by rank and by deck capacity, so you meet someone who brought a deck worth as much as yours.'],
-  ['How long does a match take on average?',
-   'Between five and ten minutes. A match is twelve cards each on a nineteen tile board, with a timer on every turn: long enough to think, short enough to play another one.'],
-  ['Which platforms is hextale available on?',
-   'Any modern browser, on desktop and on mobile — that is where the playtest lives today. A desktop application already exists and mobile applications will follow.'],
-  ['Will new cards and content be added?',
-   'Yes. New cards are added every month, together with new abilities and new ways to play them. The hundred cards at launch are the beginning of the collection, not the whole of it.']
+// ── IL TELEFONO CHE SI INCLINA ────────────────────────────────────────────
+// Un solo ascoltatore per tutti e due i lavori — la carta e i fondali — perche'
+// e' una sola misura: quanto e' storto il telefono.
+// `beta` e' il rollio avanti-indietro e `gamma` quello destra-sinistra. Si
+// parte da come il telefono e' tenuto la prima volta, non dallo zero assoluto:
+// nessuno guarda un telefono perfettamente piatto, e partendo dallo zero la
+// carta sarebbe gia' inclinata al massimo prima di toccarla.
+var zeroBeta = null;
+function ascoltaInclinazione(e){
+  if(e.beta === null || e.gamma === null) return;
+  if(zeroBeta === null) zeroBeta = e.beta;
+  var nx = Math.max(-1, Math.min(1, (e.gamma || 0) / 30));
+  var ny = Math.max(-1, Math.min(1, ((e.beta || 0) - zeroBeta) / 30));
+  inclina.x = nx; inclina.y = ny;
+  if(scena && stretto.matches){ scena.classList.add('viva'); inclinaCarta(nx, ny); }
+  chiediPasso();
+}
+function chiediInclinazione(){
+  if(fermo.matches || !window.DeviceOrientationEvent) return;
+  // iOS non da' l'inclinazione senza un permesso, e il permesso si puo'
+  // chiedere solo dentro a un gesto: si aspetta il primo tocco.
+  if(typeof DeviceOrientationEvent.requestPermission === 'function'){
+    document.addEventListener('pointerdown', function unaVolta(){
+      document.removeEventListener('pointerdown', unaVolta);
+      DeviceOrientationEvent.requestPermission().then(function(r){
+        if(r === 'granted') window.addEventListener('deviceorientation', ascoltaInclinazione);
+      }).catch(function(){});
+    }, { once:true });
+  } else {
+    window.addEventListener('deviceorientation', ascoltaInclinazione);
+  }
+}
+if(stretto.matches) chiediInclinazione();
+
+// ── I TOCCHI SULLA CARTA ──────────────────────────────────────────────────
+// Su schermo stretto i cinque cartellini non ci stanno intorno alla carta.
+// Al loro posto: si tocca un pezzo della carta e sotto compare quel che e'.
+// I testi sono gli stessi dei cartellini, presi da li' — una seconda copia
+// sarebbe una seconda cosa da tenere aggiornata.
+var detto = document.getElementById('tocco-detto');
+var zone = document.getElementById('tocco');
+if(zone && detto){
+  var testi = {};
+  ['nome','potere','livello','abilita','tratti'].forEach(function(che){
+    var c = document.querySelector('.cartellino.c-' + che);
+    if(c) testi[che] = c.innerHTML;
+  });
+  zone.addEventListener('click', function(e){
+    var b = e.target.closest('b[data-che]');
+    if(!b) return;
+    var che = b.getAttribute('data-che');
+    if(!testi[che]) return;
+    Array.prototype.forEach.call(zone.children, function(x){ x.classList.toggle('acceso', x === b); });
+    detto.classList.remove('visto');
+    // Il tempo di far scendere il vecchio prima di scrivere il nuovo: senza,
+    // il testo cambierebbe a meta' della dissolvenza e si vedrebbe il salto.
+    setTimeout(function(){ detto.innerHTML = testi[che]; detto.classList.add('visto'); }, 140);
+  });
+  detto.classList.add('visto');
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// LE DOMANDE
+// ══════════════════════════════════════════════════════════════════════════
+// Le risposte stanno qui e non nel markup perche' sono dati, e un elenco di
+// dati si legge meglio come elenco.
+var DOMANDE = [
+  { d:'Is Hextale free to play?',
+    r:['Yes. You can download it, build decks and play as much as you want without paying anything.',
+       'There are optional card packs, but every card in the game can be earned by playing.'] },
+  { d:'What platforms can I play on?',
+    r:['Hextale runs in your browser, on desktop and on mobile — there is nothing to install.',
+       'Your collection and your decks follow your account, so you can start a match on your computer and open the game later on your phone.'] },
+  { d:'How long does a match last?',
+    r:['Around five to eight minutes. The board is made of 19 tiles and a match ends when they are all taken, so a game never drags on.'] },
+  { d:'Do I need to spend money to get good cards?',
+    r:['No. Power capacity is what keeps decks even: every card costs capacity, and a deck can only hold so much of it.',
+       'A deck full of rare cards is a deck of very few cards. Choosing well beats owning more.'] },
+  { d:'What does levelling up a card do?',
+    r:['Each level raises the card power, and some cards unlock an ability at level 2, 3 or 4.',
+       'A card that looks weak at level 1 can become one of the strongest pieces in your deck once it is levelled up — which is why it is worth reading what a card becomes, not only what it is.'] },
+  { d:'Can I play against my friends?',
+    r:['Yes. Beside the ranked queue you can challenge someone directly, and you can practise against the AI whenever you want.',
+       'The AI builds its deck to match the power capacity of yours, so it is a real match and not a walkover in either direction.'] },
+  { d:'When is the game coming out?',
+    r:['Hextale is playable right now, and it is being updated constantly — new cards are added every month.',
+       'If you want to hear about the big ones, write to us and we will keep you posted.'] }
 ];
-function avviaDomande(){
-  const lista = document.getElementById('lista-faq');
-  if(!lista) return;
-  DOMANDE.forEach((d, i)=>{
-    const el = document.createElement('div');
-    el.className = 'domanda entra';
-    el.innerHTML =
-      '<button type="button" aria-expanded="false"><span>' + d[0] + '</span><span class="segno" aria-hidden="true"></span></button>' +
-      '<div class="risposta"><div class="dentro-r">' + d[1] + '</div></div>';
-    lista.appendChild(el);
-    const bottone = $('button', el), risposta = $('.risposta', el), dentro = $('.dentro-r', el);
-    bottone.addEventListener('click', ()=>{
-      const apri = !el.classList.contains('aperta');
-      // Una sola aperta per volta: e' un elenco di domande, non un testo da
-      // leggere tutto, e tenerle aperte tutte lo trasforma in un muro.
-      $$('.domanda.aperta', lista).forEach(altra=>{
-        altra.classList.remove('aperta');
-        $('button', altra).setAttribute('aria-expanded','false');
-        $('.risposta', altra).style.height = '0px';
-      });
-      if(apri){
-        el.classList.add('aperta');
-        bottone.setAttribute('aria-expanded','true');
-        // L'altezza si MISURA: 'auto' non si anima, e un numero scritto a mano
-        // sarebbe sbagliato al primo testo piu' lungo.
-        risposta.style.height = dentro.offsetHeight + 'px';
-      }
-    });
-    if(i === 0){
-      el.classList.add('aperta');
-      bottone.setAttribute('aria-expanded','true');
-      // Dopo che i caratteri sono arrivati: misurando adesso si misurerebbe il
-      // testo scritto col carattere di ripiego, che e' alto un'altra cosa.
-      const apri = ()=>{ if(el.classList.contains('aperta')) risposta.style.height = dentro.offsetHeight + 'px'; };
-      if(document.fonts && document.fonts.ready) document.fonts.ready.then(apri); else setTimeout(apri, 300);
-      addEventListener('resize', apri, {passive:true});
-    }
+var lista = document.getElementById('lista-faq');
+if(lista){
+  DOMANDE.forEach(function(q, i){
+    var d = document.createElement('div');
+    d.className = 'domanda';
+    var idr = 'faq-r-' + i;
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.setAttribute('aria-expanded', 'false');
+    b.setAttribute('aria-controls', idr);
+    b.innerHTML = '<span>' + q.d + '</span><span class="segno" aria-hidden="true"></span>';
+    var r = document.createElement('div');
+    r.className = 'risposta'; r.id = idr; r.setAttribute('role','region');
+    r.innerHTML = '<div class="dentro-r">' + q.r.map(function(p){ return '<p>'+p+'</p>'; }).join('') + '</div>';
+    d.appendChild(b); d.appendChild(r);
+    lista.appendChild(d);
   });
-}
-
-/* ── LA FINESTRA DEI CONTATTI ───────────────────────────────────────────────
-   Manda una email a support@hextalegame.com passando dalla stessa porta
-   pubblica del recupero password: il visitatore non ha nessuna sessione, e
-   Nakama senza sessione non risponde. Ci arriva Caddy, che la chiave del
-   runtime ce l'ha nel proprio ambiente. */
-const PORTA_CONTATTO = 'https://api.hextalegame.com/contatto';
-function avviaContatto(){
-  const finestra = document.getElementById('contatto');
-  const modulo   = document.getElementById('modulo-contatto');
-  const esito    = document.getElementById('c-esito');
-  const invia    = document.getElementById('c-invia');
-  if(!finestra) return;
-  let tornaA = null;
-  function apri(){
-    tornaA = document.activeElement;
-    finestra.classList.add('aperta');
-    finestra.setAttribute('aria-hidden','false');
-    setTimeout(()=>{ const e = document.getElementById('c-email'); if(e) e.focus(); }, 220);
-  }
-  function chiudi(){
-    finestra.classList.remove('aperta');
-    finestra.setAttribute('aria-hidden','true');
-    if(tornaA && tornaA.focus) try{ tornaA.focus(); }catch(_){}
-  }
-  $('#apri-contatto').addEventListener('click', apri);
-  $('#chiudi-contatto').addEventListener('click', chiudi);
-  finestra.addEventListener('click', (e)=>{ if(e.target === finestra) chiudi(); });
-  addEventListener('keydown', (e)=>{ if(e.key === 'Escape' && finestra.classList.contains('aperta')) chiudi(); });
-
-  let inCorso = false;
-  modulo.addEventListener('submit', async (e)=>{
-    e.preventDefault();
-    if(inCorso) return;
-    const email = $('#c-email').value.trim();
-    const testo = $('#c-messaggio').value.trim();
-    // Si controlla qui prima di partire non per fidarsi meno del server — che
-    // ricontrolla — ma per rispondere subito: un giro di rete per sapere che
-    // manca la chiocciola e' un giro sprecato.
-    if(!email || email.indexOf('@') < 1){ dillo('Enter a valid email address.', false); return; }
-    if(testo.length < 10){ dillo('Tell us a little more than that.', false); return; }
-    inCorso = true;
-    invia.disabled = true;
-    $('.etichetta', invia).textContent = 'Sending...';
-    dillo('', null);
-    try{
-      const r = await fetch(PORTA_CONTATTO, {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ email:email, messaggio:testo })
-      });
-      if(!r.ok) throw new Error('no');
-      modulo.reset();
-      dillo('Thanks — your message is on its way. We answer to ' + email + '.', true);
-    }catch(_){
-      dillo('We could not send it. Write to support@hextalegame.com instead.', false);
+  lista.addEventListener('click', function(e){
+    var b = e.target.closest('.domanda > button');
+    if(!b) return;
+    var d = b.parentNode, r = d.querySelector('.risposta'), apri = !d.classList.contains('aperta');
+    // Ne resta aperta una sola: e' un elenco da scorrere, non un documento.
+    Array.prototype.forEach.call(lista.querySelectorAll('.domanda.aperta'), function(x){ chiudi(x); });
+    if(apri){
+      d.classList.add('aperta');
+      b.setAttribute('aria-expanded','true');
+      // L'altezza si MISURA. `height:auto` non si anima, e un numero scritto a
+      // mano sarebbe sbagliato al primo testo piu' lungo o alla prima riga che
+      // va a capo su uno schermo stretto.
+      r.style.height = r.firstChild.offsetHeight + 'px';
     }
-    inCorso = false;
-    invia.disabled = false;
-    $('.etichetta', invia).textContent = 'Send';
+    misuraPalchi();
   });
-  function dillo(t, ok){
-    esito.textContent = t;
-    esito.className = 'esito' + (ok === true ? ' ok' : ok === false ? ' no' : '');
+  function chiudi(d){
+    var r = d.querySelector('.risposta');
+    d.classList.remove('aperta');
+    d.querySelector('button').setAttribute('aria-expanded','false');
+    // Dal valore misurato a zero: partendo da `auto` il browser non avrebbe da
+    // dove cominciare e la chiusura sarebbe uno scatto.
+    r.style.height = r.firstChild.offsetHeight + 'px';
+    void r.getBoundingClientRect();
+    r.style.height = '0px';
   }
+  // Una risposta aperta cambia altezza se la finestra cambia larghezza: il
+  // testo va a capo in un altro punto.
+  function rimisura(){
+    var a = lista.querySelector('.domanda.aperta');
+    if(a) a.querySelector('.risposta').style.height = a.querySelector('.risposta').firstChild.offsetHeight + 'px';
+  }
+  window.addEventListener('resize', rimisura);
+  // E cambia altezza anche quando arrivano i caratteri: la prima misura la fa
+  // il carattere di ripiego, che va a capo in un altro punto. Senza questa
+  // seconda misura l'ultima riga della risposta gia' aperta resta tagliata dal
+  // bordo del riquadro — che e' esattamente quel che succedeva.
+  window.addEventListener('load', rimisura);
+  if(document.fonts && document.fonts.ready) document.fonts.ready.then(rimisura);
+  // La prima e' aperta, come nel disegno.
+  var prima = lista.querySelector('.domanda > button');
+  if(prima) prima.click();
 }
 
-/* ── E VIA ──────────────────────────────────────────────────────────────── */
-function via(){
-  avviaBarra();
-  avviaComparse();
-  avviaParallasse();
-  avviaCarta();
-  avviaDomande();
-  avviaContatto();
-  avviaPolvere();
-  // Le domande nascono dopo: vanno fatte entrare anche loro.
-  requestAnimationFrame(avviaComparse);
+// ══════════════════════════════════════════════════════════════════════════
+// LA FINESTRA DEI CONTATTI
+// ══════════════════════════════════════════════════════════════════════════
+// Il messaggio passa dal server, non da un `mailto:` — che aprirebbe un
+// programma di posta che meta' dei visitatori non ha configurato. Il
+// destinatario NON viaggia nella richiesta: sta scritto nel server, perche' un
+// servizio che spedisce a un indirizzo passato da fuori spedisce posta per
+// conto di chiunque.
+var PORTA = 'https://api.hextalegame.com/contatto';
+var finestra = document.getElementById('contatto');
+var modulo = document.getElementById('modulo-contatto');
+var esito = document.getElementById('c-esito');
+var invia = document.getElementById('c-invia');
+var tornaA = null;
+
+function apriContatto(chi){
+  tornaA = chi || null;
+  finestra.classList.add('aperta');
+  finestra.setAttribute('aria-hidden','false');
+  document.body.style.overflow = 'hidden';
+  setTimeout(function(){ var c = document.getElementById('c-email'); if(c) c.focus(); }, 60);
 }
-if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', via);
-else via();
+function chiudiContatto(){
+  finestra.classList.remove('aperta');
+  finestra.setAttribute('aria-hidden','true');
+  document.body.style.overflow = '';
+  if(tornaA) tornaA.focus();
+}
+var bottoneContatto = document.getElementById('apri-contatto');
+if(bottoneContatto) bottoneContatto.addEventListener('click', function(){ apriContatto(this); });
+var croce = document.getElementById('chiudi-contatto');
+if(croce) croce.addEventListener('click', chiudiContatto);
+if(finestra) finestra.addEventListener('click', function(e){ if(e.target === finestra) chiudiContatto(); });
+document.addEventListener('keydown', function(e){
+  if(e.key === 'Escape' && finestra && finestra.classList.contains('aperta')) chiudiContatto();
+});
+
+if(modulo) modulo.addEventListener('submit', function(e){
+  e.preventDefault();
+  var email = (document.getElementById('c-email').value || '').trim();
+  var testo = (document.getElementById('c-messaggio').value || '').trim();
+  // Si controlla qui per dare una risposta subito, ma il controllo che conta
+  // e' quello del server: questo si aggira con due clic.
+  if(email.indexOf('@') < 1){ dilo('no', 'Please write a valid email address.'); return; }
+  if(testo.length < 10){ dilo('no', 'Please write a little more, so we can actually help.'); return; }
+  invia.disabled = true;
+  dilo('', 'Sending…');
+  fetch(PORTA, {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json' },
+    body: JSON.stringify({ email: email, messaggio: testo })
+  }).then(function(r){
+    if(!r.ok) throw new Error(r.status);
+    return r.json().catch(function(){ return {}; });
+  }).then(function(){
+    modulo.reset();
+    dilo('ok', 'Thank you — your message is on its way. We answer everything.');
+    setTimeout(chiudiContatto, 2600);
+  }).catch(function(){
+    dilo('no', 'Something went wrong. Please write to support@hextalegame.com directly.');
+  }).then(function(){ invia.disabled = false; });
+});
+function dilo(come, cosa){
+  if(!esito) return;
+  esito.className = 'esito' + (come ? ' ' + come : '');
+  esito.textContent = cosa;
+}
+
 })();
 </script>
 </body>
