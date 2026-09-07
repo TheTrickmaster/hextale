@@ -11250,7 +11250,7 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.26</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.27</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -28243,17 +28243,11 @@ function _nomeFileCorrente(){
 
 let _ultimaVersioneTrovata = null; // {nome, url}
 
-// Data dell'ultimo commit che ha toccato un file. Usata solo per scegliere fra
-// PIU' file .html; con un file solo non si chiede nemmeno.
-function _dataUltimoCommit(percorso){
-  const url = GITHUB_COMMITS_API + '?per_page=1&path=' + encodeURIComponent(percorso);
-  return _githubJsonp(url).then(esito => {
-    const c = esito && esito.dati;
-    const d = Array.isArray(c) && c[0] && c[0].commit && c[0].commit.committer
-      ? c[0].commit.committer.date : null;
-    return d ? Date.parse(d) : 0;
-  }).catch(() => 0);
-}
+// v0.79.27 — qui c'era _dataUltimoCommit, che chiedeva a GitHub la data
+// dell'ultimo commit di un file. Serviva a scegliere fra piu' .html quando
+// nessuno portava un numero nel nome; adesso un file senza numero non e' una
+// versione e non entra nemmeno nella scelta (vedi trovaUltimaVersione), quindi
+// quella domanda non se la fa piu' nessuno.
 
 // ═══════════════════════════════════════════════════════════════════════════
 // v0.73.4 — NOTE DI AGGIORNAMENTO
@@ -28596,43 +28590,48 @@ function confrontaVersioni(a, b){
 // La data non serviva nemmeno: il numero e' gia' scritto nel nome del file, e
 // dice esattamente quello che si vuole sapere. Confrontarlo non costa nessuna
 // richiesta, quindi non c'e' nessun limite da superare e nessun risultato
-// parziale da interpretare male. La data resta come ripiego per i soli file il
-// cui nome non contiene un numero di versione.
+// parziale da interpretare male.
 //
 // (Questo non "hardcoda il numero di versione": nessun numero e' scritto nel
 // codice. Si legge quello che c'e' nel repository e lo si ordina.)
-function trovaUltimaVersione(riferisci){
-  const dillo = t => { if(typeof riferisci === 'function') riferisci(t); };
+//
+// ── v0.79.27 — E UN FILE E' UNA VERSIONE SOLO SE PORTA UN NUMERO ADDOSSO ──
+// Il 07/09/2026 e' comparsa in radice la pagina 404, e il gioco si e' messo ad
+// annunciare "A newer version is available: 404.html". Non era colpa di quel
+// file: era che qui bastava essere un .html per essere una versione, e in
+// radice fino a quel giorno di .html non ce n'era nessuno. Il controllo non
+// taceva perche' fosse d'accordo — taceva perche' guardava uno scaffale vuoto,
+// e il primo oggetto appoggiato li' e' diventato "l'ultima versione".
+//
+// Due passaggi lo rendevano possibile, e sono spariti tutti e due:
+//   - la scorciatoia "se ne trovi UNO SOLO, e' quello", che saltava a pie'
+//     pari il controllo del numero proprio nel caso in cui e' piu' facile
+//     sbagliarsi;
+//   - il ripiego sulla data dell'ultimo commit per i file senza numero. E'
+//     esattamente il meccanismo che nella v0.73.13 faceva proporre versioni
+//     vecchie (venti richieste, sessanta all'ora, quelle oltre il limite
+//     valgono zero): teneva in vita, per i casi strani, la logica che si era
+//     appena finito di togliere dai casi normali.
+//
+// Adesso un file entra fra i candidati SOLO se dal nome si ricava un numero di
+// versione. Se non ne resta nessuno l'avviso non compare, che e' com'e' stato
+// per settimane e come dev'essere: in radice, dalla regola del 28/08/2026, un
+// Hextale_*.html non ci va piu'.
+function trovaUltimaVersione(){
   return _githubJsonp(GITHUB_REPO_API).then(esito => {
     if(esito.errore) throw new Error(esito.errore);
     const elenco = esito.dati;
     if(!Array.isArray(elenco)) throw new Error('risposta inattesa dal repository');
     const candidati = elenco.filter(f =>
-      f && f.type === 'file' && /\.html?$/i.test(f.name || '') && f.download_url);
-    if(!candidati.length) throw new Error('nel repository non c\'e\' nessun file .html');
-    if(candidati.length === 1) return candidati[0];
-
-    const numerati = candidati.filter(f => numeroVersioneDa(f.name));
-    if(numerati.length){
-      let migliore = numerati[0], suo = numeroVersioneDa(migliore.name);
-      for(let i=1;i<numerati.length;i++){
-        const q = numeroVersioneDa(numerati[i].name);
-        if(confrontaVersioni(q, suo) > 0){ migliore = numerati[i]; suo = q; }
-      }
-      return migliore;
+      f && f.type === 'file' && /\.html?$/i.test(f.name || '') && f.download_url
+      && numeroVersioneDa(f.name));
+    if(!candidati.length) throw new Error('nel repository non c\'e\' nessuna versione numerata');
+    let migliore = candidati[0], suo = numeroVersioneDa(migliore.name);
+    for(let i=1;i<candidati.length;i++){
+      const q = numeroVersioneDa(candidati[i].name);
+      if(confrontaVersioni(q, suo) > 0){ migliore = candidati[i]; suo = q; }
     }
-    // Nessun nome contiene un numero: si ripiega sulla data dell'ultimo
-    // commit. Qui le richieste sono poche per definizione, perche' i file
-    // senza numero in un repository di versioni sono l'eccezione.
-    dillo('Trovati ' + candidati.length + ' file, guardo quale e\' il piu\' recente…');
-    return Promise.all(candidati.map(f => _dataUltimoCommit(f.path || f.name)))
-      .then(date => {
-        let migliore = candidati[0], quando = date[0];
-        for(let i=1;i<candidati.length;i++){
-          if(date[i] > quando){ migliore = candidati[i]; quando = date[i]; }
-        }
-        return migliore;
-      });
+    return migliore;
   });
 }
 
@@ -28665,8 +28664,20 @@ function controllaAggiornamentoAllAvvio(){
     // avviso che invita a sostituire il gioco con una versione vecchia fa
     // perdere lavoro. Questa riga vale a prescindere da come e' stato scelto
     // il file, e resterebbe giusta anche se il criterio di scelta cambiasse.
-    const suo = numeroVersioneDa(file.name), mio = numeroVersioneDa(corrente);
-    if(suo && mio && confrontaVersioni(suo, mio) <= 0) return;
+    // v0.79.27 — e il confronto adesso si fa SEMPRE, non solo quando capita.
+    // `corrente` e' il nome del file da cui si e' aperto, e all'indirizzo
+    // stabile quel nome e' "index.html": nessun numero. Il guardrail qui sotto
+    // chiedeva che i numeri ci fossero entrambi, quindi su /play/ — cioe' per
+    // tutti — era spento, e l'unica cosa che restava a proteggere era il
+    // confronto dei NOMI, che dice solo "diverso", non "piu' nuovo".
+    // Il numero pero' la pagina ce l'ha addosso: e' la targhetta in basso a
+    // destra, ed e' quella che il gioco mostra come propria versione.
+    // Se anche cosi' non si riesce a sapere da dove si arriva, si tace: un
+    // avviso mancante e' una scocciatura, un avviso che invita a sostituire il
+    // gioco con una versione vecchia fa perdere lavoro.
+    const suo = numeroVersioneDa(file.name);
+    const mio = numeroVersioneDa(corrente) || numeroVersioneDa(versioneDiQuestoClient());
+    if(!suo || !mio || confrontaVersioni(suo, mio) <= 0) return;
     _ultimaVersioneTrovata = {nome:file.name, url:file.download_url, sha:file.sha};
     const msg = document.getElementById('patch-notes-update-msg');
     if(msg){

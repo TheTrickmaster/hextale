@@ -2249,6 +2249,21 @@ zone, caricando il gioco e verificando che le funzioni chiave esistano ancora.
 
 ## Trappole gia' incontrate (per non ripeterle)
 
+- **Un controllo che tace puo' star guardando uno scaffale vuoto.** L'avviso
+  "c'e' una versione nuova" cercava i .html nella RADICE del repository, dove
+  dalla regola del 28/08/2026 non ne va nessuno. Per settimane non ha detto
+  niente e sembrava d'accordo; il giorno in cui e' comparso `404.html` ha
+  annunciato quello come ultima versione. Un filtro che non ha mai niente da
+  filtrare non e' provato: e' solo inattivo. (Corretto nella v0.79.27, e
+  `strumenti/prova-aggiornamento.js` finge la risposta di GitHub apposta per
+  poterlo riprovare senza aspettare che succeda.)
+- **Un guardrail scritto `if(a && b && …)` e' spento appena uno dei due manca.**
+  Lo stesso avviso aveva la regola "mai proporre di tornare indietro", ma la
+  faceva girare solo se sia il nome remoto sia quello locale portavano un
+  numero: all'indirizzo stabile il nome locale e' `index.html`, quindi su
+  `/play/` — cioe' per tutti — non ha mai girato. Se un dato puo' mancare, la
+  domanda giusta e' "cosa faccio quando manca", non "salto il controllo".
+
 - Due `animation` sulla stessa proprieta' dello stesso elemento: vince
   l'ultima dichiarata. Ha causato due bug distinti (il flip della conquista
   e il fade-in del bagliore). Si separa in due elementi annidati.

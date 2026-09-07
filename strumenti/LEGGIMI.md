@@ -182,3 +182,26 @@ sedici, i corpi e i colori — lette **sullo schermo** e non nel CSS: un margine
 dichiarato puo' essere schiacciato da un altro margine, e nessuno se ne
 accorge. `HX_SCHERMO` la guarda su un telefono, dove gli stessi controlli
 valgono con le cinque misure che il `@media` cala apposta.
+
+## prova-aggiornamento.js — l'avviso "c'e' una versione nuova"
+
+    $ELECTRON strumenti/prova-aggiornamento.js
+
+Il 07/09/2026 il gioco ha annunciato **"A newer version is available:
+404.html"**. Non era colpa di quel file: era che per il controllo bastava
+essere un `.html` in radice per essere una versione, e in radice di `.html`
+non ce n'era nessuno. **Taceva perche' guardava uno scaffale vuoto**, non
+perche' fosse d'accordo — e il primo oggetto appoggiato li' e' diventato
+"l'ultima versione". Un filtro che non ha mai niente da filtrare non e'
+provato: e' solo inattivo.
+
+Un guasto cosi' non si riprova a mano, perche' dipende da cosa c'e' nel
+repository: per rivederlo bisognerebbe metterci davvero un file sbagliato e
+aspettare. Qui la risposta di GitHub si finge — un elenco di file inventato —
+e si guarda cosa il gioco decide di dire.
+
+I due controlli che contano tirano in versi opposti, ed e' voluto: **la 404 non
+dev'essere scambiata per una versione**, ma **una versione vera e piu' nuova
+dev'essere ancora annunciata**. Senza il secondo, il modo piu' facile di far
+passare il primo sarebbe spegnere l'avviso — e un controllo che tace sempre
+sembra un controllo che funziona.
