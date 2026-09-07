@@ -177,6 +177,90 @@ app.whenReady().then(async () => {
       'e un rifiuto per un altro motivo si racconta come tale', avviso ? avviso.titolo : '?');
     window.mm2FermaRicerca = veroFerma; window.apriAvviso = veroAvviso;
 
+    // ── 9. "FORGOT PASSWORD" ───────────────────────────────────────────────
+    // Non passa da nakamaRpc: chi ha perso la password non ha una sessione, e
+    // le due chiamate vanno alla porta pubblica che Caddy riscrive. Qui si
+    // finge quella.
+    const chieste = [];
+    const veroFetch = window.fetch;
+    let esitoFinto = { inviato:true };
+    let rispostaOk = true;
+    window.fetch = async (url, opz)=>{
+      chieste.push({ url:String(url), corpo: JSON.parse((opz && opz.body) || '{}') });
+      return { ok: rispostaOk, text: async ()=>JSON.stringify(esitoFinto) };
+    };
+
+    apriRecupero();
+    await attendi(420);
+    dice(document.getElementById('modulo-recupero').classList.contains('mostra'),
+      '"Forgot password" apre il suo modulo');
+    document.getElementById('login-user').value = 'lorenzo@esempio.it';
+    apriRecupero();
+    await attendi(420);
+    dice(document.getElementById('recupero-email').value === 'lorenzo@esempio.it',
+      'e si porta dietro l-indirizzo gia- scritto nell-accesso',
+      'chi ha sbagliato la password l-ha appena battuto');
+
+    await chiediCodiceRecupero(document.querySelector('#modulo-recupero .hx-btn'));
+    await attendi(420);
+    dice(chieste.length === 1 && chieste[0].url.endsWith('/recupero/chiedi'),
+      'chiedendo il codice si bussa alla porta pubblica',
+      chieste.length ? chieste[0].url : 'nessuna chiamata');
+    dice(chieste.length && chieste[0].corpo.email === 'lorenzo@esempio.it', 'con l-indirizzo giusto');
+    dice(document.getElementById('modulo-nuovapwd').classList.contains('mostra'),
+      'e si passa alla schermata della password nuova');
+    dice((document.getElementById('recupero-dove')||{}).textContent === 'lorenzo@esempio.it',
+      'che dice a quale casella e- stato mandato');
+
+    // Le sei caselle sono le stesse, e si comportano come la- dentro.
+    const rc = [...document.querySelectorAll('#recupero-codice .hx-codice-casella')];
+    dice(rc.length === 6, 'sei caselle anche qui', rc.length + '');
+    const st2 = getComputedStyle(rc[0]);
+    dice(Math.round(rc[0].offsetWidth) === 49 && st2.fontSize === '40px',
+      'con le stesse misure del disegno');
+    rc[0].focus(); rc[0].value = '4';
+    rc[0].dispatchEvent(new Event('input', {bubbles:true}));
+    dice(document.activeElement === rc[1], 'e lo stesso comportamento: il fuoco va avanti');
+    // Alla sesta cifra NON si prova: manca ancora la password, e il fuoco
+    // passa a lei.
+    rc.forEach((c,i)=>{ c.value = '424242'.charAt(i); });
+    rc[5].dispatchEvent(new Event('input', {bubbles:true}));
+    await attendi(120);
+    dice(document.activeElement === document.getElementById('recupero-pwd'),
+      'e alla sesta cifra il fuoco passa alla password, non si prova niente',
+      'nella verifica si prova da soli perche- non manca altro; qui manca la password');
+    dice(chieste.length === 1, 'e infatti non e- partita nessuna chiamata');
+
+    // I controlli prima di partire.
+    document.getElementById('recupero-pwd').value = 'corta';
+    document.getElementById('recupero-pwd2').value = 'corta';
+    await cambiaLaPassword(document.querySelector('#modulo-nuovapwd .hx-btn:not(#recupero-rimanda)'));
+    dice(/at least 8/.test(document.getElementById('nuovapwd-messaggio').textContent),
+      'una password corta si ferma qui, senza un giro di rete');
+    document.getElementById('recupero-pwd').value = 'PasswordLunga1';
+    document.getElementById('recupero-pwd2').value = 'PasswordLunga2';
+    await cambiaLaPassword(document.querySelector('#modulo-nuovapwd .hx-btn:not(#recupero-rimanda)'));
+    dice(/do not match/.test(document.getElementById('nuovapwd-messaggio').textContent),
+      'e due password diverse pure');
+    dice(chieste.length === 1, 'e nessuna delle due ha bussato al server');
+
+    // E il cambio vero.
+    document.getElementById('recupero-pwd2').value = 'PasswordLunga1';
+    esitoFinto = { ok:true };
+    await cambiaLaPassword(document.querySelector('#modulo-nuovapwd .hx-btn:not(#recupero-rimanda)'));
+    await attendi(420);
+    dice(chieste.length === 2 && chieste[1].url.endsWith('/recupero/cambia'),
+      'il cambio bussa alla seconda porta', chieste.length > 1 ? chieste[1].url : '?');
+    dice(chieste.length > 1 && chieste[1].corpo.codice === '424242', 'col codice scritto');
+    dice(document.getElementById('modulo-login').classList.contains('mostra'),
+      'e si torna all-accesso');
+    dice(document.getElementById('login-user').value === 'lorenzo@esempio.it',
+      'con l-indirizzo gia- scritto: la cosa che si fa dopo aver cambiato una password e- entrare');
+    dice(/password has been changed/i.test(document.getElementById('login-messaggio').textContent),
+      'e lo si dice');
+
+    window.fetch = veroFetch;
+
     return dette;
   }catch(e){ return [{ok:false, che:'la prova si e- rotta', perche:String((e && e.stack) || e)}]; } })()`);
 

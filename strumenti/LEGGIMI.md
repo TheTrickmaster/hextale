@@ -380,3 +380,29 @@ Tre trappole, tutte pagate scrivendolo:
   resterebbe a battersi con la transizione che deve venire dopo. Per questo la
   classe che porta l'entrata delle tre colonne viene tolta a corsa finita, e il
   banco verifica proprio che se ne vada.
+
+## Il recupero della password sta in prova-codice.js
+
+Non ha un banco suo: sta in coda a `prova-codice.js`, ed e' voluto. Le sei
+caselle sono **le stesse** — stesso codice, stesse misure, stesso
+comportamento — e provarle in due file vorrebbe dire poterne aggiustare uno e
+rompere l'altro senza accorgersene. L'unica differenza e' cosa succede alla
+sesta cifra: nella verifica si prova il codice da soli (non manca altro), nel
+recupero il fuoco passa alla password, e il banco controlla proprio quella
+differenza.
+
+Le due chiamate del recupero **non passano da `nakamaRpc`**: chi ha perso la
+password non ha una sessione, e Nakama senza sessione risponde 401 anche con
+la chiave pubblica del client. Vanno a due indirizzi pubblici che Caddy
+riscrive nelle due RPC aggiungendo lui la chiave del runtime. Il banco finge
+`fetch` e verifica **a quale porta si bussa**, perche' quella e' l'unica cosa
+che il gioco decide da solo.
+
+Una trappola che merita di essere raccontata: la riga che controllava
+l'indirizzo era scritta con un'espressione regolare, e fra il programma che
+scrive il banco e il banco che inietta il proprio codice ci sono **due livelli
+di virgolette**. La barra rovesciata e' stata mangiata due volte,
+`/\/recupero\/chiedi$/` e' diventato `//recupero/chiedi$/` — cioe' un
+**commento** — e la riga si e' saldata con quella dopo. Il controllo non
+girava, e passava lo stesso, perche' quel che restava era `chieste.length === 1
+&& 'del testo'`. Adesso c'e' `endsWith`, che non ha niente da sfuggire.

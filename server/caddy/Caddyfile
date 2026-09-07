@@ -1,0 +1,34 @@
+# Il muso HTTPS davanti a Nakama. Caddy chiede da solo il certificato a
+# Let's Encrypt (HTTP-01 sulla porta 80) e lo rinnova senza che nessuno ci
+# pensi. Il reverse_proxy passa anche i WebSocket senza configurazione: le
+# intestazioni di Upgrade le inoltra da se'.
+#
+# Questo file sta nel repository perche' non contiene nessun segreto: la chiave
+# del runtime non e' scritta qui, si prende dall'ambiente del contenitore
+# ({env.NAKAMA_HTTP_KEY}, che arriva da /opt/nakama/.env). La copia che gira e'
+# /opt/nakama/Caddyfile, e si aggiorna con server/caddy/schiera.sh.
+api.hextalegame.com {
+	# ── v0.79.34 — LE DUE PORTE DI CHI HA PERSO LA PASSWORD ──────────────────
+	# Ogni altra chiamata al gioco porta con se' una sessione. Chi ha perso la
+	# password non ce l'ha, e Nakama senza sessione risponde 401 — anche con la
+	# chiave pubblica del client, che serve solo ad autenticarsi. L'unica chiave
+	# che apre una RPC senza sessione e' quella del RUNTIME, ed e' un segreto:
+	# dentro al gioco non puo' viaggiare, perche' il gioco lo legge chiunque.
+	#
+	# Allora non ci arriva il gioco: ci arriva Caddy, che la chiave ce l'ha nel
+	# proprio ambiente e non la fa uscire. Due indirizzi, due RPC, scritti per
+	# nome. NON un passaggio generico del tipo /rpc/<quello che vuoi>: quello
+	# sarebbe consegnare al mondo la chiave del server con un giro in piu'.
+	handle /recupero/chiedi {
+		rewrite * /v2/rpc/hx_recupero_chiedi?unwrap&http_key={env.NAKAMA_HTTP_KEY}
+		reverse_proxy nakama:7350
+	}
+	handle /recupero/cambia {
+		rewrite * /v2/rpc/hx_recupero_cambia?unwrap&http_key={env.NAKAMA_HTTP_KEY}
+		reverse_proxy nakama:7350
+	}
+	# Tutto il resto e' il gioco, come prima.
+	handle {
+		reverse_proxy nakama:7350
+	}
+}

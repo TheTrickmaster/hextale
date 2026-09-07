@@ -2604,6 +2604,59 @@ nessun'altra casella.
 
 ---
 
+## "Forgot password" (dalla v0.79.34)
+
+Stesso gesto della verifica, all'altro capo: sei cifre nella propria casella e
+con quelle una password nuova. Stessa email, cambiate le parole —
+`_verificaHtml` adesso le prende da fuori, cosi' i due messaggi sono lo stesso
+disegno e non due copie che divergeranno.
+
+**LE DUE PORTE NON SONO COME LE ALTRE.** Ogni altra chiamata porta con se' una
+sessione; chi ha perso la password non ce l'ha, e Nakama senza sessione
+risponde **401 anche con la chiave pubblica del client** (provato: la chiave
+del client serve solo ad autenticarsi). L'unica chiave che apre una RPC senza
+sessione e' quella del RUNTIME, ed e' un segreto — dentro al gioco non puo'
+viaggiare.
+
+Quindi non ci arriva il gioco: ci arriva **Caddy**, che sta gia' davanti a
+Nakama e la chiave ce l'ha nel proprio ambiente. Due indirizzi pubblici e due
+soli — `/recupero/chiedi` e `/recupero/cambia` — riscritti nelle due RPC per
+nome. **Non un passaggio generico** `/rpc/<quello che vuoi>`: quello sarebbe
+consegnare al mondo la chiave del server con un giro in piu'.
+Il Caddyfile sta in `server/caddy/` (nessun segreto dentro: la chiave e'
+`{env.NAKAMA_HTTP_KEY}`) e si schiera con `server/caddy/schiera.sh`, che
+valida prima di ricaricare e rimette quello di prima se il sito non risponde.
+Al servizio caddy e' stata passata **solo** quella variabile, non tutto il
+`.env`: la password del database non gli serve.
+
+**Non si dice mai se un indirizzo esiste.** `rpcRecuperoChiedi` risponde
+`{inviato:true}` anche per un indirizzo di nessuno: rispondere "questa email
+non esiste" trasformerebbe la porta in un elenco di iscritti.
+
+**Come si cambia davvero una password.** Non con `unlinkEmail` +
+`linkEmail`: Nakama **rifiuta di staccare l'ultima identita'** di un account
+("Cannot unlink last account identifier"), e un account con la sola email e'
+quasi ogni account — provato sul server, risponde PermissionDenied. E sarebbe
+comunque la strada peggiore: fra lo stacco e il riattacco esiste un istante in
+cui il giocatore non ha piu' modo di entrare.
+Si scrive invece dove la password sta davvero, con una sola istruzione:
+`UPDATE users SET password = convert_to(crypt($2, gen_salt('bf', 10)), 'UTF8')`.
+`crypt` produce un bcrypt $2a$10, che e' esattamente quello che Nakama
+scrive e legge; la colonna e' `bytea`, per questo la conversione; il costo 10
+va scritto, perche' il predefinito di `gen_salt` e' 6. **pgcrypto** e' stato
+abilitato sul database (`CREATE EXTENSION`). La password viaggia come
+parametro, mai dentro alla stringa.
+E subito dopo si **prova** con `authenticateEmail`: e' l'unico modo di sapere
+che la password scritta e' quella con cui si entra, invece di dirlo al
+giocatore e scoprirlo insieme a lui la volta dopo.
+
+Il codice del recupero vive in `sistema/recupero-<email>` (permessi a zero) e
+vale **un'ora**, non ventiquattro come quello dell'attivazione: un codice per
+rientrare in un account vale meno a lungo di uno per aprirlo. Speso, si
+cancella.
+
+---
+
 ## La pagina 404 (dalla 07/09/2026)
 
 `404.html` sta in radice e si chiama cosi' perche' e' il nome che **GitHub

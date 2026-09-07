@@ -902,7 +902,16 @@ function _nomeDallEmail(email) {
 // nelle caselle e si selezionano come qualunque altro testo (deciso con
 // Lorenzo il 07/09/2026).
 var VERIFICA_LOGO = 'https://hextalegame.com/ui/hextale-logo-topbar.png';
-function _verificaHtml(nome, codice) {
+function _verificaHtml(nome, codice, dice) {
+  // `dice` porta le parole: titolo, le due righe in mezzo e la nota in fondo.
+  // Senza, sono quelle dell'attivazione — cosi' chi chiamava prima con due
+  // argomenti continua a ricevere la stessa email di sempre.
+  dice = dice || {};
+  var TITOLO = dice.titolo || 'Account activation';
+  var RIGA1 = dice.riga1 || ('Hey ' + _html(nome) + ', welcome to Hextale!');
+  var RIGA2 = dice.riga2 || 'Here&rsquo;s the 6 digit code to activate your account:';
+  var NOTA = dice.nota || ('The code expires in ' + VERIFICA_ORE + ' hours. ' +
+    'If you did not create a Hextale account, you can ignore this message.');
   var cifre = '';
   for (var i = 0; i < 6; i++) {
     cifre +=
@@ -941,7 +950,7 @@ function _verificaHtml(nome, codice) {
         '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse">' +
           '<tr><td align="center" style="font-family:\'Marcellus SC\',Georgia,\'Times New Roman\',serif;' +
               'font-size:32px;line-height:1.2;color:#EDE0C6;padding:0 0 12px;mso-line-height-rule:exactly">' +
-            'Account activation</td></tr>' +
+            TITOLO + '</td></tr>' +
           // La riga di stacco: nel disegno e' bianco al 10% su un pannello
           // scuro, cioe' questo colore. Un <hr> in posta si veste da solo in
           // modi diversi a seconda del client: meglio una cella alta 1px.
@@ -949,16 +958,14 @@ function _verificaHtml(nome, codice) {
               'style="border-collapse:collapse"><tr><td style="height:1px;background:#464C4C;font-size:0;line-height:0">&nbsp;</td></tr></table></td></tr>' +
           '<tr><td align="center" style="font-family:Rosarivo,Georgia,\'Times New Roman\',serif;' +
               'font-size:20px;line-height:1.2;color:#CCCCCC;padding:12px 0 0;mso-line-height-rule:exactly">' +
-            'Hey ' + _html(nome) + ', welcome to Hextale!<br>' +
-            'Here&rsquo;s the 6 digit code to activate your account:</td></tr>' +
+            RIGA1 + '<br>' + RIGA2 + '</td></tr>' +
           '<tr><td align="center" style="padding:28px 0 4px">' +
             '<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:separate">' +
               '<tr>' + cifre + '</tr>' +
             '</table></td></tr>' +
           '<tr><td align="center" style="font-family:Rosarivo,Georgia,\'Times New Roman\',serif;' +
               'font-size:14px;line-height:1.4;color:#8A9A9C;padding:22px 0 0">' +
-            'The code expires in ' + VERIFICA_ORE + ' hours. ' +
-            'If you did not create a Hextale account, you can ignore this message.</td></tr>' +
+            NOTA + '</td></tr>' +
         '</table>' +
       '</td></tr>' +
     '</table>' +
@@ -967,18 +974,19 @@ function _verificaHtml(nome, codice) {
 // La versione scritta, per chi legge la posta senza figure. Non e' un ripiego
 // di seconda scelta: e' la stessa cosa detta senza disegno, e per un codice da
 // copiare va bene uguale.
-function _verificaTesto(nome, codice) {
+function _verificaTesto(nome, codice, dice) {
+  dice = dice || {};
   return [
-    'Hey ' + nome + ', welcome to Hextale!',
+    dice.testo1 || ('Hey ' + nome + ', welcome to Hextale!'),
     '',
-    'Here is the 6 digit code to activate your account:',
+    dice.testo2 || 'Here is the 6 digit code to activate your account:',
     '',
     '    ' + codice.split('').join(' '),
     '',
-    'Type it in the game to finish creating your account.',
-    'The code expires in ' + VERIFICA_ORE + ' hours.',
+    dice.testo3 || 'Type it in the game to finish creating your account.',
+    dice.testo4 || ('The code expires in ' + VERIFICA_ORE + ' hours.'),
     '',
-    'If you did not create a Hextale account, you can ignore this message.'
+    dice.testo5 || 'If you did not create a Hextale account, you can ignore this message.'
   ].join('\n');
 }
 
@@ -986,14 +994,15 @@ function _verificaTesto(nome, codice) {
 // carico: qui, a differenza della segnalazione di un guasto, un fallimento va
 // detto in faccia a chi ha chiamato — senza quella email il giocatore non ha
 // nessun altro modo di sapere il codice.
-function _spedisciCodice(nk, logger, email, nome, codice) {
+function _spedisciCodice(nk, logger, email, nome, codice, dice) {
   var cfg = _postaConfig(nk);
-  if (!cfg) { logger.warn('posta non configurata: il codice di verifica non parte'); return false; }
+  if (!cfg) { logger.warn('posta non configurata: il codice non parte'); return false; }
+  dice = dice || {};
   var corpo = {
     a: email,
-    oggetto: 'Your Hextale activation code: ' + codice,
-    testo: _verificaTesto(nome, codice),
-    html: _verificaHtml(nome, codice)
+    oggetto: dice.oggetto || ('Your Hextale activation code: ' + codice),
+    testo: _verificaTesto(nome, codice, dice),
+    html: _verificaHtml(nome, codice, dice)
   };
   try {
     var intestazioni = { 'Content-Type': 'application/json' };
@@ -1126,6 +1135,186 @@ function rpcVerificaProva(ctx, logger, nk, payload) {
   // sarebbe una cifra che non serve piu' a niente e che resta li' per sempre.
   scriviVerifica(nk, ctx.userId, { verificato: true, quando: v.quando, fatto: Date.now() });
   logger.info('account %s verificato', ctx.userId);
+  return JSON.stringify({ ok: true });
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// v0.79.34 — "FORGOT PASSWORD": SEI CIFRE, DI NUOVO
+// ══════════════════════════════════════════════════════════════════════════
+// Stesso gesto della verifica, all'altro capo: chi non riesce piu' a entrare
+// chiede un codice alla propria casella e con quello sceglie una password
+// nuova. E' anche lo stesso disegno di email — cambiano le parole, non la
+// forma (vedi _verificaHtml, che adesso le prende da fuori).
+//
+// PERCHE' QUESTE DUE PORTE SONO DIVERSE DA TUTTE LE ALTRE. Chi ha perso la
+// password non ha una sessione, e senza sessione Nakama non risponde: provato,
+// e risponde 401 anche con la chiave pubblica del client. L'unica chiave che
+// apre una RPC senza sessione e' quella del runtime, che e' un segreto e non
+// puo' viaggiare dentro al gioco.
+// Quindi non ci arriva il gioco: ci arriva CADDY, che sta gia' davanti a
+// Nakama e la chiave ce l'ha nel proprio ambiente. Due indirizzi pubblici e
+// due soli — /recupero/chiedi e /recupero/cambia — riscritti in queste due
+// RPC. Non un passaggio generico "chiama la RPC che vuoi": quello sarebbe
+// consegnare al mondo la chiave del server con un giro in piu'.
+// Vedi server/caddy/Caddyfile.
+//
+// DI CONSEGUENZA QUI ctx.userId E' VUOTO: non c'e' nessun giocatore collegato,
+// e tutto quello che si sa e' l'email che e' stata scritta nella casella. Per
+// questo lo stato non sta nel profilo di nessuno ma in un oggetto di sistema,
+// e la chiave e' l'email.
+var VERIFICA_RECUPERO_ORE = 1;   // un codice per rientrare vale meno a lungo
+var RECUPERO_TENTATIVI = 8;
+var RECUPERO_ATTESA_S = 60;
+
+function _chiaveRecupero(email) {
+  return 'recupero-' + String(email || '').toLowerCase().slice(0, 100);
+}
+// L'email come la scriverebbe chiunque: senza spazi e tutta minuscola. Nakama
+// le tiene minuscole, e un "Mario@..." che non trova niente sarebbe un
+// giocatore rimandato a casa per una maiuscola.
+function _emailPulita(v) {
+  return String(v || '').trim().toLowerCase().slice(0, 200);
+}
+// Chi ha questa email? Non c'e' una funzione del runtime che lo chieda, ma c'e'
+// la porta SQL, e la tabella e' quella di Nakama. Si legge e basta.
+function _chiHaLEmail(nk, logger, email) {
+  try {
+    var righe = nk.sqlQuery('SELECT id FROM users WHERE email = $1 LIMIT 1', [email]);
+    if (righe && righe.length && righe[0].id) return String(righe[0].id);
+  } catch (e) {
+    logger.error('non riesco a cercare l email: %s', String(e));
+  }
+  return '';
+}
+
+function rpcRecuperoChiedi(ctx, logger, nk, payload) {
+  var d = {};
+  try { d = payload ? JSON.parse(payload) : {}; } catch (e) { d = {}; }
+  var email = _emailPulita(d.email);
+  if (!email || email.indexOf('@') < 0) throw Error('scrivi un indirizzo email');
+
+  // ── SI RISPONDE SEMPRE DI SI' ────────────────────────────────────────────
+  // Anche se quell'indirizzo non e' di nessuno. Rispondere "questa email non
+  // esiste" trasformerebbe questa porta in un elenco: chiunque potrebbe
+  // provare mille indirizzi e sapere quali sono iscritti. Chi ha davvero un
+  // account riceve il codice, chi non ce l'ha non riceve niente e legge la
+  // stessa frase.
+  var chi = _chiHaLEmail(nk, logger, email);
+  if (!chi) {
+    logger.info('recupero chiesto per un indirizzo che non e di nessuno');
+    return JSON.stringify({ inviato: true });
+  }
+
+  var chiave = _chiaveRecupero(email);
+  var prima = null;
+  try { prima = leggiSistema(nk, chiave); } catch (e) { prima = null; }
+  var ora = Date.now();
+  if (prima && prima.inviato && (ora - prima.inviato) < RECUPERO_ATTESA_S * 1000) {
+    return JSON.stringify({ inviato: true, aspetta: Math.ceil((RECUPERO_ATTESA_S * 1000 - (ora - prima.inviato)) / 1000) });
+  }
+
+  var codice = _codiceASeiCifre(nk);
+  var nome = _nomeDallEmail(email);
+  var andata = _spedisciCodice(nk, logger, email, nome, codice, {
+    oggetto: 'Your Hextale password reset code: ' + codice,
+    titolo: 'Password reset',
+    riga1: 'Hey ' + _html(nome) + ',',
+    riga2: 'Here&rsquo;s the 6 digit code to choose a new password:',
+    nota: 'The code expires in ' + VERIFICA_RECUPERO_ORE + ' hour. ' +
+          'If you did not ask to reset your password, you can ignore this message ' +
+          'and nothing will change.',
+    testo1: 'Hey ' + nome + ',',
+    testo2: 'Here is the 6 digit code to choose a new password:',
+    testo3: 'Type it in the game to set your new password.',
+    testo4: 'The code expires in ' + VERIFICA_RECUPERO_ORE + ' hour.',
+    testo5: 'If you did not ask to reset your password, you can ignore this message and nothing will change.'
+  });
+  if (!andata) throw Error('non riesco a mandare l email: riprova fra poco');
+
+  scriviSistema(nk, chiave, {
+    chi: chi, codice: codice, quando: ora, inviato: ora, tentativi: 0
+  });
+  logger.info('codice di recupero spedito a %s', chi);
+  return JSON.stringify({ inviato: true, aspetta: RECUPERO_ATTESA_S });
+}
+
+function rpcRecuperoCambia(ctx, logger, nk, payload) {
+  var d = {};
+  try { d = payload ? JSON.parse(payload) : {}; } catch (e) { d = {}; }
+  var email = _emailPulita(d.email);
+  var dato = String(d.codice || '').replace(/[^0-9]/g, '');
+  var nuova = String(d.password || '');
+
+  // La password si controlla PRIMA di toccare qualunque cosa: piu' sotto il
+  // cambio passa da uno stacco e un riattacco, e l'unico modo di non trovarsi
+  // a meta' e' non cominciare se non si puo' finire.
+  if (nuova.length < 8) throw Error('la password deve essere di almeno 8 caratteri');
+  if (!email) throw Error('scrivi un indirizzo email');
+
+  var chiave = _chiaveRecupero(email);
+  var v = null;
+  try { v = leggiSistema(nk, chiave); } catch (e) { v = null; }
+  // Nessuna richiesta in corso: non si dice "questa email non ha chiesto
+  // niente" — si dice che il codice non va bene, che e' vero e non racconta
+  // niente a chi sta tirando a indovinare.
+  if (!v || !v.codice) throw Error('codice sbagliato o scaduto');
+  if (v.quando && (Date.now() - v.quando) > VERIFICA_RECUPERO_ORE * 3600 * 1000)
+    throw Error('questo codice e scaduto: chiedine uno nuovo');
+  if ((v.tentativi || 0) >= RECUPERO_TENTATIVI)
+    throw Error('troppi tentativi: chiedi un codice nuovo');
+  if (dato.length !== 6) throw Error('servono sei cifre');
+  if (dato !== String(v.codice)) {
+    v.tentativi = (v.tentativi || 0) + 1;
+    scriviSistema(nk, chiave, v);
+    var restano = RECUPERO_TENTATIVI - v.tentativi;
+    throw Error(restano > 0 ? ('codice sbagliato: ti restano ' + restano + ' tentativi')
+                            : 'codice sbagliato: chiedi un codice nuovo');
+  }
+
+  // ── IL CAMBIO ────────────────────────────────────────────────────────────
+  // Il runtime non ha una funzione "cambia la password". La strada che sembra
+  // ovvia — staccare l'email e riattaccarla con quella nuova — NON funziona, ed
+  // e' un bene che non funzioni: Nakama rifiuta di staccare l'ultima identita'
+  // di un account ("Cannot unlink last account identifier"), e un account con
+  // la sola email e' quasi ogni account. Provato sul server, risponde
+  // PermissionDenied.
+  //
+  // Si scrive quindi dove la password sta davvero. La riga qui sotto e' una
+  // sola istruzione e non lascia nessun istante in cui l'account e' a meta',
+  // che e' il difetto vero dell'altra strada: li' fra lo stacco e il
+  // riattacco esisteva un momento in cui un giocatore non aveva piu' modo di
+  // entrare, e bastava un errore in mezzo perche' quel momento non finisse.
+  //
+  // `crypt` con `gen_salt('bf', 10)` produce un bcrypt $2a$10, che e'
+  // esattamente quello che Nakama scrive e legge; la colonna e' `bytea`, per
+  // questo il testo va convertito. Il costo 10 non e' un dettaglio: il
+  // predefinito di gen_salt e' 6, che sarebbe una password piu' debole di
+  // quelle scritte da Nakama stessa.
+  // La password viaggia come PARAMETRO e non dentro alla stringa: cosi' non
+  // esiste nessun modo di scrivere una password che diventi SQL.
+  try {
+    nk.sqlExec(
+      "UPDATE users SET password = convert_to(crypt($2, gen_salt('bf', 10)), 'UTF8'), update_time = now() WHERE id = $1::uuid",
+      [v.chi, nuova]);
+  } catch (e) {
+    logger.error('recupero: non riesco a scrivere la password di %s: %s', v.chi, String(e));
+    throw Error('non riesco a cambiare la password: scrivici');
+  }
+  // E si prova. Non e' una cerimonia: e' l'unico modo di sapere che la password
+  // scritta e' davvero quella con cui si entra, invece di dirlo al giocatore e
+  // scoprirlo insieme a lui la volta dopo.
+  var prova = null;
+  try { prova = nk.authenticateEmail(email, nuova, '', false); } catch (e) { prova = null; }
+  if (!prova || prova.userId !== v.chi) {
+    logger.error('RECUPERO SOSPETTO: %s dice di avere la password nuova ma non entra', v.chi);
+    throw Error('non riesco a cambiare la password: scrivici');
+  }
+
+  // Fatto: il codice si butta. Un codice speso che resta scritto e' un codice
+  // che qualcuno potrebbe rispendere.
+  try { nk.storageDelete([{ collection: COLL_SISTEMA, key: chiave, userId: '00000000-0000-0000-0000-000000000000' }]); }
+  catch (e) { logger.warn('codice di recupero non cancellato: %s', String(e)); }
+  logger.info('password cambiata per %s', v.chi);
   return JSON.stringify({ ok: true });
 }
 
@@ -1321,7 +1510,11 @@ function rpcEliminaAccount(ctx, logger, nk, payload) {
   var chi = nk.authenticateEmail(email, password, ctx.username || '', false);
   if (!chi || chi.userId !== ctx.userId) throw Error('password sbagliata');
 
-  var chiavi = [KEY_POSSESSO, KEY_MAZZI, KEY_STAGIONE, KEY_BUSTINA, 'stato'];
+  // v0.79.34 — e KEY_VERIFICA. Era rimasta fuori quando la verifica e' nata
+  // (v0.79.31): cancellando un account restava indietro il suo segno, e chi si
+  // fosse riscritto con la stessa email avrebbe trovato un oggetto vecchio che
+  // parlava di un account che non esiste piu'.
+  var chiavi = [KEY_POSSESSO, KEY_MAZZI, KEY_STAGIONE, KEY_BUSTINA, KEY_VERIFICA, 'stato'];
   for (var i = 0; i < chiavi.length; i++) {
     try { nk.storageDelete([{ collection: COLL_PROFILO, key: chiavi[i], userId: ctx.userId }]); }
     catch (e) { logger.warn('cancellando %s di %s: %s', chiavi[i], ctx.userId, String(e)); }
@@ -4275,6 +4468,10 @@ function InitModule(ctx, logger, nk, initializer) {
   initializer.registerRpc('hx_verifica_stato', rpcVerificaStato);
   initializer.registerRpc('hx_verifica_invia', rpcVerificaInvia);
   initializer.registerRpc('hx_verifica_prova', rpcVerificaProva);
+  // Le due che NON passano da una sessione: ci arriva Caddy con la chiave del
+  // runtime, perche' chi ha perso la password una sessione non ce l'ha.
+  initializer.registerRpc('hx_recupero_chiedi', rpcRecuperoChiedi);
+  initializer.registerRpc('hx_recupero_cambia', rpcRecuperoCambia);
   initializer.registerRpc('hx_elimina_account', rpcEliminaAccount);
   initializer.registerRpc('hx_giocatori', rpcGiocatoriOnline);
   initializer.registerRpc('hx_entro', rpcEntro);
