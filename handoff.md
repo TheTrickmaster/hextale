@@ -172,6 +172,17 @@ prima di fidarsi di un suo verde.
    (`Hextale_0.77.51.html`). E' l'archivio: serve per tornare indietro e per
    confrontare, non per essere giocata.
 
+**Ribadito da Lorenzo il 07/09/2026: "la vecchia copia dei file con la versione
+deve sempre andare in versions prima di sovrascrivere con una nuova versione".**
+Fra la 0.77.62 e la 0.79.27 questo passaggio si era perso — `versions/` saltava
+da 0.77.62 a 0.79.27 — e quelle versioni non si possono piu' archiviare: il file
+di quel momento non esiste piu' da nessuna parte se non nella storia di git, che
+va bene per confrontare ma non e' un file da aprire. Da qui in avanti si fa, e
+si fa PRIMA di scrivere la targhetta nuova: la copia da archiviare e' quella
+USCENTE, e nel file di lavoro quella non c'e' gia' piu'. Si prende da
+`git show HEAD:play/index.html`, che e' l'unico posto dove esiste ancora
+intatta.
+
 Quindi `play/index.html` e `versions/Hextale_<ultima>.html` hanno lo stesso
 contenuto: uno e' l'indirizzo, l'altro e' la copia con la targhetta.
 **Nella radice non ci va nessun `Hextale_*.html`.**
@@ -209,6 +220,11 @@ Come si fa:
 3. Si eliminano i blocchi piu' vecchi finche' non ne restano al massimo
    **10**. Il gioco ne mostra comunque solo 10 (`PATCH_NOTES_MAX`), ma il
    file va potato lo stesso per non farlo crescere all'infinito.
+   **Ribadito da Lorenzo il 07/09/2026: "le patch notes devono avere sempre e
+   solo 10 blocchi, non di piu'".** Era arrivato a 99. La potatura non perde
+   niente: le note vecchie restano nella storia del repository, e questo file
+   e' quello che LEGGE un giocatore — un giocatore non legge novantanove
+   versioni.
 4. Si allinea il numero di versione del badge in fondo alla pagina
    (`#build-version-badge`) con quello del blocco appena scritto.
 5. Lorenzo carica su GitHub sia l'HTML sia `patch-notes.txt`.
@@ -2249,6 +2265,28 @@ zone, caricando il gioco e verificando che le funzioni chiave esistano ancora.
 
 ## Trappole gia' incontrate (per non ripeterle)
 
+- **Una regola CSS piu' specifica ne cancella una piu' generica, e non si
+  vede.** Successo tre volte in due giorni: `margin-top:16px` che schiacciava
+  un `margin-top:auto` (v0.79.26), e `.hx-btn .hxb-label{ gap:10px }` che
+  copriva il `gap:0` di `.mm2-label-doppia` — scritto zero, disegnato dieci,
+  per mesi (v0.79.28). Nello stesso blocco anche `line-height:1.05` non ha mai
+  fatto niente. **Quando un valore non si vede applicato, la prima cosa da
+  guardare non e' il valore: e' chi altro lo scrive.** E un banco deve leggere
+  il valore CALCOLATO (`getComputedStyle`), mai fidarsi di quello scritto.
+- **Un dato preso al livello sbagliato non da' errore, da' silenzio.** Nella
+  carta a tutto schermo il disegno si costruiva con `cartaAlLivello(card,
+  _cmLivello)` e la lucentezza con `card`: salendo di livello comparivano
+  lamina e parallax e mai la specular map. Sembrava un effetto rotto, era un
+  argomento sbagliato. Quando due cose devono guardare lo stesso oggetto, quel
+  oggetto va messo in una variabile con un nome, non ricalcolato per una sola
+  delle due.
+- **"Visto" non e' "il mouse ci e' passato sopra".** Il pallino delle novita'
+  si spegneva una carta alla volta al passaggio del puntatore, ma una
+  Collezione si legge scorrendo: il mouse ne tocca cinque su ottantadue, e il
+  pallino restava acceso per sempre. Quando una cosa misura "l'utente ha
+  visto", l'evento giusto e' la VISIBILITA' (IntersectionObserver), non
+  l'hover.
+- **Un controllo che tace puo' star guardando uno scaffale vuoto.** L'avviso
 - **Un controllo che tace puo' star guardando uno scaffale vuoto.** L'avviso
   "c'e' una versione nuova" cercava i .html nella RADICE del repository, dove
   dalla regola del 28/08/2026 non ne va nessuno. Per settimane non ha detto

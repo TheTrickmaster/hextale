@@ -205,3 +205,47 @@ dev'essere scambiata per una versione**, ma **una versione vera e piu' nuova
 dev'essere ancora annunciata**. Senza il secondo, il modo piu' facile di far
 passare il primo sarebbe spegnere l'avviso — e un controllo che tace sempre
 sembra un controllo che funziona.
+
+## prova-punti.js — i punti si contano ancora come prima
+
+    $ELECTRON strumenti/prova-punti.js
+
+Nato nella v0.79.28, togliendo le bolle di danno: 541 righe da rimuovere in un
+file da 44.000, tutte intrecciate col punteggio, e il punteggio era la sola
+cosa che non doveva cambiare. Le due regole sono quelle dette da Lorenzo — i
+punti per la **differenza** fra attaccante e difensore, e **un punto per ogni
+carta propria in campo** a ogni fine turno.
+
+Si guarda il **calcolo**, non il punteggio a schermo. `G.hp` lo scrive la bolla
+in fondo alla sua animazione, e in una finestra nascosta le animazioni non
+arrivano mai in fondo: aspettare quel numero misurerebbe se l'animazione gira,
+non se il conto e' giusto. Il banco intercetta invece le due porte da cui i
+punti passano — `assegnaPunti` e `incrementaBollaPunti` — e guarda con che
+numeri vengono chiamate.
+
+La seconda meta' del banco e' un elenco di funzioni che **non devono esistere**
+(`createDamageBubbleVisual`, `spawnDamageProjectile`, e le altre otto). Se una
+torna a esistere, e' tornato anche il disegno che chiedeva, e quei file Lorenzo
+li ha cancellati.
+
+## prova-menu-carte.js — il pallino, il gap, la specular
+
+    $ELECTRON strumenti/prova-menu-carte.js [scatto.png]
+
+Tre guasti della v0.79.28 che hanno in comune il modo di rompersi: **una regola
+CSS che ne cancella un'altra senza che si veda**, o **un dato preso al livello
+sbagliato**. Nessuno dei tre da' errore — si vedono soltanto, e solo se si sta
+guardando quel pezzo di schermo.
+
+- Le due righe di "Card packs" erano scritte a `gap:0` e disegnate a 10: piu'
+  avanti nel foglio `.hx-btn .hxb-label{ gap:10px }` vale piu' di una classe
+  sola. Il banco legge il valore **calcolato**, che e' l'unico che si vede.
+- Il pallino delle novita' stava dentro all'etichetta e la allargava, spingendo
+  la scritta a sinistra. Il controllo misura il **nodo di testo** con un Range,
+  non il riquadro dell'etichetta: con il pallino dentro, l'etichetta restava
+  centrata lo stesso — era larga testo piu' pallino — e misurarla avrebbe detto
+  "centrato" proprio nel caso rotto.
+- La specular map non compariva mai nella carta a tutto schermo: il disegno
+  seguiva il selettore dei livelli, la lucentezza chiedeva il livello **vero**
+  della carta. Il banco costruisce una carta di livello 1 e la guarda ai quattro
+  livelli del selettore, che e' esattamente il gesto che la rompeva.

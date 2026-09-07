@@ -558,12 +558,8 @@ body.mouse-down, body.mouse-down *{
   position:absolute; top:88px; left:50%; transform:translateX(-50%);
   height:184px; width:auto; z-index:20;
   pointer-events:none; user-select:none; -webkit-user-drag:none;
-  /* v0.78.10 — spenta per ora, per scelta.
-     v0.79.28 — e adesso e' spenta anche di fatto: matchmaking-arrow.png non
-     esiste piu', e il precaricatore ha smesso di chiederla (era un 404 a ogni
-     apertura del menu). La regola resta qui perche' la scelta era "per ora";
-     riaccenderla pero' non e' piu' togliere una riga, e' prima ricaricare il
-     disegno. */
+  /* v0.78.10 — spenta per ora, per scelta. Il resto della regola resta al suo
+     posto: riaccenderla e' togliere una riga, non rimetterne sei. */
   display:none;
 }
 
@@ -874,19 +870,7 @@ body.mouse-down, body.mouse-down *{
    sotto al titolo. L'etichetta e' gia' una riga flex centrata (vedi
    .hxb-label): qui diventa una colonna, e il resto — centratura, ombra, colore
    del titolo — resta quello che era. */
-/* ── v0.79.28 — LE DUE RIGHE DEI PACCHETTI, A DUE PIXEL ───────────────────
-   Il selettore e' `.hx-btn .hxb-label.mm2-label-doppia` e non
-   `.mm2-label-doppia`, e la differenza non e' stile: e' l'unica versione che
-   funziona. Piu' avanti nel foglio c'e' `.hx-btn .hxb-label{ gap:10px }`, che
-   vale piu' di una classe sola — quindi il `gap:0` che stava scritto qui non
-   e' mai stato applicato, e le due righe sono sempre state a dieci. Un numero
-   che ne cancella un altro senza che si veda.
-   Stessa storia per `line-height:1.05`, che perdeva contro l'`1` della stessa
-   regola: era li' da mesi senza fare niente, e l'ho tolto invece di alzarlo —
-   toglierlo non cambia un pixel, alzarlo avrebbe cambiato una cosa che nessuno
-   ha chiesto di cambiare. */
-.mm2-label-doppia{ position:relative; bottom:3px; flex-direction:column; }
-.hx-btn .hxb-label.mm2-label-doppia{ gap:2px; }
+.mm2-label-doppia{ position:relative; bottom:3px; flex-direction:column; gap:0; line-height:1.05; }
 .mm2-label-doppia small{
   font-family:'Rosarivo',serif; font-size:13px; color:#DAD4C7;
   -webkit-text-fill-color:#DAD4C7;   /* l'etichetta sopra ritaglia il testo su un gradiente: qui no */
@@ -1758,6 +1742,132 @@ body.mouse-down, body.mouse-down *{
    Reuses the damage popup's own float-up keyframe (hpDmgFloat) for motion,
    just with a different look. */
 .hp-heal-popup{position:absolute;top:-8px;left:50%;transform:translateX(-50%);font-family:var(--font-display);font-size:34px;font-weight:800;color:#ffffff;text-shadow:0 1px 4px rgba(0,0,0,0.9);pointer-events:none;animation:hpDmgFloat 900ms ease-out forwards;z-index:5;}
+/* v0.71.49 REWORK ("sostituiamo i design delle bolle di danno... con degli
+   asset che ho già caricato su Github chiamati damage-bubble-*"): every
+   damage/heal bubble in the game (normal combat hit, Rinascita heal, and the
+   sudden-death/"colpo finale" bubbles further down this file) is now built
+   from a shared DOM structure (see createDamageBubbleVisual() in the script)
+   instead of a flat colored <div> with a radial-gradient background:
+     .dmg-bubble-visual (outer, positioned/animated exactly like the old flat
+       div was — flyArcedBounceBubble/JS-driven left+top/transform is
+       untouched) > .dmg-bubble-art (the damage-bubble-dark/light.png or
+       healing-bubble.png background image, full-size) + .dmg-bubble-video-
+       mask (a circular clipped viewport containing the looping damage-anim.mp4,
+       mix-blend-mode:color-dodge so it reads as an energetic glow riding on
+       top of the bubble art rather than a flat video rectangle) + .dmg-
+       bubble-text (the "-N"/"+N" number, kept as a dedicated child span so
+       repeated updates — e.g. the sudden-death collector's running total —
+       never wipe out the video/art children the way overwriting the outer
+       element's own textContent would have).
+   The drop-shadow glow (blur 30, per-variant color) is applied via `filter:
+   drop-shadow(...)` on the OUTER element (drop-shadow — unlike box-shadow —
+   follows the actual alpha shape of the PNG art, so it hugs the bubble's
+   real silhouette instead of a plain square/circle box). */
+.dmg-bubble-visual{
+  position:fixed;z-index:400;pointer-events:none;
+  width:152px;height:152px;
+  transform:translate(-50%,-50%);
+  display:flex;align-items:center;justify-content:center;
+}
+.dmg-bubble-art{
+  position:absolute;inset:0;width:100%;height:100%;
+  background-size:contain;background-position:center;background-repeat:no-repeat;
+  border-radius:50%;
+}
+.dmg-bubble-video-mask{
+  position:absolute;inset:0;width:100%;height:100%;
+  border-radius:50%;overflow:hidden;
+  /* Slight inset so the video's own circular edge sits just inside the
+     bubble art's own visible rim instead of poking out past it at the
+     corners — the bubble PNGs render a circle inscribed in their square
+     canvas, not a perfect edge-to-edge fill. */
+  padding:6%;
+  box-sizing:border-box;
+}
+.dmg-bubble-video-mask video{
+  position:absolute;top:50%;left:50%;
+  /* v0.71.60 ("entrambi dark e light con width e height 120%"): bumped from
+     100% so the looping video reads a bit larger/bolder inside its circular
+     mask than the bubble art itself — explicit spec, applies to both
+     variants (mix-blend-mode is the only thing that differs between them,
+     see .dmg-bubble-light video below). */
+  width:120%;height:120%;
+  transform:translate(-50%,-50%);
+  object-fit:cover;
+  mix-blend-mode:color-dodge;
+  pointer-events:none;
+}
+/* v0.71.60 ("il video della bolla di danno light, deve essere con
+   mix-blend-mode: screen"): dark keeps color-dodge (the original/default
+   rule above); light overrides to screen only — picked via the SAME
+   .dmg-bubble-light variant class the bubble's own art/text-color rules
+   already key off (see .dmg-bubble-light's other rules further down), so
+   this stays in lockstep with which variant is actually showing without
+   needing a separate flag anywhere in the JS. */
+.dmg-bubble-light .dmg-bubble-video-mask video{
+  mix-blend-mode:screen;
+}
+.dmg-bubble-text{
+  position:relative;z-index:1;
+  font-family:var(--font-display);font-size:88px;font-weight:800;color:#fff;
+  text-shadow:0 1px 3px rgba(0,0,0,0.9);
+}
+/* Per-variant art + drop-shadow color, per explicit spec: dark player's
+   damage bubble = damage-bubble-dark.png with a #062226 shadow; light
+   player's = damage-bubble-light.png with a #81755B shadow; the Rinascita
+   heal bubble = healing-bubble.png (one asset, not owner-specific — see
+   spawnHealProjectile) with a #219164 shadow. Blur is 30px per spec on all
+   three, applied via drop-shadow so it follows the art's real silhouette. */
+.dmg-bubble-dark .dmg-bubble-art{ background-image:url('https://hextalegame.com/ui/damage-bubble-dark.png'); }
+.dmg-bubble-dark{ filter:drop-shadow(0 0 30px #062226); }
+.dmg-bubble-light .dmg-bubble-art{ background-image:url('https://hextalegame.com/ui/damage-bubble-light.png'); }
+.dmg-bubble-light{ filter:drop-shadow(0 0 30px #81755B); }
+/* v0.71.50 ("il colore del numeretto dei danni nella bolla danno per i
+   giocatori light, dovrebbe essere 352D1B"): the light bubble's own art is a
+   pale/tan color, so the default white number (still used by dark/heal —
+   see .dmg-bubble-text above) read too washed-out against it; this dark
+   brown reads clearly against that lighter bubble instead. */
+.dmg-bubble-light .dmg-bubble-text{ color:#352D1B; }
+.dmg-bubble-heal .dmg-bubble-art{ background-image:url('https://hextalegame.com/ui/healing-bubble.png'); }
+.dmg-bubble-heal{ filter:drop-shadow(0 0 30px #219164); }
+
+/* ── v0.73.38 — L'ALONE DIETRO LE BOLLE ───────────────────────────────────
+   Una macchia di luce molto forte, che si muove piano dietro alla bolla. Non
+   e' un'ombra colorata come i drop-shadow qui sopra — quelli seguono la
+   sagoma e restano fermi — ma una luce viva che pulsa e ruota, e che si vede
+   sporgere da dietro il disco.
+   Il colore lo porta ogni variante nella propria riga (--alone), cosi' la
+   struttura e' una sola e i tre casi cambiano solo di tinta.
+   Sta DIETRO: z-index negativo dentro la bolla, che ha gia' un contesto suo.
+   La rotazione e la pulsazione stanno su due elementi annidati perche' sono
+   due animazioni e sullo stesso elemento si escluderebbero. */
+.dmg-bubble-alone{
+  position:absolute; left:50%; top:50%;
+  width:190%; height:190%;
+  transform:translate(-50%,-50%);
+  z-index:-1; pointer-events:none;
+  animation:bollaAlonePulsa 1.15s ease-in-out infinite;
+}
+.dmg-bubble-alone::before{
+  content:''; position:absolute; inset:0;
+  border-radius:50%;
+  /* Due sorgenti sfalsate invece di un cerchio solo: ruotando, una luce
+     perfettamente centrata non si vedrebbe muovere. */
+  background:
+    radial-gradient(circle at 34% 40%, var(--alone) 0%, transparent 58%),
+    radial-gradient(circle at 68% 62%, var(--alone) 0%, transparent 52%);
+  filter:blur(16px);
+  opacity:0.95;
+  animation:bollaAloneGira 2.6s linear infinite;
+}
+@keyframes bollaAloneGira{ from{transform:rotate(0deg);} to{transform:rotate(360deg);} }
+@keyframes bollaAlonePulsa{
+  0%,100% { transform:translate(-50%,-50%) scale(1);    opacity:0.85; }
+  50%     { transform:translate(-50%,-50%) scale(1.14); opacity:1;    }
+}
+.dmg-bubble-dark  .dmg-bubble-alone{ --alone:#00DFFF; }
+.dmg-bubble-light .dmg-bubble-alone{ --alone:#FFCF68; }
+.dmg-bubble-heal  .dmg-bubble-alone{ --alone:#43FFB4; }
 /* ── Turn-change banner (v0.55.0 art rebuild) ────────────────────────
    Shown centered on the SCREEN whenever the active player switches, so
    there's an unmistakable beat between turns. Drops in from above, holds,
@@ -4349,6 +4459,26 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
   transform-box:fill-box;
   transform-origin:center center;
 }
+/* v0.71.49: sudden-death bubbles now reuse the exact same shared
+   .dmg-bubble-visual structure (art + video-mask + text — see that class's
+   own big comment above) as the normal combat/heal bubbles, via
+   createDamageBubbleVisual() in the script, instead of their own flat
+   red/blue radial-gradient circle — .sd-bubble/.sd-bubble-collector/
+   .sd-bubble-big below only add the SIZE/z-index/transition specifics this
+   sequence's feeder→collector→final-strike growth needs; the look itself
+   (art/shadow-color/video) comes from the shared .dmg-bubble-dark/
+   .dmg-bubble-light classes applied alongside these. */
+.sd-bubble{
+  z-index:410;
+  width:26px;height:26px;
+}
+/* The persistent "collector" bubble at screen-center: grows a little with
+   each feeder bubble that merges into it (see ondataDanno), and
+   shows the running total so far — same visual language as the merged
+   totals shown on .sd-bubble-big once it's launched on to strike the PV
+   avatar. font-size is set inline per-instance since it scales with size. */
+.sd-bubble-collector{transition:width 0.25s ease-out,height 0.25s ease-out;}
+.sd-bubble-big{width:96px;height:96px;}
 
 /* v0.71.49 ("ti ho caricato il banner finalblow-banner che deve apparire
    come il banner timesup al centro dello schermo e con overlay di sfondo, e
@@ -4360,12 +4490,8 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
    showSuddenDeathBanner() in the script for the JS side of this, which
    drives #banner-dim-overlay exactly like mostraTempoScaduto() does. */
 /* v0.75.0 — via lo stile di #sudden-death-banner: il banner del colpo finale
-   non esiste piu' (vedi dannoDiFineTurno).
-   v0.79.28 — e via anche le bolle .sd-bubble che stavano qui. L'ondata di fine
-   turno c'e' ancora e gira a ogni turno, ma adesso il conto lo racconta la
-   bolla del punteggio: quelle volavano soltanto, e volavano vestite di disegni
-   che non esistono piu'. Il lampo bianco delle carte (.sd-flash-red /
-   .sd-flash-blue qui sopra) resta, ed e' ancora l'ondata ad accenderlo. */
+   non esiste piu' (vedi dannoDiFineTurno). Le bolle .sd-bubble qui sopra
+   restano, perche' l'ondata e' rimasta e adesso gira a ogni turno. */
 
 /* v0.72.72 — qui stavano le animazioni delle tredici abilita' del prototipo:
    il lampo e l'uccello di fuoco di Rinascita, le due mezze targhe di scudo di
@@ -7645,26 +7771,14 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
 .card-db-card-slot:not(.carta-nuova) .nuova-nastro{ opacity:0; }
 .card-db-card-slot.carta-nuova:hover{ filter:none; }
 .card-db-card-slot.carta-nuova:hover .nuova-nastro{ opacity:0; }
-/* Il pallino accanto a "Library & decks". Otto pixel: e' un segno, non un
-   distintivo — deve farsi notare senza chiedere di essere letto.
-   (v0.78.18 — otto invece di quattro: a quattro si poteva scambiare per un
-   difetto dello schermo.)
-   ── v0.79.28 — E STA FUORI DAL FLUSSO ────────────────────────────────────
-   Prima era dentro all'etichetta, in fila col testo e con otto pixel di
-   margine: il pulsante centra l'etichetta INTERA, quindi il pallino allargava
-   l'etichetta di sedici e spingeva la scritta sedici a sinistra. Il testo
-   sembrava scentrato perche' lo era, e a pulsante corto il pallino arrivava
-   addosso all'ultima lettera.
-   Adesso e' appeso al pulsante, che e' gia' `position:relative` per via dei
-   suoi cinque pezzi, e sta a diciotto dal bordo destro — dentro alla cornice,
-   fuori dalla strada del testo. Non essendo piu' nel flusso, l'etichetta torna
-   a essere larga quanto la scritta, e centrarla centra la scritta. */
+/* Il pallino accanto a "Library & decks". Quattro pixel: e' un segno, non un
+   distintivo — deve farsi notare senza chiedere di essere letto. */
 .mm2-pallino-novita{
-  position:absolute; right:18px; top:50%;
-  transform:translateY(-50%);
-  width:8px; height:8px; border-radius:50%;
+  /* v0.78.18 — otto invece di quattro: a quattro era un segno che si poteva
+     scambiare per un difetto dello schermo. */
+  display:inline-block; width:8px; height:8px; margin-left:8px;
+  vertical-align:middle; border-radius:50%;
   background:#7E1515; box-shadow:0 0 0 1px #C8A84B;
-  pointer-events:none;
 }
 .card-db-card-slot:not(.card-db-card-slot-placeholder):hover{
   /* v0.72.9: se questo valore cambia, aggiornare CARD_DB_HOVER_SCALE nel JS —
@@ -11136,7 +11250,7 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.28</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.27</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -17038,6 +17152,7 @@ function mm2Immagini(){ return [
   ['#mm2-bg-lit',        UI_BASE+'main-menu-bg-lit.jpg'],
   ['#mm2-topbar-bg',     UI_BASE+'main-menu-topbar-bg.png'],
   ['#mm2-logo',          UI_BASE+'hextale-logo-topbar.png'],
+  ['#mm2-arrow',         UI_BASE+'matchmaking-arrow.png'],
   ['#mm2-bug img',       UI_BASE+'bug-button.png'],
   ['#mm2-news img',      UI_BASE+'news-button.png'],
   ['#mm2-settings img',  UI_BASE+'settings-button.png'],
@@ -17483,38 +17598,9 @@ function carteNuoveDalServer(elenco){
   CARTE_NUOVE = new Set(Array.isArray(elenco) ? elenco.map(String) : []);
   try{ aggiornaPallinoNovita(); }catch(_){ }
 }
-// ── v0.79.28 — "GUARDATA" VUOL DIRE CHE E' STATA MOSTRATA ────────────────
-// Prima una carta si dichiarava guardata quando il PUNTATORE ci passava sopra,
-// una per una. Ma la Collezione si legge scorrendo, e scorrendo il mouse tocca
-// cinque carte su ottantadue: le altre restavano nuove per sempre, e il pallino
-// non se ne andava mai — nemmeno dopo averle viste tutte, che e' esattamente
-// quello che il pallino dovrebbe misurare.
-// Adesso lo dice l'occhio e non la mano: un osservatore guarda quali caselle
-// entrano davvero nello schermo e, a meta' carta visibile, la dichiara vista.
-// Il nastro "New" e l'alone non se ne vanno per questo — quelli restano fino
-// al passaggio del mouse, come prima: servono a dire QUALI sono nuove mentre le
-// si guarda, e sparirebbero sotto gli occhi mentre si scorre.
-let _guardaNovita = null;
-function osservaNovitaInGriglia(){
-  if(_guardaNovita){ _guardaNovita.disconnect(); _guardaNovita = null; }
-  if(typeof IntersectionObserver !== 'function') return null;
-  _guardaNovita = new IntersectionObserver((voci)=>{
-    voci.forEach(v=>{
-      if(!v.isIntersecting) return;
-      const chiave = v.target && v.target._chiaveNovita;
-      if(chiave) segnaCartaGuardata(chiave);
-      if(_guardaNovita) _guardaNovita.unobserve(v.target);
-    });
-  // Meta' carta: una che sfila per un pixel in fondo allo schermo non e' stata
-  // guardata. La soglia si misura sulla finestra e non sul contenitore della
-  // griglia — chi scorre clippa lo stesso, e la finestra e' l'unico riquadro
-  // che c'e' di sicuro.
-  }, { threshold: 0.5 });
-  return _guardaNovita;
-}
-// Le carte guardate si dichiarano al server in gruppo e con calma: scorrendo
-// una griglia se ne vedono dieci in due secondi, e dieci richieste per una cosa
-// che non ha fretta sono dieci di troppo.
+// Le carte guardate si dichiarano al server in gruppo e con calma: passando il
+// puntatore su una griglia se ne toccano dieci in due secondi, e dieci
+// richieste per una cosa che non ha fretta sono dieci di troppo.
 let _visteDaDire = [], _visteTimer = null;
 function segnaCartaGuardata(id){
   id = String(id || '');
@@ -17536,11 +17622,7 @@ function segnaCartaGuardata(id){
 // guardare. Non porta un numero — non serve sapere QUANTE, serve sapere che
 // c'e' qualcosa di la'.
 function aggiornaPallinoNovita(){
-  // v0.79.28 — appeso al PULSANTE e non all'etichetta: il pallino sta in
-  // posizione assoluta, e il suo riferimento dev'essere la scatola del
-  // pulsante. Dentro all'etichetta si sarebbe misurato su di lei, che e' larga
-  // quanto la scritta e si sposta con lei.
-  const dove = document.querySelector('#mm2-sc-library .hx-btn');
+  const dove = document.querySelector('#mm2-sc-library .hxb-label');
   if(!dove) return;
   let pallino = dove.querySelector('.mm2-pallino-novita');
   if(CARTE_NUOVE.size > 0){
@@ -26518,10 +26600,6 @@ function cardDbRenderRoster(){
     _cardDbGridBusy = false;
   }
   grid.innerHTML='';
-  // v0.79.28 — l'osservatore si rifa' da zero a ogni ridisegno: le caselle di
-  // prima sono state appena buttate, e un osservatore tiene per mano quelle che
-  // guarda. Rifarlo qui e' anche l'unico modo perche' guardi quelle nuove.
-  osservaNovitaInGriglia();
   // v0.72.73 — l'elenco dei tratti si rifa' qui: e' il punto in cui il
   // roster e' appena stato letto ED e' anche quello attraversato dal cambio
   // dark/light, che deve girare pure le icone del filtro.
@@ -26564,13 +26642,9 @@ function cardDbRenderRoster(){
       nastro.className = 'nuova-nastro'; nastro.alt = 'New'; nastro.draggable = false;
       impostaImgDaCandidati(nastro, uiFileCandidati('new-card-banner.png'));
       slot.appendChild(nastro);
-      // v0.79.28 — la chiave sta sulla casella, cosi' l'osservatore la trova
-      // senza doversi ricordare quale carta ci fosse dentro.
-      slot._chiaveNovita = _chiaveCartaNuova(entry);
-      if(_guardaNovita) _guardaNovita.observe(slot);
       slot.addEventListener('pointerenter', ()=>{
         slot.classList.remove('carta-nuova');
-        segnaCartaGuardata(slot._chiaveNovita);
+        segnaCartaGuardata(_chiaveCartaNuova(entry));
         // Il nastro resta nel DOM ma spento (vedi il CSS): toglierlo qui
         // farebbe saltare la dissolvenza a meta'.
       }, { once:true });
@@ -30737,9 +30811,11 @@ function initGame(vsAI){
   // the previous game would otherwise be orphaned by the RAF cancel above —
   // remove any leftover bubble elements and reset countdown state so the new
   // game's HP display starts clean instead of showing a stray floating "-N".
-  // v0.79.28 — le bolle non esistono piu' e non c'e' piu' niente da spazzare
-  // via: nascevano da createDamageBubbleVisual, che se n'e' andata coi disegni
-  // che le vestivano. Il numero che compare sul ritratto invece resta.
+  // v0.71.49: .hp-dmg-projectile/.hp-heal-projectile were replaced by the
+  // shared .dmg-bubble-visual structure (see createDamageBubbleVisual) —
+  // this cleanup now targets that class instead, so a leftover bubble
+  // mid-flight from the previous game still gets swept away correctly.
+  document.querySelectorAll('.dmg-bubble-visual').forEach(el=>el.remove());
   document.querySelectorAll('.hp-dmg-popup').forEach(el=>el.remove());
   _hpCountdownState[1]=null;
   _hpCountdownState[2]=null;
@@ -30755,6 +30831,9 @@ function initGame(vsAI){
   // starting point.
   _hpDisplayed[1]=HP_START;
   _hpDisplayed[2]=HP_START;
+  // Same cleanup for any sudden-death sequence left mid-flight by a
+  // previous game (e.g. "Nuova partita" clicked while it was still playing).
+  document.querySelectorAll('.sd-bubble').forEach(el=>el.remove());
   // v0.75.0 — il banner del colpo finale non c'e' piu'. Lo scuro invece si
   // continua a spegnere: un'ondata interrotta a meta' (una partita nuova
   // iniziata mentre era in corso) potrebbe averlo lasciato acceso sopra al
@@ -39116,6 +39195,13 @@ function showTurnBanner(player){
 // the turn banner that follows it are one continuous locked beat, not two
 // separately-interruptible moments.
 const TIMESUP_BANNER_DUR_MS=1250; // must match #timesup-banner.show's CSS animation-duration
+// v0.75.55 — QUANTO DURA IL VOLO DI UNA BOLLA DI DANNO. Era scritto tre volte:
+// nel colpo che parte da uno scontro, nella bolla di cura e — diviso a meta' —
+// nell'ondata di fine turno. Tre numeri uguali sono tre occasioni di
+// cambiarne uno solo, ed e' successo: l'ondata volava a meta' del tempo delle
+// altre, e la stessa cosa a schermo si muoveva a due velocita' diverse a
+// seconda di chi l'aveva mandata.
+const ARCO_BOLLA_MS = 728;
 function mostraTempoScaduto(){
   // v0.72.0: bell.mp3 e' il "ding" del tempo scaduto.
   // v0.77.13 — e suona PRIMA di ogni controllo sul disegno. Stava sotto a
@@ -41325,6 +41411,237 @@ function getAvatarScreenCenter(player){
   return screenToAuthoredPoint({x:rect.left+rect.width/2, y:rect.top+rect.height/2});
 }
 
+// Shared "lobbed hit" motion used by both the normal combat damage bubble
+// (spawnDamageProjectile) and the sudden-death final bubble's strike on the
+// opponent's PV avatar (see flySuddenDeathBubble's `big` leg) — factored out
+// here so both play the identical curve + wind-up-back easing instead of
+// two near-duplicate implementations drifting apart over time.
+//
+// Path: an upward-bowed quadratic bezier (not a straight line) so it reads
+// as a lobbed hit rather than a dart. Easing: a heavily exaggerated
+// easeInBack — standard easeInBack is c3*t^3 - c1*t^2 with c1≈1.70158 (a
+// subtle "wind-up" before moving forward); cranking c1 up makes the bubble
+// visibly creep/pull BACKWARD past its own start point first ("prende la
+// rincorsa"), then whip forward and cover most of the arc in a sudden burst
+// right at the end, landing much faster than it left.
+const BOUNCE_BACK_C1=2.2;
+const BOUNCE_BACK_C3=BOUNCE_BACK_C1+1;
+function easeInBackExtreme(t){
+  return BOUNCE_BACK_C3*t*t*t - BOUNCE_BACK_C1*t*t;
+}
+// bowHeightScale/bowHeightMin/bowHeightMax let callers each keep their own
+// curve "feel" (the combat bubble and the sudden-death bubble travel very
+// different distances) while sharing the exact same math. Increased 50%
+// across the board in an earlier pass (0.35→0.525 scale, 50→75 min, 160→240
+// max), then increased AGAIN per a later user request for an even more
+// pronounced lob (0.525→0.79 scale, 75→115 min, 240→360 max — roughly
+// another +50% on top of the already-boosted values) so both the normal
+// in-combat damage bubble and the sudden-death final strike arc noticeably
+// higher/wider than before, not just subtly different.
+function flyArcedBounceBubble(el, from, to, durationMs, onDone, opts){
+  opts=opts||{};
+  const bowScale=opts.bowHeightScale!==undefined?opts.bowHeightScale:0.79;
+  const bowMin=opts.bowHeightMin!==undefined?opts.bowHeightMin:115;
+  const bowMax=opts.bowHeightMax!==undefined?opts.bowHeightMax:360;
+  const shrinkAmount=opts.shrinkAmount!==undefined?opts.shrinkAmount:0.25;
+  const midX=(from.x+to.x)/2, midY=(from.y+to.y)/2;
+  const dist=Math.hypot(to.x-from.x, to.y-from.y);
+  const bowHeight=Math.min(bowMax, Math.max(bowMin, dist*bowScale));
+  const ctrlX=midX, ctrlY=midY-bowHeight;
+  let startTs=null;
+  function step(ts){
+    if(startTs===null) startTs=ts;
+    const rawT=Math.min(1,(ts-startTs)/durationMs);
+    // eased can legitimately go negative during the wind-up (that's the
+    // whole point — it's what makes the bubble visibly pull backward before
+    // launching), so it must NOT be clamped to [0,1] before being fed into
+    // the bezier below, otherwise the wind-up would be invisible.
+    const eased=easeInBackExtreme(rawT);
+    const it=1-eased;
+    // Quadratic bezier: P = (1-t)^2*from + 2(1-t)t*ctrl + t^2*to, evaluated
+    // at the EASED progress instead of raw linear time.
+    const x=it*it*from.x + 2*it*eased*ctrlX + eased*eased*to.x;
+    const y=it*it*from.y + 2*it*eased*ctrlY + eased*eased*to.y;
+    el.style.left=x+'px';
+    el.style.top=y+'px';
+    // Slight scale-down as it approaches, like it's flying "into" the
+    // target — driven by rawT (not eased) so the scale change stays a
+    // smooth, monotonic shrink rather than jittering with the wind-up.
+    const scale=1-shrinkAmount*Math.max(0,Math.min(1,rawT));
+    el.style.transform=`translate(-50%,-50%) scale(${scale.toFixed(3)})`;
+    if(rawT<1){
+      const rafId=requestAnimationFrame(step);
+      activeAnimationFrames.add(rafId);
+    } else {
+      onDone();
+    }
+  }
+  const rafId=requestAnimationFrame(step);
+  activeAnimationFrames.add(rafId);
+}
+
+// v0.71.49 NEW: shared builder for every damage/heal bubble in the game
+// (normal combat hit, Rinascita heal, and every leg of the sudden-death
+// sequence — see each call site below and ondataDanno/
+// createSuddenDeathCollector/flySuddenDeathBubble/launchSuddenDeathFinalBubble
+// further down). Builds the .dmg-bubble-visual DOM structure described in
+// that class's own big CSS comment: an outer positioned element (this is
+// what flyArcedBounceBubble/the sudden-death flight functions actually move
+// via left/top/transform, completely unchanged from before) containing the
+// bubble-art background, a circular-clipped video-mask playing the shared
+// damage-anim.mp4 loop in mix-blend-mode:color-dodge, and a dedicated text
+// span for the "-N"/"+N"/running-total number.
+//   variant: 'dark' | 'light' | 'heal' — picks which of the three
+//            .dmg-bubble-dark/-light/-heal art+shadow-color classes to apply
+//   extraClasses: additional class names the caller wants on the OUTER
+//            element (e.g. 'sd-bubble' for the small sudden-death feeders)
+// Returns the outer element; el._setBubbleText(str) updates the number
+// without touching the art/video children (unlike overwriting the element's
+// own textContent, which would delete them), and el._setBubbleFontSize(px)
+// resizes just the number (used by the sudden-death collector's growth).
+function createDamageBubbleVisual(variant, extraClasses){
+  const el=document.createElement('div');
+  el.className=['dmg-bubble-visual','dmg-bubble-'+variant].concat(extraClasses||[]).join(' ');
+  // v0.73.38 — l'alone va aggiunto per PRIMO: in mancanza di uno z-index
+  // esplicito vincerebbe l'ordine del documento, e comparirebbe davanti al
+  // disco invece che dietro. Lo z-index negativo lo tiene comunque indietro,
+  // ma l'ordine giusto rende la cosa vera due volte invece che una.
+  const alone=document.createElement('div');
+  alone.className='dmg-bubble-alone';
+  el.appendChild(alone);
+  const art=document.createElement('div');
+  art.className='dmg-bubble-art';
+  el.appendChild(art);
+  const videoMask=document.createElement('div');
+  videoMask.className='dmg-bubble-video-mask';
+  const video=document.createElement('video');
+  video.src='https://hextalegame.com/ui/damage-anim.mp4';
+  // v0.71.60 FIX ("quando finisce il loop del video, c'è una frazione di
+  // secondo in cui il video 'sparisce' e riappare"): the native video.loop
+  // attribute hands the restart entirely to the browser's own decoder, which
+  // has to seek back to frame 0 and buffer it before painting again — for a
+  // short clip like this one that gap is small but real, and reads as a
+  // visible blink every time the loop wraps. Fixed by looping manually
+  // instead: loop is left OFF, and a 'timeupdate' listener jumps currentTime
+  // back to 0 itself the moment playback gets within LOOP_REWIND_SEC of the
+  // clip's real end — i.e. slightly BEFORE the last frame/EOF is ever
+  // reached, so the seek-and-rebuffer happens while there's still a frame
+  // on screen instead of at the hard boundary where the decoder would
+  // otherwise momentarily have nothing to show. 0.15s is comfortably longer
+  // than one seek's worst-case latency on a small local-cached clip like
+  // this, without being long enough to visibly truncate the loop's tail.
+  // v0.71.61 FIX ("il loop a volte si congela e il video smette di
+  // riprodursi"): the timeupdate-based rewind above is NOT a hard guarantee
+  // — 'timeupdate' only fires every ~15-250ms (browser's own throttling,
+  // gets coarser still when several of these bubbles are alive at once and
+  // competing for decode time), so the video can legitimately reach its real
+  // end (currentTime===duration) and fire the browser's OWN native 'ended'
+  // event before this rewind ever got a chance to trigger — confirmed via
+  // instrumented event logging (play→waiting→canplay→playing, then at the
+  // clip's real end: pause+ended+seeking+seeked firing together, with
+  // currentTime rewound to 0 by the OS/decoder itself but the element left
+  // sitting in paused:true forever after, since nothing had called .play()
+  // again). The old code only ever listened for 'timeupdate', so this exact
+  // native-ended path silently fell through with no rewind AND no restart —
+  // that's the freeze. Fixed by handling 'ended' explicitly as a fallback:
+  // whenever the video does reach a real end (whether the early timeupdate
+  // rewind below missed its window or not), force currentTime back to 0 AND
+  // call play() again — .play() is the missing piece the timeupdate path
+  // never needed (a mid-playback seek doesn't pause the element), but a
+  // genuine native 'ended' always does, so resuming playback has to be done
+  // explicitly here.
+  video.addEventListener('ended', ()=>{
+    video.currentTime = 0;
+    video.play().catch(()=>{});
+  });
+  const LOOP_REWIND_SEC=0.15;
+  video.addEventListener('timeupdate', ()=>{
+    if(video.duration && video.currentTime >= video.duration - LOOP_REWIND_SEC){
+      video.currentTime = 0;
+    }
+  });
+  video.autoplay=true; video.muted=true; video.playsInline=true;
+  video.play().catch(()=>{}); // autoplay can be blocked in some contexts; harmless no-op if so, video-mask just stays empty
+  videoMask.appendChild(video);
+  el.appendChild(videoMask);
+  const text=document.createElement('span');
+  text.className='dmg-bubble-text';
+  el.appendChild(text);
+  el._setBubbleText=(str)=>{ text.textContent=str; };
+  el._setBubbleFontSize=(px)=>{ text.style.fontSize=px+'px'; };
+  return el;
+}
+
+// Flies a small "-N" bubble from the flipped card's screen position to the
+// defending player's HP avatar along an arc (a simple upward-bowed quadratic
+// bezier, computed frame-by-frame — not a straight line, so it reads as a
+// lobbed hit rather than a dart), then "explodes" into the existing
+// hp-dmg-popup effect and immediately kicks off the 1-by-1 HP countdown —
+// no extra wait for the popup to finish floating up (see _hpProcessQueue).
+function spawnDamageProjectile(player, dmg, hpBefore, hpAfter, sourceKey, queueEntry){
+  const from=getCellScreenCenter(sourceKey) || getAvatarScreenCenter(player);
+  const to=getAvatarScreenCenter(player);
+  if(!from || !to){
+    // Can't find either endpoint on screen (e.g. headless/edge case) — skip
+    // straight to marking this hit ready so the HP display still ends up
+    // correct even without the travel animation playing.
+    _hpMarkReady(player, queueEntry);
+    return;
+  }
+  const ARC_DUR_MS=ARCO_BOLLA_MS;
+  // v0.71.49: the bubble's ART/shadow is keyed off the ATTACKER's color
+  // (dark=P1, light=P2), not the defender receiving the hit — `player` here
+  // is the DEFENDER (see applyHpDamage's own param name/comment), so the
+  // attacker is simply the other player.
+  const attacker = player===1 ? 2 : 1;
+  const bubble=createDamageBubbleVisual(playerFactionName(attacker)); // v0.72.27: fazione reale, non il numero giocatore
+  bubble._setBubbleText(dmg);
+  fxLayer().appendChild(bubble);
+  flyArcedBounceBubble(bubble, from, to, ARC_DUR_MS, ()=>{
+    bubble.remove();
+    // The impact sound plays right as the damage bubble actually strikes
+    // the HP avatar (not when the card was flipped, which already has its
+    // own hit sound at the strike moment on the board — see the two
+    // playHitSfx() calls tied to card-flip conquests). This is the bubble
+    // that travels across the screen and lands on the PV counter, so the
+    // sound should land here too.
+    playHitSfx();
+    _hpMarkReady(player, queueEntry);
+  });
+}
+
+// Flies a small "+N" heal bubble from the reborn card's screen position to
+// its original owner's HP avatar, along the exact same arc as
+// spawnDamageProjectile (same flyArcedBounceBubble call, same duration, same
+// bounce/scale behavior — per explicit request: "stessa identica animazione
+// della bolla danni"). Uses the dedicated healing-bubble.png art (see
+// createDamageBubbleVisual's 'heal' variant) instead of the attacker-colored
+// damage art, and shows "+N" instead of "-N"; the sound that plays on
+// landing is card-flip.mp3 instead of the hit sound — explicitly called out
+// as a PLACEHOLDER by Lorenzo ("per ora provvisorio, da cambiare"), since a
+// heal landing doesn't have a real "impact" sound design yet.
+function spawnHealProjectile(player, amount, sourceKey, queueEntry){
+  const from=getCellScreenCenter(sourceKey) || getAvatarScreenCenter(player);
+  const to=getAvatarScreenCenter(player);
+  if(!from || !to){
+    // Can't find either endpoint on screen (e.g. headless/edge case) — skip
+    // straight to marking this heal ready so the HP display still ends up
+    // correct even without the travel animation playing.
+    _hpMarkReady(player, queueEntry);
+    return;
+  }
+  const ARC_DUR_MS=ARCO_BOLLA_MS;
+  const bubble=createDamageBubbleVisual('heal');
+  bubble._setBubbleText('+'+amount);
+  fxLayer().appendChild(bubble);
+  flyArcedBounceBubble(bubble, from, to, ARC_DUR_MS, ()=>{
+    bubble.remove();
+    // Was a card-flip.mp3 placeholder ("per ora provvisorio, da cambiare");
+    // now the real dedicated heal sound.
+    playSfxFile('heal.mp3');
+    _hpMarkReady(player, queueEntry);
+  });
+}
 
 // dmg>0 is a normal hit ("-N" in red, avatar shakes). dmg<0 is a HEAL (used
 // by Rinascita's "+2 PV" on rebirth — see applyHpHeal below): shown as "+N"
@@ -41352,6 +41669,39 @@ function showHpDamagePopup(player, dmg){
   avatar.classList.add('hp-shake');
 }
 
+// Heals `amount` PV for `player` (used by Rinascita's rebirth — see the
+// rebirthPending loop in endTurn). Modeled as "negative damage" through the
+// exact same display queue/countdown machinery applyHpDamage uses (see
+// _hpQueueDamage/_hpProcessQueue — both already written generically enough
+// to count in either direction: "current += current<target ? 1 : -1"), so a
+// heal landing at the same time as an in-flight damage countdown for the
+// same player queues and animates correctly instead of racing it. HP is
+// intentionally NOT clamped to any maximum here — mirrors the rest of this
+// HP system, which never clamps (see applyHpDamage's own comment on why
+// negative HP is allowed to persist).
+function applyHpHeal(player, amount, sourceKey){
+  if(amount<=0) return;
+  // v0.75.0 — curare vuol dire TOGLIERE danno accumulato, non aggiungere vita.
+  const hpBefore=G.hp[player];
+  G.hp[player]=hpBefore-amount;
+  // Reserve this heal's spot in the display queue synchronously, same as
+  // applyHpDamage does for a hit — see that function's own comment for why
+  // this can't wait until the projectile's arc actually lands.
+  const queueEntry=_hpQueueDamage(player, -amount);
+  if(sourceKey){
+    // Play the same green arc-travel bubble a damage hit gets, launched from
+    // the reborn card's own cell (see the rebirthPending loop in endTurn,
+    // which passes rb.k here) — only marks the queue entry ready once the
+    // bubble actually lands, exactly like spawnDamageProjectile.
+    spawnHealProjectile(player, amount, sourceKey, queueEntry);
+  } else {
+    // No source cell available (shouldn't normally happen for Rinascita,
+    // but keeps this safe for any other future caller) — skip straight to
+    // ready, same fallback spawnDamageProjectile/spawnHealProjectile use
+    // when they can't resolve on-screen endpoints.
+    _hpMarkReady(player, queueEntry);
+  }
+}
 
 // ── HP display queue ────────────────────────────────────────────────
 // The big HP number's on-screen countdown is a strict per-player FIFO
@@ -42388,6 +42738,117 @@ function ondataDanno(owner, cellKeys, onDone){
   }, INIZIO + cellKeys.length*PASSO_MS + DURATA_MS*0.35);
 }
 
+// Creates the persistent central "collector" bubble that each feeder bubble
+// merges into — starts at the feeder's own small size with no number shown
+// yet (0 cards have arrived), and is grown/relabeled by
+// growSuddenDeathCollector as arrivals come in.
+function createSuddenDeathCollector(center, colorClass){
+  const el=createDamageBubbleVisual(colorClass, ['sd-bubble','sd-bubble-collector']);
+  el.style.left=center.x+'px';
+  el.style.top=center.y+'px';
+  el.style.width='26px';
+  el.style.height='26px';
+  el._setBubbleFontSize(0); // no readable number until the first arrival
+  fxLayer().appendChild(el);
+  return el;
+}
+
+// Grows the collector bubble and updates its shown total each time a feeder
+// bubble merges into it. Size/font scale linearly from the base feeder size
+// up to the full "big" bubble size (matching .sd-bubble-big's 96px/34px) by
+// the time the last card has merged in, so the growth reads as continuous
+// build-up rather than a sudden jump on the final arrival.
+function growSuddenDeathCollector(collector, arrived, total){
+  const t=total>0?arrived/total:1;
+  const size=26+(96-26)*t;
+  const fontSize=14+(34-14)*t;
+  collector.style.width=size.toFixed(1)+'px';
+  collector.style.height=size.toFixed(1)+'px';
+  collector._setBubbleFontSize(fontSize.toFixed(1));
+  collector._setBubbleText(arrived);
+}
+
+// Sends the (already-grown) collector bubble on its final leg to strike the
+// opponent's HP avatar — reuses the exact same curved arc + wind-up-back
+// motion as a normal combat hit's damage projectile (see
+// flyArcedBounceBubble/spawnDamageProjectile) instead of the feeder bubbles'
+// gentler straight-line ease, so the decisive last hit of sudden death reads
+// with the same weight as a real attack landing. The number stays visible
+// and unchanged throughout this leg — it already shows the full total from
+// growSuddenDeathCollector's last call.
+function launchSuddenDeathFinalBubble(collector, from, to, total, onArrive){
+  // v0.75.55 — lo stesso arco delle bolle di scontro, non piu' un numero suo:
+  // e' la stessa bolla che vola dallo stesso tipo di partenza allo stesso
+  // arrivo, e prima ci metteva 650ms invece di 728 anche a velocita' piena.
+  const ARC_DUR_MS=ARCO_BOLLA_MS/ONDATA_VELOCITA;
+  flyArcedBounceBubble(collector, from, to, ARC_DUR_MS, ()=>{
+    collector.remove();
+    playHitSfx();
+    onArrive();
+  }, {shrinkAmount:0.2});
+}
+
+// Mette a segno il danno di un'ondata, saltando l'inquadratura "conquista" di
+// applyHpDamage perche' qui non c'e' nessuna conquista: e' il tabellone che
+// pesa. Riusa la stessa presentazione dei colpi normali — il numero che
+// compare sull'avatar e il conteggio uno per uno — cosi' si legge uguale.
+// `onDone` scatta quando quel conteggio si e' fermato.
+function applyDannoOndata(defenderPlayer, dmg, onDone){
+  const fine = typeof onDone === 'function' ? onDone : ()=>{};
+  if(dmg<=0){ fine(); return; }
+  const hpBefore=G.hp[defenderPlayer];
+  // v0.75.0 — si SOMMA, come ogni altro danno: il contatore sale.
+  const hpAfter=hpBefore+dmg;
+  G.hp[defenderPlayer]=hpAfter;
+  const STEP_MS=110/ONDATA_VELOCITA;
+  const steps=Math.abs(hpAfter-hpBefore);
+  // L'ondata parte a scontro finito, quindi la coda di questo giocatore e'
+  // sempre libera: si accoda il colpo e lo si dichiara pronto nello stesso
+  // istante, senza nessun volo da aspettare. _hpMarkReady mostra subito il
+  // numero e la scossa; alla coda resta solo il conteggio.
+  _hpMarkReady(defenderPlayer, _hpQueueDamage(defenderPlayer, dmg));
+  // Si aspetta tutto il conteggio prima di chiamare onDone, altrimenti il
+  // turno ripartirebbe con dei numeri ancora in movimento a schermo.
+  setTimeout(fine, steps*STEP_MS + 120/ONDATA_VELOCITA);
+}
+
+// Flies a single small "feeder" bubble (one per card in play) from its
+// card's position to the shared collector point at screen-center, along a
+// simple straight-line path with a gentle ease, in the art variant
+// (`colorClass`, 'dark'/'light') matching the owning player. No damage
+// number is shown on these — the running total is shown on the persistent
+// collector bubble itself instead (see createSuddenDeathCollector/
+// growSuddenDeathCollector). Calls `onArrive` when it lands; the final
+// "big" leg toward the opponent's HP avatar is a separate, more deliberate
+// motion — see launchSuddenDeathFinalBubble, which reuses
+// flyArcedBounceBubble instead of this gentler convergence ease.
+function flySuddenDeathBubble(from, to, colorClass, onArrive){
+  const bubble=createDamageBubbleVisual(colorClass, ['sd-bubble']);
+  fxLayer().appendChild(bubble);
+  const DUR_MS=360/ONDATA_VELOCITA;   // v0.75.0 — dimezzato come tutta l'ondata
+  function easeOutCubic(t){ return 1-Math.pow(1-t,3); }
+  let startTs=null;
+  function step(ts){
+    if(startTs===null) startTs=ts;
+    const rawT=Math.min(1,(ts-startTs)/DUR_MS);
+    const t=easeOutCubic(rawT);
+    const x=from.x+(to.x-from.x)*t;
+    const y=from.y+(to.y-from.y)*t;
+    bubble.style.left=x+'px';
+    bubble.style.top=y+'px';
+    const scale=1+0.15*Math.sin(rawT*Math.PI); // slight puff mid-flight
+    bubble.style.transform=`translate(-50%,-50%) scale(${scale.toFixed(3)})`;
+    if(rawT<1){
+      const rafId=requestAnimationFrame(step);
+      activeAnimationFrames.add(rafId);
+    } else {
+      bubble.remove();
+      onArrive();
+    }
+  }
+  const rafId=requestAnimationFrame(step);
+  activeAnimationFrames.add(rafId);
+}
 
 // ── CARD BACK ────────────────────────────────────────────────────
 function drawCardBack(svg,cx,cy,R,fillColor,strokeColor,player){
@@ -49946,18 +50407,7 @@ function disegnaCardModal(card, playerIdx){
   // v0.74.1 — si disegna la carta AL LIVELLO SCELTO. `cartaAlLivello`
   // restituisce una copia: la carta vera, che vive anche in mano e sul
   // tabellone, non viene mai toccata da questa vetrina.
-  // ── v0.79.28 — LA CARTA AL LIVELLO SCELTO, UNA VOLTA SOLA ───────────────
-  // Questa copia serve a DUE cose, e prima ne serviva una: il disegno la
-  // riceveva, la lucentezza no (vedi la chiamata a cardDbBuildGlossLayer piu'
-  // sotto, che leggeva `card`). Con le frecce si saliva di livello, la lamina
-  // e il parallax comparivano — perche' passano di qui — e la specular map non
-  // compariva mai, perche' guardava il livello VERO della carta invece di
-  // quello scelto. E' il motivo per cui la specular sembrava sparita: c'era,
-  // ma nell'unico posto in cui i quattro livelli si guardano uno dopo l'altro
-  // le si chiedeva del livello sbagliato.
-  // Adesso la copia ha un nome e la vedono tutti e due.
-  const cartaMostrata = cartaAlLivello(card, _cmLivello);
-  const svg=buildFullHandCardSVG(cardFoilVisualCard(cartaMostrata), W, H);
+  const svg=buildFullHandCardSVG(cardFoilVisualCard(cartaAlLivello(card, _cmLivello)), W, H);
   // buildFullHandCardSVG tags its <svg> with .hand-card-full-svg/.hand-card-
   // svg, whose shared stylesheet rule is `position:absolute;inset:0;
   // width:100%;height:100%` — correct for its NORMAL home (filling a
@@ -49990,9 +50440,7 @@ function disegnaCardModal(card, playerIdx){
   // questo e' nel documento.
   cardHost._glossBuilt=false; cardHost._glossStops=null;
   cardHost._holoGrads=undefined; cardHost._holoBands=undefined;
-  // `cartaMostrata` e non `card`: la lucentezza deve rispondere al livello che
-  // si sta guardando, come gia' facevano lamina e parallax.
-  cardDbBuildGlossLayer(cardHost, cartaMostrata, svg);
+  cardDbBuildGlossLayer(cardHost, card, svg);
   _cardModalCard=card;
 
   overlay.classList.add('show');
