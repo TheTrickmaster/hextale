@@ -479,10 +479,21 @@ h1::before{
    allargandosi da tutte e due le parti ci finirebbe sopra. A destra c'e' il
    margine della pagina, che e' vuoto.
    Ogni carta scivola piu' della precedente e si alza un poco: e' cosi' che si
-   apre una mano di carte tenuta da un lato. */
-#mazzo .carte:hover .carta:nth-of-type(2){ transform:translate(34px,-10px); }
-#mazzo .carte:hover .carta:nth-of-type(3){ transform:translate(70px,-16px); }
-#mazzo .carte:hover .carta:nth-of-type(4){ transform:translate(108px,-20px); }
+   apre una mano di carte tenuta da un lato.
+
+   LE CLASSI SONO ESPLICITE, e non e' pedanteria: con `nth-of-type` queste tre
+   regole cadevano sulle carte SBAGLIATE. Quel selettore conta i tag, e il primo
+   <img> del palco e' l'alone — quindi la "seconda" era la prima, la "quarta" la
+   terza, e il Lupo, che di regola non ne aveva nessuna, restava fermo mentre la
+   carta prima di lui gli scivolava sotto e spariva.
+
+   `aperto` fa la stessa cosa di `:hover`: su uno schermo che si tocca il
+   passaggio del mouse non esiste, e senza questa seconda strada il ventaglio
+   non si aprirebbe mai. Serve anche al banco, che il passaggio non lo sa
+   simulare e cosi' puo' misurare il risultato invece di leggere le regole. */
+#mazzo .carte:hover .c2, #mazzo .carte.aperto .c2{ transform:translate(34px,-10px); }
+#mazzo .carte:hover .c3, #mazzo .carte.aperto .c3{ transform:translate(70px,-16px); }
+#mazzo .carte:hover .c4, #mazzo .carte.aperto .c4{ transform:translate(108px,-20px); }
 
 /* ── LA SFIDA ─────────────────────────────────────────────────────────────
    Il tabellone sta SOPRA al riquadro del testo, e il riquadro gli scivola
@@ -869,10 +880,10 @@ textarea.campo{ height:auto; min-height:132px; padding:14px 16px; resize:vertica
       <div class="guscio carte entra r1" aria-hidden="true">
       <div class="palco" data-largo="655.6" data-alto="527">
         <img class="alone" src="/web-assets/sito/alone-mazzo.svg" decoding="async" alt="" style="left:17.39px; top:35.57px; width:613.68px; height:427.04px">
-        <img class="carta" src="/web-assets/sito/carta1.png" decoding="async" alt="" style="left:-30.9px; top:118.5px; width:325px">
-        <img class="carta" src="/web-assets/sito/carta2.png" decoding="async" alt="" style="left:90.9px;  top:67px;    width:282px">
-        <img class="carta" src="/web-assets/sito/carta3.png" decoding="async" alt="" style="left:209.6px; top:19.7px;  width:319px">
-        <img class="carta" src="/web-assets/sito/carta4.png" decoding="async" alt="" style="left:327.2px; top:-21.7px; width:360px">
+        <img class="carta c1" src="/web-assets/sito/carta1.png" decoding="async" alt="" style="left:-30.9px; top:118.5px; width:325px">
+        <img class="carta c2" src="/web-assets/sito/carta2.png" decoding="async" alt="" style="left:90.9px;  top:67px;    width:282px">
+        <img class="carta c3" src="/web-assets/sito/carta3.png" decoding="async" alt="" style="left:209.6px; top:19.7px;  width:319px">
+        <img class="carta c4" src="/web-assets/sito/carta4.png" decoding="async" alt="" style="left:327.2px; top:-21.7px; width:360px">
       </div>
       </div>
     </div>
@@ -1502,6 +1513,18 @@ if(zone && detto){
   detto.classList.add('visto');
 }
 
+// ── IL VENTAGLIO SI APRE ANCHE COL DITO ───────────────────────────────────
+// Su uno schermo che si tocca il passaggio del mouse non esiste: senza questo
+// il ventaglio resterebbe chiuso per sempre, e le informazioni che tiene
+// nascoste dietro a ogni carta non le vedrebbe nessuno.
+var ventaglio = document.querySelector('#mazzo .carte');
+if(ventaglio){
+  ventaglio.addEventListener('click', function(){
+    if(!stretto.matches) return;   // col mouse ci pensa gia' :hover
+    ventaglio.classList.toggle('aperto');
+  });
+}
+
 // ══════════════════════════════════════════════════════════════════════════
 // LE DOMANDE
 // ══════════════════════════════════════════════════════════════════════════
@@ -1613,7 +1636,7 @@ var PORTA = 'https://api.hextalegame.com/contatto';
 // Finche' questa riga e' vuota il reCAPTCHA e' spento e il modulo funziona come
 // prima: e' quello che serve per lavorare in locale, dove il dominio non
 // combacia comunque.
-var RECAPTCHA_CHIAVE = '';
+var RECAPTCHA_CHIAVE = '6LcHza4tAAAAANKA7-KguwbNTWynByVPHYi4G4QG';
 
 var _recaptchaPronto = null;
 function recaptchaAvvia(){

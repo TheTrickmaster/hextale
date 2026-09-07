@@ -536,3 +536,24 @@ Il banco guarda anche **la cartella**, che e' l'altra meta' del problema:
   diversamente non lo trova nessuno, con qualunque estensione. Non e' pero' un
   errore del codice, e non e' sempre uno sbaglio — l'arte di una carta in cui
   un'altra si trasforma sta di casa nella cartella della prima.
+
+### Il difetto che prova-sito.js si e' lasciato scappare
+
+Le tre regole che aprono il ventaglio c'erano tutte e tre, e nessuna andava
+verso sinistra — che e' esattamente quello che il banco controllava, leggendo il
+testo del foglio di stile. Solo che cadevano sulle **carte sbagliate**:
+`nth-of-type` conta i tag, e il primo `<img>` del palco e' l'alone, non una
+carta. La "seconda" era la prima, la "quarta" la terza, e la quarta — che di
+regola non ne aveva nessuna — restava ferma mentre quella prima di lei le
+scivolava sotto e spariva del tutto.
+
+**Un controllo che legge quello che il codice dice di fare non e' un
+controllo.** Adesso il banco apre il ventaglio davvero (con la classe `aperto`,
+che fa quel che fa `:hover` e serve anche a chi tocca lo schermo invece di
+passarci sopra col mouse) e misura **quanto si vede di ogni carta**, prima e
+dopo. Se una sparisce sotto la vicina, lo dice.
+
+E si ricorda di spegnere le transizioni prima di misurare: in una finestra che
+non e' a schermo non avanzano, e leggendo subito dopo si ottiene due volte il
+valore di partenza — cioe' il ventaglio chiuso, due volte, e un controllo che
+non fallisce mai.

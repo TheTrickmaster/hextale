@@ -293,21 +293,44 @@ app.whenReady().then(async () => {
       const p = q('#mazzo .palco');
       dice(!p.hasAttribute('data-largo-aperto'), 'il palco del ventaglio non ha piu- un secondo fattore');
       dice(p.style.getPropertyValue('--scala-aperta') === '', 'e nessuno glielo scrive');
-      // Aprendosi cresce solo verso DESTRA: a sinistra c'e' il testo.
-      // Le regole del passaggio si leggono nel TESTO del foglio di stile: da
-      // document.styleSheets quell'elenco fa alzare un'eccezione dentro alla
-      // pagina servita, e il banco moriva invece di dire cosa non andava.
-      // E si cercano senza espressioni regolari, perche' questo corpo vive
-      // dentro a un template literal e li' dentro le barre rovesciate le mangia
-      // il template prima che diventino codice.
-      const fogli = [];
-      Array.prototype.forEach.call(document.querySelectorAll('style'), function(s){ fogli.push(s.textContent); });
-      const foglio = fogli.join(' ');
-      const aperture = foglio.split('#mazzo .carte:hover .carta').slice(1)
-        .map(function(x){ return x.slice(0, x.indexOf('}') + 1); });
-      dice(aperture.length === 3, 'tre carte si spostano aprendosi, la prima resta ferma', aperture.length);
-      dice(aperture.every(function(x){ return x.indexOf('translate(-') < 0; }),
-        'e nessuna va verso sinistra', aperture.join(' ').slice(0, 90));
+      // Si apre il ventaglio DAVVERO e si guarda dove finiscono le carte. Le
+      // regole si potevano leggere anche prima, ed erano giuste: cadevano solo
+      // sulle carte sbagliate, e questo si vede solo misurando.
+      const guscio = q('#mazzo .carte');
+      const quattro = tutti('#mazzo .carte .carta');
+      dice(quattro.length === 4 && quattro.every(function(c, i){ return c.classList.contains('c' + (i+1)); }),
+        'ogni carta ha il suo nome, c1..c4',
+        quattro.map(function(c){ return c.className; }).join(' | '));
+      // Quanto si vede di ognuna: dal suo bordo sinistro a quello della
+      // successiva, che le sta sopra. L'ultima si vede tutta.
+      const visibili = function(){
+        const x = quattro.map(function(c){ return c.getBoundingClientRect(); });
+        return [x[1].left - x[0].left, x[2].left - x[1].left, x[3].left - x[2].left];
+      };
+      // Le transizioni si spengono: in una finestra che non e' a schermo non
+      // avanzano, e misurando subito dopo si legge sempre il valore di
+      // PARTENZA — cioe' il ventaglio chiuso, due volte.
+      const fermo2 = document.createElement('style');
+      fermo2.textContent = '#mazzo .carte .carta{transition:none !important}';
+      document.head.appendChild(fermo2);
+      const chiuso = visibili();
+      guscio.classList.add('aperto');
+      const aperto = visibili();
+      guscio.classList.remove('aperto');
+      fermo2.remove();
+      dice(aperto.every(function(v, i){ return v > chiuso[i] + 4; }),
+        'aprendosi ogni carta si scopre di piu-',
+        chiuso.map(Math.round).join(',') + ' -> ' + aperto.map(Math.round).join(','));
+      // E nessuna finisce sotto alla vicina: e' il difetto vero, quello che
+      // faceva sparire Little John.
+      dice(aperto.every(function(v){ return v > 30; }),
+        'e nessuna sparisce dietro a quella dopo', aperto.map(Math.round).join(','));
+      // E da ferme stanno alle posizioni del disegno: ogni immagine e' centrata
+      // sul riquadro che la sua carta occupa in Figma.
+      const dove = [-30.9, 90.9, 209.6, 327.2];
+      dice(quattro.every(function(c, i){ return Math.abs(c.offsetLeft - dove[i]) <= 1; }),
+        'e da ferme stanno alle posizioni del disegno',
+        quattro.map(function(c){ return c.offsetLeft; }).join(' '));
     })();
     const carte = tutti('#mazzo .carte .carta');
     dice(carte.length === 4, 'le quattro carte del mazzo', carte.length);
