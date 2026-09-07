@@ -157,3 +157,28 @@ Con un nome di file come argomento fa anche due fotografie: la schermata come
 si apre e come resta dopo la scelta. Per fotografarla va tolto il velo di
 apertura (`#splash`), che sta sopra a tutto finche' il gioco non ha finito di
 caricare.
+
+## prova-404.js — la pagina che non c'e'
+
+    $ELECTRON strumenti/prova-404.js [scatto.png]
+    HX_SCHERMO=390x844 $ELECTRON strumenti/prova-404.js [scatto.png]
+
+Il rischio vero di una 404 non e' come sta in piedi: e' che venga servita
+**sotto l'indirizzo sbagliato che l'ha chiamata**. Chi finisce su
+`/play/roba/che/non/esiste` vede quella pagina, ma la barra dice ancora quello,
+e un percorso relativo andrebbe a cercare i font dentro a una cartella
+immaginaria. La pagina arriverebbe nuda proprio nel momento in cui il
+visitatore si e' gia' perso una volta — ed e' un guasto che aprendo il file a
+mano non si vede MAI, perche' aprendolo a mano l'indirizzo e' giusto.
+
+Per questo il banco non apre il file: tira su un server sulla radice del sito,
+serve `404.html` con lo stato 404 come fa GitHub Pages, e chiede la pagina da
+un indirizzo che non esiste. Poi conta le richieste che il server ha visto
+arrivare: se una risorsa fosse cercata nel posto sbagliato, il server la
+vedrebbe passare sotto `/play/roba/che/...` e la segnalerebbe.
+
+Il resto sono le misure che Lorenzo ha dettato — tre stacchi da cento, uno da
+sedici, i corpi e i colori — lette **sullo schermo** e non nel CSS: un margine
+dichiarato puo' essere schiacciato da un altro margine, e nessuno se ne
+accorge. `HX_SCHERMO` la guarda su un telefono, dove gli stessi controlli
+valgono con le cinque misure che il `@media` cala apposta.

@@ -38,6 +38,11 @@ const ESTENSIONI = ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg', '.mp3', '.
 // materiale di prova, e copie vecchie del gioco.
 // v0.79.20 — 'main-menu', 'player-ui' e 'buttons' non esistono piu': la prima e
 // la seconda sono state svuotate dentro a ui/, la terza in _old/.
+// 'web-assets' resta fuori ed e' voluto: e' la grafica del SITO — il fondale e
+// il "404" della pagina 404 — e questo programma risponde a una domanda sola,
+// "il gioco nomina questo file?". Il gioco non li nomina e non deve: li nomina
+// 404.html, che non passa di qui. Aggiungendola all'elenco uscirebbero tre
+// orfani che orfani non sono.
 const CARTELLE = ['audio', 'cards', 'fonts', 'loading-screen',
                   'timer', 'ui', 'unpack-screen'];
 const CODICE = ['play/index.html', 'server', 'strumenti', 'desktop/main.js', 'desktop/preload.js'];

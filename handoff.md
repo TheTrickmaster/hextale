@@ -13,7 +13,9 @@ Tutto vive in `game-assets/`, che e' anche il repository GitHub
 (`TheTrickmaster/hextale`, pubblicato su `thetrickmaster.github.io/hextale/`).
 **Si gioca da `https://hextalegame.com/play/`**; in radice non c'e' nessuna
 pagina d'ingresso, e non deve tornarci — vedi la REGOLA FISSA sulla
-pubblicazione.
+pubblicazione. L'unico file in radice e' `404.html`, che non e' una pagina
+d'ingresso ma il contrario: e' quella che si vede quando un indirizzo non
+porta da nessuna parte.
 
 | Cosa | Dove |
 |---|---|
@@ -29,6 +31,8 @@ pubblicazione.
 | Pezzi delle carte | `cards/card-parts/`, `ui/tiles/` |
 | Bustine | `cards/packs/` |
 | Schermata iniziale | `loading-screen/` |
+| Pagina 404 | `404.html` in radice — vedi piu' sotto |
+| Grafica del sito (non del gioco) | `web-assets/` |
 
 **Il database delle carte e' il SERVER (dalla v0.77.36).** Il Google Sheet
 (foglio `Cards DB`) resta lo strumento con cui le carte si SCRIVONO, ma il
@@ -2416,3 +2420,42 @@ Stessa forma: `_daFileLocale`, la risoluzione locale-prima-di-remoto degli
 asset, la definizione di "carta che si ottiene" (`carteGiocabili`, usata da
 mazzi, bustine e Collezione). Quando un dato serve a due schermate, non deve
 vivere in nessuna delle due.
+
+---
+
+## La pagina 404 (dalla 07/09/2026)
+
+`404.html` sta in radice e si chiama cosi' perche' e' il nome che **GitHub
+Pages cerca da solo** quando un indirizzo non porta da nessuna parte: non c'e'
+niente da configurare, basta che il file stia li'. E' l'unico file della radice
+(vedi la REGOLA FISSA sulla pubblicazione: li' non ci va nient'altro).
+
+**Non e' il gioco.** E' una pagina sola, senza il caricatore di risorse e senza
+`vestiPulsante`: i disegni del pulsante stanno scritti a mano nel CSS, ed e'
+una scelta — tirarsi dietro quella macchina per un pulsante solo costerebbe
+piu' di quanto valga. Il vestito pero' e' identico e viene dallo stesso posto
+(`/ui/button-opaque-*`), quindi il giorno in cui l'arte cambia cambia anche
+li' senza che nessuno debba ricordarsene.
+
+**Tutti gli indirizzi dentro alla pagina partono dalla radice** (`/fonts/…`,
+`/ui/…`, `/web-assets/…`), e non e' pignoleria. La pagina viene servita SOTTO
+l'indirizzo sbagliato che l'ha chiamata: chi finisce su
+`/play/roba/che/non/esiste` vede questa pagina, ma la barra dice ancora
+quello, e un percorso relativo andrebbe a cercare i font dentro a una cartella
+immaginaria — la pagina arriverebbe nuda proprio nel momento in cui il
+visitatore si e' gia' perso una volta. **E' un guasto che aprendo il file a
+mano non si vede mai**, perche' aprendolo a mano l'indirizzo e' giusto. Per
+questo il banco (`strumenti/prova-404.js`) non apre il file: tira su un server
+sulla radice e chiede la pagina da un indirizzo inesistente.
+
+La grafica sua e' in `web-assets/` — `404-bg.jpg`, `404.png` e il logo. E'
+una cartella nuova e vuole dire "del sito, non del gioco": il preloader del
+gioco non la conosce e non deve conoscerla, e `controlla-asset.js` non ci
+guarda dentro.
+
+**Il pulsante "Back to homepage" porta a `/`, che oggi non esiste**: in radice
+non c'e' nessun `index.html` (e' stato tolto apposta, vedi la REGOLA FISSA), e
+GitHub Pages per un indirizzo che non esiste serve... la 404 stessa. Quindi
+oggi il pulsante gira in tondo. Lorenzo lo sa — "per ora vuota" — e la pagina
+d'ingresso arrivera'. Il giorno in cui arriva, il pulsante e' gia' a posto e
+non c'e' niente da cambiare qui.
