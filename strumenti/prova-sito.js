@@ -254,7 +254,7 @@ app.whenReady().then(async () => {
     dice(st('.cartellino b','color') === 'rgb(255, 255, 255)', 'e le parti in risalto bianche', st('.cartellino b','color'));
     if(!STRETTO){
       // Le posizioni sono quelle del disegno, dentro al palco.
-      const attese = { nome:[250.5,36], potere:[0,246], livello:[773.5,236], abilita:[736.5,501], tratti:[136.5,413] };
+      const attese = { nome:[200,40], potere:[-10,185], livello:[745,180], abilita:[715,500], tratti:[100,410] };
       const palco = q('#collezione .palco');
       const sbagliati = Object.keys(attese).filter(k => {
         const c = q('.cartellino.c-' + k);
@@ -286,19 +286,28 @@ app.whenReady().then(async () => {
       'la pagina non scorre di lato', document.documentElement.scrollWidth + ' su ' + innerWidth);
 
     // ── IL MAZZO ────────────────────────────────────────────────────────────
-    // Aprendosi il ventaglio diventa piu' largo della colonna: il palco deve
-    // avere il suo secondo fattore di scala, altrimenti le carte uscirebbero
-    // dai bordi e finirebbero sopra al testo accanto.
+    // Il ventaglio si apre e il palco NON si rimpicciolisce: era quello a far
+    // sembrare che le carte si accavallassero invece di aprirsi — si
+    // allontanavano e nello stesso momento diventavano tutte piu' piccole.
     (function(){
       const p = q('#mazzo .palco');
-      const aperto = parseFloat(p.getAttribute('data-largo-aperto'));
-      dice(aperto > parseFloat(p.getAttribute('data-largo')),
-        'il ventaglio dichiara quanto diventa largo da aperto', aperto);
-      const sa = parseFloat(p.style.getPropertyValue('--scala-aperta'));
-      dice(sa > 0 && Math.abs(sa - Math.min(1, p.parentNode.clientWidth/aperto)) < 0.002,
-        'e il palco si rimpicciolisce di quel tanto', sa);
-      dice(aperto * sa <= p.parentNode.clientWidth + 1,
-        'cosi- aperto ci sta ancora dentro', Math.round(aperto*sa) + ' su ' + p.parentNode.clientWidth);
+      dice(!p.hasAttribute('data-largo-aperto'), 'il palco del ventaglio non ha piu- un secondo fattore');
+      dice(p.style.getPropertyValue('--scala-aperta') === '', 'e nessuno glielo scrive');
+      // Aprendosi cresce solo verso DESTRA: a sinistra c'e' il testo.
+      // Le regole del passaggio si leggono nel TESTO del foglio di stile: da
+      // document.styleSheets quell'elenco fa alzare un'eccezione dentro alla
+      // pagina servita, e il banco moriva invece di dire cosa non andava.
+      // E si cercano senza espressioni regolari, perche' questo corpo vive
+      // dentro a un template literal e li' dentro le barre rovesciate le mangia
+      // il template prima che diventino codice.
+      const fogli = [];
+      Array.prototype.forEach.call(document.querySelectorAll('style'), function(s){ fogli.push(s.textContent); });
+      const foglio = fogli.join(' ');
+      const aperture = foglio.split('#mazzo .carte:hover .carta').slice(1)
+        .map(function(x){ return x.slice(0, x.indexOf('}') + 1); });
+      dice(aperture.length === 3, 'tre carte si spostano aprendosi, la prima resta ferma', aperture.length);
+      dice(aperture.every(function(x){ return x.indexOf('translate(-') < 0; }),
+        'e nessuna va verso sinistra', aperture.join(' ').slice(0, 90));
     })();
     const carte = tutti('#mazzo .carte .carta');
     dice(carte.length === 4, 'le quattro carte del mazzo', carte.length);

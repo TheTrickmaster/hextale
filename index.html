@@ -340,10 +340,6 @@ h1::before{
    somiglia, e non ci sono venti numeri da rifare a ogni ripensamento. */
 .guscio{ position:relative; width:100%; }
 .palco{ position:absolute; top:0; left:50%; transform-origin:top center; }
-/* Un palco che si apre passa dal suo fattore chiuso a quello aperto con la
-   stessa lentezza con cui si aprono le carte: sono lo stesso gesto. */
-.guscio.carte .palco{ transition:transform .5s var(--molla); }
-.guscio.carte:hover .palco{ transform:scale(var(--scala-aperta,1)) !important; }
 .palco > *{ position:absolute; }
 
 /* ── LA COLLEZIONE ────────────────────────────────────────────────────── */
@@ -368,7 +364,7 @@ h1::before{
    Le misure sono quelle del disegno: 312.6 x 551.5, alla posizione 450.
    La carta e' costruita a 374x642 e si adatta, come fa nel gioco quando la
    stessa carta compare grande o piccola. */
-.carta-scena{ position:absolute; left:450px; top:0; width:312.6px; height:551.5px; z-index:2; }
+.carta-scena{ position:absolute; left:450px; top:0; width:312.6px; height:536.7px; z-index:2; }
 .carta-scena .hx-carta{ position:relative; width:100%; height:100%; }
 .carta-scena .hx-carta svg{ width:100%; height:100%; display:block;
   filter:drop-shadow(0 12px 40px rgba(0,0,0,.7)); }
@@ -411,6 +407,19 @@ h1::before{
    L'angolo che guarda la carta e' SQUADRATO e porta una freccetta: e' lui a
    dire di quale pezzo si sta parlando, e per questo e' l'unico dei quattro
    angoli a non essere arrotondato. */
+/* Compaiono uno dietro l'altro quando la sezione entra in vista. La classe
+   `dentro-vista` la mette l'osservatore sul guscio, e i ritardi la
+   trasformano in una fila invece che in un blocco. */
+.vivo .cartellino{ opacity:0; transform:translateY(12px); }
+.vivo .dentro-vista .cartellino{
+  opacity:1; transform:none;
+  transition:opacity .5s ease, transform .5s var(--molla);
+}
+.vivo .dentro-vista .c-nome   { transition-delay:.15s; }
+.vivo .dentro-vista .c-potere { transition-delay:.30s; }
+.vivo .dentro-vista .c-tratti { transition-delay:.45s; }
+.vivo .dentro-vista .c-livello{ transition-delay:.60s; }
+.vivo .dentro-vista .c-abilita{ transition-delay:.75s; }
 .cartellino{
   z-index:3;                       /* sopra alla carta, non sotto */
   padding:20px;
@@ -462,24 +471,39 @@ h1::before{
 #mazzo .carte{ flex:1.5 1 380px; max-width:673.6px; }
 #mazzo .carte img.carta{
   filter:drop-shadow(0 10px 22px rgba(0,0,0,.55));
-  transition:transform .5s var(--molla);
+  transition:transform .55s var(--molla);
   will-change:transform;
 }
 #mazzo .carte img.alone{ pointer-events:none; opacity:.8; mix-blend-mode:plus-lighter; }
-/* Aprendosi, ogni carta scivola verso l'esterno e si alza un poco: le due di
-   mezzo poco, le due ai lati molto. */
-#mazzo .carte:hover .carta:nth-of-type(1){ transform:translate(-190px,10px); }
-#mazzo .carte:hover .carta:nth-of-type(2){ transform:translate(-64px,-8px); }
-#mazzo .carte:hover .carta:nth-of-type(3){ transform:translate(64px,-8px); }
-#mazzo .carte:hover .carta:nth-of-type(4){ transform:translate(190px,10px); }
+/* Il ventaglio si apre VERSO DESTRA e basta: a sinistra c'e' il testo, e
+   allargandosi da tutte e due le parti ci finirebbe sopra. A destra c'e' il
+   margine della pagina, che e' vuoto.
+   Ogni carta scivola piu' della precedente e si alza un poco: e' cosi' che si
+   apre una mano di carte tenuta da un lato. */
+#mazzo .carte:hover .carta:nth-of-type(2){ transform:translate(34px,-10px); }
+#mazzo .carte:hover .carta:nth-of-type(3){ transform:translate(70px,-16px); }
+#mazzo .carte:hover .carta:nth-of-type(4){ transform:translate(108px,-20px); }
 
 /* ── LA SFIDA ─────────────────────────────────────────────────────────────
    Il tabellone sta SOPRA al riquadro del testo, e il riquadro gli scivola
    sotto: e' il disegno, ed e' anche quel che dice la scena — il tavolo da
    gioco davanti, il racconto dietro. */
 #sfida{ position:relative; padding:90px 0 110px; text-align:center; overflow:hidden; }
-#sfida .sfondo{ position:absolute; inset:-10% 0; z-index:0; opacity:.5; pointer-events:none; }
-#sfida .sfondo img{ position:absolute; left:50%; top:0; transform:translateX(-50%); height:100%; width:auto; max-width:none; will-change:transform; }
+#sfida .sfondo{
+  position:absolute; z-index:0; pointer-events:none;
+  left:calc(50% - 56.45px); top:calc(50% + 161.96px);
+  width:2290px; height:878px;
+  /* Specchiata, come nel disegno: nel file la lanterna sta a destra, e il
+     disegno la vuole a sinistra. In Figma sono due trasformazioni (ruota di 180
+     e ribalta in verticale), che messe insieme sono uno specchio orizzontale. */
+  transform:translate(-50%,-50%) scaleX(-1);
+  filter:blur(9.2px);
+  /* Nel disegno la fascia e' ritagliata da una maschera a forma di ovale
+     sfumato: qui la maschera e' quell'ovale, scritto invece che esportato. */
+  -webkit-mask-image:radial-gradient(ellipse 47% 44% at 50% 50%, #000 52%, rgba(0,0,0,.35) 78%, transparent 100%);
+          mask-image:radial-gradient(ellipse 47% 44% at 50% 50%, #000 52%, rgba(0,0,0,.35) 78%, transparent 100%);
+}
+#sfida .sfondo img{ width:100%; height:100%; object-fit:cover; opacity:.94; max-width:none; will-change:transform; }
 #sfida .contenuto{ position:relative; z-index:1; }
 #sfida .scena{ position:relative; width:min(900px, calc(100% - 48px)); margin:46px auto 0; }
 #sfida .tavolo{ position:relative; z-index:2; width:min(760px, 100%); margin:0 auto; }
@@ -579,7 +603,7 @@ footer .nota a:hover{ text-decoration:underline; }
 #contatto{
   position:fixed; inset:0; z-index:100;
   display:flex; align-items:center; justify-content:center; padding:24px;
-  background:rgba(3,7,7,.72);
+  background:rgba(0,0,0,.3);
   -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px);
   opacity:0; visibility:hidden; pointer-events:none;
   transition:opacity .2s ease, visibility 0s linear .2s;
@@ -588,36 +612,55 @@ footer .nota a:hover{ text-decoration:underline; }
   opacity:1; visibility:visible; pointer-events:auto;
   transition:opacity .2s ease, visibility 0s linear 0s;
 }
-#contatto .riquadro{
-  position:relative; width:min(530px, 100%); padding:30px;
-  background:linear-gradient(135deg, rgba(84,96,98,.55), rgba(29,38,39,.55));
-  border:1.5px solid rgba(255,255,255,.2); border-radius:28px;
+/* La colonna: la scatola, e SOTTO — fuori da lei — il pulsante che chiude. */
+#contatto .colonna{
+  display:flex; flex-direction:column; align-items:center; gap:20px;
+  max-width:100%;
   transform:translateY(18px) scale(.98);
   transition:transform .3s var(--molla);
 }
-#contatto.aperta .riquadro{ transform:none; }
-#contatto h2{ font-family:'Marcellus SC',Georgia,serif; font-weight:400; font-size:30px; color:var(--oro); text-align:center; margin-bottom:6px; }
-#contatto .sotto{ text-align:center; color:var(--grigio); font-size:15px; margin-bottom:22px; }
-#contatto label{ display:block; font-size:13px; color:var(--grigio); margin:0 0 6px 2px; }
-.campo{
-  width:100%; padding:13px 16px; margin-bottom:16px;
-  font-family:'Rosarivo',Georgia,serif; font-size:16px; color:var(--oro);
-  background:rgba(0,0,0,.22); border:1px solid rgba(255,255,255,.2); border-radius:14px;
-  outline:none; transition:border-color .16s ease, background .16s ease;
+#contatto.aperta .colonna{ transform:none; }
+/* ── DAL GIOCO: .hx-modal-box ────────────────────────────────────────────
+   Stesso gradiente, stesso bordo interno, stessa ombra, stesse misure. */
+#contatto .riquadro{
+  position:relative;
+  width:460px; max-width:100%;
+  padding:30px;
+  border-radius:30px;
+  background-image:linear-gradient(135deg, #2F3837 0%, #1A1F1E 100%);
+  box-shadow:inset 0 0 0 1.5px rgba(255,255,255,0.2), 0 8px 28px rgba(0,0,0,0.6);
+  display:flex; flex-direction:column; align-items:stretch; gap:20px;
+  text-align:left;
 }
-.campo:focus{ border-color:rgba(255,231,178,.75); background:rgba(0,0,0,.32); }
-textarea.campo{ resize:vertical; min-height:120px; }
-#contatto .fondo-riga{ display:flex; justify-content:center; margin-top:6px; }
-#contatto .esito{ min-height:22px; text-align:center; font-size:14px; margin:10px 0 0; }
+#contatto h2{
+  margin:0; font-family:'Marcellus SC',Georgia,serif; font-weight:400;
+  font-size:28px; line-height:1.1; color:var(--oro); text-align:center;
+}
+#contatto .sotto{ margin:-12px 0 0; text-align:center; color:#A7B6B8; font-size:15px; }
+#contatto label{ display:block; font-size:13px; color:#8FA1A3; margin:0 0 8px 4px; }
+#contatto .riga-campo{ display:block; }
+/* ── DAL GIOCO: .hx-campo ───────────────────────────────────────────────── */
+.campo{
+  width:100%; height:44px; padding:0 16px; box-sizing:border-box;
+  background:rgba(0,0,0,0.15);
+  border:1px solid rgba(255,255,255,0.2); border-radius:16px;
+  box-shadow:inset 0 4px 10px rgba(0,0,0,0.35);
+  font-family:'Rosarivo',Georgia,serif; font-size:20px; color:#EDE0C6;
+  outline:none;
+  transition:border-color 0.16s ease, background 0.16s ease;
+}
+.campo::placeholder{ color:#8FA1A3; opacity:1; }
+.campo:focus{ border-color:rgba(255,255,255,0.35); background:rgba(0,0,0,0.22); }
+.campo::selection{ background:#4B585C; color:#EDE0C6; }
+textarea.campo{ height:auto; min-height:132px; padding:14px 16px; resize:vertical; line-height:1.3; }
+#contatto .fondo-riga{ display:flex; justify-content:center; }
+#contatto .fondo-riga .btn{ min-width:300px; }
+#contatto .esito{ min-height:20px; text-align:center; font-size:14px; margin:0; }
 #contatto .esito.ok{ color:#9BD8A6; }
 #contatto .esito.no{ color:#E29A98; }
-.chiudi-x{
-  position:absolute; right:18px; top:14px; width:34px; height:34px;
-  background:none; border:0; cursor:pointer; opacity:.7;
-  transition:opacity .16s ease, transform .16s ease;
-}
-.chiudi-x:hover{ opacity:1; transform:scale(1.08); }
-.chiudi-x img{ width:100%; height:100%; }
+/* Il segno di Google: obbligatorio quando si nasconde il suo riquadro. */
+#contatto .google{ margin:0; text-align:center; font-size:11px; line-height:1.4; color:#7E8D8F; }
+#contatto .google a{ color:#A7B6B8; text-decoration:underline; }
 
 /* ══════════════════════════════════════════════════════════════════════════
    LO SCHERMO STRETTO
@@ -674,7 +717,7 @@ textarea.campo{ resize:vertical; min-height:120px; }
   .anatomia .palco{ position:static; width:auto !important; height:auto !important;
                     margin-left:0 !important; transform:none !important; }
   .anatomia .cartellino{ display:none; }
-  .carta-scena{ position:relative; left:auto; top:auto; margin:0 auto; width:min(300px,78vw); height:auto; aspect-ratio:312.6/551.5; }
+  .carta-scena{ position:relative; left:auto; top:auto; margin:0 auto; width:min(300px,78vw); height:auto; aspect-ratio:374/642; }
   .tocco{ display:block; }
   #tocco-detto{ display:block; }
   #collezione .sfondo{ top:90px; }
@@ -771,26 +814,26 @@ textarea.campo{ resize:vertical; min-height:120px; }
           </div>
         </div>
 
-        <div class="cartellino punta-dx c-nome" style="left:250.5px; top:36px; width:284px">
+        <div class="cartellino punta-dx c-nome" style="left:200px; top:40px; width:284px">
           <h3>Name</h3>
           <p>The name of the character represented in the card</p>
         </div>
-        <div class="cartellino punta-dx c-potere" style="left:0; top:246px; width:488px">
+        <div class="cartellino punta-dx c-potere" style="left:-10px; top:185px; width:488px">
           <h3>Card power</h3>
           <p>A card can have <b>2 to 4 different values</b> on it. The sides of the hexagon affected by a value are divided by lines that cross its artwork.</p>
           <p>For example, this card here has a value of 12 on the two sides on the right, 8 on the two on the left and 6 on the two at the bottom.</p>
         </div>
-        <div class="cartellino punta-giu-sx c-livello" style="left:773.5px; top:236px; width:488px">
+        <div class="cartellino punta-giu-sx c-livello" style="left:745px; top:180px; width:488px">
           <h3>Level</h3>
           <p>You can level up a card <b>up to level 4</b>.</p>
           <p>Each level grants the card a buff on its power and in some cases can <b>unlock game-changing abilities</b>!</p>
           <p>A card that looks weak on level 1 can become extremely strong or useful if you level it up enough.</p>
         </div>
-        <div class="cartellino punta-sx c-abilita" style="left:736.5px; top:501px; width:430px">
+        <div class="cartellino punta-sx c-abilita" style="left:715px; top:500px; width:430px">
           <h3>Ability description / Flavor text</h3>
           <p>A card with ability has the ability name and description written at its bottom. A card without ability, on the other hand, will show a flavor text with a quote of the character.</p>
         </div>
-        <div class="cartellino punta-dx c-tratti" style="left:136.5px; top:413px; width:378px">
+        <div class="cartellino punta-dx c-tratti" style="left:100px; top:410px; width:378px">
           <h3>Traits</h3>
           <p>Traits are mostly determined by a character’s lore and story. Learn to use them in <b>combo with powerful abilities</b> to destroy your opponent!</p>
         </div>
@@ -824,12 +867,12 @@ textarea.campo{ resize:vertical; min-height:120px; }
            ruotate, quindi qui ci sono solo le posizioni — i centri su un arco,
            le due di mezzo un po' piu' in alto delle due ai lati. -->
       <div class="guscio carte entra r1" aria-hidden="true">
-      <div class="palco" data-largo="862" data-alto="463" data-largo-aperto="1242">
-        <img class="alone" src="/web-assets/sito/alone-mazzo.svg" decoding="async" alt="" style="left:20px; top:20px; width:820px">
-        <img class="carta" src="/web-assets/sito/carta1.png" decoding="async" alt="" style="left:2.5px;   top:22.5px; width:325px">
-        <img class="carta" src="/web-assets/sito/carta2.png" decoding="async" alt="" style="left:179px;   top:10.5px; width:282px">
-        <img class="carta" src="/web-assets/sito/carta3.png" decoding="async" alt="" style="left:340.5px; top:1.5px;  width:319px">
-        <img class="carta" src="/web-assets/sito/carta4.png" decoding="async" alt="" style="left:500px;   top:17.5px; width:360px">
+      <div class="palco" data-largo="655.6" data-alto="527">
+        <img class="alone" src="/web-assets/sito/alone-mazzo.svg" decoding="async" alt="" style="left:17.39px; top:35.57px; width:613.68px; height:427.04px">
+        <img class="carta" src="/web-assets/sito/carta1.png" decoding="async" alt="" style="left:-30.9px; top:118.5px; width:325px">
+        <img class="carta" src="/web-assets/sito/carta2.png" decoding="async" alt="" style="left:90.9px;  top:67px;    width:282px">
+        <img class="carta" src="/web-assets/sito/carta3.png" decoding="async" alt="" style="left:209.6px; top:19.7px;  width:319px">
+        <img class="carta" src="/web-assets/sito/carta4.png" decoding="async" alt="" style="left:327.2px; top:-21.7px; width:360px">
       </div>
       </div>
     </div>
@@ -876,31 +919,43 @@ textarea.campo{ resize:vertical; min-height:120px; }
     <img class="logo-studio" src="/loading-screen/big-fennel-logo.png" loading="lazy" decoding="async" alt="Big Fennel">
     <p class="nota">
       Hextale is made by Big Fennel.<br>
-      Questions? Write to <a href="mailto:support@hextalegame.com">support@hextalegame.com</a>.
+      <a href="#" id="apri-contatto-piede">Questions? Contact us!</a>
     </p>
   </div>
 </footer>
 
 <div id="contatto" role="dialog" aria-modal="true" aria-labelledby="contatto-titolo" aria-hidden="true">
-  <div class="riquadro">
-    <button class="chiudi-x" type="button" id="chiudi-contatto" aria-label="Close">
-      <img src="/ui/close-icon-red.png" alt="">
+  <div class="colonna">
+    <div class="riquadro">
+      <h2 id="contatto-titolo">Tell us what you want to know</h2>
+      <p class="sotto">We read everything and we answer.</p>
+      <form id="modulo-contatto" novalidate>
+        <div class="riga-campo">
+          <label for="c-email">Your email address</label>
+          <input class="campo" type="email" id="c-email" name="email" required autocomplete="email" placeholder="you@example.com">
+        </div>
+        <div class="riga-campo" style="margin-top:20px">
+          <label for="c-messaggio">Your message</label>
+          <textarea class="campo" id="c-messaggio" name="messaggio" required placeholder="Ask us anything about Hextale."></textarea>
+        </div>
+        <p class="esito" id="c-esito" aria-live="polite" style="margin-top:16px"></p>
+        <div class="fondo-riga" style="margin-top:4px">
+          <button class="btn important" type="submit" id="c-invia">
+            <span class="pezzi" aria-hidden="true"><span class="cap-sx"></span><span class="fill"></span><span class="mezzo"></span><span class="fill"></span><span class="cap-dx"></span></span>
+            <span class="etichetta">Send message</span>
+          </button>
+        </div>
+      </form>
+      <p class="google" id="c-google" hidden>Protected by reCAPTCHA — Google's
+        <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Privacy Policy</a> and
+        <a href="https://policies.google.com/terms" target="_blank" rel="noopener">Terms of Service</a> apply.</p>
+    </div>
+    <!-- Fuori dalla scatola, sotto a tutto: chiudere non e' una delle cose
+         che si fanno dentro alla finestra, e' uscirne. -->
+    <button class="btn opaque" type="button" id="chiudi-contatto">
+      <span class="pezzi" aria-hidden="true"><span class="cap-sx"></span><span class="fill"></span><span class="mezzo"></span><span class="fill"></span><span class="cap-dx"></span></span>
+      <span class="etichetta">Close</span>
     </button>
-    <h2 id="contatto-titolo">Tell us what you want to know</h2>
-    <p class="sotto">We read everything and we answer.</p>
-    <form id="modulo-contatto" novalidate>
-      <label for="c-email">Your email address</label>
-      <input class="campo" type="email" id="c-email" name="email" required autocomplete="email" placeholder="you@example.com">
-      <label for="c-messaggio">Your message</label>
-      <textarea class="campo" id="c-messaggio" name="messaggio" required placeholder="Ask us anything about Hextale."></textarea>
-      <p class="esito" id="c-esito" aria-live="polite"></p>
-      <div class="fondo-riga">
-        <button class="btn important" type="submit" id="c-invia">
-          <span class="pezzi" aria-hidden="true"><span class="cap-sx"></span><span class="fill"></span><span class="mezzo"></span><span class="fill"></span><span class="cap-dx"></span></span>
-          <span class="etichetta">Send</span>
-        </button>
-      </div>
-    </form>
   </div>
 </div>
 <script>
@@ -1544,6 +1599,48 @@ if(lista){
 // servizio che spedisce a un indirizzo passato da fuori spedisce posta per
 // conto di chiunque.
 var PORTA = 'https://api.hextalegame.com/contatto';
+
+// ── IL RECAPTCHA ──────────────────────────────────────────────────────────
+// Google reCAPTCHA v3: nessun rompicapo e nessuna casella da spuntare — guarda
+// come ci si comporta sulla pagina e da' un punteggio. Chi scrive davvero non
+// si accorge di niente, ed e' il punto: una casella da spuntare la spunta anche
+// un programma pagato tre centesimi, e intanto scoccia le persone.
+//
+// LA CHIAVE PUBBLICA STA QUI, IL SEGRETO NO. Questa e' la chiave del SITO:
+// viaggia nel codice di ogni pagina e non c'e' modo di nasconderla, per
+// costruzione. Il segreto — l'altra meta', quella che permette di VERIFICARE un
+// gettone — vive solo sul server, e non e' mai passato di qui.
+// Finche' questa riga e' vuota il reCAPTCHA e' spento e il modulo funziona come
+// prima: e' quello che serve per lavorare in locale, dove il dominio non
+// combacia comunque.
+var RECAPTCHA_CHIAVE = '';
+
+var _recaptchaPronto = null;
+function recaptchaAvvia(){
+  if(!RECAPTCHA_CHIAVE) return null;
+  if(_recaptchaPronto) return _recaptchaPronto;
+  var nota = document.getElementById('c-google');
+  if(nota) nota.hidden = false;   // il segno di Google e' obbligatorio se si nasconde il suo riquadro
+  _recaptchaPronto = new Promise(function(risolvi, fallisci){
+    var s = document.createElement('script');
+    s.src = 'https://www.google.com/recaptcha/api.js?render=' + encodeURIComponent(RECAPTCHA_CHIAVE);
+    s.async = true; s.defer = true;
+    s.onload = function(){ window.grecaptcha.ready(function(){ risolvi(window.grecaptcha); }); };
+    s.onerror = function(){ fallisci(new Error('recaptcha non caricato')); };
+    document.head.appendChild(s);
+  });
+  return _recaptchaPronto;
+}
+// Il gettone di questo invio. Se il reCAPTCHA e' spento, o se non si carica —
+// una rete che blocca Google, un'estensione — si va avanti senza: e' il server
+// a decidere se un messaggio senza gettone si accetta o no, e questa e' una
+// decisione che non si prende nel browser di chi scrive.
+function recaptchaGettone(){
+  var p = recaptchaAvvia();
+  if(!p) return Promise.resolve('');
+  return p.then(function(g){ return g.execute(RECAPTCHA_CHIAVE, { action: 'contatto' }); })
+          .catch(function(){ return ''; });
+}
 var finestra = document.getElementById('contatto');
 var modulo = document.getElementById('modulo-contatto');
 var esito = document.getElementById('c-esito');
@@ -1552,6 +1649,7 @@ var tornaA = null;
 
 function apriContatto(chi){
   tornaA = chi || null;
+  recaptchaAvvia();
   finestra.classList.add('aperta');
   finestra.setAttribute('aria-hidden','false');
   document.body.style.overflow = 'hidden';
@@ -1563,10 +1661,18 @@ function chiudiContatto(){
   document.body.style.overflow = '';
   if(tornaA) tornaA.focus();
 }
-var bottoneContatto = document.getElementById('apri-contatto');
-if(bottoneContatto) bottoneContatto.addEventListener('click', function(){ apriContatto(this); });
-var croce = document.getElementById('chiudi-contatto');
-if(croce) croce.addEventListener('click', chiudiContatto);
+// Due porte per la stessa finestra: il pulsante della sezione del mazzo e il
+// "Questions? Contact us!" del piede. Chi arriva in fondo alla pagina senza
+// aver cliccato il primo trova il secondo li' dove gli e' venuta la domanda.
+Array.prototype.forEach.call(document.querySelectorAll('#apri-contatto, #apri-contatto-piede'), function(b){
+  b.addEventListener('click', function(e){ e.preventDefault(); apriContatto(this); });
+});
+// Non e' piu' una croce nell'angolo: e' un pulsante sotto alla scatola,
+// fuori da lei. Chiudere non e' una delle cose che si fanno dentro alla
+// finestra, e' uscirne — e un pulsante largo quanto una riga lo dice meglio
+// di una x da dieci pixel.
+var chiudi = document.getElementById('chiudi-contatto');
+if(chiudi) chiudi.addEventListener('click', chiudiContatto);
 if(finestra) finestra.addEventListener('click', function(e){ if(e.target === finestra) chiudiContatto(); });
 document.addEventListener('keydown', function(e){
   if(e.key === 'Escape' && finestra && finestra.classList.contains('aperta')) chiudiContatto();
@@ -1582,10 +1688,12 @@ if(modulo) modulo.addEventListener('submit', function(e){
   if(testo.length < 10){ dilo('no', 'Please write a little more, so we can actually help.'); return; }
   invia.disabled = true;
   dilo('', 'Sending…');
-  fetch(PORTA, {
-    method:'POST',
-    headers:{ 'Content-Type':'application/json' },
-    body: JSON.stringify({ email: email, messaggio: testo })
+  recaptchaGettone().then(function(gettone){
+    return fetch(PORTA, {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify({ email: email, messaggio: testo, gettone: gettone })
+    });
   }).then(function(r){
     if(!r.ok) throw new Error(r.status);
     return r.json().catch(function(){ return {}; });

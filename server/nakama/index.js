@@ -1207,6 +1207,70 @@ function _chiHaLEmail(nk, logger, email) {
 var CONTATTO_ATTESA_S = 30;      // un messaggio ogni mezzo minuto per indirizzo
 var CONTATTO_MAX = 4000;         // e non piu' lungo di cosi'
 
+// ── IL RECAPTCHA ───────────────────────────────────────────────
+// Il freno di mezzo minuto per indirizzo ferma chi insiste, non chi ha mille
+// indirizzi: un programma che manda posta ne inventa uno diverso ogni volta e
+// passa indisturbato. Il reCAPTCHA guarda invece CHI sta scrivendo.
+//
+// La chiave del sito viaggia nella pagina e non c'e' modo di nasconderla, per
+// costruzione. Il SEGRETO — l'altra meta', quella che permette di verificare un
+// gettone — sta qui, e "qui" vuol dire nella memoria di Nakama: ce lo scrive
+// rpcRecaptchaConfig, che e' l'unico punto in cui passa, e non entra mai in
+// git ne' in un file di questo deposito.
+//
+// FINCHE' IL SEGRETO NON C'E', NON SI VERIFICA NIENTE. E' l'unica scelta
+// onesta: rifiutare tutto vorrebbe dire spegnere la finestra dei contatti nel
+// momento in cui si aggiunge questo codice, e accettare tutto e' come stiamo
+// adesso. Chi accende il segreto accende la verifica, ed e' un gesto solo.
+var KEY_RECAPTCHA = 'recaptcha';
+var RECAPTCHA_URL = 'https://www.google.com/recaptcha/api/siteverify';
+// Sotto questo punteggio Google dice "quasi certamente un programma". 0.5 e' la
+// soglia che consiglia Google stesso: piu' in alto si comincia a rifiutare
+// persone vere, e una persona vera rifiutata non riprova, se ne va.
+var RECAPTCHA_SOGLIA = 0.5;
+
+function _recaptchaSegreto(nk) {
+  var c = null;
+  try { c = leggiSistema(nk, KEY_RECAPTCHA); } catch (e) { c = null; }
+  if (!c || !c.attiva || !c.segreto) return null;
+  return c;
+}
+
+// true = si puo' passare. Torna true anche quando il reCAPTCHA e' spento.
+function _recaptchaVaBene(nk, logger, gettone, ip) {
+  var cfg = _recaptchaSegreto(nk);
+  if (!cfg) return true;                       // spento: si passa, vedi sopra
+  if (!gettone) { logger.info('contatto rifiutato: nessun gettone'); return false; }
+  var corpo = 'secret=' + encodeURIComponent(cfg.segreto) + '&response=' + encodeURIComponent(gettone);
+  if (ip) corpo += '&remoteip=' + encodeURIComponent(ip);
+  var r;
+  try {
+    r = nk.httpRequest(RECAPTCHA_URL, 'post',
+      { 'Content-Type': 'application/x-www-form-urlencoded' }, corpo, 10000);
+  } catch (e) {
+    // Google non risponde. NON si blocca il messaggio: un guasto loro non deve
+    // diventare un silenzio nostro, e il freno per indirizzo c'e' comunque.
+    logger.warn('recaptcha irraggiungibile, il messaggio passa lo stesso: %s', String(e));
+    return true;
+  }
+  if (!(r.code >= 200 && r.code < 300)) {
+    logger.warn('recaptcha ha risposto %d, il messaggio passa lo stesso', r.code);
+    return true;
+  }
+  var d = {};
+  try { d = JSON.parse(r.body); } catch (e) { d = {}; }
+  if (!d.success) {
+    logger.info('contatto rifiutato dal recaptcha: %s', JSON.stringify(d['error-codes'] || []));
+    return false;
+  }
+  // Il punteggio c'e' solo nella v3. Nella v2 basta il success.
+  if (typeof d.score === 'number' && d.score < RECAPTCHA_SOGLIA) {
+    logger.info('contatto rifiutato dal recaptcha: punteggio %s', String(d.score));
+    return false;
+  }
+  return true;
+}
+
 function rpcContatto(ctx, logger, nk, payload) {
   var d = {};
   try { d = payload ? JSON.parse(payload) : {}; } catch (e) { d = {}; }
@@ -1214,6 +1278,16 @@ function rpcContatto(ctx, logger, nk, payload) {
   var testo = String(d.messaggio || '').slice(0, CONTATTO_MAX).trim();
   if (!email || email.indexOf('@') < 1) throw Error('scrivi un indirizzo email');
   if (testo.length < 10) throw Error('scrivi qualcosa di piu');
+
+  // Prima di ogni altra cosa, e prima del freno: se non e' una persona, non c'e'
+  // niente da frenare e niente da spedire.
+  var ip = null;
+  try { ip = ctx && ctx.clientIp ? String(ctx.clientIp) : null; } catch (e) { ip = null; }
+  if (!_recaptchaVaBene(nk, logger, d.gettone, ip)) {
+    // Non si dice "sei un programma": chi lo e' non legge, e a una persona
+    // rifiutata per sbaglio serve sapere che c'e' un'altra strada.
+    throw Error('non riesco a mandare l email, scrivi a support@hextalegame.com');
+  }
 
   // Lo stesso freno del recupero, e per lo stesso motivo: ogni chiamata qui e'
   // una email vera.
@@ -1396,6 +1470,33 @@ function rpcRecuperoCambia(ctx, logger, nk, payload) {
 // La seconda esiste perche' questa chiamata porta una parola d'ordine, e una
 // parola d'ordine si sposta da un file all'altro sulla stessa macchina — non
 // passa per le mani di nessuno.
+// Il segreto del reCAPTCHA, scritto una volta da chi lo conosce. Stessa forma
+// della configurazione della posta, e per la stessa ragione: la parola d'ordine
+// si sposta da chi ce l'ha alla memoria del server senza passare per un file di
+// questo deposito, che e' pubblico.
+//
+//   curl -s -X POST "https://api.hextalegame.com/v2/rpc/hx_recaptcha_config?unwrap&http_key=..." \
+//        -H "Content-Type: application/json" \
+//        -d '{"attiva":true,"segreto":"<il segreto di Google>"}'
+//
+// Per spegnerlo: {"attiva":false}.
+function rpcRecaptchaConfig(ctx, logger, nk, payload) {
+  if (ctx.userId) {
+    var possesso = assicuraPossesso(ctx, nk, logger, ctx.userId, ctx.username);
+    if (!possesso.admin) throw Error('non sei un admin');
+  }
+  var d = {};
+  try { d = payload ? JSON.parse(payload) : {}; } catch (e) { d = {}; }
+  var attiva = !!d.attiva;
+  var segreto = String(d.segreto || '');
+  if (attiva && !segreto) throw Error('serve il segreto');
+  scriviSistema(nk, KEY_RECAPTCHA, { attiva: attiva, segreto: segreto });
+  // Il segreto non si riscrive nella risposta ne' nel registro: si dice solo
+  // che c'e'.
+  logger.info('recaptcha %s', attiva ? 'acceso' : 'spento');
+  return JSON.stringify({ attiva: attiva, segreto: segreto ? 'impostato' : 'nessuno' });
+}
+
 function rpcPostaConfig(ctx, logger, nk, payload) {
   if (ctx.userId) {
     var possesso = assicuraPossesso(ctx, nk, logger, ctx.userId, ctx.username);
@@ -4542,6 +4643,7 @@ function InitModule(ctx, logger, nk, initializer) {
   initializer.registerRpc('hx_recupero_chiedi', rpcRecuperoChiedi);
   initializer.registerRpc('hx_recupero_cambia', rpcRecuperoCambia);
   initializer.registerRpc('hx_contatto', rpcContatto);
+  initializer.registerRpc('hx_recaptcha_config', rpcRecaptchaConfig);
   initializer.registerRpc('hx_elimina_account', rpcEliminaAccount);
   initializer.registerRpc('hx_giocatori', rpcGiocatoriOnline);
   initializer.registerRpc('hx_entro', rpcEntro);
