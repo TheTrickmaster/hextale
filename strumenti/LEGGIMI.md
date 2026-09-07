@@ -249,3 +249,30 @@ guardando quel pezzo di schermo.
   seguiva il selettore dei livelli, la lucentezza chiedeva il livello **vero**
   della carta. Il banco costruisce una carta di livello 1 e la guarda ai quattro
   livelli del selettore, che e' esattamente il gesto che la rompeva.
+
+## prova-capacita.js — l'IA gioca con un mazzo che costa quanto il tuo
+
+    $ELECTRON strumenti/prova-capacita.js
+
+La **capacita'** di un mazzo e' la somma dei costi di rarita' — timeless 4,
+mythic 3, rare 2, common 1 — e il gioco te ne concede ventiquattro. Fino alla
+v0.79.29 l'IA li spendeva **tutti a ogni partita**: `composizioniMazzo()`
+conosceva un solo numero, `MAZZO_PUNTI`, quindi tutte e diciannove le
+composizioni ammesse costavano ventiquattro. Contro un mazzo iniziale da dodici
+punti l'IA scendeva in campo con dodici rare.
+
+Il pareggio che gia' c'era guardava la **potenza**, cioe' i valori sui lati — e
+la potenza **non vede le abilita'**, che sono quasi tutta la differenza fra una
+common e una rare. Due mazzi possono avere la stessa somma di numeri e non
+essere per niente la stessa partita: e' per questo che la capacita' va
+pareggiata per conto suo, e prima delle altre due, perche' e' un vincolo e non
+una preferenza — decide di quali carte l'IA puo' disporre.
+
+Il roster del file aperto da solo ha **quattro carte**: non basta per generare
+niente, e un banco che generasse mazzi da quattro carte direbbe sempre di si'.
+Qui si carica il catalogo vero (107 carte, tutte e quattro le rarita'), lo
+stesso da cui il server importa.
+
+Il banco gira anche sul codice **di prima** — la costante nuova ha un ripiego
+apposta — e li' fallisce undici controlli su diciotto. E' quella la prova: un
+banco che non sa fallire non sta misurando niente.

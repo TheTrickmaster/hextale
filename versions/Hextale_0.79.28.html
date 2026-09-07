@@ -11136,7 +11136,7 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.29</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.28</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -29742,35 +29742,21 @@ function costoDiRarita(chiave){
 // battuto a macchina andrebbe rifatto al primo ritocco dei costi o del numero
 // di carte, e nessuno se ne ricorderebbe.
 // Con 12 carte che costano almeno 1 ciascuna, 12 punti sono gia' spesi in
-// partenza: il resto e' sovrapprezzo, e ogni Timeless ne consuma 3, ogni
-// Mythic 2, ogni Rare 1.
-//
-// ── v0.79.29 — E SI CALCOLANO PER UN BUDGET, NON PER IL MASSIMO ──────────
-// Prima questa funzione conosceva un solo numero, MAZZO_PUNTI: tutte e 19 le
-// composizioni costavano ventiquattro, quindi OGNI mazzo generato costava
-// ventiquattro. Contro un giocatore con un mazzo iniziale da dodici o
-// quattordici punti, l'IA scendeva in campo con il mazzo piu' caro che le
-// regole permettono — dodici rare — e la partita era decisa prima di
-// cominciare. Adesso il budget e' un argomento, e chi genera dice quanto vuole
-// spendere.
-const _COMPOSIZIONI_A_MEMORIA = {};
-function composizioniMazzo(punti){
-  const budget = (typeof punti === 'number' && punti > 0) ? Math.round(punti) : MAZZO_PUNTI;
-  if(_COMPOSIZIONI_A_MEMORIA[budget]) return _COMPOSIZIONI_A_MEMORIA[budget];
+// partenza: restano 12 punti di sovrapprezzo, e ogni Timeless ne consuma 3,
+// ogni Mythic 2, ogni Rare 1. Sono 19 composizioni, e il massimo di Timeless
+// in un mazzo e' 4.
+function composizioniMazzo(){
   const fuori = [];
   for(let t=0; t<=MAZZO_CARTE; t++)
     for(let m=0; m+t<=MAZZO_CARTE; m++)
       for(let r=0; r+m+t<=MAZZO_CARTE; r++){
         const c = MAZZO_CARTE - t - m - r;
-        if(4*t + 3*m + 2*r + c !== budget) continue;
+        if(4*t + 3*m + 2*r + c !== MAZZO_PUNTI) continue;
         fuori.push({timeless:t, mythic:m, rare:r, common:c});
       }
-  _COMPOSIZIONI_A_MEMORIA[budget] = fuori;
   return fuori;
 }
-const _MAZZO_COMPOSIZIONI = composizioniMazzo(MAZZO_PUNTI);
-// Il budget piu' basso possibile: dodici carte che costano almeno uno l'una.
-const MAZZO_PUNTI_MIN = MAZZO_CARTE;
+const _MAZZO_COMPOSIZIONI = composizioniMazzo();
 
 function _mescola(lista){
   const a = lista.slice();
@@ -29784,17 +29770,9 @@ function _mescola(lista){
   return a;
 }
 let _avvisoComposizione = false;
-// ── v0.79.29 — `puntiVoluti`: quanto deve costare il mazzo ────────────────
-// Terzo argomento, facoltativo. Senza, si spende il massimo come si e' sempre
-// fatto — e va bene per i due mazzi generati insieme, che si pareggiano fra
-// loro. Con, si spende quello: e' cosi' che l'IA sta alla capacita' del mazzo
-// del giocatore invece di andare sempre al tetto.
-function makeDeck(owner,total,puntiVoluti){
+function makeDeck(owner,total){
   if(!Array.isArray(FINAL_CARDS) || !FINAL_CARDS.length) return [];
   const quante = (typeof total === 'number' && total > 0) ? total : MAZZO_CARTE;
-  const budget = (typeof puntiVoluti === 'number' && puntiVoluti > 0)
-    ? Math.max(MAZZO_PUNTI_MIN, Math.min(MAZZO_PUNTI, Math.round(puntiVoluti)))
-    : MAZZO_PUNTI;
   const giocabili = carteGiocabili();
   // Il roster diviso per rarita', gia' mescolato: pescare vuol dire prendere
   // dalla cima.
@@ -29812,22 +29790,8 @@ function makeDeck(owner,total,puntiVoluti){
   // manca del tutto una rarita' si torna alla pescata libera.
   const sostenibile = comp => Object.keys(comp).every(k => (perRarita[k]||[]).length >= comp[k]);
   const possibile   = comp => Object.keys(comp).every(k => comp[k] === 0 || (perRarita[k]||[]).length > 0);
-  // v0.79.29 — si parte dal budget chiesto; se il roster non ha le rarita' per
-  // spenderlo esattamente, si allarga di un punto alla volta cercando prima
-  // SOTTO e poi sopra. Sotto prima e' voluto: un mazzo un po' piu' economico
-  // del tuo e' una partita che perdi per come giochi, uno piu' caro e' una
-  // partita che perdi per come e' stata apparecchiata.
-  let ammesse = [], budgetUsato = budget;
-  for(let d=0; d<=MAZZO_PUNTI-MAZZO_PUNTI_MIN && !ammesse.length; d++){
-    for(const p of (d === 0 ? [budget] : [budget-d, budget+d])){
-      if(p < MAZZO_PUNTI_MIN || p > MAZZO_PUNTI) continue;
-      const trovate = composizioniMazzo(p).filter(sostenibile);
-      if(trovate.length){ ammesse = trovate; budgetUsato = p; break; }
-    }
-  }
-  // Nemmeno cosi': si accettano le composizioni con doppioni, al budget
-  // chiesto. Meglio un doppione che un mazzo del prezzo sbagliato.
-  if(!ammesse.length){ ammesse = composizioniMazzo(budget).filter(possibile); budgetUsato = budget; }
+  let ammesse = _MAZZO_COMPOSIZIONI.filter(sostenibile);
+  if(!ammesse.length) ammesse = _MAZZO_COMPOSIZIONI.filter(possibile);
   if(!ammesse.length || quante !== MAZZO_CARTE){
     // Rete di sicurezza: il roster non ha le rarita' che servono (succede col
     // foglio ancora quasi vuoto), oppure qualcuno ha chiesto un mazzo di
@@ -29835,7 +29799,7 @@ function makeDeck(owner,total,puntiVoluti){
     // libera di prima, e lo si dice una volta sola.
     if(!_avvisoComposizione && quante === MAZZO_CARTE){
       _avvisoComposizione = true;
-      console.warn('[mazzo] il roster non permette nessuna composizione da '+budget
+      console.warn('[mazzo] il roster non permette nessuna composizione da '+MAZZO_PUNTI
         +' punti in '+MAZZO_CARTE+' carte: mazzo pescato senza vincolo di rarita\'.');
     }
     // ── v0.78.4 — ANCHE IL RIPIEGO STA NEL BUDGET ─────────────────────────
@@ -29853,7 +29817,7 @@ function makeDeck(owner,total,puntiVoluti){
     const mescolate = _mescola(giocabili);
     const carte = [];
     const costo = e => (typeof costoDiRarita === 'function') ? costoDiRarita(e.rarity) : 1;
-    const tetto = (quante === MAZZO_CARTE) ? budget : Infinity;
+    const tetto = (quante === MAZZO_CARTE) ? MAZZO_PUNTI : Infinity;
     let punti = 0;
     const metti = (entry)=>{
       const carta = _makeCardDbCard(entry, owner);
@@ -29878,9 +29842,6 @@ function makeDeck(owner,total,puntiVoluti){
     return carte;
   }
 
-  if(budgetUsato !== budget){
-    console.info('[mazzo] chiesti ' + budget + ' punti, il roster ne permette ' + budgetUsato + '.');
-  }
   const comp = ammesse[Math.floor(Math.random()*ammesse.length)];
   const scelte = [];
   for(const chiave in comp){
@@ -30079,32 +30040,14 @@ function makeBalancedDecks(controIA){
       MAZZO_AVVERSARIO = null;   // vale per UNA partita
       return esito;
     }
-    // ── v0.79.29 — L'IA SPENDE QUANTO HAI SPESO TU ────────────────────────
-    // La capacita' di un mazzo e' la somma dei costi di rarita' (timeless 4,
-    // mythic 3, rare 2, common 1), e il gioco te ne concede ventiquattro. Fino
-    // a ieri l'IA li spendeva TUTTI a ogni partita, chiunque avesse davanti:
-    // contro un mazzo iniziale da dodici punti scendeva in campo con dodici
-    // rare, e la partita era decisa prima di cominciare.
-    // Il pareggio che c'era guardava la POTENZA — i valori sui lati — e la
-    // potenza non vede le abilita', che sono quasi tutta la differenza fra una
-    // common e una rare. Due mazzi possono avere la stessa somma di numeri e
-    // non essere per niente la stessa cosa.
-    // Adesso i lati pareggiati sono tre: la capacita' (qui), i livelli
-    // (pareggiaILivelli) e la potenza (il giro qui sotto). La capacita' viene
-    // per prima perche' e' un vincolo, non una preferenza: decide di quali
-    // carte l'IA puo' disporre, e le altre due scelgono dentro a quel
-    // perimetro.
-    const puntiMiei = costoMazzo(d1);
     let migliore=null, scartoMigliore=Infinity;
     for(let i=0;i<300;i++){
-      const b = makeDeck(2, DECK_TOTAL, puntiMiei);
+      const b = makeDeck(2, DECK_TOTAL);
       const gap = deckPowerGap(d1, b);
       if(gap<scartoMigliore){ scartoMigliore=gap; migliore=b; }
       if(gap<=BALANCE_MAX_GAP) break;
     }
     pareggiaILivelli(d1, migliore);
-    console.info('[Hextale] capacita\': il tuo mazzo ' + puntiMiei + '/' + MAZZO_PUNTI
-      + ' punti, quello dell\'IA ' + costoMazzo(migliore) + '/' + MAZZO_PUNTI + '.');
     return { d1, d2:migliore, gap:scartoMigliore };
   }
   // ── v0.77.47 — QUI C'ERA UN RAMO CHE NON POTEVA FUNZIONARE ──────────────

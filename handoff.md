@@ -2265,6 +2265,19 @@ zone, caricando il gioco e verificando che le funzioni chiave esistano ancora.
 
 ## Trappole gia' incontrate (per non ripeterle)
 
+- **Un bilanciamento che pareggia la cosa sbagliata sembra un bilanciamento.**
+  I mazzi dell'IA erano pareggiati sulla POTENZA (la somma dei valori sui lati)
+  e sui LIVELLI, ma non sulla CAPACITA' — la somma dei costi di rarita'. E la
+  potenza non vede le abilita', che sono quasi tutta la differenza fra una
+  common e una rare: l'IA scendeva in campo con dodici rare contro un mazzo
+  iniziale e il conto "tornava". Le tre misure sono diverse e servono tutte e
+  tre. (v0.79.29; `strumenti/prova-capacita.js`.)
+- **Una costante dentro a una formula la blocca su un caso solo.**
+  `composizioniMazzo()` calcolava le composizioni con `=== MAZZO_PUNTI` scritto
+  dentro: sembrava una funzione generale e rispondeva a una domanda sola,
+  "quali mazzi costano il massimo". Il budget e' diventato un argomento, e la
+  funzione ha cominciato a servire anche a chi non voleva spendere tutto.
+
 - **Una regola CSS piu' specifica ne cancella una piu' generica, e non si
   vede.** Successo tre volte in due giorni: `margin-top:16px` che schiacciava
   un `margin-top:auto` (v0.79.26), e `.hx-btn .hxb-label{ gap:10px }` che
