@@ -314,3 +314,35 @@ Due cose imparate scrivendolo, che valgono per i prossimi banchi:
   `FINAL_CARDS`, che nel file aperto da solo ne ha quattro: guardava zero carte
   e passava. Adesso conta quante ne ha guardate, e quel conto e' un controllo
   suo.
+
+## prova-codice.js — il codice a sei cifre
+
+    $ELECTRON strumenti/prova-codice.js [scatto.png]
+
+Come "Pick a letter", si vede **una volta sola per account**, ed e' per questo
+la piu' difficile da riprovare a mano: sbagliarla vuol dire sbagliarla per
+tutti quelli che si registreranno, e accorgersene mesi dopo. Qui il server si
+finge e si guarda cosa fa la schermata.
+
+Il pezzo piu' facile da rompere senza accorgersene sono le **sei caselle**. Non
+sono sei campi: sono **un campo diviso in sei**, e la differenza si vede solo
+usandolo — si scrive e si va avanti, si cancella e si torna indietro, si
+incolla il codice preso dall'email e si riempiono tutte, alla sesta cifra si
+prova da solo. Ognuna di queste e' una riga che si puo' perdere in un
+rimaneggiamento, e nessuna fa rumore quando sparisce.
+
+Le misure delle caselle sono controllate contro il disegno (49x66, raggio 16,
+Rosarivo 40, dieci di distanza, ombra **interna**) perche' sono le stesse
+dell'email: chi arriva a questa schermata ha appena guardato quelle nella
+posta, e riconoscerle e' il modo piu' corto di capire cosa gli si sta
+chiedendo. Se le due divergono, il collegamento si rompe in silenzio.
+
+Due trappole trovate scrivendolo:
+
+- **Leggere le caselle dopo il successo le trova vuote.** Alla sesta cifra la
+  schermata prova il codice da sola, e un codice giusto le svuota: aspettando
+  prima di misurare, il banco leggeva sei caselle vuote e diceva "non ha
+  incollato" proprio nel caso in cui aveva incollato e aveva anche funzionato.
+- **La colonna dell'accesso nasce a opacita' zero** e si accende quando il
+  caricamento finisce. In una finestra nascosta quel momento non arriva mai:
+  senza accenderla a mano, la fotografia e' la schermata di caricamento.

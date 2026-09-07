@@ -811,6 +811,287 @@ function _spedisciSegnalazione(nk, logger, s, chiave, foto) {
   return false;
 }
 
+// ══════════════════════════════════════════════════════════════════════════
+// v0.79.31 — LA VERIFICA DELL'EMAIL: SEI CIFRE
+// ══════════════════════════════════════════════════════════════════════════
+// Chi crea un account riceve un codice di sei cifre nella casella che ha
+// dichiarato, e finche' non lo digita l'account resta NON VERIFICATO. Serve a
+// una cosa sola: sapere che quella casella esiste e che e' sua. Senza, ci si
+// registra con l'indirizzo di chiunque.
+//
+// DOVE STA IL CODICE. In un oggetto dello storage dell'utente, con i permessi
+// a ZERO in lettura e scrittura: il client non lo vede e non lo scrive, lo
+// confronta il server. E' l'unico modo perche' "inserisci il codice" non sia
+// una domanda a cui il client stesso conosce la risposta.
+// Il codice sta in chiaro e non cifrato, ed e' una scelta: vale ventiquattro
+// ore, si puo' sbagliare otto volte, e la stessa cifra viaggia in chiaro
+// nell'email che il giocatore riceve. Nasconderla qui e lasciarla la' sarebbe
+// un lucchetto sulla porta di una stanza senza pareti.
+//
+// CHI C'ERA PRIMA non ha nessun oggetto scritto, e per lui la domanda non si
+// pone: verificato. Non gli si puo' chiedere un codice che nessuno gli ha mai
+// mandato.
+var KEY_VERIFICA = 'verifica';
+var VERIFICA_ORE = 24;          // quanto vale un codice
+var VERIFICA_TENTATIVI = 8;     // quante volte si puo' sbagliare prima di doverne chiedere un altro
+var VERIFICA_ATTESA_S = 60;     // quanto si aspetta fra un invio e il successivo
+
+function leggiVerifica(nk, userId) {
+  var r = nk.storageRead([{ collection: COLL_PROFILO, key: KEY_VERIFICA, userId: userId }]);
+  return (r && r.length && r[0].value) ? r[0].value : null;
+}
+function scriviVerifica(nk, userId, v) {
+  nk.storageWrite([{
+    collection: COLL_PROFILO, key: KEY_VERIFICA, userId: userId,
+    value: v,
+    // Zero e zero: il codice non e' roba che il giocatore debba poter leggere,
+    // e "verificato" non e' roba che debba poter scrivere.
+    permissionRead: 0, permissionWrite: 0
+  }]);
+}
+
+// Sei cifre, prese dal generatore di UUID e non da Math.random: quello di goja
+// non promette niente sulla qualita' del caso, e questo e' un numero che
+// qualcuno potrebbe voler indovinare.
+// I valori da 10 a 15 si SCARTANO invece di piegarli con un resto: col resto
+// le cifre da 0 a 5 uscirebbero il 60% piu' spesso delle altre, e un codice con
+// cifre piu' probabili di altre e' un codice piu' facile da tirare a indovinare.
+function _codiceASeiCifre(nk) {
+  var cifre = '';
+  var giri = 0;
+  while (cifre.length < 6 && giri < 20) {
+    var esa = String(nk.uuidv4()).replace(/-/g, '');
+    for (var i = 0; i < esa.length && cifre.length < 6; i++) {
+      var v = parseInt(esa.charAt(i), 16);
+      if (v < 10) cifre += String(v);
+    }
+    giri++;
+  }
+  // Non succede: venti UUID sono centoventi caratteri esadecimali, e ne
+  // bastano sei sotto al dieci. Ma una funzione che promette sei cifre ne
+  // restituisce sei anche nel caso che non succede.
+  while (cifre.length < 6) cifre += '0';
+  return cifre;
+}
+
+// Come si chiama chi legge. Il nome utente vero non esiste ancora — si sceglie
+// al primo avvio, e questa email parte prima — quindi si usa la parte davanti
+// alla chiocciola, che e' l'unica cosa che il giocatore riconosce come sua.
+function _nomeDallEmail(email) {
+  var e = String(email || '');
+  var a = e.indexOf('@');
+  var n = (a > 0 ? e.slice(0, a) : e).slice(0, 40);
+  return n || 'player';
+}
+
+// ── L'EMAIL ───────────────────────────────────────────────────────────────
+// Disegnata da Lorenzo in Figma ("Email template") e tradotta qui dentro ai
+// limiti della posta, che non sono quelli del web:
+//   - niente <style> in testa e niente classi: Gmail li butta via. Ogni regola
+//     e' scritta in linea sul tag che la usa;
+//   - niente flexbox e niente grid: si impagina con le TABELLE, che e' come si
+//     impaginava nel 1999 ed e' ancora l'unica cosa che tutti disegnano uguale;
+//   - niente sfocatura, niente fusioni, niente ombre interne: i gradienti e i
+//     veli del disegno sono appiattiti nei colori che producono (campionati
+//     dall'artboard, non indovinati);
+//   - i caratteri veri si dichiarano lo stesso — chi legge da Apple Mail li
+//     vede — ma dietro c'e' sempre un serif di sistema, perche' Outlook non li
+//     carichera' mai.
+// Il pulsante "Copy code" del disegno non c'e': in una email non gira nessuno
+// script, quindi non potrebbe copiare niente. Le sei cifre stanno gia' grandi
+// nelle caselle e si selezionano come qualunque altro testo (deciso con
+// Lorenzo il 07/09/2026).
+var VERIFICA_LOGO = 'https://hextalegame.com/ui/hextale-logo-topbar.png';
+function _verificaHtml(nome, codice) {
+  var cifre = '';
+  for (var i = 0; i < 6; i++) {
+    cifre +=
+      '<td align="center" valign="middle" width="49" style="width:49px;height:66px;' +
+        'background:#232B2A;border:1px solid #4E5555;border-radius:16px;' +
+        'font-family:Rosarivo,Georgia,\'Times New Roman\',serif;font-size:40px;line-height:1.2;' +
+        'color:#EDE0C6;mso-line-height-rule:exactly">' + codice.charAt(i) + '</td>' +
+      (i < 5 ? '<td width="10" style="width:10px;font-size:0;line-height:0">&nbsp;</td>' : '');
+  }
+  return '' +
+  '<!DOCTYPE html><html><head><meta charset="utf-8">' +
+  '<meta name="viewport" content="width=device-width,initial-scale=1">' +
+  // I caratteri del gioco. Chi puo' caricarli li carica, chi non puo' legge in
+  // un serif e non se ne accorge: sono due caratteri con la stessa aria.
+  '<style>' +
+  '@font-face{font-family:"Marcellus SC";src:url("https://hextalegame.com/fonts/MarcellusSC-Regular.ttf") format("truetype");font-weight:400}' +
+  '@font-face{font-family:"Rosarivo";src:url("https://hextalegame.com/fonts/Rosarivo-Regular.ttf") format("truetype");font-weight:400}' +
+  '</style></head>' +
+  '<body style="margin:0;padding:0;background:#141B1C">' +
+  // Una tabella esterna larga tutto: e' cosi' che si centra una email, perche'
+  // "margin:0 auto" su un div non lo centra in Outlook.
+  '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" ' +
+         'style="border-collapse:collapse;background:#141B1C">' +
+  '<tr><td align="center" style="padding:40px 20px">' +
+    '<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" ' +
+           'style="border-collapse:collapse;width:600px;max-width:600px">' +
+      // Il marchio, e sotto 23px di stacco come nel disegno.
+      '<tr><td align="center" style="padding:0 0 23px">' +
+        '<img src="' + VERIFICA_LOGO + '" width="100" height="113" alt="Hextale" ' +
+             'style="display:block;width:100px;height:113px;border:0;outline:none">' +
+      '</td></tr>' +
+      // Il riquadro. Il gradiente del disegno diventa un colore solo: in posta
+      // un gradiente CSS non lo disegna quasi nessuno, e mezzo gradiente e'
+      // peggio di nessun gradiente.
+      '<tr><td style="background:#333A3A;border:1px solid #4A5150;border-radius:28px;padding:40px">' +
+        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse">' +
+          '<tr><td align="center" style="font-family:\'Marcellus SC\',Georgia,\'Times New Roman\',serif;' +
+              'font-size:32px;line-height:1.2;color:#EDE0C6;padding:0 0 12px;mso-line-height-rule:exactly">' +
+            'Account activation</td></tr>' +
+          // La riga di stacco: nel disegno e' bianco al 10% su un pannello
+          // scuro, cioe' questo colore. Un <hr> in posta si veste da solo in
+          // modi diversi a seconda del client: meglio una cella alta 1px.
+          '<tr><td style="padding:9px 0"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" ' +
+              'style="border-collapse:collapse"><tr><td style="height:1px;background:#464C4C;font-size:0;line-height:0">&nbsp;</td></tr></table></td></tr>' +
+          '<tr><td align="center" style="font-family:Rosarivo,Georgia,\'Times New Roman\',serif;' +
+              'font-size:20px;line-height:1.2;color:#CCCCCC;padding:12px 0 0;mso-line-height-rule:exactly">' +
+            'Hey ' + _html(nome) + ', welcome to Hextale!<br>' +
+            'Here&rsquo;s the 6 digit code to activate your account:</td></tr>' +
+          '<tr><td align="center" style="padding:28px 0 4px">' +
+            '<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:separate">' +
+              '<tr>' + cifre + '</tr>' +
+            '</table></td></tr>' +
+          '<tr><td align="center" style="font-family:Rosarivo,Georgia,\'Times New Roman\',serif;' +
+              'font-size:14px;line-height:1.4;color:#8A9A9C;padding:22px 0 0">' +
+            'The code expires in ' + VERIFICA_ORE + ' hours. ' +
+            'If you did not create a Hextale account, you can ignore this message.</td></tr>' +
+        '</table>' +
+      '</td></tr>' +
+    '</table>' +
+  '</td></tr></table></body></html>';
+}
+// La versione scritta, per chi legge la posta senza figure. Non e' un ripiego
+// di seconda scelta: e' la stessa cosa detta senza disegno, e per un codice da
+// copiare va bene uguale.
+function _verificaTesto(nome, codice) {
+  return [
+    'Hey ' + nome + ', welcome to Hextale!',
+    '',
+    'Here is the 6 digit code to activate your account:',
+    '',
+    '    ' + codice.split('').join(' '),
+    '',
+    'Type it in the game to finish creating your account.',
+    'The code expires in ' + VERIFICA_ORE + ' hours.',
+    '',
+    'If you did not create a Hextale account, you can ignore this message.'
+  ].join('\n');
+}
+
+// Spedisce il codice. Torna true solo se la posta l'ha davvero preso in
+// carico: qui, a differenza della segnalazione di un guasto, un fallimento va
+// detto in faccia a chi ha chiamato — senza quella email il giocatore non ha
+// nessun altro modo di sapere il codice.
+function _spedisciCodice(nk, logger, email, nome, codice) {
+  var cfg = _postaConfig(nk);
+  if (!cfg) { logger.warn('posta non configurata: il codice di verifica non parte'); return false; }
+  var corpo = {
+    a: email,
+    oggetto: 'Your Hextale activation code: ' + codice,
+    testo: _verificaTesto(nome, codice),
+    html: _verificaHtml(nome, codice)
+  };
+  try {
+    var intestazioni = { 'Content-Type': 'application/json' };
+    if (cfg.chiave) intestazioni['X-Hextale-Chiave'] = cfg.chiave;
+    var r = nk.httpRequest(POSTA_URL, 'post', intestazioni, JSON.stringify(corpo), 25000);
+    if (r.code >= 200 && r.code < 300) return true;
+    logger.warn('la posta ha risposto %d al codice di verifica: %s', r.code, String(r.body).slice(0, 300));
+  } catch (e) {
+    logger.warn('il codice di verifica non e partito: %s', String(e));
+  }
+  return false;
+}
+
+var VERIFICA_MS = VERIFICA_ORE * 3600 * 1000;
+
+// Dove sta questo account: gia' verificato, o gli si deve ancora chiedere il
+// codice. Il codice NON esce mai da qui.
+function rpcVerificaStato(ctx, logger, nk, payload) {
+  if (!ctx.userId) throw Error('serve un accesso');
+  var v = leggiVerifica(nk, ctx.userId);
+  if (!v) return JSON.stringify({ verificato: true, mai: true });
+  var conto = nk.accountGetId(ctx.userId);
+  return JSON.stringify({
+    verificato: !!v.verificato,
+    mai: false,
+    email: (conto && conto.email) || '',
+    scaduto: !v.verificato && !!v.quando && (Date.now() - v.quando) > VERIFICA_MS
+  });
+}
+
+// Manda (o rimanda) il codice. Genera SEMPRE un codice nuovo: rimandare il
+// vecchio vorrebbe dire che un codice vissuto in una casella per ore vale
+// ancora, e l'attesa fra un invio e l'altro esiste proprio perche' questa
+// chiamata costa una email vera.
+function rpcVerificaInvia(ctx, logger, nk, payload) {
+  if (!ctx.userId) throw Error('serve un accesso');
+  var conto = nk.accountGetId(ctx.userId);
+  var email = (conto && conto.email) || '';
+  if (!email) throw Error('questo account non ha una email');
+
+  var v = leggiVerifica(nk, ctx.userId) || { verificato: false };
+  if (v.verificato) return JSON.stringify({ gia: true });
+
+  var ora = Date.now();
+  if (v.inviato && (ora - v.inviato) < VERIFICA_ATTESA_S * 1000) {
+    var restano = Math.ceil((VERIFICA_ATTESA_S * 1000 - (ora - v.inviato)) / 1000);
+    return JSON.stringify({ inviato: false, aspetta: restano });
+  }
+
+  var codice = _codiceASeiCifre(nk);
+  var nome = _nomeDallEmail(email);
+  var andata = _spedisciCodice(nk, logger, email, nome, codice);
+  if (!andata) throw Error('non riesco a mandare l email: riprova fra poco');
+
+  // Si scrive DOPO la spedizione riuscita: se la posta non parte, il codice
+  // vecchio resta valido invece di essere sostituito da uno che nessuno ha mai
+  // ricevuto. I tentativi ripartono da zero, perche' il codice e' un altro.
+  scriviVerifica(nk, ctx.userId, {
+    codice: codice, quando: ora, inviato: ora, tentativi: 0, verificato: false
+  });
+  logger.info('codice di verifica spedito a %s', ctx.userId);
+  return JSON.stringify({ inviato: true, aspetta: VERIFICA_ATTESA_S });
+}
+
+// Il confronto. Chi sbaglia troppe volte deve chiedere un codice nuovo: senza
+// un tetto, sei cifre si provano tutte.
+function rpcVerificaProva(ctx, logger, nk, payload) {
+  if (!ctx.userId) throw Error('serve un accesso');
+  var d = {};
+  try { d = payload ? JSON.parse(payload) : {}; } catch (e) { d = {}; }
+  var dato = String(d.codice || '').replace(/[^0-9]/g, '');
+
+  var v = leggiVerifica(nk, ctx.userId);
+  if (!v) return JSON.stringify({ ok: true, mai: true });
+  if (v.verificato) return JSON.stringify({ ok: true });
+
+  if (v.quando && (Date.now() - v.quando) > VERIFICA_MS)
+    throw Error('questo codice e scaduto: chiedine uno nuovo');
+  if ((v.tentativi || 0) >= VERIFICA_TENTATIVI)
+    throw Error('troppi tentativi: chiedi un codice nuovo');
+  if (dato.length !== 6) throw Error('servono sei cifre');
+
+  if (dato !== String(v.codice)) {
+    v.tentativi = (v.tentativi || 0) + 1;
+    scriviVerifica(nk, ctx.userId, v);
+    var restano = VERIFICA_TENTATIVI - v.tentativi;
+    throw Error(restano > 0
+      ? ('codice sbagliato: ti restano ' + restano + ' tentativi')
+      : 'codice sbagliato: chiedi un codice nuovo');
+  }
+
+  // Giusto. Il codice si CANCELLA: tenerlo scritto accanto a "verificato:true"
+  // sarebbe una cifra che non serve piu' a niente e che resta li' per sempre.
+  scriviVerifica(nk, ctx.userId, { verificato: true, quando: v.quando, fatto: Date.now() });
+  logger.info('account %s verificato', ctx.userId);
+  return JSON.stringify({ ok: true });
+}
+
 // Si scrive una volta, da un admin, e non compare mai in questo file:
 //   {"chiave":"<la stessa che sta nell'ambiente del servizio di inoltro>"}
 // Due strade, come per l'importazione del catalogo:
@@ -1177,6 +1458,26 @@ function rpcSistemaUtenti(ctx, logger, nk, payload) {
 function dopoAccesso(ctx, logger, nk, data, request) {
   try { assicuraPossesso(ctx, nk, logger, ctx.userId, ctx.username); }
   catch (e) { logger.error('assegnazione mazzo fallita: %s', String(e)); }
+  // ── v0.79.31 — UN ACCOUNT NUOVO NASCE NON VERIFICATO ────────────────────
+  // Il segno si scrive QUI e non quando il client chiede il codice, ed e' la
+  // differenza fra una regola e una cortesia: fra la creazione dell'account e
+  // la richiesta del codice c'e' un giro di rete, e un client che sparisce in
+  // mezzo — la finestra chiusa, la linea caduta — lascerebbe un account senza
+  // nessun oggetto scritto, cioe' verificato per definizione (vedi
+  // rpcVerificaStato). Nascendo il segno insieme all'account, quella finestra
+  // non esiste.
+  // `data.created` e' vero solo la prima volta: agli accessi successivi qui
+  // non succede niente.
+  try {
+    if (data && data.created) {
+      var conto = nk.accountGetId(ctx.userId);
+      // Senza email non c'e' niente da verificare — e' il caso di Google, che
+      // l'indirizzo l'ha gia' confermato per conto suo, e dei device id.
+      if (conto && conto.email && !leggiVerifica(nk, ctx.userId)) {
+        scriviVerifica(nk, ctx.userId, { verificato: false, nato: Date.now() });
+      }
+    }
+  } catch (e) { logger.error('segno di verifica non scritto: %s', String(e)); }
 }
 
 // Cosa possiede un giocatore, dato il catalogo e il suo profilo. Un admin ha
@@ -3929,6 +4230,9 @@ function InitModule(ctx, logger, nk, initializer) {
   initializer.registerRpc('hx_accordo', rpcAccordo);
   initializer.registerRpc('hx_starter', rpcStarter);
   initializer.registerRpc('hx_posta_config', rpcPostaConfig);
+  initializer.registerRpc('hx_verifica_stato', rpcVerificaStato);
+  initializer.registerRpc('hx_verifica_invia', rpcVerificaInvia);
+  initializer.registerRpc('hx_verifica_prova', rpcVerificaProva);
   initializer.registerRpc('hx_elimina_account', rpcEliminaAccount);
   initializer.registerRpc('hx_giocatori', rpcGiocatoriOnline);
   initializer.registerRpc('hx_entro', rpcEntro);

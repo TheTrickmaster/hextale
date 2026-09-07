@@ -2513,6 +2513,64 @@ vivere in nessuna delle due.
 
 ---
 
+## La verifica dell'email: sei cifre (dalla v0.79.31)
+
+Chi crea un account riceve **sei cifre** nella casella che ha dichiarato, e
+finche' non le digita l'account resta **non verificato**. Serve a sapere che
+quella casella esiste e che e' sua: senza, ci si registra con l'indirizzo di
+chiunque.
+
+**Dove sta il codice.** In `profilo/verifica` dello storage dell'utente, con i
+permessi a **zero** in lettura e scrittura: il client non lo vede e non lo
+scrive, il confronto lo fa il server. E' l'intero motivo per cui "inserisci il
+codice" non e' una domanda a cui il client conosce gia' la risposta. Sta in
+chiaro ed e' una scelta — vale 24 ore, si sbaglia 8 volte, e la stessa cifra
+viaggia in chiaro nell'email: cifrarla qui e lasciarla la' sarebbe un lucchetto
+sulla porta di una stanza senza pareti.
+
+**Il segno nasce con l'account, non con la richiesta del codice.** Lo scrive
+`dopoAccesso` quando `data.created` e' vero. Fra la creazione dell'account e
+la prima chiamata del client c'e' un giro di rete, e un client che sparisce in
+mezzo lascerebbe un account senza nessun oggetto scritto — cioe' verificato per
+definizione, perche' **chi non ha l'oggetto e' chi si e' registrato prima che
+questa verifica esistesse**, e a lui non si puo' chiedere un codice che nessuno
+gli ha mai mandato.
+
+**Le tre porte:** `hx_verifica_stato` (verificato si/no, il codice non esce
+mai), `hx_verifica_invia` (ne genera uno nuovo e lo spedisce; un invio ogni 60
+secondi), `hx_verifica_prova` (confronta, conta i tentativi, e a codice giusto
+CANCELLA la cifra invece di lasciarla scritta accanto a "verificato").
+
+**Chi non ha verificato entra lo stesso e ritrova la domanda** (deciso con
+Lorenzo il 07/09/2026). E' la meta' che evita di lasciare gente incastrata: chi
+chiude la finestra a meta' rientra e trova la schermata del codice, non una
+porta chiusa. Il controllo sta in `accessoEntra`, **prima** di prendere la
+sedia — occupare un posto per qualcuno che non sta entrando lo terrebbe
+occupato per mezzo minuto dopo che se n'e' andato. In caso di dubbio (server
+muto) **si lascia passare**: il prezzo dell'errore non e' lo stesso nei due
+versi.
+
+**L'email** e' disegnata da Lorenzo in Figma ("Email template") e vive in
+`_verificaHtml`. Tradotta ai limiti della posta, che non sono quelli del web:
+niente `<style>` con classi (Gmail lo butta via), impaginazione a TABELLE,
+niente sfocature/fusioni/ombre interne — i gradienti del disegno sono
+appiattiti nei colori che producono, campionati dall'artboard e non indovinati.
+I caratteri veri si dichiarano lo stesso (Apple Mail li carica) con sempre un
+serif di sistema dietro, perche' Outlook non li carichera' mai. **Il pulsante
+"Copy code" del disegno non c'e'**: in una email non gira nessuno script,
+quindi non potrebbe copiare niente.
+
+**Il nome nell'email** e' la parte davanti alla chiocciola dell'indirizzo, non
+il nome utente: quello si sceglie al primo avvio, e questa email parte prima
+che esista.
+
+**Non c'e' nessun blocco oltre a questo.** Un account non verificato oggi non
+puo' fare niente di diverso da uno verificato se non passa dal client: il
+segno esiste e si legge, ma nessuna partita lo controlla. Il giorno in cui
+serve, il posto e' `rpcPartita` e la ricerca dell'avversario.
+
+---
+
 ## La pagina 404 (dalla 07/09/2026)
 
 `404.html` sta in radice e si chiama cosi' perche' e' il nome che **GitHub
