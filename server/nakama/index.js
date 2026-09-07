@@ -1009,6 +1009,43 @@ function _spedisciCodice(nk, logger, email, nome, codice) {
 
 var VERIFICA_MS = VERIFICA_ORE * 3600 * 1000;
 
+// Questo account ha confermato la sua casella? La domanda sta in una funzione
+// sola perche' da oggi la fanno in tre — la schermata del codice, la coda del
+// matchmaking e la porta della partita — e tre copie della stessa regola
+// divergono alla prima modifica.
+// Chi non ha l'oggetto scritto e' chi si e' registrato prima che questa
+// verifica esistesse: verificato. Vale qui come in rpcVerificaStato, ed e' la
+// stessa riga di ragionamento — non gli si puo' chiedere un codice che nessuno
+// gli ha mai mandato.
+function _verificato(nk, userId) {
+  try {
+    var v = leggiVerifica(nk, userId);
+    return !v || !!v.verificato;
+  } catch (e) {
+    // Una lettura andata storta non deve chiudere fuori chi ha fatto tutto
+    // giusto: nel dubbio si lascia passare, come fa il client. Il prezzo
+    // dell'errore non e' lo stesso nei due versi.
+    return true;
+  }
+}
+
+// ── v0.79.32 — E CHI NON HA VERIFICATO NON CERCA AVVERSARI ────────────────
+// Il gioco gia' non lo lascerebbe arrivare al menu (vedi accessoEntra), ma
+// quello e' il client: e' una cortesia, non una regola. La regola sta qui,
+// sulla porta della coda, che e' l'unico modo di entrare in una partita in
+// rete — partitaJoinAttempt rifiuta chiunque non sia stato accoppiato, quindi
+// non accoppiarsi vuol dire non giocare.
+// Si alza un errore invece di restituire una busta vuota: il matchmaker
+// prenderebbe una busta senza query come una richiesta buona, e il giocatore
+// resterebbe in coda per sempre senza sapere perche'.
+function primaDiCercare(ctx, logger, nk, envelope) {
+  if (ctx.userId && !_verificato(nk, ctx.userId)) {
+    logger.info('coda rifiutata a %s: casella non ancora verificata', ctx.userId);
+    throw Error('verifica la tua email prima di giocare in rete');
+  }
+  return envelope;
+}
+
 // Dove sta questo account: gia' verificato, o gli si deve ancora chiedere il
 // codice. Il codice NON esce mai da qui.
 function rpcVerificaStato(ctx, logger, nk, payload) {
@@ -2934,6 +2971,11 @@ function partitaJoinAttempt(ctx, logger, nk, dispatcher, tick, state, presence, 
   // Entra solo chi e' stato accoppiato. Un match id che gira non deve essere
   // un invito per chiunque lo intercetti.
   if (_indiceDi(state, presence.userId) === -1) return { state: state, accept: false, rejectMessage: 'non sei di questa partita' };
+  // v0.79.32 — e la casella verificata. Qui non ci si arriva senza essere
+  // passati dalla coda, che gia' controlla: questa e' la seconda mandata alla
+  // stessa porta, e costa una riga. Le serrature che contano stanno sulla
+  // porta, non sul cartello davanti.
+  if (!_verificato(nk, presence.userId)) return { state: state, accept: false, rejectMessage: 'verifica la tua email prima di giocare in rete' };
   if (state.presenze[presence.userId]) return { state: state, accept: false, rejectMessage: 'sei gia\' dentro' };
   return { state: state, accept: true };
 }
@@ -4246,6 +4288,8 @@ function InitModule(ctx, logger, nk, initializer) {
   // messaggio di accoppiamento che gia' ricevevano.
   initializer.registerMatch('hextale', partita);
   initializer.registerMatchmakerMatched(accoppiati);
+  // v0.79.32 — la coda si chiede il permesso prima di accettare un biglietto.
+  initializer.registerRtBefore('MatchmakerAdd', primaDiCercare);
   // Tutte le strade d'ingresso, non solo quella con l'email: chi entra con
   // Google deve ricevere il mazzo esattamente come gli altri.
   initializer.registerAfterAuthenticateEmail(dopoAccesso);

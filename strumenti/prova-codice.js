@@ -155,6 +155,28 @@ app.whenReady().then(async () => {
     window.nakamaRpc = async ()=>{ throw new Error('niente rete'); };
     dice(await serveIlCodice() === false, 'e se il server non risponde si lascia passare');
 
+    // ── 8. LA CODA RIFIUTATA ───────────────────────────────────────────────
+    // Il server da oggi rifiuta il biglietto a chi non ha verificato. Il ramo
+    // che ascolta quel no non c'era, e la sua mancanza non sbagliava niente:
+    // non faceva niente. La rotella restava a girare su una coda in cui non si
+    // era entrati, per sempre, senza dire perche'.
+    dice(typeof mmRifiutato === 'function', 'il gioco sa cosa fare se la coda lo rifiuta');
+    let fermata = 0, avviso = null;
+    const veroFerma = window.mm2FermaRicerca, veroAvviso = window.apriAvviso;
+    window.mm2FermaRicerca = ()=>{ fermata++; };
+    window.apriAvviso = (t, c)=>{ avviso = { titolo:t, corpo:c }; };
+    mmRifiutato({ message: 'verifica la tua email prima di giocare in rete' });
+    dice(fermata === 1, 'la ricerca si ferma', 'fermate: ' + fermata);
+    dice(!!avviso && /Activate your account/.test(avviso.titolo),
+      'e si dice che manca il codice, non un errore qualunque',
+      avviso ? avviso.titolo : 'nessun avviso');
+    dice(!!avviso && /6 digit code/.test(avviso.corpo), 'e si dice cosa fare per averlo');
+    avviso = null;
+    mmRifiutato({ message: 'qualcos altro' });
+    dice(!!avviso && /Cannot search/.test(avviso.titolo),
+      'e un rifiuto per un altro motivo si racconta come tale', avviso ? avviso.titolo : '?');
+    window.mm2FermaRicerca = veroFerma; window.apriAvviso = veroAvviso;
+
     return dette;
   }catch(e){ return [{ok:false, che:'la prova si e- rotta', perche:String((e && e.stack) || e)}]; } })()`);
 

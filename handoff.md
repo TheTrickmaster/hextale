@@ -2564,10 +2564,26 @@ quindi non potrebbe copiare niente.
 il nome utente: quello si sceglie al primo avvio, e questa email parte prima
 che esista.
 
-**Non c'e' nessun blocco oltre a questo.** Un account non verificato oggi non
-puo' fare niente di diverso da uno verificato se non passa dal client: il
-segno esiste e si legge, ma nessuna partita lo controlla. Il giorno in cui
-serve, il posto e' `rpcPartita` e la ricerca dell'avversario.
+**E dalla v0.79.32 blocca anche il matchmaking.** La regola sta su
+`registerRtBefore('MatchmakerAdd')`, cioe' sulla porta della coda: e' l'unico
+modo di entrare in una partita in rete, perche' `partitaJoinAttempt` rifiuta
+gia' chiunque non sia stato accoppiato. Li' dentro si ALZA un errore invece di
+restituire una busta vuota — il matchmaker prenderebbe una busta senza query
+per una richiesta buona, e il giocatore resterebbe in coda per sempre senza
+sapere perche'. La stessa domanda la rifa' `partitaJoinAttempt`, ed e' la
+seconda mandata alla stessa porta: costa una riga.
+
+La domanda sta in `_verificato(nk, userId)`, una funzione sola, perche' adesso
+la fanno in tre. E anche li' un dubbio si risolve lasciando passare.
+
+**Il client ascolta il no.** `s.onmessage` ignorava `m.error`: un biglietto
+rifiutato lasciava la rotella a girare per sempre su una coda in cui non si era
+entrati. Adesso c'e' `mmRifiutato`, che ferma la ricerca e distingue "ti manca
+il codice" da un rifiuto qualunque.
+
+**Le partite contro l'IA restano libere.** Non e' una dimenticanza: la verifica
+serve a sapere che una casella e' vera, e giocare da soli non riguarda
+nessun'altra casella.
 
 ---
 

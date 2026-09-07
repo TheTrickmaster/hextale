@@ -11230,7 +11230,7 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.32</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.31</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -14752,13 +14752,6 @@ function mmApriSocket(){
       // ABBANDONO, a meta' turno. Nei log si leggeva 'partita finita per
       // abbandono' senza che nessuno avesse abbandonato niente.
       if(m && m.ping){ mmManda({ cid: m.cid, pong: {} }); return; }
-      // ── v0.79.32 — E SE IL SERVER DICE DI NO ──────────────────────────
-      // Questo ramo non c'era, e la mancanza si vedeva in un modo particolare:
-      // non sbagliava niente, non faceva niente. Il server puo' rifiutare un
-      // biglietto — da oggi lo fa a chi non ha verificato la casella — e senza
-      // qualcuno che ascolti la risposta la rotella continuava a girare, per
-      // sempre, senza dire perche'.
-      if(m && m.error){ mmRifiutato(m.error); return; }
       if(m && m.matchmaker_matched) mmTrovato(m.matchmaker_matched);
       // v0.77.54 — e da qui in poi ci passa tutta la partita.
       if(m && m.match_data) reteMessaggio(m.match_data);
@@ -15168,22 +15161,6 @@ function mmConsegnaBiglietto(rank, forza, codice){
     numeric_properties: { rank: rank, capacita: Math.round(forza.capacita),
                           livello: Math.round(forza.livelloMedio * 10) }
   }});
-}
-
-// Il server ha rifiutato il biglietto. Si smette di cercare — la rotella che
-// gira su una coda in cui non si e' entrati e' la bugia piu' facile da
-// raccontare — e si dice cosa manca.
-function mmRifiutato(errore){
-  const detto = String((errore && errore.message) || '');
-  try{ mm2FermaRicerca(); }catch(_){}
-  if(/verifica la tua email|verify your email/i.test(detto)){
-    apriAvviso('Activate your account',
-      'Your email address has not been confirmed yet. Log out and log back in: '
-      + 'the game will ask you for the 6 digit code we sent you.', true);
-    return;
-  }
-  apriAvviso('Cannot search',
-    'The server refused the search' + (detto ? (': ' + detto) : '.') + ' Try again in a moment.', true);
 }
 
 // ── LA RICERCA ────────────────────────────────────────────────────────────
