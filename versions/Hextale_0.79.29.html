@@ -11136,7 +11136,7 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.30</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.29</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -34468,66 +34468,6 @@ function motoreFaLEvento(card, evento){
   return _effettoSemplice(a.effetto) && _effettoSemplice(a.effetto2);
 }
 
-// ── v0.79.30 — META' ABILITA' E' MEGLIO DI NIENTE ─────────────────────────
-// motoreFaLEvento risponde con una E: il motore prende l'evento solo se sa
-// fare ENTRAMBE le meta' della riga. E' giusto come domanda — "e' tutto tuo?"
-// — ma la risposta veniva usata come un interruttore: no, e allora il motore
-// non fa NIENTE, nemmeno la meta' che sapeva fare.
-//
-// La Sirenetta e' esattamente questa storia. Il foglio dice "discard chosen
-// self in_hand card 1, and, buff self power ALL 2": lo scarto lo chiede al
-// giocatore (e ha una voce scritta a mano che apre la finestra), il +2 ALL e'
-// un numero che il motore calcola a occhi chiusi. Ma la prima meta' non e'
-// roba da motore, quindi cadevano tutte e due, e la carta scendeva in campo
-// coi valori di sempre — mentre il suo testo, che il foglio lo legge davvero,
-// prometteva il buff.
-//
-// La cura esisteva gia' da una parte sola: avvisaCartaSpostata la applicava
-// per il Tricheco, che ha lo stesso problema al contrario (prima il buff, poi
-// uno spostamento da scegliere). Era scritta li' dentro, e il piazzamento non
-// la conosceva. Adesso e' una funzione sola e la usano tutti e due.
-//
-// COME: si costruisce un'abilita' FINTA con una meta' sola e la si passa al
-// motore. Non si filtra l'elenco dei cambiamenti a valle, e non e' un
-// dettaglio: due meta' che fanno la stessa azione — poniamo due buff, uno
-// scelto dal giocatore e uno no — uscirebbero indistinguibili, e ne
-// applicheremmo una a caso. Chiedendo una meta' per volta, la domanda non e'
-// mai ambigua.
-//
-// "perOgni" serve a chi vuole vedere il cambiamento: lo spostamento fa
-// lampeggiare i numeri e ridisegna, il piazzamento no — li' il tabellone si
-// ridisegna comunque subito dopo.
-function applicaLeMetaSemplici(card, evento, cella, perOgni){
-  if(!card || !_haAbilitaNuova(card)) return false;
-  const a = _motore().abilitaDi(card);
-  if(!a || a.trigger !== evento) return false;
-  // Se il motore prende tutto, questa non c'entra: chi chiama ha gia' la sua
-  // strada, e passare di qui vorrebbe dire applicare due volte.
-  if(motoreFaLEvento(card, evento)) return false;
-  let fatto = false;
-  for(const eff of [a.effetto, a.effetto2]){
-    if(!eff || !_effettoSemplice(eff)) continue;
-    const finto = { trigger:evento, frequenza:a.frequenza, finestra:a.finestra,
-                    se:a.se, regola:null, legame:null, se2:null, regola2:null,
-                    effetto2:null, effetto:eff };
-    const copia = { values:card.values, valoriBase:card.valoriBase, valoriNascita:card.valoriNascita,
-                    id:card.id, name:card.name, owner:card.owner, traits:card.traits,
-                    traitNames:card.traitNames, abilita:finto, _scatti:card._scatti };
-    const cambi = _motore().cambiamentiAllEvento(copia, evento, _scenaEvento(card, cella));
-    card._scatti = copia._scatti;
-    if(!cambi.length) continue;
-    // v0.79.17 — anche la FONTE: senza, il registro dei modificatori si
-    // ricorderebbe della copia di lavoro invece che della carta vera, e la
-    // riga direbbe "from" un oggetto che non e' su nessun tabellone.
-    for(const x of cambi){ if(x.carta === copia) x.carta = card; if(x.fonte === copia) x.fonte = card; }
-    const prima = {...card.values};
-    applicaCambiamenti(cambi);
-    if(typeof perOgni === 'function') perOgni(card, prima);
-    fatto = true;
-  }
-  return fatto;
-}
-
 // Il tabellone come lo vede il motore, piu' cio' che riguarda QUESTA giocata.
 function _scenaEvento(card, cella, extra){
   const s = _scenaTabellone();
@@ -34972,14 +34912,6 @@ function applicaAbilitaPiazzamento(card, q, r, chiave){
     return;
   }
   const effetto = EFFETTI_PIAZZAMENTO[chiave];
-  // ── v0.79.30 — E SE IL MOTORE NE SA FARE META', QUELLA LA FA ────────────
-  // Solo quando NON c'e' una versione scritta a mano dei valori: dove
-  // qualcuno l'ha scritta, quella e' l'implementazione, e aggiungerci sopra il
-  // motore vorrebbe dire applicare due volte lo stesso buff.
-  // La Sirenetta non ce l'ha — la sua voce scritta a mano apre la finestra
-  // dello scarto, che e' un'altra cosa — e infatti il suo +2 ALL non lo faceva
-  // nessuno.
-  if(typeof effetto !== 'function') applicaLeMetaSemplici(card, 'on_play', key(q, r));
   if(typeof effetto === 'function') effetto(card, q, r);
 }
 
@@ -37095,13 +37027,25 @@ function avvisaCartaSpostata(card, daCella, aCella, poi){
     // Il motore non sa fare TUTTO cio' che c'e' sulla riga (il Tricheco ha due
     // effetti, e il secondo sposta): il primo lo si applica lo stesso, uno per
     // uno, invece di rinunciare a entrambi.
-    // v0.79.30 — e questo giro adesso e' una funzione sola, che serve anche al
-    // piazzamento: era scritta qui dentro, e la Sirenetta — stessa storia al
-    // contrario — non poteva arrivarci.
-    applicaLeMetaSemplici(card, 'on_moved', aCella, (c2, prima)=>{
-      lampeggiaDifferenzaValori(c2, prima);
+    for(const eff of [a.effetto, a.effetto2]){
+      if(!eff || !_effettoSemplice(eff)) continue;
+      const finto = { trigger:'on_moved', frequenza:a.frequenza, finestra:a.finestra,
+                      se:a.se, regola:null, legame:null, se2:null, regola2:null, effetto2:null, effetto:eff };
+      const copia = { values:card.values, valoriBase:card.valoriBase, valoriNascita:card.valoriNascita,
+                      id:card.id, name:card.name, owner:card.owner, traits:card.traits,
+                      traitNames:card.traitNames, abilita:finto, _scatti:card._scatti };
+      const cambi = _motore().cambiamentiAllEvento(copia, 'on_moved', _scenaEvento(card, aCella));
+      card._scatti = copia._scatti;
+      if(!cambi.length) continue;
+      // v0.79.17 — anche la FONTE: senza, il registro dei modificatori si
+      // ricorderebbe della copia di lavoro invece che della carta vera, e la
+      // riga direbbe "from" un oggetto che non e' su nessun tabellone.
+      for(const x of cambi){ if(x.carta === copia) x.carta = card; if(x.fonte === copia) x.fonte = card; }
+      const prima = {...card.values};
+      applicaCambiamenti(cambi);
+      lampeggiaDifferenzaValori(card, prima);
       try { render(); } catch(_){ }
-    });
+    }
   }
 
   // 2) e quel che chiede al giocatore

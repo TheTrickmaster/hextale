@@ -2265,6 +2265,30 @@ zone, caricando il gioco e verificando che le funzioni chiave esistano ancora.
 
 ## Trappole gia' incontrate (per non ripeterle)
 
+- **Una domanda con la E usata come interruttore spegne anche cio' che
+  funzionava.** `motoreFaLEvento` chiede "il motore sa fare ENTRAMBE le meta'
+  della riga?" — domanda giusta — ma un "no" faceva rinunciare a tutte e due,
+  anche alla meta' che il motore calcolava benissimo. La Sirenetta perdeva il
+  suo +2 ALL perche' l'altra meta' era uno scarto da scegliere. Quando una
+  condizione dice "non tutto", la risposta utile e' quasi sempre "allora la
+  parte che si puo'", non "allora niente". (v0.79.30, `applicaLeMetaSemplici`;
+  banco `strumenti/prova-meta-abilita.js`.)
+- **Una cura scritta dentro a un solo chiamante non e' una cura, e' un caso
+  particolare.** Lo stesso rimedio esisteva gia' da mesi dentro ad
+  `avvisaCartaSpostata` per il Tricheco: era corretto, funzionava, e il
+  piazzamento non poteva arrivarci. Il guasto e' rimasto in piedi accanto alla
+  sua soluzione.
+- **Un banco che riusa la stessa carta misura la seconda volta, non la prima.**
+  `cambiamentiAllEvento` segna lo scatto `once_per_game` sulla carta: una
+  diagnostica innocente ("vediamo cosa dice il motore") consuma lo scatto, e la
+  prova vera dopo legge "non fa niente" e sembra un guasto. Carta nuova a ogni
+  prova.
+- **Un controllo che non esercita niente dice sempre di si'.** Scritto un
+  controllo su tutte le carte `on_play`, cercava le righe in `FINAL_CARDS` —
+  che nel file aperto da solo ne ha quattro. Guardava zero carte e passava.
+  Quando un controllo cicla su una popolazione, il numero di elementi guardati
+  va verificato anche lui.
+
 - **Un bilanciamento che pareggia la cosa sbagliata sembra un bilanciamento.**
   I mazzi dell'IA erano pareggiati sulla POTENZA (la somma dei valori sui lati)
   e sui LIVELLI, ma non sulla CAPACITA' — la somma dei costi di rarita'. E la

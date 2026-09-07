@@ -276,3 +276,41 @@ stesso da cui il server importa.
 Il banco gira anche sul codice **di prima** — la costante nuova ha un ripiego
 apposta — e li' fallisce undici controlli su diciotto. E' quella la prova: un
 banco che non sa fallire non sta misurando niente.
+
+## prova-meta-abilita.js — quando un'abilita' e' fatta di due meta'
+
+    $ELECTRON strumenti/prova-meta-abilita.js
+
+Il foglio puo' scrivere due effetti su una riga sola, legati da "and". Certe
+coppie sono **miste**: una meta' il motore la calcola (e' un numero), l'altra
+no — perche' la sceglie il giocatore, o perche' non e' un numero affatto.
+
+`motoreFaLEvento` risponde con una **E**: "sai fare TUTTA la riga?". E' la
+domanda giusta, ma la risposta veniva usata come un interruttore — no, e allora
+il motore non faceva **niente**, nemmeno la meta' che sapeva fare.
+
+Nel catalogo le carte cosi' sono due, e vanno nei versi opposti:
+
+| carta | momento | prima meta' | seconda meta' |
+|---|---|---|---|
+| Little Mermaid | `on_play` | scarto **scelto** | buff +2 ALL |
+| The Walrus | `on_moved` | buff +2 ALL | spostamento **scelto** |
+
+Il Tricheco aveva gia' la cura, scritta dentro ad `avvisaCartaSpostata`; la
+Sirenetta no, e scendeva in campo senza il suo +2 mentre il testo che il
+giocatore legge sulla carta glielo prometteva. Dalla v0.79.30 la cura e' una
+funzione sola (`applicaLeMetaSemplici`) e la usano tutte e due — per questo il
+banco le guarda **insieme**: separarle vorrebbe dire poter aggiustare una e
+rompere l'altra senza accorgersene.
+
+Due cose imparate scrivendolo, che valgono per i prossimi banchi:
+
+- **Una carta nuova a ogni prova.** `cambiamentiAllEvento` segna lo scatto
+  `once_per_game` sulla carta: riusare la stessa vuol dire chiederle due volte
+  una cosa che sa fare una volta sola, leggere "non fa niente" e credere di
+  aver trovato un guasto. Ci sono cascato mentre lo scrivevo.
+- **Un controllo che non esercita niente dice sempre di si'.** L'ultimo
+  controllo — "nessuna carta prende il buff due volte" — cercava le righe in
+  `FINAL_CARDS`, che nel file aperto da solo ne ha quattro: guardava zero carte
+  e passava. Adesso conta quante ne ha guardate, e quel conto e' un controllo
+  suo.
