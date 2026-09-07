@@ -459,3 +459,44 @@ nel flusso, i cinque cartellini spariscono, e al loro posto c'e' il riquadro che
 si riempie toccando un pezzo della carta — con **lo stesso testo dei
 cartellini**, preso da li'. Il banco tocca davvero, e guarda che compaia quello
 giusto.
+
+---
+
+## estrai-carta.js — la carta del gioco, presa dal gioco
+
+    $ELECTRON strumenti/estrai-carta.js [nome] [livello]
+
+Scrive tre file in `web-assets/sito/` che la pagina d'ingresso si mette dentro:
+`carta-alice.html` (il markup), `carta-alice.css` (le regole) e `carta-alice.js`
+(le funzioni che la muovono).
+
+**Perche' tre file e non una fotografia.** La carta del sito deve essere quella
+del gioco *in tutto e per tutto*: il riflesso che segue il puntatore, la
+lucentezza per materiale, la lamina vera con le sue due trame che scorrono in
+verso opposto, e il parallax dei livelli d'arte. Nessuna di queste cose e'
+un'immagine — sono un SVG con dentro maschere e trame, un foglio di stile, e una
+funzione che a ogni movimento riscrive una dozzina di numeri. Riscriverle a mano
+vorrebbe dire avere **due lamine diverse**, quella del gioco e una che le
+somiglia, e vederle divergere alla prima modifica.
+
+Il banco **non copia a mano niente**. Apre il gioco, costruisce la carta con lo
+stesso percorso della finestra dell'ingrandimento — `cartaAlLivello`,
+`_makeCardDbCard`, `cardFoilVisualCard`, `buildFullHandCardSVG`, `cardFoilWrap`,
+poi `cardDbBuildGlossLayer`, in quest'ordine, perche' l'ordine conta — e porta
+via tre cose:
+
+- **il DOM che ne esce**, con la lucentezza gia' costruita;
+- **le regole di stile che lo riguardano**, raccolte guardando quali classi
+  compaiono davvero nel sottoalbero invece che da una lista scritta a mano. Piu'
+  le proprieta' `--foil*` che il gioco scrive su `:root` all'avvio: senza quelle
+  i livelli restano spenti e non lo dice nessuno;
+- **il codice sorgente delle funzioni**, chiesto alle funzioni stesse con
+  `toString()`. E' l'unico modo di essere sicuri che sia quello che gira davvero.
+
+Alla fine dichiara cosa ha trovato — lamina, bande, parallax, lucentezza — e
+**esce con errore se manca qualcosa**: un'estrazione riuscita a meta' darebbe una
+carta che sembra giusta e che non luccica, ed e' il difetto piu' facile da non
+vedere.
+
+Gli indirizzi assoluti (`hextalegame.com/...`) diventano relativi alla radice,
+cosi' la stessa carta funziona sul sito vero e su un server di prova.

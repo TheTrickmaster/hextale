@@ -68,7 +68,12 @@ app.whenReady().then(async () => {
     (function giu(i){ if(i >= passi.length) return;
        scrollTo(0, passi[i]); setTimeout(function(){ giu(i+1); }, 110); })(0);
     true;`);
-  await new Promise(r => setTimeout(r, 3600));
+  await new Promise(r => setTimeout(r, 2600));
+  // E si finisce fermi sulle domande: l'ultima immagine — Geppetto, dietro
+  // di loro — comincia a caricarsi quando entra in vista, e il giro adesso
+  // arriva fino in fondo alla pagina, che e' PIU' IN BASSO di lei.
+  await win.webContents.executeJavaScript("document.getElementById('faq').scrollIntoView(); true;");
+  await new Promise(r => setTimeout(r, 2000));
 
   const dette = await win.webContents.executeJavaScript(`(function(){
     const STRETTO = ${STRETTO};
@@ -141,6 +146,10 @@ app.whenReady().then(async () => {
     if(!STRETTO) dice(Math.abs(m.offsetWidth - 404) <= 1, 'il marchio largo 404 com-era', m.offsetWidth);
 
     // ── L'H1 ────────────────────────────────────────────────────────────────
+    // Niente alone attaccato ai contorni e niente respiro: le lettere sono
+    // solo il gradiente.
+    dice(st('h1','textShadow') === 'none', 'l-H1 non ha piu- il text-shadow', st('h1','textShadow'));
+    dice(st('h1','animationName') === 'none', 'ne- l-animazione', st('h1','animationName'));
     const sf = st('h1','backgroundImage');
     dice(/90deg/.test(sf), 'il gradiente dell-H1 e- ruotato a 90 gradi', sf.slice(0,80));
     dice(/rgb\\(28, 18, 9\\)[\\s\\S]*rgb\\(137, 105, 53\\)[\\s\\S]*rgb\\(28, 18, 9\\)/.test(sf),
@@ -161,35 +170,88 @@ app.whenReady().then(async () => {
 
     // ── LA CARTA ────────────────────────────────────────────────────────────
     // E' la carta VERA: l'SVG che il gioco costruisce, non una fotografia.
-    const svg = q('#carta-piano > svg');
+    // Non basta che ci sia un SVG: ci devono essere i quattro effetti che il
+    // gioco mette su una carta di livello 4, e devono essere i SUOI.
+    const svg = q('.hx-carta svg');
     dice(!!svg, 'la carta e- un SVG dentro alla pagina');
-    dice(svg && svg.querySelectorAll('image').length >= 20,
+    dice(svg && svg.querySelectorAll('image').length >= 35,
       'con tutti i suoi pezzi', svg && svg.querySelectorAll('image').length);
     dice(svg && svg.getAttribute('viewBox') === '0 0 374 642', 'alle proporzioni della carta', svg && svg.getAttribute('viewBox'));
     dice([...(svg ? svg.querySelectorAll('image') : [])].every(i => {
       const h = i.getAttribute('href') || i.getAttribute('xlink:href') || '';
       return h.charAt(0) === '/';
     }), 'i suoi disegni li chiede alla radice del sito');
-    // I gradini del livello 4.
-    dice(!!q('#carta-piano .glare') && !!q('#carta-piano .lamina') && !!q('#carta-piano .banda'),
-      'riflesso, banda e lamina: la carta e- di livello 4');
+    // I quattro effetti del gioco, coi nomi del gioco.
+    dice(!!q('.card-db-foil-wrap') && !!q('.card-db-foil-tilt') && !!q('.card-db-foil-glare'),
+      'l-involucro a tre strati del gioco');
+    dice(!!q('.hx-carta .card-db-gloss-layer'), 'la lucentezza per materiale (specular)');
+    dice(!!q('.hx-carta .card-holo-grad-a') && !!q('.hx-carta .card-holo-grad-b'),
+      'la lamina vera, con le sue due trame');
+    dice(!!q('.hx-carta .card-holo-bands'), 'e le sue bande');
+    dice(!!q('.hx-carta .hex-art-parallax-layer[data-parallax-depth]'), 'il parallax dell-arte');
+    dice(typeof cardFoilApply === 'function' && typeof cardFoilReset === 'function',
+      'e a muoverla e- il codice del gioco');
+    dice(st('.card-db-foil-glare','backgroundImage').indexOf('radial-gradient') >= 0,
+      'il glare e- quello del gioco', st('.card-db-foil-glare','backgroundImage').slice(0,40));
+    // E si accende DAVVERO: si muove il puntatore e si guarda se i numeri
+    // cambiano. Senza questo, un markup giusto e un codice muto passerebbero.
+    (function(){
+      const c = q('.hx-carta'), tilt = q('.card-db-foil-tilt'), bande = q('.hx-carta .card-holo-bands');
+      const prima = bande && bande.getAttribute('transform');
+      c.setAttribute('data-foil-active','1');
+      cardFoilApply(c, 0.6, -0.4, 0.8, 0.3);
+      dice(tilt.style.getPropertyValue('--foil-rx') === '0.600',
+        'inclinandola l-inclinazione arriva alla carta', tilt.style.getPropertyValue('--foil-rx'));
+      dice(bande && bande.getAttribute('transform') !== prima,
+        'e le bande della lamina si muovono', bande && String(bande.getAttribute('transform')).slice(0,40));
+      dice(tilt.style.getPropertyValue('--foil-hue') !== '',
+        'e la tinta della lamina ruota', tilt.style.getPropertyValue('--foil-hue'));
+      const g = q('.hx-carta linearGradient[id^="gloss-g-"]');
+      dice(g && g.children[2].getAttribute('offset') !== '0.5',
+        'e la banda di luce scorre sul metallo', g && g.children[2].getAttribute('offset'));
+      cardFoilReset(c);
+      dice(!c.hasAttribute('data-foil-active'), 'e a riposo torna in piano');
+    })();
 
     // ── I CARTELLINI ────────────────────────────────────────────────────────
     const cart = tutti('.cartellino');
     dice(cart.length === 5, 'cinque cartellini', cart.length);
-    // La freccetta e' un ANGOLO, non un pallino: l'angolo che guarda la carta
-    // e' squadrato e ci esce una punta.
-    dice(cart.every(c => c.classList.contains('punta-sx') || c.classList.contains('punta-dx')),
-      'ognuno ha la sua punta');
+    // Stanno SOPRA alla carta. E' la richiesta, ed e' anche l'unico modo di
+    // vedere la freccetta: sotto, l'angolo da cui esce e' coperto dalla carta.
+    dice(cart.every(c => parseInt(getComputedStyle(c).zIndex,10) >
+                         parseInt(st('.carta-scena','zIndex'),10)),
+      'i cartellini stanno sopra alla carta',
+      st('.cartellino','zIndex') + ' contro ' + st('.carta-scena','zIndex'));
+    // La freccetta e' il triangolino d'ORO del disegno, di 10, sull'angolo
+    // squadrato — non un triangolo del colore del bordo.
     dice(cart.every(c => {
       const p = getComputedStyle(c, '::after');
-      return p.content !== 'none' && parseFloat(p.borderTopWidth) > 0;
-    }), 'la punta e- un triangolo, non un pallino');
+      return p.backgroundImage.indexOf('punta-cartellino.svg') > 0
+          && Math.round(parseFloat(p.width)) === 10;
+    }), 'la freccetta e- quella d-oro del disegno, di 10',
+      getComputedStyle(cart[0], '::after').backgroundImage.slice(0,60));
     dice(cart.every(c => {
       const s = getComputedStyle(c);
-      const angoli = [s.borderTopLeftRadius, s.borderTopRightRadius].map(parseFloat);
-      return angoli.some(a => a === 0);
-    }), 'e l-angolo da cui esce e- squadrato');
+      return [s.borderTopLeftRadius, s.borderTopRightRadius,
+              s.borderBottomLeftRadius, s.borderBottomRightRadius]
+             .map(parseFloat).filter(a => a === 0).length === 1;
+    }), 'e sta sull-unico angolo squadrato');
+    // La trama in sovrimpressione: e' quella che li toglie dall'aria di
+    // riquadro di plastica, e non c'era.
+    dice(cart.every(c => {
+      const p = getComputedStyle(c, '::before');
+      return p.backgroundImage.indexOf('trama-cartellino.png') > 0
+          && p.mixBlendMode === 'hard-light'
+          && Math.abs(parseFloat(p.opacity) - 0.1) < 0.001;
+    }), 'la trama in hard-light al 10%',
+      getComputedStyle(cart[0], '::before').mixBlendMode + ' ' + getComputedStyle(cart[0], '::before').opacity);
+    // I caratteri del disegno.
+    dice(st('.cartellino h3','fontSize') === '26px' && st('.cartellino h3','lineHeight') === '43px',
+      'il titolo 26 su 43', st('.cartellino h3','fontSize') + '/' + st('.cartellino h3','lineHeight'));
+    dice(st('.cartellino h3','color') === 'rgb(232, 212, 169)', 'color E8D4A9', st('.cartellino h3','color'));
+    dice(st('.cartellino p','fontSize') === '13px' && st('.cartellino p','color') === 'rgb(159, 177, 179)',
+      'il testo 13 color 9FB1B3', st('.cartellino p','fontSize') + ' ' + st('.cartellino p','color'));
+    dice(st('.cartellino b','color') === 'rgb(255, 255, 255)', 'e le parti in risalto bianche', st('.cartellino b','color'));
     if(!STRETTO){
       // Le posizioni sono quelle del disegno, dentro al palco.
       const attese = { nome:[250.5,36], potere:[0,246], livello:[773.5,236], abilita:[736.5,501], tratti:[136.5,413] };
@@ -224,12 +286,34 @@ app.whenReady().then(async () => {
       'la pagina non scorre di lato', document.documentElement.scrollWidth + ' su ' + innerWidth);
 
     // ── IL MAZZO ────────────────────────────────────────────────────────────
+    // Aprendosi il ventaglio diventa piu' largo della colonna: il palco deve
+    // avere il suo secondo fattore di scala, altrimenti le carte uscirebbero
+    // dai bordi e finirebbero sopra al testo accanto.
+    (function(){
+      const p = q('#mazzo .palco');
+      const aperto = parseFloat(p.getAttribute('data-largo-aperto'));
+      dice(aperto > parseFloat(p.getAttribute('data-largo')),
+        'il ventaglio dichiara quanto diventa largo da aperto', aperto);
+      const sa = parseFloat(p.style.getPropertyValue('--scala-aperta'));
+      dice(sa > 0 && Math.abs(sa - Math.min(1, p.parentNode.clientWidth/aperto)) < 0.002,
+        'e il palco si rimpicciolisce di quel tanto', sa);
+      dice(aperto * sa <= p.parentNode.clientWidth + 1,
+        'cosi- aperto ci sta ancora dentro', Math.round(aperto*sa) + ' su ' + p.parentNode.clientWidth);
+    })();
     const carte = tutti('#mazzo .carte .carta');
     dice(carte.length === 4, 'le quattro carte del mazzo', carte.length);
     dice(carte.every(c => c.naturalWidth > 0), 'e sono arrivate tutte',
       carte.map(c=>c.naturalWidth).join(' '));
     dice(carte.every(c => /carta[1-4]\\.png/.test(c.getAttribute('src'))),
       'sono le quattro rasterizzate');
+
+    // ── IL VIDEO ─────────────────────────────────────────────────────────────────
+    // L'alone esce di proposito; a tenere la pagina dritta e' il taglio in
+    // cima al documento, non un ritaglio su questa sezione.
+    dice(st('#video','overflow') === 'visible', 'l-alone del video puo- uscire', st('#video','overflow'));
+    dice(st('#video','paddingTop') === '40px' && st('#video','paddingBottom') === '40px',
+      'e la sezione ha i suoi 40 sopra e sotto',
+      st('#video','paddingTop') + ' ' + st('#video','paddingBottom'));
 
     // ── LA SFIDA ────────────────────────────────────────────────────────────
     // Il riquadro del testo va SOTTO al tabellone: e' la richiesta, ed e' anche
@@ -243,9 +327,27 @@ app.whenReady().then(async () => {
       st('#sfida .tavolo','zIndex') + ' contro ' + st('#sfida .pannello','zIndex'));
     // Il testo non deve finire sotto al tabellone: l'imbottitura alta del
     // riquadro serve a questo.
-    const primoTesto = rt('#sfida .pannello .corpo');
+    const primoTesto = rt('#sfida .pannello .apertura');
     dice(primoTesto.top > tav.bottom - 6, 'ma il testo resta leggibile, sotto al bordo',
       Math.round(primoTesto.top - tav.bottom));
+    // I due blocchi erano di due caratteri INVERTITI, in mezzo mancava la riga
+    // e il pulsante stava fuori dal riquadro.
+    dice(/^["']?Marcellus/.test(st('#sfida .pannello .apertura','fontFamily')) &&
+         st('#sfida .pannello .apertura','fontSize') === '24px',
+      'il primo blocco e- Marcellus 24',
+      st('#sfida .pannello .apertura','fontFamily').slice(0,20) + ' ' + st('#sfida .pannello .apertura','fontSize'));
+    dice(st('#sfida .pannello .apertura','color') === 'rgb(196, 210, 212)', 'color C4D2D4', st('#sfida .pannello .apertura','color'));
+    dice(/^["']?Rosarivo/.test(st('#sfida .pannello .corpo','fontFamily')) &&
+         st('#sfida .pannello .corpo','fontSize') === '16px',
+      'il secondo e- Rosarivo 16',
+      st('#sfida .pannello .corpo','fontFamily').slice(0,20) + ' ' + st('#sfida .pannello .corpo','fontSize'));
+    dice(!!q('#sfida .pannello .riga'), 'e in mezzo c-e- la riga');
+    dice(!!q('#sfida .pannello .btn'), 'il pulsante sta dentro al riquadro');
+    dice(!q('#sfida .fondo-bottone'), 'e non piu- fuori');
+    dice(parseFloat(st('#sfida .pannello','width')) <= 540, 'il riquadro e- largo 540', st('#sfida .pannello','width'));
+    dice(st('#sfida .pannello','backdropFilter') === 'blur(20px)', 'con la sua sfocatura di 20', st('#sfida .pannello','backdropFilter'));
+    dice(getComputedStyle(q('#sfida .pannello'), '::before').backgroundImage.indexOf('trama-pannello.png') > 0,
+      'e la trama del disegno in overlay');
 
     // ── LE DOMANDE ──────────────────────────────────────────────────────────
     const dom = tutti('.domanda');
