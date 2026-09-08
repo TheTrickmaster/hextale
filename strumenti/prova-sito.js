@@ -524,6 +524,32 @@ app.whenReady().then(async () => {
     dice(tutti('[data-parallasse]').length >= 2, 'i fondali che restano si muovono',
       tutti('[data-parallasse]').map(e=>e.getAttribute('data-parallasse')).join(' '));
 
+    // ── I SOCIAL ────────────────────────────────────────────────────────
+    (function(){
+      const dove = { discord:'discord.com', itch:'itch.io', reddit:'reddit.com', instagram:'instagram.com' };
+      const link = tutti('footer .social a');
+      dice(link.length === 4, 'i quattro social nel piede', link.length);
+      dice(Object.keys(dove).every(function(k){
+        return link.some(function(a){ return a.href.indexOf(dove[k]) > 0; }); }),
+        'e portano dove devono', link.map(function(a){ return a.getAttribute('href'); }).join(' '));
+      // Un collegamento che apre una scheda nuova senza rel=noopener lascia a
+      // quella pagina una maniglia su questa, attraverso window.opener.
+      dice(link.every(function(a){ return (a.getAttribute('rel')||'').indexOf('noopener') >= 0; }),
+        'e si aprono senza lasciare una maniglia su questa pagina');
+      dice(link.every(function(a){ return (a.getAttribute('aria-label')||'').length > 2; }),
+        'e hanno un nome, che sono solo immagini');
+      // Altezza data, larghezza libera: le quattro immagini hanno misure native
+      // diverse, e lo stesso quadrato per tutte deformerebbe quelle non quadrate.
+      const alta = STRETTO ? 32 : 36;
+      const img = tutti('footer .social img');
+      dice(img.every(function(i){ return Math.abs(i.offsetHeight - alta) <= 1; }),
+        'alte ' + alta, img.map(function(i){ return i.offsetHeight; }).join(' '));
+      dice(img.every(function(i){
+        return i.naturalWidth > 0 &&
+          Math.abs(i.offsetWidth/i.offsetHeight - i.naturalWidth/i.naturalHeight) < 0.05; }),
+        'e nessuna schiacciata', img.map(function(i){ return i.offsetWidth+'x'+i.offsetHeight; }).join(' '));
+    })();
+
     // ── IL PIEDE ────────────────────────────────────────────────────────────
     // Il colore della pagina, non un altro: un piede di un altro colore sarebbe
     // una fascia, e qui non c'e' nessuna fascia da fare.
