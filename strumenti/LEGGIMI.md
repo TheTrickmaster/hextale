@@ -625,3 +625,37 @@ spazio di quello che gli era stato dato, salgono, e finiscono sopra al titolo
 dell'abilita'. Si spegne con `-webkit-text-size-adjust:100%` sull'`html`, e vale
 per tutto il documento perche' il difetto non e' della carta — e' di ogni testo
 a misura decisa.
+
+---
+
+## prova-cancello.js — il sito dietro alla parola d'ordine
+
+    $ELECTRON strumenti/prova-cancello.js <la parola d'ordine>
+
+**La parola si passa, non si scrive.** Il deposito e' pubblico: una parola
+d'ordine scritta in un file di questo deposito e' una parola d'ordine
+pubblicata. Nella pagina c'e' la sua **impronta** — SHA-256 di un sale piu' la
+parola — e mai la parola, e questo banco controlla anche quello: che nel
+sorgente servito la parola non compaia da nessuna parte.
+
+Si serve la pagina da `127.0.0.1` e non dal file, perche' `crypto.subtle` esiste
+solo in un **contesto sicuro** (https, o localhost). Aprendo il file a mano il
+cancello resta chiuso comunque — che e' il verso giusto in cui sbagliare, ma non
+permette di provare l'apertura.
+
+**Cosa il cancello e', e cosa non e'.** Questo e' un sito statico su GitHub
+Pages: non c'e' nessun server che possa rifiutare una richiesta, quindi la
+pagina arriva sempre intera al browser e la parola la controlla la pagina
+stessa. Chi apre gli strumenti da sviluppatore e cancella il riquadro vede il
+sito. **Non e' una serratura: e' un cartello "non ancora"**, che tiene fuori chi
+passava di li'. Una serratura vera la puo' fare solo un server — il sito dietro
+al Caddy che gia' sta davanti a `api.hextalegame.com`, e li' rifiutare la
+richiesta prima di mandare una sola riga di pagina.
+
+Il cancello nasce **coperente** nel markup e lo toglie lo script: se lo script
+non parte — JavaScript spento, un errore, una rete a meta' — il sito resta
+coperto invece di scoprirsi. Un cancello che in caso di guasto si apre non e' un
+cancello.
+
+E `prova-sito.js` lo **toglie e basta** prima di misurare: quel banco guarda la
+pagina, e la parola non sta in questo deposito.

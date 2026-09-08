@@ -53,6 +53,16 @@ app.whenReady().then(async () => {
   await win.loadURL('http://127.0.0.1:' + porta + '/');
   await new Promise(r => setTimeout(r, 2600));
 
+  // Il cancello si toglie e basta: questo banco guarda la PAGINA, e la parola
+  // d'ordine non sta in questo deposito — sta nelle mani di chi ce l'ha. Che
+  // il cancello faccia il suo mestiere lo prova strumenti/prova-cancello.js,
+  // a cui la parola si passa dalla riga di comando.
+  await win.webContents.executeJavaScript(`
+    var c = document.getElementById('cancello');
+    if(c) c.parentNode.removeChild(c);
+    document.body.classList.remove('chiuso');
+    true;`);
+
   // Si scorre tutta la pagina e si torna su. Le immagini sotto alla prima
   // schermata si caricano quando ci si arriva: senza questa passeggiata il
   // banco le troverebbe vuote e direbbe che mancano, quando invece e' lui a
@@ -384,7 +394,7 @@ app.whenReady().then(async () => {
     dice(st('.cartellino b','color') === 'rgb(255, 255, 255)', 'e le parti in risalto bianche', st('.cartellino b','color'));
     if(!STRETTO){
       // Le posizioni sono quelle del disegno, dentro al palco.
-      const attese = { potere:[-10,185], livello:[745,180], abilita:[715,500], tratti:[100,410] };
+      const attese = { potere:[20,185], livello:[775,180], abilita:[745,500], tratti:[130,410] };
       const palco = q('#collezione .palco');
       const sbagliati = Object.keys(attese).filter(k => {
         const c = q('.cartellino.c-' + k);
@@ -392,7 +402,19 @@ app.whenReady().then(async () => {
         return Math.abs(c.offsetLeft - attese[k][0]) > 1 || Math.abs(c.offsetTop - attese[k][1]) > 1;
       });
       dice(sbagliati.length === 0, 'e stanno dove sta il disegno', sbagliati.join(' '));
-      dice(q('.carta-scena').offsetLeft === 450, 'e la carta pure', q('.carta-scena').offsetLeft);
+      // La carta e- CENTRATA nel palco, non a un numero fisso: si guarda che
+      // il suo centro coincida con quello del palco, che e- la cosa che deve
+      // restare vera anche cambiando le misure del palco.
+      (function(){
+        // Si misurano i due rettangoli SULLO SCHERMO, non offsetLeft: la carta
+        // e- centrata con left:50% piu- una traslazione, e offsetLeft la
+        // traslazione non la vede — direbbe che sta a meta- quando sta mezza
+        // carta piu- in la-.
+        const rp = rt('#collezione .palco'), rc = rt('.carta-scena');
+        dice(Math.abs((rc.left+rc.right)/2 - (rp.left+rp.right)/2) <= 1.5,
+          'e la carta sta in mezzo al palco',
+          Math.round((rc.left+rc.right)/2) + ' su ' + Math.round((rp.left+rp.right)/2));
+      })();
     }
 
     // ── I PALCHI ────────────────────────────────────────────────────────────

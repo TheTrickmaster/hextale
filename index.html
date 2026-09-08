@@ -675,6 +675,59 @@ footer .social img{ height:36px; width:auto; display:block; }
 /* ══════════════════════════════════════════════════════════════════════════
    LA FINESTRA DEI CONTATTI
    ══════════════════════════════════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════════════════════════
+   IL CANCELLO
+   ══════════════════════════════════════════════════════════════════════════
+   La stessa scatola della finestra dei contatti, che e' la stessa del gioco.
+   Sta sopra a tutto — anche alla barra fissa — e il corpo non scorre finche'
+   e' li': altrimenti si potrebbe leggere il sito scorrendo sotto di lui. */
+body.chiuso{ overflow:hidden; }
+#cancello{
+  position:fixed; inset:0; z-index:2000;
+  display:flex; align-items:center; justify-content:center; padding:24px;
+  /* Opaco, non un velo: dietro non si deve vedere niente. La trama sta sotto a
+     un velo scuro scritto come gradiente piatto — non con un blend, che su iOS
+     e- gia- costato una volta: dipingere due strati e- una cosa che tutti i
+     browser sanno fare allo stesso modo. */
+  background:
+    linear-gradient(rgba(17,23,24,.88), rgba(17,23,24,.88)),
+    url('/web-assets/sito/hextale-landing-page-desktop.png') top left repeat,
+    #141B1C;
+  background-size:auto, 1024px auto, auto;
+  transition:opacity .45s ease, visibility 0s linear .45s;
+}
+#cancello.aperto{ opacity:0; visibility:hidden; pointer-events:none; }
+#cancello .colonna{ display:flex; flex-direction:column; align-items:center; max-width:100%; }
+#cancello .riquadro{
+  position:relative; width:460px; max-width:100%; padding:30px;
+  border-radius:30px;
+  background-image:linear-gradient(135deg, #2F3837 0%, #1A1F1E 100%);
+  box-shadow:inset 0 0 0 1.5px rgba(255,255,255,0.2), 0 8px 28px rgba(0,0,0,0.6);
+  display:flex; flex-direction:column; align-items:stretch; gap:20px;
+}
+#cancello .marchio{ width:210px; max-width:70%; margin:0 auto; }
+#cancello h2{
+  margin:0; font-family:'Marcellus SC',Georgia,serif; font-weight:400;
+  font-size:28px; line-height:1.1; color:var(--oro); text-align:center;
+}
+#cancello .sotto{ margin:-12px 0 0; text-align:center; color:#A7B6B8; font-size:15px; line-height:1.35; }
+#cancello label{ display:block; font-size:13px; color:#8FA1A3; margin:0 0 8px 4px; }
+#cancello .esito{ min-height:20px; margin:12px 0 0; text-align:center; font-size:14px; color:#E29A98; }
+#cancello .fondo-riga{ display:flex; justify-content:center; margin-top:4px; }
+#cancello .fondo-riga .btn{ min-width:300px; }
+/* Sbagliando, la scatola scuote: e' la stessa risposta delle sei caselle del
+   codice nel gioco, e si capisce prima di leggere. */
+#cancello .riquadro.storto{ animation:cancelloStorto .4s ease; }
+@keyframes cancelloStorto{
+  0%,100%{ transform:translateX(0); }
+  15%,45%,75%{ transform:translateX(-8px); }
+  30%,60%,90%{ transform:translateX(8px); }
+}
+@media (max-width:980px){
+  #cancello .riquadro{ padding:24px; gap:16px; }
+  #cancello .fondo-riga .btn{ min-width:0; width:min(300px, 78vw); }
+}
+
 #contatto{
   position:fixed; inset:0; z-index:100;
   display:flex; align-items:center; justify-content:center; padding:24px;
@@ -826,7 +879,11 @@ textarea.campo{ height:auto; min-height:132px; padding:14px 16px; resize:vertica
   .anatomia .palco{ position:static; width:auto !important; height:auto !important;
                     margin-left:0 !important; transform:none !important; }
   .anatomia .cartellino{ display:none; }
-  .carta-scena{ position:relative; left:auto; top:auto; margin:0 auto; width:min(300px,78vw); height:auto; aspect-ratio:374/642; }
+  /* Nel flusso torna anche la traslazione: la carta e- centrata con
+     left:50% e translateX(-50%), e qui a centrarla ci pensa margin:0 auto.
+     Lasciando la traslazione, mezza carta finiva fuori dallo schermo. */
+  .carta-scena{ position:relative; left:auto; top:auto; margin:0 auto; transform:none;
+                width:min(300px,78vw); height:auto; aspect-ratio:374/642; }
   .tocco{ display:block; }
   #tocco-detto{ display:block; }
   #collezione .sfondo{ top:90px; }
@@ -1046,6 +1103,33 @@ textarea.campo{ height:auto; min-height:132px; padding:14px 16px; resize:vertica
     </div>
   </div>
 </footer>
+
+<!-- ── IL CANCELLO ────────────────────────────────────────────────────────
+     Sta in cima al corpo e nasce APERTO, cioe' coprente: se lo script non
+     parte — JavaScript spento, un errore, una rete a meta' — il sito resta
+     coperto invece di scoprirsi. Un cancello che in caso di guasto si apre non
+     e' un cancello. -->
+<div id="cancello">
+  <div class="colonna">
+    <div class="riquadro">
+      <img class="marchio" src="/loading-screen/logo.png" alt="Hextale">
+      <h2>Not open yet</h2>
+      <p class="sotto">Hextale is still behind the curtain. If you were given a password, this is where it goes.</p>
+      <form id="modulo-cancello" novalidate>
+        <label for="cancello-parola">Password</label>
+        <input class="campo" type="password" id="cancello-parola" name="parola"
+               autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+        <p class="esito" id="cancello-esito" aria-live="polite"></p>
+        <div class="fondo-riga">
+          <button class="btn important" type="submit">
+            <span class="pezzi" aria-hidden="true"><span class="cap-sx"></span><span class="fill"></span><span class="mezzo"></span><span class="fill"></span><span class="cap-dx"></span></span>
+            <span class="etichetta">Enter</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
 
 <div id="contatto" role="dialog" aria-modal="true" aria-labelledby="contatto-titolo" aria-hidden="true">
   <div class="colonna">
@@ -1271,6 +1355,86 @@ function cardFoilReset(host){
     layer.style.transform = layer.dataset.parallaxDepth==='0' ? 'scale(1.06)' : '';
   });
 }
+
+// ══════════════════════════════════════════════════════════════════════════
+// IL CANCELLO
+// ══════════════════════════════════════════════════════════════════════════
+// COSA E' E COSA NON E'. Questo e' un sito statico su GitHub Pages: non c'e'
+// nessun server che possa rifiutare una richiesta, quindi la pagina arriva
+// SEMPRE intera al browser e la parola d'ordine la controlla la pagina stessa.
+// Chi apre gli strumenti da sviluppatore e cancella il riquadro vede il sito.
+// Non e' una serratura: e' un cartello "non ancora", che tiene fuori chi
+// passava di li' — e per un sito non ancora annunciato e' quasi tutto.
+// Una serratura vera la puo' fare solo un server: mettere il sito dietro al
+// Caddy che gia' sta davanti a api.hextalegame.com, e li' rifiutare la
+// richiesta prima di mandare una sola riga di pagina.
+//
+// LA PAROLA NON STA QUI. C'e' la sua IMPRONTA — SHA-256 di un sale piu' la
+// parola — e mai la parola. Il deposito e' PUBBLICO, e una parola d'ordine
+// scritta in un file di questo deposito e' una parola d'ordine pubblicata.
+// Confrontare le impronte e' esattamente come confrontare le parole, senza il
+// testo in chiaro in giro.
+//
+// E NON SI RICORDA. La regola della casa e' che questa pagina non scrive
+// niente nel browser — ne' localStorage ne' biscotti — e un cancello che si
+// ricorda di essere stato aperto e' esattamente uno che scrive. Quindi la
+// parola si ridice a ogni apertura. E' il prezzo della regola, non una
+// dimenticanza.
+var CANCELLO_SALE = 'hextale-cancello-v1:';
+var CANCELLO_IMPRONTA = 'a9c66f0e2645d6ff8ccf9869c4603c1e96cb3e462c7580863062af0ed2c7a8e5';
+
+(function(){
+  var cancello = document.getElementById('cancello');
+  if(!cancello) return;
+  document.body.classList.add('chiuso');
+  var modulo = document.getElementById('modulo-cancello');
+  var campo = document.getElementById('cancello-parola');
+  var esito = document.getElementById('cancello-esito');
+  var riquadro = cancello.querySelector('.riquadro');
+  setTimeout(function(){ try { campo.focus(); } catch(e) {} }, 120);
+
+  function impronta(parola){
+    var dati = new TextEncoder().encode(CANCELLO_SALE + parola);
+    return crypto.subtle.digest('SHA-256', dati).then(function(b){
+      var v = new Uint8Array(b), fuori = '';
+      for(var i = 0; i < v.length; i++) fuori += v[i].toString(16).padStart(2, '0');
+      return fuori;
+    });
+  }
+
+  function apri(){
+    cancello.classList.add('aperto');
+    document.body.classList.remove('chiuso');
+    // Il cancello se ne va davvero: lasciarlo trasparente sopra alla pagina
+    // vorrebbe dire lasciare un foglio invisibile che intercetta i clic.
+    setTimeout(function(){ if(cancello.parentNode) cancello.parentNode.removeChild(cancello); }, 600);
+  }
+
+  function rifiuta(){
+    esito.textContent = 'That is not the password.';
+    riquadro.classList.remove('storto');
+    void riquadro.getBoundingClientRect();   // il reflow, o l'animazione non riparte
+    riquadro.classList.add('storto');
+    campo.select();
+  }
+
+  modulo.addEventListener('submit', function(e){
+    e.preventDefault();
+    var parola = campo.value || '';
+    if(!parola) return;
+    esito.textContent = '';
+    // crypto.subtle esiste solo in un contesto sicuro: https, o localhost. Su
+    // hextalegame.com c'e'; aprendo il file a mano no, e in quel caso il
+    // cancello resta chiuso — che e' il verso giusto in cui sbagliare.
+    if(!(window.crypto && crypto.subtle)){
+      esito.textContent = 'This page needs to be opened over https.';
+      return;
+    }
+    impronta(parola).then(function(sua){
+      if(sua === CANCELLO_IMPRONTA) apri(); else rifiuta();
+    }).catch(function(){ rifiuta(); });
+  });
+})();
 
 (function(){
 'use strict';
