@@ -263,6 +263,31 @@ app.whenReady().then(async () => {
       const cerchi = [0,1,2].map(function(i){ return pezzo('value-circle', i); });
       dice(cerchi.every(function(c){ return zone.potere.some(function(z){ return dentro(z, c); }); }),
         'e ogni cerchio del potere ha la sua zona');
+      // NIENTE fusione sulle sagome: su iOS non avviene, perche- la carta sta
+      // dentro a un contesto con trasformazione 3D e will-change, e Safari
+      // ripiega su 'normal' senza dirlo — la sagoma chiara diventa una tinta
+      // piena e copre proprio il pezzo che doveva indicare.
+      (function(){
+        // La transizione si spegne prima di misurare: getComputedStyle subito
+        // dopo un cambio di classe restituisce il valore di PARTENZA della
+        // transizione in corso, cioe- zero. E- la stessa trappola gia- pagata
+        // tre volte in questo banco.
+        const z = q('.tocco b');
+        const fermaZona = document.createElement('style');
+        fermaZona.textContent = '.tocco b{transition:none !important}';
+        document.head.appendChild(fermaZona);
+        z.classList.add('acceso');
+        const m = getComputedStyle(z).mixBlendMode, o = parseFloat(getComputedStyle(z).opacity);
+        z.classList.remove('acceso'); fermaZona.remove();
+        dice(m === 'normal', 'accesa, la sagoma non dipende da una fusione', m);
+        dice(o > 0.2 && o < 0.85, 'e si vede attraverso', o);
+      })();
+      // E il testo lo dimensiona la pagina: su iOS Safari ingrandisce da solo
+      // quello che giudica piccolo, e le righe dell-abilita- vivono dentro
+      // all-SVG a coordinate fisse — ingrandite, salgono sopra al titolo.
+      dice(getComputedStyle(document.documentElement).webkitTextSizeAdjust === '100%',
+        'e il testo lo dimensiona la pagina, non il telefono',
+        getComputedStyle(document.documentElement).webkitTextSizeAdjust);
       dice(tutti('.tocco b').every(function(b){
         return getComputedStyle(b).backgroundImage.indexOf('/web-assets/sito/hover-') > 0; }),
         'ognuna porta la sagoma disegnata apposta',

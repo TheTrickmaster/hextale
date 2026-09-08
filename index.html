@@ -57,7 +57,17 @@
   --entra:.7s;
   --molla:cubic-bezier(.22,1,.36,1);
 }
-html{ scroll-behavior:smooth; overflow-x:clip; }
+html{
+  scroll-behavior:smooth; overflow-x:clip;
+  /* Safari su iOS ingrandisce da solo il testo che giudica troppo piccolo
+     dentro a un blocco largo: e' una comodita' per i siti non pensati per il
+     telefono, e qui fa danno. Le righe dell'abilita' vivono dentro all'SVG
+     della carta a coordinate FISSE, calcolate quando la carta e' stata
+     costruita: ingrandite dopo occupano piu' spazio di quello che gli era
+     stato dato, salgono, e finiscono sopra al titolo dell'abilita'.
+     Qui il testo lo dimensiona la pagina. */
+  -webkit-text-size-adjust:100%; text-size-adjust:100%;
+}
 /* Per chi ha chiesto al sistema operativo MENO MOVIMENTO, e per nessun altro.
    ATTENZIONE alla condizione: qui dentro si azzera ogni animazione e ogni
    transizione della pagina con !important, e la differenza fra "reduce" e
@@ -745,10 +755,20 @@ textarea.campo{ height:auto; min-height:132px; padding:14px 16px; resize:vertica
   opacity:0; transition:opacity .25s ease;
   -webkit-tap-highlight-color:transparent;
 }
-/* Accesa non COPRE il pezzo che indica: lo accende. In 'screen' una forma
-   chiara schiarisce quel che ci sta sotto invece di nasconderlo, e il numero,
-   l'icona o il nome restano leggibili — che e' tutto il punto di indicarli. */
-.tocco b.acceso{ opacity:1; mix-blend-mode:soft-light; }
+/* Accesa non COPRE il pezzo che indica: si vede attraverso, e il numero,
+   l'icona o il nome restano leggibili — che e' tutto il punto di indicarli.
+
+   NIENTE mix-blend-mode, ed e' una rinuncia consapevole. Con 'screen' o
+   'soft-light' la sagoma SCHIARISCE quel che sta sotto invece di coprirlo, ed e'
+   piu' bello. Ma su iOS quella fusione non avviene: la carta e' dentro a
+   .card-db-foil-tilt, che la inclina con una trasformazione 3D e dichiara
+   will-change, e in quel contesto Safari ripiega su 'normal' SENZA DIRLO. La
+   sagoma chiara diventa una tinta piena e copre esattamente quello che doveva
+   indicare — il numero, il nome, la riga dell'abilita'.
+   Una semitrasparenza si vede attraverso perche' la si vede attraverso, non
+   perche' un motore di composizione ha voglia di fonderla. Meno raffinata di
+   una fusione che riesce; uguale su tutti i telefoni, che qui vale di piu'. */
+.tocco b.acceso{ opacity:.5; }
 /* I tre poteri sono tre zone: ogni numero e' un cerchio suo. */
 .tocco b.potere{ width:22%; height:13%;
   background-image:url('/web-assets/sito/hover-power.png'); }

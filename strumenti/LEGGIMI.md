@@ -601,3 +601,27 @@ ferma**, quindi anche la stabilita' inganna. Si guarda invece la **decisione**:
 la classe, che il gestore mette nello stesso istante in cui gira. Che poi la
 classe spenga la barra e' un fatto del foglio di stile, e si controlla a parte, a
 pagina ferma.
+
+### Due cose che Safari su iOS non fa, e non lo dice
+
+**`mix-blend-mode` non si applica dentro a un contesto con trasformazione 3D e
+`will-change`.** La carta vive dentro a `.card-db-foil-tilt`, che la inclina con
+`rotateX`/`rotateY` e dichiara `will-change: transform` (viene dal gioco). Le
+sagome accese sopra i pezzi della carta erano disegnate in `screen` — una forma
+chiara che SCHIARISCE quel che sta sotto invece di coprirlo. Su iOS Safari
+ripiega su `normal` in silenzio: la sagoma diventa una tinta piena e copre
+esattamente quello che doveva indicare, il numero o il nome o la riga
+dell'abilita'.
+Non c'e' modo di accorgersene da un `@supports`: iOS *supporta* la proprieta',
+semplicemente non la applica li'. Si e' rinunciato alla fusione — una
+semitrasparenza si vede attraverso perche' la si vede attraverso, non perche' un
+motore di composizione ha voglia di fonderla.
+
+**Safari su iOS ingrandisce da solo il testo che giudica troppo piccolo** dentro
+a un blocco largo. E' una comodita' per i siti non pensati per il telefono. Le
+righe dell'abilita' vivono dentro all'SVG della carta a coordinate FISSE,
+calcolate quando la carta e' stata costruita: ingrandite dopo occupano piu'
+spazio di quello che gli era stato dato, salgono, e finiscono sopra al titolo
+dell'abilita'. Si spegne con `-webkit-text-size-adjust:100%` sull'`html`, e vale
+per tutto il documento perche' il difetto non e' della carta — e' di ogni testo
+a misura decisa.
