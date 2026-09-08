@@ -83,6 +83,12 @@ app.whenReady().then(async () => {
     const tutti = (s) => [...document.querySelectorAll(s)];
     const st = (s, p) => getComputedStyle(typeof s === 'string' ? q(s) : s)[p];
     const rt = (s) => (typeof s === 'string' ? q(s) : s).getBoundingClientRect();
+    // Da qui in giu' e' sorvegliato: se un controllo inciampa, il banco lo
+    // dice e dice dopo quale, invece di lasciare la promessa rifiutata e
+    // morire sul guardiano dei 150 secondi con un 'PIANTATA' che non spiega
+    // niente. Le cinque scorciatoie qui sopra restano fuori dal try perche'
+    // servono anche a chi raccoglie il guasto.
+    try{
 
     // ── LE TARGHE DEI TITOLI ────────────────────────────────────────────────
     // Il difetto da cui parte tutto: erano immagini STIRATE. Adesso sono una
@@ -125,25 +131,49 @@ app.whenReady().then(async () => {
       'Explore porta alla sezione, non altrove', due[1] && due[1].getAttribute('href'));
     dice(!!document.getElementById('collezione'), 'e- quella sezione esiste');
 
+    // ── LA CASCATA DEL CAPPELLO ─────────────────────────────────────────────
+    // Ogni pezzo arriva per conto suo, e il PRIMO deve essere il fondale: e'
+    // lui a dire dove si e' finiti. Non basta che i ritardi ci siano — devono
+    // essere in ORDINE, e un ordine sbagliato non lo vede nessuno guardando
+    // il foglio di stile riga per riga.
+    (function(){
+      const pezzi = tutti('#cappello .arriva');
+      dice(pezzi.length >= 6, 'il cappello arriva a pezzi', pezzi.length);
+      dice(pezzi.every(function(e){ return e.classList.contains('su'); }),
+        'e sono arrivati tutti', pezzi.filter(function(e){ return !e.classList.contains('su'); }).length + ' fermi');
+      const ritardi = pezzi.map(function(e){ return parseFloat(getComputedStyle(e).transitionDelay) || 0; });
+      dice(ritardi[0] === 0 && q('#cappello .fondo').classList.contains('arriva'),
+        'il fondale e- il primo, senza attesa', ritardi[0]);
+      // Ogni pezzo non prima di quello che lo precede nel markup.
+      let inOrdine = true;
+      for(let i = 1; i < ritardi.length; i++) if(ritardi[i] < ritardi[i-1]) inOrdine = false;
+      dice(inOrdine, 'e i ritardi salgono, uno dietro l-altro', ritardi.join(' '));
+      // Sul telefono la barra non fa parte della cascata: non c'e' finche' non
+      // si e' passato il cappello, quindi non ha nessun ritardo da rispettare.
+      if(!STRETTO) dice(parseFloat(st('#barra','transitionDelay')) >= ritardi[ritardi.length-1],
+        'la barra arriva per ultima', st('#barra','transitionDelay'));
+    })();
+
     // ── IL MARCHIO ──────────────────────────────────────────────────────────
     // Gli stessi cinque strati della schermata d'accesso del gioco: due
     // raggiere, la macchia di luce, il segno e il riflesso.
     const m = q('#marchio');
     dice(!!m, 'il marchio c-e-');
-    dice(!!q('#marchio .raggiera.a') && !!q('#marchio .raggiera.b'), 'le due raggiere');
-    dice(!!q('#marchio .effetti'), 'la macchia di luce');
+    dice(!!q('#marchio .segno'), 'il segno');
     dice(!!q('#marchio .riflesso'), 'il riflesso che lo attraversa');
     dice([...m.querySelectorAll('img')].every(i => /\\/(ui|loading-screen)\\//.test(i.getAttribute('src'))),
       'tutti e cinque vengono dal gioco',
       [...m.querySelectorAll('img')].map(i=>i.getAttribute('src')).join(' '));
-    dice(st('#marchio .raggiera.a','animationName') === 'giraOrario' &&
-         st('#marchio .raggiera.b','animationName') === 'giraAntiorario',
-      'le raggiere girano in versi opposti');
-    dice(st('#marchio .raggiera.a','animationDuration') !== st('#marchio .raggiera.b','animationDuration'),
-      'e a velocita- diverse, cosi- il disegno non si ripete',
-      st('#marchio .raggiera.a','animationDuration') + ' ' + st('#marchio .raggiera.b','animationDuration'));
+    // Le due raggiere e la macchia di luce non ci sono piu': le ha tolte
+    // Lorenzo. Restano il segno e il riflesso — i due file del gioco — e il
+    // riflesso deve poterlo attraversare: e' una maschera che scorre, e se
+    // sparisse quella il marchio resterebbe fermo senza che nessuno lo noti.
+    dice(st('#marchio .riflesso','maskImage').indexOf('gradient') >= 0 ||
+         st('#marchio .riflesso','webkitMaskImage').indexOf('gradient') >= 0,
+      'il riflesso passa da una fessura, non da un-opacita-',
+      st('#marchio .riflesso','maskImage').slice(0, 40));
     // La misura: era quella e deve restare quella.
-    if(!STRETTO) dice(Math.abs(m.offsetWidth - 404) <= 1, 'il marchio largo 404 com-era', m.offsetWidth);
+    if(!STRETTO) dice(Math.abs(m.offsetWidth - 500) <= 1, 'il marchio largo 500', m.offsetWidth);
 
     // ── L'H1 ────────────────────────────────────────────────────────────────
     // Niente alone attaccato ai contorni e niente respiro: le lettere sono
@@ -160,13 +190,60 @@ app.whenReady().then(async () => {
     // ── IL FONDALE DELLA COLLEZIONE ────────────────────────────────────────
     // Era enorme. Nel disegno esce dai bordi di una ventina di pixel per parte
     // e basta: si guarda quanto e' largo davvero rispetto alla finestra.
-    const bg = q('#collezione .sfondo img');
-    dice(!!bg && bg.getAttribute('src').indexOf('bg-collezione') > 0, 'il fondale nuovo, rasterizzato');
-    dice(bg && bg.naturalWidth > 0, 'ed e- arrivato', bg && bg.naturalWidth);
-    const rb = rt(bg);
-    dice(rb.width <= innerWidth + 46 && rb.width >= innerWidth,
-      'esce di una ventina di pixel per parte, non di piu-',
-      Math.round(rb.width) + ' su ' + innerWidth);
+    // Non e' piu' un <img> in parallasse: e' uno sfondo del foglio di stile,
+    // ripetuto in orizzontale. Cambia il modo, non la cosa da controllare —
+    // che il fondale ci sia e sia quello giusto.
+    dice(st('#collezione','backgroundImage').indexOf('bg-collezione') > 0,
+      'il fondale della collezione c-e-', st('#collezione','backgroundImage').slice(0, 60));
+    dice(st('#collezione','overflow') === 'hidden', 'e la sezione lo ritaglia');
+
+    // ── LE ZONE DA TOCCARE ──────────────────────────────────────────────────
+    // Erano cinque rettangoli a occhio, ed erano sbagliati. Adesso ognuna
+    // porta la sagoma del pezzo che accende e sta dove sta quel pezzo DENTRO
+    // ALL'SVG. Il controllo non e' che i numeri siano quelli scritti — sarebbe
+    // rileggere il foglio di stile — ma che ogni zona CADA SOPRA al suo pezzo.
+    (function(){
+      const svg = q('.hx-carta svg');
+      if(!svg) return;
+      // Sul largo le zone sono display:none, e un rettangolo nascosto misura
+      // zero: si accendono giusto il tempo di guardare dove cadono. Il
+      // controllo vale a tutte e due le larghezze, ed e- giusto cosi- —
+      // sbagliarle sul largo vorrebbe dire sbagliarle anche sullo stretto.
+      const mostra = document.createElement('style');
+      mostra.textContent = '.tocco{display:block !important}';
+      document.head.appendChild(mostra);
+      const carta = rt('.carta-scena');
+      // Dove sta un pezzo dell'SVG sullo schermo, in pixel veri.
+      const pezzo = function(cerca, quale){
+        const tutte = [...svg.querySelectorAll('image')].filter(function(im){
+          return (im.getAttribute('href')||'').indexOf(cerca) >= 0; });
+        return tutte.length ? tutte[quale||0].getBoundingClientRect() : null;
+      };
+      const dentro = function(zona, r){
+        if(!r) return false;
+        const z = zona.getBoundingClientRect();
+        const cx = (r.left+r.right)/2, cy = (r.top+r.bottom)/2;
+        return cx >= z.left-2 && cx <= z.right+2 && cy >= z.top-2 && cy <= z.bottom+2;
+      };
+      const zone = {};
+      tutti('.tocco b').forEach(function(b){ (zone[b.getAttribute('data-che')] = zone[b.getAttribute('data-che')] || []).push(b); });
+      dice(!!zone.nome && !!zone.potere && !!zone.tratti && !!zone.livello && !!zone.abilita,
+        'ci sono le cinque zone', Object.keys(zone).join(' '));
+      dice(zone.potere && zone.potere.length === 3, 'e i poteri sono tre, uno per numero',
+        zone.potere && zone.potere.length);
+      dice(dentro(zone.nome[0], pezzo('name-wrapper')), 'la zona del nome cade sul nome');
+      dice(dentro(zone.tratti[0], pezzo('archetype-icon-explorer')), 'quella dei tratti sui tratti');
+      dice(dentro(zone.livello[0], pezzo('card-level-socket', 1)), 'quella del livello sulle gemme');
+      dice(dentro(zone.abilita[0], pezzo('card-deco-bottom')), 'quella dell-abilita- sull-abilita-');
+      const cerchi = [0,1,2].map(function(i){ return pezzo('value-circle', i); });
+      dice(cerchi.every(function(c){ return zone.potere.some(function(z){ return dentro(z, c); }); }),
+        'e ogni cerchio del potere ha la sua zona');
+      dice(tutti('.tocco b').every(function(b){
+        return getComputedStyle(b).backgroundImage.indexOf('/web-assets/sito/hover-') > 0; }),
+        'ognuna porta la sagoma disegnata apposta',
+        getComputedStyle(tutti('.tocco b')[0]).backgroundImage.slice(0, 60));
+      mostra.remove();
+    })();
 
     // ── LA CARTA ────────────────────────────────────────────────────────────
     // E' la carta VERA: l'SVG che il gioco costruisce, non una fotografia.
@@ -215,7 +292,10 @@ app.whenReady().then(async () => {
 
     // ── I CARTELLINI ────────────────────────────────────────────────────────
     const cart = tutti('.cartellino');
-    dice(cart.length === 5, 'cinque cartellini', cart.length);
+    // Erano cinque: il "Name" l'ha tolto Lorenzo. Sul telefono la sua zona
+    // resta, perche' la sagoma hover-name.png c'e' e il nome e' la prima cosa
+    // che si guarda di una carta.
+    dice(cart.length === 4, 'quattro cartellini', cart.length);
     // Stanno SOPRA alla carta. E' la richiesta, ed e' anche l'unico modo di
     // vedere la freccetta: sotto, l'angolo da cui esce e' coperto dalla carta.
     dice(cart.every(c => parseInt(getComputedStyle(c).zIndex,10) >
@@ -254,7 +334,7 @@ app.whenReady().then(async () => {
     dice(st('.cartellino b','color') === 'rgb(255, 255, 255)', 'e le parti in risalto bianche', st('.cartellino b','color'));
     if(!STRETTO){
       // Le posizioni sono quelle del disegno, dentro al palco.
-      const attese = { nome:[200,40], potere:[-10,185], livello:[745,180], abilita:[715,500], tratti:[100,410] };
+      const attese = { potere:[-10,185], livello:[745,180], abilita:[715,500], tratti:[100,410] };
       const palco = q('#collezione .palco');
       const sbagliati = Object.keys(attese).filter(k => {
         const c = q('.cartellino.c-' + k);
@@ -416,7 +496,7 @@ app.whenReady().then(async () => {
     dice(gep && gep.hasAttribute('data-parallasse'), 'e si muove in parallasse');
 
     // ── LA PARALLASSE ───────────────────────────────────────────────────────
-    dice(tutti('[data-parallasse]').length >= 3, 'tre fondali si muovono',
+    dice(tutti('[data-parallasse]').length >= 2, 'i fondali che restano si muovono',
       tutti('[data-parallasse]').map(e=>e.getAttribute('data-parallasse')).join(' '));
 
     // ── IL PIEDE ────────────────────────────────────────────────────────────
@@ -458,7 +538,7 @@ app.whenReady().then(async () => {
         Math.round(c.left) + ' ' + Math.round(c.right) + ' su ' + innerWidth);
     }
     return dette;
-  })()`);
+  }catch(e){ dette.push({ ok:false, che:'IL BANCO E- INCIAMPATO, e l ultimo controllo riuscito e stato: ' + (dette.length ? dette[dette.length-1].che : 'nessuno'), perche:String((e && e.stack) || e) }); return dette; } })()`);
 
   // Un tocco sulla carta, su schermo stretto: il riquadro deve riempirsi col
   // testo del cartellino giusto — che e' lo STESSO testo, preso da li', non una
@@ -476,6 +556,38 @@ app.whenReady().then(async () => {
     })()`);
     dette.push({ ok: tocco.ok, che: 'toccando la carta compare il testo giusto', perche: tocco.perche });
     dette.push({ ok: !!tocco.acceso, che: 'e il pezzo toccato si accende' });
+  }
+
+  // LA BARRA SUL TELEFONO. Non c'e' sul cappello e compare dalla seconda
+  // sezione in poi. Si SCORRE davvero e si guarda: la classe la mette lo
+  // stesso codice che si sta controllando, quindi guardare la classe non
+  // proverebbe niente.
+  if (STRETTO) {
+    const barra = await win.webContents.executeJavaScript(`(function(){
+      document.documentElement.style.scrollBehavior = 'auto';
+      const b = document.getElementById('barra');
+      // Si aspetta un FOTOGRAMMA, non un tempo: il gestore dello scorrimento
+      // e' regolato su requestAnimationFrame, e in una finestra che non e' a
+      // schermo il fotogramma arriva due volte in mezzo secondo invece di
+      // trenta. Aspettando un tempo si misura prima che abbia girato.
+      const dopoDueFotogrammi = function(){
+        return new Promise(function(r){
+          requestAnimationFrame(function(){ requestAnimationFrame(r); });
+        });
+      };
+      scrollTo(0, 0);
+      return dopoDueFotogrammi().then(function(){
+        const su = getComputedStyle(b).opacity;
+        scrollTo(0, document.getElementById('collezione').getBoundingClientRect().top + pageYOffset);
+        return dopoDueFotogrammi().then(function(){
+          return { cappello: su, giu: getComputedStyle(b).opacity,
+                   sfocato: getComputedStyle(b).backdropFilter };
+        });
+      });
+    })()`);
+    dette.push({ ok: barra.cappello === '0', che: 'sul cappello la barra non c-e-', perche: barra.cappello });
+    dette.push({ ok: barra.giu === '1', che: 'e dalla seconda sezione in poi c-e-', perche: barra.giu });
+    dette.push({ ok: String(barra.sfocato).indexOf('blur') >= 0, che: 'col suo fondo sfocato', perche: String(barra.sfocato) });
   }
 
   // Le domande si aprono e si chiudono davvero: l'altezza si misura, e una

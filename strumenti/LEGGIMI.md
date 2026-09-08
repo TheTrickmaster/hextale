@@ -557,3 +557,25 @@ E si ricorda di spegnere le transizioni prima di misurare: in una finestra che
 non e' a schermo non avanzano, e leggendo subito dopo si ottiene due volte il
 valore di partenza — cioe' il ventaglio chiuso, due volte, e un controllo che
 non fallisce mai.
+
+### Due trappole che prova-sito.js ha pagato in un pomeriggio
+
+**Un `const` dichiarato dentro al `try` non si vede nel `catch`.** Il corpo del
+banco era avvolto in un try, e il catch provava a scrivere il guasto dentro a
+`dette` — dichiarata dentro al try. Il messaggio d'errore alzava una seconda
+eccezione prima di uscire, la promessa restava rifiutata, e il banco tornava a
+morire con un `PIANTATA` che non dice niente. Il `try` si apre adesso **dopo**
+le scorciatoie, che sono le uniche cose che servono anche a chi raccoglie il
+guasto.
+
+**In una finestra che non e' a schermo `requestAnimationFrame` arriva due volte
+in mezzo secondo**, non trenta. Il gestore dello scorrimento della pagina e'
+regolato sul fotogramma: aspettando un TEMPO si misurava prima che avesse
+girato, e il banco diceva che la barra non compariva mentre la pagina era
+giusta. Si aspetta il fotogramma, non il cronometro.
+
+E la lezione che le tiene insieme, gia' pagata col ventaglio: **un banco che
+legge quel che il codice dice di fare non e' un banco.** Le cinque zone da
+toccare sulla carta non si controllano guardando le percentuali scritte nel
+foglio di stile — si accendono e si guarda se cadono sopra al pezzo giusto,
+chiedendo all'SVG dove sta ogni pezzo.
