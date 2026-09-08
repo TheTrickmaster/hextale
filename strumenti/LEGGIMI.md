@@ -579,3 +579,25 @@ legge quel che il codice dice di fare non e' un banco.** Le cinque zone da
 toccare sulla carta non si controllano guardando le percentuali scritte nel
 foglio di stile — si accendono e si guarda se cadono sopra al pezzo giusto,
 chiedendo all'SVG dove sta ogni pezzo.
+
+### Il controllo che mancava, e quello che continuava a sbagliare domanda
+
+**Una riga ha spento ogni dissolvenza della pagina, e i 127 controlli non se ne
+sono accorti.** Il blocco `prefers-reduced-motion` azzera ogni animazione e ogni
+transizione con `!important`; la condizione era passata da `reduce` a
+`no-preference`, che e' vera per quasi tutti. I ritardi restavano — quindi le
+cose continuavano ad arrivare **nell'ordine giusto** — e comparivano solo di
+scatto. Nessun controllo lo vedeva perche' guardavano tutti che le cose ci
+FOSSERO e DOVE: mai **per quanto tempo**. Adesso c'e' un controllo che pretende
+che le dissolvenze durino almeno un decimo di secondo.
+
+**E la barra sul telefono ha richiesto tre tentativi, tutti sbagliati allo stesso
+modo.** Aspettare un tempo, poi due fotogrammi, poi due fotogrammi e un tempo:
+il difetto non era nell'attesa, era nella **domanda**. Misuravo l'EFFETTO —
+l'opacita', che arriva in fondo a una catena di eventi, giri di
+`requestAnimationFrame` (che in una finestra non a schermo arrivano quattro
+volte al secondo, non sessanta) e transizioni, e che in mezzo alla catena **sta
+ferma**, quindi anche la stabilita' inganna. Si guarda invece la **decisione**:
+la classe, che il gestore mette nello stesso istante in cui gira. Che poi la
+classe spenga la barra e' un fatto del foglio di stile, e si controlla a parte, a
+pagina ferma.

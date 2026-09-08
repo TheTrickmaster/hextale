@@ -131,6 +131,28 @@ app.whenReady().then(async () => {
       'Explore porta alla sezione, non altrove', due[1] && due[1].getAttribute('href'));
     dice(!!document.getElementById('collezione'), 'e- quella sezione esiste');
 
+    // ── LE DISSOLVENZE DURANO ────────────────────────────────────────────
+    // Il blocco 'meno movimento' azzera ogni transizione della pagina con
+    // !important. E' giusto che ci sia, ed e' giusto che si accenda per chi lo
+    // ha chiesto — ma basta sbagliare la condizione (reduce / no-preference)
+    // perche' si accenda per TUTTI: i ritardi restano, quindi le cose
+    // continuano ad arrivare nell'ordine giusto, e compaiono solo di scatto.
+    // E' successo, e nessun controllo se n'era accorto: guardavano tutti che le
+    // cose ci fossero e dove, mai per QUANTO TEMPO.
+    (function(){
+      const devonoDurare = ['#cappello h1', '#cappello .claim', '.entra',
+                            '.domanda .risposta', '#contatto', '.btn'];
+      const corte = devonoDurare.filter(function(s){
+        const e = q(s); if(!e) return false;
+        const d = getComputedStyle(e).transitionDuration.split(',').map(parseFloat);
+        return Math.max.apply(null, d) < 0.1;
+      });
+      dice(corte.length === 0, 'le dissolvenze durano davvero', corte.join(' ') + ' a zero');
+      // Lo scorrimento morbido qui non si controlla: il banco lo spegne lui
+      // stesso per fare il giro della pagina, e misurarlo vorrebbe dire
+      // misurare se stessi.
+    })();
+
     // ── LA CASCATA DEL CAPPELLO ─────────────────────────────────────────────
     // Ogni pezzo arriva per conto suo, e il PRIMO deve essere il fondale: e'
     // lui a dire dove si e' finiti. Non basta che i ritardi ci siano — devono
@@ -227,11 +249,14 @@ app.whenReady().then(async () => {
       };
       const zone = {};
       tutti('.tocco b').forEach(function(b){ (zone[b.getAttribute('data-che')] = zone[b.getAttribute('data-che')] || []).push(b); });
-      dice(!!zone.nome && !!zone.potere && !!zone.tratti && !!zone.livello && !!zone.abilita,
-        'ci sono le cinque zone', Object.keys(zone).join(' '));
+      // Il nome non ha piu' la sua zona: il cartellino nella versione larga non
+      // c'e', e tenere solo la meta' sul telefono voleva dire tenere le sue
+      // parole scritte a mano in un posto in cui non le cercherebbe nessuno.
+      dice(!zone.nome, 'la zona del nome non c-e- piu-');
+      dice(!!zone.potere && !!zone.tratti && !!zone.livello && !!zone.abilita,
+        'ci sono le altre quattro', Object.keys(zone).join(' '));
       dice(zone.potere && zone.potere.length === 3, 'e i poteri sono tre, uno per numero',
         zone.potere && zone.potere.length);
-      dice(dentro(zone.nome[0], pezzo('name-wrapper')), 'la zona del nome cade sul nome');
       dice(dentro(zone.tratti[0], pezzo('archetype-icon-explorer')), 'quella dei tratti sui tratti');
       dice(dentro(zone.livello[0], pezzo('card-level-socket', 1)), 'quella del livello sulle gemme');
       dice(dentro(zone.abilita[0], pezzo('card-deco-bottom')), 'quella dell-abilita- sull-abilita-');
@@ -566,27 +591,34 @@ app.whenReady().then(async () => {
     const barra = await win.webContents.executeJavaScript(`(function(){
       document.documentElement.style.scrollBehavior = 'auto';
       const b = document.getElementById('barra');
-      // Si aspetta un FOTOGRAMMA, non un tempo: il gestore dello scorrimento
-      // e' regolato su requestAnimationFrame, e in una finestra che non e' a
-      // schermo il fotogramma arriva due volte in mezzo secondo invece di
-      // trenta. Aspettando un tempo si misura prima che abbia girato.
-      const dopoDueFotogrammi = function(){
+      // Si guarda la CLASSE, non l'opacita'. La classe la mette il gestore
+      // nello stesso istante in cui gira; l'opacita' arriva in fondo a una
+      // catena — evento, giro di rAF, transizione — che in una finestra non a
+      // schermo ci mette un secondo e mezzo, e non sempre lo stesso.
+      // Che poi la classe spenga davvero la barra e' un fatto del foglio di
+      // stile, e si controlla sotto, a pagina ferma.
+      const dopoUnGiro = function(){
         return new Promise(function(r){
-          requestAnimationFrame(function(){ requestAnimationFrame(r); });
+          let giri = 0;
+          (function guarda(){
+            if(++giri > 30) return r();
+            requestAnimationFrame(function(){ setTimeout(guarda, 40); });
+          })();
         });
       };
       scrollTo(0, 0);
-      return dopoDueFotogrammi().then(function(){
-        const su = getComputedStyle(b).opacity;
+      return dopoUnGiro().then(function(){
+        const su = b.classList.contains('via');
         scrollTo(0, document.getElementById('collezione').getBoundingClientRect().top + pageYOffset);
-        return dopoDueFotogrammi().then(function(){
-          return { cappello: su, giu: getComputedStyle(b).opacity,
-                   sfocato: getComputedStyle(b).backdropFilter };
+        return dopoUnGiro().then(function(){
+          return { cappello: su, giu: b.classList.contains('via'),
+                   sfocato: getComputedStyle(b).backdropFilter,
+                   dove: Math.round(pageYOffset) };
         });
       });
     })()`);
-    dette.push({ ok: barra.cappello === '0', che: 'sul cappello la barra non c-e-', perche: barra.cappello });
-    dette.push({ ok: barra.giu === '1', che: 'e dalla seconda sezione in poi c-e-', perche: barra.giu });
+    dette.push({ ok: barra.cappello === true, che: 'sul cappello la barra si toglie', perche: 'via ' + barra.cappello });
+    dette.push({ ok: barra.giu === false, che: 'e dalla seconda sezione in poi torna', perche: 'via ' + barra.giu + ' a ' + barra.dove });
     dette.push({ ok: String(barra.sfocato).indexOf('blur') >= 0, che: 'col suo fondo sfocato', perche: String(barra.sfocato) });
   }
 
