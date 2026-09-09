@@ -709,3 +709,28 @@ Due cose imparate scrivendolo:
 - **`elementFromPoint` e' l'unico modo di provare che un click arriva.** Un div
   trasparente e' invisibile e riceve i click lo stesso: leggere il CSS non lo
   dice, chiedere al browser chi c'e' in quel punto si'.
+
+## senza-battlecry.js — chi non ha ancora un grido di battaglia
+
+    node strumenti/senza-battlecry.js [rare mythic timeless]
+
+Non serve Electron: legge il FOGLIO (esportazione CSV, nessuna chiave) e la
+cartella `audio/voices/`, e incrocia. Senza argomenti guarda tutte le carte.
+
+Due cose imparate scrivendolo:
+
+- **Al gioco non si puo' chiedere l'elenco delle carte.** Aperto da `file://` e
+  senza accesso, `FINAL_CARDS` contiene tre carte di ripiego: il catalogo vero
+  arriva dal server, e il server lo prende dal foglio. La fonte e' il foglio.
+- **Lo slug si RICALCOLA con la stessa regola del gioco** (`slugPersonaggio`),
+  perche' i file si chiamano `<slug>-battlecry.mp3`. Basta una regola diversa
+  per dichiarare mancante della roba che c'e'.
+
+Lo strumento elenca anche il contrario — i file che non corrispondono a nessun
+nome del foglio. Sono gridi che nessuno urlera' mai: di norma vuol dire che la
+carta e' stata rinominata e il file e' rimasto col nome vecchio.
+
+**Lo stdout di node viene troncato** se il processo esce mentre lo sta ancora
+svuotando: la prima versione stampava 37 righe su 49 e usciva con codice 0. Il
+risultato si scrive quindi anche su `strumenti/senza-battlecry.txt`, e l'uscita
+aspetta che stdout abbia finito.
