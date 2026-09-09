@@ -261,10 +261,10 @@ app.whenReady().then(async () => {
 
     // ── le due pagine non si vedono mai insieme ───────────────────────────
     "  var scena = q('#pack-overlay');",
-    "  dice(st(q('#pack-closed')).display === 'none', 'senza aprire niente la busta non c-e-');",
-    "  dice(st(q('#pack-currencies')).display === 'none', 'e nemmeno i due riquadri vecchi');",
+    "  dice(st(q('#pack-busta-sotto')).visibility === 'hidden', 'senza aprire niente la busta non c-e-');",
+    "  dice(st(q('#pack-currencies')).display === 'none', 'e nemmeno il saldo dello sbusto');",
     "  scena.classList.add('sbustando');",
-    "  dice(st(q('#pack-closed')).display !== 'none', 'aprendo, la busta compare');",
+    "  dice(st(q('#pack-currencies')).display !== 'none', 'aprendo, il saldo compare');",
     "  dice(st(basso).visibility === 'hidden', 'e la fila in basso se ne va', st(basso).visibility);",
     "  dice(st(invito).visibility === 'hidden', 'con l-invito');",
     "  dice(st(inkBox).visibility === 'hidden', 'col saldo');",
@@ -273,26 +273,139 @@ app.whenReady().then(async () => {
     "  scena.classList.remove('sbustando');",
     "  dice(st(basso).visibility === 'visible', 'tornando indietro la fila rientra');",
 
-    // ── aprire consuma il pacchetto giusto ────────────────────────────────
-    // Le due chiamate qui sotto fanno partire la sequenza vera, che poi va per
-    // conto suo: si guarda solo cio- che succede SUBITO — la scena che cambia e
-    // il contatore che si scala — perche- e- li- che sta la decisione.
-    "  if(!(FINAL_CARDS||[]).length){ try{ FINAL_CARDS.push({slug:'finta', rarity:'common', level:1, dropRate:1}); }catch(e){} }",
+    // ══ LA BUSTA ════════════════════════════════════════════════════════
+    // Prima le misure, che vengono dal disegno: 640 di larghezza e ogni pezzo
+    // con la PROPRIA proporzione. Poi il gesto vero — un pointerdown su una
+    // casella, un movimento in su, un rilascio al centro — perche' "il
+    // trascinamento funziona" non si dimostra leggendo il codice.
+    "  scena.classList.remove('sbustando');",
+    "  var sotto = q('#pack-busta-sotto'), sopra = q('#pack-busta-sopra');",
+    "  dice(sotto && sopra, 'la busta e- in due meta-');",
+    "  dice(sotto && sotto.offsetWidth === 640 && sotto.offsetHeight === 459, 'ed e- larga 640', sotto && (sotto.offsetWidth+'x'+sotto.offsetHeight));",
+    "  dice(sopra && sopra.offsetWidth === sotto.offsetWidth && sopra.offsetTop === sotto.offsetTop && sopra.offsetLeft === sotto.offsetLeft, 'e le due meta- stanno esattamente una sull-altra');",
+    "  dice(sotto && vicino(sotto.offsetLeft + sotto.offsetWidth/2, 960), 'centrata sul foglio, in orizzontale', sotto && (sotto.offsetLeft+sotto.offsetWidth/2));",
+    "  dice(sotto && vicino(sotto.offsetTop + sotto.offsetHeight/2, 540), 'e in verticale', sotto && (sotto.offsetTop+sotto.offsetHeight/2));",
+    "  dice(q('#pack-reveal').parentElement.id === 'pack-stage', 'le carte escono dal palcoscenico');",
+    "  var zSotto = +st(sotto).zIndex, zCarte = +st(q('#pack-reveal')).zIndex, zSopra = +st(sopra).zIndex;",
+    "  dice(zSotto < zCarte && zCarte < zSopra, 'e passano FRA le due meta-', zSotto+' < '+zCarte+' < '+zSopra);",
+    // le proporzioni dei quattro disegni
+    "  var prop = function(sel, largo, alto){ var el = q(sel); if(!el) return '?'; return el.offsetWidth+'x'+el.offsetHeight; };",
+    "  dice(prop('.pb-letter') === '640x458' || prop('.pb-letter') === '640x457', 'letter tiene la sua proporzione', prop('.pb-letter'));",
+    "  dice(prop('.pb-top') === '640x459' || prop('.pb-top') === '640x458', 'letter-top pure', prop('.pb-top'));",
+    "  dice(prop('.pb-opening') === '639x288', 'e la patella pure', prop('.pb-opening'));",
+    "  var cera = q('.pb-ceralacca');",
+    "  dice(cera && vicino(cera.offsetWidth, 255.6, 1) && vicino(cera.offsetHeight, 260.6, 1), 'la ceralacca tiene la sua', cera && (cera.offsetWidth+'x'+cera.offsetHeight));",
+    "  dice(cera && vicino(cera.offsetLeft + cera.offsetWidth/2, 320, 1) && vicino(cera.offsetTop + cera.offsetHeight/2, 229.5, 1), 'ed e- al centro della busta');",
+    "  dice(q('.pb-opening') && st(q('.pb-opening')).transformOrigin.indexOf('0px') !== -1, 'la patella ha il cardine in alto', st(q('.pb-opening')).transformOrigin);",
+    "  var sOmbra = st(q('.pb-letter'));",
+    "  dice(sOmbra.filter.indexOf('drop-shadow') !== -1 && sOmbra.filter.indexOf('50px') !== -1, 'e la busta ha la sua ombra', sOmbra.filter);",
+
+    // il gesto: si solleva e si posa
+    "  var manda = function(el, tipo, x, y){ el.dispatchEvent(new PointerEvent(tipo, {clientX:x, clientY:y, pointerId:7, button:0, bubbles:true, cancelable:true})); };",
+    "  var rSlot = q('#pk-daily .pk-slot').getBoundingClientRect();",
+    "  var sx = rSlot.left + rSlot.width/2, sy = rSlot.top + rSlot.height/2;",
+    "  manda(q('#pk-daily .pk-slot'), 'pointerdown', sx, sy);",
+    "  manda(window, 'pointermove', sx, sy - 60);",
+    "  dice(scena.classList.contains('busta-in-mano'), 'trascinando in su la busta si solleva');",
+    "  dice(scena.classList.contains('busta-viva'), 'e si vede');",
+    "  dice(!scena.classList.contains('sbustando'), 'ma la fila resta li-: si sta ancora scegliendo');",
+    "  dice(st(q('#pack-drop')).visibility === 'hidden', 'e l-invito si toglie di mezzo');",
+    // lasciandola in basso torna indietro e non si consuma niente
+    "  manda(window, 'pointerup', sx, sy);",
+    "  dice(!scena.classList.contains('busta-in-mano'), 'lasciandola in basso torna indietro');",
+    "  dice(bustinaDailyPronta(), 'e il pacchetto a tempo e- ancora li-');",
+    "  dice(!scena.classList.contains('sbustando'), 'e non si e- aperto niente');",
+
+    // e adesso al centro: si posa e si consuma
+    "  manda(q('#pk-daily .pk-slot'), 'pointerdown', sx, sy);",
+    "  manda(window, 'pointermove', sx, sy - 60);",
+    "  manda(window, 'pointerup', sx, 200);",
+    "  dice(scena.classList.contains('sbustando'), 'lasciandola al centro si apre');",
+    "  dice(!bustinaDailyPronta(), 'e il pacchetto a tempo si consuma');",
+    "  dice(_bustinaInCorso, 'da qui in poi la pagina e- occupata');",
+
+    // i cinque colpi
+    "  var sig = q('#pack-wax');",
+    "  var visti = [sig.getAttribute('src')];",
+    "  for(var k=0;k<4;k++){ bustaColpo(); visti.push(sig.getAttribute('src')); }",
+    "  dice(_bustaColpi === 4, 'quattro colpi contati', _bustaColpi);",
+    "  var tuttiDiversi = true; for(var k2=1;k2<visti.length;k2++){ if(visti[k2] === visti[k2-1]) tuttiDiversi = false; }",
+    "  dice(tuttiDiversi, 'e a ogni colpo il sigillo cambia disegno', visti.map(function(u){return (u||'').split('/').pop();}).join(' > '));",
+    "  dice(q('#pack-briciole').children.length > 0, 'e ne saltano via delle briciole', q('#pack-briciole').children.length);",
+    "  var b0 = q('.pb-briciola');",
+    "  dice(b0 && st(b0).backgroundColor === 'rgb(53, 105, 119)', 'del colore della ceralacca', b0 && st(b0).backgroundColor);",
+    "  dice(b0 && st(b0).boxShadow.indexOf('inset') !== -1, 'con la luce sullo spigolo', b0 && st(b0).boxShadow.slice(0,60));",
+    "  dice(!scena.classList.contains('busta-rotta'), 'al quarto colpo il sigillo regge ancora');",
+    "  bustaColpo();",
+    "  dice(scena.classList.contains('busta-rotta'), 'al quinto si spacca');",
+    "  dice(scena.classList.contains('busta-monta'), 'e la busta comincia a tremare');",
+    "  dice(st(q('.pb-sigillo')).opacity === '0', 'il sigillo intero se ne va', st(q('.pb-sigillo')).opacity);",
+    "  var pezzi = qa('.pb-pezzo');",
+    "  dice(pezzi.length === 3, 'e restano i suoi tre pezzi', pezzi.length);",
+    "  dice(pezzi[0].offsetLeft === 5 && pezzi[0].offsetTop === 0, 'che partono dove stavano', pezzi.map(function(p){return p.offsetLeft+','+p.offsetTop;}).join(' | '));",
+    "  bustaColpo();",
+    "  dice(_bustaColpi === 5, 'e un sesto colpo non conta', _bustaColpi);",
+
+    // si apre
+    // Il server non c-e- (si sta girando da file://), quindi le tre carte le
+    // si mette a mano: quello che si sta provando qui e- la SCENA, non il
+    // sorteggio — di quello risponde il server.
+    "  _bustaCarte = (FINAL_CARDS||[]).slice(0,3);",
+    "  dice(_bustaCarte.length === 3, 'il foglio ha almeno tre carte da mostrare', _bustaCarte.length);",
+    "  bustaApri();",
+    "  dice(scena.classList.contains('busta-apre'), 'la patella si apre');",
+    "  dice(!scena.classList.contains('busta-monta'), 'e il tremore finisce li-');",
+    "  var uscite = qa('#pack-reveal .pack-card');",
+    "  dice(uscite.length === 3, 'ed escono TRE carte', uscite.length);",
+    "  dice(uscite.length === 3 && uscite.map(function(c){return c.style.getPropertyValue('--dir');}).join(',') === '-1,0,1', 'una a sinistra, una dritta, una a destra', uscite.map(function(c){return c.style.getPropertyValue('--dir');}).join(','));",
+    "  dice(uscite.length === 3 && uscite[2].dataset.indice === '2', 'e ognuna si ricorda il proprio posto', uscite.length===3 ? uscite[2].dataset.indice : '?');",
+
+    // il prezzo: una gratis, la seconda in inchiostro, la terza mai
+    "  uscite.forEach(function(c){ c.classList.remove('emerging'); });",
+    "  aggiornaSceltaBustina();",
+    "  var etichetta = function(c){ var b=c.__sceltaBtn; var e=b&&b.querySelector('.hxb-label'); return e ? e.textContent.trim() : ''; };",
+    "  dice(etichetta(uscite[0]).indexOf('Keep (Free)') === 0, 'la prima e- gratis', etichetta(uscite[0]));",
+    "  scegliCartaBustina(uscite[0]);",
+    "  dice(etichetta(uscite[0]) === 'Cancel', 'presa, si puo- disfare', etichetta(uscite[0]));",
+    "  dice(etichetta(uscite[1]).indexOf('Keep for') === 0, 'la seconda si paga', etichetta(uscite[1]));",
+    "  var iconaPrezzo = uscite[1].__sceltaBtn.querySelector('.hxb-label img');",
+    "  dice(iconaPrezzo && iconaPrezzo.getAttribute('src').indexOf('magic-ink') !== -1, 'e si paga in inchiostro', iconaPrezzo && iconaPrezzo.getAttribute('src').split('/').pop());",
+    "  var prezzoMio = costoDiCarta(uscite[1]);",
+    "  dice(etichetta(uscite[1]).indexOf(String(prezzoMio)) !== -1, 'al prezzo della SUA rarita-', etichetta(uscite[1]) + ' (' + (uscite[1].__entry && uscite[1].__entry.rarity) + ')');",
+    "  scegliCartaBustina(uscite[1]);",
+    "  dice(etichetta(uscite[2]) === 'Discarded', 'e la terza si scarta sempre', etichetta(uscite[2]));",
+    "  scegliCartaBustina(uscite[2]);",
+    "  dice(_carteTenute().length === 2, 'e non si puo- prenderla lo stesso', _carteTenute().length);",
+    "  var etCollect = q('#pack-collect .hxb-label').textContent;",
+    "  dice(etCollect.indexOf('Pay') === 0 && etCollect.indexOf(String(costoDiCarta(uscite[1]))) !== -1, 'e il Collect dice quanto si paga', etCollect);",
+
+    // e si torna indietro
+    "  tornaAllaBustina();",
+    "  dice(!scena.classList.contains('sbustando') && !scena.classList.contains('busta-viva'), 'tornando indietro la busta se ne va');",
+    "  dice(!scena.classList.contains('busta-rotta') && !scena.classList.contains('busta-apre'), 'con tutto quello che le era successo addosso');",
+    "  dice(_bustaColpi === 0, 'e il conto dei colpi riparte da zero', _bustaColpi);",
+    "  dice(q('#pack-briciole').children.length === 0, 'e le briciole sono state spazzate', q('#pack-briciole').children.length);",
+    "  dice(qa('#pack-reveal .pack-card').length === 0, 'e non restano carte in scena');",
+
+    // ── si consuma il pacchetto che si e- preso in mano, e nessun altro ───
+    // Non si passa piu- da un click: si chiama bustaSolleva, che e- quello che
+    // il gesto chiama, e poi bustaPosa, che e- quello che il rilascio chiama.
     "  PREFERENZE.bustinaProssima = 0; BUSTINE_VINTE = 2; BUSTINE_TESORO = 1; pkDisegnaTutto();",
-    "  apriBustina('treasure');",
-    "  dice(scena.classList.contains('sbustando'), 'aprendo un treasure la pagina passa alla scena');",
+    "  dice(bustaSolleva('treasure', 900, 500), 'si prende in mano un treasure');",
+    "  bustaPosa();",
+    "  dice(scena.classList.contains('sbustando'), 'posandolo la pagina passa alla scena');",
     "  dice(BUSTINE_TESORO === 0, 'e il tesoro si scala subito', BUSTINE_TESORO);",
     "  dice(BUSTINE_VINTE === 2, 'senza toccare i premi', BUSTINE_VINTE);",
     "  dice(bustinaDailyPronta(), 'ne- il pacchetto a tempo');",
     "  tornaAllaBustina();",
     "  dice(!scena.classList.contains('sbustando'), 'e si torna alla pagina');",
-    "  apriBustina('treasure');",
-    "  dice(!scena.classList.contains('sbustando'), 'un treasure che non si ha piu- non si apre');",
-    "  apriBustina('daily');",
-    "  dice(scena.classList.contains('sbustando'), 'quello a tempo si');",
+    "  dice(!bustaSolleva('treasure', 900, 500), 'un treasure che non si ha piu- non si prende');",
+    "  dice(bustaSolleva('daily', 900, 500), 'quello a tempo si');",
+    "  bustaPosa();",
     "  dice(!bustinaDailyPronta(), 'e il conto delle dodici ore riparte');",
     "  dice(Math.abs(_bustinaProssimaApertura() - Date.now() - 12*60*60*1000) < 4000, 'da adesso', Math.round((_bustinaProssimaApertura()-Date.now())/3600000) + 'h');",
     "  tornaAllaBustina();",
+    "  dice(!bustaSolleva('zuppa', 900, 500), 'e un tipo che non esiste non si prende affatto');",
 
     "  } catch(e) { dette.push({ok:false, nome:'PIANTATA', extra:(e && e.message) + ' @ ' + ((e && e.stack)||'').split('\\n')[1]}); }",
     "  return dette;",

@@ -214,9 +214,16 @@ var LIVELLO_ADMIN = 4;
 // valuta: e' un suggerimento. Adesso il saldo vive qui e il client lo legge.
 var VALUTE_INIZIALI = { magicInk: 100, fairyDust: 100 };
 
-// Quanto costa tenere ANCHE la seconda carta di una bustina. Si paga sempre la
-// meno cara delle due: cosi' il prezzo non dipende da quale si e' scelta per
-// prima, e l'ordine dei clic non cambia il conto.
+// ── v0.79.38 — TRE CARTE, DUE SI TENGONO, UNA SI PAGA ─────────────────────
+// Da un pacchetto escono TRE carte. Se ne tiene una gratis, una seconda si
+// compra, e la terza si scarta sempre.
+// Il prezzo e' quello della rarita' della carta scelta per SECONDA: non piu'
+// la meno cara delle due, come quando le carte erano due e non c'era niente da
+// scegliere. E si paga in INCHIOSTRO MAGICO, non piu' in polvere di fata — la
+// polvere e' la valuta comprata coi soldi veri, l'inchiostro quella che si
+// guadagna giocando, ed e' anche quella con cui si compra un treasure pack.
+var BUSTINA_CARTE = 3;
+var BUSTINA_TENIBILI = 2;
 // Questa tabella e' la copia server di quella del client, ed e' QUESTA che
 // vale: il client la mostra, il server la applica.
 var COSTO_TENERE_PER_RARITA = { common: 50, rare: 200, mythic: 500, timeless: 1000 };
@@ -2109,8 +2116,11 @@ function rpcBustinaApri(ctx, logger, nk, payload) {
   // Si torna anche il TIPO: chi riprende deve ritrovare lo stesso pacchetto che
   // aveva in mano, non uno qualunque.
   var aperta = leggiBustina(nk, ctx.userId);
-  if (aperta && aperta.carte && aperta.carte.length === 2) {
-    return JSON.stringify({ carte: aperta.carte, ripresa: true, costo: aperta.costo, tipo: aperta.tipo || 'daily' });
+  if (aperta && aperta.carte && aperta.carte.length === BUSTINA_CARTE) {
+    return JSON.stringify({
+      carte: aperta.carte, ripresa: true,
+      prezzi: aperta.prezzi || {}, tipo: aperta.tipo || 'daily'
+    });
   }
 
   // ── QUALE PACCHETTO ─────────────────────────────────────────────────────
@@ -2127,25 +2137,34 @@ function rpcBustinaApri(ctx, logger, nk, payload) {
   if (!addosso[tipo]) throw Error('non hai un pacchetto di tipo ' + tipo);
 
   var sorteggiabili = _sorteggiabili(catalogo, admin);
-  if (sorteggiabili.length < 2) throw Error('non ci sono abbastanza carte sorteggiabili');
+  if (sorteggiabili.length < BUSTINA_CARTE) throw Error('non ci sono abbastanza carte sorteggiabili');
 
-  var a = _pesca(sorteggiabili, []);
-  var b = _pesca(sorteggiabili, [a.slug]);
+  // Tre pescate, ognuna escludendo cio' che e' gia' uscito: due carte uguali
+  // nello stesso pacchetto sarebbero una delusione, non una rarita'.
+  var slug = [];
+  var prezzi = {};
+  for (var n = 0; n < BUSTINA_CARTE; n++) {
+    var c = _pesca(sorteggiabili, slug);
+    if (!c) break;
+    slug.push(c.slug);
+    // Il prezzo di OGNI carta si fissa adesso e si scrive insieme al
+    // pacchetto. Quale si paghera' lo decide chi gioca — e' la seconda che
+    // sceglie — ma quanto costa ognuna e' deciso qui, una volta sola: cosi' il
+    // numero scritto sul pulsante e quello addebitato sono lo STESSO dato, non
+    // due conti che si spera coincidano.
+    prezzi[c.slug] = costoTenereRarita(c.rarity);
+  }
+  if (slug.length !== BUSTINA_CARTE) throw Error('non ci sono abbastanza carte sorteggiabili');
 
-  // Il prezzo si fissa ADESSO e si scrive insieme alla bustina. Ricalcolarlo
-  // alla raccolta darebbe lo stesso numero, ma scriverlo vuol dire che il
-  // prezzo mostrato e quello addebitato sono lo STESSO dato, non due conti
-  // che si spera coincidano.
-  var costo = Math.min(costoTenereRarita(a.rarity), costoTenereRarita(b.rarity));
   var bustina = {
-    carte: [a.slug, b.slug],
-    costo: costo,
+    carte: slug,
+    prezzi: prezzi,
     tipo: tipo,
     apertaIl: Math.floor(Date.now() / 1000)
   };
   scriviBustina(nk, ctx.userId, bustina);
-  logger.info('bustina %s aperta per %s: %s e %s (seconda a %d)', tipo, ctx.userId, a.slug, b.slug, costo);
-  return JSON.stringify({ carte: bustina.carte, ripresa: false, costo: costo, tipo: tipo });
+  logger.info('pacchetto %s aperto per %s: %s', tipo, ctx.userId, slug.join(', '));
+  return JSON.stringify({ carte: slug, ripresa: false, prezzi: prezzi, tipo: tipo });
 }
 
 // ── RPC: raccogli cio' che si e' scelto ───────────────────────────────────
@@ -2158,30 +2177,37 @@ function rpcBustinaRaccogli(ctx, logger, nk, payload) {
   try { richiesta = payload ? JSON.parse(payload) : {}; } catch (e) { richiesta = {}; }
 
   var bustina = leggiBustina(nk, ctx.userId);
-  if (!bustina || !bustina.carte || bustina.carte.length !== 2) throw Error('nessuna bustina aperta');
+  if (!bustina || !bustina.carte || !bustina.carte.length) throw Error('nessun pacchetto aperto');
 
-  // Solo slug della bustina, senza ripetizioni: chiedere due volte la stessa
-  // carta non deve poter valere per due.
+  // Solo slug del pacchetto, senza ripetizioni: chiedere due volte la stessa
+  // carta non deve poter valere per due. E non piu' di due in tutto: la terza
+  // si scarta sempre, ed e' una regola del gioco — quindi la fa rispettare il
+  // server, non il pulsante.
   var tieni = [];
   var chiesti = richiesta.tieni || [];
   for (var i = 0; i < chiesti.length; i++) {
     var s = String(chiesti[i]);
-    if (bustina.carte.indexOf(s) === -1) throw Error('carta non uscita da questa bustina: ' + s);
+    if (bustina.carte.indexOf(s) === -1) throw Error('carta non uscita da questo pacchetto: ' + s);
     if (tieni.indexOf(s) === -1) tieni.push(s);
   }
   if (!tieni.length) throw Error('non hai scelto niente');
+  if (tieni.length > BUSTINA_TENIBILI) throw Error('da un pacchetto si tengono al massimo ' + BUSTINA_TENIBILI + ' carte');
 
   var possesso = assicuraPossesso(ctx, nk, logger, ctx.userId, ctx.username);
   var valute = valuteDi(possesso);
 
-  // Si paga solo la SECONDA. Il pagamento e il possesso finiscono nello stesso
-  // oggetto e in una sola scrittura: cosi' non esiste l'istante in cui la
-  // polvere e' gia' andata e le carte non sono ancora arrivate.
+  // Si paga solo la SECONDA, e si paga il prezzo di QUELLA carta: l'ordine in
+  // cui arrivano gli slug e' l'ordine in cui sono stati scelti, quindi il
+  // secondo elemento e' la carta comprata.
+  // Il pagamento e il possesso finiscono nello stesso oggetto e in una sola
+  // scrittura: cosi' non esiste l'istante in cui l'inchiostro e' gia' andato e
+  // le carte non sono ancora arrivate.
   var costo = 0;
   if (tieni.length >= 2) {
-    costo = (typeof bustina.costo === 'number') ? bustina.costo : 0;
-    if (valute.fairyDust < costo) throw Error('polvere insufficiente');
-    valute.fairyDust -= costo;
+    var listino = bustina.prezzi || {};
+    costo = (typeof listino[tieni[1]] === 'number') ? listino[tieni[1]] : 0;
+    if (valute.magicInk < costo) throw Error('inchiostro insufficiente');
+    valute.magicInk -= costo;
   }
 
   if (!possesso.carte) possesso.carte = {};
@@ -2239,7 +2265,7 @@ function rpcBustinaRaccogli(ctx, logger, nk, payload) {
     carte.push(catalogo.carte[k]);
   }
 
-  logger.info('bustina raccolta da %s: %d carte, %d di polvere', ctx.userId, tieni.length, costo);
+  logger.info('pacchetto raccolto da %s: %d carte, %d di inchiostro', ctx.userId, tieni.length, costo);
   return JSON.stringify({
     tenute: tieni,
     speso: costo,

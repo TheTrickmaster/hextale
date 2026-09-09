@@ -685,3 +685,27 @@ Due cose che il banco ha corretto su se stesso, e valgono per il prossimo:
 - **Chromium arrotonda i bordi.** `border:1.5px` risulta `1px` in
   `getComputedStyle` a densita' 1. Il valore dichiarato si legge dalla regola
   (`cssRules`), non dall'elemento — ed e' la regola che il disegno prescrive.
+
+### E adesso prova anche la busta
+
+Lo stesso banco (`prova-pacchetti.js`) copre la sequenza intera dello sbusto:
+misura la busta (640 di larghezza, ogni pezzo con la sua proporzione, la
+ceralacca al centro, i tre frammenti dove stavano nel sigillo intero), poi fa
+il gesto vero — un `pointerdown` su una casella, un movimento in su, un
+rilascio — e verifica che lasciandola in basso torni indietro senza consumare
+niente e lasciandola al centro si apra. Poi cinque colpi sulla ceralacca, la
+rottura, l'apertura, le tre carte, e il prezzo della seconda.
+
+Due cose imparate scrivendolo:
+
+- **I frammenti della ceralacca si allineano MISURANDOLI, non a occhio.** I tre
+  PNG sono ritagliati sul proprio contenuto, quindi non portano con se' la
+  posizione che avevano nel sigillo. La si ricava confrontando le SAGOME (il
+  canale alfa) e cercando, per ogni pezzo, l'offset che copre piu' ceralacca
+  possibile senza uscirne — un pezzo per volta, sottraendo mano a mano quello
+  gia' coperto. Il risultato (5,0 / 109,20 / 45,1) ricompone il sigillo con le
+  crepe al posto giusto, ed e' scritto nel CSS invece di essere ricalcolato a
+  ogni apertura.
+- **`elementFromPoint` e' l'unico modo di provare che un click arriva.** Un div
+  trasparente e' invisibile e riceve i click lo stesso: leggere il CSS non lo
+  dice, chiedere al browser chi c'e' in quel punto si'.
