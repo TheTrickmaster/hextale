@@ -2283,6 +2283,42 @@ function rpcBustinaRaccogli(ctx, logger, nk, payload) {
   });
 }
 
+// ── RPC di servizio: il menu di debug regala qualcosa ─────────────────────
+// Solo per gli admin, e il controllo sta QUI: un pulsante nascosto nel client
+// non e' un controllo, e' un pulsante nascosto. Le tre quantita' arrivano
+// separate perche' i tre pulsanti sono tre — chi ne preme uno non deve
+// ricevere anche il resto.
+function rpcDebugRegala(ctx, logger, nk, payload) {
+  if (!ctx.userId) throw Error('serve un accesso');
+  var possesso = assicuraPossesso(ctx, nk, logger, ctx.userId, ctx.username);
+  if (!possesso.admin) throw Error('serve un account admin');
+  var richiesta = {};
+  try { richiesta = payload ? JSON.parse(payload) : {}; } catch (e) { richiesta = {}; }
+  // Numeri veri e positivi, e con un tetto: un debug che accetta qualunque
+  // numero e' un debug che, il giorno in cui la RPC finisce dove non deve,
+  // scrive un saldo da mille miliardi.
+  var quanto = function (v) {
+    var n = Math.floor(Number(v) || 0);
+    if (!isFinite(n) || n < 0) return 0;
+    return Math.min(n, 10000);
+  };
+  var ink = quanto(richiesta.ink);
+  var reward = quanto(richiesta.reward);
+  var treasure = quanto(richiesta.treasure);
+  var valute = valuteDi(possesso);
+  if (ink) valute.magicInk += ink;
+  possesso.valute = valute;
+  if (reward) possesso.bustineExtra = (possesso.bustineExtra || 0) + reward;
+  if (treasure) possesso.bustineTesoro = (possesso.bustineTesoro || 0) + treasure;
+  scriviPossesso(nk, ctx.userId, possesso);
+  logger.info('debug: a %s regalati %d ink, %d reward, %d treasure', ctx.userId, ink, reward, treasure);
+  return JSON.stringify({
+    valute: valute,
+    bustineExtra: possesso.bustineExtra || 0,
+    bustineTesoro: possesso.bustineTesoro || 0
+  });
+}
+
 // ── RPC: compra un treasure pack ──────────────────────────────────────────
 // Un pacchetto contro cento di inchiostro magico. Il saldo si legge e si
 // scrive nella STESSA scrittura del contatore: cosi' non esiste l'istante in
@@ -4784,6 +4820,7 @@ function InitModule(ctx, logger, nk, initializer) {
   initializer.registerRpc('hx_bustina_apri', rpcBustinaApri);
   initializer.registerRpc('hx_bustina_raccogli', rpcBustinaRaccogli);
   initializer.registerRpc('hx_bustina_compra', rpcBustinaCompra);
+  initializer.registerRpc('hx_debug_regala', rpcDebugRegala);
   // v0.77.53 — la partita in rete. registerMatch da' un nome al gestore;
   // registerMatchmakerMatched fa in modo che, accoppiati due giocatori, la
   // partita nasca da sola e il suo id arrivi ai due client dentro allo stesso

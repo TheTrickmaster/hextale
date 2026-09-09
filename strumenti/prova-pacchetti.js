@@ -299,6 +299,30 @@ app.whenReady().then(async () => {
     "  dice(q('.pb-opening') && st(q('.pb-opening')).transformOrigin.indexOf('0px') !== -1, 'la patella ha il cardine in alto', st(q('.pb-opening')).transformOrigin);",
     "  var sOmbra = st(q('.pb-letter'));",
     "  dice(sOmbra.filter.indexOf('drop-shadow') !== -1 && sOmbra.filter.indexOf('50px') !== -1, 'e la busta ha la sua ombra', sOmbra.filter);",
+    // L-inclinazione: la prospettiva deve stare sul PADRE di chi ruota, non
+    // sul nonno. Senza, la rotazione e- una proiezione ortogonale — cioe- uno
+    // schiacciamento uguale a destra e a sinistra, che e- come si vedeva.
+    "  dice(st(sotto).perspective === '1400px', 'la prospettiva sta sul padre di chi ruota', st(sotto).perspective);",
+    "  dice(st(q('#pack-busta-sopra .pb-dentro')).perspective === '1400px', 'e .pb-dentro ne ha una sua per la patella', st(q('#pack-busta-sopra .pb-dentro')).perspective);",
+    // L-istruzione
+    "  var istr = q('#pack-istruzione');",
+    "  var sIstr = st(istr);",
+    "  dice(sIstr.marginTop === '160px', 'l-istruzione sta 160 sotto al centro', sIstr.marginTop);",
+    "  dice(sIstr.backdropFilter === 'blur(20px)' || sIstr.webkitBackdropFilter === 'blur(20px)', 'col fondale sfocato dietro', sIstr.backdropFilter);",
+    "  dice(sIstr.backgroundImage.indexOf('0.5') !== -1, 'e il fondo mezzo trasparente', sIstr.backgroundImage.slice(0,70));",
+    "  dice(getComputedStyle(istr, '::after').animationName === 'istruzioneLamina', 'con la lamina che scorre', getComputedStyle(istr, '::after').animationName);",
+    "  dice(getComputedStyle(istr, '::after').animationDuration === '2s', 'ogni due secondi', getComputedStyle(istr, '::after').animationDuration);",
+    // Il banco spegne ogni animation su *, quindi la freccia si controlla
+    // sulla REGOLA e non sul calcolato: il calcolato direbbe sempre "none".
+    // Il ::after della lamina invece non lo prende, perche' * non riguarda gli
+    // pseudo-elementi.
+    "  var regoleF = [].concat.apply([], [].map.call(document.styleSheets, function(f){ try{ return [].slice.call(f.cssRules); }catch(e){ return []; } }));",
+    "  var rFreccia = regoleF.filter(function(r){ return r.selectorText === '#pack-istruzione-freccia'; })[0];",
+    "  dice(rFreccia && rFreccia.style.animationName === 'istruzioneFreccia', 'e la freccia pulsa verso l-alto', rFreccia && rFreccia.style.animationName);",
+    // La ceralacca si accende: :hover non si puo- forzare, si legge la regola.
+    "  var regole = [].concat.apply([], [].map.call(document.styleSheets, function(f){ try{ return [].slice.call(f.cssRules); }catch(e){ return []; } }));",
+    "  var rHover = regole.filter(function(r){ return r.selectorText === '.pb-sigillo:hover'; })[0];",
+    "  dice(rHover && rHover.style.filter.indexOf('brightness') !== -1, 'la ceralacca si accende al passaggio', rHover && rHover.style.filter);",
 
     // il gesto: si solleva e si posa
     "  var manda = function(el, tipo, x, y){ el.dispatchEvent(new PointerEvent(tipo, {clientX:x, clientY:y, pointerId:7, button:0, bubbles:true, cancelable:true})); };",
@@ -335,6 +359,17 @@ app.whenReady().then(async () => {
     "  var b0 = q('.pb-briciola');",
     "  dice(b0 && st(b0).backgroundColor === 'rgb(53, 105, 119)', 'del colore della ceralacca', b0 && st(b0).backgroundColor);",
     "  dice(b0 && st(b0).boxShadow.indexOf('inset') !== -1, 'con la luce sullo spigolo', b0 && st(b0).boxShadow.slice(0,60));",
+    "  dice(st(b0).animationName === 'none', 'e non le muove un @keyframes: hanno una fisica', st(b0).animationName);",
+    "  dice(_briciole.length > 0, 'il giro di animazione le sta seguendo', _briciole.length);",
+    "  var conVy = _briciole.filter(function(x){ return x.vy < 0; }).length;",
+    "  dice(conVy === _briciole.length, 'e partono TUTTE verso l-alto, prima di cadere', conVy + ' su ' + _briciole.length);",
+    "  var lati = _briciole.map(function(x){ return x.vx > 0 ? 1 : -1; });",
+    "  dice(lati.indexOf(1) !== -1 && lati.indexOf(-1) !== -1, 'e si spargono da tutte e due le parti');",
+    "  var misure = _briciole.map(function(x){ return x.el.style.width; });",
+    "  dice(new Set(misure).size > 5, 'di misure tutte diverse', new Set(misure).size + ' misure su ' + misure.length);",
+    "  var spigolose = _briciole.filter(function(x){ return (x.el.style.clipPath||'').indexOf('polygon') === 0; }).length;",
+    "  dice(spigolose > 0 && spigolose < _briciole.length, 'e di due famiglie di forme', spigolose + ' spigolose su ' + _briciole.length);",
+    "  dice(!scena.classList.contains('busta-istruzione'), 'al primo colpo l-istruzione si ritira');",
     "  dice(!scena.classList.contains('busta-rotta'), 'al quarto colpo il sigillo regge ancora');",
     "  bustaColpo();",
     "  dice(scena.classList.contains('busta-rotta'), 'al quinto si spacca');",
@@ -364,6 +399,29 @@ app.whenReady().then(async () => {
     "  uscite.forEach(function(c){ c.classList.remove('emerging'); });",
     "  aggiornaSceltaBustina();",
     "  var etichetta = function(c){ var b=c.__sceltaBtn; var e=b&&b.querySelector('.hxb-label'); return e ? e.textContent.trim() : ''; };",
+    "  mostraSceltaBustina();",
+    "  var b1 = uscite[0].__sceltaBtn;",
+    "  dice(b1 && b1.offsetWidth === 300, 'i pulsanti sotto alle carte sono larghi 300', b1 && b1.offsetWidth);",
+    // E non si toccano: le carte stanno a PACK_RIPOSO_X l'una dall'altra, e se
+    // quel numero scendesse sotto la larghezza del pulsante due pulsanti vicini
+    // si sovrapporrebbero. E' successo: 300 di pulsante contro 280 di passo.
+    "  dice(PACK_RIPOSO_X >= 300 + 20, 'e fra un pulsante e l-altro resta dell-aria', PACK_RIPOSO_X - 300);",
+    // il balzo: :active non si puo- forzare, si legge la regola. Quello che
+    // conta e- che la lista contenga ANCORA la traslazione che centra.
+    "  var rAttivo = regole.filter(function(r){ return r.selectorText === '.pack-card .pack-scelta-btn:active'; })[0];",
+    "  dice(rAttivo && rAttivo.style.transform.indexOf('translateX(-50%)') !== -1, 'e premendoli non perdono la centratura', rAttivo && rAttivo.style.transform);",
+    // il cartellino sopra la carta
+    "  var cart = uscite[0].querySelector('.pack-etichetta');",
+    "  dice(!!cart, 'sopra a ogni carta c-e- il cartellino');",
+    "  dice(cart && (cart.textContent === 'New!' || cart.textContent === 'Owned'), 'che dice New! o Owned', cart && cart.textContent);",
+    "  var sCart = st(cart);",
+    "  dice(sCart.borderTopLeftRadius === '16px', 'con gli angoli a 16', sCart.borderTopLeftRadius);",
+    "  dice(sCart.paddingTop === '20px' && sCart.paddingLeft === '12px', 'e il padding 20/12', sCart.paddingTop + '/' + sCart.paddingLeft);",
+    "  dice(sCart.fontSize === '22px' && sCart.color === 'rgb(237, 224, 198)', 'a 22px in EDE0C6', sCart.fontSize + ' ' + sCart.color);",
+    "  dice(!qa('.pack-card .nuova-nastro').length, 'e il vecchio nastro non c-e- piu-');",
+    "  var perForza = uscite[0].querySelector('.pack-etichetta'); perForza.classList.add('pk-nuova');",
+    "  dice(st(perForza).backgroundColor === 'rgb(125, 19, 19)', 'le nuove hanno il fondo 7D1313', st(perForza).backgroundColor);",
+    "  perForza.classList.toggle('pk-nuova', perForza.textContent === 'New!');",
     "  dice(etichetta(uscite[0]).indexOf('Keep (Free)') === 0, 'la prima e- gratis', etichetta(uscite[0]));",
     "  scegliCartaBustina(uscite[0]);",
     "  dice(etichetta(uscite[0]) === 'Cancel', 'presa, si puo- disfare', etichetta(uscite[0]));",
@@ -380,6 +438,16 @@ app.whenReady().then(async () => {
     "  dice(etCollect.indexOf('Pay') === 0 && etCollect.indexOf(String(costoDiCarta(uscite[1]))) !== -1, 'e il Collect dice quanto si paga', etCollect);",
 
     // e si torna indietro
+    // L-uscita: la scartata svanisce e basta, niente piu- fuoco.
+    "  dice(typeof window.incenerisciCarta === 'undefined', 'l-incenerimento non esiste piu-');",
+    // Le tenute si leggono PRIMA: _preparaUscita toglie la classe .tenuta —
+    // e' un'animazione infinita che va tolta di mezzo — quindi dopo la
+    // chiamata _carteTenute() risponde "nessuna".
+    "  var primaTenute = _carteTenute();",
+    "  var primaScartate = uscite.filter(function(c){ return primaTenute.indexOf(c) === -1; });",
+    "  uscitaDopoLaScelta(primaTenute, primaScartate);",
+    "  dice(primaScartate[0] && primaScartate[0].classList.contains('svanisce'), 'la scartata si dissolve');",
+    "  dice(primaTenute[0].style.getPropertyValue('--fin-x') === '-165.0px', 'e le due tenute si dispongono al centro', primaTenute.map(function(c){ return c.style.getPropertyValue('--fin-x'); }).join(' | '));",
     "  tornaAllaBustina();",
     "  dice(!scena.classList.contains('sbustando') && !scena.classList.contains('busta-viva'), 'tornando indietro la busta se ne va');",
     "  dice(!scena.classList.contains('busta-rotta') && !scena.classList.contains('busta-apre'), 'con tutto quello che le era successo addosso');",
@@ -406,6 +474,13 @@ app.whenReady().then(async () => {
     "  dice(Math.abs(_bustinaProssimaApertura() - Date.now() - 12*60*60*1000) < 4000, 'da adesso', Math.round((_bustinaProssimaApertura()-Date.now())/3600000) + 'h');",
     "  tornaAllaBustina();",
     "  dice(!bustaSolleva('zuppa', 900, 500), 'e un tipo che non esiste non si prende affatto');",
+
+    // ── i tre pulsanti nel menu di debug ─────────────────────────────────
+    "  var etichette = qa('#debug-modal-overlay .hxb-label').map(function(e){ return e.textContent.trim(); });",
+    "  dice(etichette.indexOf('Add 100 magic ink') !== -1, 'c-e- il pulsante dell-inchiostro');",
+    "  dice(etichette.indexOf('Spawn Treasure pack') !== -1, 'quello del treasure');",
+    "  dice(etichette.indexOf('Spawn Reward pack') !== -1, 'e quello del reward');",
+    "  dice(typeof debugRegala === 'function', 'e chiedono al server, non al browser');",
 
     "  } catch(e) { dette.push({ok:false, nome:'PIANTATA', extra:(e && e.message) + ' @ ' + ((e && e.stack)||'').split('\\n')[1]}); }",
     "  return dette;",
