@@ -938,3 +938,28 @@ filtrare sono gesti in cui si confronta qualcosa, e cinque secondi e mezzo di
 cascata li' dentro sarebbero un'attesa), e che chi la interrompe la lasci
 VISIBILE — una cascata cancellata a meta' che lasciasse una carta trasparente
 sarebbe un difetto permanente e silenzioso.
+
+## prova-orologio.js — il turno dura lo stesso di qua e di la'?
+
+    node strumenti/prova-orologio.js
+
+Tre controlli, niente Electron e niente server: e' un accordo fra due numeri, e
+un accordo fra due numeri si verifica leggendoli.
+
+Il conto alla rovescia lo mostra il client (`TURN_SECS` in `play/index.html`),
+ma la scadenza la tiene il **server** (`TURNO_MS` in `server/nakama/index.js`):
+e' lui a decidere quando un turno e' finito, e il client si riallinea alla sua
+scadenza a ogni battito. Se i due non combaciano non succede niente di
+rumoroso — succede la cosa peggiore, cioe' una partita che si comporta in modo
+diverso da come si vede:
+
+- client piu' lungo del server: il turno si tronca con la barra ancora a meta',
+  e chi stava pensando non capisce cos'e' successo;
+- client piu' corto: la barra arriva a zero e il turno continua.
+
+Nessuno dei due da' un errore da nessuna parte.
+
+Si cerca la **dichiarazione** e non il numero: `45000` cercato da solo lo si
+trova in venti punti che non c'entrano niente. Ed e' l'unico banco che guarda
+due file INSIEME — vale la pena saperlo, perche' e' il modello per il prossimo
+numero che dovesse vivere di qua e di la'.

@@ -3367,8 +3367,8 @@ function rpcPartita(ctx, logger, nk, payload) {
 //   • I TURNI       — di chi e' il turno, e quante volte si e' giocato.
 //   • LA LEGALITA'  — e' il tuo turno? la carta e' davvero nella tua mano? la
 //                     casella esiste, non e' un muro, non e' gia' occupata?
-//   • IL TEMPO      — i sessanta secondi li conta lui. Il client mostra un
-//                     conto alla rovescia, ma la scadenza e' quella del
+//   • IL TEMPO      — i secondi del turno li conta lui (TURNO_MS). Il client
+//                     mostra un conto alla rovescia, ma la scadenza e' quella del
 //                     server, e a deciderla e' sempre lui.
 //
 // COSA NON FA ANCORA, e va detto: le CONQUISTE e le 44 ABILITA' restano
@@ -3400,7 +3400,12 @@ var OP_ESITO     = 9;   // server -> client, personale: com'e' andata, e cosa ha
 var OP_SCELGO    = 10;  // client -> server: il bersaglio che ho indicato
 var OP_SCELTA    = 11;  // server -> client: il bersaglio indicato, per tutti e due
 
-var TURNO_MS = 60000;        // i sessanta secondi del turno
+// v0.79.57 — quarantacinque secondi. Vedi TURN_SECS in play/index.html: sono
+// lo stesso numero detto due volte, e il server e- quello che comanda. Se i due
+// non combaciano, il client mostra un conto alla rovescia che non e- quello
+// vero: la barra arriva a zero e il turno continua, oppure si tronca con la
+// barra ancora a meta-.
+var TURNO_MS = 45000;        // i quarantacinque secondi del turno
 // v0.78.23 — quanto dura la schermata che presenta i due avversari, e quindi
 // quanto tempo in piu- ha il primo turno. Sta qui e non solo nel client perche-
 // e- il server a tenere l-orologio: se il client la allunga senza dirlo, i
