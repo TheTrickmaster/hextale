@@ -3456,6 +3456,43 @@ function _mescola(a) {
   }
   return a;
 }
+// ── v0.79.59 — CHI HA FRETTA PARTE IN MANO, ANCHE IN RETE ────────────────
+// White Rabbit dice 'Starts the game in hand'. Il client lo sa fare da sempre
+// (_inCimaChiHaFretta: le carte con rush_hour in cima al mazzo prima di
+// pescare), ma in rete la mano la distribuisce il SERVER, qui sotto in
+// _comincia — con un mescolamento e basta. Il Coniglio partiva in mano contro
+// l'IA e quasi mai contro una persona, e nessuna delle due parti poteva
+// accorgersene: il client riceve una mano gia' fatta.
+// L'abilita' la dice il catalogo (cardAbility), che sta gia' nella memoria del
+// server: si legge una volta per versione, come fanno le parole del gioco per
+// il filtro dei nomi.
+var _fretta = null;
+var _frettaVersione = null;
+function _idConFretta(nk) {
+  var catalogo = null;
+  try { catalogo = leggiSistema(nk, KEY_CATALOGO); } catch (e) { catalogo = null; }
+  if (!catalogo || !catalogo.carte) return _fretta || {};
+  if (_fretta && _frettaVersione === catalogo.versione) return _fretta;
+  var fuori = {};
+  for (var i = 0; i < catalogo.carte.length; i++) {
+    var c = catalogo.carte[i];
+    if (c && c.cardAbility === 'rush_hour') {
+      if (c.id) fuori[String(c.id)] = true;
+      if (c.slug) fuori[String(c.slug)] = true;
+    }
+  }
+  _fretta = fuori;
+  _frettaVersione = catalogo.versione;
+  return fuori;
+}
+function _inCimaChiHaFretta(nk, carte) {
+  var fretta = _idConFretta(nk);
+  var prima = [], dopo = [];
+  for (var i = 0; i < carte.length; i++) {
+    (fretta[String(carte[i])] ? prima : dopo).push(carte[i]);
+  }
+  return prima.concat(dopo);
+}
 
 // Il mazzo scelto di un giocatore, in id di carta. Passa dalle stesse regole
 // del resto: se una carta non e' sua, non entra. E' il motivo per cui il mazzo
@@ -3593,7 +3630,10 @@ function _comincia(stato, dispatcher, logger, nk) {
 
   for (var i = 0; i < stato.giocatori.length; i++) {
     var u = stato.giocatori[i];
-    var mescolato = _mescola(stato.mazzoIniziale[u].slice());
+    // v0.79.59 — mescolato, e POI chi ha fretta in cima: e' la stessa regola
+    // del client, e vale anche qui, che e' l'unico posto in cui in rete la
+    // mano si decide davvero.
+    var mescolato = _inCimaChiHaFretta(nk, _mescola(stato.mazzoIniziale[u].slice()));
     stato.mano[u] = mescolato.slice(0, MANO_INIZIALE);
     stato.mazzo[u] = mescolato.slice(MANO_INIZIALE);
   }
@@ -4284,6 +4324,22 @@ function partitaLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
     var carta = String(corpo.carta || '');
     var q = corpo.q, r = corpo.r;
     var k = q + ',' + r;
+    // ── v0.79.59 — I VALORI CON CUI LA CARTA SCENDE ──────────────────────
+    // Il client li manda perche' l'altro client non puo' saperli: cio' che e'
+    // successo a una carta mentre stava in mano (un dono, un furto) lo sa solo
+    // chi la teneva. Il server non li giudica — come non giudica nessun
+    // effetto: le regole vivono nei client e l'ombra le confronta — ma li
+    // ripulisce: sei lati, numeri interi fra 0 e 99, o niente.
+    var valori = null;
+    if (corpo.valori && typeof corpo.valori === 'object') {
+      valori = {};
+      var lati = ['NE', 'E', 'SE', 'SW', 'W', 'NW'];
+      for (var vi = 0; vi < lati.length; vi++) {
+        var vn = Number(corpo.valori[lati[vi]]);
+        if (!isFinite(vn)) { valori = null; break; }
+        valori[lati[vi]] = Math.max(0, Math.min(99, Math.floor(vn)));
+      }
+    }
 
     var posto = state.mano[chi].indexOf(carta);
     if (posto === -1) { _aUno(dispatcher, state, chi, OP_RIFIUTO, { perche: 'quella carta non e\' nella tua mano' }); continue; }
@@ -4304,7 +4360,7 @@ function partitaLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
     var pescata = _passaTurno(state, dispatcher, chi);
 
     _aTutti(dispatcher, OP_GIOCATA, {
-      giocatore: idx + 1, carta: carta, q: q, r: r,
+      giocatore: idx + 1, carta: carta, q: q, r: r, valori: valori,
       turno: state.turno + 1, scadenza: state.scadenza,
       numeroTurno: state.numeroTurno, pubblico: _pubblico(state)
     });
@@ -4464,6 +4520,21 @@ function accoppiati(ctx, logger, nk, matches) {
   if (giocatori.length !== 2) {
     logger.warn('accoppiamento con %d giocatori: non e\' una partita', giocatori.length);
     return '';
+  }
+  // ── v0.79.59 — I MAZZI SI CONTROLLANO QUI, NON DOPO ─────────────────────
+  // matchInit li legge e, se uno dei due non e' valido, torna null: la partita
+  // non nasce, Nakama manda ai due un accoppiamento SENZA match_id, e il
+  // client fino a ieri ci giocava sopra una partita finta contro l'IA. Se il
+  // mazzo non va, lo si dice subito nel registro e si rinuncia in modo pulito:
+  // i client ricevono lo stesso 'senza partita', ma adesso lo dicono al
+  // giocatore invece di fingere.
+  for (var g = 0; g < giocatori.length; g++) {
+    var mz = null;
+    try { mz = _mazzoDi(nk, logger, giocatori[g]); } catch (em) { mz = null; }
+    if (!mz) {
+      logger.warn('accoppiamento rifiutato: %s non ha un mazzo valido', giocatori[g]);
+      return '';
+    }
   }
   return nk.matchCreate('hextale', {
     giocatori: JSON.stringify(giocatori),
@@ -5042,7 +5113,15 @@ var ABILITA_MOTORE = (function () {
   }
 
   // Fra i candidati, quali si prendono davvero.
-  function scelti(lista, eff, scena) {
+  // ── v0.79.59 — 'A CASO' DIPENDE ANCHE DA CHI PESCA ────────────────────
+  // La pescata usciva da seme|turno|quante: due carte con la stessa abilita'
+  // nello stesso turno — il Genio e lo Specchio che l'ha copiato — pescavano
+  // la STESSA carta, e la stessa carta si prendeva due volte lo stesso dono
+  // sugli stessi lati. Adesso entra anche la fonte, tramite _occasione (che
+  // gia' distingue le carte per casella e serve ai lati 'a caso'): due fonti,
+  // due pescate. Resta ripetibile — e' tutto seme — quindi in rete i due
+  // client continuano a pescare uguale.
+  function scelti(lista, eff, scena, fonte) {
     var q = eff.quale;
     if (!lista.length) return [];
     if (!q || q === 'all') return lista;
@@ -5058,7 +5137,8 @@ var ABILITA_MOTORE = (function () {
       // partita, come il lato "a caso" di RAND. Math.random resta l'ultima
       // spiaggia, per chi chiama senza seme.
       if (scena && scena.seme) {
-        return [lista[_semeDi(String(scena.seme) + '|' + String(scena.turno || 0) + '|' + lista.length) % lista.length]];
+        var occ = fonte ? _occasione(fonte, scena) : String(scena.seme);
+        return [lista[_semeDi(occ + '|' + String(scena.turno || 0) + '|' + lista.length) % lista.length]];
       }
       var i = Math.floor((scena && typeof scena.sorte === 'number' ? scena.sorte : Math.random()) * lista.length);
       return [lista[Math.min(i, lista.length - 1)]];
@@ -5137,7 +5217,7 @@ var ABILITA_MOTORE = (function () {
         fuori.push(pezzo);
         return;
       }
-      var presi = scelti(possibili, eff, scena);
+      var presi = scelti(possibili, eff, scena, fonte);
       for (var k = 0; k < presi.length; k++) {
         var uno = {}; for (var kk in pezzo) uno[kk] = pezzo[kk];
         uno.carta = presi[k];
@@ -5160,7 +5240,7 @@ var ABILITA_MOTORE = (function () {
         fuori.push({ azione: 'steal', cosa: eff.cosa, fonte: fonte, candidati: daCui, quale: eff.quale, dove: eff.dove });
         return;
       }
-      var scelte = scelti(daCui, eff, scena);
+      var scelte = scelti(daCui, eff, scena, fonte);
       for (var s = 0; s < scelte.length; s++) {
         fuori.push({ azione: 'steal', cosa: eff.cosa, fonte: fonte, carta: scelte[s], quale: eff.quale, dove: eff.dove });
       }
@@ -5170,7 +5250,7 @@ var ABILITA_MOTORE = (function () {
     if (eff.cosa && eff.cosa !== 'power') return;      // un furto di potenza, e nient'altro
     if (!condizioneVera(cond, fonte, scena)) return;
 
-    var lista = scelti(candidati(fonte, eff, scena), eff, scena);
+    var lista = scelti(candidati(fonte, eff, scena), eff, scena, fonte);
     var q = quantita(fonte, eff, cond, scena);
     var i, j, bersaglio, lati;
     for (i = 0; i < lista.length; i++) {

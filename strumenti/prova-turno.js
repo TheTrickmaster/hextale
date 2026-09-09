@@ -20,6 +20,19 @@
 //
 // Nessuno dei due da' un errore. Si vedono soltanto — e solo se si sta
 // guardando quella cosa li'.
+//
+// v0.79.59 — TRE SEZIONI IN PIU', tutte sulla stessa regola di Lorenzo: il
+// conto NON si ferma mai.
+//   3. a zero con la carta gia' giocata non succede niente (e' un turno che
+//      sta finendo da solo, non un tempo scaduto); con una scelta aperta si
+//      passa da autoPlay, che la chiude come rinuncia;
+//   4. in rete la scelta scade DAVVERO: il ritorno anticipato per la rete
+//      stava sopra al ramo della scelta, che era codice morto — una finestra
+//      di bersaglio online non scadeva mai, e la mossa dell'avversario
+//      arrivava sopra a una scelta ancora aperta;
+//   5. i valori della carta viaggiano con la giocata (reteGioca ->
+//      reteApplicaGiocata): sull'altro schermo la carta e' ricostruita dal
+//      catalogo, e senza questo cio' che le era successo in mano si perdeva.
 const { app, BrowserWindow } = require('electron');
 app.commandLine.appendSwitch('disable-gpu');
 app.disableHardwareAcceleration();
@@ -27,6 +40,7 @@ app.disableHardwareAcceleration();
 const CORPO = `(async function(){
   var d = [];
   var dice = function(ok, n, x){ d.push((ok ? '  ok  ' : '  NO  ') + n + (x !== undefined ? '   [' + x + ']' : '')); };
+  var respira = function(ms){ return new Promise(function(r){ setTimeout(r, ms); }); };
   try {
     var sp = document.getElementById('splash'); if(sp) sp.remove();
     // initGame vuole la pagina di gioco MONTATA: le pagine sono ermetiche, e
@@ -80,6 +94,71 @@ const CORPO = `(async function(){
     dice(timerLeft > 0, 'una scadenza gia- scaduta fa ripartire il conto', timerLeft + 's');
 
     clearInterval(timerInterval);
+
+    // ── 3. A ZERO CON LA CARTA GIA- GIOCATA: NON SI FA NIENTE (v0.79.59) ──
+    // Il conto non si ferma piu- a carta giocata: se arriva a zero mentre lo
+    // scontro sta risolvendo, non e- un tempo scaduto — e- un turno che sta
+    // finendo da solo. Niente giocata d-ufficio, niente scritta.
+    var giocateDUfficio = 0, scritte = 0;
+    var veroAuto = autoPlay, veroScritta = mostraTempoScaduto;
+    window.autoPlay = function(){ giocateDUfficio++; };
+    window.mostraTempoScaduto = function(){ scritte++; };
+    G.gameOver = false; G.currentPlayer = 1; G.turnPlayLocked = true; G.sceltaBersaglio = null;
+    PARTITA_RETE = null;
+    startTimer();
+    timerDeadline = Date.now() - 10;
+    await respira(600);
+    clearInterval(timerInterval);
+    dice(giocateDUfficio === 0 && scritte === 0, 'a zero con la carta gia- giocata non succede niente',
+      giocateDUfficio + ' giocate, ' + scritte + ' scritte');
+    // ...ma con una scelta aperta si- : la si chiude come rinuncia.
+    G.turnPlayLocked = true; G.sceltaBersaglio = { giocatore:1, chiave:'prova', bersagli:[] };
+    startTimer();
+    timerDeadline = Date.now() - 10;
+    await respira(600);
+    clearInterval(timerInterval);
+    dice(giocateDUfficio === 1, 'con una scelta aperta il tic passa da autoPlay (che la chiude)', giocateDUfficio);
+    window.autoPlay = veroAuto; window.mostraTempoScaduto = veroScritta;
+    G.sceltaBersaglio = null; G.turnPlayLocked = false;
+
+    // ── 4. IN RETE LA SCELTA SCADE DAVVERO (v0.79.59) ──────────────────────
+    // Prima il ritorno anticipato per la rete stava sopra al ramo della
+    // scelta: era codice morto, e una finestra di bersaglio online non
+    // scadeva mai. Adesso a scadenza si manda la rinuncia al server.
+    var mandate = [];
+    var veroScegli = reteScegli;
+    window.reteScegli = function(c){ mandate.push(c); };
+    PARTITA_RETE = { matchId:'prova', io:1, mano:[], mazzo:[], buchi:[], turno:1, scadenza:0, numeroTurno:1, pubblico:{} };
+    G.sceltaBersaglio = { giocatore:1, chiave:'prova', bersagli:[], rinuncia:function(){}, applica:function(){} };
+    autoPlay(1);
+    dice(mandate.length === 1 && mandate[0] === null, 'in rete la scelta scaduta manda la rinuncia al server', JSON.stringify(mandate));
+    // E chi NON deve scegliere non manda niente.
+    mandate.length = 0;
+    G.sceltaBersaglio = { giocatore:2, chiave:'prova', bersagli:[], rinuncia:function(){}, applica:function(){} };
+    autoPlay(2);
+    dice(mandate.length === 0, 'e chi non deve scegliere non manda niente', mandate.length);
+    window.reteScegli = veroScegli;
+    G.sceltaBersaglio = null;
+
+    // ── 5. I VALORI VIAGGIANO CON LA GIOCATA (v0.79.59) ────────────────────
+    var eA = (FINAL_CARDS||[])[0];
+    var mia = _makeCardDbCard(eA, 1);
+    mia.valoriBase = { NE:1, E:2, SE:3, SW:4, W:5, NW:6 };
+    var v = _valoriDaMandare(mia);
+    dice(!!v && v.NE === 1 && v.NW === 6, 'la giocata porta la BASE della carta', JSON.stringify(v));
+    // E chi la riceve la mette addosso alla carta ricostruita.
+    PARTITA_RETE = { matchId:'prova', io:1, mano:[], mazzo:[], buchi:[], turno:2, scadenza:0, numeroTurno:1, pubblico:{} };
+    G.p2Hand = [_cartaSconosciuta(2, 0)];
+    var veroPlace = doPlace;
+    var ricevuta = null;
+    window.doPlace = function(carta){ ricevuta = carta; };
+    var veroRacconta = reteRaccontaQuandoFermo;
+    window.reteRaccontaQuandoFermo = function(){};
+    reteApplicaGiocata({ giocatore:2, carta:eA.id, q:0, r:0, turno:1, scadenza:0, numeroTurno:2, valori:{ NE:7, E:7, SE:7, SW:7, W:7, NW:7 } });
+    window.doPlace = veroPlace; window.reteRaccontaQuandoFermo = veroRacconta;
+    dice(!!ricevuta && ricevuta.values.NE === 7 && ricevuta.valoriBase.NW === 7,
+      'e chi riceve la ricostruisce con quei valori', ricevuta && JSON.stringify(ricevuta.values));
+    PARTITA_RETE = reteVera;
     return d.join(String.fromCharCode(10));
   } catch(e) {
     return 'PIANTATA: ' + (e && e.message) + ' @ ' + ((e && e.stack) || '').split(String.fromCharCode(10))[1]

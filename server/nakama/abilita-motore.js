@@ -568,7 +568,15 @@ var ABILITA_MOTORE = (function () {
   }
 
   // Fra i candidati, quali si prendono davvero.
-  function scelti(lista, eff, scena) {
+  // ── v0.79.59 — 'A CASO' DIPENDE ANCHE DA CHI PESCA ────────────────────
+  // La pescata usciva da seme|turno|quante: due carte con la stessa abilita'
+  // nello stesso turno — il Genio e lo Specchio che l'ha copiato — pescavano
+  // la STESSA carta, e la stessa carta si prendeva due volte lo stesso dono
+  // sugli stessi lati. Adesso entra anche la fonte, tramite _occasione (che
+  // gia' distingue le carte per casella e serve ai lati 'a caso'): due fonti,
+  // due pescate. Resta ripetibile — e' tutto seme — quindi in rete i due
+  // client continuano a pescare uguale.
+  function scelti(lista, eff, scena, fonte) {
     var q = eff.quale;
     if (!lista.length) return [];
     if (!q || q === 'all') return lista;
@@ -584,7 +592,8 @@ var ABILITA_MOTORE = (function () {
       // partita, come il lato "a caso" di RAND. Math.random resta l'ultima
       // spiaggia, per chi chiama senza seme.
       if (scena && scena.seme) {
-        return [lista[_semeDi(String(scena.seme) + '|' + String(scena.turno || 0) + '|' + lista.length) % lista.length]];
+        var occ = fonte ? _occasione(fonte, scena) : String(scena.seme);
+        return [lista[_semeDi(occ + '|' + String(scena.turno || 0) + '|' + lista.length) % lista.length]];
       }
       var i = Math.floor((scena && typeof scena.sorte === 'number' ? scena.sorte : Math.random()) * lista.length);
       return [lista[Math.min(i, lista.length - 1)]];
@@ -663,7 +672,7 @@ var ABILITA_MOTORE = (function () {
         fuori.push(pezzo);
         return;
       }
-      var presi = scelti(possibili, eff, scena);
+      var presi = scelti(possibili, eff, scena, fonte);
       for (var k = 0; k < presi.length; k++) {
         var uno = {}; for (var kk in pezzo) uno[kk] = pezzo[kk];
         uno.carta = presi[k];
@@ -686,7 +695,7 @@ var ABILITA_MOTORE = (function () {
         fuori.push({ azione: 'steal', cosa: eff.cosa, fonte: fonte, candidati: daCui, quale: eff.quale, dove: eff.dove });
         return;
       }
-      var scelte = scelti(daCui, eff, scena);
+      var scelte = scelti(daCui, eff, scena, fonte);
       for (var s = 0; s < scelte.length; s++) {
         fuori.push({ azione: 'steal', cosa: eff.cosa, fonte: fonte, carta: scelte[s], quale: eff.quale, dove: eff.dove });
       }
@@ -696,7 +705,7 @@ var ABILITA_MOTORE = (function () {
     if (eff.cosa && eff.cosa !== 'power') return;      // un furto di potenza, e nient'altro
     if (!condizioneVera(cond, fonte, scena)) return;
 
-    var lista = scelti(candidati(fonte, eff, scena), eff, scena);
+    var lista = scelti(candidati(fonte, eff, scena), eff, scena, fonte);
     var q = quantita(fonte, eff, cond, scena);
     var i, j, bersaglio, lati;
     for (i = 0; i < lista.length; i++) {

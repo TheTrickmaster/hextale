@@ -963,3 +963,41 @@ Si cerca la **dichiarazione** e non il numero: `45000` cercato da solo lo si
 trova in venti punti che non c'entrano niente. Ed e' l'unico banco che guarda
 due file INSIEME — vale la pena saperlo, perche' e' il modello per il prossimo
 numero che dovesse vivere di qua e di la'.
+
+## prova-turno.js — chi sono io, quanto manca, e cosa succede a zero
+
+    npx electron strumenti/prova-turno.js
+
+Quattordici controlli su tre cose che il turno deve sapere di se'.
+
+**Chi sono io.** In rete il server dice quale dei due numeri siamo, e quella
+riga girava un istante PRIMA che `initGame` rifacesse `G` da zero: il numero
+si perdeva ogni volta e `_goIoSono` rispondeva 1 a tutti e due. Chi era il 2
+sentiva la fanfara al contrario e vedeva i punteggi scambiati. Il banco fa
+quello che fa il gioco — `initGame` che rifa' `G` — invece di leggere la
+funzione, che sarebbe passata anche prima.
+
+**Il conto non si ferma mai** (regola di Lorenzo, v0.79.59). A zero ci sono
+tre casi e vanno tenuti distinti: nessuna carta giocata (giocata d'ufficio),
+una scelta aperta (si chiude come rinuncia), la carta GIA' giocata che sta
+risolvendo (non si fa niente: e' un turno che finisce da solo, e "tempo
+scaduto" su una mossa gia' fatta sarebbe una bugia). Prima il terzo caso non
+esisteva perche' `doPlace` fermava il conto; adesso e' il prezzo del conto che
+corre sempre.
+
+**In rete la scelta scade davvero.** Il ritorno anticipato per la rete stava
+SOPRA al ramo che chiude una scelta scaduta — che aveva la sua guardia per la
+rete, scritta bene e mai eseguita. Una finestra di bersaglio online non
+scadeva mai: restava aperta sui due schermi, il server passava il turno, e la
+mossa dell'avversario arrivava sopra a una scelta ancora aperta. Era la strada
+da cui le partite online si fermavano.
+
+**I valori viaggiano con la giocata.** Sull'altro schermo la carta e'
+ricostruita dal catalogo (`_cartaDaIdRete`): cio' che le era successo in mano
+si perdeva. Si manda la BASE (`valoriBase`), non i valori vivi, o le sinergie
+continue verrebbero contate due volte di la'.
+
+`G.gameOver = true` prima di far scattare il tic serve a non fargli giocare
+una carta da solo; per il caso "carta gia' giocata" invece `G.gameOver`
+dev'essere falso e `G.turnPlayLocked` vero, e si sostituiscono `autoPlay` e
+`mostraTempoScaduto` per contare se vengono chiamate.

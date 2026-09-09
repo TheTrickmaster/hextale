@@ -11841,7 +11841,7 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.59</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.58</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -15719,28 +15719,11 @@ function reteSonoIo(playerIdx){ return PARTITA_RETE && (playerIdx + 1) === PARTI
 // Manda la mossa e basta: non si tocca il tabellone finche' il server non
 // risponde. Applicarla subito e disfarla se rifiutata sarebbe piu' scattante,
 // ma vorrebbe dire mostrare partite che non sono successe.
-// ── v0.79.59 — I VALORI VIAGGIANO CON LA GIOCATA ─────────────────────────
-// Sull'altro schermo la carta che gioco viene RICOSTRUITA dal catalogo
-// (_cartaDaIdRete): tutto cio' che le e' successo mentre stava in mano —
-// il +2 di Ginevra, il -1 della Strega del Mare, il dono del Genio a fine
-// turno — di la' non arrivava. La carta scendeva in campo con due numeri
-// diversi sui due schermi, uno scontro andava in un modo qui e nell'altro la',
-// e l'impronta fermava la partita. Era la radice di meta' dei 'crash' online.
-// Si manda la BASE (valoriBase: la nascita piu' i colpi permanenti), non i
-// valori vivi: le sinergie continue si rifanno da sole a ogni disegno, e
-// mandarle sommate le farebbe contare due volte di la'.
-function _valoriDaMandare(carta){
-  const base = (carta && (carta.valoriBase || carta.values)) || null;
-  if(!base || Array.isArray(base)) return null;
-  const fuori = {};
-  for(const s of SIDES) fuori[s] = Math.max(0, Math.min(99, (base[s]|0)));
-  return fuori;
-}
 function reteGioca(carta, q, r){
   if(!PARTITA_RETE) return;
   mmManda({ cid: 'g' + Date.now().toString(36), match_data_send: {
     match_id: PARTITA_RETE.matchId, op_code: 2,
-    data: btoa(JSON.stringify({ carta: carta.baseId || carta.id, q: q, r: r, valori: _valoriDaMandare(carta) }))
+    data: btoa(JSON.stringify({ carta: carta.baseId || carta.id, q: q, r: r }))
   }});
 }
 
@@ -15941,39 +15924,9 @@ function reteApplicaGiocata(d){
     // giocarla, cosi' il resto del motore la trova dov'e' abituato a cercarla.
     const posto = mano.findIndex(x => x.sconosciuta);
     carta = _cartaDaIdRete(d.carta, d.giocatore, PARTITA_RETE.numeroTurno);
-    // v0.79.59 — i valori con cui l'avversario l'ha giocata davvero (vedi
-    // reteGioca). Base e valori: la base perche' e' da li' che le sinergie
-    // ripartono, i valori perche' e' quello che si vede finche' non si ridisegna.
-    // valoriNascita resta quella del catalogo, cosi' il verde e il rosso
-    // raccontano i colpi presi in mano come li racconterebbero di la'.
-    if(d.valori && typeof d.valori === 'object' && !Array.isArray(d.valori)){
-      const v = {};
-      let buoni = true;
-      for(const s of SIDES){
-        const n = Number(d.valori[s]);
-        if(!isFinite(n)){ buoni = false; break; }
-        v[s] = Math.max(0, Math.min(99, n|0));
-      }
-      if(buoni){
-        carta.values = {...v};
-        carta.valoriBase = {...v};
-        if(carta.tileAbilityBaseValues) carta.tileAbilityBaseValues = {...v};
-      }
-    }
     if(posto >= 0) mano[posto] = carta; else mano.push(carta);
   }
   if(!carta) return;
-  // ── v0.79.59 — UNA MOSSA CHE ARRIVA CHIUDE LA SCELTA RIMASTA APERTA ──
-  // Se il server ha gia' passato il turno e l'altro ha giocato, una finestra
-  // di bersaglio ancora aperta qui e' un ritardo nostro, non una domanda
-  // ancora valida. Applicare una giocata sopra a una scelta aperta era il modo
-  // in cui il tabellone smetteva di corrispondere. Si chiude come rinuncia,
-  // 'daServer' perche' non c'e' niente da mandare: e' la stessa rinuncia che
-  // l'altro client fa dalla sua parte, quindi i due restano d'accordo.
-  if(G.sceltaBersaglio){
-    console.warn('[rete] arriva una giocata con una scelta ancora aperta: la chiudo come rinuncia.');
-    try{ chiudiSceltaBersaglio(null, true); }catch(_){}
-  }
   PARTITA_RETE.turno = d.turno;
   PARTITA_RETE.scadenza = d.scadenza;
   PARTITA_RETE.numeroTurno = d.numeroTurno;
@@ -16232,23 +16185,15 @@ function mmTrovato(dati){
     return;
   }
 
-  // ── v0.79.59 — NESSUN MATCH ID: NON SI FINGE ────────────────────────────
-  // Qui si giocava in locale contro il mazzo dell'altro, col nome 'A worthy
-  // opponent' e l'IA a muovere per lui. Era il ripiego della v0.77.53, di
-  // quando il server non creava ancora le partite; da v0.77.54 le crea sempre,
-  // quindi arrivare qui vuol dire che qualcosa e' andato storto DI LA' — un
-  // mazzo non valido, un errore nell'accoppiamento — e fingere una partita
-  // online con l'IA dentro e' esattamente quello che Lorenzo ha visto: un
-  // avversario 'accoppiato' che pero' non c'era, e le sue carte mosse da qui.
-  // Si dice cos'e' successo e ci si ferma. L'altro giocatore ricevera' lo
-  // stesso messaggio dalla sua parte.
-  console.warn('[rete] accoppiamento senza partita: il server non l\'ha creata.');
+  // Nessun match id: il server e' vecchio, o l'accoppiamento non l'ha creata.
+  // Si gioca in locale contro il suo mazzo, come nella v0.77.53.
+  console.warn('[rete] accoppiamento senza partita: si gioca in locale.');
   mmChiudiSocket();
-  _mm2Cercando = false;
-  mm2FermaRicerca();
-  apriAvviso('Match not created',
-    'An opponent was found but the server could not start the match. '
-    + 'Check that your selected deck is valid and try again.', true);
+  setTimeout(()=>{
+    _mm2Cercando = false;
+    mm2FermaRicerca();
+    try{ requestNewGame(false); }catch(_){}
+  }, MM2_PASSO_MS);
 }
 
 function mm2AnnullaRicerca(){
@@ -20326,15 +20271,7 @@ var ABILITA_MOTORE = (function () {
   }
 
   // Fra i candidati, quali si prendono davvero.
-  // ── v0.79.59 — 'A CASO' DIPENDE ANCHE DA CHI PESCA ────────────────────
-  // La pescata usciva da seme|turno|quante: due carte con la stessa abilita'
-  // nello stesso turno — il Genio e lo Specchio che l'ha copiato — pescavano
-  // la STESSA carta, e la stessa carta si prendeva due volte lo stesso dono
-  // sugli stessi lati. Adesso entra anche la fonte, tramite _occasione (che
-  // gia' distingue le carte per casella e serve ai lati 'a caso'): due fonti,
-  // due pescate. Resta ripetibile — e' tutto seme — quindi in rete i due
-  // client continuano a pescare uguale.
-  function scelti(lista, eff, scena, fonte) {
+  function scelti(lista, eff, scena) {
     var q = eff.quale;
     if (!lista.length) return [];
     if (!q || q === 'all') return lista;
@@ -20350,8 +20287,7 @@ var ABILITA_MOTORE = (function () {
       // partita, come il lato "a caso" di RAND. Math.random resta l'ultima
       // spiaggia, per chi chiama senza seme.
       if (scena && scena.seme) {
-        var occ = fonte ? _occasione(fonte, scena) : String(scena.seme);
-        return [lista[_semeDi(occ + '|' + String(scena.turno || 0) + '|' + lista.length) % lista.length]];
+        return [lista[_semeDi(String(scena.seme) + '|' + String(scena.turno || 0) + '|' + lista.length) % lista.length]];
       }
       var i = Math.floor((scena && typeof scena.sorte === 'number' ? scena.sorte : Math.random()) * lista.length);
       return [lista[Math.min(i, lista.length - 1)]];
@@ -20430,7 +20366,7 @@ var ABILITA_MOTORE = (function () {
         fuori.push(pezzo);
         return;
       }
-      var presi = scelti(possibili, eff, scena, fonte);
+      var presi = scelti(possibili, eff, scena);
       for (var k = 0; k < presi.length; k++) {
         var uno = {}; for (var kk in pezzo) uno[kk] = pezzo[kk];
         uno.carta = presi[k];
@@ -20453,7 +20389,7 @@ var ABILITA_MOTORE = (function () {
         fuori.push({ azione: 'steal', cosa: eff.cosa, fonte: fonte, candidati: daCui, quale: eff.quale, dove: eff.dove });
         return;
       }
-      var scelte = scelti(daCui, eff, scena, fonte);
+      var scelte = scelti(daCui, eff, scena);
       for (var s = 0; s < scelte.length; s++) {
         fuori.push({ azione: 'steal', cosa: eff.cosa, fonte: fonte, carta: scelte[s], quale: eff.quale, dove: eff.dove });
       }
@@ -20463,7 +20399,7 @@ var ABILITA_MOTORE = (function () {
     if (eff.cosa && eff.cosa !== 'power') return;      // un furto di potenza, e nient'altro
     if (!condizioneVera(cond, fonte, scena)) return;
 
-    var lista = scelti(candidati(fonte, eff, scena), eff, scena, fonte);
+    var lista = scelti(candidati(fonte, eff, scena), eff, scena);
     var q = quantita(fonte, eff, cond, scena);
     var i, j, bersaglio, lati;
     for (i = 0; i < lista.length; i++) {
@@ -33797,19 +33733,7 @@ function startTimer(riprendi){
       // turn end originates) rather than inferring it later from timerLeft,
       // since by the time endTurn() runs the NEXT turn's timer may already
       // be a different value.
-      // ── v0.79.59 — TRE CASI A ZERO, e vanno tenuti distinti ─────────────
-      //   1. nessuna carta giocata: si gioca d'ufficio (autoPlay);
-      //   2. una scelta e' aperta: la si chiude come rinuncia, e il turno
-      //      finisce da solo appena la risoluzione arriva in fondo (autoPlay,
-      //      primo ramo);
-      //   3. la carta e' GIA' stata giocata e sta risolvendo (scontro,
-      //      atterraggio): NON si fa niente. Il turno finira' da se', e
-      //      annunciare 'tempo scaduto' su una mossa gia' fatta sarebbe una
-      //      bugia. Prima questo caso non esisteva perche' doPlace fermava il
-      //      conto; da oggi il conto corre sempre, e questo e' il prezzo.
-      const sceltaSua = !!(G.sceltaBersaglio && G.sceltaBersaglio.giocatore===timerPlayer);
-      const giaGiocata = !!G.turnPlayLocked && !sceltaSua;
-      if(!G.gameOver && G.currentPlayer===timerPlayer && !giaGiocata){
+      if(!G.gameOver && G.currentPlayer===timerPlayer){
         G.turnEndedByTimeout=true;
         // v0.77.6 — IL BANNER ARRIVA ADESSO, non a fine turno.
         // Prima lo mostrava endTurn(), cioe' dopo che la carta automatica era
@@ -33970,18 +33894,12 @@ function stopScreenEdgeFlash(){
 }
 
 function autoPlay(player){
+  // v0.77.54 — in rete la giocata d'ufficio la fa il SERVER, e la annuncia
+  // come tutte le altre. Se la facesse anche il client, le due partirebbero
+  // insieme e finirebbero su caselle diverse: due tabelloni, una partita.
+  // Il client quindi lascia scadere il tempo e aspetta.
+  if(PARTITA_RETE) return;
   if(G.gameOver)return;
-  // ── v0.79.59 — LA SCELTA SCADE PRIMA DI CHIEDERSI SE SI E' IN RETE ──────
-  // Il ritorno anticipato per la rete (v0.77.54) stava QUI SOPRA, cioe'
-  // prima del ramo che chiude una scelta scaduta. Il ramo aveva la sua guardia
-  // per la rete (v0.77.81, `sceltaMia`) — scritta bene e mai eseguita: era
-  // codice morto. In rete una finestra di bersaglio non scadeva MAI sul
-  // client: restava aperta su tutti e due gli schermi, il server intanto
-  // passava il turno, e la mossa successiva dell'avversario arrivava sopra a
-  // una scelta ancora aperta. E' la strada da cui le partite online si
-  // fermavano — Sea Witch, Mordred, chiunque chieda qualcosa.
-  // Il ramo della scelta sta adesso PRIMA: la giocata d'ufficio resta del
-  // server, la rinuncia alla scelta e' di chi doveva scegliere.
   // v0.73.11 — se il tempo scade mentre una scelta e' aperta, la scelta si
   // chiude come una rinuncia e il turno prosegue. Senza questo la finestra
   // resterebbe aperta e il timer, ormai scattato, non tornerebbe piu' a
@@ -34003,11 +33921,6 @@ function autoPlay(player){
     chiudiSceltaBersaglio(ripiego);
     return;
   }
-  // v0.77.54 — in rete la giocata d'ufficio la fa il SERVER, e la annuncia
-  // come tutte le altre. Se la facesse anche il client, le due partirebbero
-  // insieme e finirebbero su caselle diverse: due tabelloni, una partita.
-  // Il client quindi lascia scadere il tempo e aspetta.
-  if(PARTITA_RETE) return;
   // Auto-play only for the player whose turn is actually active. Guards against a
   // stale timer firing after the turn already changed to the other player.
   player = player || G.currentPlayer;
@@ -35698,14 +35611,9 @@ function doPlace(card,playerIdx,q,r,daServer){
   // up, the turn passes, full stop — no exceptions (see the bufera/riparare
   // branches below, which check this instead of calling startTimer()).
   const timeAlreadyExpired = timerLeft<=0;
-  // ── v0.79.59 — IL CONTO NON SI FERMA MAI ────────────────────────────────
-  // Qui stava un clearInterval: si fermava il conto per tutta la risoluzione,
-  // e chi apriva una finestra di scelta lo rimetteva in moto da capo — cioe'
-  // un turno nuovo regalato a chi giocava una carta con abilita'. Regola di
-  // Lorenzo: il tempo scorre SEMPRE, anche mentre si decide come usare
-  // un'abilita'; se allo scadere la scelta non e' fatta, si passa senza
-  // usufruirne. Il tic sa da solo cosa fare a zero con una carta gia' giocata:
-  // niente (vedi startTimer, il ramo `giaGiocata`).
+  // A card is being resolved this turn → stop the current timer immediately so a
+  // pending expiry can't auto-play for the next player after the turn switches.
+  clearInterval(timerInterval);
   playSfx('sfx-drop');
   const player=playerIdx+1;
   const k=key(q,r);
@@ -35823,7 +35731,11 @@ function doPlace(card,playerIdx,q,r,daServer){
       // il turno resterebbe fermo fino allo scadere del timer.
       if(G.sceltaBersaglio && G.sceltaBersaglio.modo === 'mano') render();
       else renderBoard();
-      // v0.79.59 — il conto non si tocca: non si e' mai fermato (vedi doPlace).
+      // Il timer va rimesso in moto: doPlace l'aveva fermato, e senza di lui la
+      // finestra resterebbe aperta all'infinito se il giocatore si distrae.
+      // v0.79.58 — RIPRENDE da dove si era, non da capo: scegliere un bersaglio
+      // fa parte di questo turno, non ne regala un altro.
+      startTimer(true);
       return;
     }
   }
@@ -36138,27 +36050,16 @@ function attivaSleightOfHand(card){
 // Il furto passa da modificaValori come ogni altro: le carte in mano hanno le
 // stesse istantanee da spostare di quelle in campo, e il -1 in rosso arriva
 // incluso.
-// ── v0.79.59 — IN RETE LA MANO DELL'AVVERSARIO E' FATTA DI SEGNAPOSTO ────
-// Sull'altro schermo le carte in mano alla strega non si conoscono: sono
-// _cartaSconosciuta, senza valori veri (e con `values` che e' un ARRAY, non
-// un oggetto per lato). Il furto girava anche su quelle: su un client contava
-// N carte derubate, sull'altro zero, e la strega si prendeva +N di qua e +0
-// di la'. Due tabelloni diversi — e la partita si fermava. Era questo il
-// 'crash' di Sea Witch online.
-// Il conto deve essere lo stesso ovunque, e l'unica cosa che i due client
-// sanno tutti e due e' QUANTE carte ci sono in mano: la strega guadagna tanto
-// quante sono le altre carte, e il -1 lo si applica solo a quelle che hanno
-// dei valori da cui toglierlo. Il caso di una carta gia' a zero su tutti i
-// lati (che di fatto non viene derubata ma conta lo stesso) e' il prezzo di
-// un numero che non puo' divergere.
 function attivaDarkPact(card){
   const proprietario = (card && card.owner) || G.currentPlayer;
   const mano = manoDi(proprietario).filter(c => c && c !== card && c.id !== card.id);
+  let derubate = 0;
   for(const c of mano){
-    if(c.sconosciuta || !c.values || Array.isArray(c.values)) continue;   // segnaposto
+    const prima = SIDES.reduce((t,s)=>t+(c.values[s]||0), 0);
     modificaValori(c, SIDES, -1, 0, {chiave:'dark_pact:'+card.id, da:card.name||'Sea Witch'});
+    const dopo = SIDES.reduce((t,s)=>t+(c.values[s]||0), 0);
+    if(dopo < prima) derubate++;
   }
-  const derubate = mano.length;
   if(!derubate) return;
   modificaValori(card, SIDES, derubate, undefined, {chiave:'dark_pact', da:card.name||'Dark Pact'});
   console.info('[Dark Pact] rubato 1 ALL a '+derubate+' carte in mano: +'+derubate+' ALL alla strega.');
@@ -37356,34 +37257,7 @@ function _trasformaDalFoglio(card, eff, a){
   if(!entry) return false;
   if(card.baseId === entry.id) return false;           // gia' trasformata
   const etichetta = (a && a.nome) || card.abilityNameSheet || 'Transform';
-  // ── v0.79.59 — LA SCENA ANCHE DA QUESTA PORTA ───────────────────────────
-  // Chi si trasforma calandosi passa da doPlace, che aspetta l'atterraggio e
-  // poi fa il salto col bianco (trasformaConLampo). Chi si trasforma da QUI —
-  // il motore, a un altro momento o a un altro giro — cambiava faccia e basta:
-  // Cenerentola diventava la Principessa di Cristallo senza che si vedesse
-  // succedere niente. La scena e' la stessa di sempre — il salto, il bianco,
-  // la voce se c'e' — ma il CAMBIO DEI DATI resta immediato e sincrono: in
-  // rete e' quello che i due client confrontano, e una trasformazione che
-  // arriva 260ms dopo su uno schermo e subito sull'altro e' un disaccordo.
-  // La scena e' solo cio' che si vede.
-  const fatto = trasformaCartaIn(card, entry.name, etichetta);
-  if(fatto && !_simulazioneInCorso){
-    try{
-      const cella = _cellaDellaCarta(card);
-      const el = cella ? elementoCarta(cella) : null;
-      if(el){
-        el.style.setProperty('--durata', TRASF_SU_MS + 'ms');
-        el.classList.add('trasf-su');
-        _lampoTrasformazione(cella);
-        if(entry.voceTrasformazione){
-          const chiaveVoce = assicuraSuonoDaVoce(entry.voceTrasformazione, 'mp3');
-          try{ playSfxFile(chiaveVoce + '.mp3'); }catch(_){}
-        }
-        setTimeout(()=>{ try{ renderBoard(); }catch(_){} }, TRASF_SU_MS);
-      }
-    }catch(_){ }
-  }
-  return fatto;
+  return trasformaCartaIn(card, entry.name, etichetta);
 }
 // ── v0.78.7 — QUESTA FUNZIONE GIRA ANCHE PER FINTA ───────────────────────
 // Trascinando una carta sul tabellone, simulaPiazzamento la cala su una copia
@@ -37913,13 +37787,7 @@ const SCELTE_PIAZZAMENTO = {
     // Il sorteggio sta in una funzione sola perche' lo usano DUE uscite
     // diverse — il tempo scaduto e la rinuncia — e devono comportarsi allo
     // stesso modo: lo scarto e' obbligatorio, non evitabile.
-    // ── v0.79.59 — LA RINUNCIA E' LA STESSA SUI DUE SCHERMI ─────────────
-    // Qui si pescava con Math.random. In rete la rinuncia (o il tempo
-    // scaduto) arriva ai due client come un 'null' e ognuno pescava per conto
-    // suo: due carte diverse scartate dalle due parti, e da li' due mani che
-    // non si somigliano piu'. Si prende la PRIMA: e' ripetibile, e la mano ha
-    // lo stesso ordine da tutte e due le parti (i segnaposto lo conservano).
-    const aCaso = () => ids[0];
+    const aCaso = () => ids[Math.floor(Math.random()*ids.length)];
     return {
       chiave: 'mermaid_discard',
       giocatore,
@@ -38997,7 +38865,9 @@ function _usaAbilitaPresa(carta, chiave, q, r, giocatore, finito){
     // Le scelte che si fanno sulla MANO hanno i comandi nel ventaglio, quelle
     // sul tabellone nella plancia: stessa distinzione di doPlace.
     if(G.sceltaBersaglio.modo === 'mano') render(); else renderBoard();
-    // v0.79.59 — il conto non si tocca: non si e' mai fermato (vedi doPlace).
+    // Il timer riprende, o la finestra nuova resterebbe aperta all'infinito.
+    // v0.79.58 — riprende e non riparte: vedi startTimer.
+    startTimer(true);
     // E se a giocare e' l'IA, la chiude lei: non ha un'interfaccia da cliccare,
     // e questa finestra si apre troppo tardi perche' la risolva il richiamo che
     // aiPlay fa dopo il piazzamento.
@@ -41451,7 +41321,11 @@ function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLa
       const chiaveScelta = card.activatedTileAbility || abilitaAttivaDi(card);
       if(chiaveScelta && apriSceltaDopoConquista(card, player, q, r, chiaveScelta, conquestInfo)){
         renderBoard();
-        // v0.79.59 — il conto non si tocca: non si e' mai fermato (vedi doPlace).
+        // Il timer riprende, come per le scelte al piazzamento: senza, la
+        // finestra resterebbe aperta per sempre se il giocatore si distrae
+        // proprio adesso.
+        // v0.79.58 — riprende e non riparte: vedi startTimer.
+        startTimer(true);
         // v0.73.66 — l'IA non ha un'interfaccia da cliccare. Quando doPlace()
         // apre una scelta AL PIAZZAMENTO, aiPlay() la risolve subito dopo,
         // nello stesso istante (vedi aiResolvePendingAbilityIfAny). Questa
@@ -50967,24 +50841,6 @@ function trascinaCarta(daCella, aCella, poi){
     renderBoard();
     setTimeout(()=>{
       _cardSlide = null;
-      // v0.79.59 — e si tolgono i RESIDUI, non solo la classe. cardSlideApplyTo
-      // scrive sull'elemento un animation-delay negativo e i due --strascico:
-      // se l'elemento sopravvive al ridisegno, il ritardo negativo resta e si
-      // applica alla PROSSIMA animazione che quella carta riceve — il giro
-      // della conquista, un istante dopo, quando Rapunzel la attacca. Da fuori
-      // era una carta che, appena tirata, faceva un mezzo movimento strano
-      // all'indietro verso da dove veniva: era il giro che partiva a meta',
-      // con dentro ancora la traslazione della treccia.
-      try{
-        const bs = document.getElementById('board-svg');
-        const rest = bs && bs.querySelector('[data-conquered="'+aCella+'"]');
-        if(rest){
-          rest.classList.remove('card-slide');
-          rest.style.animationDelay = '';
-          rest.style.removeProperty('--strascico-x');
-          rest.style.removeProperty('--strascico-y');
-        }
-      }catch(_){}
       renderBoard();   // toglie la classe, che altrimenti resterebbe addosso
       // v0.77.68 — anche il trascinamento e' uno spostamento: `on_moved` deve
       // scattare da tutte e due le strade, o l'abilita' funzionerebbe a
