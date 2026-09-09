@@ -51,6 +51,7 @@ app.whenReady().then(async () => {
     "  document.getElementById('pack-overlay').classList.add('show');",
     "  document.getElementById('pack-overlay').classList.remove('sbustando');",
     "  vestiPulsantiDi('pack-overlay');",
+    "  initPackTilt();",
     "  montaGraficaBustine(); initPacchettiGesti(); montaValuteBustine();",
     "  packUpdateToggleLabel();",
     "  pkDisegnaTutto();",
@@ -320,7 +321,7 @@ app.whenReady().then(async () => {
     // impaginato riporta comunque il valore dichiarato.
     "  var lampo = q('#pack-beam');",
     "  var lw = parseFloat(st(lampo).width), lh = parseFloat(st(lampo).height);",
-    "  dice(lw === 1176 && lh === 1380, 'il lampo e- 1176x1380', lw + 'x' + lh);",
+    "  dice(lw === 1411 && lh === 1656, 'il lampo e- 1411x1656', lw + 'x' + lh);",
     "  dice(Math.abs(lh/lw - 1974/1683) < 0.01, 'e tiene la proporzione del disegno', (lh/lw).toFixed(3) + ' contro ' + (1974/1683).toFixed(3));",
     // Il lampo e le scintille stanno SOPRA alla busta: sotto, la luce nasceva
     // dentro e ci restava.
@@ -370,6 +371,13 @@ app.whenReady().then(async () => {
     "  manda(window, 'pointermove', sx, sy - 60);",
     "  manda(window, 'pointerup', sx, 200);",
     "  dice(scena.classList.contains('sbustando'), 'lasciandola al centro si apre');",
+    "  dice(scena.classList.contains('busta-si-posa'), 'e ci va con una transizione, non con la molla');",
+    // Il banco spegne ogni transition su *, quindi si legge la regola: quello
+    // che conta e- che la lista nomini ANCHE la dissolvenza, perche- una
+    // transition scritta a meta- cancella le proprieta- che non nomina.
+    "  var rPosa = regole.filter(function(r){ return (r.selectorText||'').indexOf('busta-si-posa') !== -1; })[0];",
+    "  dice(rPosa && rPosa.style.transition.indexOf('transform') !== -1, 'che riguarda anche lo spostamento', rPosa && rPosa.style.transition);",
+    "  dice(rPosa && rPosa.style.transition.indexOf('opacity') !== -1, 'senza cancellare la dissolvenza');",
     "  dice(!bustinaDailyPronta(), 'e il pacchetto a tempo si consuma');",
     "  dice(_bustinaInCorso, 'da qui in poi la pagina e- occupata');",
 
@@ -427,6 +435,35 @@ app.whenReady().then(async () => {
     "  dice(uscite.length === 3, 'ed escono TRE carte', uscite.length);",
     "  dice(uscite.length === 3 && uscite.map(function(c){return c.style.getPropertyValue('--dir');}).join(',') === '-1,0,1', 'una a sinistra, una dritta, una a destra', uscite.map(function(c){return c.style.getPropertyValue('--dir');}).join(','));",
     "  dice(uscite.length === 3 && uscite[2].dataset.indice === '2', 'e ognuna si ricorda il proprio posto', uscite.length===3 ? uscite[2].dataset.indice : '?');",
+    // L-alone e il bordo hanno un livello loro, in un RAMO diverso da quello
+    // del tilt: le due variabili vanno scritte sulla CARTA, o da li- vedono
+    // sempre lo zero di partenza e restano fermi.
+    "  var provaTilt = uscite[0];",
+    "  provaTilt.setAttribute('data-tilt','1');",
+    "  try{ cardFoilApply(provaTilt, 0.8, -0.4, 0.9, 0.3); }catch(e){}",
+    "  var palco = q('#pack-stage');",
+    "  var mossa = new PointerEvent('pointermove', {clientX: provaTilt.getBoundingClientRect().left + 40, clientY: provaTilt.getBoundingClientRect().top + 40, bubbles:true});",
+    "  provaTilt.dispatchEvent(mossa);",
+    "  dice(provaTilt.style.getPropertyValue('--foil-rx') !== '', 'inclinando, la carta si scrive addosso l-inclinazione', provaTilt.style.getPropertyValue('--foil-rx'));",
+    "  var aloneTilt = provaTilt.querySelector('.pack-card-alone-tilt');",
+    "  dice(aloneTilt && st(aloneTilt).transform !== 'none' && st(aloneTilt).transform !== 'matrix(1, 0, 0, 1, 0, 0)', 'e l-alone si inclina con lei', aloneTilt && st(aloneTilt).transform);",
+    "  var pianoTilt = provaTilt.querySelector('.pack-card-tilt');",
+    "  dice(st(aloneTilt).transform === st(pianoTilt).transform, 'della STESSA inclinazione della carta', st(aloneTilt).transform + ' contro ' + st(pianoTilt).transform);",
+    // Le scintille del giro: quante e di che colore lo dice la rarita-.
+    "  var nido = uscite[0].querySelector('.pack-scie');",
+    "  dice(!!nido, 'ogni carta ha il nido delle sue scintille');",
+    "  uscite[0].__entry.rarity = 'timeless'; bustaScintilleCarta(uscite[0]);",
+    "  var molte = nido.children.length;",
+    "  uscite[1].__entry.rarity = 'common'; bustaScintilleCarta(uscite[1]);",
+    "  var poche = uscite[1].querySelector('.pack-scie').children.length;",
+    "  dice(molte === SCINTILLE_CARTA.timeless.quante && poche === SCINTILLE_CARTA.common.quante, 'una timeless ne butta fuori molte piu- di una comune', poche + ' contro ' + molte);",
+    "  dice(st(nido.children[0]).backgroundColor === 'rgb(255, 128, 0)', 'e sono del colore della rarita-', st(nido.children[0]).backgroundColor);",
+    "  dice(st(uscite[1].querySelector('.pack-scia')).backgroundColor === 'rgb(255, 255, 255)', 'bianche per le comuni', st(uscite[1].querySelector('.pack-scia')).backgroundColor);",
+    "  var durate = [].map.call(nido.children, function(e){ var a = e.getAnimations()[0]; return a ? a.effect.getTiming().duration : 0; });",
+    "  dice(Math.min.apply(null, durate) >= 500 && Math.max.apply(null, durate) <= 1500, 'e vivono fra mezzo secondo e un secondo e mezzo', Math.min.apply(null, durate).toFixed(0) + '-' + Math.max.apply(null, durate).toFixed(0) + 'ms');",
+    "  var traiettoria = nido.children[0].getAnimations()[0].effect.getKeyframes();",
+    "  dice(traiettoria.length > 8, 'la traiettoria e- campionata, non una retta', traiettoria.length + ' fotogrammi');",
+    "  [].forEach.call(document.querySelectorAll('.pack-scia'), function(e){ e.remove(); });",
 
     // il prezzo: una gratis, la seconda in inchiostro, la terza mai
     "  uscite.forEach(function(c){ c.classList.remove('emerging'); });",
@@ -453,7 +490,10 @@ app.whenReady().then(async () => {
     "  dice(sCart.fontSize === '22px' && sCart.color === 'rgb(237, 224, 198)', 'a 22px in EDE0C6', sCart.fontSize + ' ' + sCart.color);",
     "  dice(!qa('.pack-card .nuova-nastro').length, 'e il vecchio nastro non c-e- piu-');",
     "  var perForza = uscite[0].querySelector('.pack-etichetta'); perForza.classList.add('pk-nuova');",
-    "  dice(st(perForza).backgroundColor === 'rgb(125, 19, 19)', 'le nuove hanno il fondo 7D1313', st(perForza).backgroundColor);",
+    "  dice(st(perForza).backgroundColor === 'rgba(125, 19, 19, 0.5)', 'le nuove hanno il fondo 7D1313 al 50%', st(perForza).backgroundColor);",
+    "  dice(st(cart).backdropFilter === 'blur(20px)' || st(cart).webkitBackdropFilter === 'blur(20px)', 'e il cartellino ha il fondale sfocato dietro', st(cart).backdropFilter);",
+    "  var rCart = regole.filter(function(r){ return r.selectorText === '.pack-etichetta'; })[0];",
+    "  dice(rCart && rCart.style.backgroundImage.indexOf('0.5') !== -1, 'ed e- mezzo trasparente', rCart && rCart.style.backgroundImage.slice(0,70));",
     "  perForza.classList.toggle('pk-nuova', perForza.textContent === 'New!');",
     "  dice(etichetta(uscite[0]).indexOf('Keep (Free)') === 0, 'la prima e- gratis', etichetta(uscite[0]));",
     "  scegliCartaBustina(uscite[0]);",
@@ -463,12 +503,39 @@ app.whenReady().then(async () => {
     "  dice(iconaPrezzo && iconaPrezzo.getAttribute('src').indexOf('magic-ink') !== -1, 'e si paga in inchiostro', iconaPrezzo && iconaPrezzo.getAttribute('src').split('/').pop());",
     "  var prezzoMio = costoDiCarta(uscite[1]);",
     "  dice(etichetta(uscite[1]).indexOf(String(prezzoMio)) !== -1, 'al prezzo della SUA rarita-', etichetta(uscite[1]) + ' (' + (uscite[1].__entry && uscite[1].__entry.rarity) + ')');",
+    // ── IL PREZZO E- DELLA COPPIA, NON DELLA SECONDA SCELTA ──────────────
+    // Con una comune gia- presa, il pulsante di una rara deve dire 50 e non
+    // 200: si paga sempre la meno cara delle due, quindi l-ordine dei clic non
+    // cambia il conto. Le rarita- si forzano a mano — quelle vere del foglio
+    // potrebbero essere tutte uguali, e una prova che passa per caso non e-
+    // una prova.
+    "  _bustinaDalServer = false; _bustinaCosti = null;",
+    "  uscite[0].__entry.rarity = 'common';",
+    "  uscite[1].__entry.rarity = 'timeless';",
+    "  uscite[2].__entry.rarity = 'rare';",
+    "  uscite.forEach(function(c){ c.classList.remove('tenuta'); });",
+    "  aggiornaSceltaBustina();",
+    "  dice(etichetta(uscite[1]).indexOf('Keep (Free)') === 0, 'senza niente in mano, la prima e- gratis', etichetta(uscite[1]));",
+    "  scegliCartaBustina(uscite[0]);",
+    "  dice(etichetta(uscite[1]).indexOf('50') !== -1, 'presa una comune, una timeless costa 50 e non 1000', etichetta(uscite[1]));",
+    "  dice(etichetta(uscite[2]).indexOf('50') !== -1, 'e una rara costa 50 e non 200', etichetta(uscite[2]));",
+    "  scegliCartaBustina(uscite[1]);",
+    "  dice(q('#pack-collect .hxb-label').textContent.indexOf('50') !== -1, 'e alla cassa si pagano 50', q('#pack-collect .hxb-label').textContent);",
+    // e nell-ordine opposto il conto non cambia: e- il punto di tutto
+    "  uscite.forEach(function(c){ c.classList.remove('tenuta'); });",
+    "  aggiornaSceltaBustina();",
+    "  scegliCartaBustina(uscite[1]);",
+    "  scegliCartaBustina(uscite[0]);",
+    "  dice(q('#pack-collect .hxb-label').textContent.indexOf('50') !== -1, 'e prendendole nell-ordine opposto si pagano ancora 50', q('#pack-collect .hxb-label').textContent);",
+    "  uscite.forEach(function(c){ c.classList.remove('tenuta'); });",
+    "  aggiornaSceltaBustina();",
+    "  scegliCartaBustina(uscite[0]);",
     "  scegliCartaBustina(uscite[1]);",
     "  dice(etichetta(uscite[2]) === 'Discarded', 'e la terza si scarta sempre', etichetta(uscite[2]));",
     "  scegliCartaBustina(uscite[2]);",
     "  dice(_carteTenute().length === 2, 'e non si puo- prenderla lo stesso', _carteTenute().length);",
     "  var etCollect = q('#pack-collect .hxb-label').textContent;",
-    "  dice(etCollect.indexOf('Pay') === 0 && etCollect.indexOf(String(costoDiCarta(uscite[1]))) !== -1, 'e il Collect dice quanto si paga', etCollect);",
+    "  dice(etCollect.indexOf('Pay') === 0 && etCollect.indexOf(String(costoCoppiaTenuta())) !== -1, 'e il Collect dice il prezzo della COPPIA', etCollect);",
 
     // e si torna indietro
     // L-uscita: la scartata svanisce e basta, niente piu- fuoco.

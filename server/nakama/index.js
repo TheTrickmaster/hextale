@@ -217,9 +217,11 @@ var VALUTE_INIZIALI = { magicInk: 100, fairyDust: 100 };
 // ── v0.79.38 — TRE CARTE, DUE SI TENGONO, UNA SI PAGA ─────────────────────
 // Da un pacchetto escono TRE carte. Se ne tiene una gratis, una seconda si
 // compra, e la terza si scarta sempre.
-// Il prezzo e' quello della rarita' della carta scelta per SECONDA: non piu'
-// la meno cara delle due, come quando le carte erano due e non c'era niente da
-// scegliere. E si paga in INCHIOSTRO MAGICO, non piu' in polvere di fata — la
+// Il prezzo e' quello della rarita' della carta MENO CARA fra le due che si
+// tengono, quindi non dipende dall'ordine in cui le si sceglie (v0.79.42: per
+// due versioni e' stato quello della seconda scelta, e l'ordine dei clic era
+// diventato una leva da sfruttare). E si paga in INCHIOSTRO MAGICO, non piu'
+// in polvere di fata — la
 // polvere e' la valuta comprata coi soldi veri, l'inchiostro quella che si
 // guadagna giocando, ed e' anche quella con cui si compra un treasure pack.
 var BUSTINA_CARTE = 3;
@@ -1812,7 +1814,7 @@ function rpcAvvio(ctx, logger, nk, payload) {
     prezzoPacchetto: PACCHETTO_PREZZO_INK,
     versoBustina: possesso.versoBustina || 0,
     // v0.78.16 — quali carte non sono ancora state guardate in Collezione.
-    nuove: _nuoveDi(possesso),
+    nuove: _nuoveDi(possesso, _visibiliDi(catalogo, admin)),
     // v0.79.7 — quante copie di ciascuna carta posseduta. Vedi _copieDi.
     copie: _copieDi(possesso, possedute),
     // v0.79.15 — e se l'accordo del playtest e' stato accettato, in questa
@@ -2196,16 +2198,21 @@ function rpcBustinaRaccogli(ctx, logger, nk, payload) {
   var possesso = assicuraPossesso(ctx, nk, logger, ctx.userId, ctx.username);
   var valute = valuteDi(possesso);
 
-  // Si paga solo la SECONDA, e si paga il prezzo di QUELLA carta: l'ordine in
-  // cui arrivano gli slug e' l'ordine in cui sono stati scelti, quindi il
-  // secondo elemento e' la carta comprata.
+  // ── v0.79.42 — SI PAGA LA MENO CARA DELLE DUE ─────────────────────────
+  // Non piu' "il prezzo della seconda scelta". L'ordine dei clic non deve
+  // essere una leva: la stessa coppia costerebbe 50 o 200 a seconda di quale
+  // carta si tocca per prima, e chi lo scopre paga sempre 50 mentre chi non lo
+  // scopre paga quattro volte tanto. La coppia vale quello che vale.
   // Il pagamento e il possesso finiscono nello stesso oggetto e in una sola
   // scrittura: cosi' non esiste l'istante in cui l'inchiostro e' gia' andato e
   // le carte non sono ancora arrivate.
   var costo = 0;
   if (tieni.length >= 2) {
     var listino = bustina.prezzi || {};
-    costo = (typeof listino[tieni[1]] === 'number') ? listino[tieni[1]] : 0;
+    for (var q = 0; q < tieni.length; q++) {
+      var prezzoQ = (typeof listino[tieni[q]] === 'number') ? listino[tieni[q]] : 0;
+      if (q === 0 || prezzoQ < costo) costo = prezzoQ;
+    }
     if (valute.magicInk < costo) throw Error('inchiostro insufficiente');
     valute.magicInk -= costo;
   }
@@ -2276,7 +2283,7 @@ function rpcBustinaRaccogli(ctx, logger, nk, payload) {
     // v0.78.16 — le carte appena prese sono nuove per definizione: si manda
     // l-elenco aggiornato subito, cosi- il pallino compare tornando al menu
     // senza aspettare la prossima lettura del profilo.
-    nuove: _nuoveDi(possesso),
+    nuove: _nuoveDi(possesso, _visibiliDi(catalogo, admin)),
     possedute: _possedute(carte, possesso, admin),
     // v0.79.7 — e quante se ne hanno adesso, questa compresa.
     copie: _copieDi(possesso, _possedute(carte, possesso, admin))
@@ -2787,11 +2794,31 @@ function rpcGiocatoriOnline(ctx, logger, nk, payload) {
 function _visteDi(possesso) {
   return (possesso && possesso.viste && typeof possesso.viste === 'object') ? possesso.viste : {};
 }
-function _nuoveDi(possesso) {
+// v0.79.42 — "visibili" e' l'elenco degli slug che il giocatore puo' davvero
+// incontrare in Collezione. Passarlo e' facoltativo, ma chi puo' passarlo deve
+// farlo: senza, si torna a poter dichiarare nuova una carta che non esiste.
+function _nuoveDi(possesso, visibili) {
   var avute = (possesso && possesso.carte) || {};
   var viste = _visteDi(possesso);
   var out = [];
-  for (var slug in avute) if (!viste[slug]) out.push(slug);
+  for (var slug in avute) {
+    if (viste[slug]) continue;
+    if (visibili && !visibili[slug]) continue;
+    out.push(slug);
+  }
+  return out;
+}
+// Gli slug del catalogo, in un oggetto da interrogare. Le carte riservate non
+// ci sono per chi non e' admin: non le vede in Collezione, quindi per lui non
+// esistono e non possono essere nuove.
+function _visibiliDi(catalogo, admin) {
+  var out = {};
+  if (!catalogo || !catalogo.carte) return null;
+  for (var i = 0; i < catalogo.carte.length; i++) {
+    var c = catalogo.carte[i];
+    if (c.soloAdmin && !admin) continue;
+    out[c.slug] = 1;
+  }
   return out;
 }
 // Il client dice quali ha appena guardato. E' una dichiarazione innocua — al
@@ -2816,7 +2843,8 @@ function rpcCarteViste(ctx, logger, nk, payload) {
   }
   possesso.viste = viste;
   scriviPossesso(nk, ctx.userId, possesso);
-  return JSON.stringify({ nuove: _nuoveDi(possesso) });
+  var cat = leggiSistema(nk, KEY_CATALOGO);
+  return JSON.stringify({ nuove: _nuoveDi(possesso, _visibiliDi(cat, !!possesso.admin)) });
 }
 
 // La RPC resta la strada delle partite contro l'IA, dove non c'e' nessun

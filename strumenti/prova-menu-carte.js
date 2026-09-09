@@ -86,8 +86,13 @@ app.whenReady().then(async () => {
       const scarto = Math.abs((rt.left+rt.right)/2 - (rb.left+rb.right)/2);
       dice(scarto <= 1, 'e la scritta resta centrata nel pulsante',
         'fuori asse di ' + scarto.toFixed(1) + 'px');
-      // Verticalmente in mezzo.
-      dice(Math.abs((rp.top+rp.bottom)/2 - (rb.top+rb.bottom)/2) <= 1, 'e in mezzo in altezza');
+      // In altezza sta al 52% del pulsante, non al 50%: e- la posizione
+      // chiesta da Lorenzo in v0.79.42, e a occhio legge come centrata perche-
+      // il disegno del pulsante non e- simmetrico. La tolleranza e- di due
+      // pixel su 68 di altezza, cioe- meno di un punto percentuale.
+      const quota = ((rp.top+rp.bottom)/2 - rb.top) / rb.height;
+      dice(Math.abs(quota - 0.52) <= 0.03, 'e in altezza sta al 52% del pulsante',
+        (quota*100).toFixed(1) + '%');
     }
 
     // ── IL PALLINO SE NE VA ────────────────────────────────────────────────
