@@ -758,3 +758,23 @@ il caso "l'elenco la conosce per id, la carta ha anche uno slug".
 **Il pallino vive nel MENU**, e le pagine sono ermetiche: cercarlo mentre si e'
 in Collezione risponde sempre "non c'e'", e un controllo scritto cosi' passa
 per la ragione sbagliata. Si torna al menu e si guarda li'.
+
+## prova-nomi.js — il filtro sui nomi respinge il giusto?
+
+    node strumenti/prova-nomi.js
+
+Niente Electron e niente server: il modulo del runtime e' uno script, e uno
+script si puo' far girare in una scatola (`vm`) e poi INTERROGARE. Si finge il
+catalogo — bastano quattro carte, purche' una si chiami "Puss in Boots" — e si
+chiede a `nomeSporco` cosa pensa di una trentina di nomi.
+
+**Meta' delle prove sono nomi che devono PASSARE**, ed e' la meta' che conta.
+Un filtro che respinge troppo si nota subito e fa male a chi non ha fatto
+niente: Assatanato, Cassandra, Banal, peacock, Grapes, Puss in Boots. Quei casi
+non capitano mentre lo si prova a mano — capitano al giocatore che si chiama
+Cassandra. Qui stanno in fila, e il giorno in cui qualcuno tocca la regola si
+vede subito chi cade.
+
+Il filtro sta sul server perche' il nome si cambia con una PUT a `/v2/account`
+che fa il client: un controllo scritto di la' lo salterebbe chiunque aprisse
+gli strumenti del browser.
