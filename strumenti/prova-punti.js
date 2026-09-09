@@ -1,38 +1,95 @@
-// Il banco dei punti di fine turno.
+// I PUNTI: COME SI CONTANO.
 //
-//   npx electron strumenti/prova-punti.js
+//     $ELECTRON strumenti/prova-punti.js
 //
-// Dalla v0.79.56 una carta in campo non vale piu' un punto: vale AL CONTRARIO
-// della propria rarita' — common 3, rare 2, mythic 1, timeless 0. E' la regola
-// che decide chi vince la partita (vedi salePunteggio e la scelta del
-// vincitore in endGame), quindi e' la cosa piu' importante di tutto il file, e
-// l'unica che se sbaglia non se ne accorge nessuno: un punteggio storto e' un
-// numero plausibile.
+// Nato nella v0.79.28, quando sono state tolte le bolle di danno: i disegni
+// che le vestivano erano stati cancellati e chiedevano un 404 a ogni partita.
+// Erano 541 righe da togliere in un file da 44.000, tutte intrecciate col
+// punteggio, e il punteggio e' la sola cosa che non doveva cambiare.
 //
-// L'esempio e' quello di Lorenzo, alla lettera: due common, una mitica e una
-// timeless in campo fanno SETTE. Se un giorno qualcuno cambia la tabella senza
-// volere, e' questa riga a dirlo.
+// Le due regole, dette da Lorenzo:
+//   - i punti per la DIFFERENZA fra attaccante e difensore;
+//   - le carte proprie in campo, a ogni fine turno. v0.79.56: non piu' un
+//     punto a testa, ma AL CONTRARIO della rarita' — common 3, rare 2,
+//     mythic 1, timeless 0.
 //
-// PERCHE' SI GUARDA L'ONDA E NON SOLO LA TABELLA. puntiDiCarta da sola direbbe
-// che i numeri sono giusti anche il giorno in cui l'onda smettesse di
-// consegnarli — e' successo l'opposto in passato (la bolla contava e il
-// punteggio no). Qui si contano gli INCREMENTI davvero chiesti alla bolla e il
-// totale con cui si chiude, che sono le due cose che il giocatore vede.
+// Si guarda il CALCOLO, non il punteggio a schermo. G.hp lo scrive la bolla in
+// fondo alla sua animazione, e in una finestra nascosta le animazioni non
+// arrivano mai in fondo: aspettare quel numero vorrebbe dire misurare se
+// l'animazione gira, non se il conto e' giusto. Qui si intercettano invece le
+// due porte da cui i punti passano — assegnaPunti e incrementaBollaPunti — e
+// si guarda con che numeri vengono chiamate.
+//
+// PERCHE' NON BASTA PROVARE puntiDiCarta. Quella funzione direbbe che i numeri
+// sono giusti anche il giorno in cui l'onda smettesse di consegnarli, ed e'
+// esattamente il genere di scollamento che in questo file e' gia' costato caro.
+// Si contano gli INCREMENTI davvero chiesti e il totale con cui la bolla si
+// chiude: sono le due cose che il giocatore vede.
 const { app, BrowserWindow } = require('electron');
+const path = require('path');
+
+const RADICE = path.resolve(__dirname, '..');
+const PAGINA = 'file:///' + RADICE.split(path.sep).join('/') + '/play/index.html';
+
 app.commandLine.appendSwitch('disable-gpu');
 app.disableHardwareAcceleration();
+setTimeout(() => { console.error('PIANTATA: nessuna risposta in 90s'); app.exit(2); }, 90000);
 
-const CORPO = `(async function(){
-  var d = [];
-  var dice = function(ok, n, x){ d.push((ok ? '  ok  ' : '  NO  ') + n + (x !== undefined ? '   [' + x + ']' : '')); };
-  var respira = function(ms){ return new Promise(function(r){ setTimeout(r, ms); }); };
-  try {
-    var sp = document.getElementById('splash'); if(sp) sp.remove();
+app.whenReady().then(async () => {
+  const win = new BrowserWindow({ show: false, width: 1280, height: 800, frame: false,
+    webPreferences: { contextIsolation: false, webSecurity: false } });
+  await win.loadURL(PAGINA);
+  await new Promise(r => setTimeout(r, 2500));
 
-    // ── A. la tabella ───────────────────────────────────────────────────
-    dice(puntiDiCarta({rarity:'common'})   === 3, 'una common vale 3', puntiDiCarta({rarity:'common'}));
-    dice(puntiDiCarta({rarity:'rare'})     === 2, 'una rare vale 2',   puntiDiCarta({rarity:'rare'}));
-    dice(puntiDiCarta({rarity:'mythic'})   === 1, 'una mythic vale 1', puntiDiCarta({rarity:'mythic'}));
+  const primo = await win.webContents.executeJavaScript(`(function(){ try{
+    const dette = [];
+    const dice = (ok, che, perche) => dette.push({ ok:!!ok, che:che, perche:perche||'' });
+
+    // ── quello che deve esserci ────────────────────────────────────────────
+    ['applyHpDamage','assegnaPunti','dannoDiFineTurno','ondataDanno',
+     'apriBollaPunti','incrementaBollaPunti','chiudiBollaPunti','puntiDiCarta']
+      .forEach(n => dice(typeof window[n] === 'function', 'c-e- ancora ' + n, 'ho letto ' + typeof window[n]));
+
+    // ── e quello che non deve esserci piu' ─────────────────────────────────
+    // Se una di queste torna a esistere, e' tornato anche il disegno che
+    // chiedeva: damage-bubble-dark/light.png, healing-bubble.png,
+    // damage-anim.mp4. Quei file sono stati cancellati da Lorenzo.
+    ['createDamageBubbleVisual','spawnDamageProjectile','spawnHealProjectile',
+     'applyHpHeal','applyDannoOndata','createSuddenDeathCollector',
+     'growSuddenDeathCollector','launchSuddenDeathFinalBubble',
+     'flySuddenDeathBubble','flyArcedBounceBubble']
+      .forEach(n => dice(typeof window[n] === 'undefined', 'se n-e- andata ' + n, 'ho letto ' + typeof window[n]));
+
+    // ── LA DIFFERENZA FRA ATTACCANTE E DIFENSORE ───────────────────────────
+    // applyHpDamage(difensore, attacco, difesa) -> assegnaPunti(vincitore, N).
+    // Il vincitore e' l'ALTRO giocatore, e N e' max(0, attacco - difesa).
+    const dati = [];
+    const vero = window.assegnaPunti;
+    window.assegnaPunti = function(p, n){ dati.push([p, n]); };
+    const prova = (dif, atk, def) => { dati.length = 0; applyHpDamage(dif, atk, def, null);
+                                       return dati.length ? dati[0] : null; };
+    let r;
+    r = prova(1, 7, 3);
+    dice(r && r[0] === 2 && r[1] === 4, 'sette contro tre fa quattro punti a chi attacca',
+      r ? ('giocatore ' + r[0] + ', ' + r[1] + ' punti') : 'non ha assegnato niente');
+    r = prova(2, 7, 3);
+    dice(r && r[0] === 1 && r[1] === 4, 'e li prende chi attacca, chiunque sia',
+      r ? ('giocatore ' + r[0] + ', ' + r[1] + ' punti') : 'non ha assegnato niente');
+    r = prova(1, 2, 5);
+    dice(r === null, 'attaccare piu- debole non toglie punti a nessuno',
+      r ? ('ha assegnato ' + r[1] + ' al giocatore ' + r[0]) : '');
+    r = prova(1, 5, 5);
+    dice(r === null, 'pari non fa punti', r ? ('ha assegnato ' + r[1]) : '');
+    r = prova(1, 9, 0);
+    dice(r && r[1] === 9, 'nove contro zero fa nove', r ? String(r[1]) : 'niente');
+    r = prova(1, 4, 3);
+    dice(r && r[1] === 1, 'uno di scarto fa un punto', r ? String(r[1]) : 'niente');
+    window.assegnaPunti = vero;
+
+    // ── LA TABELLA DELLA RARITA' (v0.79.56) ────────────────────────────────
+    dice(puntiDiCarta({rarity:'common'})   === 3, 'una common vale 3',   puntiDiCarta({rarity:'common'}));
+    dice(puntiDiCarta({rarity:'rare'})     === 2, 'una rare vale 2',     puntiDiCarta({rarity:'rare'}));
+    dice(puntiDiCarta({rarity:'mythic'})   === 1, 'una mythic vale 1',   puntiDiCarta({rarity:'mythic'}));
     dice(puntiDiCarta({rarity:'timeless'}) === 0, 'una timeless vale 0', puntiDiCarta({rarity:'timeless'}));
     dice(puntiDiCarta({rarity:'COMMON'})   === 3, 'e la maiuscola non cambia niente', puntiDiCarta({rarity:'COMMON'}));
     // Una rarita' che non esiste vale come una common, NON zero: zero vorrebbe
@@ -41,68 +98,79 @@ const CORPO = `(async function(){
       puntiDiCarta({rarity:'sbagliata'}));
     dice(puntiDiCarta({}) === 3, 'e una carta senza rarita- pure', puntiDiCarta({}));
 
-    // ── B. l'esempio di Lorenzo, dall'onda vera ─────────────────────────
-    var carta = function(rar){ return { rarity:rar, name:rar, id:rar+Math.random() }; };
+    // ── L'ESEMPIO DI LORENZO, DALL'ONDA VERA ───────────────────────────────
+    // ondataDanno accende una carta alla volta e a ogni accensione chiama
+    // incrementaBollaPunti(proprietario, quanto vale QUELLA carta). Il conto e'
+    // quello, non la bolla.
+    const carta = (rar) => ({ rarity:rar, name:rar, id:rar + Math.random() });
+    window._conta = { 1:0, 2:0 };
+    window._accese = { 1:0, 2:0 };
+    window._chiusure = {};
+    window._veroIncrementa = window.incrementaBollaPunti;
+    window._veroApri = window.apriBollaPunti;
+    window._veroChiudi = window.chiudiBollaPunti;
+    window.incrementaBollaPunti = function(p, n){ window._conta[p] += n; window._accese[p]++; };
+    window.apriBollaPunti = function(){};      // la bolla non serve: serve il conto
+    window.chiudiBollaPunti = function(p, punti, poi){ window._chiusure[p] = punti; if(poi) poi(); };
     G.gameOver = false;
     G.board = {
-      'a': { owner:1, card:carta('common')   },
-      'b': { owner:1, card:carta('common')   },
-      'c': { owner:1, card:carta('mythic')   },
-      'd': { owner:1, card:carta('timeless') },
-      'e': { owner:2, card:carta('rare')     }
+      '0,0':{ owner:1, card:carta('common')   },
+      '1,0':{ owner:1, card:carta('common')   },
+      '0,1':{ owner:1, card:carta('mythic')   },
+      '1,1':{ owner:1, card:carta('timeless') },
+      '2,0':{ owner:2, card:carta('rare')     }
     };
-    var salite = {1:[], 2:[]}, chiusure = {};
-    var veroApri = apriBollaPunti, veroInc = incrementaBollaPunti, veroChiudi = chiudiBollaPunti;
-    window.apriBollaPunti = function(){};
-    window.incrementaBollaPunti = function(p, n){ salite[p].push(n); };
-    window.chiudiBollaPunti = function(p, punti, poi){ chiusure[p] = punti; if(poi) poi(); };
+    window._finito1 = false;
+    try{ dannoDiFineTurno(function(){ window._finito1 = true; }); }catch(e){ window._rotta = String(e); }
+    return dette;
+  }catch(e){ return [{ok:false, che:'la prova si e- rotta', perche:String((e && e.stack) || e)}]; } })()`);
 
-    var finito = false;
-    dannoDiFineTurno(function(){ finito = true; });
-    await respira(1400);
+  // Le carte si accendono a 90ms l'una dall'altra: si aspetta in tempo vero.
+  await new Promise(r => setTimeout(r, 3000));
 
-    window.apriBollaPunti = veroApri;
-    window.incrementaBollaPunti = veroInc;
-    window.chiudiBollaPunti = veroChiudi;
+  const secondo = await win.webContents.executeJavaScript(`(function(){
+    const dette = [];
+    const dice = (ok, che, perche) => dette.push({ ok:!!ok, che:che, perche:perche||'' });
+    dice(!window._rotta, 'l-ondata di fine turno parte senza rompersi', window._rotta || '');
+    dice(window._finito1 === true, 'il turno prosegue quando l-onda ha finito');
+    dice(window._conta[1] === 7, '2 common + 1 mythic + 1 timeless fanno 7',
+      'ne ho contati ' + window._conta[1]);
+    dice(window._chiusure[1] === 7, 'e la bolla si chiude sullo stesso totale',
+      'si e- chiusa su ' + window._chiusure[1]);
+    dice(window._accese[1] === 3, 'la timeless non consegna niente e non entra nell-onda',
+      window._accese[1] + ' carte accese su 4');
+    dice(window._conta[2] === 2, 'e l-avversario prende i 2 della sua rare',
+      'ne ho contati ' + window._conta[2]);
 
-    dice(finito, 'il turno prosegue quando l-onda ha finito');
-    var somma1 = salite[1].reduce(function(a,b){ return a+b; }, 0);
-    dice(somma1 === 7, '2 common + 1 mythic + 1 timeless fanno 7', somma1 + '  (' + salite[1].join('+') + ')');
-    dice(chiusure[1] === 7, 'e la bolla si chiude sullo stesso totale', chiusure[1]);
-    dice(salite[1].length === 3, 'la timeless non consegna niente e non entra nell-onda',
-      salite[1].length + ' carte accese su 4');
-    dice(chiusure[2] === 2, 'e l-avversario prende i 2 della sua rare', chiusure[2]);
+    // Tabellone vuoto: nessun punto, e soprattutto la chiamata di fine deve
+    // arrivare lo stesso — e' lei a far ripartire il turno.
+    window._conta = { 1:0, 2:0 }; window._finito = false;
+    G.board = {};
+    dannoDiFineTurno(function(){ window._finito = true; });
+    dice(window._conta[1] === 0 && window._conta[2] === 0, 'tabellone vuoto: nessun punto');
+    dice(window._finito === true, 'e il turno riparte lo stesso');
 
-    // ── C. un tabellone di sole timeless non blocca il turno ────────────
-    // E- il caso che si dimentica: l-onda con zero carte deve chiamare
-    // comunque chi la aspetta, o la partita si ferma li- per sempre.
-    G.board = { 'a': { owner:1, card:carta('timeless') }, 'b': { owner:2, card:carta('timeless') } };
-    var finito2 = false;
-    window.apriBollaPunti = function(){};
-    window.incrementaBollaPunti = function(){};
-    window.chiudiBollaPunti = function(p, punti, poi){ if(poi) poi(); };
-    dannoDiFineTurno(function(){ finito2 = true; });
-    await respira(700);
-    window.apriBollaPunti = veroApri;
-    window.incrementaBollaPunti = veroInc;
-    window.chiudiBollaPunti = veroChiudi;
-    dice(finito2, 'solo timeless in campo: il turno prosegue lo stesso');
+    // E il caso che si dimentica: un tabellone di sole timeless vale zero
+    // esattamente come uno vuoto, e come quello deve far proseguire il turno.
+    // Senza questo controllo, una partita fra due mazzi di leggendarie si
+    // fermerebbe al primo cambio di turno.
+    window._finito2 = false;
+    G.board = { 'a':{ owner:1, card:{rarity:'timeless'} }, 'b':{ owner:2, card:{rarity:'timeless'} } };
+    dannoDiFineTurno(function(){ window._finito2 = true; });
+    dice(window._finito2 === true, 'solo timeless in campo: il turno prosegue lo stesso');
 
-    return d.join(String.fromCharCode(10));
-  } catch(e) {
-    return 'PIANTATA: ' + (e && e.message) + ' @ ' + ((e && e.stack) || '').split(String.fromCharCode(10))[1]
-      + String.fromCharCode(10) + d.join(String.fromCharCode(10));
+    window.incrementaBollaPunti = window._veroIncrementa;
+    window.apriBollaPunti = window._veroApri;
+    window.chiudiBollaPunti = window._veroChiudi;
+    return dette;
+  })()`);
+
+  const dette = primo.concat(secondo);
+  let male = 0;
+  for (const d of dette) {
+    console.log((d.ok ? '  ok  ' : '  NO  ') + d.che + (d.ok || !d.perche ? '' : '\n        ' + d.perche));
+    if (!d.ok) male++;
   }
-})()`;
-
-app.whenReady().then(async () => {
-  const win = new BrowserWindow({ show: false, width: 1600, height: 1000,
-    webPreferences: { contextIsolation: false, webSecurity: false } });
-  await win.loadURL('file:///C:/Users/masil/Desktop/Hextale/game-assets/play/index.html');
-  await new Promise(r => setTimeout(r, 12000));
-  let out;
-  try { out = await win.webContents.executeJavaScript(CORPO); }
-  catch(e){ out = 'ERRORE NELL\'INIEZIONE: ' + (e && e.message); }
-  console.log('\n' + out + '\n');
-  app.exit(String(out).indexOf('  NO  ') !== -1 || String(out).indexOf('PIANTATA') === 0 ? 1 : 0);
+  console.log('\n' + dette.length + ' controlli, ' + male + ' storti');
+  app.exit(male ? 1 : 0);
 });

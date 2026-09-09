@@ -206,15 +206,23 @@ dev'essere ancora annunciata**. Senza il secondo, il modo piu' facile di far
 passare il primo sarebbe spegnere l'avviso — e un controllo che tace sempre
 sembra un controllo che funziona.
 
-## prova-punti.js — i punti si contano ancora come prima
+## prova-punti.js — i punti si contano come devono
 
     $ELECTRON strumenti/prova-punti.js
 
+Quaranta controlli sulle due regole del punteggio, che e' cio' che decide chi
+vince. Sono quelle dette da Lorenzo: i punti per la **differenza** fra
+attaccante e difensore, e le **carte proprie in campo** a ogni fine turno.
+
 Nato nella v0.79.28, togliendo le bolle di danno: 541 righe da rimuovere in un
 file da 44.000, tutte intrecciate col punteggio, e il punteggio era la sola
-cosa che non doveva cambiare. Le due regole sono quelle dette da Lorenzo — i
-punti per la **differenza** fra attaccante e difensore, e **un punto per ogni
-carta propria in campo** a ogni fine turno.
+cosa che non doveva cambiare.
+
+**v0.79.56 — la seconda regola e' cambiata.** Una carta in campo non vale piu'
+un punto: vale AL CONTRARIO della propria rarita' — common 3, rare 2, mythic 1,
+timeless 0. C'e' l'esempio di Lorenzo alla lettera: due common, una mitica e una
+timeless fanno **sette**. Ed e' il genere di regola che, se sbaglia, non se ne
+accorge nessuno: **un punteggio storto e' un numero plausibile**.
 
 Si guarda il **calcolo**, non il punteggio a schermo. `G.hp` lo scrive la bolla
 in fondo alla sua animazione, e in una finestra nascosta le animazioni non
@@ -223,10 +231,29 @@ non se il conto e' giusto. Il banco intercetta invece le due porte da cui i
 punti passano — `assegnaPunti` e `incrementaBollaPunti` — e guarda con che
 numeri vengono chiamate.
 
-La seconda meta' del banco e' un elenco di funzioni che **non devono esistere**
+**Non basta provare `puntiDiCarta`.** Quella direbbe che i numeri sono giusti
+anche il giorno in cui l'onda smettesse di consegnarli, ed e' proprio il genere
+di scollamento che in questo file e' gia' costato caro. Si contano gli
+incrementi davvero chiesti e il totale con cui la bolla si chiude: sono le due
+cose che il giocatore vede.
+
+**Il tabellone di sole timeless e' il caso che si dimentica.** Vale zero
+esattamente come uno vuoto, e come quello deve far proseguire il turno — senza
+quel controllo una partita fra due mazzi di leggendarie si fermerebbe al primo
+cambio di turno.
+
+Una meta' del banco e' un elenco di funzioni che **non devono esistere**
 (`createDamageBubbleVisual`, `spawnDamageProjectile`, e le altre otto). Se una
 torna a esistere, e' tornato anche il disegno che chiedeva, e quei file Lorenzo
 li ha cancellati.
+
+`G` si puo' scrivere da fuori: e' un `let` di livello superiore, e quelli vivono
+nell'ambiente lessicale globale, che uno script iniettato dopo vede. Si
+costruisce quindi un `G.board` finto invece di giocare una partita vera.
+
+Il server non ricalcola niente — prende il punteggio dai due racconti concordi
+dei client (vedi `OP_IMPRONTA` in `server/nakama/index.js`) — quindi la regola
+vive tutta nel client.
 
 ## prova-menu-carte.js — il pallino, il gap, la specular
 
@@ -911,33 +938,3 @@ filtrare sono gesti in cui si confronta qualcosa, e cinque secondi e mezzo di
 cascata li' dentro sarebbero un'attesa), e che chi la interrompe la lasci
 VISIBILE — una cascata cancellata a meta' che lasciasse una carta trasparente
 sarebbe un difetto permanente e silenzioso.
-
-## prova-punti.js — quanto vale una carta a fine turno?
-
-    npx electron strumenti/prova-punti.js
-
-Dalla v0.79.56 una carta in campo non vale piu' un punto: vale AL CONTRARIO
-della propria rarita' — common 3, rare 2, mythic 1, timeless 0. E' la regola che
-decide chi vince la partita, ed e' anche quella che, se sbaglia, non se ne
-accorge nessuno: **un punteggio storto e' un numero plausibile**.
-
-Tredici controlli. La tabella carta per carta, l'esempio di Lorenzo alla
-lettera (due common, una mitica e una timeless fanno **sette**), e il caso che
-si dimentica sempre: un tabellone di sole timeless: l'onda con zero carte deve
-comunque chiamare chi la aspetta, o la partita si ferma li' per sempre.
-
-**Non basta provare `puntiDiCarta`.** Quella funzione direbbe che i numeri sono
-giusti anche il giorno in cui l'onda smettesse di consegnarli — ed e' proprio
-quel genere di scollamento che in questo file e' gia' costato caro. Il banco
-sostituisce `apriBollaPunti`/`incrementaBollaPunti`/`chiudiBollaPunti` e conta
-gli INCREMENTI davvero chiesti e il totale con cui la bolla si chiude: sono le
-due cose che il giocatore vede.
-
-**`G` si puo' scrivere da fuori.** E' un `let` di livello superiore, e i `let`
-di livello superiore vivono nell'ambiente lessicale globale: uno script
-iniettato dopo li vede. Si costruisce quindi un `G.board` finto invece di
-giocare una partita vera.
-
-Il server non ricalcola niente: prende il punteggio dai due racconti concordi
-dei client (vedi OP_IMPRONTA in server/nakama/index.js), quindi questa regola
-vive tutta di qua.
