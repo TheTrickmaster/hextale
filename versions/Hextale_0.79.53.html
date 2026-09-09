@@ -969,44 +969,17 @@ body.mouse-down, body.mouse-down *{
   /* v0.77.47 — la riga sotto al pulsante non c'e' piu': l'alone si stende
      sull'intera altezza invece di fermarsi quattordici pixel prima. */
   position:absolute; inset:0;
-  /* v0.79.54 — LARGO LA META'. Il pulsante e' 330 e l'alone sbordava di 26
-     per lato: 382 in tutto, cioe' piu' della fascia. Un alone largo quanto
-     tutto si legge come uno sfondo; stretto sul pulsante si legge come una
-     cosa che riguarda LUI. 330 meno 139 (69.5 per lato) fanno 191, che e'
-     esattamente la meta' di 382. In altezza resta com'era. */
-  margin:-18px 69.5px;
+  margin:-18px -26px;
   background:#7FD4FF;
-  /* E la sfocatura scende con la larghezza. Ventisei pixel di sfumatura su una
-     macchia larga 191 la spalmano fino a farla sparire: e' la stessa regola
-     scritta sopra a packGlowMorph — il movimento deve superare il raggio di
-     sfocatura, o resta dentro la sfumatura e non si vede. */
-  filter:blur(20px);
+  filter:blur(26px);
   mix-blend-mode:plus-lighter;
   opacity:0; pointer-events:none; z-index:0;
   border-radius:46% 54% 50% 50% / 52% 48% 52% 48%;
   transition:opacity 0.5s ease;
 }
-/* v0.79.54 — un respiro SUO, e non piu' quello della busta che si apre.
-   packGlowMorph non si tocca: la usa anche .pack-card-glow-blob, dove il
-   movimento e' tarato su una macchia larga il doppio e va bene com'e'.
-   Qui serviva piu' ampiezza per due motivi che si sommano. Il primo e' che
-   l'alone e' meta' piu' stretto, quindi la stessa PERCENTUALE di scala si
-   muove di meta' pixel. Il secondo e' la regola scritta sopra a packGlowMorph:
-   uno spostamento piu' piccolo del raggio di sfocatura resta dentro la
-   sfumatura e non si legge come movimento. Con blur a 20 e queste scale la
-   macchia si muove di una trentina di pixel, e adesso si vede.
-   Si muove la FORMA, non l'opacita': l'alone si accende in dissolvenza quando
-   una bustina e' pronta (vedi la transizione qui sopra), e un'animazione
-   sull'opacita' se la mangerebbe facendolo comparire di colpo. */
 .mm2-scorciatoia.ha-bustina .mm2-pack-glow{
   opacity:0.85;
-  animation:packGlowMenuMorph 6s ease-in-out infinite;
-}
-@keyframes packGlowMenuMorph{
-  0%,100% { transform:translate(0,0)        scale(1);    }
-  25%     { transform:translate(9px,-8px)   scale(1.15); }
-  50%     { transform:translate(-8px,6px)   scale(0.88); }
-  75%     { transform:translate(6px,8px)    scale(1.11); }
+  animation:packGlowMorph 7s ease-in-out infinite;
 }
 #mm2-quest-corpo{
   height:410px;
@@ -11830,7 +11803,7 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.54</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.53</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -18552,9 +18525,7 @@ function mm2Immagini(){ return [
   ['#mm2-find-glow',     UI_BASE+'radial-glow.png'],
   ['#mm2-rank-icona',    UI_BASE+'ranks/bronze-2-rank-icon.png'],
   ['#mm2-box-dust .mm2-box-sfondo', UI_BASE+'fairy-dust-bg.png'],
-  // v0.79.54 — pack-icon.png: il libro di prima non c'entrava niente con
-  // delle bustine, ed e' rimasto li' finche' non e' arrivato il disegno vero.
-  ['#mm2-sc-packs .mm2-scorciatoia-icona',   UI_BASE+'pack-icon.png'],
+  ['#mm2-sc-packs .mm2-scorciatoia-icona',   UI_BASE+'card-pack-icon.png'],
   ['#mm2-sc-library .mm2-scorciatoia-icona', UI_BASE+'library-deck-icon.png'],
 ]; }
 // Da un indirizzo alla coppia "prima in locale, poi sul sito": la cartella si
@@ -18616,10 +18587,7 @@ function montaMenuPrincipale(){
     radice.querySelectorAll('.mm-cur-plus img').forEach(el=>
       impostaImgDaCandidati(el, uiFileCandidati('add-button.png')));
     // Le tre icone della fascia in basso, ognuna col suo file.
-    // v0.79.54 — vedi la tabella qui sopra: sono due elenchi che parlano delle
-    // stesse tre icone, e vanno cambiati insieme. Il primo serve al
-    // precaricamento, il secondo al montaggio.
-    const iconeGiu = { 'mm2-sc-packs':'pack-icon.png', 'mm2-sc-library':'library-deck-icon.png', 'mm2-sc-quests':'quests-icon.png' };
+    const iconeGiu = { 'mm2-sc-packs':'card-pack-icon.png', 'mm2-sc-library':'library-deck-icon.png', 'mm2-sc-quests':'quests-icon.png' };
     for(const idScorc in iconeGiu){
       const el = document.querySelector('#'+idScorc+' .mm2-scorciatoia-icona');
       if(el) impostaImgDaCandidati(el, uiFileCandidati(iconeGiu[idScorc]));
