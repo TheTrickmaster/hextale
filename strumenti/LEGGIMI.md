@@ -659,3 +659,29 @@ cancello.
 
 E `prova-sito.js` lo **toglie e basta** prima di misurare: quel banco guarda la
 pagina, e la parola non sta in questo deposito.
+
+## prova-pacchetti.js — la pagina "Card packs" e' quella del disegno?
+
+    $ELECTRON strumenti/prova-pacchetti.js [scatto.png]
+
+Apre il gioco, porta la pagina dei pacchetti sotto gli occhi con un inventario
+finto (un daily maturo, un reward, un treasure) e misura tutto quello che il
+Figma dichiara: riquadro a tempo largo 360, caselle da 300x70 con angoli a 16 e
+stacchi da 16, titoli a 22px in E6D8B9, separatore di un pixel bianco al 10%,
+saldo e pulsante appesi ai due bordi al 47% dell'altezza. Poi prova la regola
+dello scorrimento — la fila si muove solo oltre i quattro pacchetti — e
+l'apertura: che scali il contatore giusto e nessun altro.
+
+Dandogli un nome di file salva anche uno scatto. **Con `disable-gpu` lo scatto
+viene nero**: `capturePage` restituisce una tela vuota. Per guardare la pagina
+si apre una finestra vera, senza spegnere la GPU e con `show:true`.
+
+Due cose che il banco ha corretto su se stesso, e valgono per il prossimo:
+
+- **`offsetTop` non conosce la `transform`.** Il riquadro del saldo e' ancorato
+  a `top:47%` e poi sale di meta' se stesso con `translateY(-50%)`: `offsetTop`
+  risponde 508, cioe' il PRIMA. Chi vuole il centro vero deve misurare i
+  rettangoli, non gli offset.
+- **Chromium arrotonda i bordi.** `border:1.5px` risulta `1px` in
+  `getComputedStyle` a densita' 1. Il valore dichiarato si legge dalla regola
+  (`cssRules`), non dall'elemento — ed e' la regola che il disegno prescrive.

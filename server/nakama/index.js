@@ -380,6 +380,15 @@ function assicuraPossesso(ctx, nk, logger, userId, username) {
       attuale.avatar = AVATAR_DI_PARTENZA;
       daRiscrivere = true;
     }
+    // Un admin trova un pacchetto di ogni tipo: uno a tempo gia' maturo, uno
+    // premio e uno tesoro. Una volta sola — vedi SEME_ADMIN_VERSIONE.
+    if (admin && (attuale.semeAdmin || 0) < SEME_ADMIN_VERSIONE) {
+      attuale.semeAdmin = SEME_ADMIN_VERSIONE;
+      attuale.bustinaProssima = 0;
+      attuale.bustineExtra = (attuale.bustineExtra || 0) + 1;
+      attuale.bustineTesoro = (attuale.bustineTesoro || 0) + 1;
+      daRiscrivere = true;
+    }
     if (daRiscrivere) scriviPossesso(nk, userId, attuale);
     return attuale;
   }
@@ -397,7 +406,14 @@ function assicuraPossesso(ctx, nk, logger, userId, username) {
     valute: { magicInk: VALUTE_INIZIALI.magicInk, fairyDust: VALUTE_INIZIALI.fairyDust },
     carte: {},
     // v0.79.0 — con una faccia da subito. Vedi AVATAR_DI_PARTENZA.
-    avatar: AVATAR_DI_PARTENZA
+    avatar: AVATAR_DI_PARTENZA,
+    // v0.79.36 — un admin nasce gia' col pacchetto premio e con quello tesoro.
+    // Il contrassegno si scrive QUI e non solo nel ramo di sopra: senza, il
+    // regalo arriverebbe al secondo avvio invece che al primo — la prima
+    // chiamata crea il possesso e non passa mai dalla migrazione.
+    semeAdmin: admin ? SEME_ADMIN_VERSIONE : 0,
+    bustineExtra: admin ? 1 : 0,
+    bustineTesoro: admin ? 1 : 0
   };
   scriviPossesso(nk, userId, possesso);
   // v0.77.84 — e il mazzo si crea GIA' FATTO.
@@ -485,7 +501,42 @@ function rpcStarter(ctx, logger, nk, payload) {
 // Adesso stanno nel possesso, che e' gia' per-utente e gia' scritto in modo
 // controllato. Il client non li salva piu' da nessuna parte: li chiede
 // all'avvio e li rimanda quando cambiano.
-var BUSTINA_ATTESA_MS = 8 * 60 * 60 * 1000;   // deve combaciare col client
+var BUSTINA_ATTESA_MS = 12 * 60 * 60 * 1000;  // deve combaciare col client
+// ── I TRE PACCHETTI ───────────────────────────────────────────────────────
+// 'daily'     matura da solo ogni dodici ore. NON SI ACCUMULA: e' un istante
+//             nel tempo (bustinaProssima), non un contatore, quindi averne uno
+//             pronto da due giorni resta averne uno. E il conto riparte quando
+//             lo si APRE, non quando e' maturato — chi lo lascia li' non
+//             guadagna un vantaggio, ma nemmeno lo perde.
+// 'reward'    si vince giocando (vedi PARTITE_PER_BUSTINA) o con le quest.
+//             Vive in possesso.bustineExtra, che e' il campo che c'era gia':
+//             cambiargli nome avrebbe voluto dire una migrazione per niente.
+// 'treasure'  si compra. Vive in possesso.bustineTesoro.
+// Reward e treasure sono contatori senza tetto: non c'e' un limite a quanti se
+// ne possono tenere da parte senza aprirli.
+var PACCHETTO_TIPI = ['daily', 'reward', 'treasure'];
+// Quanto costa un treasure pack, in inchiostro magico. E' la cifra scritta sul
+// pulsante giallo della schermata: il client la mostra, il server la applica.
+var PACCHETTO_PREZZO_INK = 100;
+// Quanti pacchetti trova un admin quando entra, una volta sola. Serve a
+// guardare la schermata con qualcosa dentro senza dover giocare cinque
+// partite. Il numero di versione e' quello che rende il regalo IRRIPETIBILE:
+// finche' resta questo, chi l'ha gia' avuto non lo riceve di nuovo. Alzandolo
+// di uno, ogni admin lo riceve una volta ancora.
+var SEME_ADMIN_VERSIONE = 1;
+
+// Quanti pacchetti di ogni tipo ha addosso un giocatore, adesso.
+// Il daily non e' un numero ma una risposta a una domanda ("e' maturato?"),
+// ed e' l'unico modo di scriverlo che non permetta di accumularlo per sbaglio.
+function pacchettiDi(possesso) {
+  var prossima = (typeof possesso.bustinaProssima === 'number') ? possesso.bustinaProssima : 0;
+  return {
+    dailyProssima: prossima,
+    daily: (Date.now() >= prossima) ? 1 : 0,
+    reward: possesso.bustineExtra || 0,
+    treasure: possesso.bustineTesoro || 0
+  };
+}
 var UNICORNO_TETTO = 65;                       // idem: vedi UNICORNO_TETTO li'
 
 // Solo le chiavi che conosciamo, e ognuna del tipo giusto. Un blob che arriva
@@ -1748,6 +1799,10 @@ function rpcAvvio(ctx, logger, nk, payload) {
     // v0.78.12 — le bustine GUADAGNATE giocando, e a che punto si e' della
     // prossima. Sono un'altra strada per averne una, indipendente dall'attesa.
     bustineExtra: possesso.bustineExtra || 0,
+    // v0.79.36 — e quelli comprati. Il daily non viaggia come numero: si
+    // ricava da bustinaProssima, che c'e' gia' due righe piu' su.
+    bustineTesoro: possesso.bustineTesoro || 0,
+    prezzoPacchetto: PACCHETTO_PREZZO_INK,
     versoBustina: possesso.versoBustina || 0,
     // v0.78.16 — quali carte non sono ancora state guardate in Collezione.
     nuove: _nuoveDi(possesso),
@@ -2051,10 +2106,25 @@ function rpcBustinaApri(ctx, logger, nk, payload) {
   // Una bustina gia' aperta e non raccolta si RIPRENDE invece di sorteggiarne
   // un'altra. Senza, ricaricare la pagina a carte scoperte sarebbe un modo per
   // ripescare finche' non esce quello che si vuole.
+  // Si torna anche il TIPO: chi riprende deve ritrovare lo stesso pacchetto che
+  // aveva in mano, non uno qualunque.
   var aperta = leggiBustina(nk, ctx.userId);
   if (aperta && aperta.carte && aperta.carte.length === 2) {
-    return JSON.stringify({ carte: aperta.carte, ripresa: true, costo: aperta.costo });
+    return JSON.stringify({ carte: aperta.carte, ripresa: true, costo: aperta.costo, tipo: aperta.tipo || 'daily' });
   }
+
+  // ── QUALE PACCHETTO ─────────────────────────────────────────────────────
+  // Il tipo arriva dal client, quindi non ci si crede: si controlla che esista
+  // e che il giocatore ne abbia davvero uno. Senza questo controllo, chiedere
+  // 'treasure' senza averne comprato uno sarebbe un pacchetto gratis — e il
+  // consumo, che avviene alla raccolta, toglierebbe da un contatore gia' a
+  // zero, cioe' da niente.
+  var richiesta = {};
+  try { richiesta = payload ? JSON.parse(payload) : {}; } catch (e) { richiesta = {}; }
+  var tipo = String(richiesta.tipo || 'daily');
+  if (PACCHETTO_TIPI.indexOf(tipo) === -1) throw Error('tipo di pacchetto sconosciuto: ' + tipo);
+  var addosso = pacchettiDi(possesso);
+  if (!addosso[tipo]) throw Error('non hai un pacchetto di tipo ' + tipo);
 
   var sorteggiabili = _sorteggiabili(catalogo, admin);
   if (sorteggiabili.length < 2) throw Error('non ci sono abbastanza carte sorteggiabili');
@@ -2070,11 +2140,12 @@ function rpcBustinaApri(ctx, logger, nk, payload) {
   var bustina = {
     carte: [a.slug, b.slug],
     costo: costo,
+    tipo: tipo,
     apertaIl: Math.floor(Date.now() / 1000)
   };
   scriviBustina(nk, ctx.userId, bustina);
-  logger.info('bustina aperta per %s: %s e %s (seconda a %d)', ctx.userId, a.slug, b.slug, costo);
-  return JSON.stringify({ carte: bustina.carte, ripresa: false, costo: costo });
+  logger.info('bustina %s aperta per %s: %s e %s (seconda a %d)', tipo, ctx.userId, a.slug, b.slug, costo);
+  return JSON.stringify({ carte: bustina.carte, ripresa: false, costo: costo, tipo: tipo });
 }
 
 // ── RPC: raccogli cio' che si e' scelto ───────────────────────────────────
@@ -2143,7 +2214,19 @@ function rpcBustinaRaccogli(ctx, logger, nk, payload) {
   // spende quella e l'attesa delle otto ore non si tocca: sono due strade
   // diverse per avere una bustina, e farle interferire vorrebbe dire che
   // vincerne una ti allontana dalla prossima gratuita.
-  if ((possesso.bustineExtra || 0) > 0) possesso.bustineExtra -= 1;
+  // v0.79.36 — SI CONSUMA IL PACCHETTO CHE E' STATO APERTO, non "il primo che
+  // c'e'". Prima la regola era una scala di priorita' scritta qui — se hai una
+  // bustina vinta usa quella, altrimenti fai ripartire l'orologio — e andava
+  // bene finche' il giocatore non sceglieva niente. Adesso sceglie, e la scelta
+  // e' scritta nella bustina aperta: qui si esegue, non si decide.
+  // Il tipo mancante e' una bustina aperta PRIMA di questa versione: si ricade
+  // sulla vecchia regola, che per quei dati e' esattamente cio' che era stato
+  // promesso.
+  var tipoAperto = bustina.tipo;
+  if (tipoAperto === 'treasure') possesso.bustineTesoro = Math.max(0, (possesso.bustineTesoro || 0) - 1);
+  else if (tipoAperto === 'reward') possesso.bustineExtra = Math.max(0, (possesso.bustineExtra || 0) - 1);
+  else if (tipoAperto === 'daily') possesso.bustinaProssima = Date.now() + BUSTINA_ATTESA_MS;
+  else if ((possesso.bustineExtra || 0) > 0) possesso.bustineExtra -= 1;
   else possesso.bustinaProssima = Date.now() + BUSTINA_ATTESA_MS;
   scriviPossesso(nk, ctx.userId, possesso);
   cancellaBustina(nk, ctx.userId);
@@ -2163,6 +2246,7 @@ function rpcBustinaRaccogli(ctx, logger, nk, payload) {
     valute: valute,
     bustinaProssima: possesso.bustinaProssima,
     bustineExtra: possesso.bustineExtra || 0,
+    bustineTesoro: possesso.bustineTesoro || 0,
     // v0.78.16 — le carte appena prese sono nuove per definizione: si manda
     // l-elenco aggiornato subito, cosi- il pallino compare tornando al menu
     // senza aspettare la prossima lettura del profilo.
@@ -2170,6 +2254,28 @@ function rpcBustinaRaccogli(ctx, logger, nk, payload) {
     possedute: _possedute(carte, possesso, admin),
     // v0.79.7 — e quante se ne hanno adesso, questa compresa.
     copie: _copieDi(possesso, _possedute(carte, possesso, admin))
+  });
+}
+
+// ── RPC: compra un treasure pack ──────────────────────────────────────────
+// Un pacchetto contro cento di inchiostro magico. Il saldo si legge e si
+// scrive nella STESSA scrittura del contatore: cosi' non esiste l'istante in
+// cui l'inchiostro e' gia' andato e il pacchetto non e' ancora arrivato.
+// Non c'e' un tetto a quanti se ne possono comprare: il tetto e' il saldo.
+function rpcBustinaCompra(ctx, logger, nk, payload) {
+  if (!ctx.userId) throw Error('serve un accesso');
+  var possesso = assicuraPossesso(ctx, nk, logger, ctx.userId, ctx.username);
+  var valute = valuteDi(possesso);
+  if (valute.magicInk < PACCHETTO_PREZZO_INK) throw Error('inchiostro insufficiente');
+  valute.magicInk -= PACCHETTO_PREZZO_INK;
+  possesso.valute = valute;
+  possesso.bustineTesoro = (possesso.bustineTesoro || 0) + 1;
+  scriviPossesso(nk, ctx.userId, possesso);
+  logger.info('treasure pack comprato da %s: -%d ink, ne ha %d', ctx.userId, PACCHETTO_PREZZO_INK, possesso.bustineTesoro);
+  return JSON.stringify({
+    valute: valute,
+    bustineTesoro: possesso.bustineTesoro,
+    prezzo: PACCHETTO_PREZZO_INK
   });
 }
 
@@ -4651,6 +4757,7 @@ function InitModule(ctx, logger, nk, initializer) {
   initializer.registerRpc('hx_carte_viste', rpcCarteViste);
   initializer.registerRpc('hx_bustina_apri', rpcBustinaApri);
   initializer.registerRpc('hx_bustina_raccogli', rpcBustinaRaccogli);
+  initializer.registerRpc('hx_bustina_compra', rpcBustinaCompra);
   // v0.77.53 — la partita in rete. registerMatch da' un nome al gestore;
   // registerMatchmakerMatched fa in modo che, accoppiati due giocatori, la
   // partita nasca da sola e il suo id arrivi ai due client dentro allo stesso
