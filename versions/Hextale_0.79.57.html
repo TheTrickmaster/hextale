@@ -11841,7 +11841,7 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.58</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.57</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -33374,16 +33374,6 @@ function initGame(vsAI){
     // v0.78.10 — le caselle da svuotare a scontro finito (vedi
     // rimuoviDopoLaConquista). Nasce vuota a ogni partita come tutto il resto.
     rimozioniInAttesa:[],
-    // ── v0.79.58 — QUALE DEI DUE NUMERI SONO IO ───────────────────────────
-    // In rete lo dice il server, e finora veniva scritto su G un istante PRIMA
-    // che questa riga rifacesse G da zero (vedi il punto in cui arriva
-    // `d.tu`): da allora _goIoSono ha risposto 1 a tutti e due i giocatori.
-    // Chi era il numero 2 sentiva quindi la fanfara al contrario — vittoria
-    // quando aveva perso — e vedeva i due punteggi scambiati nel riquadro
-    // finale, perche' anche quello chiede a _goIoSono qual e' il suo.
-    // Si copia da PARTITA_RETE, che a differenza di G non si rifa' a ogni
-    // partita ed e' la sola cosa che sa davvero come ci ha chiamati il server.
-    ioSonoIlNumero:(PARTITA_RETE ? (PARTITA_RETE.io || 1) : 1),
     // v0.78.13 — chi ha vinto, quando a dirlo e' il server (resa, abbandono) e
     // non il tabellone. Zero vuol dire "lo dicono i punti", che e' il caso
     // normale. Vedi fineDaRete.
@@ -33645,17 +33635,7 @@ function resetTimerBarVisual(){
 // display-smoothness target, not a correctness requirement) so the visible
 // bar/number update promptly whenever the tab IS in the foreground.
 let timerDeadline=null;
-// ── v0.79.58 — RIPRENDERE NON E' RICOMINCIARE ─────────────────────────────
-// `riprendi` a vero vuol dire: rimetti in moto il conto SENZA spostare la
-// scadenza. Serve alle finestre di scelta, che sono dentro al turno e non un
-// turno nuovo: doPlace ferma il conto per non farlo scattare durante lo
-// scontro, e chi apre la finestra deve rimetterlo in moto da dove si era
-// fermato. Chiamando startTimer() e basta, chi giocava una carta con abilita'
-// si ritrovava il turno intero da capo — e la barra che tornava piena.
-// In rete non si vedeva, e adesso si capisce perche': li' la scadenza la
-// detta il server e startTimer la ripescava comunque. Il difetto era tutto
-// delle partite contro l'IA, dove quella scadenza non c'e'.
-function startTimer(riprendi){
+function startTimer(){
   // v0.77.54 — in rete i secondi li conta il server: si parte da quel che resta
   // secondo lui, non da sessanta. Un turno cominciato in ritardo — perche' il
   // messaggio ci ha messo, o perche' la scheda era in secondo piano — durerebbe
@@ -33688,20 +33668,13 @@ function startTimer(riprendi){
   // va zittito — non nei singoli punti da cui un turno puo' finire, che sono
   // tanti e diventeranno di piu'.
   stopTictoc();
-  // Riprendendo si tiene la scadenza che c'era: e' quella a dire quanto manca
-  // davvero. Se pero' e' gia' passata — o non c'e' mai stata — si riparte, che
-  // e' meglio di un conto fermo a zero e di un turno che non finisce piu'.
-  const daRiprendere = !!riprendi && timerDeadline && timerDeadline > Date.now();
-  if(!daRiprendere) timerDeadline = scadenzaDelServer || (Date.now()+TURN_SECS*1000);
+  timerDeadline = scadenzaDelServer || (Date.now()+TURN_SECS*1000);
   timerLeft = Math.max(0, Math.ceil((timerDeadline - Date.now())/1000));
   // Capture whose turn this timer belongs to. If the turn has already advanced by
   // the time the timer fires (e.g. the player placed a card right as it hit 0),
   // the stale timer must NOT auto-play for the new current player.
   const timerPlayer=G.currentPlayer;
-  // resetTimerBarVisual riporta la barra a PIENA e riscrive timerLeft a
-  // TURN_SECS: e' giusto per un turno che comincia, sbagliato per un conto che
-  // riprende. Riprendendo si ridisegna e basta, cosi' la barra resta dov'era.
-  if(daRiprendere) updateTimerUI(); else resetTimerBarVisual();
+  resetTimerBarVisual();
   timerInterval=setInterval(()=>{
     timerLeft=Math.max(0,Math.ceil((timerDeadline-Date.now())/1000));
     updateTimerUI();
@@ -35731,11 +35704,9 @@ function doPlace(card,playerIdx,q,r,daServer){
       // il turno resterebbe fermo fino allo scadere del timer.
       if(G.sceltaBersaglio && G.sceltaBersaglio.modo === 'mano') render();
       else renderBoard();
-      // Il timer va rimesso in moto: doPlace l'aveva fermato, e senza di lui la
+      // Il timer va rifatto partire: doPlace l'aveva fermato, e senza di lui la
       // finestra resterebbe aperta all'infinito se il giocatore si distrae.
-      // v0.79.58 — RIPRENDE da dove si era, non da capo: scegliere un bersaglio
-      // fa parte di questo turno, non ne regala un altro.
-      startTimer(true);
+      startTimer();
       return;
     }
   }
@@ -38865,9 +38836,8 @@ function _usaAbilitaPresa(carta, chiave, q, r, giocatore, finito){
     // Le scelte che si fanno sulla MANO hanno i comandi nel ventaglio, quelle
     // sul tabellone nella plancia: stessa distinzione di doPlace.
     if(G.sceltaBersaglio.modo === 'mano') render(); else renderBoard();
-    // Il timer riprende, o la finestra nuova resterebbe aperta all'infinito.
-    // v0.79.58 — riprende e non riparte: vedi startTimer.
-    startTimer(true);
+    // Il timer riparte, o la finestra nuova resterebbe aperta all'infinito.
+    startTimer();
     // E se a giocare e' l'IA, la chiude lei: non ha un'interfaccia da cliccare,
     // e questa finestra si apre troppo tardi perche' la risolva il richiamo che
     // aiPlay fa dopo il piazzamento.
@@ -41321,11 +41291,10 @@ function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLa
       const chiaveScelta = card.activatedTileAbility || abilitaAttivaDi(card);
       if(chiaveScelta && apriSceltaDopoConquista(card, player, q, r, chiaveScelta, conquestInfo)){
         renderBoard();
-        // Il timer riprende, come per le scelte al piazzamento: senza, la
-        // finestra resterebbe aperta per sempre se il giocatore si distrae
-        // proprio adesso.
-        // v0.79.58 — riprende e non riparte: vedi startTimer.
-        startTimer(true);
+        // Il timer riparte da capo, come per le scelte al piazzamento: senza,
+        // la finestra resterebbe aperta per sempre se il giocatore si
+        // distrae proprio adesso.
+        startTimer();
         // v0.73.66 — l'IA non ha un'interfaccia da cliccare. Quando doPlace()
         // apre una scelta AL PIAZZAMENTO, aiPlay() la risolve subito dopo,
         // nello stesso istante (vedi aiResolvePendingAbilityIfAny). Questa
