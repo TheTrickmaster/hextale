@@ -2678,6 +2678,25 @@ function _paroleDelGioco(nk) {
   _paroleGiocoVersione = catalogo.versione;
   return fuori;
 }
+// Il gancio che Nakama chiama PRIMA di scrivere un cambio di profilo. Sta qui
+// come funzione DICHIARATA e non scritta dentro alla registrazione, e non e'
+// una preferenza di stile: Nakama non tiene il riferimento che gli si passa —
+// ne estrae la CHIAVE, cioe' il nome con cui la funzione e' dichiarata nel
+// modulo, e a runtime va a ripescarla da li'. Una funzione anonima non ha
+// nessuna chiave, e il registro lo dice chiaro:
+//   "js registerBeforeUpdateAccount function key could not be extracted"
+// E' la stessa ragione per cui ogni RPC qui sotto passa un nome.
+function primaDiCambiareProfilo(ctx, logger, nk, dati) {
+  if (dati && dati.username) {
+    var brutta = nomeSporco(nk, dati.username);
+    if (brutta) {
+      logger.info('nome rifiutato per %s: %s (per "%s")', ctx.userId, dati.username, brutta);
+      throw Error('That player name is not allowed.');
+    }
+  }
+  return dati;
+}
+
 // Torna la parola trovata, o stringa vuota se il nome va bene. Torna la parola
 // e non un si/no perche' il registro deve poter dire QUALE: un filtro che
 // respinge senza sapere dire perche' non si puo' correggere.
@@ -5216,17 +5235,15 @@ function InitModule(ctx, logger, nk, initializer) {
   // — cioe' il gioco intero smetterebbe di funzionare per un filtro sui nomi.
   // Cosi' invece si perde il filtro e lo si legge nel registro, che e' il verso
   // giusto in cui sbagliare.
+  // Si passa il NOME della funzione, non un blocco scritto qui: vedi
+  // primaDiCambiareProfilo per il perche' — un anonimo non si registra e basta.
+  // Il try resta: se un domani il runtime cambiasse il nome di questo gancio,
+  // senza di lui InitModule fallirebbe e il modulo NON si caricherebbe, cioe'
+  // il gioco intero fermo per un filtro sui nomi. Cosi' invece si perde il
+  // filtro e lo si legge nel registro — che e' il verso giusto in cui
+  // sbagliare, ed e' gia' servito una volta.
   try {
-    initializer.registerBeforeUpdateAccount(function (ctx, logger2, nk2, dati) {
-      if (dati && dati.username) {
-        var brutta = nomeSporco(nk2, dati.username);
-        if (brutta) {
-          logger2.info('nome rifiutato per %s: %s (per "%s")', ctx.userId, dati.username, brutta);
-          throw Error('That player name is not allowed.');
-        }
-      }
-      return dati;
-    });
+    initializer.registerBeforeUpdateAccount(primaDiCambiareProfilo);
     logger.info('filtro dei nomi attivo: %d parole', PAROLACCE_TESTO.split(' ').length);
   } catch (e) {
     logger.error('FILTRO DEI NOMI NON ATTIVO: %s', String(e));
