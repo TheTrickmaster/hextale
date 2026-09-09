@@ -11841,7 +11841,7 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.56</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.55</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -44586,43 +44586,15 @@ function toggleBoardView(showBoard){
 // domanda "questa scena va accelerata?" ha ancora senso e ha un posto solo dove
 // si risponde.
 const ONDATA_VELOCITA = 1;      // 1 = alla velocita' di tutte le altre bolle
-// ══════════════════════════════════════════════════════════════════════════
-// v0.79.56 — QUANTO VALE UNA CARTA A FINE TURNO
-// ══════════════════════════════════════════════════════════════════════════
-// Fino a ieri ogni carta in campo valeva un punto, chiunque fosse. Adesso il
-// valore va AL CONTRARIO della rarita': una common ne da' tre, una rare due,
-// una mitica uno, una timeless nessuno.
-// Non e' un capriccio di numeri: e' la regola che rende una mano di carte
-// comuni una scelta e non un ripiego. Chi riempie il tabellone di leggendarie
-// vince gli scontri e non prende punti; chi lo riempie di comuni prende punti
-// e perde gli scontri. Il tabellone diventa la domanda.
-//
-// Una rarita' che non fosse fra queste quattro vale come una common. Non zero:
-// zero vorrebbe dire che una carta scritta male sparisce dal conto senza che
-// nessuno se ne accorga, ed e' il modo in cui un difetto di dati diventa una
-// partita sbagliata.
-const PUNTI_PER_RARITA = { common:3, rare:2, mythic:1, timeless:0 };
-function puntiDiCarta(card){
-  const r = String((card && card.rarity) || 'common').toLowerCase();
-  return Object.prototype.hasOwnProperty.call(PUNTI_PER_RARITA, r)
-    ? PUNTI_PER_RARITA[r] : PUNTI_PER_RARITA.common;
-}
 function dannoDiFineTurno(onDone){
   const fine = typeof onDone === 'function' ? onDone : ()=>{};
   if(!G || G.gameOver){ fine(); return; }
   const celle = {1:[], 2:[]};
   for(const k in G.board){
     const c = G.board[k];
-    if(!c) continue;
-    const punti = puntiDiCarta(c.card);
-    // Una carta che non vale niente non entra nell'onda. Farla lampeggiare
-    // lasciando il numero fermo si leggerebbe come un difetto — 'quella non
-    // ha contato' — invece che come la regola: una timeless non porta punti,
-    // e quindi non ha niente da consegnare.
-    if(punti <= 0) continue;
-    (celle[c.owner] || (celle[c.owner]=[])).push({ k:k, punti:punti });
+    if(c) (celle[c.owner] || (celle[c.owner]=[])).push(k);
   }
-  // Nessuna carta che valga qualcosa: niente da contare e niente da guardare.
+  // Nessuna carta in campo: niente da contare e niente da guardare.
   if(!celle[1].length && !celle[2].length){ fine(); return; }
   // v0.77.0 — le carte di un giocatore fruttano punti A LUI, non danni
   // all'altro. Le due ondate corrono insieme e `fine` scatta quando ha finito
@@ -44896,12 +44868,7 @@ function ondataDanno(owner, cellKeys, onDone){
   // insieme alla carta che si accende: contare sotto al lampo bianco vuol dire
   // arrivare al totale senza aver mai mostrato da dove viene.
   const INIZIO = BOLLA_PRONTA_MS;
-  // v0.79.56 — ogni voce e' {k, punti}: la casella e quanto vale la carta che
-  // ci sta sopra (vedi puntiDiCarta). Prima era la sola chiave e il punto era
-  // sempre uno.
-  const totale = cellKeys.reduce((n,c)=>n + (c.punti|0), 0);
-  cellKeys.forEach((cella,i)=>{
-    const k = cella.k;
+  cellKeys.forEach((k,i)=>{
     setTimeout(()=>{
       try{
         const el = document.querySelector('[data-conquered="'+k+'"]') ||
@@ -44911,11 +44878,9 @@ function ondataDanno(owner, cellKeys, onDone){
           el.getBoundingClientRect();   // forza il reflow: su <svg> offsetWidth non esiste
           el.classList.add(colorClass==='dark'?'sd-flash-red':'sd-flash-blue');
         }
-        // I punti si aggiungono NELLO STESSO istante in cui la carta si
-        // accende: e' quello a rendere leggibile da dove vengono. Una common
-        // ne fa salire tre in un colpo, ed e' giusto che si veda cosi': il
-        // salto e' l'unica cosa che racconta quanto vale QUELLA carta.
-        incrementaBollaPunti(owner, cella.punti);
+        // Il punto si aggiunge NELLO STESSO istante in cui la carta si accende:
+        // e' quello a rendere leggibile da dove viene il conto.
+        incrementaBollaPunti(owner, 1);
       }catch(e){ console.warn('[punti] carta '+k+' saltata: '+e); }
     }, INIZIO + i*PASSO_MS);
   });
@@ -44925,7 +44890,7 @@ function ondataDanno(owner, cellKeys, onDone){
   // davvero. Il turno prosegue anche quando l'animazione fallisce — una
   // partita senza un'animazione e' una partita, una partita bloccata no.
   setTimeout(()=>{
-    try{ chiudiBollaPunti(owner, totale, fine); }
+    try{ chiudiBollaPunti(owner, cellKeys.length, fine); }
     catch(e){ console.error('[punti] animazione fallita, il turno prosegue lo stesso: '+e); fine(); }
   }, INIZIO + cellKeys.length*PASSO_MS + DURATA_MS*0.35);
 }

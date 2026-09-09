@@ -911,3 +911,33 @@ filtrare sono gesti in cui si confronta qualcosa, e cinque secondi e mezzo di
 cascata li' dentro sarebbero un'attesa), e che chi la interrompe la lasci
 VISIBILE — una cascata cancellata a meta' che lasciasse una carta trasparente
 sarebbe un difetto permanente e silenzioso.
+
+## prova-punti.js — quanto vale una carta a fine turno?
+
+    npx electron strumenti/prova-punti.js
+
+Dalla v0.79.56 una carta in campo non vale piu' un punto: vale AL CONTRARIO
+della propria rarita' — common 3, rare 2, mythic 1, timeless 0. E' la regola che
+decide chi vince la partita, ed e' anche quella che, se sbaglia, non se ne
+accorge nessuno: **un punteggio storto e' un numero plausibile**.
+
+Tredici controlli. La tabella carta per carta, l'esempio di Lorenzo alla
+lettera (due common, una mitica e una timeless fanno **sette**), e il caso che
+si dimentica sempre: un tabellone di sole timeless: l'onda con zero carte deve
+comunque chiamare chi la aspetta, o la partita si ferma li' per sempre.
+
+**Non basta provare `puntiDiCarta`.** Quella funzione direbbe che i numeri sono
+giusti anche il giorno in cui l'onda smettesse di consegnarli — ed e' proprio
+quel genere di scollamento che in questo file e' gia' costato caro. Il banco
+sostituisce `apriBollaPunti`/`incrementaBollaPunti`/`chiudiBollaPunti` e conta
+gli INCREMENTI davvero chiesti e il totale con cui la bolla si chiude: sono le
+due cose che il giocatore vede.
+
+**`G` si puo' scrivere da fuori.** E' un `let` di livello superiore, e i `let`
+di livello superiore vivono nell'ambiente lessicale globale: uno script
+iniettato dopo li vede. Si costruisce quindi un `G.board` finto invece di
+giocare una partita vera.
+
+Il server non ricalcola niente: prende il punteggio dai due racconti concordi
+dei client (vedi OP_IMPRONTA in server/nakama/index.js), quindi questa regola
+vive tutta di qua.
