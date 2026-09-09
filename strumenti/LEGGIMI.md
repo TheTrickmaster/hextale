@@ -802,9 +802,19 @@ ci si appoggia — dopo, `ricordoLeggiUnaVolta()` deve tornare nulla anche se
 nella casella c'e' qualcosa di fresco — ma va saputo, o si scambia per un
 difetto.
 
-**Gli stub del secondo giro si mettono a `dom-ready`**, non dopo: il tentativo
-scatta molti secondi dopo il caricamento, ma metterli tardi vorrebbe dire
-guardare una richiesta vera partire verso il server.
+**Il secondo giro non usa stub: usa un PRELOAD** (`prova-ricordami-preload.js`)
+che sostituisce `fetch`. Dalla v0.79.49 il rientro parte dentro `runPreload()`,
+cioe- al DOMContentLoaded: non esiste un momento, dopo il caricamento, in cui
+si faccia in tempo a mettere uno stub. Sostituendo la rete si prova la strada
+VERA — rinnovo, sessione, sedia, accordo, menu — invece di una catena di finte
+che potrebbero andare bene mentre quella vera e- rotta.
+
+**Il logo e la colonna si guardano con un MutationObserver**, non chiedendo
+all-elemento se ha la classe: entrando nel menu la schermata iniziale viene
+SMONTATA, e dopo il logo risponde "non ci sono" — la risposta giusta per la
+ragione sbagliata. L-osservatore segna se quelle classi sono mai comparse, e
+c-e- un controllo apposta sullo sfondo (che invece deve accendersi) per
+accorgersi del giorno in cui l-osservatore smettesse di guardare.
 
 `_ricordoAttivo` e `CHIAVE_RICORDO` NON stanno su `window` (`let` e `const` in
 cima a uno script non ci finiscono): da fuori si arriva solo alle funzioni

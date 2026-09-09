@@ -47,6 +47,63 @@ const CORPO = `(async function(){
     dice(/checkbox-square-unchecked/.test(off), 'la faccia spenta e- vestita', off.trim().slice(0, 60));
     dice(/checkbox-square-checked/.test(on),   'e quella accesa pure',        on.trim().slice(0, 60));
 
+    // ── A2. l'ordine del pannello, e cosa sta fuori ─────────────────────
+    // Si legge il DOM in fila e si confronta con l'ordine chiesto. Un elenco
+    // di controlli "questo c-e-" non se ne accorgerebbe: l-ordine e- la
+    // richiesta, non la presenza.
+    var sigla = function(el){
+      if(el.id) return '#' + el.id;
+      if(el.classList.contains('hx-riga-oppure')) return 'or';
+      if(el.classList.contains('hx-riga-corta')) return 'tratto';
+      if(el.classList.contains('hx-campo-pwd')) return 'password';
+      if(el.classList.contains('hx-link')) return 'forgot';
+      if(el.classList.contains('hx-ricorda')) return 'ricordami';
+      if(el.classList.contains('hx-btn')) return 'btn:' + (el.textContent || '').trim();
+      return el.tagName.toLowerCase();
+    };
+    var fila = function(dentro){
+      return [].slice.call(dentro.children).map(sigla).join(' | ');
+    };
+    var pannello = document.querySelector('#modulo-login .hx-pannello');
+    var atteso = ['#login-user', 'password', 'forgot', 'or', '#login-google-btn',
+                  '#google-vero', 'ricordami', '#login-messaggio', 'btn:Login',
+                  '#accesso-offline'].join(' | ');
+    dice(pannello && fila(pannello) === atteso, 'il pannello e- nell-ordine chiesto',
+      pannello ? fila(pannello) : '(manca)');
+    var colonna = document.getElementById('start-accesso');
+    var fuori = colonna ? fila(colonna) : '';
+    dice(/#accesso-crea \\| tratto \\| btn:Exit game$/.test(fuori),
+      'e fuori: crea account, tratto, esci', fuori);
+    dice(!!(colonna && !colonna.querySelector('#modulo-registrazione #login-google-btn')),
+      'Google non e- rimasto anche sulla registrazione');
+
+    // ── A3. le misure chieste ───────────────────────────────────────────
+    var campo = document.getElementById('login-user');
+    dice(campo && getComputedStyle(campo).fontSize === '16px', 'i campi scrivono a 16px',
+      campo && getComputedStyle(campo).fontSize);
+    dice(riga && getComputedStyle(riga).fontSize === '14px', '"Remember me" a 14px',
+      riga && getComputedStyle(riga).fontSize);
+
+    // ── A4. la casella spuntata e- dieci pixel piu- grande, e non sposta ─
+    var quadro = riga.querySelector('.filters-casella');
+    var primaL = quadro.offsetWidth, primaH = quadro.offsetHeight;
+    var primaRiga = Math.round(riga.getBoundingClientRect().width);
+    cb.checked = true;
+    var dopoL = quadro.offsetWidth, dopoH = quadro.offsetHeight;
+    var dopoRiga = Math.round(riga.getBoundingClientRect().width);
+    cb.checked = false;
+    dice(dopoL - primaL === 10, 'spuntata e- 10px piu- larga', primaL + ' -> ' + dopoL);
+    dice(dopoH - primaH === 10, 'e 10px piu- alta', primaH + ' -> ' + dopoH);
+    dice(primaRiga === dopoRiga, 'e la riga intorno non si muove', primaRiga + ' -> ' + dopoRiga);
+    // Vale anche per le caselle grandi, quelle dei filtri: la regola e- una.
+    var grande = document.querySelector('#settings-pannello .settings-opzione .filters-casella');
+    if(grande){
+      var g1 = grande.offsetWidth;
+      var suo = grande.parentNode.querySelector('input[type="checkbox"]');
+      suo.checked = true; var g2 = grande.offsetWidth; suo.checked = false;
+      dice(g2 - g1 === 10, 'e la stessa regola vale per le altre caselle', g1 + ' -> ' + g2);
+    } else dice(false, 'la casella delle impostazioni non si trova');
+
     // ── B. spenta, non si scrive niente ─────────────────────────────────
     try{ localStorage.removeItem(CHIAVE); }catch(_){}
     sessioneAccount = { token:'T', refresh:'RT-DI-PROVA', scadenza:0, email:'a@b.c', username:'', userId:'' };
@@ -118,40 +175,29 @@ const CORPO = `(async function(){
   }
 })()`;
 
-// ── SECONDO GIRO: la finestra si riapre e deve rientrare da sola ──────────
-// Gli stub si mettono a dom-ready, cioe' PRIMA che scatti il tentativo — che
-// parte quando la colonna d'accesso compare, molti secondi dopo. Metterli
-// dopo vorrebbe dire stare a guardare una richiesta vera partire davvero
-// verso il server.
-const STUB = `(function(){
-  window.__rientro = { rinnovi: 0, entrato: null };
-  var mettiStub = function(){
-    if(typeof nakamaRinnovaSessione !== 'function') return false;
-    window.nakamaRinnovaSessione = function(rt){
-      window.__rientro.rinnovi++;
-      window.__rientro.usato = rt;
-      return Promise.resolve({ token:'TOK-NUOVO', refresh_token:'RT-NUOVO' });
-    };
-    window.nakamaCompletaProfilo = function(){ return Promise.resolve(); };
-    window.accessoEntra = function(s){ window.__rientro.entrato = s; return Promise.resolve(); };
-    return true;
-  };
-  var t = setInterval(function(){ if(mettiStub()) clearInterval(t); }, 30);
-  return true;
-})()`;
+// ── SECONDO GIRO: la finestra si riapre e non si vede NIENTE ──────────────
+// Dalla v0.79.49 il rientro parte dentro runPreload(), al DOMContentLoaded:
+// non c'e' nessun momento, dopo il caricamento, in cui si faccia in tempo a
+// mettere uno stub. Quindi non se ne mettono — si sostituisce `fetch` in un
+// preload (vedi prova-ricordami-preload.js), e la strada che il banco prova e'
+// quella VERA: rinnovo, sessione, sedia, accordo, menu.
+const PRELOAD = require('path').join(__dirname, 'prova-ricordami-preload.js');
 
 const CODA = `(function(){
   var d = [];
   var dice = function(ok, n, x){ d.push((ok ? '  ok  ' : '  NO  ') + n + (x !== undefined ? '   [' + x + ']' : '')); };
-  var r = window.__rientro || {};
-  dice(r.rinnovi === 1, 'il rinnovo e- stato chiesto una volta sola', r.rinnovi);
-  dice(r.usato === 'RT-VECCHIO', 'col token che c-era nella casella', r.usato);
-  dice(!!r.entrato, 'e si e- entrati senza password');
-  dice(!!(r.entrato && r.entrato.refresh === 'RT-NUOVO'), 'con la sessione nuova', r.entrato && r.entrato.refresh);
-  var c = document.getElementById('login-ricordami');
-  dice(!!(c && c.checked), 'la spunta si ritrova accesa');
-  var e = document.getElementById('login-user');
-  dice(!!(e && e.value === 'lorenzo@hextale.test'), 'e l-email gia- scritta', e && e.value);
+  var b = window.__banco || {};
+  var acceso = b.acceso || {};
+  dice(b.rinnovi >= 1, 'il rinnovo e- stato chiesto', b.rinnovi);
+  dice(b.usato === 'RT-VECCHIO', 'col token che c-era nella casella', b.usato);
+  // Il segno che si e- entrati davvero: il menu e- montato nel documento, e la
+  // schermata iniziale non c-e- piu- (le pagine sono ermetiche).
+  dice(!!document.getElementById('main-menu'), 'si e- entrati nel menu senza password');
+  dice(!document.getElementById('start-screen'), 'e la schermata iniziale e- smontata');
+  // E il punto della richiesta: logo e colonna d-accesso non si sono MAI accesi.
+  dice(!acceso['start-logo-wrap'], 'il logo non si e- mai acceso');
+  dice(!acceso['start-accesso'], 'e nemmeno la colonna d-accesso');
+  dice(!!acceso['start-bg-img'], 'lo sfondo invece si- (l-osservatore guarda davvero)');
   var scritto = null; try{ scritto = JSON.parse(localStorage.getItem('hextale.ricordami') || 'null'); }catch(_){}
   dice(!!(scritto && scritto.refresh === 'RT-NUOVO'), 'e la casella porta gia- il token nuovo', scritto && scritto.refresh);
   try{ localStorage.removeItem('hextale.ricordami'); }catch(_){}
@@ -160,10 +206,11 @@ const CODA = `(function(){
 
 app.whenReady().then(async () => {
   const win = new BrowserWindow({ show: false, width: 1600, height: 1000,
-    webPreferences: { contextIsolation: false, webSecurity: false } });
+    webPreferences: { contextIsolation: false, webSecurity: false, preload: PRELOAD } });
   await win.loadURL('file:///C:/Users/masil/Desktop/Hextale/game-assets/play/index.html');
-  // Si aspetta che la colonna d'accesso sia comparsa: e' li' che la pagina fa
-  // il suo unico tentativo di rientro, ed e' quello che consuma la lettura.
+  // Si aspetta che la colonna d'accesso sia comparsa: e' li' che si vede se la
+  // cascata e' andata fino in fondo, ed e' dopo che la lettura unica e' stata
+  // consumata da avviaRicordo().
   await new Promise(r => setTimeout(r, 9000));
   let out;
   try { out = await win.webContents.executeJavaScript(CORPO); }
@@ -173,9 +220,8 @@ app.whenReady().then(async () => {
   // Si semina la casella e si riapre la finestra.
   await win.webContents.executeJavaScript(
     "localStorage.setItem('hextale.ricordami', JSON.stringify({refresh:'RT-VECCHIO', email:'lorenzo@hextale.test'})), true");
-  win.webContents.once('dom-ready', () => { win.webContents.executeJavaScript(STUB).catch(()=>{}); });
   await win.webContents.reload();
-  await new Promise(r => setTimeout(r, 11000));
+  await new Promise(r => setTimeout(r, 13000));
   let coda;
   try { coda = await win.webContents.executeJavaScript(CODA); }
   catch(e){ coda = '  NO  il secondo giro non e- partito: ' + (e && e.message); }
