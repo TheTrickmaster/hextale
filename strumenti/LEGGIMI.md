@@ -778,3 +778,41 @@ vede subito chi cade.
 Il filtro sta sul server perche' il nome si cambia con una PUT a `/v2/account`
 che fa il client: un controllo scritto di la' lo salterebbe chiunque aprisse
 gli strumenti del browser.
+
+## prova-ricordami.js — la spunta "Remember me" scrive il giusto?
+
+    npx electron strumenti/prova-ricordami.js
+
+E' l'unico punto del gioco che ha il permesso di scrivere nel browser, e il
+permesso e' stretto: SOLO se la spunta e' accesa, SOLO il token di rinnovo con
+l'email a cui appartiene, e la casella si RILEGGE una volta sola. Nessuna delle
+tre cose, se salta, si vede giocando: si vede fra sei mesi, quando due account
+si mescolano di nuovo. Il banco guarda tutte e tre.
+
+Trentuno prove in due giri. Il primo controlla la riga nel modulo, che a spunta
+spenta non venga scritto niente, che a spunta accesa venga scritto QUELLO e
+nient'altro (`Object.keys` vale quanto il resto: e' il controllo che si accorge
+del giorno in cui qualcuno aggiungera' un campo di comodo), e che al rinnovo si
+riscriva il token NUOVO. Il secondo semina la casella, ricarica la finestra e
+verifica che si rientri da soli.
+
+**La trappola: la pagina prova gia' da sola il rientro all'avvio**, quando la
+colonna d'accesso compare, e quel tentativo CONSUMA la lettura unica. Il banco
+ci si appoggia — dopo, `ricordoLeggiUnaVolta()` deve tornare nulla anche se
+nella casella c'e' qualcosa di fresco — ma va saputo, o si scambia per un
+difetto.
+
+**Gli stub del secondo giro si mettono a `dom-ready`**, non dopo: il tentativo
+scatta molti secondi dopo il caricamento, ma metterli tardi vorrebbe dire
+guardare una richiesta vera partire verso il server.
+
+`_ricordoAttivo` e `CHIAVE_RICORDO` NON stanno su `window` (`let` e `const` in
+cima a uno script non ci finiscono): da fuori si arriva solo alle funzioni
+dichiarate, ed e' il motivo per cui il banco accende l'interruttore passando
+dalla porta vera — `accediConPassword` con la casella spuntata — invece che a
+mano.
+
+Il lato server e' una riga in `/opt/nakama/docker-compose.yml`, che NON sta in
+questo repository: `--session.refresh_token_expiry_sec 2592000`. Senza, il
+token di rinnovo dura un'ora (e' il valore di partenza di Nakama) e la spunta
+mantiene l'accesso per un'ora invece che per un mese.

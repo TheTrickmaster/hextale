@@ -1488,15 +1488,6 @@ body.mouse-down, body.mouse-down *{
 }
 .hx-occhio:hover{ opacity:1; }
 .hx-occhio img{ height:25px; width:auto; display:block; pointer-events:none; }
-/* v0.79.47 — la riga "Remember me". Non porta un vestito suo: e- la stessa
-   casella di spunta dei filtri (.filters-opt/.filters-casella), che sa gia-
-   leggere lo stato dalla casella VERA nascosta dietro. Cambiano solo la
-   misura e il fatto che qui la casella sta a SINISTRA del testo — in un
-   modulo d-accesso la spunta si cerca li-, non in fondo alla riga. */
-.hx-ricorda{
-  align-self:center; gap:10px; font-size:16px; cursor:var(--cursore);
-}
-.hx-ricorda .filters-casella{ width:24px; height:24px; }
 /* La riga cliccabile sotto ai campi. */
 .hx-link{
   align-self:center;
@@ -10761,14 +10752,6 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
         <input type="password" id="login-pwd" class="hx-campo" placeholder="Password" autocomplete="off" spellcheck="false">
         <button type="button" class="hx-occhio" aria-label="Show password" onclick="mostraNascondiPassword(this)"><img alt="" draggable="false"></button>
       </div>
-          <!-- v0.79.47 — spenta di default, e non per pudore: finche- nessuno
-               la tocca il gioco continua a non scrivere NIENTE nel browser,
-               che e- la regola. Vedi ricordoLeggiUnaVolta nello script. -->
-          <label class="filters-opt hx-ricorda">
-            <input type="checkbox" id="login-ricordami">
-            <span class="filters-casella"></span>
-            <span class="filters-nome">Remember me</span>
-          </label>
           <a class="hx-link" role="button" tabindex="0" onclick="apriRecupero()"
              onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();apriRecupero();}">Forgot password?</a>
           <div class="filters-riga"></div>
@@ -11755,7 +11738,7 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.47</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.46</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -13431,11 +13414,6 @@ if(document.readyState==='loading'){
     setTimeout(()=>{
       const accesso = document.getElementById('start-accesso');
       if(accesso) accesso.classList.add('show');
-      // v0.79.47 — e qui si prova il ricordo. Dopo che la colonna e' comparsa
-      // e non prima: se il rientro riesce si passa al menu e questa colonna
-      // non la guarda nessuno; se fallisce e' gia' li' con l'email scritta,
-      // invece di apparire mezzo secondo dopo un messaggio d'errore.
-      try{ if(typeof tentaAccessoRicordato === 'function') tentaAccessoRicordato(); }catch(_){}
     }, LOGO_FADE_MS);
   }
 
@@ -15058,75 +15036,12 @@ function nakamaSalvaSessione(risposta, email, precedente){
 // di spendere, sull'account di qualcun altro.
 // Vedi anche caricaPreferenzeDalServer: da qui in poi NIENTE del giocatore
 // tocca il browser.
-// ══════════════════════════════════════════════════════════════════════════
-// v0.79.47 — "REMEMBER ME": QUEL GIORNO E' ARRIVATO
-// ══════════════════════════════════════════════════════════════════════════
-// Il commento qui sopra diceva che il giorno in cui la sessione avesse dovuto
-// durare oltre la finestra si sarebbe cambiato dentro a questa funzione. E'
-// oggi, e si cambia qui dentro.
-//
-// LA REGOLA NON E' CADUTA: si e' fatta chiedere. Spenta, il gioco non scrive
-// un byte nel browser, esattamente come dalla v0.77.90. Accesa, scrive UNA
-// casella e dentro c'e' il solo token di rinnovo con l'email a cui appartiene.
-// Non il token di sessione (dura due ore e si rifa' da solo), non il saldo,
-// non i mazzi, non le preferenze: quelli continuano a stare solo sul server.
-//
-// E IL DIFETTO CHE AVEVA CAUSATO LA REGOLA? Era questo: due finestre, due
-// account, una casella sola. La seconda scriveva sopra alla prima, e da quel
-// momento tutte e due parlavano al server come lo stesso giocatore. Non e' il
-// SALVARE che lo causava — e' il RILEGGERE. Finche' ogni finestra andava a
-// ripescare il token dalla casella comune, la finestra vecchia ci trovava
-// dentro l'identita' nuova. Qui la casella si legge UNA VOLTA SOLA, all'avvio,
-// prima che esista una sessione da confondere (vedi ricordoLeggiUnaVolta): da
-// quel momento in poi la finestra ha la SUA sessione in memoria e la casella
-// non la guarda piu'. Due finestre restano due sessioni, per costruzione, come
-// prima. La seconda finestra che accede sovrascrive il ricordo, ed e' giusto
-// cosi': il ricordo dice chi entra al PROSSIMO avvio, non chi sei adesso.
-const CHIAVE_RICORDO = 'hextale.ricordami';
-// Vero solo dopo che qualcuno ha chiesto di essere ricordato: e' l'unico
-// interruttore che permette a questo file di scrivere nel browser.
-let _ricordoAttivo = false;
-let _ricordoLetto = false;
-let _ricordoDiAvvio = null;
-// Si legge una volta e si tiene. Chiamarla dieci volte torna dieci volte la
-// stessa cosa, anche se nel frattempo un'altra finestra ha cambiato la
-// casella: e' esattamente la garanzia che chiude il difetto vecchio.
-function ricordoLeggiUnaVolta(){
-  if(_ricordoLetto) return _ricordoDiAvvio;
-  _ricordoLetto = true;
-  try{
-    const grezzo = localStorage.getItem(CHIAVE_RICORDO);
-    const dati = grezzo ? JSON.parse(grezzo) : null;
-    if(dati && dati.refresh) _ricordoDiAvvio = dati;
-  }catch(_){ _ricordoDiAvvio = null; }
-  return _ricordoDiAvvio;
-}
-function ricordoDimentica(){
-  _ricordoAttivo = false;
-  _ricordoDiAvvio = null;
-  try{ localStorage.removeItem(CHIAVE_RICORDO); }catch(_){}
-}
-// La spunta nel modulo di accesso. Non c'e' nessuna variabile che ne ricordi
-// lo stato: lo stato e' la casella, e una seconda copia finirebbe per
-// discordare — la stessa ragione per cui l'occhio delle password legge il
-// tipo del campo invece di tenersi un booleano.
-function ricordoRichiesto(){
-  const c = document.getElementById('login-ricordami');
-  return !!(c && c.checked);
-}
 function nakamaRiscriviSessione(){
+  // Non scrive piu' da nessuna parte. Resta perche' i punti che la chiamano
+  // sono la porta unica da cui la sessione cambia, e quella porta e' comoda
+  // averla: il giorno in cui la sessione dovesse davvero durare oltre la
+  // finestra, si cambia qui dentro e basta.
   _ripuliscilLocaleVecchio();
-  // Spenta: non si scrive, e non si tocca nemmeno cio' che c'era. Chi non ha
-  // chiesto niente non lascia niente.
-  if(!_ricordoAttivo) return;
-  const s = sessioneAccount;
-  // Il token di rinnovo cambia a ogni rinnovo: si riscrive quello nuovo, o il
-  // ricordo scadrebbe a un mese dal PRIMO accesso invece che dall'ultimo.
-  if(s && s.refresh){
-    try{ localStorage.setItem(CHIAVE_RICORDO, JSON.stringify({
-      refresh: s.refresh, email: s.email || ''
-    })); }catch(_){}
-  } else ricordoDimentica();
 }
 function nakamaLeggiSessione(){
   return sessioneAccount;
@@ -15307,37 +15222,6 @@ function salutaChiudendo(){
     if(e && e.persisted) return;   // messa da parte, non chiusa
     try{ lasciaLaSedia(true); }catch(_){ }
   });
-}
-// ── v0.79.47 — RIENTRARE SENZA RISCRIVERE LA PASSWORD ─────────────────────
-// Si chiama quando la colonna d'accesso compare, non prima: se va bene si
-// entra e quella colonna non la vede nessuno; se va male resta li' pronta,
-// con l'email gia' scritta.
-// Il ricordo si butta quando il server dice di no — un token scaduto o
-// revocato non torna buono da solo. NON si butta se a mancare e' la rete:
-// non e' scaduto, e' solo irraggiungibile, ed e' la stessa distinzione che fa
-// nakamaSessionePronta.
-async function tentaAccessoRicordato(){
-  const ric = ricordoLeggiUnaVolta();
-  if(!ric || !ric.refresh) return false;
-  const campo = document.getElementById('login-user');
-  const spunta = document.getElementById('login-ricordami');
-  if(campo && !campo.value) campo.value = ric.email || '';
-  if(spunta) spunta.checked = true;
-  accessoMessaggio('login', 'Signing you back in...', 'attesa');
-  try{
-    const risposta = await nakamaRinnovaSessione(ric.refresh);
-    // Prima l'interruttore, poi il salvataggio: nakamaSalvaSessione passa
-    // dalla porta, e la porta scrive solo se l'interruttore e' gia' acceso.
-    _ricordoAttivo = true;
-    const s = nakamaSalvaSessione(risposta, ric.email);
-    await nakamaCompletaProfilo(s);
-    accessoEntra(s);
-    return true;
-  }catch(e){
-    if(!(e && e.codice === 0)) ricordoDimentica();
-    accessoMessaggio('login', '', '');
-    return false;
-  }
 }
 async function accessoEntra(sessione){
   // ── v0.79.31 — LA CASELLA VIENE PRIMA DELLA SEDIA ─────────────────────
@@ -16818,12 +16702,7 @@ async function accessoGoogleRisposta(risposta){
   if(!credenziale){ accessoMessaggio('login', 'Google did not return a credential.', 'errore'); return; }
   accessoMessaggio('login', 'Signing in with Google...', 'attesa');
   try{
-    // v0.79.47 — la spunta e' del modulo di accesso, e questo pulsante ci sta
-    // dentro: vale per tutti e due i modi di entrare, o sarebbe una casella
-    // che a volte non fa niente.
-    const risposta = await nakamaAutenticaGoogle(credenziale);
-    if(ricordoRichiesto()) _ricordoAttivo = true; else ricordoDimentica();
-    const s = nakamaSalvaSessione(risposta, '');
+    const s = nakamaSalvaSessione(await nakamaAutenticaGoogle(credenziale), '');
     await nakamaCompletaProfilo(s);
     accessoEntra(s);
   }catch(e){
@@ -16867,13 +16746,7 @@ async function accediConPassword(bottone){
   accessoOccupato(bottone, true, 'Signing in...');
   accessoMessaggio('login', 'Signing in...', 'attesa');
   try{
-    // v0.79.47 — la spunta si legge PRIMA di salvare, perche' e' salvando che
-    // si scrive. Spenta vuol dire anche cancellare cio' che c'era: chi entra
-    // senza chiedere di essere ricordato non deve trovare, al prossimo avvio,
-    // l'account di prima che rientra da solo.
-    const risposta = await nakamaAutenticaEmail(email, password, false);
-    if(ricordoRichiesto()) _ricordoAttivo = true; else ricordoDimentica();
-    const s = nakamaSalvaSessione(risposta, email);
+    const s = nakamaSalvaSessione(await nakamaAutenticaEmail(email, password, false), email);
     await nakamaCompletaProfilo(s);
     accessoOccupato(bottone, false);
     accessoEntra(s);
@@ -17589,13 +17462,6 @@ function montaColonnaAccesso(){
   dentro.querySelectorAll('.hx-occhio').forEach(vestiOcchio);
   dentro.querySelectorAll('.hx-pannello').forEach(pan=>
     impostaVariabileDaCandidati(pan, '--hx-trama', uiFileCandidati('brushed-texture.jpg')));
-  // v0.79.47 — e le due facce della casella di spunta, per "Remember me".
-  // L'immagine arriva da queste variabili: senza, la casella e' un quadrato
-  // vuoto — e' gia' successo con le finestre nuove alla v0.79.15.
-  dentro.querySelectorAll('.hx-pannello').forEach(pan=>{
-    impostaVariabileDaCandidati(pan, '--hx-casella-off', uiFileCandidati('checkbox-square-unchecked.png'));
-    impostaVariabileDaCandidati(pan, '--hx-casella-on',  uiFileCandidati('checkbox-square-checked.png'));
-  });
   dentro.querySelectorAll('.hx-btn').forEach(vestiPulsante);
   // I tre pezzi delle due barre del titolo.
   const sfondo = (sel, file)=>{
@@ -23925,11 +23791,6 @@ async function _fuoriDalGioco(){
   // finestra aspetta i quarantacinque secondi del battito, e va bene cosi'.
   try{ await lasciaLaSedia(); }catch(_){}
   try{ nakamaDimenticaSessione(); }catch(_){}
-  // v0.79.47 — e si dimentica il ricordo. Passano di qui il Disconnect e la
-  // cancellazione dell'account: tutti e due vogliono dire "non entrare piu'
-  // da solo". Se restasse, la ricarica qui sotto farebbe rientrare l'account
-  // che si e' appena chiuso — o uno che non esiste piu'.
-  try{ ricordoDimentica(); }catch(_){}
   try{ fermaTuttiISuoni(); }catch(_){}
   try{ location.reload(); }catch(_){}
 }
