@@ -313,6 +313,15 @@ app.whenReady().then(async () => {
     "  dice(q('.pb-opening') && st(q('.pb-opening')).transformOrigin.indexOf('0px') !== -1, 'la patella ha il cardine in alto', st(q('.pb-opening')).transformOrigin);",
     "  var sOmbra = st(q('.pb-letter'));",
     "  dice(sOmbra.filter.indexOf('drop-shadow') !== -1 && sOmbra.filter.indexOf('50px') !== -1, 'e la busta ha la sua ombra', sOmbra.filter);",
+    // Il lampo tiene la proporzione del proprio disegno: 1683x1974 fa 1.173, e
+    // le due misure vanno cambiate insieme o la raggiera si deforma.
+    // Il lampo e' display:none finche' non scocca, quindi offsetWidth risponde
+    // zero: le misure si leggono dal calcolato, che su un elemento non
+    // impaginato riporta comunque il valore dichiarato.
+    "  var lampo = q('#pack-beam');",
+    "  var lw = parseFloat(st(lampo).width), lh = parseFloat(st(lampo).height);",
+    "  dice(lw === 1176 && lh === 1380, 'il lampo e- 1176x1380', lw + 'x' + lh);",
+    "  dice(Math.abs(lh/lw - 1974/1683) < 0.01, 'e tiene la proporzione del disegno', (lh/lw).toFixed(3) + ' contro ' + (1974/1683).toFixed(3));",
     // Il lampo e le scintille stanno SOPRA alla busta: sotto, la luce nasceva
     // dentro e ci restava.
     "  dice(+st(q('#pack-beam')).zIndex > +st(sopra).zIndex, 'il lampo sta sopra alla busta', st(q('#pack-beam')).zIndex + ' contro ' + st(sopra).zIndex);",
@@ -478,12 +487,17 @@ app.whenReady().then(async () => {
     "  dice(st(primaTenute[0].querySelector('.pack-etichetta')).opacity === '0', 'in dissolvenza', st(primaTenute[0].querySelector('.pack-etichetta')).opacity);",
     // L'uscita: il doppio piu' svelta, e prima scende.
     "  var rVola = regole.filter(function(r){ return r.selectorText === '.pack-card.vola-su'; })[0];",
-    "  dice(rVola && rVola.style.animationDuration === '0.39s', 'e il volo dura la meta- di prima', rVola && rVola.style.animationDuration);",
-    "  dice(USCITA_VOLO_MS === 390, 'e il codice lo sa', USCITA_VOLO_MS);",
+    "  dice(rVola && rVola.style.animationDuration === '0.32s', 'e il volo dura 320', rVola && rVola.style.animationDuration);",
+    "  dice(USCITA_VOLO_MS === 320, 'e il codice lo sa', USCITA_VOLO_MS);",
     "  var kVola = [].concat.apply([], [].map.call(document.styleSheets, function(f){ try{ return [].slice.call(f.cssRules); }catch(e){ return []; } })).filter(function(r){ return r.type === 7 && r.name === 'packVolaSu'; })[0];",
-    "  var tuffo = kVola && [].slice.call(kVola.cssRules).filter(function(k){ return k.keyText === '22%'; })[0];",
+    "  var tuffo = kVola && [].slice.call(kVola.cssRules).filter(function(k){ return k.keyText === '26.9%'; })[0];",
     "  dice(tuffo && tuffo.style.transform.indexOf('+ 52px') !== -1, 'e prima di salire la carta scende', tuffo && tuffo.style.transform);",
     "  dice(USCITA_SLANCIO_MS > 0 && USCITA_SLANCIO_MS < USCITA_VOLO_MS/2, 'e il suono aspetta lo slancio', USCITA_SLANCIO_MS + 'ms su ' + USCITA_VOLO_MS);",
+    // Il suono e il fotogramma del tuffo sono lo stesso istante visto da due
+    // parti: se uno dei due cambia senza l'altro, si sente prima o dopo di
+    // quando la carta inverte davvero.
+    "  var quandoInverte = parseFloat((tuffo && tuffo.keyText) || '0') / 100 * USCITA_VOLO_MS;",
+    "  dice(Math.abs(quandoInverte - USCITA_SLANCIO_MS) < 3, 'e cade esattamente sul fotogramma del tuffo', quandoInverte.toFixed(1) + 'ms contro ' + USCITA_SLANCIO_MS);",
     "  tornaAllaBustina();",
     "  dice(!scena.classList.contains('sbustando') && !scena.classList.contains('busta-viva'), 'tornando indietro la busta se ne va');",
     "  dice(!scena.classList.contains('busta-rotta') && !scena.classList.contains('busta-apre'), 'con tutto quello che le era successo addosso');",
