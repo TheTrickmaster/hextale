@@ -826,3 +826,36 @@ Il lato server e' una riga in `/opt/nakama/docker-compose.yml`, che NON sta in
 questo repository: `--session.refresh_token_expiry_sec 2592000`. Senza, il
 token di rinnovo dura un'ora (e' il valore di partenza di Nakama) e la spunta
 mantiene l'accesso per un'ora invece che per un mese.
+
+## prova-voci.js — le carte parlano ancora?
+
+    npx electron strumenti/prova-voci.js
+
+Il 9 settembre 2026 nessuna carta gridava piu', e nessuna parlava. Non per un
+difetto nel suono: per una SCORCIATOIA. `verificaArtCarte` scopre due cose
+insieme — le illustrazioni e l'audio — e da v0.77.99 salta il giro quando il
+catalogo importato le sa gia'. La domanda che decideva se fidarsi era "il
+catalogo porta il campo `voci`?", e il catalogo in linea lo portava per tutte e
+111 le carte: **vuoto** per tutte e 111. Campo si', contenuto no, risposta si'.
+
+Il banco costruisce esattamente quel catalogo — `voci: []` per tutte, nessun
+`battlecry`, l'arte nota per una sola carta — e pretende che il gioco si accorga
+di non poterselo bere.
+
+**E prova anche il caso opposto**, che e' la meta' che si dimentica: con un
+catalogo che l'audio lo sa DAVVERO la scorciatoia e' giusta e non si deve
+bussare, ma gli indirizzi vanno comunque passati a `registraVociSfx` — sapere
+dove sta un file non basta a poterlo suonare, `playSfxFile` pesca da
+`AUDIO_DATA_URLS`. Quel secondo difetto non si era ancora visto solo perche' il
+primo arrivava prima.
+
+**Si aspettano venti secondi prima di cominciare.** Il caricamento della pagina
+fa girare `verificaArtCarte` per conto suo: partire mentre e' in corso vuol dire
+due verifiche sovrapposte sulla stessa `FINAL_CARDS`, e nessuna delle due
+risposte e' attendibile.
+
+**Il banco gira sul roster di ripiego (4 carte).** Da `file://` il foglio non si
+legge, quindi ci sono solo Robin Hood, Snow White, Merlin e Alice — che pero'
+un `-battlecry.mp3` ce l'hanno davvero in `audio/voices/`, ed e' tutto cio' che
+serve: la domanda e' se la catena scopre-registra-suona regge, non quante carte
+la percorrono.

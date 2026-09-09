@@ -1267,6 +1267,114 @@ function _chiHaLEmail(nk, logger, email) {
 var CONTATTO_ATTESA_S = 30;      // un messaggio ogni mezzo minuto per indirizzo
 var CONTATTO_MAX = 4000;         // e non piu' lungo di cosi'
 
+// ══════════════════════════════════════════════════════════════════════════
+// v0.79.50 — L'ACCESSO CON GOOGLE, DAL CODICE
+// ══════════════════════════════════════════════════════════════════════════
+// PERCHE' ADESSO PASSA DI QUI. Fino a ieri il pulsante di Google lo disegnava
+// Google: un iframe servito da accounts.google.com, dentro al quale non si
+// puo' mettere una riga di stile. In una colonna dove ogni altro pulsante e'
+// fatto a mano, quello era l'unico che veniva da un'altra parte e si vedeva.
+// Google stessa indica la via d'uscita: chi vuole un pulsante suo non usa il
+// token, usa il CODICE DI AUTORIZZAZIONE. Il gioco riceve un codice e non un
+// token — e un codice, da solo, non apre niente: va scambiato, e per
+// scambiarlo serve il SEGRETO del client, che in un deposito pubblico non puo'
+// stare. Da qui il giro: il gioco manda il codice, il server lo scambia, e
+// quello che torna indietro e' lo stesso id_token che prima arrivava
+// direttamente dal pulsante di Google. Da li' in giu' non cambia niente.
+//
+// IL SEGRETO STA NELLA MEMORIA DI NAKAMA, come quello del reCAPTCHA e per la
+// stessa ragione: ce lo scrive rpcGoogleConfig, che e' l'unico punto in cui
+// passa, e non entra mai in git ne' in un file di questo deposito.
+//
+// "postmessage" NON e' un indirizzo: e' la parola che Google vuole come
+// redirect_uri quando il codice arriva da una finestra a comparsa invece che
+// da un ritorno sul sito. Scriverci un indirizzo vero farebbe rispondere
+// redirect_uri_mismatch.
+var KEY_GOOGLE = 'google';
+var GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
+
+function _googleConfig(nk) {
+  var c = null;
+  try { c = leggiSistema(nk, KEY_GOOGLE); } catch (e) { c = null; }
+  if (!c || !c.cliente || !c.segreto) return null;
+  return c;
+}
+
+// Il codice in cambio dell'id_token. Non autentica: quello lo fa il gioco
+// subito dopo, con la chiamata che faceva gia' prima. Tenere separate le due
+// cose vuol dire che tutto cio' che viene dopo l'accesso — la sessione, il
+// ricordo di un mese, il profilo — resta esattamente com'era e non va
+// riprovato.
+// Si arriva qui SENZA sessione: e' un accesso, una sessione non c'e' ancora.
+// L'indirizzo pubblico che ci porta e' /google/entra, scritto per nome nel
+// Caddyfile, che aggiunge lui la chiave del runtime.
+function rpcGoogleEntra(ctx, logger, nk, payload) {
+  var d = {};
+  try { d = payload ? JSON.parse(payload) : {}; } catch (e) { d = {}; }
+  var codice = String(d.codice || '');
+  if (!codice) throw Error('manca il codice');
+  var cfg = _googleConfig(nk);
+  if (!cfg) {
+    // Non si finge che sia un guasto di rete: e' una cosa da configurare, e il
+    // registro deve dirlo a chiare lettere o si cerchera' altrove.
+    logger.error('accesso con Google chiesto, ma il segreto non e\'stato ancora scritto (vedi rpcGoogleConfig)');
+    throw Error('Google sign-in is not configured yet.');
+  }
+  var corpo = 'code=' + encodeURIComponent(codice)
+    + '&client_id=' + encodeURIComponent(cfg.cliente)
+    + '&client_secret=' + encodeURIComponent(cfg.segreto)
+    + '&redirect_uri=postmessage'
+    + '&grant_type=authorization_code';
+  var r;
+  try {
+    r = nk.httpRequest(GOOGLE_TOKEN_URL, 'post',
+      { 'Content-Type': 'application/x-www-form-urlencoded' }, corpo, 15000);
+  } catch (e) {
+    logger.warn('Google non risponde allo scambio: %s', String(e));
+    throw Error('Google is unreachable. Try again.');
+  }
+  var dati = {};
+  try { dati = JSON.parse(r.body); } catch (e) { dati = {}; }
+  if (!(r.code >= 200 && r.code < 300) || !dati.id_token) {
+    // Il codice vale una volta sola e dura pochi minuti: quasi sempre questo
+    // vuol dire "riprova", non "sei tu che sbagli".
+    logger.info('Google ha rifiutato il codice: %d %s', r.code, String(dati.error || ''));
+    throw Error('Google refused the sign-in. Try again.');
+  }
+  // Torna SOLO l'id_token. Il token d'accesso e quello di rinnovo di Google
+  // non servono a niente qui, e cio' che non serve non si consegna.
+  return JSON.stringify({ id_token: dati.id_token });
+}
+
+// Il segreto del client di Google, scritto una volta da chi lo conosce. Stessa
+// forma della configurazione del reCAPTCHA e della posta, e per la stessa
+// ragione: la parola d'ordine si sposta da chi ce l'ha alla memoria del server
+// senza passare per un file di questo deposito, che e' pubblico.
+//
+//   curl -s -X POST "https://api.hextalegame.com/v2/rpc/hx_google_config?unwrap&http_key=..." \
+//        -H "Content-Type: application/json" \
+//        -d '{"cliente":"<client id>.apps.googleusercontent.com","segreto":"<il segreto>"}'
+//
+// Il client id NON e' un segreto (sta gia' nella pagina), ma si scrive qui
+// insieme all'altro: lo scambio vuole tutti e due, e tenerli nello stesso
+// posto evita il giorno in cui se ne cambia uno solo.
+function rpcGoogleConfig(ctx, logger, nk, payload) {
+  if (ctx.userId) {
+    var possesso = assicuraPossesso(ctx, nk, logger, ctx.userId, ctx.username);
+    if (!possesso.admin) throw Error('non sei un admin');
+  }
+  var d = {};
+  try { d = payload ? JSON.parse(payload) : {}; } catch (e) { d = {}; }
+  var cliente = String(d.cliente || '');
+  var segreto = String(d.segreto || '');
+  if (!cliente || !segreto) throw Error('servono il client id e il segreto');
+  scriviSistema(nk, KEY_GOOGLE, { cliente: cliente, segreto: segreto });
+  // Il segreto non si riscrive nella risposta ne' nel registro: si dice solo
+  // che c'e'.
+  logger.info('accesso con Google configurato per %s', cliente);
+  return JSON.stringify({ cliente: cliente, segreto: 'impostato' });
+}
+
 // ── IL RECAPTCHA ───────────────────────────────────────────────
 // Il freno di mezzo minuto per indirizzo ferma chi insiste, non chi ha mille
 // indirizzi: un programma che manda posta ne inventa uno diverso ogni volta e
@@ -5220,6 +5328,11 @@ function InitModule(ctx, logger, nk, initializer) {
   initializer.registerRpc('hx_recupero_cambia', rpcRecuperoCambia);
   initializer.registerRpc('hx_contatto', rpcContatto);
   initializer.registerRpc('hx_recaptcha_config', rpcRecaptchaConfig);
+  // v0.79.50 — l'accesso con Google. La prima si chiama SENZA sessione, per
+  // forza: e' un accesso. Ci arriva /google/entra, scritto per nome nel
+  // Caddyfile, che aggiunge lui la chiave del runtime.
+  initializer.registerRpc('hx_google_entra', rpcGoogleEntra);
+  initializer.registerRpc('hx_google_config', rpcGoogleConfig);
   initializer.registerRpc('hx_elimina_account', rpcEliminaAccount);
   initializer.registerRpc('hx_giocatori', rpcGiocatoriOnline);
   initializer.registerRpc('hx_entro', rpcEntro);

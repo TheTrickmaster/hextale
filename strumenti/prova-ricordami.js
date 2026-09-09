@@ -9,9 +9,10 @@
 // mesi, quando due account si mescolano di nuovo. Quindi si prova qui.
 //
 // LA TRAPPOLA DI QUESTO BANCO: la pagina, all'avvio, prova gia' da sola il
-// rientro (vedi tentaAccessoRicordato), e quel tentativo CONSUMA la lettura
-// unica. E' voluto — la prova F si appoggia proprio a questo — ma va saputo,
-// o si scambia per un difetto il fatto che ricordoLeggiUnaVolta torni nulla.
+// rientro (vedi avviaRicordo, chiamata dentro runPreload), e quel tentativo
+// CONSUMA la lettura unica. E' voluto — la prova F si appoggia proprio a
+// questo — ma va saputo, o si scambia per un difetto il fatto che
+// ricordoLeggiUnaVolta torni nulla.
 //
 // Le variabili di modulo (_ricordoAttivo, CHIAVE_RICORDO) NON stanno su window:
 // let e const in cima a uno script non ci finiscono. Da qui si arriva solo alle
@@ -55,6 +56,7 @@ const CORPO = `(async function(){
       if(el.id) return '#' + el.id;
       if(el.classList.contains('hx-riga-oppure')) return 'or';
       if(el.classList.contains('hx-riga-corta')) return 'tratto';
+      if(el.classList.contains('hx-riga-scelte')) return 'scelte';
       if(el.classList.contains('hx-campo-pwd')) return 'password';
       if(el.classList.contains('hx-link')) return 'forgot';
       if(el.classList.contains('hx-ricorda')) return 'ricordami';
@@ -65,8 +67,8 @@ const CORPO = `(async function(){
       return [].slice.call(dentro.children).map(sigla).join(' | ');
     };
     var pannello = document.querySelector('#modulo-login .hx-pannello');
-    var atteso = ['#login-user', 'password', 'forgot', 'or', '#login-google-btn',
-                  '#google-vero', 'ricordami', '#login-messaggio', 'btn:Login',
+    var atteso = ['#login-user', 'password', 'scelte', '#login-messaggio',
+                  'btn:Login', 'or', '#login-google-btn',
                   '#accesso-offline'].join(' | ');
     dice(pannello && fila(pannello) === atteso, 'il pannello e- nell-ordine chiesto',
       pannello ? fila(pannello) : '(manca)');
@@ -76,6 +78,27 @@ const CORPO = `(async function(){
       'e fuori: crea account, tratto, esci', fuori);
     dice(!!(colonna && !colonna.querySelector('#modulo-registrazione #login-google-btn')),
       'Google non e- rimasto anche sulla registrazione');
+    // La riga a due: la spunta a sinistra, il collegamento a destra. Non si
+    // guarda l-ordine nel DOM — quello lo direbbe anche una riga incolonnata —
+    // ma DOVE finiscono davvero i due riquadri.
+    var scelte = pannello && pannello.querySelector('.hx-riga-scelte');
+    if(scelte){
+      var rr = scelte.getBoundingClientRect();
+      var rSpunta = scelte.querySelector('.hx-ricorda').getBoundingClientRect();
+      var rLink = scelte.querySelector('.hx-link').getBoundingClientRect();
+      dice(Math.abs(rSpunta.left - rr.left) < 2, 'Remember me e- allineato a sinistra',
+        Math.round(rSpunta.left - rr.left) + 'px dal bordo');
+      dice(Math.abs(rr.right - rLink.right) < 2, 'e Forgot password a destra',
+        Math.round(rr.right - rLink.right) + 'px dal bordo');
+      dice(rSpunta.right <= rLink.left + 1, 'e non si sovrappongono');
+    } else dice(false, 'la riga a due non si trova');
+    // Il pulsante di Google e- NOSTRO: nessun iframe, e il clic va a noi.
+    var goog = document.getElementById('login-google-btn');
+    dice(!!goog && getComputedStyle(goog).display !== 'none', 'il pulsante di Google e- visibile',
+      goog && getComputedStyle(goog).display);
+    dice(!!goog && /accessoConGoogle/.test(goog.getAttribute('onclick') || ''),
+      'e il clic lo prende il gioco', goog && goog.getAttribute('onclick'));
+    dice(!document.querySelector('#modulo-login iframe'), 'e non c-e- nessun iframe nel pannello');
 
     // ── A3. le misure chieste ───────────────────────────────────────────
     var campo = document.getElementById('login-user');
