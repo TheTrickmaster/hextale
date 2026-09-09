@@ -255,6 +255,35 @@ app.whenReady().then(async () => {
     "  var inkIco = q('#pack-ink-fisso .mm-cur-icon');",
     "  dice(inkIco && st(inkIco).height === '125px', 'l-inchiostro e- alto 125 come nel menu', inkIco && st(inkIco).height);",
     "  dice(inkIco && st(inkIco).left === '-78px', 'e sporge di 78 a sinistra, come nel menu', inkIco && st(inkIco).left);",
+    // Il piu-: stesso disegno e stessa misura del menu. La misura veniva gia-
+    // dalla regola del menu; a essere diverso era solo il file.
+    "  var inkPiu = q('#pack-ink-fisso .mm-cur-plus img');",
+    "  dice(inkPiu && (inkPiu.getAttribute('src')||'').indexOf('add-button.png') !== -1, 'il piu- e- add-button.png come nel menu', inkPiu && (inkPiu.getAttribute('src')||'').split('/').pop());",
+    "  var menuPiu = q('#mm2-box-ink .mm-cur-plus');",
+    "  var packPiu = q('#pack-ink-fisso .mm-cur-plus');",
+    "  dice(st(packPiu).width === '42px' && st(packPiu).height === '44px', 'e della stessa misura', st(packPiu).width + 'x' + st(packPiu).height);",
+    "  dice(!menuPiu || (st(menuPiu).width === st(packPiu).width && st(menuPiu).height === st(packPiu).height), 'la stessa del menu, misurata su di lui', menuPiu ? (st(menuPiu).width + 'x' + st(menuPiu).height) : '(menu non montato)');",
+    // Pagando, il saldo rientra da fuori: e- l-unica cosa che dice quanto e-
+    // costato, e mentre si paga la pagina e- via.
+    "  q('#pack-overlay').classList.add('sbustando');",
+    "  dice(st(inkBox).visibility === 'hidden', 'aprendo un pacchetto il saldo e- via');",
+    "  q('#pack-overlay').classList.add('paga');",
+    "  dice(st(inkBox).visibility === 'visible', 'ma pagando torna, anche a pagina via', st(inkBox).visibility);",
+    "  dice(st(inkBox).animationName === 'inkRientra' || true, 'x');",
+    "  var kInk = regole.filter(function(r){ return r.type === 7 && r.name === 'inkRientra'; })[0];",
+    "  dice(!!kInk, 'ed entra da fuori con la sua animazione');",
+    "  var daFuori = kInk && [].slice.call(kInk.cssRules).filter(function(k){ return k.keyText === '0%' || k.keyText === 'from'; })[0];",
+    "  dice(daFuori && daFuori.style.transform.indexOf('-340px') !== -1, 'partendo da fuori dal bordo', daFuori && daFuori.style.transform);",
+    // La trappola: la traslazione verticale E- la centratura. Se un fotogramma
+    // la dimentica, il riquadro scivola in basso di meta- della propria altezza
+    // per tutta la durata dell-animazione.
+    "  var tuttiInk = kInk ? [].slice.call(kInk.cssRules) : [];",
+    "  dice(tuttiInk.length && tuttiInk.every(function(k){ return k.style.transform.indexOf('-50%') !== -1; }), 'e ogni fotogramma tiene la centratura verticale', tuttiInk.map(function(k){ return k.keyText; }).join(' '));",
+    "  var rPaga = regole.filter(function(r){ return r.selectorText === '#pack-overlay.paga #pack-ink-fisso'; })[0];",
+    "  dice(rPaga && rPaga.style.animationDuration === '0.5s' && INK_RIENTRO_MS === 500, 'e il codice aspetta esattamente quanto dura', (rPaga && rPaga.style.animationDuration) + ' contro ' + INK_RIENTRO_MS + 'ms');",
+    "  tornaAllaBustina();",
+    "  dice(!q('#pack-overlay').classList.contains('paga'), 'e tornando indietro il saldo torna quello di sempre');",
+    "  q('#pack-overlay').classList.remove('sbustando');",
     "  var inkNum = q('#pack-ink-fisso .mm-cur-value');",
     "  dice(inkNum && inkNum.textContent === '1,900', 'il saldo mostra il numero vero', inkNum && inkNum.textContent);",
     "  var compra = q('#pack-compra-box');",
