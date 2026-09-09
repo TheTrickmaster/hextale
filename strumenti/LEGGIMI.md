@@ -734,3 +734,27 @@ carta e' stata rinominata e il file e' rimasto col nome vecchio.
 svuotando: la prima versione stampava 37 righe su 49 e usciva con codice 0. Il
 risultato si scrive quindi anche su `strumenti/senza-battlecry.txt`, e l'uscita
 aspetta che stdout abbia finito.
+
+## prova-novita.js — il pallino delle novita' si spegne?
+
+    $ELECTRON strumenti/prova-novita.js
+
+Il pallino accanto a "Library & decks" c'e' finche' resta una carta da guardare.
+Il difetto che questo banco esiste per non far tornare: la carta si accendeva,
+guardarla non la spegneva, e il pallino restava per sempre.
+
+**La causa era che due funzioni non cercavano la stessa chiave.** Nel gioco
+convivono due forme per nominare una carta — lo slug (`robin-hood`) e l'id
+(`final-robin-hood`). `_eCartaNuova` le accetta entrambe, giustamente: chi legge
+non deve sapere quale gli e' arrivata. `_chiaveCartaNuova` invece ne
+restituiva UNA sola, sempre lo slug. Basta che l'elenco conosca la carta per ID
+e le due si separano: una la trova e accende il nastro, l'altra risponde con una
+chiave che nell'elenco non c'e', e chi doveva toglierla esce senza fare niente.
+
+Non e' un difetto che si vede leggendo una funzione: si vede solo mettendo le
+due una accanto all'altra, ed e' esattamente cio' che fa il banco — costruisce
+il caso "l'elenco la conosce per id, la carta ha anche uno slug".
+
+**Il pallino vive nel MENU**, e le pagine sono ermetiche: cercarlo mentre si e'
+in Collezione risponde sempre "non c'e'", e un controllo scritto cosi' passa
+per la ragione sbagliata. Si torna al menu e si guarda li'.

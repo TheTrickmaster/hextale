@@ -63,7 +63,11 @@ app.whenReady().then(async () => {
   await new Promise(r => setTimeout(r, 1600));
 
   const corpo = [
-    "(function(){",
+    // v0.79.45 — asincrono: la prova del pagamento deve ASPETTARE che il
+    // riquadro rientri e che il conto alla rovescia scorra, e executeJavaScript
+    // risolve la promessa che gli si restituisce.
+    "(async function(){",
+    "  const respira = (ms)=> new Promise(r=>setTimeout(r, ms));",
     "  var dette = [];",
     "  var q = function(s){ return document.querySelector(s); };",
     "  var qa = function(s){ return [].slice.call(document.querySelectorAll(s)); };",
@@ -283,6 +287,42 @@ app.whenReady().then(async () => {
     "  dice(rPaga && rPaga.style.animationDuration === '0.5s' && INK_RIENTRO_MS === 500, 'e il codice aspetta esattamente quanto dura', (rPaga && rPaga.style.animationDuration) + ' contro ' + INK_RIENTRO_MS + 'ms');",
     "  tornaAllaBustina();",
     "  dice(!q('#pack-overlay').classList.contains('paga'), 'e tornando indietro il saldo torna quello di sempre');",
+    // ── IL PAGAMENTO, PER DAVVERO ────────────────────────────────────────
+    // Si finge la risposta del server e si guarda il NUMERO A VIDEO: e' l'unica
+    // cosa che il giocatore vede, ed e' li' che si erano nascosti due difetti
+    // diversi — un saldo che entrava gia' scalato, e un conto alla rovescia che
+    // partiva dalla POLVERE DI FATA invece che dall'inchiostro.
+    // I due saldi si mettono lontanissimi apposta: se il conto ripartisse da
+    // quello sbagliato si vedrebbe subito quale, invece di due numeri vicini
+    // che si possono confondere.
+    // Le carte le ha gia- spazzate via il controllo sull-uscita qui sopra:
+    // se ne rifanno tre, o raccogliCarte non trova niente da raccogliere ed
+    // esce alla prima riga senza che si veda perche-.
+    "  q('#pack-reveal').innerHTML = '';",
+    "  (FINAL_CARDS||[]).slice(0,3).forEach(function(e, i){ q('#pack-reveal').appendChild(_costruisciCartaBustina(e, [-1,0,1][i], i)); });",
+    "  _bustinaInCorso = false; _bustinaDaGirare = 0; _raccoltaInCorso = false;",
+    "  MENU_GIOCATORE.magicInk = 250; MENU_GIOCATORE.fairyDust = 9999;",
+    "  aggiornaValuteAVideo();",
+    "  var vecchiaRpc = nakamaRpc, sessioneVera = sessioneAccount;",
+    "  sessioneAccount = { token: 'finto' };",
+    "  _bustinaDalServer = true;",
+    "  nakamaRpc = function(nome, dati){",
+    "    if(nome !== 'hx_bustina_raccogli') return Promise.resolve({});",
+    "    return Promise.resolve({ tenute: (dati && dati.tieni) || [], speso: 50, valute: { magicInk: 200, fairyDust: 9999 } });",
+    "  };",
+    "  qa('#pack-reveal .pack-card').forEach(function(c, i){ c.classList.toggle('tenuta', i < 2); });",
+    "  raccogliCarte();",
+    "  await respira(300);",
+    "  var num = q('#pack-ink-fisso .mm-cur-value');",
+    "  dice(q('#pack-overlay').classList.contains('paga'), 'pagando, il saldo rientra');",
+    "  dice(num && num.textContent === '250', 'ed entra col saldo di PRIMA, non gia- scalato', num && num.textContent);",
+    "  await respira(1500);",
+    "  dice(num && num.textContent === '200', 'e a conto finito segna il saldo nuovo', num && num.textContent);",
+    "  nakamaRpc = vecchiaRpc; sessioneAccount = sessioneVera; _bustinaDalServer = false;",
+    "  tornaAllaBustina();",
+    // Il saldo torna quello che i controlli dopo si aspettano: un banco che
+    // lascia in giro lo stato di una sua prova fa fallire la prossima.
+    "  MENU_GIOCATORE.magicInk = 1900; aggiornaValuteAVideo(); pkAggiornaPulsanteCompra();",
     "  q('#pack-overlay').classList.remove('sbustando');",
     "  var inkNum = q('#pack-ink-fisso .mm-cur-value');",
     "  dice(inkNum && inkNum.textContent === '1,900', 'il saldo mostra il numero vero', inkNum && inkNum.textContent);",

@@ -2836,9 +2836,15 @@ function rpcCarteViste(ctx, logger, nk, payload) {
   if (elenco === 'tutte') {
     for (var s in avute) viste[s] = 1;
   } else if (Array.isArray(elenco)) {
+    // v0.79.45 — si accetta anche una chiave che non compare fra le carte
+    // possedute, purche' non sia gia' vista. Prima si rifiutava in silenzio, e
+    // il client non poteva accorgersene: rimandava, il server taceva, e al
+    // riavvio dopo quella carta tornava nuova. Segnare come vista una carta
+    // che non si ha e' innocuo — al massimo si toglie da se' un pallino, che
+    // e' esattamente cio' che questa RPC serve a fare.
     for (var i = 0; i < elenco.length && i < 500; i++) {
       var slug = String(elenco[i]);
-      if (avute[slug]) viste[slug] = 1;
+      if (slug) viste[slug] = 1;
     }
   }
   possesso.viste = viste;
