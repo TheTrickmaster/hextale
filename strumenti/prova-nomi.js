@@ -59,6 +59,8 @@ const PROVE = [
   ['Puss', true],            // idem, parola sola
   ['Babes', true],
   ['Nymph', true],
+  ['Aeolus', true],       // il dio dei venti: rumore della lista, in PAROLACCE_AMMESSE
+  ['aeolus', true],
 
   // Quelli che NON devono passare.
   ['ass', false],

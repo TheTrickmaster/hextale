@@ -2617,11 +2617,13 @@ var PAROLACCE_TESTO =
 // Il nocciolo: si cerca OVUNQUE nel nome. Sono tutte parole che stanno anche
 // nell'elenco grande — e' una scelta fra quelle, non un secondo elenco.
 var PAROLACCE_NOCCIOLO = "fuck shit cunt nigger nigga faggot retard whore slut bitch wanker bastard pedophile rapist hitler nazi motherfucker cocksucker asshole dickhead jerkoff bukkake felching".split(' ');
-// Le eccezioni a mano. Nasce vuoto: le parole del gioco arrivano gia' dal
-// catalogo, e questo e' il posto per il caso che il catalogo non copre — la
-// lista viene da fuori e ha del rumore dentro ("aeolus" e' un dio dei venti,
-// "bookie" un allibratore). Una riga, e quel nome torna disponibile.
-var PAROLACCE_AMMESSE = [];
+// Le eccezioni a mano: il posto per il caso che il catalogo non copre. La
+// lista viene da fuori e ha del rumore dentro — "bookie" e' un allibratore,
+// "aeolus" e' il dio dei venti, e nessuno dei due ha mai offeso nessuno.
+// v0.79.48 — aeolus rimesso in circolazione su richiesta di Lorenzo. Una riga
+// qui, e quel nome torna disponibile: e' esattamente perche' questo elenco
+// esiste. Si scrive in minuscolo e senza accenti, come esce da _nomeNormale.
+var PAROLACCE_AMMESSE = ['aeolus'];
 
 // Le cifre e i simboli che si usano al posto delle lettere. Non e' una difesa
 // completa e non puo' esserlo: e' il minimo perche' "sh1t" non passi solo
