@@ -101,6 +101,33 @@ const CORPO = `(async function(){
     dice(gridiOk, 'ma i gridi del catalogo si registrano lo stesso');
     dice(vociOk,  'e le battute anche');
 
+    // ── B2. IL CATALOGO VERO: gridi si-, battute vuote ──────────────────
+    // E- la forma esatta del catalogo in linea dal 9 settembre 2026, e va
+    // provata a parte perche- e- il caso che la v0.79.50 sbagliava: in
+    // audio/voices/ non esiste NESSUN file <slug>-1.mp3, solo i gridi, quindi
+    // voci vuote per tutte e- la risposta VERA. Pretendere anche le battute
+    // avrebbe fatto bussare alle 1300 porte con un catalogo perfetto.
+    var bussate3 = 0;
+    window._provaAudio = function(){ bussate3++; return veroAudio.apply(this, arguments); };
+    var veroImg = _provaImmagine;
+    window._provaImmagine = function(){ bussate3++; return veroImg.apply(this, arguments); };
+    var comeInLinea = FINAL_CARDS.map(function(c){
+      var e = JSON.parse(JSON.stringify(c));
+      e.voci = [];
+      e.battlecry = 'https://hextalegame.com/audio/voices/' + e.slug + '-battlecry.mp3';
+      e.artLayersDark = { url: 'finta.png', aLivelli: false };
+      e.artLayersLight = { url: 'finta.png', aLivelli: false };
+      return e;
+    });
+    _applicaCatalogo(comeInLinea);
+    for(var k3 in AUDIO_DATA_URLS){ if(/battlecry/.test(k3)) delete AUDIO_DATA_URLS[k3]; }
+    await verificaArtCarte();
+    window._provaAudio = veroAudio;
+    window._provaImmagine = veroImg;
+    dice(bussate3 === 0, 'catalogo vero (gridi si-, battute vuote): non si bussa', bussate3 + ' bussate');
+    dice(FINAL_CARDS.every(function(e){ return !!AUDIO_DATA_URLS[chiaveDi(e.battlecry)]; }),
+      'e i gridi sono comunque registrati');
+
     // ── C. il campo c'e- ma e- vuoto per TUTTE: non ci si fida ──────────
     // E- il caso A guardato dall-altro verso, e vale la pena scriverlo a parte:
     // e- la riga esatta che era sbagliata.
