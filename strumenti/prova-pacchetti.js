@@ -88,6 +88,12 @@ app.whenReady().then(async () => {
 
     // ── la fila in basso ──────────────────────────────────────────────────
     "  var basso = q('#pack-basso');",
+    // il fondale e- quello del menu, lanterna compresa
+    "  var sBg = st(q('#pack-bg'));",
+    "  dice(sBg.backgroundImage.indexOf('main-menu-bg.jpg') !== -1, 'il fondale e- quello del menu', sBg.backgroundImage.slice(0,80));",
+    "  var sLuce = getComputedStyle(q('#pack-bg'), '::after');",
+    "  dice(sLuce.backgroundImage.indexOf('main-menu-bg-lit.jpg') !== -1, 'con sopra la stanza accesa', sLuce.backgroundImage.slice(0,80));",
+    "  dice(sLuce.animationName === 'mm2Fiaccola', 'e la lanterna fa la stessa fiamma del menu', sLuce.animationName);",
     "  dice(!!basso, 'la fila in basso esiste');",
     "  dice(basso && basso.offsetLeft === 26, 'la fila parte a 26 dal bordo', basso && basso.offsetLeft);",
     "  dice(basso && vicino(basso.offsetLeft + basso.offsetWidth, 1894), 'e finisce a 26 dall-altro', basso && (basso.offsetLeft+basso.offsetWidth));",
@@ -147,6 +153,22 @@ app.whenReady().then(async () => {
     "  var stacco = caselle.length > 1 ? (caselle[1].offsetLeft - caselle[0].offsetLeft - caselle[0].offsetWidth) : -1;",
     "  dice(stacco === 16, 'lo stacco fra le caselle e- 16', stacco);",
 
+    // ── niente sopra alla fila ────────────────────────────────────────────
+    // Il difetto era questo: #pack-actions e- una fascia larga tutto lo schermo
+    // ancorata a 40 dal fondo, quindi cade sulla fila, e con uno z-index piu-
+    // alto. Il pulsante dentro era nascosto ma il CONTENITORE no. Non si
+    // controlla il CSS: si chiede al browser chi c-e- in quel punto, che e-
+    // esattamente cio- che decide dove va a finire un click.
+    "  var sopra = function(el){ var r = el.getBoundingClientRect(); return document.elementFromPoint(r.left + r.width/2, r.top + r.height/2); };",
+    "  var chi = sopra(caselle[0]);",
+    "  dice(chi && (chi === caselle[0] || caselle[0].contains(chi)), 'sulla prima casella non c-e- niente sopra', chi && (chi.id || chi.className));",
+    "  var chi2 = sopra(caselle[3]);",
+    "  dice(chi2 && (chi2 === caselle[3] || caselle[3].contains(chi2)), 'ne- sulla quarta', chi2 && (chi2.id || chi2.className));",
+    "  var chi3 = sopra(dailySlot);",
+    "  dice(chi3 && (chi3 === dailySlot || dailySlot.contains(chi3)), 'ne- su quella a tempo', chi3 && (chi3.id || chi3.className));",
+    "  dice(st(q('#pack-actions')).pointerEvents === 'none', 'la fascia dei pulsanti e- un vetro', st(q('#pack-actions')).pointerEvents);",
+    "  dice(st(q('#pack-collect')).pointerEvents === 'auto' || q('#pack-collect').classList.contains('pack-nascosto'), 'ma il pulsante dentro no');",
+
     // ── le frecce e lo scorrimento ────────────────────────────────────────
     "  var fsx = q('.pk-freccia-sx'), fdx = q('.pk-freccia-dx');",
     "  dice(fsx && fdx, 'le due frecce ci sono');",
@@ -184,6 +206,9 @@ app.whenReady().then(async () => {
     "  var testoAttesa = q('#pk-daily .pk-nome').textContent;",
     "  dice(testoAttesa.indexOf('Next in ') === 0, 'e dice quanto manca', testoAttesa);",
     "  dice(st(q('#pk-daily .pk-icona')).opacity === '0.4', 'la busta si spegne al 40%', st(q('#pk-daily .pk-icona')).opacity);",
+    "  var sAttesa = st(q('#pk-daily .pk-nome'));",
+    "  dice(sAttesa.fontSize === '18px', 'e l-attesa e- scritta quattro punti piu- piccola', sAttesa.fontSize);",
+    "  dice(sAttesa.color === 'rgb(118, 132, 135)', 'e in 768487', sAttesa.color);",
     "  dice(q('#pk-daily .pk-icona') === ico, 'e il nodo della busta non e- stato rifatto');",
 
     // ── i tre tipi ────────────────────────────────────────────────────────
