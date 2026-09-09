@@ -11803,7 +11803,7 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.51</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.50</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -19174,7 +19174,7 @@ const ICONA_SCAMBIO     = UI_BASE+'swap-icon.png';        // March Hare
 const ICONA_PICCONE     = UI_BASE+'hammer-icon.png';      // sfonda un muro
 const ICONA_MANO        = UI_BASE+'hand-icon.png';        // afferra un tassello
 const ICONA_MANO_CHIUSA = UI_BASE+'hand-closed-icon.png'; // ...e lo tiene
-function uiFileCandidati(nome){ return _candidati('../ui/' + nome, UI_BASE + nome); }   // vedi ART_REL
+function uiFileCandidati(nome){ return _candidati('ui/' + nome, UI_BASE + nome); }
 
 // I fondi si montano da JS e non dal CSS per la stessa ragione dello sfondo
 // della Collezione: scritti nel foglio di stile si vedrebbero solo dopo aver
@@ -24983,39 +24983,8 @@ const VOCI_BASE = 'https://hextalegame.com/audio/voices/';
 // subito quello che ha appena caricato, e per tutti gli altri — che aprono da
 // dal sito pubblicato o ricevono il solo HTML — non cambia nulla, perche' li'
 // il ramo locale non viene nemmeno tentato.
-// ══════════════════════════════════════════════════════════════════════════
-// v0.79.51 — LA CARTELLA ACCANTO AL FILE STA UN PIANO SOPRA
-// ══════════════════════════════════════════════════════════════════════════
-// Questi indirizzi sono la meta' LOCALE di ogni ricerca di asset: _candidati
-// prova prima qui, poi sul sito. Erano scritti come se il gioco stesse nella
-// radice del deposito — e non ci sta piu': la pagina vive in play/, e dentro
-// play/ c'e' index.html e basta. Quindi 'cards/art/...' puntava a
-// play/cards/art/..., che non esiste, e la meta' locale non ha mai trovato
-// niente da quando la pagina si e' spostata.
-//
-// NON ERA UN DIFETTO DA POCO, ed e' costato tre cose insieme:
-//   1. Provare in locale non era piu' provare in locale. Ogni immagine e ogni
-//      suono partivano verso hextalegame.com anche con i file sul disco a
-//      mezzo metro.
-//   2. L'IMPORTAZIONE gira da file:// (vedi server/importazione/converti.js).
-//      Scoprire l'arte sono sei richieste per carta per fazione: con 111 carte
-//      sono circa 1300 richieste in raffica verso GitHub Pages, che a un certo
-//      punto risponde 429 Too Many Requests. new Image().onerror non sa
-//      distinguere un 429 da un 404, quindi ogni richiesta strozzata diventava
-//      "questa carta non ha illustrazione" — scritto nel catalogo, per tutti.
-//      Nell'ultima importazione sono passate 4 carte su 111, e zero suoni.
-//   3. E allora il gioco, che il catalogo lo legge, per le altre 107 tornava a
-//      bussare a ogni avvio: altre 1300 richieste, altri 429, e le
-//      illustrazioni che comparivano una alla volta dopo svariati secondi.
-//      Le uniche istantanee erano le quattro che il catalogo conosceva.
-//
-// Un '../' davanti, e la meta' locale torna a essere locale: l'importazione
-// legge dal disco, in un lampo e senza toccare la rete, e scrive un catalogo
-// completo. Da li' in poi chi gioca non bussa piu' a nessuna porta.
-// In produzione questa riga non cambia niente: _candidati la usa solo quando
-// si apre il file col doppio clic.
-const ART_REL = '../cards/art/';
-const VOCI_REL = '../audio/voices/';
+const ART_REL = 'cards/art/';
+const VOCI_REL = 'audio/voices/';
 // v0.75.66 — la dichiarazione e' salita in cima al file (vedi li'): serviva
 // anche al motore dei suoni, che parte molto prima di questo punto.
 function _candidati(relativo, remoto){
@@ -25369,7 +25338,7 @@ const SUONI_SFX_EXTRA = Object.values(WHOOSH_PER_RARITA)
            // v0.79.46 — e il colpo che ROMPE il sigillo, che non e' uno dei
            // quattro: quelli sono martellate, questo e' la ceralacca che cede.
            'break-seal.mp3']);
-const SFX_REL = '../audio/sfx/';   // vedi ART_REL
+const SFX_REL = 'audio/sfx/';
 const SFX_BASE = 'https://hextalegame.com/audio/sfx/';
 function registraSuoniExtra(){
   const cerca = (nome, rel, base, obbligatorio) =>
@@ -25633,23 +25602,7 @@ function verificaArtCarte(avanzamento){
     const battute = FINAL_CARDS.reduce((n,e)=>n+((e.voci&&e.voci.length)||0),0);
     console.info('[arte] '+conArte+'/'+FINAL_CARDS.length+' carte con illustrazione'
       + (senzArte.length ? ' — senza cartella: '+senzArte.join(', ') : ''));
-    const gridi = FINAL_CARDS.filter(e=>e.battlecry).length;
-    console.info('[voci] '+battute+' battute su '+conVoce+'/'+FINAL_CARDS.length+' carte, e '+gridi+' gridi di battaglia');
-    // ── v0.79.51 — LA SPIA DELLA CARTELLA LOCALE ─────────────────────────
-    // Aperto col doppio clic, il gioco cerca prima accanto al file e poi sul
-    // sito. Se la meta' locale non vince MAI, quel 'prima' non esiste: si sta
-    // scaricando tutto dalla rete con i file sul disco a mezzo metro, e non lo
-    // dice nessuno. E' esattamente cio' che e' successo per settimane quando la
-    // pagina si e' spostata in play/ e gli indirizzi relativi sono rimasti
-    // scritti per la radice (vedi ART_REL). Adesso lo dice.
-    if(_daFileLocale){
-      const daDisco = FINAL_CARDS.filter(e=>{
-        const u = (e.artLayersDark && e.artLayersDark.url) || '';
-        return u.indexOf('../') === 0;
-      }).length;
-      if(conArte && !daDisco) console.warn('[arte] ATTENZIONE: nessuna illustrazione arriva dalla cartella locale,'
-        + ' arrivano tutte dal sito. Gli indirizzi relativi non puntano dove dovrebbero (vedi ART_REL).');
-    }
+    console.info('[voci] '+battute+' battute su '+conVoce+'/'+FINAL_CARDS.length+' carte');
   });
 }
 
@@ -44939,7 +44892,7 @@ const CARD_VALUE_VISUAL_HINT_LIGHT = CARD_PARTS_BASE+'value-visual-hint-light.pn
 // Il giorno in cui si rinominano davvero i file, i punti da cambiare sono
 // tre: le due righe qui sotto, e la composizione del nome in traitIconUrl.
 const TRAIT_ICONS_BASE = CARD_PARTS_BASE + 'Archetypes/';
-const TRAIT_ICONS_REL = '../cards/card-parts/Archetypes/';   // vedi ART_REL
+const TRAIT_ICONS_REL = 'cards/card-parts/Archetypes/';
 // Proporzione di ripiego finche' un'icona non e' stata misurata (o se il file
 // non esiste ancora): la media di quelle esistenti. Sbaglia di poco e non fa
 // mai saltare il disegno.

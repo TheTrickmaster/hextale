@@ -28,6 +28,25 @@ const CORPO = `(async function(){
   try {
     var sp = document.getElementById('splash'); if(sp) sp.remove();
 
+    // ── 0. LA CARTELLA ACCANTO AL FILE ─────────────────────────────────
+    // Aperto col doppio clic, il gioco deve trovare gli asset sul DISCO. La
+    // pagina vive in play/, quindi la radice del sito e' un piano sopra: senza
+    // il '../' gli indirizzi relativi puntano a play/cards/art/, che non
+    // esiste, e ogni ricerca finisce sulla rete — con i file a mezzo metro.
+    // E' andata cosi' per settimane, e il conto l'ha pagato l'importazione:
+    // 1300 richieste in raffica a GitHub Pages, 429 Too Many Requests, e ogni
+    // richiesta strozzata scritta nel catalogo come "questa carta non ha
+    // illustrazione". Questi tre controlli sono la sentinella di quel giorno.
+    dice(_daFileLocale, 'il banco gira da file:// (se no i controlli sotto non dicono niente)');
+    var primoArte = _candidatiArt('alice/alice-dark')[0];
+    var primaVoce = _candidati(VOCI_REL + 'alice-battlecry.mp3', VOCI_BASE + 'alice-battlecry.mp3')[0];
+    dice(String(primoArte).indexOf('../') === 0, 'il primo indirizzo dell-arte e- quello locale', primoArte);
+    dice(String(primaVoce).indexOf('../') === 0, 'e cosi- quello delle voci', primaVoce);
+    var vistoArte = await _provaImmagine(primoArte);
+    var vistaVoce = await _provaAudio(primaVoce);
+    dice(vistoArte === true, 'e la cartella locale dell-arte risponde davvero');
+    dice(vistaVoce === true, 'e quella delle voci pure');
+
     var base = (FINAL_CARDS || []).map(function(c){
       return { id: c.id, name: c.name, slug: c.slug, values: c.values, rarity: c.rarity };
     });

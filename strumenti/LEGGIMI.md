@@ -859,3 +859,32 @@ legge, quindi ci sono solo Robin Hood, Snow White, Merlin e Alice — che pero'
 un `-battlecry.mp3` ce l'hanno davvero in `audio/voices/`, ed e' tutto cio' che
 serve: la domanda e' se la catena scopre-registra-suona regge, non quante carte
 la percorrono.
+
+### La sentinella della cartella locale (dentro a prova-voci.js)
+
+I primi cinque controlli di `prova-voci.js` non parlano di voci: guardano che
+la META' LOCALE della ricerca degli asset punti davvero al disco.
+
+Il gioco cerca prima accanto al file e poi sul sito (`_candidati`). La pagina
+vive in `play/`, e dentro `play/` c'e' solo `index.html`: la radice del sito e'
+un piano SOPRA. Gli indirizzi relativi erano rimasti scritti per la radice —
+`cards/art/...` invece di `../cards/art/...` — quindi puntavano a
+`play/cards/art/`, che non esiste, e la meta' locale non ha mai trovato niente
+da quando la pagina si e' spostata.
+
+**Il conto l'ha pagato l'importazione.** `converti.js` gira da `file://` e
+chiama `verificaArtCarte`: scoprire l'arte sono sei richieste per carta per
+fazione, cioe' ~1300 in raffica verso GitHub Pages, che risponde **429 Too Many
+Requests**. `new Image().onerror` non sa distinguere un 429 da un 404, quindi
+ogni richiesta strozzata e' finita nel catalogo come "questa carta non ha
+illustrazione": 4 carte su 111 con arte, zero gridi di battaglia. E il gioco,
+per le altre 107, tornava a bussare a ogni avvio — altre 1300 richieste, altri
+429, e le illustrazioni che comparivano una alla volta dopo svariati secondi.
+
+Con il `../` la stessa passata trova 109 illustrazioni su 111 in quattro
+secondi, dal disco, senza toccare la rete.
+
+Il banco lo verifica in tre modi: che il primo candidato cominci per `../`, che
+quella cartella RISPONDA davvero (non basta che l'indirizzo sia scritto bene), e
+lo stesso per le voci. C'e' anche una spia in `verificaArtCarte` che avvisa in
+console se, da `file://`, nessuna illustrazione arriva dal disco.
