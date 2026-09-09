@@ -11803,7 +11803,7 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.53</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.52</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -28680,10 +28680,6 @@ function openCardDbOverlay(){
   try{ collegaTastoDestroMazzo(); }catch(_){}   // v0.78.5
   renderListaMazzi();
   try{ collegaRiordinoMazzi(); }catch(_){}      // v0.78.5
-  // v0.79.53 — questo e' l'ingresso, e solo questo: le carte entrano una
-  // dopo l'altra. I ridisegni che verranno dopo — un ordinamento, un filtro,
-  // il giro dark/light — non la rigiocano.
-  cardDbCascataAllaProssimaApertura();
   cardDbRenderRoster();
   initCardDbFoilTilt();
 
@@ -28751,53 +28747,6 @@ function cardDbParallaxEnabledFor(card){
 // "Collezione" title, and re-applies the current Abilità filter (see
 // cardDbApplyFilters below) so a toggle/reset doesn't silently un-hide
 // filtered-out cards.
-// ══════════════════════════════════════════════════════════════════════════
-// v0.79.53 — LE CARTE ENTRANO UNA DOPO L'ALTRA
-// ══════════════════════════════════════════════════════════════════════════
-// Una dissolvenza breve per carta, sfalsate di cinquanta millisecondi. Non e'
-// solo un vezzo: la griglia si riempie tutta nello stesso fotogramma, e
-// centoundici carte che compaiono insieme sono una parete. Sfalsate si
-// leggono come un elenco che arriva.
-//
-// SI ANIMA CON LA WEB ANIMATIONS API e non con una transizione CSS, per due
-// ragioni. La prima e' `fill:'backwards'`: durante l'attesa la carta e' gia'
-// a zero, quindi non lampeggia prima del proprio turno — con una transizione
-// servirebbe una classe messa e tolta a mano, cioe' uno stato in piu' da
-// tenere allineato. La seconda e' che un'animazione si CANCELLA: i filtri e
-// il giro dark/light hanno le loro, e devono poter interrompere questa senza
-// lasciare una carta a mezza opacita'.
-//
-// NON si gioca a ogni ridisegno. Ordinare, filtrare e girare le carte sono
-// gesti in cui si sta CONFRONTANDO qualcosa: una cascata di cinque secondi e
-// mezzo li' dentro sarebbe un'attesa, non un ingresso. Si gioca quando la
-// Libreria si apre, ed e' l'unico momento in cui le carte davvero arrivano.
-const CARD_DB_ENTRATA_MS = 220;        // la dissolvenza della singola carta
-const CARD_DB_ENTRATA_PASSO_MS = 50;   // il distacco fra una e la successiva
-let _cardDbCascataProssima = false;
-function cardDbCascataAllaProssimaApertura(){ _cardDbCascataProssima = true; }
-function cardDbFermaCascata(grid){
-  if(!grid) return;
-  grid.querySelectorAll('.card-db-card-slot').forEach(slot=>{
-    slot.getAnimations().forEach(a=>{ if(a.id === 'cascata') a.cancel(); });
-  });
-}
-function cardDbCascataDIngresso(grid){
-  if(!grid) return;
-  // Solo le caselle davvero a schermo: una nascosta da un filtro non deve
-  // prendersi il suo posto nella fila e lasciare un buco di cinquanta
-  // millisecondi in cui non entra niente.
-  const slots = [].slice.call(grid.querySelectorAll('.card-db-card-slot'))
-    .filter(s => s.style.display !== 'none');
-  slots.forEach((slot, i)=>{
-    const a = slot.animate([{ opacity:0 }, { opacity:1 }], {
-      duration: CARD_DB_ENTRATA_MS,
-      delay: i * CARD_DB_ENTRATA_PASSO_MS,
-      easing: 'ease-out',
-      fill: 'backwards'
-    });
-    a.id = 'cascata';
-  });
-}
 function cardDbRenderRoster(){
   const grid=document.getElementById('card-db-grid');
   // v0.73.4 FIX ("girando le carte fra dark e light la pagina torna in cima").
@@ -29017,13 +28966,6 @@ function cardDbRenderRoster(){
   // rightwards over 320ms on top of the flip — precisely the reported drift.
   cardDbApplyFilters(false);
   cardDbUpdateToggleLabel();
-  // v0.79.53 — e in fondo a tutto, la cascata. DOPO i filtri: prima non si
-  // saprebbe ancora quali caselle sono a schermo, e quelle nascoste si
-  // prenderebbero il proprio turno lasciando un vuoto nella fila.
-  if(_cardDbCascataProssima){
-    _cardDbCascataProssima = false;
-    cardDbCascataDIngresso(grid);
-  }
 }
 // Single source of truth for the toggle button's label — always reads the
 // CURRENT _cardDbVariant and offers to switch to the OTHER one, per explicit
@@ -29185,10 +29127,6 @@ const CARD_DB_FLIP_HALF_MS = 157.5; // matches cardDbFlipOut/cardDbFlipIn's own 
 // gone; only this function + the flip CSS block above were touched.
 function cardDbToggleVariant(){
   const grid=document.getElementById('card-db-grid');
-  // v0.79.53 — se la cascata d'ingresso e' ancora in corso, si ferma qui: il
-  // giro ha la propria animazione, e una carta che sta ancora entrando
-  // girerebbe mezza trasparente.
-  cardDbFermaCascata(grid);
   const slots=[...grid.querySelectorAll('.card-db-card-slot')];
   slots.forEach(s=>{ s.classList.remove('card-db-flip-out','card-db-flip-in'); void s.offsetWidth; s.classList.add('card-db-flip-out'); });
   setTimeout(()=>{
@@ -29293,10 +29231,6 @@ const CARD_DB_FADE_MS = 200;
 // effect; WAAPI runs independently and never fights that rule).
 function cardDbAnimateFilterChange(matchResults, animate){
   if(animate===undefined) animate = true;
-  // v0.79.53 — un filtro interrompe l'ingresso: da qui in poi le carte si
-  // muovono per un'altra ragione, e due animazioni sulla stessa opacita'
-  // lascerebbero qualcuno a mezza strada.
-  if(animate) cardDbFermaCascata(document.getElementById('card-db-grid'));
   const grid=document.getElementById('card-db-grid');
   if(!grid) return;
   if(_cardDbGridBusy || !animate){

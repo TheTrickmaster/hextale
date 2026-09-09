@@ -888,3 +888,26 @@ Il banco lo verifica in tre modi: che il primo candidato cominci per `../`, che
 quella cartella RISPONDA davvero (non basta che l'indirizzo sia scritto bene), e
 lo stesso per le voci. C'e' anche una spia in `verificaArtCarte` che avvisa in
 console se, da `file://`, nessuna illustrazione arriva dal disco.
+
+## prova-cascata.js — le carte entrano una dopo l'altra?
+
+    npx electron strumenti/prova-cascata.js
+
+Dodici controlli sull'ingresso della Libreria. Tre cose non si vedono a occhio
+senza fermare il tempo, ed e' per quelle che il banco esiste:
+
+1. **che il ritardo cresca davvero di 50ms per carta.** Un errore di indice qui
+   si vede solo come "entrano tutte insieme", che e' anche l'aspetto di una
+   macchina lenta: guardando non si distingue il difetto dal computer.
+2. **`fill: 'backwards'`.** Senza, la carta e' visibile durante l'attesa e poi
+   rifa' la dissolvenza: compaiono tutte subito e poi sfarfallano, che e' peggio
+   di non avere niente. Si controlla sia il timing dichiarato sia l'opacita'
+   VERA dell'ultima casella, che in quell'istante deve essere zero.
+3. **che una casella nascosta da un filtro non prenda il proprio turno**, o la
+   fila avrebbe buchi di cinquanta millisecondi in cui non entra niente.
+
+E due sul contorno: che un ridisegno qualunque NON la rigiochi (ordinare e
+filtrare sono gesti in cui si confronta qualcosa, e cinque secondi e mezzo di
+cascata li' dentro sarebbero un'attesa), e che chi la interrompe la lasci
+VISIBILE — una cascata cancellata a meta' che lasciasse una carta trasparente
+sarebbe un difetto permanente e silenzioso.
