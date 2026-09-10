@@ -201,6 +201,28 @@ rapido per credere di aver sbagliato il markup. E il velo di apertura si toglie
 con una REGOLA (`insertCSS`), non con uno stile in linea: la sequenza di
 caricamento se lo rimette addosso da sola.
 
+## prova-menu-sx.js — la colonna di sinistra del menu
+
+    $ELECTRON strumenti/prova-menu-sx.js [scatto.png]
+
+Dalla v0.79.67 il riquadro dello Shop non ha piu' un'illustrazione sua e
+dev'essere **identico** a quello del Donate. "Identico" e' la parola che questo
+banco traduce in numeri: stessa altezza, stessa larghezza, stesso fondo, stesso
+bordo, stessi angoli, stesso padding, stessa trama, stesso modo di tenere dentro
+il pulsante.
+
+Serve un banco per una cosa che si vede a occhio perche' **due riquadri quasi
+uguali sono peggio di due riquadri diversi**: nessuno sa dire cos'e' che non va,
+e il difetto sopravvive a tutti quelli che ci passano davanti. Il fondo poi e'
+un gradiente, e due gradienti diversi di un soffio si vedono solo mettendoli uno
+accanto all'altro — cosa che a schermo non succede mai, perche' i due riquadri
+sono separati da venti pixel di menu.
+
+L'altra meta' del banco e' che il PULSANTE non sia cambiato: resta la sua veste
+(`hx-btn-shop`, i suoi cinque pezzi e non quelli di un altro) e resta spento al
+30%, perche' quel che non si puo' ancora fare e' comprare, non guardare il
+riquadro.
+
 ## prova-muri.js — cinque muri, e mai due uguali
 
     $ELECTRON strumenti/prova-muri.js
