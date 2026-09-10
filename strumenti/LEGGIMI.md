@@ -1327,3 +1327,40 @@ continue verrebbero contate due volte di la'.
 una carta da solo; per il caso "carta gia' giocata" invece `G.gameOver`
 dev'essere falso e `G.turnPlayLocked` vero, e si sostituiscono `autoPlay` e
 `mostraTempoScaduto` per contare se vengono chiamate.
+
+## prova-customize.js — le due voci che hanno traslocato
+
+    $ELECTRON strumenti/prova-customize.js
+
+Dalla v0.79.76 "Play as" e "Show hexagon helper" non stanno piu' in mezzo ai
+cursori del volume: stanno dentro a Customize, sotto al nome del giocatore.
+
+Un trasloco di markup e' il genere di modifica che sembra riuscita perche' le
+due voci **si vedono** nel posto nuovo. Quel che si rompe in silenzio e' tutto
+il resto, e sono quattro cose diverse:
+
+**Il vestito.** La casella di spunta non ha un'immagine sua: la prende da due
+variabili (`--hx-casella-off/on`) scritte sul pannello che la contiene, e quel
+pannello adesso e' un altro. Una casella senza immagine e' un quadrato vuoto
+che sembra spento anche quando e' acceso.
+
+**Le regole di stile intestate al vecchio indirizzo.** Erano scritte
+`#settings-pannello .settings-opzione`: nel pannello nuovo non valgono, e la
+riga perde la forma senza che nessuno lo dica. Adesso comanda la classe, che
+viaggia con chi la porta.
+
+**Chi le prepara.** La tendina la costruiva `openSettingsModal`. Se nessuno la
+costruisce piu' si apre vuota, e una tendina vuota si scopre solo cliccandoci.
+Adesso e' `aggiornaCustomize` a farlo, cioe' chi apre la finestra in cui vive.
+
+**La tendina aperta che finisce dietro.** Il banco non guarda lo z-index: apre
+la tendina e chiede a `elementFromPoint` chi risponde in quel punto. Se
+risponde la casella dell'esagono, l'elenco e' dietro.
+
+E infine la cosa chiesta per nome: l'avatar sta due dita sopra alla tendina,
+quindi scegliendo un colore lo si sta guardando. Il banco mette `MIO_AVATAR` a
+`fox` — senza account e' vuoto, e due immagini vuote sarebbero "uguali" per il
+motivo sbagliato — poi controlla che da `fox-dark.jpg` si passi a
+`fox-light.jpg` mentre la finestra e' aperta. Con `Random` la faccia deve
+restare l'ultima uscita: random non e' un colore, e' il modo in cui si decide
+quale sara'.
