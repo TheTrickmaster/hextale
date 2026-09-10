@@ -113,7 +113,146 @@ var INK_SCONFITTA = 5;
 // E ogni cinque partite si guadagna una bustina. Il conto lo tiene il server
 // insieme al resto: e' un premio, e un premio che il client puo' scrivere non
 // e' un premio.
-var PARTITE_PER_BUSTINA = 5;
+// ══════════════════════════════════════════════════════════════════════════
+// v0.79.75 — LE CINQUE QUEST DEL GIORNO
+// ══════════════════════════════════════════════════════════════════════════
+// Il pool. Lorenzo lo allunga quando vuole aggiungendo righe qui: e' l'unico
+// posto in cui una quest esiste, e la sua definizione non si copia da nessuna
+// parte — il giocatore si porta dietro solo l'id, quanto ha fatto e se ha
+// riscosso.
+//
+//   id       la chiave, e non si cambia mai: e' scritta nello stato di chi
+//            sta giocando quella quest oggi. Cambiarla vuol dire cancellarla.
+//   testo    la riga che si legge, gia' in inglese e gia' col numero dentro.
+//   quanto   quante volte va fatta la cosa.
+//   premio   'pack' (una bustina) o 'ink' (QUEST_INK di inchiostro).
+//   conta    QUALE cosa la fa avanzare. Vedi avanzaQuest.
+//   dove     'pvp' solo contro persone, 'pvia' solo contro la macchina,
+//            'ovunque' in tutte e due. La regola di Lorenzo: se nel testo
+//            c'e' scritto PvP vale solo online, se c'e' PvIA solo contro la
+//            macchina, e se non c'e' scritto niente vale sempre. Il campo
+//            RIPETE quello che il testo dice, e non e' un doppione inutile:
+//            e' la sola delle due cose che il codice sa leggere, e un giorno
+//            in cui le due discordassero a valere sarebbe questa.
+//   soglia   solo per flip_multiplo: quante carte in una giocata sola.
+var QUEST_INK = 25;
+var QUEST_AL_GIORNO = 5;
+var QUEST_POOL = [
+  { id:'win3pvp',      testo:'Win 3 PvP matches',    quanto:3,  premio:'pack', conta:'vittoria',      dove:'pvp' },
+  { id:'flip20',       testo:'Flip 20 cards',        quanto:20, premio:'ink',  conta:'flip',          dove:'ovunque' },
+  { id:'fliptimeless', testo:'Flip a Timeless card', quanto:1,  premio:'pack', conta:'flip_timeless', dove:'ovunque' },
+  { id:'play5pvp',     testo:'Play 5 PvP matches',   quanto:5,  premio:'ink',  conta:'partita',       dove:'pvp' },
+  { id:'flip2con1',    testo:'Flip 2 cards with 1',  quanto:3,  premio:'ink',  conta:'flip_multiplo', dove:'ovunque', soglia:2 }
+];
+function questDefinizione(id) {
+  for (var i = 0; i < QUEST_POOL.length; i++) if (QUEST_POOL[i].id === id) return QUEST_POOL[i];
+  return null;
+}
+// Il giorno, contato a MEZZANOTTE GMT. Date.now() e' gia' in tempo universale
+// e un giorno e' sempre 86.400.000 millisecondi: dividere e troncare da' un
+// numero che cambia di uno a mezzanotte di Greenwich, ovunque si trovi chi
+// gioca. Niente fusi orari, niente ora legale, niente da tenere d'accordo fra
+// due macchine.
+function _giornoGmt() { return Math.floor(Date.now() / 86400000); }
+// Le cinque di OGGI, uguali per tutti. Il seme e' il giorno, quindi due
+// giocatori che si parlano hanno davanti le stesse cinque cose — che e' meta'
+// del senso di una daily.
+// Con cinque quest nel pool escono tutte e cinque; il mescolamento comincia a
+// contare quando il pool sara' piu' lungo, ed e' scritto adesso perche' quel
+// giorno non ci sia niente da cambiare.
+function _cinqueDelGiorno(giorno) {
+  var indici = [];
+  var i;
+  for (i = 0; i < QUEST_POOL.length; i++) indici.push(i);
+  // Mescolamento deterministico: la stessa giornata da' sempre lo stesso
+  // ordine, e giornate vicine non si somigliano.
+  var seme = giorno * 2654435761 % 2147483647;
+  for (i = indici.length - 1; i > 0; i--) {
+    seme = (seme * 1103515245 + 12345) % 2147483647;
+    var j = Math.abs(seme) % (i + 1);
+    var tmp = indici[i]; indici[i] = indici[j]; indici[j] = tmp;
+  }
+  var fuori = [];
+  for (i = 0; i < indici.length && fuori.length < QUEST_AL_GIORNO; i++) {
+    fuori.push({ id: QUEST_POOL[indici[i]].id, fatto: 0, presa: false });
+  }
+  return fuori;
+}
+// Paga una quest. Torna cosa ha dato, per poterlo raccontare a chi ha chiesto.
+function _pagaQuest(possesso, def) {
+  if (!def) return null;
+  if (def.premio === 'pack') {
+    possesso.bustineExtra = (possesso.bustineExtra || 0) + 1;
+    return { premio: 'pack', quanto: 1 };
+  }
+  var v = valuteDi(possesso);
+  v.magicInk += QUEST_INK;
+  possesso.valute = v;
+  return { premio: 'ink', quanto: QUEST_INK };
+}
+// Le quest di oggi, generandole se e' cambiato il giorno.
+//
+// QUEL CHE ERA FINITO E NON RISCOSSO SI PAGA DA SOLO, prima di buttare via la
+// giornata vecchia. E' la decisione di Lorenzo del 10/09/2026, ed e' quella
+// giusta: un premio guadagnato e non ritirato perche' si e' chiuso il gioco
+// cinque minuti prima di mezzanotte non e' un premio che si perde, e' un
+// premio che qualcuno ha vinto.
+// Ritorna true se ha cambiato qualcosa e va riscritto.
+function assicuraQuestDelGiorno(logger, possesso, userId) {
+  var oggi = _giornoGmt();
+  var q = possesso.quest;
+  if (q && q.giorno === oggi && q.lista && q.lista.length) return false;
+  if (q && q.lista && q.lista.length) {
+    for (var i = 0; i < q.lista.length; i++) {
+      var voce = q.lista[i];
+      var def = questDefinizione(voce.id);
+      if (!def || voce.presa) continue;
+      if ((voce.fatto || 0) < def.quanto) continue;
+      var dato = _pagaQuest(possesso, def);
+      if (logger) logger.info('quest %s scaduta ma finita: pagata a %s (%s)', voce.id, userId, dato.premio);
+    }
+  }
+  possesso.quest = { giorno: oggi, lista: _cinqueDelGiorno(oggi) };
+  return true;
+}
+// L'avanzamento. `conta` e' il verbo ('vittoria', 'flip', ...), `quanto` di
+// quanto, `pvp` se e' successo contro una persona.
+// Ritorna l'elenco di cio' che si e' mosso, che e' quel che il client mostra
+// coi suoi popup: chi avanza e chi, avanzando, ha finito.
+function avanzaQuest(possesso, conta, quanto, pvp) {
+  var mosse = [];
+  var q = possesso.quest;
+  if (!q || !q.lista || !quanto) return mosse;
+  for (var i = 0; i < q.lista.length; i++) {
+    var voce = q.lista[i];
+    var def = questDefinizione(voce.id);
+    if (!def || def.conta !== conta) continue;
+    if (def.dove === 'pvp' && !pvp) continue;
+    if (def.dove === 'pvia' && pvp) continue;
+    var prima = voce.fatto || 0;
+    if (prima >= def.quanto) continue;          // gia' finita: non si conta oltre
+    voce.fatto = Math.min(def.quanto, prima + quanto);
+    mosse.push({ id: def.id, fatto: voce.fatto, quanto: def.quanto,
+                 finita: voce.fatto >= def.quanto });
+  }
+  return mosse;
+}
+// Come le vede il client: la definizione e lo stato insieme. Il client non
+// conosce il pool e non deve conoscerlo — cosi' una quest nuova non chiede
+// una versione nuova del gioco.
+function questPerIlClient(possesso) {
+  var fuori = [];
+  var q = possesso && possesso.quest;
+  if (!q || !q.lista) return fuori;
+  for (var i = 0; i < q.lista.length; i++) {
+    var voce = q.lista[i];
+    var def = questDefinizione(voce.id);
+    if (!def) continue;                          // una riga tolta dal pool sparisce
+    fuori.push({ id: def.id, nome: def.testo, quanto: def.quanto, premio: def.premio,
+                 fatto: Math.min(voce.fatto || 0, def.quanto), presa: !!voce.presa });
+  }
+  return fuori;
+}
 
 // Il premio di fine partita per UN giocatore, dato come e' finita per lui.
 // `modo` puo' essere:
@@ -517,7 +656,7 @@ var BUSTINA_ATTESA_MS = 12 * 60 * 60 * 1000;  // deve combaciare col client
 //             pronto da due giorni resta averne uno. E il conto riparte quando
 //             lo si APRE, non quando e' maturato — chi lo lascia li' non
 //             guadagna un vantaggio, ma nemmeno lo perde.
-// 'reward'    si vince giocando (vedi PARTITE_PER_BUSTINA) o con le quest.
+// 'reward'    si vince con le quest del giorno (vedi QUEST_POOL).
 //             Vive in possesso.bustineExtra, che e' il campo che c'era gia':
 //             cambiargli nome avrebbe voluto dire una migrazione per niente.
 // 'treasure'  si compra. Vive in possesso.bustineTesoro.
@@ -2101,7 +2240,10 @@ function rpcAvvio(ctx, logger, nk, payload) {
     // ricava da bustinaProssima, che c'e' gia' due righe piu' su.
     bustineTesoro: possesso.bustineTesoro || 0,
     prezzoPacchetto: PACCHETTO_PREZZO_INK,
-    versoBustina: possesso.versoBustina || 0,
+    // v0.79.75 — le cinque quest di oggi, generate adesso se il giorno e'
+    // cambiato. Viaggiano col profilo perche' e' la stessa risposta che porta
+    // carte, valute e preferenze: una domanda in meno all'avvio.
+    quest: questPerIlClient(possesso),
     // v0.78.16 — quali carte non sono ancora state guardate in Collezione.
     nuove: _nuoveDi(possesso, _visibiliDi(catalogo, admin)),
     // v0.79.7 — quante copie di ciascuna carta posseduta. Vedi _copieDi.
@@ -2112,7 +2254,6 @@ function rpcAvvio(ctx, logger, nk, payload) {
       accettato: _accordoInRegola(nk, ctx.userId),
       versione: ACCORDO_VERSIONE
     },
-    partitePerBustina: PARTITE_PER_BUSTINA,
     // v0.77.53 — l'avatar dell'account, che i pannelli di partita mostrano
     // accanto al nome. Sta fra i campi che Nakama tiene da se' (non nei
     // metadati), quindi si legge di la' e non da un oggetto nostro.
@@ -3227,7 +3368,12 @@ function applicaEsito(nk, userId, vinta, pari, controIA, turni, modo) {
   // al client.
   // `try` intorno a tutto: una bustina non consegnata non deve poter far
   // fallire la scrittura dell'esperienza, che e' la cosa piu' importante.
-  var ink = 0, versoBustina = 0, bustinaVinta = false, valute = null;
+  // v0.79.75 — QUI C'ERA IL CONTO DELLE CINQUE PARTITE. Ogni partita conclusa
+  // avanzava di uno verso una bustina, e alla quinta la bustina arrivava. Non
+  // c'e' piu': quel premio adesso e' una quest, 'Win 3 PvP matches', e due
+  // strade per la stessa bustina sono due conti che il giocatore deve tenere a
+  // mente insieme.
+  var ink = 0, valute = null, mosseQuest = [];
   if (premia) {
     try {
       var possesso = leggiPossesso(nk, userId);
@@ -3236,19 +3382,20 @@ function applicaEsito(nk, userId, vinta, pari, controIA, turni, modo) {
         var v = valuteDi(possesso);
         v.magicInk += ink;
         possesso.valute = v;
-        // L'avanzamento verso la bustina lo fa ogni partita conclusa. Chi esce
-        // a meta' non avanza: e' lo stesso metro dell'inchiostro.
-        if (conclusa) {
-          versoBustina = (possesso.versoBustina || 0) + 1;
-          if (versoBustina >= PARTITE_PER_BUSTINA) {
-            versoBustina = 0;
-            possesso.bustineExtra = (possesso.bustineExtra || 0) + 1;
-            bustinaVinta = true;
+        // ── LE QUEST DEL GIORNO ──────────────────────────────────────────
+        // Partita e vittoria le conta il SERVER, qui, dove sa com'e' andata.
+        // Non si chiedono al client per la stessa ragione per cui non gli si
+        // chiede l'esperienza: e' l'unico punto in cui la verita' e' gia'
+        // nostra. Le carte girate invece il server non le vede, e arrivano da
+        // fuori (vedi rpcQuest).
+        // Chi esce a meta' non avanza: e' lo stesso metro dell'inchiostro.
+        try {
+          assicuraQuestDelGiorno(logger, possesso, userId);
+          if (conclusa) {
+            mosseQuest = mosseQuest.concat(avanzaQuest(possesso, 'partita', 1, !controIA));
+            if (vinta) mosseQuest = mosseQuest.concat(avanzaQuest(possesso, 'vittoria', 1, !controIA));
           }
-          possesso.versoBustina = versoBustina;
-        } else {
-          versoBustina = possesso.versoBustina || 0;
-        }
+        } catch (eq) { if (logger) logger.warn('quest non avanzate per %s: %s', userId, String(eq)); }
         scriviPossesso(nk, userId, possesso);
         valute = v;
       }
@@ -3279,9 +3426,10 @@ function applicaEsito(nk, userId, vinta, pari, controIA, turni, modo) {
     // disegna esattamente questi numeri: non ne calcola nessuno per conto suo.
     inkGuadagnato: ink,
     valute: valute,
-    versoBustina: versoBustina,
-    partitePerBustina: PARTITE_PER_BUSTINA,
-    bustinaVinta: bustinaVinta,
+    // v0.79.75 — e cosa si e' mosso fra le quest del giorno. Il client se ne
+    // serve per far salire i popup in basso a sinistra: gli arriva gia' detto
+    // chi e' avanzato e chi, avanzando, ha finito.
+    quest: mosseQuest,
     controIA: controIA,
     xpPerSalire: xpPerSalire(p.livello),
     ranghi: RANGHI
@@ -3514,6 +3662,76 @@ function rpcCarteViste(ctx, logger, nk, payload) {
   scriviPossesso(nk, ctx.userId, possesso);
   var cat = leggiSistema(nk, KEY_CATALOGO);
   return JSON.stringify({ nuove: _nuoveDi(possesso, _visibiliDi(cat, !!possesso.admin)) });
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// v0.79.75 — LE DUE PORTE DELLE QUEST
+// ══════════════════════════════════════════════════════════════════════════
+// hx_quest        le chiede, e con `eventi` racconta le carte girate.
+// hx_quest_riscuoti  incassa: tutte quelle finite, o una sola.
+//
+// SU COSA CI SI FIDA, detto per esteso perche' non e' scontato. Le partite e
+// le vittorie le conta il server dentro applicaEsito, dove sa com'e' andata.
+// Le CARTE GIRATE no: succedono dentro alla partita, e il server della partita
+// non le guarda. Arrivano quindi dal client, e un client puo' mentire.
+// Si fa quel che si puo': un tetto per chiamata (nessuno gira quaranta carte
+// in una partita da diciannove caselle), e i premi in gioco sono venticinque
+// di inchiostro o una bustina. Non e' una difesa, e' un limite di danno — e
+// scriverlo qui vale piu' che fingere che sia una difesa.
+var QUEST_TETTO_PER_CHIAMATA = { flip: 40, flip_timeless: 10, flip_multiplo: 10 };
+function rpcQuest(ctx, logger, nk, payload) {
+  if (!ctx.userId) throw Error('serve un accesso');
+  var dentro = {};
+  try { dentro = payload ? JSON.parse(payload) : {}; } catch (e) { dentro = {}; }
+  var possesso = assicuraPossesso(ctx, nk, logger, ctx.userId, ctx.username);
+  var daScrivere = assicuraQuestDelGiorno(logger, possesso, ctx.userId);
+  var mosse = [];
+  var eventi = dentro.eventi;
+  if (eventi) {
+    var pvp = !!dentro.pvp;
+    for (var conta in QUEST_TETTO_PER_CHIAMATA) {
+      var quanto = parseInt(eventi[conta], 10);
+      if (!isFinite(quanto) || quanto <= 0) continue;
+      quanto = Math.min(quanto, QUEST_TETTO_PER_CHIAMATA[conta]);
+      var m = avanzaQuest(possesso, conta, quanto, pvp);
+      if (m.length) { mosse = mosse.concat(m); daScrivere = true; }
+    }
+  }
+  if (daScrivere) scriviPossesso(nk, ctx.userId, possesso);
+  return JSON.stringify({ quest: questPerIlClient(possesso), mosse: mosse });
+}
+function rpcQuestRiscuoti(ctx, logger, nk, payload) {
+  if (!ctx.userId) throw Error('serve un accesso');
+  var dentro = {};
+  try { dentro = payload ? JSON.parse(payload) : {}; } catch (e) { dentro = {}; }
+  var possesso = assicuraPossesso(ctx, nk, logger, ctx.userId, ctx.username);
+  assicuraQuestDelGiorno(logger, possesso, ctx.userId);
+  // `quale` e' un indice, o niente per dire "tutte quelle finite". Il conto
+  // di CHI puo' essere riscosso lo rifa' il server: il client dice quale, non
+  // se si puo'.
+  var quale = (typeof dentro.quale === 'number') ? dentro.quale : -1;
+  var lista = possesso.quest.lista;
+  var presi = [];
+  for (var i = 0; i < lista.length; i++) {
+    if (quale >= 0 && i !== quale) continue;
+    var voce = lista[i];
+    var def = questDefinizione(voce.id);
+    if (!def || voce.presa) continue;
+    if ((voce.fatto || 0) < def.quanto) continue;
+    var dato = _pagaQuest(possesso, def);
+    voce.presa = true;
+    presi.push({ id: def.id, premio: dato.premio, quanto: dato.quanto });
+  }
+  if (presi.length) {
+    scriviPossesso(nk, ctx.userId, possesso);
+    logger.info('quest riscosse da %s: %d', ctx.userId, presi.length);
+  }
+  return JSON.stringify({
+    presi: presi,
+    quest: questPerIlClient(possesso),
+    valute: valuteDi(possesso),
+    bustineExtra: possesso.bustineExtra || 0
+  });
 }
 
 // La RPC resta la strada delle partite contro l'IA, dove non c'e' nessun
@@ -5593,6 +5811,8 @@ function InitModule(ctx, logger, nk, initializer) {
   initializer.registerRpc('hx_mazzi_leggi', rpcMazziLeggi);
   initializer.registerRpc('hx_mazzi_scrivi', rpcMazziScrivi);
   initializer.registerRpc('hx_partita', rpcPartita);
+  initializer.registerRpc('hx_quest', rpcQuest);
+  initializer.registerRpc('hx_quest_riscuoti', rpcQuestRiscuoti);
   initializer.registerRpc('hx_preferenze', rpcPreferenze);
   initializer.registerRpc('hx_avatar', rpcAvatar);
   initializer.registerRpc('hx_bustina_azzera', rpcBustinaAzzera);

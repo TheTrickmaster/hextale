@@ -305,6 +305,30 @@ due che non si rompe in silenzio. Il banco le percorre tutte e due spostando
 e' dentro: arriva dal server col profilo, e chi lo perde non deve restare col
 menu aperto davanti.
 
+## prova-quest-server.js — le regole delle quest, senza Nakama
+
+    node strumenti/prova-quest-server.js
+
+Il server delle quest non ha niente da guardare: e' tutta aritmetica e
+calendario, e le due cose che puo' sbagliare non danno nessun errore.
+
+**Il giorno** cambia a mezzanotte GMT. Chi lo sbaglia se ne accorge una volta
+sola, di notte, e non capisce cosa sia successo.
+
+**Il passaggio di giorno** paga da solo quel che era finito e non riscosso
+(decisione di Lorenzo del 10/09/2026). Se quella riga non gira, il premio
+sparisce e nessuno lo sa: chi lo aspettava pensa di essersi sbagliato.
+
+Si carica `index.js` dentro a un contesto finto — niente Nakama, niente rete —
+e si chiamano le sue funzioni con oggetti scritti a mano. E' l'unico modo di
+provare un capodanno senza aspettare mezzanotte.
+
+Un controllo vale piu' degli altri: **il testo e il campo `dove` devono dire la
+stessa cosa**. La regola e' che "PvP" nel nome significa solo online e "PvIA"
+solo contro la macchina, ma a leggere il nome e' il giocatore e a leggere il
+campo e' il codice. Se i due discordano, il giocatore legge una promessa e il
+gioco ne mantiene un'altra.
+
 ## prova-quest.js — le schede delle daily quests
 
     $ELECTRON strumenti/prova-quest.js [scatto.png]

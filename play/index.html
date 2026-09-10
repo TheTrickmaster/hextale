@@ -1239,6 +1239,49 @@ body.mouse-down, body.mouse-down *{
 .quest-scheda.quest-fatta:hover{ filter:brightness(1.12); }
 .quest-scheda.quest-fatta:active{ filter:brightness(0.95); }
 
+/* ── v0.79.75 — L'AVVISO IN BASSO A SINISTRA ────────────────────────────
+   Quando una quest avanza, la sua scheda sale da sotto, lampeggia una volta,
+   resta tre secondi e riscende. E' la STESSA scheda del pannello — stesse
+   classi, stesso disegno — e non una cosa che le somiglia: chi la vede
+   passare deve riconoscere subito dove ritrovarla.
+   Sta in fondo a sinistra perche' e' l'angolo che il gioco non usa mai: il
+   tabellone e' al centro, le mani in basso al centro, i pannelli ai lati in
+   alto. */
+#quest-avvisi{
+  position:fixed; left:24px; bottom:24px; z-index:1200;
+  display:flex; flex-direction:column-reverse; gap:8px;
+  width:273px; pointer-events:none;
+}
+#quest-avvisi .quest-scheda{
+  /* Le schede del pannello sono larghe quanto il loro riquadro; queste hanno
+     la loro misura, che e' quella del riquadro meno i suoi bordi. */
+  width:249px;
+  animation:questAvvisoEntra .35s cubic-bezier(.22,1,.36,1) both;
+}
+/* Il lampo: un velo bianco che si accende e si spegne da solo, sopra a tutto
+   il resto della scheda. Comincia DOPO l'entrata — prima non ci sarebbe
+   niente da illuminare — e non tocca l'opacita' della scheda, che in quel
+   momento sta ancora salendo. */
+#quest-avvisi .quest-scheda::after{
+  content:''; position:absolute; inset:0; border-radius:inherit;
+  background:#fff; opacity:0; pointer-events:none; z-index:2;
+  animation:questAvvisoLampo .45s ease-out .3s both;
+}
+#quest-avvisi .quest-scheda.va-via{ animation:questAvvisoEsce .35s cubic-bezier(.4,0,.2,1) both; }
+@keyframes questAvvisoEntra{
+  from{ opacity:0; transform:translateY(28px); }
+  to  { opacity:1; transform:none; }
+}
+@keyframes questAvvisoEsce{
+  from{ opacity:1; transform:translateY(0); }
+  to  { opacity:0; transform:translateY(28px); }
+}
+@keyframes questAvvisoLampo{
+  0%  { opacity:0; }
+  25% { opacity:0.5; }
+  100%{ opacity:0; }
+}
+
 /* ── LA FASCIA IN BASSO ──────────────────────────────────────────────── */
 /* Sale l'icona, non il pulsante: e' l'illustrazione a reagire, e il comando
    resta fermo dov'e' — un pulsante che si sposta sotto al dito e' un pulsante
@@ -12258,9 +12301,13 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.74</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.75</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
+<!-- v0.79.75 — dove salgono gli avvisi delle quest. Vuoto quasi sempre, e
+     fuori da ogni pagina: una quest puo' avanzare in partita e l'avviso si
+     vede in partita, ma il posto non appartiene al tavolo. -->
+<div id="quest-avvisi"></div>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
      Light"). Riusa .hx-modal-overlay/.hx-modal-box (le stesse regole del box
@@ -16443,6 +16490,11 @@ function reteMessaggio(md){
     // mostrare: barra dell'esperienza che sale, finestra del rank nuovo.
     PROFILO_STAGIONE = d.profilo || PROFILO_STAGIONE;
     _daMostrareDopoPartita = d;
+    // v0.79.75 — partite e vittorie le ha gia' contate il server; qui si
+    // manda quel che solo il client sapeva, le carte girate. `true` perche'
+    // questa strada e' quella delle partite in RETE.
+    try{ if(d.quest) questMostraMosse(d.quest); }catch(_){ }
+    try{ questRaccontaFinePartita(true); }catch(_){ }
     console.info('[rete] esito dal server: ' + (d.pari ? 'pari' : (d.vinta ? 'vinta' : 'persa'))
       + ', ' + d.xpGuadagnata + ' xp');
     return;
@@ -17115,6 +17167,10 @@ async function riferisciPartita(vinta, pari, controIA){
       vinta: !!vinta, pari: !!pari, controIA: !!controIA, turni: mieiTurni });
     PROFILO_STAGIONE = r.profilo;
     _daMostrareDopoPartita = r;
+    // v0.79.75 — come sopra, ma contro la macchina: `pvp` e' falso, e le quest
+    // che dicono PvP non si muovono.
+    try{ if(r.quest) questMostraMosse(r.quest); }catch(_){ }
+    try{ questRaccontaFinePartita(false); }catch(_){ }
   }catch(e){
     console.warn('[profilo] la partita non e\' stata registrata: ' + (e && e.message));
   }
@@ -17313,6 +17369,8 @@ async function caricaCarteDalServer(){
   // un istante in cui il gioco ha le carte ma non sa chi sei.
   preferenzeDalServer(risposta.preferenze, risposta.bustinaProssima, risposta.bustineExtra,
                       risposta.bustineTesoro, risposta.prezzoPacchetto);
+  // v0.79.75 — e le cinque quest di oggi, che viaggiano con lo stesso giro.
+  try{ mm2DisegnaQuest(risposta.quest || []); }catch(_){ }
   salvaPossessoInCache();
   return { cambiato: !!cambiato };
 }
@@ -19791,6 +19849,23 @@ function mm2DisegnaQuest(elenco){
   corpo.classList.remove('vuoto');
   for(const q of QUEST_OGGI){
     const fatta = questCompletata(q);
+    const scheda = questScheda(q);
+    // v0.79.74 — e se e' finita e non ancora presa, si puo' riscuotere da qui.
+    // L'indice e' quello dell'elenco: e' cio' che il server chiede per sapere
+    // quale, ed e' gia' l'ordine in cui le ha mandate.
+    if(fatta && !q.presa){
+      const dove = QUEST_OGGI.indexOf(q);
+      scheda.addEventListener('click', ()=>mm2RiscuotiQuest(null, dove));
+    }
+    corpo.appendChild(scheda);
+  }
+  mm2AggiornaContaQuest();
+}
+// Una scheda sola, dai suoi cinque campi. Sta a se' perche' la usano in due:
+// il pannello del menu e l'avviso che sale in basso a sinistra — ed e' la
+// STESSA scheda, non una che le somiglia.
+function questScheda(q){
+    const fatta = questCompletata(q);
     const scheda = document.createElement('div');
     scheda.className = 'quest-scheda'
       + (q.presa ? ' quest-presa' : (fatta ? ' quest-fatta' : ''));
@@ -19832,16 +19907,7 @@ function mm2DisegnaQuest(elenco){
     casella.appendChild(icona);
 
     scheda.append(testo, casella);
-    // v0.79.74 — e se e' finita e non ancora presa, si puo' riscuotere da qui.
-    // L'indice e' quello dell'elenco: e' cio' che il server chiedera' per
-    // sapere quale, ed e' gia' l'ordine in cui le ha mandate.
-    if(fatta && !q.presa){
-      const dove = QUEST_OGGI.indexOf(q);
-      scheda.addEventListener('click', ()=>mm2RiscuotiQuest(null, dove));
-    }
-    corpo.appendChild(scheda);
-  }
-  mm2AggiornaContaQuest();
+    return scheda;
 }
 // Il contatore in cima: quante sono state completate E riscosse, su cinque.
 // Non "quante completate": una completata che aspetta di essere riscossa e'
@@ -19859,14 +19925,108 @@ function mm2AggiornaContaQuest(){
     b.style.pointerEvents = daPrendere ? '' : 'none';
   }
 }
-// v0.79.73 — a pagare i premi e' il server, e non c'e' ancora.
 // v0.79.74 — due strade, una funzione: il pulsante le prende tutte, una
 // scheda premuta prende la sua. `quale` e' l'indice nell'elenco, o null per
 // dire "tutte quelle finite". Una porta sola perche' e' lo stesso gesto, e
 // due porte diventerebbero due modi di sbagliarlo.
-function mm2RiscuotiQuest(bottone, quale){
-  console.info('[quest] riscossione chiesta (' + (quale == null ? 'tutte' : 'la ' + quale)
-    + '): il server che paga i premi non c\'e\' ancora.');
+// v0.79.75 — e adesso paga davvero. A decidere CHI si puo' riscuotere e'
+// comunque il server: il client dice quale, non se si puo'.
+let _questInVolo = false;
+async function mm2RiscuotiQuest(bottone, quale){
+  if(_questInVolo) return;                       // premuto due volte: la seconda aspetta
+  if(!sessioneAccount || !sessioneAccount.token) return;
+  _questInVolo = true;
+  let r = null;
+  try{
+    r = await nakamaRpc('hx_quest_riscuoti', (quale == null) ? {} : { quale: quale });
+  }catch(e){
+    _questInVolo = false;
+    console.warn('[quest] non riscosse: ' + ((e && e.message) || ''));
+    return;
+  }
+  _questInVolo = false;
+  if(!r) return;
+  // Le valute e le bustine arrivano gia' contate dal server: non si sommano
+  // qui. Un saldo calcolato in due posti e' un saldo che prima o poi discorda.
+  if(r.valute) applicaValuteDalServer(r.valute);
+  if(typeof r.bustineExtra === 'number'){ BUSTINE_VINTE = r.bustineExtra; try{ mm2AggiornaBustine(); }catch(_){ } }
+  if(r.quest) mm2DisegnaQuest(r.quest);
+  if(r.presi && r.presi.length){ try{ playSfxFile('quest-collected.mp3'); }catch(_){ } }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// v0.79.75 — QUEL CHE SUCCEDE IN PARTITA, RACCONTATO A FINE PARTITA
+// ══════════════════════════════════════════════════════════════════════════
+// Le partite e le vittorie le conta il SERVER, che sa com'e' andata. Le carte
+// girate no: succedono qui dentro, e di la' non le vede nessuno. Si contano
+// durante la partita e si mandano in fondo, in un colpo solo — non a ogni
+// giocata: una chiamata per carta girata sarebbe una chiamata ogni due
+// secondi, e il conto sarebbe comunque quello.
+let QUEST_CONTO = { flip:0, flip_timeless:0, flip_multiplo:0 };
+function questAzzeraConto(){ QUEST_CONTO = { flip:0, flip_timeless:0, flip_multiplo:0 }; }
+// Quante carte in una giocata sola bastano a valere per "Flip N cards with 1".
+// Il numero vero e' quello del server (la `soglia` nel pool); questo e' il
+// filtro che evita di mandare ogni singola giocata.
+const QUEST_MULTIPLO_DA = 2;
+function questSegnaConquiste(player, prese, prima){
+  if(!prese || !prese.length) return;
+  // Solo le MIE: le quest sono mie, e le carte girate dall'avversario sono
+  // sue. Fuori rete sono sempre il primo, in rete lo dice il server.
+  const mio = (typeof _goIoSono === 'function') ? _goIoSono() : 1;
+  if(player !== mio) return;
+  QUEST_CONTO.flip += prese.length;
+  if(prese.length >= QUEST_MULTIPLO_DA) QUEST_CONTO.flip_multiplo += 1;
+  for(const k of prese){
+    const era = prima && prima[k];
+    const c = era && era.card;
+    if(c && String(c.rarity||'').toLowerCase() === 'timeless') QUEST_CONTO.flip_timeless += 1;
+  }
+}
+// A fine partita: si manda quel che si e' contato e si azzera. Se la chiamata
+// non riesce il conto si perde, ed e' la scelta giusta — rimandarlo alla
+// prossima partita vorrebbe dire accreditare a domani cio' che si e' fatto
+// ieri, e le quest sono di oggi.
+async function questRaccontaFinePartita(pvp){
+  const conto = QUEST_CONTO;
+  questAzzeraConto();
+  if(!sessioneAccount || !sessioneAccount.token) return;
+  if(!conto.flip && !conto.flip_timeless && !conto.flip_multiplo) return;
+  try{
+    const r = await nakamaRpc('hx_quest', { eventi: conto, pvp: !!pvp });
+    if(r && r.quest) mm2DisegnaQuest(r.quest);
+    if(r && r.mosse) questMostraMosse(r.mosse);
+  }catch(e){ console.warn('[quest] avanzamento non registrato: ' + ((e && e.message) || '')); }
+}
+// I popup in basso a sinistra: una scheda per ogni quest che si e' mossa.
+// Salgono, lampeggiano, restano tre secondi e riscendono. Sfalsate di quattro
+// decimi: tre che salgono insieme si leggono come un blocco, tre che salgono
+// una dietro l'altra si leggono una per una.
+function questMostraMosse(mosse){
+  if(!mosse || !mosse.length) return;
+  let t = 0;
+  for(const m of mosse){
+    const def = QUEST_OGGI.filter(q=>q && q.id === m.id)[0];
+    if(!def) continue;
+    const copia = Object.assign({}, def, { fatto:m.fatto, presa:false });
+    const finita = !!m.finita;
+    setTimeout(()=>questPopup(copia, finita), t);
+    t += 400;
+  }
+}
+const QUEST_AVVISO_MS = 3000;      // i tre secondi a schermo chiesti da Lorenzo
+const QUEST_AVVISO_USCITA_MS = 350;
+function questPopup(q, finita){
+  const dove = document.getElementById('quest-avvisi');
+  if(!dove) return;
+  const scheda = questScheda(q);
+  dove.appendChild(scheda);
+  // Il suono dice QUALE dei due e' successo, e sono due cose diverse: una
+  // quest che avanza e una che finisce.
+  try{ playSfxFile(finita ? 'quest-complete.mp3' : 'quest-advance.mp3'); }catch(_){ }
+  setTimeout(()=>{
+    scheda.classList.add('va-via');
+    setTimeout(()=>{ if(scheda.parentNode) scheda.parentNode.removeChild(scheda); }, QUEST_AVVISO_USCITA_MS);
+  }, QUEST_AVVISO_MS);
 }
 // Il conto alla rovescia va aggiornato mentre si guarda: entrando col tempo
 // scaduto fra un minuto, il segnalibro deve arrivare da solo a "1 available!"
@@ -33953,6 +34113,10 @@ function assignTileAbilities(){
 }
 
 function initGame(vsAI){
+  // v0.79.75 — il conto delle carte girate riparte da zero: e' di QUESTA
+  // partita, e quello di prima e' gia' stato raccontato (o perso, se la
+  // partita e' finita male).
+  try{ questAzzeraConto(); }catch(_){ }
   // v0.76.8 — la grafica della schermata di partita, montata alla prima partita.
   try{ montaGraficaPartita(); }catch(_){}
   // Cancel all active animation frames from the previous game
@@ -41890,6 +42054,11 @@ function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLa
   // Grillo ha lasciato. Sta prima del disegno qui sotto, cosi' il +2 si vede
   // sulla carta appena atterra invece di comparire un istante dopo.
   riscuotiPremioProssimaGiocata(card, player, conquered.length);
+  // v0.79.75 — e si segnano le carte girate, per le quest del giorno. Questo
+  // e' l'unico punto del gioco che sa quante ne ha girate UNA giocata, ed e'
+  // proprio il numero che serve a "Flip 2 cards with 1": contarle a fine
+  // partita direbbe quante in tutto, che e' un'altra domanda.
+  try{ questSegnaConquiste(player, conquered, snap); }catch(_){ }
 
   // Neither placeCard() nor the drag-drop mouseup handler render the board
   // after calling doPlace() — the board only used to get painted by
