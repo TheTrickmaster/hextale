@@ -140,7 +140,36 @@ dice(ctx.questPerIlClient(orfana).length === 0,
   'e una quest tolta dal pool sparisce senza rompere niente',
   'Il giocatore che ce l-aveva addosso non vede una scheda senza nome: non la vede.');
 
-// ── 7. IL PREMIO ──────────────────────────────────────────────────────────
+// ── 7. CHI APRE IL GIOCO LE TROVA GIA- FATTE ──────────────────────────────
+// v0.79.78, e il difetto piu- imbarazzante di tutta la faccenda: il profilo
+// RACCONTAVA le quest ma nessuno le aveva mai CREATE. Chi non aveva ancora
+// finito una partita — cioe- chiunque aprisse il menu — riceveva una lista
+// vuota e vedeva il riquadro vuoto.
+//
+// Il primo pezzo si prova per davvero: un possesso appena nato non ha quest,
+// e questPerIlClient non puo- inventarsele.
+const appenaNato = { valute: { magicInk: 0 } };
+dice(ctx.questPerIlClient(appenaNato).length === 0,
+  'un giocatore appena nato non ha nessuna quest addosso',
+  'Non e- un difetto: e- il motivo per cui QUALCUNO deve generarle.');
+ctx.assicuraQuestDelGiorno(null, appenaNato, 'u2');
+dice(ctx.questPerIlClient(appenaNato).length === 5,
+  'e appena qualcuno chiama assicuraQuestDelGiorno ne ha cinque',
+  ctx.questPerIlClient(appenaNato).map(q => q.nome).join(', '));
+
+// Il secondo pezzo e- il PUNTO in cui quella chiamata sta, e quello si guarda
+// nel sorgente: era proprio la chiamata mancante, non una funzione sbagliata.
+// rpcAvvio e- la porta da cui passa chiunque apra il gioco — le altre due
+// (hx_quest, hx_quest_riscuoti) le chiama solo chi ha gia- qualcosa da
+// raccontare, e il giro si chiudeva su se stesso.
+const avvio = sorgente.slice(sorgente.indexOf('function rpcAvvio('));
+const finoAlRacconto = avvio.slice(0, avvio.indexOf('quest: questPerIlClient(possesso)'));
+dice(finoAlRacconto.indexOf('assicuraQuestDelGiorno') >= 0,
+  'e chi apre il gioco passa da una porta che le genera',
+  'In rpcAvvio la generazione deve venire PRIMA del racconto, o il racconto\n' +
+  '        e- di una lista che non esiste.');
+
+// ── 8. IL PREMIO ──────────────────────────────────────────────────────────
 const tasca = { valute: { magicInk: 0 }, bustineExtra: 0 };
 const a = ctx._pagaQuest(tasca, ctx.questDefinizione('flip20'));
 dice(a.premio === 'ink' && a.quanto === ctx.QUEST_INK && tasca.valute.magicInk === ctx.QUEST_INK,

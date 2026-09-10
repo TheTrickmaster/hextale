@@ -2216,6 +2216,28 @@ function rpcAvvio(ctx, logger, nk, payload) {
   var st = leggiStagione(nk, ctx.userId);
   if (st.azzerato) { scriviStagione(nk, ctx.userId, st.profilo); logger.info('stagione nuova: profilo azzerato per %s', ctx.userId); }
 
+  // ── v0.79.78 — LE QUEST DEL GIORNO SI GENERANO QUI ──────────────────────
+  // Alla v0.79.75 questa riga non c'era, e il difetto era quello di un
+  // cameriere che porta il conto senza aver portato da mangiare: due righe
+  // piu' giu' il profilo RACCONTAVA le quest (questPerIlClient) ma nessuno le
+  // aveva mai CREATE. Chi non aveva ancora finito una partita — cioe' chiunque
+  // aprisse il menu — riceveva una lista vuota e vedeva il riquadro vuoto.
+  // Le altre due porte (hx_quest e hx_quest_riscuoti) la chiamavano, ma le
+  // chiama solo chi ha gia' qualcosa da raccontare: a fine partita, o
+  // premendo un pulsante che senza quest non compare. Il giro si chiudeva su
+  // se stesso.
+  //
+  // Questa e' la porta da cui passa CHIUNQUE apra il gioco, ed e' per questo
+  // che le quest vanno generate qui: il primo che ne ha bisogno e' chi guarda
+  // il menu, non chi finisce una partita.
+  try {
+    if (assicuraQuestDelGiorno(logger, possesso, ctx.userId)) {
+      // Si scrive solo se e' cambiato qualcosa: e' vero il primo giorno e a
+      // ogni mezzanotte, non a ogni apertura del gioco.
+      scriviPossesso(nk, ctx.userId, possesso);
+    }
+  } catch (eq) { logger.warn('quest del giorno non generate per %s: %s', ctx.userId, String(eq)); }
+
   return JSON.stringify({
     versione: catalogo.versione,
     invariato: !!invariato,
@@ -2240,9 +2262,11 @@ function rpcAvvio(ctx, logger, nk, payload) {
     // ricava da bustinaProssima, che c'e' gia' due righe piu' su.
     bustineTesoro: possesso.bustineTesoro || 0,
     prezzoPacchetto: PACCHETTO_PREZZO_INK,
-    // v0.79.75 — le cinque quest di oggi, generate adesso se il giorno e'
-    // cambiato. Viaggiano col profilo perche' e' la stessa risposta che porta
-    // carte, valute e preferenze: una domanda in meno all'avvio.
+    // v0.79.75 — le cinque quest di oggi. Viaggiano col profilo perche' e' la
+    // stessa risposta che porta carte, valute e preferenze: una domanda in meno
+    // all'avvio.
+    // A generarle e' la riga qui sopra: questo campo le racconta soltanto, e
+    // alla v0.79.75 raccontava una lista che nessuno aveva creato.
     quest: questPerIlClient(possesso),
     // v0.78.16 — quali carte non sono ancora state guardate in Collezione.
     nuove: _nuoveDi(possesso, _visibiliDi(catalogo, admin)),
