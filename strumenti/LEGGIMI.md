@@ -1354,6 +1354,42 @@ modulo dal server (`/opt/nakama/data/modules/index.js`) e gli si fanno le
 stesse domande. Il calendario e' l'unica cosa che un banco non puo' fingere del
 tutto: la giornata vera e' quella in cui gira.
 
+## prova-tutorial.js — le sei schede del tutorial
+
+    $ELECTRON strumenti/prova-tutorial.js [foto.png]
+
+Il tutorial e' la prima cosa che un giocatore nuovo vede dopo aver scelto il
+nome, e questo lo rende diverso da ogni altra finestra: **chi lo prova non e'
+mai chi lo ha scritto**. Un difetto qui non lo segnala nessuno — chi arriva
+pensa che il gioco sia fatto cosi'.
+
+**Il riquadro e' 1200x700 sempre.** Non e' una conseguenza del contenuto, e'
+un vincolo: dentro c'e' un video, e un riquadro che seguisse il testo lo
+farebbe allargare a ogni passo. Il banco misura tutte e quattro le schede.
+
+**Il video sbagliato** e' il difetto che nessun controllo generico prende: sei
+schede, sei clip, e uno scambio si vede solo guardando. Ogni scheda deve
+puntare al suo file.
+
+**La freccia che sparisce invece di spegnersi.** Sulla prima scheda l'indietro
+non ha dove andare. Se se ne andasse, l'avanti scivolerebbe al suo posto e il
+pollice tornerebbe su un pulsante diverso: il banco controlla che sia spenta
+**e** che occupi ancora il suo spazio.
+
+**Il "Got it!" sulla scheda sbagliata.** Prima dell'ultima chiuderebbe un
+discorso a meta'; assente sull'ultima non lascerebbe modo di uscire, perche'
+questa finestra non si chiude col velo ne' con Esc — ed e' voluto: le prime
+quattro schede stanno fra la scelta del nome e quella del mazzo, dentro a una
+fila di cose che si fanno decidendo.
+
+Due note su come misura. Le gemme delle rarita' si leggono **dopo un'attesa**:
+`impostaImgDaCandidati` scrive il `src` quando ha finito di provare gli
+indirizzi, e leggerlo subito direbbe "gemma mancante" per il motivo sbagliato.
+E i colori delle rarita' si confrontano con `COLORI_RARITA` invece che con
+quattro costanti scritte nel banco: una rarita' ha un colore solo in tutto il
+gioco, e un banco che ne tenesse una copia sarebbe il secondo posto da
+aggiornare.
+
 ## prova-customize.js — le due voci che hanno traslocato
 
     $ELECTRON strumenti/prova-customize.js

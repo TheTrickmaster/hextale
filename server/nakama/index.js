@@ -594,6 +594,37 @@ function assicuraPossesso(ctx, nk, logger, userId, username) {
 //
 // Con payload vuoto e' una DOMANDA ("ho gia' scelto?"), con {mazzo:N} e' la
 // scelta. Stessa forma di hx_accordo: una porta sola per una cosa sola.
+// ══════════════════════════════════════════════════════════════════════════
+// v0.79.82 — QUALI TUTORIAL SONO GIA' STATI VISTI
+// ══════════════════════════════════════════════════════════════════════════
+// Tre momenti diversi, tre ricordi separati: la sequenza d'apertura, la
+// finestra dei pacchetti e quella della Libreria. Separati e non un solo
+// "tutorial fatto" perche' si vedono in tre momenti lontani fra loro — chi
+// apre i pacchetti la prima volta puo' averlo fatto mesi dopo il primo
+// accesso, e un ricordo unico glielo toglierebbe.
+//
+// STA SUL SERVER e non nel browser, come tutto il resto (e' la regola di
+// Lorenzo): chi cambia computer non deve rivedersi il tutorial, e chi svuota
+// la cronologia nemmeno.
+// Il client NON decide: chiede, e qui si controlla che il nome sia uno dei
+// tre. Un nome inventato non scrive niente.
+var TUTORIAL_NOMI = ['principale', 'pacchetti', 'libreria'];
+function rpcTutorial(ctx, logger, nk, payload) {
+  if (!ctx.userId) throw Error('serve un accesso');
+  var d = {};
+  try { d = payload ? JSON.parse(payload) : {}; } catch (e) { d = {}; }
+  var possesso = assicuraPossesso(ctx, nk, logger, ctx.userId, ctx.username);
+  var visti = possesso.tutorial || {};
+  var quale = d.visto;
+  if (quale && TUTORIAL_NOMI.indexOf(quale) >= 0 && !visti[quale]) {
+    visti[quale] = true;
+    possesso.tutorial = visti;
+    scriviPossesso(nk, ctx.userId, possesso);
+    logger.info('tutorial %s visto da %s', quale, ctx.userId);
+  }
+  return JSON.stringify({ visti: visti });
+}
+
 function rpcStarter(ctx, logger, nk, payload) {
   if (!ctx.userId) throw Error('serve un accesso');
   var d = {};
@@ -2262,6 +2293,11 @@ function rpcAvvio(ctx, logger, nk, payload) {
     // ricava da bustinaProssima, che c'e' gia' due righe piu' su.
     bustineTesoro: possesso.bustineTesoro || 0,
     prezzoPacchetto: PACCHETTO_PREZZO_INK,
+    // v0.79.82 — quali tutorial sono gia' stati visti. Viaggia col profilo per
+    // la stessa ragione delle quest, e per una in piu': il tutorial d'apertura
+    // si deve decidere PRIMA che si veda qualcosa, e una domanda in piu' in quel
+    // momento sarebbe un momento in piu' di schermo fermo.
+    tutorial: possesso.tutorial || {},
     // v0.79.75 — le cinque quest di oggi. Viaggiano col profilo perche' e' la
     // stessa risposta che porta carte, valute e preferenze: una domanda in meno
     // all'avvio.
@@ -5844,6 +5880,7 @@ function InitModule(ctx, logger, nk, initializer) {
   initializer.registerRpc('hx_report', rpcReport);
   initializer.registerRpc('hx_accordo', rpcAccordo);
   initializer.registerRpc('hx_starter', rpcStarter);
+  initializer.registerRpc('hx_tutorial', rpcTutorial);
   initializer.registerRpc('hx_posta_config', rpcPostaConfig);
   initializer.registerRpc('hx_verifica_stato', rpcVerificaStato);
   initializer.registerRpc('hx_verifica_invia', rpcVerificaInvia);
