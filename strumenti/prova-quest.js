@@ -110,7 +110,43 @@ app.whenReady().then(async () => {
         'e una gia- riscossa ha la spunta, qualunque fosse il premio',
         iSpuntaA + ' / ' + iSpuntaB);
 
-      // ── 6. LA BARRA DICE QUANTO MANCA ─────────────────────────────────────
+      // ── 6. LE ICONE NON SPORGONO PIU- DALLA SCHEDA ────────────────────────
+      // v0.79.79. Le icone stanno dove stavano — Lorenzo le ha volute ferme —
+      // e a fermarle e- il bordo: la scheda RITAGLIA, e quel che va oltre non
+      // si vede. Sono due cose distinte e servono tutte e due, quindi si
+      // guardano tutte e due: se un domani sparisse l-overflow, le posizioni
+      // da sole rimetterebbero le icone fuori dal bordo senza dire niente.
+      mm2DisegnaQuest([
+        { nome:'Win 3 PvP matches',  fatto:1, quanto:3, premio:'pack', presa:false },
+        { nome:'Flip 20 cards',      fatto:1, quanto:3, premio:'ink',  presa:false },
+        { nome:'Play 5 PvP matches', fatto:3, quanto:3, premio:'ink',  presa:true  }
+      ]);
+      await attendi(600);
+      const schedeIc = [...corpo.querySelectorAll('.quest-scheda')];
+      dice(schedeIc.every(s => getComputedStyle(s).overflow === 'hidden'),
+        'la scheda ritaglia quel che le esce dal bordo',
+        schedeIc.map(s=>getComputedStyle(s).overflow).join(' '));
+      // E le posizioni sono ancora quelle: l-icona VA oltre il bordo, ed e-
+      // proprio per questo che il ritaglio serve. Un banco che chiedesse
+      // "l-icona sta dentro?" direbbe di no ed avrebbe torto.
+      const oltre = schedeIc.map(s=>{
+        const i = s.querySelector('.quest-premio');
+        return Math.round(i.getBoundingClientRect().right - s.getBoundingClientRect().right);
+      });
+      dice(oltre.every(v => v > 0), 'e le icone stanno ancora dove stavano',
+        'oltre il bordo di ' + oltre.join(', ') + ' pixel — nascosti, non tolti.');
+      // Quanto si perde di ciascuna: se un giorno superasse la meta-, l-icona
+      // smetterebbe di leggersi per quel che e-.
+      const persi = schedeIc.map(s=>{
+        const i = s.querySelector('.quest-premio').getBoundingClientRect();
+        const b = s.getBoundingClientRect();
+        return Math.round((i.right - b.right) / i.width * 100);
+      });
+      dice(persi.every(v => v < 50), 'e di nessuna si perde piu- della meta-',
+        persi.map((v,k)=>['busta','inchiostro','spunta'][k] + ' ' + v + '%').join(', ') +
+        '.\\n        La spunta e- quella che ci va piu- vicino: era la piu- sporgente delle tre.');
+
+      // ── 7. LA BARRA DICE QUANTO MANCA ─────────────────────────────────────
       mm2DisegnaQuest([{ nome:'x', fatto:1, quanto:4, premio:'pack', presa:false }]);
       const b = corpo.querySelector('.quest-barra'), pieno = corpo.querySelector('.quest-barra-piena');
       await attendi(600);

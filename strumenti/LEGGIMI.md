@@ -331,6 +331,21 @@ gioco ne mantiene un'altra.
 
 ## prova-quest.js — le schede delle daily quests
 
+**v0.79.79 — le icone non sporgono piu', ma non si sono mosse.** Sono due
+cose distinte e il banco le guarda tutte e due. Le icone stanno dove Lorenzo
+le aveva messe — vanno ancora oltre il bordo destro della scheda — e a
+fermarle e' il ritaglio della scheda, non una posizione diversa. Chiedere
+"l'icona sta dentro?" darebbe di no e avrebbe torto: la domanda giusta e'
+"la scheda ritaglia?" *e* "l'icona e' ancora al suo posto?". Se un domani
+sparisse l'overflow, le posizioni da sole rimetterebbero le icone fuori dal
+bordo senza dire niente.
+
+Il terzo controllo misura **quanto** si perde di ciascuna. Tagliare un'icona
+e' voluto; tagliarne via meta' no, perche' a quel punto smette di leggersi
+per quel che e'. La spunta e' quella che ci va piu' vicino (39%): era la piu'
+sporgente delle tre, e se un domani qualcuno la spostasse ancora a destra e'
+la prima che diventerebbe irriconoscibile.
+
     $ELECTRON strumenti/prova-quest.js [scatto.png]
 
 Il disegno mostra **cinque** schede, ma gli stati sono **tre**: in corso,
