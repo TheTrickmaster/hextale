@@ -37,7 +37,11 @@ app.disableHardwareAcceleration();
 
 app.whenReady().then(async () => {
   const win = new BrowserWindow({ show: false, width: 1920, height: 1080, frame: false,
-    webPreferences: { contextIsolation: false, webSecurity: false } });
+    // backgroundThrottling spento: una finestra fuori dallo schermo viene
+    // considerata coperta, e da li- in poi il disegno non avanza piu- — le
+    // fotografie tornano il fotogramma di quando e- stata coperta, cioe- il
+    // logo di apertura invece della partita.
+    webPreferences: { contextIsolation: false, webSecurity: false, backgroundThrottling: false } });
   await win.loadURL(PAGINA);
   // MOSTRATA subito, fuori dallo schermo. Non e' per le fotografie: su una
   // finestra nascosta il contenitore della plancia nasce largo zero, e
@@ -231,12 +235,17 @@ app.whenReady().then(async () => {
   }
   console.log(male ? '\n' + male + ' cose non tornano' : '\ntutto a posto (' + dette.length + ' controlli)');
   if (SCATTO) try {
+    // Il velo di apertura si toglie con una REGOLA e non con uno stile in
+    // linea: la sequenza di caricamento se lo rimette addosso da sola, e a
+    // fotografia scattata ci si ritrova il logo invece della partita.
+    await win.webContents.insertCSS("#splash{display:none!important}");
     // Si rimette il gelo che l'ultimo controllo ha tolto, e si fotografa.
     await win.webContents.executeJavaScript(`(function(){
       const libere = celleLibere();
       G.gelo[libere[Math.floor(libere.length/2)]] = (G.numeroTurno||1) + 2;
       _firmaTabellonePrecedente = null; renderBoard(); render(); return 1; })()`);
     await new Promise(r => setTimeout(r, 900));
+    console.log("  sopra al centro: " + await win.webContents.executeJavaScript("(function(){var e=document.elementFromPoint(960,540);var o=[];while(e&&e.nodeType===1&&o.length<5){o.push((e.id||e.className||e.tagName)+':'+getComputedStyle(e).display);e=e.parentElement;}return o.join(' <- ');})()"));
     fs.writeFileSync(SCATTO, (await win.webContents.capturePage()).toPNG());
     console.log('scritto ' + SCATTO);
     // E i due ritagli, uno per lastra.

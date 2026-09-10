@@ -170,6 +170,54 @@ perche' quell'SVG arriva con la classe della mano, che e' assoluta e riempie il
 primo antenato posizionato — senza, delle dodici se ne vedeva una sola, larga
 quanto tutto il riquadro.
 
+## prova-disclaimer.js — il disclaimer del prototipo
+
+    $ELECTRON strumenti/prova-disclaimer.js [scatto.png]
+
+Si vede UNA volta sola per account, appena firmato l'accordo, e questo lo rende
+difficile da riprovare a mano quanto "Pick a letter": per rivederlo servirebbe
+un account nuovo ogni volta.
+
+Il controllo che conta piu' di tutti non e' come sta in piedi, e' la **catena**.
+Questa finestra non ha una memoria sua — sta attaccata all'accettazione
+dell'accordo, che avviene una volta per account — e chi la chiude deve far
+proseguire chi stava andando al menu. Se quel filo si spezza, chi firma resta
+davanti a un velo scuro e non entra piu': un guasto che colpisce **solo chi si
+registra**, cioe' nessuno di quelli che provano il gioco tutti i giorni. Il
+banco firma con un server finto, controlla che al menu non ci si vada ancora, e
+che ci si vada premendo "Got it!" — una volta sola, anche premendolo due volte.
+
+Poi la forma: le due colonne devono avere il fondo, il bordo, gli angoli e la
+trama di quelle della lettera, ma **non** la tinta colorata (li' i tre colori
+distinguevano tre lettere fra cui scegliere, qui non c'e' niente da scegliere);
+le icone larghe cento e centrate; il pulsante FUORI dal riquadro e in mezzo.
+
+**Due trappole imparate scrivendolo.** La finestra va mostrata — anche fuori
+dallo schermo — e con `backgroundThrottling` spento: una finestra considerata
+coperta non fa avanzare le TRANSIZIONI CSS, e le finestre del gioco compaiono in
+dissolvenza (`--hx-dissolvenza`), quindi restano a opacita' zero. Sono
+misurabili in ogni loro parte e **nere in fotografia**, che e' il modo piu'
+rapido per credere di aver sbagliato il markup. E il velo di apertura si toglie
+con una REGOLA (`insertCSS`), non con uno stile in linea: la sequenza di
+caricamento se lo rimette addosso da sola.
+
+## prova-muri.js — cinque muri, e mai due uguali
+
+    $ELECTRON strumenti/prova-muri.js
+
+Le caselle bloccate di una partita sono da due a cinque e le varianti sono
+cinque: dentro a una partita due muri uguali non si devono vedere **mai**. Non
+e' un caso fortunato — `assegnaMuriDellaPartita` pesca da un mazzo mescolato e
+non rimette in gioco niente finche' il mazzo non e' finito — ma e' esattamente
+il genere di regola che si rompe in silenzio: due muri uguali su un tabellone
+non sembrano un guasto, sembrano una coincidenza. Il banco tira milleduecento
+partite finte e conta i doppioni.
+
+Poi che i cinque file **esistano**. Dalla v0.79.65 si chiamano `tile-blocked-N`
+(erano `tile-broken-N`), e un indirizzo sbagliato non da' nessun errore che si
+veda giocando: la casella resta vuota e il tabellone sembra disegnato male
+invece che rotto. Il banco li chiede al sito, uno per uno.
+
 ## prova-404.js — la pagina che non c'e'
 
     $ELECTRON strumenti/prova-404.js [scatto.png]
