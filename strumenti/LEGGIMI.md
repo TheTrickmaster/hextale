@@ -201,6 +201,34 @@ rapido per credere di aver sbagliato il markup. E il velo di apertura si toglie
 con una REGOLA (`insertCSS`), non con uno stile in linea: la sequenza di
 caricamento se lo rimette addosso da sola.
 
+## prova-esc.js — Esc chiude la finestra piu' in alto
+
+    $ELECTRON strumenti/prova-esc.js
+
+Dalla v0.79.72 Esc non chiude: fa quello che farebbe un clic sul **velo** della
+finestra piu' in alto. Prima era una CATENA di cinque casi scritti a mano, e
+ogni finestra nuova nasceva fuori dall'elenco — cioe' senza Esc — finche'
+qualcuno non se ne accorgeva.
+
+Il bello e' cio' che non serve dire: una finestra che si puo' gia' lasciare
+cliccando fuori si lascia anche con Esc, da subito e senza aggiungersi a nessuna
+lista. E una che NON si puo' lasciare — l'accordo, la scelta della lettera, il
+blocco del client vecchio — non ha quel gestore, quindi Esc non fa niente: la
+regola "di qui si passa decidendo" resta scritta in un posto solo.
+
+Proprio per questo il difetto e' silenzioso **in tutte e due le direzioni**, ed
+e' quello che il banco guarda: una finestra che dovrebbe chiudersi e non si
+chiude (chi ci prova pensa di aver sbagliato tasto), e una che non deve chiudersi
+e si chiude (tre porte che diventano tre porte che si tolgono di mezzo).
+Undici finestre da una parte, cinque dall'altra, aperte per davvero e con Esc
+premuto per davvero. Piu' due regole di convivenza: se ne chiude **una** per
+volta, la piu' in alto (un mazzo aperto sotto l'ingrandimento di una carta non
+deve chiudersi anche lui), e finche' si sceglie il nome Esc non tocca nemmeno
+cio' che sta sotto.
+
+Due delle undici vivono dentro alla Collezione, e le pagine sono ermetiche: il
+banco monta quella pagina, o direbbero "non si chiude" per il motivo sbagliato.
+
 ## prova-report.js — segnalare un giocatore
 
     $ELECTRON strumenti/prova-report.js [scatto.png]

@@ -19,7 +19,11 @@ app.disableHardwareAcceleration();
 
 app.whenReady().then(async () => {
   const win = new BrowserWindow({ show: false, width: 1920, height: 1080, frame: false,
-    webPreferences: { contextIsolation: false, webSecurity: false } });
+    // backgroundThrottling spento: una finestra fuori dallo schermo viene
+    // considerata coperta, e da li- non avanzano ne- il disegno ne- gli stati
+    // del puntatore — :hover non si accende piu- e la prova dell-hover cade
+    // per un motivo che non ha niente a che fare con la regola che prova.
+    webPreferences: { contextIsolation: false, webSecurity: false, backgroundThrottling: false } });
   await win.loadURL(PAGINA);
   await new Promise(r => setTimeout(r, 2500));
 
