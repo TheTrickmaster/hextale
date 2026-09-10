@@ -305,6 +305,35 @@ due che non si rompe in silenzio. Il banco le percorre tutte e due spostando
 e' dentro: arriva dal server col profilo, e chi lo perde non deve restare col
 menu aperto davanti.
 
+## prova-quest.js — le schede delle daily quests
+
+    $ELECTRON strumenti/prova-quest.js [scatto.png]
+
+Il disegno mostra **cinque** schede, ma gli stati sono **tre**: in corso,
+completata, riscattata. Le cinque sono tre stati per due premi (busta e
+inchiostro), e il premio non e' uno stato, e' un'icona. Il banco tenta i sei
+incroci e chiede che le classi siano tre: e' la differenza fra un pannello che
+regge un premio nuovo domani e uno in cui ogni premio raddoppia i casi.
+
+Poi il vincolo che non si vede finche' non si rompe: **cinque schede devono
+starci**. Il riquadro e' alto quanto la colonna di sinistra (regola della
+v0.79.69) e non puo' crescere; cinque schede da 55 con quattro di stacco sono
+315 pixel esatti. Bastano tre pixel di bordo contati male perche' la quinta
+finisca sotto il bordo, e nessuno se ne accorge: una lista che scorre di poco
+sembra una lista che sta dentro. E' successo davvero — il primo giro aveva le
+schede a 63 invece che a 55, perche' il gap fra titolo e barra e' 4 e non 8
+(l'8 e' il gap fra la colonna del testo e l'icona).
+
+Gli altri: la barra dice la frazione giusta, chi ha fatto piu' del dovuto legge
+il traguardo e non un numero storto ("4/3"), il contatore in cima conta le
+**riscosse** e non le completate (una completata che aspetta e' ancora una cosa
+da fare), e il pulsante si accende solo quando c'e' qualcosa da riscuotere.
+
+Una trappola: l'indirizzo dell'icona si legge **dopo un respiro**.
+`impostaImgDaCandidati` prova gli indirizzi uno per uno e scrive il `src` quando
+trova quello buono; letto nello stesso istante e' vuoto, e il banco direbbe che
+manca l'immagine quando manca solo il tempo.
+
 ## prova-menu-sx.js — le due colonne del menu, e la fine partita
 
     $ELECTRON strumenti/prova-menu-sx.js [scatto.png]
