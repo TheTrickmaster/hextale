@@ -158,6 +158,18 @@ si apre e come resta dopo la scelta. Per fotografarla va tolto il velo di
 apertura (`#splash`), che sta sopra a tutto finche' il gioco non ha finito di
 caricare.
 
+Dalla v0.79.60 la scena dopo la scelta e' un'altra: il riquadro e il titolo
+RESTANO (il titolo dice "New deck!"), la colonna della lettera scivola a
+sinistra e a destra si apre la galleria delle carte del mazzo — tre per riga,
+larghe 300, a trenta pixel l'una dall'altra, alta fin sul bordo del riquadro e
+da scorrere con la rotella senza barra. Il banco misura tutto questo in pixel,
+e controlla che a "Collect" a salire sia il riquadro intero, non la colonna
+sola. Le carte sono quelle di `carteDelMazzo`, disegnate intere con
+`buildFullHandCardSVG`: la casella che le contiene DEVE essere posizionata,
+perche' quell'SVG arriva con la classe della mano, che e' assoluta e riempie il
+primo antenato posizionato — senza, delle dodici se ne vedeva una sola, larga
+quanto tutto il riquadro.
+
 ## prova-404.js — la pagina che non c'e'
 
     $ELECTRON strumenti/prova-404.js [scatto.png]

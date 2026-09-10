@@ -8923,11 +8923,6 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
 .starter-col:not(.starter-via):not(.starter-fatta):hover{ filter:brightness(1.14); }
 .starter-col.starter-via{
   opacity:0; flex-basis:0; width:0; margin-left:-15px; margin-right:-15px;
-  /* v0.79.60 — anche i bordi a zero: a larghezza zero restavano i due tratti
-     da un pixel e mezzo per colonna, e la galleria a destra finiva a
-     trentaquattro pixel dalla lettera invece che a trenta. Prima non si vedeva:
-     la colonna rimasta era al centro, e il centro non cambia. */
-  border-left-width:0; border-right-width:0;
   pointer-events:none;
 }
 .starter-col.starter-presa{
@@ -8946,12 +8941,8 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
    elemento non convivono, e a convivere finirebbero per non vedersi nessuna
    delle due.
    Il velo scuro dietro se ne va con lei, un attimo dopo: sparendo di colpo
-   lascerebbe la pagina in faccia mentre la colonna e' ancora per aria.
-   v0.79.60 — a salire e' il RIQUADRO intero (#starter-box): dentro adesso ci
-   sono anche il titolo e la galleria, e una colonna che vola via da un
-   riquadro che resta fermo sarebbe una carta che scappa, non un mazzo che
-   se ne va in Libreria. */
-#starter-box.starter-esce{
+   lascerebbe la pagina in faccia mentre la colonna e' ancora per aria. */
+.starter-col.starter-esce{
   animation:starterEsce .45s cubic-bezier(.4,0,.2,1) forwards;
   pointer-events:none;
 }
@@ -8964,56 +8955,16 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
    contenuto: si spegne uno e si accende l'altro, cosi' il passaggio si vede. */
 .starter-col.starter-fatta .starter-dentro{ display:none; }
 .starter-col.starter-fatta .starter-esito{ display:flex; }
-/* ── v0.79.60 — QUEL CHE RESTA IN SCENA: TUTTO, E LE CARTE A FIANCO ──────
-   Dalla v0.79.23 alla v0.79.59, scelta la lettera, il riquadro e il titolo
-   se ne andavano e restava la colonna sola in mezzo allo schermo. Adesso il
-   riquadro resta, il titolo dice "New deck!", la colonna scivola a sinistra
-   e a destra si apre la galleria delle carte del mazzo: tre per riga,
-   quattro righe, da scorrere con la rotella. E' la stessa cosa che si vede
-   nella Libreria un attimo dopo, ma qui la si vede PRIMA di andarci — e' il
-   mazzo che si e' appena preso, e un mazzo e' fatto di carte, non di una
-   casella con un nome.
-   La galleria parte larga ZERO con un margine negativo che si mangia il gap
-   della riga, come fanno le due colonne che se ne vanno: e' cosi' che la
-   colonna rimasta non salta ma scivola. Il riquadro e' centrato nel velo, e
-   allargandosi si allarga da tutte e due le parti: la colonna si sposta a
-   sinistra di meta' della galleria, che e' esattamente il posto in cui deve
-   finire. Niente da calcolare. */
-#starter-galleria{
-  flex:0 0 0px; width:0; margin-left:-30px; opacity:0;
-  /* Alta quanto la colonna piu' il bordo in basso del riquadro: le carte si
-     tagliano sul filo del pannello, non trenta pixel sopra. Il margine
-     negativo rende i trenta pixel alla riga, che resta alta quanto la
-     colonna; il padding li restituisce a fine scorrimento, cosi' l'ultima
-     riga di carte finisce dove finirebbe la colonna. */
-  height:610px; margin-bottom:-30px; padding-bottom:30px; box-sizing:border-box;
-  overflow-y:auto; overflow-x:hidden;
-  /* La barra di scorrimento non si vede, come nella Libreria: si scorre con
-     la rotella, e il bordo del pannello e' gia' il segno di dove finisce. */
-  scrollbar-width:none; -ms-overflow-style:none;
-  transition:flex-basis .45s cubic-bezier(.22,1,.36,1), width .45s cubic-bezier(.22,1,.36,1),
-             margin-left .45s cubic-bezier(.22,1,.36,1), opacity .3s ease .15s;
+/* ── v0.79.23 — QUEL CHE RESTA IN SCENA ──────────────────────────────────
+   Scelta la lettera, il riquadro che conteneva le tre colonne e il titolo se
+   ne vanno: la domanda e' stata fatta e ha avuto risposta, e tenerli li'
+   direbbe che si puo' ancora cambiare idea. Resta la colonna, sola. */
+#starter-overlay.starter-solo #starter-titlebar{ opacity:0; transition:opacity .4s ease; }
+#starter-overlay.starter-solo #starter-pannello{
+  background:none; border-color:transparent; padding:0;
+  transition:background-color .45s ease, border-color .45s ease, padding .45s ease;
 }
-#starter-galleria::-webkit-scrollbar{ display:none; width:0; height:0; }
-#starter-overlay.starter-carte #starter-galleria{ flex-basis:960px; width:960px; margin-left:0; opacity:1; }
-/* La griglia dentro ha la SUA larghezza, fissa: mentre il contenitore si
-   allarga da zero, le tre colonne di carte non si devono ridisporre — si
-   scoprono, come da dietro a una tenda. */
-#starter-galleria-griglia{
-  display:grid; grid-template-columns:repeat(3, 300px); gap:30px;
-  width:960px;
-}
-.starter-carta{
-  /* Posizionata: la carta di buildFullHandCardSVG arriva con la classe della
-     mano (.hand-card-full-svg), che e' assoluta e riempie il primo antenato
-     posizionato. Senza questo riempiva la RIGA intera, e delle dodici se ne
-     vedeva una, larga quanto tutto il riquadro. */
-  position:relative;
-  width:300px; aspect-ratio:210/360;
-  cursor:var(--cursore); transition:transform .18s ease;
-}
-.starter-carta:hover{ transform:scale(1.03); }
-.starter-carta svg{ width:100%; height:100%; display:block; filter:drop-shadow(0 0 10px rgba(0,0,0,0.25)); }
+#starter-overlay.starter-solo #starter-pannello::before{ opacity:0; transition:opacity .45s ease; }
 /* Il contenuto arriva DOPO il lampo, e i due pezzi arrivano da due parti:
    l'anteprima cala dall'alto, la frase sale dal basso. Non e' un vezzo — sono
    due cose diverse (che cosa hai preso, e cosa vuol dire), e arrivare insieme
@@ -11890,7 +11841,7 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.60</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.59</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -12198,10 +12149,6 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
           </button>
         </div>
       </div>
-      <!-- v0.79.60 — le carte del mazzo appena preso, a fianco della lettera.
-           Chiusa (larga zero) finche' la lettera non si e' aperta; poi si
-           allarga e la colonna scivola a sinistra per farle posto. -->
-      <div id="starter-galleria"><div id="starter-galleria-griglia"></div></div>
       </div>
     </div>
   </div>
@@ -23662,13 +23609,8 @@ function apriSceltaStarter(){
   // Si riparte pulita: questa finestra si apre una volta sola per account, ma
   // un debug o un secondo accesso nella stessa pagina la riaprono, e mezza
   // scelta di prima si vedrebbe tutta.
-  ov.classList.remove('starter-solo', 'starter-chiude', 'starter-carte');
+  ov.classList.remove('starter-solo', 'starter-chiude');
   _starterEsce = false;
-  // v0.79.60 — la galleria si svuota e il titolo torna a fare la domanda.
-  const galleria = document.getElementById('starter-galleria-griglia');
-  if(galleria) galleria.innerHTML = '';
-  const h2 = ov.querySelector('#starter-titlebar h2');
-  if(h2) h2.textContent = 'Pick a letter';
   // v0.79.33 — le tre lettere entrano a scalare, appena finita la dissolvenza
   // della finestra. La classe si toglie a corsa finita: un'animazione con
   // `both` tiene il suo valore finale anche da ferma, e resterebbe a battersi
@@ -23712,13 +23654,11 @@ function chiudiSceltaStarter(){
   // c'e' nessuno a fare.
   if(!col){ ov.classList.remove('show'); return; }
   _starterEsce = true;
-  // v0.79.60 — sale il riquadro intero, con dentro titolo, lettera e galleria.
-  const box = document.getElementById('starter-box');
-  box.classList.add('starter-esce');
+  col.classList.add('starter-esce');
   ov.classList.add('starter-chiude');
   setTimeout(()=>{
     ov.classList.remove('show', 'starter-chiude');
-    box.classList.remove('starter-esce');
+    col.classList.remove('starter-esce');
     _starterEsce = false;
   }, STARTER_USCITA_MS);
 }
@@ -23797,50 +23737,7 @@ async function scegliStarter(bottone){
   try{ playSfxFile('card-ding.mp3'); }catch(_){ }
   col.classList.add('starter-lampo');
   col.classList.add('starter-fatta');
-  // v0.79.60 — e a fianco si apre la galleria delle carte del mazzo. Il
-  // titolo smette di fare la domanda: la lettera e' aperta, e' un mazzo nuovo.
-  mostraGalleriaStarter(ov, mazzo);
   _starterInCorso = false;
-}
-
-// ── v0.79.60 — LE CARTE DEL MAZZO, A FIANCO DELLA LETTERA ────────────────
-// Tre per riga, la stessa carta intera della Libreria (buildFullHandCardSVG),
-// al livello del giocatore (carteDelMazzo). Entrano una dopo l'altra con lo
-// stesso passo della Libreria, cosi' le due scene si somigliano. Cliccandone
-// una parla e si apre a schermo intero, come in Libreria: e' gia' una carta
-// sua.
-// Senza carte (il mazzo non si e' potuto leggere) la galleria non si apre e
-// la colonna resta in mezzo, come prima: una galleria vuota direbbe che il
-// mazzo e' vuoto, e non e' vero.
-function mostraGalleriaStarter(ov, mazzo){
-  const griglia = document.getElementById('starter-galleria-griglia');
-  const galleria = document.getElementById('starter-galleria');
-  if(!griglia || !galleria) return;
-  griglia.innerHTML = '';
-  const carte = (mazzo && typeof carteDelMazzo === 'function') ? carteDelMazzo(mazzo) : [];
-  if(!carte.length) return;
-  carte.forEach((entry, i)=>{
-    const carta = _makeCardDbCard(entry, _cardDbVariant);
-    carta.artParallax = false;
-    const slot = document.createElement('div');
-    slot.className = 'starter-carta';
-    slot.appendChild(buildFullHandCardSVG(carta, 210, 360));
-    slot.addEventListener('click', ()=>{
-      try{ playCardVoiceLine(carta); }catch(_){ }
-      openCardModal(carta, 0);
-    });
-    griglia.appendChild(slot);
-    // La dissolvenza a scalare della Libreria (v0.79.53): stessi numeri.
-    const a = slot.animate([{ opacity:0 }, { opacity:1 }], {
-      duration: CARD_DB_ENTRATA_MS, delay: 150 + i * CARD_DB_ENTRATA_PASSO_MS,
-      easing: 'ease-out', fill: 'backwards'
-    });
-    a.id = 'cascata';
-  });
-  galleria.scrollTop = 0;
-  const h2 = ov.querySelector('#starter-titlebar h2');
-  if(h2) h2.textContent = 'New deck!';
-  ov.classList.add('starter-carte');
 }
 
 // ══════════════════════════════════════════════════════════════════════════

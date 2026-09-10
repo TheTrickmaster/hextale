@@ -121,15 +121,24 @@ app.whenReady().then(async () => {
     // movimento — e un elemento a meta' di una traslazione ha un rettangolo che
     // non e' quello dove si fermera'. Qui interessa DOVE si ferma tutto.
     const stop = document.createElement('style');
-    stop.textContent = '.starter-col, .starter-col *{ transition:none !important; animation:none !important; }';
+    stop.textContent = '.starter-col, .starter-col *, #starter-galleria{ transition:none !important; animation:none !important; }';
     document.head.appendChild(stop);
     const scelta = col[0];
     await scegliStarter(scelta.querySelector('.starter-pick'));
     await attendi(200);
 
     dice(scelta.classList.contains('starter-presa'), 'quella scelta si accende');
-    dice(document.getElementById('starter-overlay').classList.contains('starter-solo'),
-      'il riquadro che le conteneva e il titolo se ne vanno');
+    // v0.79.60 — il riquadro e il titolo RESTANO: fino alla v0.79.59 se ne
+    // andavano e la colonna restava sola in mezzo allo schermo.
+    const pan = document.getElementById('starter-pannello');
+    const ps = getComputedStyle(pan);
+    dice(ps.backgroundImage !== 'none' && parseFloat(ps.paddingLeft) === 30,
+      'il riquadro che le conteneva resta, col suo fondo e i suoi trenta di bordo',
+      'fondo "' + ps.backgroundImage.slice(0, 40) + '", bordo ' + ps.paddingLeft);
+    const h2 = document.querySelector('#starter-titlebar h2');
+    dice(getComputedStyle(document.getElementById('starter-titlebar')).opacity === '1'
+      && h2.textContent === 'New deck!',
+      'e il titolo resta e dice "New deck!"', h2.textContent);
     dice(scelta.classList.contains('starter-lampo'), 'la colonna lampeggia');
     const arte = scelta.querySelector('.starter-arte');
     dice(!!arte && (arte.style.backgroundImage || '').indexOf('url(') >= 0,
@@ -147,8 +156,45 @@ app.whenReady().then(async () => {
       '        il centro non e- calcolato, e- dove finiscono le altre.');
     const riga = document.getElementById('starter-colonne').getBoundingClientRect();
     const mia = scelta.getBoundingClientRect();
-    const scarto = Math.abs((mia.left + mia.width/2) - (riga.left + riga.width/2));
-    dice(scarto < 2, 'e quella rimasta e- al centro', 'scarto di ' + scarto.toFixed(1) + 'px');
+    // v0.79.60 — non piu' al centro: a SINISTRA, e a destra la galleria.
+    dice(Math.abs(mia.left - riga.left) < 2, 'e quella rimasta scivola a sinistra',
+      'scarto di ' + Math.abs(mia.left - riga.left).toFixed(1) + 'px dal bordo della riga');
+    dice(Math.round(mia.width) === 330 && Math.round(mia.height) === 580,
+      'e resta larga 330 e alta 580', Math.round(mia.width) + 'x' + Math.round(mia.height));
+    // ── 2b. LA GALLERIA DELLE CARTE (v0.79.60) ────────────────────────────
+    const ov = document.getElementById('starter-overlay');
+    dice(ov.classList.contains('starter-carte'), 'e a destra si apre la galleria');
+    const gal = document.getElementById('starter-galleria');
+    const rg = gal.getBoundingClientRect();
+    dice(Math.round(rg.width) === 960, 'larga 960: tre carte da 300 e due gap da 30', 'larga ' + Math.round(rg.width));
+    dice(Math.abs(rg.left - mia.right - 30) < 2, 'a trenta pixel dalla colonna', 'distanza ' + (rg.left - mia.right).toFixed(1));
+    dice(Math.abs(rg.top - mia.top) < 2, 'allineata in alto con la colonna', 'scarto ' + (rg.top - mia.top).toFixed(1));
+    dice(Math.abs(rg.bottom - (mia.bottom + 30)) < 2,
+      'e arriva fin sul bordo del riquadro, trenta pixel sotto la colonna',
+      'scarto ' + (rg.bottom - mia.bottom).toFixed(1));
+    const carte = [...gal.querySelectorAll('.starter-carta')];
+    dice(carte.length === 20, 'dentro ci sono le carte del mazzo, tutte', 'ne ho contate ' + carte.length + ' su 20 finte');
+    dice(carte.every(c=>c.querySelector('svg')), 'e ognuna e- una carta disegnata intera');
+    const rc = carte.slice(0, 4).map(c=>c.getBoundingClientRect());
+    dice(rc.length === 4 && Math.round(rc[0].width) === 300 && Math.round(rc[0].height) === Math.round(300*360/210),
+      'larghe 300 e con le proporzioni della carta', rc.length ? Math.round(rc[0].width) + 'x' + Math.round(rc[0].height) : '-');
+    dice(rc.length === 4 && rc[0].top === rc[1].top && rc[1].top === rc[2].top && rc[3].top > rc[0].bottom,
+      'tre per riga, la quarta va a capo');
+    dice(rc.length === 4 && Math.abs(rc[1].left - rc[0].right - 30) < 1 && Math.abs(rc[3].top - rc[0].bottom - 30) < 1,
+      'a trenta pixel una dall-altra, in riga e in colonna');
+    dice(gal.scrollHeight > gal.clientHeight + 100, 'si scorre in verticale',
+      'contenuto ' + gal.scrollHeight + ' in una finestra di ' + gal.clientHeight);
+    const gs = getComputedStyle(gal);
+    dice(gs.overflowY === 'auto' && gs.overflowX === 'hidden' && gs.scrollbarWidth === 'none',
+      'con la rotella e senza barra, come la Libreria', gs.overflowY + ' ' + gs.overflowX + ' barra=' + gs.scrollbarWidth);
+    gal.scrollTop = 10000;
+    dice(Math.abs(gal.scrollTop - (gal.scrollHeight - gal.clientHeight)) < 1 && gal.scrollTop > 0,
+      'e arriva in fondo', 'scrollTop ' + gal.scrollTop);
+    const ultima = carte[carte.length-1].getBoundingClientRect();
+    dice(Math.abs(rg.bottom - ultima.bottom - 30) < 2,
+      'in fondo l-ultima riga si ferma trenta pixel prima del bordo, come la colonna',
+      'scarto ' + (rg.bottom - ultima.bottom).toFixed(1));
+    gal.scrollTop = 0;
     dice(scelta.classList.contains('starter-fatta'), 'la lettera lascia il posto al mazzo');
     dice(getComputedStyle(scelta.querySelector('.starter-dentro')).display === 'none',
       'la lettera e il suo testo non ci sono piu-');
@@ -195,16 +241,18 @@ app.whenReady().then(async () => {
     stop.remove();
     chiudiSceltaStarter();
     await attendi(60);
-    dice(scelta.classList.contains('starter-esce'), 'premuto Collect, la colonna parte');
-    const uscita = getComputedStyle(scelta).animationName;
+    // v0.79.60 — a partire e' il riquadro intero, non la colonna sola.
+    const box = document.getElementById('starter-box');
+    dice(box.classList.contains('starter-esce'), 'premuto Collect, il riquadro intero parte');
+    const uscita = getComputedStyle(box).animationName;
     dice(uscita === 'starterEsce',
       'ed e- l-uscita che gira, non piu- il respiro dell-alone',
       'sta girando "' + uscita + '"');
     await attendi(700);
     const ov2 = document.getElementById('starter-overlay');
     dice(!ov2.classList.contains('show'), 'e a corsa finita la finestra e- chiusa');
-    dice(!scelta.classList.contains('starter-esce'),
-      'e la colonna e- rimessa a posto: riaprendo non parte gia- andata');
+    dice(!box.classList.contains('starter-esce'),
+      'e il riquadro e- rimesso a posto: riaprendo non parte gia- andato');
     return { dette };
   }catch(e){ return { guasto:(e&&e.message)+' '+String((e&&e.stack)||'').slice(0,240) }; } })()`);
 
