@@ -252,12 +252,21 @@ niente. Il parser e' `analizzaPatchNotes()` nell'HTML.
 
 ### Come arrivano in gioco
 
-Il file viene letto da GitHub tramite JSONP (`_githubJsonp`), decodificato
-da base64 con `TextDecoder('utf-8')` e messo in cache in `localStorage`
-(chiave `hextale.patchnotes`), cosi' se GitHub non risponde si mostra
-comunque l'ultima lista conosciuta. Il riquadro compare una volta sola per
-avvio, subito dopo la barra di caricamento. Il blocco che corrisponde al
-badge della versione in uso viene evidenziato (`.patch-corrente`).
+Il file viene letto **dal sito**, con una `fetch()`: `_leggiNote()` prova
+prima `../patch-notes.txt` (dal web e' gia' la nostra origine) e poi
+`https://hextalegame.com/patch-notes.txt` (il ripiego per chi ha aperto
+l'HTML col doppio clic, dove il percorso relativo non risponde). Ogni lettura
+porta un `?t=` diverso, perche' il sito serve questo file con dieci minuti di
+cache. Il riquadro compare una volta sola per avvio, subito dopo la barra di
+caricamento. Il blocco che corrisponde al badge della versione in uso viene
+evidenziato (`.patch-corrente`).
+
+Fino alla v0.79.61 passava dall'API di GitHub in JSONP e finiva in una cache
+nel browser. La cache e' sparita nella v0.77.90 (niente dati nel browser), il
+giro da GitHub nella v0.79.62: costava sessanta richieste all'ora per
+indirizzo IP e il gioco ne spendeva trentacinque nella prima ora. Vedi
+`strumenti/prova-note.js`, che tiene fermo che a GitHub non si chieda piu'
+niente.
 
 ---
 
@@ -471,13 +480,20 @@ succede e' che una pagina `file://` si presenta con `Origin: null`, e un
 server che non risponde con intestazioni CORS permissive vede quella origine e
 rifiuta. Il divieto quindi non dipende da noi, dipende da CHI si interroga:
 
-- **gviz di Google e `api.github.com` non le mandano** → per loro serve JSONP,
-  cioe' un tag `<script>` iniettato, ed e' il motivo per cui esistono
-  `_foglioViaScript()` (gviz con `responseHandler`) e `_githubJsonp(url,
-  timeoutMs)` (parametro `callback=`). Qui non e' cambiato niente.
+- **gviz di Google non le manda** → per lui serve JSONP, cioe' un tag
+  `<script>` iniettato, ed e' il motivo per cui esiste `_foglioViaScript()`
+  (gviz con `responseHandler`). Qui non e' cambiato niente.
 - **Nakama le manda** (`Access-Control-Allow-Origin: *`, con `Content-Type` e
   `Authorization` fra le intestazioni ammesse) → da `file://` `fetch()`, XHR e
   WebSocket funzionano tutti e tre. Verificato dentro a Electron, non dedotto.
+- **hextalegame.com le manda** (`Access-Control-Allow-Origin: *` su ogni file
+  che serve, verificato il 10/09/2026) → **anche il NOSTRO sito si legge da
+  `file://` con una `fetch()`**, e questo era il pezzo che mancava. Fino alla
+  v0.79.61 le note di rilascio passavano dall'API di GitHub in JSONP proprio
+  perche' si dava per scontato il contrario, e quell'API costa sessanta
+  richieste all'ora per indirizzo IP. Dalla v0.79.62 `_leggiNote()` prova
+  `../patch-notes.txt` e poi `https://hextalegame.com/patch-notes.txt`, e di
+  `_githubJsonp` non c'e' piu' traccia.
 
 La regola giusta, per chi aggiunge una lettura da rete: **guarda le
 intestazioni CORS di quel server** (`curl -I` basta). Se sono permissive si usa
@@ -2348,14 +2364,27 @@ zone, caricando il gioco e verificando che le funzioni chiave esistano ancora.
   visto", l'evento giusto e' la VISIBILITA' (IntersectionObserver), non
   l'hover.
 - **Un controllo che tace puo' star guardando uno scaffale vuoto.** L'avviso
-- **Un controllo che tace puo' star guardando uno scaffale vuoto.** L'avviso
   "c'e' una versione nuova" cercava i .html nella RADICE del repository, dove
   dalla regola del 28/08/2026 non ne va nessuno. Per settimane non ha detto
   niente e sembrava d'accordo; il giorno in cui e' comparso `404.html` ha
   annunciato quello come ultima versione. Un filtro che non ha mai niente da
-  filtrare non e' provato: e' solo inattivo. (Corretto nella v0.79.27, e
-  `strumenti/prova-aggiornamento.js` finge la risposta di GitHub apposta per
-  poterlo riprovare senza aspettare che succeda.)
+  filtrare non e' provato: e' solo inattivo. (Nella v0.79.62 quell'avviso e'
+  stato tolto del tutto: la ricerca non poteva riuscire, e costava due delle
+  sessanta richieste all'ora che GitHub concede a chi non si autentica.
+  Vedi la riga qui sotto.)
+- **Una richiesta che si paga a quota va contata, non solo scritta.** Il gioco
+  leggeva le note di rilascio e cercava la versione nuova attraverso l'API di
+  GitHub: cinque richieste appena aperto e trenta all'ora per sempre, su un
+  tetto di SESSANTA ALL'ORA PER INDIRIZZO IP. Due schede aperte, o una casa
+  dietro a un solo indirizzo, e il tetto saltava; passato il tetto la risposta
+  e' 403 e da fuori sembra che la funzione si sia rotta da sola. Il file stava
+  gia' nella radice del NOSTRO sito, a un passo da /play/: il giro esisteva
+  perche' si dava per scontato che da `file://` non si potesse leggere altro
+  che GitHub — e invece hextalegame.com risponde `Access-Control-Allow-Origin:
+  *` come GitHub, quindi si legge da tutte e due le parti. Prima di far
+  passare una funzione da un servizio a quota, contare quante richieste fa in
+  un'ora di gioco vero. (v0.79.62, e `strumenti/prova-note.js` tiene fermo
+  che di richieste a GitHub non ne parta piu' nessuna.)
 - **Un guardrail scritto `if(a && b && …)` e' spento appena uno dei due manca.**
   Lo stesso avviso aveva la regola "mai proporre di tornare indietro", ma la
   faceva girare solo se sia il nome remoto sia quello locale portavano un
@@ -2477,10 +2506,11 @@ versione piu' recente", che manderebbe a scaricare un HTML in una cartella
 qualunque.
 
 **Cosa cambierebbe se un giorno il gioco girasse SOLO dentro Electron:** cade
-il vincolo `file://`, quindi `fetch()` torna a funzionare e tutta la macchina
-JSONP (`_foglioViaScript`, `_githubJsonp`) diventa superflua, insieme alla
-ripresa dell'audio al primo gesto. Finche' Lorenzo apre anche l'HTML col
-doppio clic, tutto questo resta necessario.
+il vincolo `file://`, quindi `fetch()` torna a funzionare e la macchina JSONP
+(`_foglioViaScript`) diventa superflua, insieme alla ripresa dell'audio al
+primo gesto. Finche' Lorenzo apre anche l'HTML col doppio clic, tutto questo
+resta necessario. (`_githubJsonp` non c'e' piu' dalla v0.79.62: le note si
+leggono dal sito, che da `file://` risponde lo stesso.)
 
 ---
 

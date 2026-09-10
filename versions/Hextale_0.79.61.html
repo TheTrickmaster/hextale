@@ -5850,6 +5850,29 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
   -ms-overflow-style:none;       /* vecchi Edge */
 }
 #patch-notes-body::-webkit-scrollbar{ width:0; height:0; }   /* Chrome, Safari */
+/* v0.73.9 — l'avviso di aggiornamento, in cima alle note. Sta dentro lo stesso
+   riquadro perche' e' la stessa domanda: "cosa e' cambiato, e come me lo
+   prendo". Nasce nascosto (display:none) e lo accende solo il controllo
+   all'avvio, se trova davvero una versione piu' recente. */
+#patch-notes-update{
+  display:none;
+  margin-bottom:16px; padding:12px 14px;
+  border:1px solid rgba(232,195,106,0.45); border-radius:10px;
+  background:rgba(232,195,106,0.08);
+  text-align:center;
+}
+#patch-notes-update.mostra{ display:block; }
+#patch-notes-update-msg{
+  font-family:var(--font-body); font-size:13px; line-height:1.5; color:#F4E9D7;
+  margin-bottom:10px;
+}
+#patch-notes-update-msg b{ color:#E8C36A; }
+#patch-notes-update .hx-btn{ margin:0 auto; }
+#patch-notes-update-fallback{
+  display:none; margin-top:8px;
+  font-family:var(--font-body); font-size:12px; color:#C9C2B0;
+}
+#patch-notes-update-fallback.mostra{ display:block; }
 .patch-versione{ margin-bottom:16px; }
 .patch-versione:last-child{ margin-bottom:0; }
 .patch-versione h3{
@@ -11666,6 +11689,17 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
       <span class="hx-titlebar-cap hx-titlebar-right"></span>
     </div>
     <div class="hx-pannello" id="patch-notes-pannello">
+      <!-- v0.73.9 — l'avviso di una versione piu' recente. Nasce nascosto e
+           compare solo se il controllo all'avvio ne trova davvero una: un
+           riquadro che dice "sei aggiornato" ogni volta non serve a nessuno. -->
+      <div id="patch-notes-update">
+        <div id="patch-notes-update-msg"></div>
+        <button class="hx-btn hx-azione" id="patch-notes-update-btn" type="button" onclick="scaricaAggiornamentoDalRiquadro()">
+          <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
+          <span class="hxb-label">Download</span>
+        </button>
+        <a id="patch-notes-update-fallback" href="#" target="_blank" rel="noopener">Open the file on GitHub</a>
+      </div>
       <div id="patch-notes-body"></div>
       <button class="hx-btn hx-azione" type="button" onclick="chiudiPatchNotes()">
         <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
@@ -11867,7 +11901,7 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.62</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.61</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -15006,12 +15040,12 @@ function lampeggiaValuta(quale){
 // di JSON: scritte a mano occupano meno righe di quante ne servirebbero per
 // spiegare come si costruisce il bundle.
 //
-// PERCHE' QUI fetch() SI PUO' USARE, mentre il foglio delle carte deve
-// passare da JSONP. Il divieto scritto nell'handoff non e' una regola del
-// browser sulle pagine file://: e' la conseguenza di CHI si interroga.
-// gviz di Google non risponde con intestazioni CORS permissive, quindi da
-// un'origine `null` — quella di una pagina aperta col doppio clic — il
-// browser rifiuta la risposta. Nakama invece risponde
+// PERCHE' QUI fetch() SI PUO' USARE, mentre il foglio delle carte e GitHub
+// devono passare da JSONP. Il divieto scritto nell'handoff non e' una regola
+// del browser sulle pagine file://: e' la conseguenza di CHI si interroga.
+// gviz di Google e api.github.com non rispondono con intestazioni CORS
+// permissive, quindi da un'origine `null` — quella di una pagina aperta col
+// doppio clic — il browser rifiuta la risposta. Nakama invece risponde
 // `Access-Control-Allow-Origin: *` e dichiara Content-Type e Authorization
 // fra le intestazioni ammesse, quindi da file:// la richiesta parte e la
 // risposta si legge. Verificato dentro al guscio Electron, che e' l'ambiente
@@ -30610,40 +30644,110 @@ function initCardDbDragScroll(){ /* niente: vedi il commento qui sopra */ }
 // debugToggle*Dropdown() right before it decides whether IT is opening, so
 // at most one of these inline pickers is ever visible at once instead of
 // them silently stacking up underneath each other as more get opened.
-// ══════════════════════════════════════════════════════════════════════════
-// v0.79.62 — QUI C'ERA "SCARICA ULTIMA VERSIONE", E NON C'E' PIU'
-// ══════════════════════════════════════════════════════════════════════════
-// Se ne vanno insieme tre cose: le chiamate ad api.github.com (_githubJsonp
-// e i suoi indirizzi), la ricerca dell'ultima versione nel repository
-// (trovaUltimaVersione), e il riquadro che proponeva di scaricarla
-// (controllaAggiornamentoAllAvvio, con il suo pulsante).
+// ═══════════════════════════════════════════════════════════════════════════
+// v0.72.77 — "SCARICA ULTIMA VERSIONE"
+// ═══════════════════════════════════════════════════════════════════════════
+// COME SI DECIDE QUAL E' "L'ULTIMA". Non dal numero nel nome del file.
+// La v0.72.76 leggeva la versione da "Hextale_0.72.76.html" e teneva la piu'
+// alta: funzionava, ma legava l'aggiornamento a una convenzione di nomi. Il
+// giorno in cui un file si chiamasse "Hextale_finale.html", "Hextale-beta.html"
+// o prendesse una data al posto del numero, il pulsante avrebbe smesso di
+// trovarlo — e nel modo peggiore, cioe' dicendo tranquillamente "sei gia'
+// aggiornato".
+// La regola ora e' quella vera: si guarda COSA C'E' nel repository. Se c'e' un
+// solo .html — che e' la situazione di oggi, perche' ogni versione sostituisce
+// la precedente — quello E' l'ultima versione, comunque si chiami. Se un domani
+// ce ne fossero piu' d'uno, si chiede a GitHub quale e' stato committato piu' di
+// recente: la data del commit e' un fatto, il numero nel nome e' una promessa
+// che qualcuno deve ricordarsi di mantenere.
+// Il numero di versione non viene letto in nessun punto di questo blocco.
 //
-// PERCHE'. L'API di GitHub, a chi non si autentica, concede SESSANTA
-// richieste all'ora PER INDIRIZZO IP. Il gioco ne spendeva cinque appena
-// aperto e trenta all'ora per sempre (la sorveglianza della versione, ogni
-// due minuti). Una scheda sola arrivava a trentacinque nella prima ora: due
-// schede, o un paio di ricaricamenti mentre si lavora, e il tetto era
-// superato. Superato il tetto GitHub risponde 403 e da fuori sembra
-// semplicemente che le note e il controllo di versione non funzionino piu'.
-// Peggio: chi sta dietro a un IP condiviso — un ufficio, una scuola, la rete
-// di un operatore mobile — quelle sessanta le divide con tutti gli altri.
+// COSA SI PUO' FARE E COSA NO, perche' la differenza conta.
+// Una pagina web non puo' sovrascrivere il file da cui e' stata aperta: non
+// esiste un permesso per farlo, ed e' una limitazione voluta del browser — se
+// esistesse, qualunque pagina potrebbe riscrivere file sul disco di chi la
+// visita. Quindi "aggiornarsi da sola" nel senso stretto non e' possibile.
+// Restano due cose distinte:
+//   1. SCARICARE il file nuovo (finisce nei Download; poi si sostituisce a
+//      mano quello vecchio). E' l'unico modo per aggiornare davvero il file.
+//   2. ESEGUIRLO SUBITO in questa stessa finestra, senza riaprire niente. La
+//      pagina viene rimpiazzata dalla nuova versione e la si prova all'istante
+//      — ma il file sul disco resta quello di prima, quindi al riavvio si torna
+//      a questa. E' una prova, non un aggiornamento.
+// L'interfaccia le tiene separate apposta, con scritto sopra cosa fanno: con un
+// solo pulsante la seconda sarebbe sembrata la prima, e la versione
+// "aggiornata" sarebbe sparita al riavvio successivo senza capire perche'.
 //
-// E DUE DI QUELLE CINQUE NON POTEVANO RIUSCIRE. trovaUltimaVersione cercava
-// in radice del repository un .html col numero di versione nel nome. Dalla
-// regola del 28/08/2026 in radice un Hextale_*.html non ci va piu' (stanno
-// in versions/, che e' un'altra cartella e non veniva nemmeno guardata):
-// l'elenco tornava sempre senza candidati e la ricerca falliva sempre. Il
-// pulsante "Download" del riquadro, poi, chiamava scaricaVersione, che in
-// questo file non esiste piu' da tempo: premuto, sarebbe morto li'.
-// Non si perde una funzione: si smette di pagare per una che non c'era.
-//
-// LE NOTE, INVECE, RESTANO — e adesso arrivano da casa nostra. Il file
-// patch-notes.txt sta nella radice del SITO, cioe' e' gia' servito da
-// hextalegame.com come qualunque altro pezzo del gioco. Vedi il blocco
-// delle note qui sotto per come lo si legge anche da file://.
-//
-// Chi ha bisogno di aggiornarsi da solo e' il guscio Electron, che e' un
-// programma a parte e ha la sua strada (vedi desktop/main.js).
+// PERCHE' FUNZIONA ANCHE APRENDO IL FILE COL DOPPIO CLICK. Da file:// il
+// browser assegna alla pagina l'origine `null` e blocca quasi ogni richiesta
+// verso l'esterno (vedi il caricatore del foglio per la stessa storia). Qui si
+// passa pero' da api.github.com e raw.githubusercontent.com, che rispondono
+// entrambi con `Access-Control-Allow-Origin: *` — cioe' "chiunque puo'
+// leggermi", origine nulla compresa. Sono fra i pochi host su cui una pagina
+// aperta dal disco puo' davvero fare una fetch.
+const GITHUB_REPO = 'TheTrickmaster/hextale';
+const GITHUB_REPO_API = 'https://api.github.com/repos/' + GITHUB_REPO + '/contents/';
+const GITHUB_COMMITS_API = 'https://api.github.com/repos/' + GITHUB_REPO + '/commits';
+
+// v0.72.77 FIX ("Failed to fetch") — E LA LEZIONE E' LA STESSA DI PRIMA.
+// La prima versione di questo blocco usava fetch() verso api.github.com,
+// convinta che bastasse l'header `Access-Control-Allow-Origin: *`. Non basta:
+// da una pagina aperta col doppio click l'origine e' `null` e il browser
+// rifiuta la richiesta PRIMA di partire, senza nemmeno guardare gli header
+// della risposta. E' esattamente lo stesso muro contro cui si era gia' andati
+// a sbattere col foglio delle carte (vedi _foglioViaScript), e la soluzione e'
+// la stessa: un tag <script>, che puo' caricare da qualunque sito perche' non
+// e' soggetto al controllo di origine.
+// L'API di GitHub accetta `?callback=nome` e risponde con uno script che
+// chiama quella funzione, incartando il risultato in {meta, data} — quindi il
+// contenuto vero sta in `.data`.
+function _githubJsonp(url, timeoutMs){
+  return new Promise(risolvi => {
+    const cb = '_hextaleGh' + Date.now() + Math.floor(Math.random()*1000);
+    const script = document.createElement('script');
+    let scadenza = null, concluso = false;
+    const chiudi = (valore) => {
+      if(concluso) return;
+      concluso = true;
+      if(scadenza) clearTimeout(scadenza);
+      try { delete window[cb]; } catch(_) { window[cb] = undefined; }
+      if(script.parentNode) script.parentNode.removeChild(script);
+      risolvi(valore);
+    };
+    window[cb] = risposta => {
+      // GitHub incarta tutto in {meta:{status}, data:...}. Uno stato diverso da
+      // 200 arriva comunque come risposta valida, quindi va guardato: senza
+      // questo controllo un 403 da limite di richieste sembrerebbe un elenco
+      // di file vuoto, cioe' "nel repository non c'e' nessun html".
+      if(risposta && risposta.meta && risposta.meta.status && risposta.meta.status !== 200){
+        return chiudi({errore: 'GitHub ha risposto ' + risposta.meta.status});
+      }
+      chiudi({dati: (risposta && risposta.data !== undefined) ? risposta.data : risposta});
+    };
+    script.onerror = () => chiudi({errore: 'non riesco a raggiungere GitHub'});
+    scadenza = setTimeout(() => chiudi({errore: 'GitHub non ha risposto in tempo'}), timeoutMs || 8000);
+    script.src = url + (url.indexOf('?')<0 ? '?' : '&') + 'callback=' + cb + '&t=' + Date.now();
+    document.head.appendChild(script);
+  });
+}
+
+// Il nome del file da cui QUESTA pagina e' stata aperta. Serve solo a dire
+// "sei gia' su questo file" invece di far scaricare due volte la stessa cosa;
+// non entra mai nella scelta di quale sia l'ultima versione.
+function _nomeFileCorrente(){
+  try {
+    const pezzi = decodeURIComponent(location.pathname).split(/[\\/]/);
+    return pezzi[pezzi.length-1] || '';
+  } catch(_) { return ''; }
+}
+
+let _ultimaVersioneTrovata = null; // {nome, url}
+
+// v0.79.27 — qui c'era _dataUltimoCommit, che chiedeva a GitHub la data
+// dell'ultimo commit di un file. Serviva a scegliere fra piu' .html quando
+// nessuno portava un numero nel nome; adesso un file senza numero non e' una
+// versione e non entra nemmeno nella scelta (vedi trovaUltimaVersione), quindi
+// quella domanda non se la fa piu' nessuno.
 
 // ═══════════════════════════════════════════════════════════════════════════
 // v0.73.4 — NOTE DI AGGIORNAMENTO
@@ -30651,54 +30755,21 @@ function initCardDbDragScroll(){ /* niente: vedi il commento qui sopra */ }
 // Il testo vive in patch-notes.txt nel repository: si aggiorna quel file, si
 // carica su GitHub, e il gioco lo legge da li'. Nessuna nota vive nel codice.
 //
-// v0.79.62 — DA DOVE ARRIVA IL FILE. Da hextalegame.com, come tutto il
-// resto: patch-notes.txt sta nella radice del sito, quindi da /play/ e' a un
-// passo (../patch-notes.txt) ed e' una richiesta alla NOSTRA origine.
+// COME SI LEGGE UN .txt DA UNA PAGINA APERTA COL DOPPIO CLICK. Non con una
+// fetch: da file:// il browser le rifiuta tutte, verso qualunque indirizzo,
+// e vale anche per un file accanto a questo. Un tag <script> aggirerebbe il
+// problema ma serve solo per il codice, e GitHub serve i .txt come testo
+// semplice (con l'intestazione che vieta di interpretarli altrimenti).
+// La strada che funziona e' l'API di GitHub in JSONP, gia' usata dal pulsante
+// "Scarica ultima versione": restituisce il contenuto del file in base64
+// dentro una chiamata di funzione, quindi passa da un <script> come qualsiasi
+// altro codice. Stesso meccanismo, nessuna infrastruttura nuova.
 //
-// Fino alla v0.79.61 passava dall'API di GitHub in JSONP, e la ragione era
-// questa: da una pagina aperta col doppio clic l'origine e' `null` e una
-// fetch verso l'esterno viene rifiutata prima di partire, a meno che chi
-// risponde non dica esplicitamente "chiunque puo' leggermi". Si dava per
-// scontato che il nostro sito non lo dicesse. Lo dice: verificato il
-// 10/09/2026, hextalegame.com risponde `Access-Control-Allow-Origin: *` su
-// ogni file che serve. Quindi la fetch funziona anche da file://, e il giro
-// da GitHub — con le sue sessanta richieste all'ora — non serviva.
-//
-// SI PROVA SEMPRE PRIMA QUELLO ACCANTO, e qui la convenzione di _candidati
-// non si applica: quella serve ai pezzi d'arte, che accanto alla pagina
-// possono non esserci, e dal web vanno chiesti al sito. Questo file invece
-// sta SEMPRE nella radice del sito che serve la pagina, quindi dal web il
-// percorso relativo e' gia' la nostra origine — e ha il pregio di funzionare
-// anche su una copia servita da un altro indirizzo (un banco, una prova),
-// che chiedendo l'indirizzo assoluto leggerebbe invece le note di produzione.
-// Da file:// la prima fallisce subito e si passa alla seconda.
-//
-// Ogni lettura porta un `?t=` diverso: il sito serve questo file con dieci
-// minuti di cache, e la sorveglianza della versione — che guarda ogni due
-// minuti — leggerebbe cinque volte di fila la stessa copia vecchia.
-const NOTE_REL  = '../patch-notes.txt';
-const NOTE_BASE = 'https://hextalegame.com/patch-notes.txt';
-// La prima delle due che risponde. Non si distingue "non c'e'" da "non si
-// raggiunge": in tutti e due i casi si passa alla successiva, e se finiscono
-// il riquadro resta vuoto — che e' come si comportava anche prima quando
-// GitHub non rispondeva.
-function _leggiNote(){
-  const urls = [NOTE_REL, NOTE_BASE].map(u => u + '?t=' + Date.now());
-  const passo = i => {
-    if(i >= urls.length) return Promise.reject(new Error('non riesco a leggere le note'));
-    return fetch(urls[i], { cache:'no-store' })
-      .then(r => r.ok ? r.text() : Promise.reject(new Error('risposta ' + r.status)))
-      .catch(() => passo(i+1));
-  };
-  return passo(0);
-}
-//
-// v0.79.62 — qui stavano PATCH_NOTES_FILE e PATCH_NOTES_CACHE. Il primo
-// serviva a comporre l'indirizzo dell'API di GitHub, che non c'e' piu'
-// (adesso i due indirizzi sono NOTE_REL e NOTE_BASE, qui sotto). Il secondo
-// era il nome della chiave con cui le note si tenevano nel browser: quella
-// copia e' sparita nella v0.77.90 e il nome le e' sopravvissuto per tre
-// versioni, unico resto di una regola che non ha eccezioni.
+// L'ultima versione letta resta salvata: se GitHub non risponde (offline,
+// limite di richieste raggiunto) si mostrano comunque le note dell'ultima
+// volta, invece di un riquadro vuoto.
+const PATCH_NOTES_FILE = 'patch-notes.txt';
+const PATCH_NOTES_CACHE = 'hextale.patchnotes';
 // ── v0.77.22 — QUELLO CHE SI E' GIA' LETTO ────────────────────────────────
 // Si ricorda la VERSIONE piu' recente fra quelle mostrate, non un "si/no": un
 // interruttore andrebbe rimesso a mano a ogni pubblicazione, e la prima volta
@@ -30743,8 +30814,8 @@ const PATCH_NOTES_MAX = 10;
 // destra, che e' l'unico numero che il file porta addosso.
 //
 // Nel guscio desktop non si controlla: li' l'aggiornamento e' automatico e il
-// guscio ha gia' aperto l'ultima versione (vedi desktop/main.js). La
-// bandierina la espone il guscio stesso: window.hextaleDesktop.
+// guscio ha gia' aperto l'ultima versione. Stessa bandierina che usa
+// controllaAggiornamentoAllAvvio.
 function versioneDiQuestoClient(){
   const targhetta = document.getElementById('build-version-badge');
   return targhetta ? String(targhetta.textContent||'').trim() : '';
@@ -30950,18 +31021,28 @@ function caricaPatchNotes(opzioni){
   // comode: se il testo non e' ancora arrivato, il riquadro aspetta.
   // Si perde poco — sono otto secondi al massimo, e solo la prima apertura.
 
-  // v0.79.62 — qui partiva anche controllaAggiornamentoAllAvvio, cioe' la
-  // seconda richiesta a GitHub. Non c'e' piu': vedi il cartello piu' su.
-  _leggiNote().then(testo => {
-    // v0.79.62 — il testo arriva gia' decodificato. Prima era base64 dentro a
-    // una risposta dell'API, e andava ricomposto a mano come UTF-8 o gli
-    // accenti uscivano illeggibili; una fetch quella fatica la fa da se'.
+  // v0.73.9 — il controllo della versione parte insieme alle note e per conto
+  // suo: le due richieste non si aspettano a vicenda, e se quella della
+  // versione fallisce le note si vedono lo stesso (e viceversa).
+  if(!soloVersione){ try { controllaAggiornamentoAllAvvio(); } catch(_){} }
+
+  const url = 'https://api.github.com/repos/' + GITHUB_REPO + '/contents/' + PATCH_NOTES_FILE;
+  _githubJsonp(url, 8000).then(esito => {
+    if(esito.errore) throw new Error(esito.errore);
+    const d = esito.dati;
+    if(!d || !d.content || d.encoding !== 'base64') throw new Error('contenuto non leggibile');
+    // atob restituisce un byte per carattere: per rileggere gli accenti come
+    // tali va ricomposto come UTF-8, altrimenti "perche'" diventa illeggibile.
+    const binario = atob(d.content.replace(/\s/g, ''));
+    const byte = new Uint8Array(binario.length);
+    for(let i=0;i<binario.length;i++) byte[i] = binario.charCodeAt(i);
+    const testo = new TextDecoder('utf-8').decode(byte);
     const versioni = analizzaPatchNotes(testo);
     if(!versioni.length) return;
     // v0.78.5 — la prima voce dice qual e' l'ultima versione pubblicata.
     try{ controllaVersioneDaNote(versioni); }catch(_){}
     consegna(versioni);
-  }).catch(()=>{ /* non si e' potuto leggere: il riquadro resta vuoto */ });
+  }).catch(()=>{ /* si resta con quelle salvate, o con niente */ });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -30995,14 +31076,135 @@ function confrontaVersioni(a, b){
   return 0;
 }
 
-// v0.79.62 — qui stavano trovaUltimaVersione, controllaAggiornamentoAllAvvio
-// e scaricaAggiornamentoDalRiquadro: la ricerca dell'ultima versione nel
-// repository e il riquadro che proponeva di scaricarla. Vedi il cartello
-// piu' su per il perche' se ne sono andati.
-// numeroVersioneDa e confrontaVersioni RESTANO: non servivano solo a quella
-// ricerca — sono anche il modo in cui controllaVersioneDaNote capisce se
-// questo client e' rimasto indietro rispetto alle note, che e' l'unico
-// controllo di versione ancora in piedi (e adesso non costa niente).
+// ═══════════════════════════════════════════════════════════════════════════
+// v0.73.13 — QUAL E' L'ULTIMA VERSIONE: SI GUARDA IL NUMERO, NON LA DATA
+// ═══════════════════════════════════════════════════════════════════════════
+// Prima si sceglieva il file .html committato piu' di recente, chiedendo a
+// GitHub la data dell'ultimo commit di OGNI file. Con una ventina di versioni
+// nel repository sono venti richieste in fila, e GitHub, a chi non si
+// autentica, ne concede sessanta all'ora: quelle oltre il limite falliscono,
+// `_dataUltimoCommit` restituisce 0 per loro, e la piu' recente risulta essere
+// una qualsiasi fra le poche riuscite. Ecco perche' il gioco proponeva di
+// scaricare una versione vecchia come se fosse nuova.
+//
+// La data non serviva nemmeno: il numero e' gia' scritto nel nome del file, e
+// dice esattamente quello che si vuole sapere. Confrontarlo non costa nessuna
+// richiesta, quindi non c'e' nessun limite da superare e nessun risultato
+// parziale da interpretare male.
+//
+// (Questo non "hardcoda il numero di versione": nessun numero e' scritto nel
+// codice. Si legge quello che c'e' nel repository e lo si ordina.)
+//
+// ── v0.79.27 — E UN FILE E' UNA VERSIONE SOLO SE PORTA UN NUMERO ADDOSSO ──
+// Il 07/09/2026 e' comparsa in radice la pagina 404, e il gioco si e' messo ad
+// annunciare "A newer version is available: 404.html". Non era colpa di quel
+// file: era che qui bastava essere un .html per essere una versione, e in
+// radice fino a quel giorno di .html non ce n'era nessuno. Il controllo non
+// taceva perche' fosse d'accordo — taceva perche' guardava uno scaffale vuoto,
+// e il primo oggetto appoggiato li' e' diventato "l'ultima versione".
+//
+// Due passaggi lo rendevano possibile, e sono spariti tutti e due:
+//   - la scorciatoia "se ne trovi UNO SOLO, e' quello", che saltava a pie'
+//     pari il controllo del numero proprio nel caso in cui e' piu' facile
+//     sbagliarsi;
+//   - il ripiego sulla data dell'ultimo commit per i file senza numero. E'
+//     esattamente il meccanismo che nella v0.73.13 faceva proporre versioni
+//     vecchie (venti richieste, sessanta all'ora, quelle oltre il limite
+//     valgono zero): teneva in vita, per i casi strani, la logica che si era
+//     appena finito di togliere dai casi normali.
+//
+// Adesso un file entra fra i candidati SOLO se dal nome si ricava un numero di
+// versione. Se non ne resta nessuno l'avviso non compare, che e' com'e' stato
+// per settimane e come dev'essere: in radice, dalla regola del 28/08/2026, un
+// Hextale_*.html non ci va piu'.
+function trovaUltimaVersione(){
+  return _githubJsonp(GITHUB_REPO_API).then(esito => {
+    if(esito.errore) throw new Error(esito.errore);
+    const elenco = esito.dati;
+    if(!Array.isArray(elenco)) throw new Error('risposta inattesa dal repository');
+    const candidati = elenco.filter(f =>
+      f && f.type === 'file' && /\.html?$/i.test(f.name || '') && f.download_url
+      && numeroVersioneDa(f.name));
+    if(!candidati.length) throw new Error('nel repository non c\'e\' nessuna versione numerata');
+    let migliore = candidati[0], suo = numeroVersioneDa(migliore.name);
+    for(let i=1;i<candidati.length;i++){
+      const q = numeroVersioneDa(candidati[i].name);
+      if(confrontaVersioni(q, suo) > 0){ migliore = candidati[i]; suo = q; }
+    }
+    return migliore;
+  });
+}
+
+// ── L'AVVISO NEL RIQUADRO DELLE NOTE ──────────────────────────────────────
+// A ogni avvio si guarda se sul repository c'e' un file .html diverso da
+// quello aperto. Se c'e', in cima alle note compare la riga con il nome nuovo
+// e il pulsante per scaricarlo; se non c'e', o se GitHub non risponde, non
+// compare niente. Il confronto e' sul NOME DEL FILE e non su un numero di
+// versione: il file la' e quello qui sono lo stesso file se si chiamano allo
+// stesso modo, e cosi' la numerazione resta libera di cambiare.
+function controllaAggiornamentoAllAvvio(){
+  // v0.73.62 — dentro all'applicazione desktop questo avviso non serve e
+  // sarebbe anche sbagliato: li' l'aggiornamento e' automatico, e il guscio ha
+  // gia' scaricato l'ultima versione prima di aprire la finestra. Proporre di
+  // scaricare un file a mano manderebbe l'utente a mettere un HTML in una
+  // cartella qualunque, dove non verrebbe mai aperto.
+  // Il riconoscimento passa da una sola bandierina esposta dal guscio (vedi
+  // preload.js): non si indovina l'ambiente annusando lo user-agent, lo si
+  // chiede a chi lo sa.
+  if(typeof window !== 'undefined' && window.hextaleDesktop) return;
+  const riquadro = document.getElementById('patch-notes-update');
+  if(!riquadro) return;
+  trovaUltimaVersione().then(file => {
+    const corrente = _nomeFileCorrente();
+    if(!file || !file.name) return;
+    if(corrente && corrente === file.name) return; // gia' aggiornato: silenzio
+    // v0.73.13 — e mai, per nessun motivo, proporre di tornare INDIETRO.
+    // Qualunque cosa vada storta nella ricerca, il peggio che puo' capitare e'
+    // che l'avviso non compaia: un avviso mancante e' una scocciatura, un
+    // avviso che invita a sostituire il gioco con una versione vecchia fa
+    // perdere lavoro. Questa riga vale a prescindere da come e' stato scelto
+    // il file, e resterebbe giusta anche se il criterio di scelta cambiasse.
+    // v0.79.27 — e il confronto adesso si fa SEMPRE, non solo quando capita.
+    // `corrente` e' il nome del file da cui si e' aperto, e all'indirizzo
+    // stabile quel nome e' "index.html": nessun numero. Il guardrail qui sotto
+    // chiedeva che i numeri ci fossero entrambi, quindi su /play/ — cioe' per
+    // tutti — era spento, e l'unica cosa che restava a proteggere era il
+    // confronto dei NOMI, che dice solo "diverso", non "piu' nuovo".
+    // Il numero pero' la pagina ce l'ha addosso: e' la targhetta in basso a
+    // destra, ed e' quella che il gioco mostra come propria versione.
+    // Se anche cosi' non si riesce a sapere da dove si arriva, si tace: un
+    // avviso mancante e' una scocciatura, un avviso che invita a sostituire il
+    // gioco con una versione vecchia fa perdere lavoro.
+    const suo = numeroVersioneDa(file.name);
+    const mio = numeroVersioneDa(corrente) || numeroVersioneDa(versioneDiQuestoClient());
+    if(!suo || !mio || confrontaVersioni(suo, mio) <= 0) return;
+    _ultimaVersioneTrovata = {nome:file.name, url:file.download_url, sha:file.sha};
+    const msg = document.getElementById('patch-notes-update-msg');
+    if(msg){
+      msg.innerHTML = 'A newer version is available: <b>' + escapeHtml(file.name) + '</b>'
+        + (corrente ? '<br>You are using ' + escapeHtml(corrente) + '.' : '.');
+    }
+    const ripiego = document.getElementById('patch-notes-update-fallback');
+    if(ripiego) ripiego.href = file.download_url || '#';
+    riquadro.classList.add('mostra');
+    // Il riquadro va aperto anche se le note non si sono potute leggere:
+    // mostraPatchNotes non apre niente quando non ha nulla da dire, e una
+    // versione nuova disponibile e' una cosa da dire comunque.
+    const overlay = document.getElementById('patch-notes-overlay');
+    if(overlay) overlay.classList.add('show');
+  }).catch(()=>{ /* offline o limite di richieste: si tace, non si allarma */ });
+}
+
+// Il pulsante dell'avviso. Scarica con lo stesso meccanismo del menu debug
+// (vedi scaricaVersione), scrivendo pero' nel proprio riquadro.
+function scaricaAggiornamentoDalRiquadro(){
+  const msg = document.getElementById('patch-notes-update-msg');
+  const ripiego = document.getElementById('patch-notes-update-fallback');
+  scaricaVersione(
+    t => { if(msg) msg.innerHTML = t; },
+    () => { if(ripiego) ripiego.classList.add('mostra'); }
+  );
+}
 
 function debugCloseOtherPickers(exceptId){
   ['debug-card-picker','debug-music-loop-picker'].forEach(id=>{

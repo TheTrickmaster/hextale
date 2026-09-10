@@ -195,28 +195,56 @@ dichiarato puo' essere schiacciato da un altro margine, e nessuno se ne
 accorge. `HX_SCHERMO` la guarda su un telefono, dove gli stessi controlli
 valgono con le cinque misure che il `@media` cala apposta.
 
-## prova-aggiornamento.js — l'avviso "c'e' una versione nuova"
+## prova-note.js — le note di rilascio, e nessuna richiesta a GitHub
 
-    $ELECTRON strumenti/prova-aggiornamento.js
+    $ELECTRON strumenti/prova-note.js
 
-Il 07/09/2026 il gioco ha annunciato **"A newer version is available:
-404.html"**. Non era colpa di quel file: era che per il controllo bastava
-essere un `.html` in radice per essere una versione, e in radice di `.html`
-non ce n'era nessuno. **Taceva perche' guardava uno scaffale vuoto**, non
-perche' fosse d'accordo — e il primo oggetto appoggiato li' e' diventato
-"l'ultima versione". Un filtro che non ha mai niente da filtrare non e'
-provato: e' solo inattivo.
+Prende il posto di `prova-aggiornamento.js`, che provava l'avviso "c'e' una
+versione nuova": quell'avviso non c'e' piu' dalla v0.79.62, e con lui la
+ricerca nel repository che lo alimentava.
 
-Un guasto cosi' non si riprova a mano, perche' dipende da cosa c'e' nel
-repository: per rivederlo bisognerebbe metterci davvero un file sbagliato e
-aspettare. Qui la risposta di GitHub si finge — un elenco di file inventato —
-e si guarda cosa il gioco decide di dire.
+**Perche' e' sparito.** Cercava in radice del repository un `.html` col numero
+di versione nel nome. Dalla regola del 28/08/2026 in radice un
+`Hextale_*.html` non ci va piu' — stanno in `versions/`, che e' un'altra
+cartella e non veniva nemmeno guardata — quindi l'elenco tornava sempre senza
+candidati e la ricerca falliva **sempre**. Il pulsante "Download" del riquadro,
+poi, chiamava `scaricaVersione`, che nel file non esisteva piu' da tempo.
+Erano due richieste per avvio spese su una domanda che non poteva avere
+risposta.
 
-I due controlli che contano tirano in versi opposti, ed e' voluto: **la 404 non
-dev'essere scambiata per una versione**, ma **una versione vera e piu' nuova
-dev'essere ancora annunciata**. Senza il secondo, il modo piu' facile di far
-passare il primo sarebbe spegnere l'avviso — e un controllo che tace sempre
-sembra un controllo che funziona.
+**Cosa costava.** L'API di GitHub, a chi non si autentica, concede **sessanta
+richieste all'ora per indirizzo IP**. Il gioco ne spendeva cinque appena
+aperto e trenta all'ora per sempre (la sorveglianza della versione, ogni due
+minuti): una scheda sola arrivava a trentacinque nella prima ora. Due schede,
+o un paio di ricaricamenti mentre si lavora, e il tetto era superato — e
+superato il tetto GitHub risponde 403, quindi da fuori sembra semplicemente
+che le note e il controllo di versione abbiano smesso di funzionare. Chi sta
+dietro a un IP condiviso quelle sessanta le divide con tutti gli altri.
+
+**Cosa prova questo banco.** Il file `patch-notes.txt` sta nella radice del
+sito, quindi da `/play/` e' a un passo. Qui non si apre il file col doppio
+clic: si tira su un server sulla radice del sito, perche' e' l'unico modo di
+vedere che le note vengono chieste **a chi ha servito la pagina** e non a
+hextalegame.com. Ogni richiesta verso GitHub viene annotata e **bloccata**: un
+banco non deve spendere la quota vera di chi lo esegue, e quello che si misura
+e' che di richieste non ne parta nessuna.
+
+Il controllo che conta piu' di tutti e' proprio quello: **zero richieste a
+GitHub**, all'apertura e stando aperti. Un giro da GitHub rimesso dentro per
+sbaglio continuerebbe a funzionare finche' la quota regge, quindi non si
+noterebbe fino al giorno in cui si rompe di nuovo.
+
+Gli altri: che il testo arrivi leggibile (prima era base64 dentro alla
+risposta dell'API e andava ricomposto a mano come UTF-8), che il riquadro si
+riempia con tutte le versioni lette, che la prima voce del file sia la versione
+di **questo** client — cioe' la regola per cui le note si aggiornano a ogni
+versione — e che il blocco di un client rimasto indietro regga ancora, perche'
+era l'unica cosa che il giro da GitHub facesse davvero.
+
+Infine che ogni sguardo della sorveglianza sia una lettura **vera**: il sito
+serve questo file con dieci minuti di cache, e senza il `?t=` la sorveglianza
+— che guarda ogni due minuti — rileggerebbe cinque volte di fila la stessa
+copia vecchia.
 
 ## prova-punti.js — i punti si contano come devono
 
