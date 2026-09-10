@@ -9798,12 +9798,8 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
   opacity:0;
   transition:opacity 0.7s ease, transform 0.9s cubic-bezier(.12,.72,.24,1);
 }
-/* Piu' verso i bordi di quanto verrebbe naturale: al centro ci vanno il titolo
-   e i due pulsanti, e due figure che ci arrivano sopra fanno leggere il testo
-   su di loro invece che sul fondo. Nel disegno stanno appoggiate agli angoli e
-   lasciano libera la colonna di mezzo. */
-#trovato-hook{ left:-150px;  transform:translateX(-160px); }
-#trovato-lrrh{ right:-150px; transform:translateX(160px); }
+#trovato-hook{ left:-70px;  transform:translateX(-160px); }
+#trovato-lrrh{ right:-70px; transform:translateX(160px); }
 #trovato-overlay.attori #trovato-hook,
 #trovato-overlay.attori #trovato-lrrh{ opacity:1; transform:translateX(0); }
 /* Il gradiente sta SOPRA ai due e sotto al testo, ed e' li' dal primo istante:
@@ -9850,16 +9846,11 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
 #trovato-accetta[hidden]{ display:none; }
 #trovato-attesa[hidden]{ display:none; }
 /* Il rosso e' piu' piccolo di un terzo: dire di no non deve costare quanto
-   dire di si'.
-   Si rimpicciolisce col fattore di scala e non a mano. Rimpicciolire i pezzi
-   uno per uno — la larghezza qui, il carattere li', la fascia schiacciata in
-   verticale — non da' un pulsante piu' piccolo: da' un pulsante DEFORMATO, con
-   la cornice sottile e la scritta che ci sta dentro a fatica.
-   `zoom` e non `transform:scale` perche' lo rimpicciolisce anche nella
-   disposizione: con transform il pulsante si vedrebbe piccolo ma continuerebbe
-   a occupare lo spazio di prima, e sotto resterebbe un buco da compensare a
-   mano. */
-#trovato-rifiuta{ width:300px; max-width:none; zoom:0.7; }
+   dire di si'. La misura scende in tutte e due le direzioni, o il pulsante
+   verrebbe basso e largo invece che piu' piccolo. */
+#trovato-rifiuta{ width:210px; max-width:none; }
+#trovato-rifiuta .hxb-label{ font-size:70%; }
+#trovato-rifiuta .hxb-strip{ transform:scaleY(0.7); }
 /* L'attesa prende il posto di "Accept": stesso riquadro dei paragrafi
    annidati del tutorial, largo 360. */
 #trovato-attesa{
@@ -9884,20 +9875,13 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
   position:absolute; left:6px; top:0; height:12px;
   border-radius:6px; overflow:hidden;
   width:calc(100% - 12px);
-  /* NIENTE transizione, ed e- una scelta contro il primo istinto.
-     La barra della partita ne ha una da un secondo perche- viene riscritta
-     una volta al secondo: la transizione riempie il buco fra un valore e il
-     successivo. Qui la scadenza e- dieci secondi e si disegna a ogni
-     fotogramma; una transizione da un secondo su un valore che cambia
-     sessanta volte al secondo non riempie niente — insegue un bersaglio che
-     si sposta, riparte da capo a ogni riscrittura e non arriva mai. Misurata,
-     restava indietro di due secondi buoni e a tratti non si muoveva. */
+  transition:width 1s linear;
 }
 #trovato-timer-fill{ display:block; height:12px; width:620px; max-width:none; }
 #trovato-timer-pin{
   position:absolute; top:50%; width:18px; height:auto;
   transform:translate(-50%,-50%);
-  /* Come la maschera: la segue, e deve seguirla nello stesso istante. */
+  transition:left 1s linear;
 }
 
 /* ── v0.79.12 — LA FINESTRA DELLA SEGNALAZIONE ────────────────────────────
@@ -12706,7 +12690,7 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.84</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.83</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <!-- v0.79.75 — dove salgono gli avvisi delle quest. Vuoto quasi sempre, e
@@ -17479,7 +17463,6 @@ function trovatoMostraAttesa(){
 function trovatoAvviaTimer(){
   trovatoFermaTimer();
   const passo = ()=>{
-    if(_trovatoTic === null) return;                  // gia' fermata
     const resta = Math.max(0, _trovatoFine - Date.now());
     const quota = Math.max(0, Math.min(1, resta / TROVATO_MS));
     const mask = document.getElementById('trovato-timer-mask');
@@ -17492,17 +17475,13 @@ function trovatoAvviaTimer(){
       // aspettare la scadenza anche lui per sapere che qui non e' successo
       // niente.
       trovatoRifiuta(true);
-      return;
     }
-    _trovatoTic = requestAnimationFrame(passo);
   };
-  // A ogni FOTOGRAMMA e non a passi: la barra si ridisegna da una scadenza,
-  // e ridisegnarla quando lo schermo si ridisegna e- il modo di non doverla
-  // interpolare. Vedi la nota nel foglio accanto a #trovato-timer-mask.
-  _trovatoTic = requestAnimationFrame(passo);
+  passo();
+  _trovatoTic = setInterval(passo, 250);
 }
 function trovatoFermaTimer(){
-  if(_trovatoTic !== null){ cancelAnimationFrame(_trovatoTic); _trovatoTic = null; }
+  if(_trovatoTic){ clearInterval(_trovatoTic); _trovatoTic = null; }
 }
 
 function trovatoAccetta(){

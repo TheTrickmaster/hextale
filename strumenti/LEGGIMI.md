@@ -1354,6 +1354,50 @@ modulo dal server (`/opt/nakama/data/modules/index.js`) e gli si fanno le
 stesse domande. Il calendario e' l'unica cosa che un banco non puo' fingere del
 tutto: la giornata vera e' quella in cui gira.
 
+## prova-trovato.js — "Match found!", dieci secondi per dire di si'
+
+    $ELECTRON strumenti/prova-trovato.js [foto.png]
+
+Prima, trovato l'avversario, si entrava in partita da soli. Adesso i due si
+devono dire di si' tutti e due, e questo splash e' l'unico posto in cui una
+partita puo' non cominciare senza che sia successo niente di male.
+
+**Accettare vuol dire entrare.** Non c'e' un messaggio di "accetto" da
+inventare: chi preme Accept fa `match_join`, chi rifiuta semplicemente non
+entra, e la partita comincia quando il server vede dentro tutti e due — cosa
+che gia' faceva. Il banco controlla che aprendo lo splash NON si entri, e che
+premendo Accept si entri una volta sola.
+
+**Il riquadro non ritaglia, ed e' voluto.** I due personaggi devono uscire dai
+lati e da sopra (nel disegno il cappello del pirata sta fuori dal bordo alto)
+e mai da sotto. La proprieta' overflow non sa fare "tagliato da una parte
+sola": il fondo si evita ancorandoli al bordo basso, non tagliandoli. Se un
+domani qualcuno mette `overflow:hidden` per pulizia, il disegno si perde e
+nessun errore lo dice — per questo il banco guarda anche quello.
+
+**I dieci secondi li arbitra il server.** La barra e' il loro disegno, non la
+loro misura: se li contasse ogni client per se', la latenza li farebbe scadere
+a uno prima che all'altro, e il caso in cui accettano tutti e due sul filo
+diventerebbe una lotteria.
+
+**Chi rifiuta non e' dentro al match e deve poter parlare lo stesso.** Non ha
+una presenza, quindi non puo' mandargli un messaggio: bussa per RPC, e l'RPC
+usa `matchSignal`, che e' la porta di servizio verso chi non ci sta dentro.
+Senza quella strada l'altro imparerebbe la notizia solo alla scadenza.
+
+### Due trappole che in un giorno mi hanno fermato tre volte
+
+**Gli apici inclinati dentro al corpo del banco.** Il corpo vive in un
+template literal: un apice inclinato in un commento — attorno al nome di una
+regola CSS, per dire — chiude il template a meta'. Il file smette di partire,
+e l'errore che si legge indica la riga della chiamata, non quella del
+commento. Nel corpo del banco: nessun apice inclinato, mai.
+
+**Gli a-capo dentro alle spiegazioni.** Per andare a capo in un messaggio
+servono DUE caratteri (```` seguito da n), non uno: scritto con uno solo, il
+template esterno lo trasforma subito in un a-capo vero e spezza la stringa
+interna. Stesso sintomo, stessa caccia.
+
 ## prova-muto.js — muto vuol dire muto
 
     $ELECTRON strumenti/prova-muto.js

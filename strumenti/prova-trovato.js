@@ -60,9 +60,9 @@ app.whenReady().then(async () => {
       await attendi(600);
       // Una sessione finta: chi rifiuta lo dice al server solo se e- entrato,
       // e senza questa riga quel pezzo non verrebbe mai provato.
-      // Si assegna la VARIABILE e non window.sessioneAccount: e- dichiarata con
-      // `let` nel copione della pagina, e scrivere sulla finestra crea una
-      // seconda cosa con lo stesso nome che il codice non guarda mai.
+      // Si assegna la VARIABILE e non window.sessioneAccount: e- dichiarata
+      // nel copione della pagina, e scrivere sulla finestra crea una seconda
+      // cosa con lo stesso nome che il codice non guarda mai.
       if(!sessioneAccount || !sessioneAccount.token) sessioneAccount = { token: 'finto' };
 
       // Nessun server: si zittiscono le due strade che ci parlano, o lo splash
@@ -133,9 +133,17 @@ app.whenReady().then(async () => {
       dice(rif.classList.contains('hx-btn-opaco'), 'ed e- opaco');
       // Il rosso e- piu- piccolo del grigio: dire di no non deve costare quanto
       // dire di si-.
-      const wa = parseFloat(getComputedStyle(acc).width), wr = parseFloat(getComputedStyle(rif).width);
-      dice(wr < wa, 'e il "no" e- piu- piccolo del "si-"',
-        Math.round(wr) + ' contro ' + Math.round(wa) + ' — circa il 30% in meno.');
+      // Si misura QUEL CHE SI VEDE e non lo stile calcolato: il rosso e-
+      // rimpicciolito con zoom, e lo stile calcolato continua a dire la misura
+      // di prima. Direbbe "uguali" e avrebbe torto — la stessa lezione degli
+      // avatar, da un-altra porta.
+      const wa = acc.getBoundingClientRect().width, wr = rif.getBoundingClientRect().width;
+      dice(wr < wa * 0.85, 'e il "no" e- piu- piccolo del "si-"',
+        Math.round(wr) + ' contro ' + Math.round(wa) + ' — il ' + Math.round(wr/wa*100) + '%.'
+        + '\\n        Rimpicciolito in tutte le direzioni, non schiacciato in una sola.');
+      const ha = acc.getBoundingClientRect().height, hr = rif.getBoundingClientRect().height;
+      dice(hr < ha * 0.85 && hr > ha * 0.5, 'e lo e- anche in altezza, nella stessa misura',
+        Math.round(hr) + ' contro ' + Math.round(ha) + ' — il ' + Math.round(hr/ha*100) + '%.');
 
       // ── 5. LA BARRA SCORRE A RITROSO ──────────────────────────────────────
       const mask = document.getElementById('trovato-timer-mask');

@@ -306,7 +306,7 @@ app.whenReady().then(async () => {
         // v0.79.80 — E LA BARRA DEL TITOLO NON SI SCHIACCIA.
         // Era il prezzo nascosto del tetto: la finestra e- una colonna flex, e
         // una colonna che non ci sta accorcia i suoi pezzi. La barra ha
-        // `flex:1 1 auto` perche- nelle PAGINE deve allungarsi in fila col
+        // il suo flex, perche- nelle PAGINE deve allungarsi in fila col
         // selettore Dark/Light — e lo stesso numero, in verticale, vuol dire
         // "comprimibile". Scendeva a 36 dei suoi 68: il titolo restava, la
         // cornice si appiattiva. Si misura in pixel CSS perche- la scena e-
