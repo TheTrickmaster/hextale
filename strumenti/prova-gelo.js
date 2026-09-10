@@ -109,12 +109,23 @@ app.whenReady().then(async () => {
       'ho letto "' + String(dopo.backgroundImage).slice(0, 120) + '"');
     dice(dopo.mixBlendMode === 'hard-light',
       'fusa in hard-light', 'ho letto "' + dopo.mixBlendMode + '"');
-    // La misura: il ::after riempie il wrap, che e- la carta.
-    const lw = Math.round(parseFloat(dopo.width)), lh = Math.round(parseFloat(dopo.height));
-    const cw = Math.round(wrap.clientWidth), ch = Math.round(wrap.clientHeight);
-    dice(lw === cw && lh === ch,
-      'grande esattamente quanto la carta',
-      'lastra ' + lw + 'x' + lh + ', carta ' + cw + 'x' + ch);
+    // La misura: dalla v0.79.64 la lastra sborda dell'otto per cento, e resta
+    // centrata. Non e- "circa": si controlla il fattore su tutte e due le
+    // direzioni, perche- una percentuale su left/right si conta sulla
+    // larghezza e una su top/bottom sull-altezza — sbagliare l-una o l-altra
+    // darebbe un ghiaccio ovale che a occhio sembra giusto.
+    const lw = parseFloat(dopo.width), lh = parseFloat(dopo.height);
+    const cw = wrap.clientWidth, ch = wrap.clientHeight;
+    const fx = lw / cw, fy = lh / ch;
+    dice(Math.abs(fx - 1.08) < 0.005 && Math.abs(fy - 1.08) < 0.005,
+      'grande l-otto per cento piu- della carta, nelle due direzioni',
+      'lastra ' + Math.round(lw) + 'x' + Math.round(lh) + ', carta ' + Math.round(cw) + 'x' + Math.round(ch)
+      + '   ->  ' + fx.toFixed(3) + ' per ' + fy.toFixed(3));
+    // E centrata: quel che sborda si divide in parti uguali sui due lati.
+    dice(Math.abs(parseFloat(dopo.left) + (lw - cw)/2) < 0.5
+      && Math.abs(parseFloat(dopo.top) + (lh - ch)/2) < 0.5,
+      'e centrata sulla carta, non spostata da un lato',
+      'sporge di ' + dopo.left + ' a sinistra e ' + dopo.top + ' in alto');
     // v0.79.63 — senza isolamento hard-light fonderebbe col TAVOLO dietro alla
     // mano invece che con la carta, e il ghiaccio cambierebbe colore a seconda
     // di cosa gli passa sotto.
@@ -147,7 +158,8 @@ app.whenReady().then(async () => {
     const dopo2 = getComputedStyle(wrap, '::after');
     // Il ::after resta della misura della carta anche girato: la rotazione non
     // cambia le sue dimensioni proprie, cambia dove finisce sullo schermo.
-    dice(Math.round(parseFloat(dopo2.width)) === cw && Math.round(parseFloat(dopo2.height)) === ch,
+    dice(Math.abs(parseFloat(dopo2.width)/cw - 1.08) < 0.005
+      && Math.abs(parseFloat(dopo2.height)/ch - 1.08) < 0.005,
       'e inclinando la carta la lastra resta della sua misura',
       Math.round(parseFloat(dopo2.width)) + 'x' + Math.round(parseFloat(dopo2.height)));
     dice(Math.abs(poi.left - prima.left) > 5 || Math.abs(poi.top - prima.top) > 5,
