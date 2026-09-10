@@ -9748,6 +9748,142 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
    casi senza doverli distinguere. */
 #tutorial-ok{ width:100%; max-width:none; flex:0 0 auto; margin-top:auto; }
 
+
+/* ══════════════════════════════════════════════════════════════════════════
+   v0.79.84 — "MATCH FOUND!", E I DIECI SECONDI PER DIRE DI SI'
+   ══════════════════════════════════════════════════════════════════════════
+   Prima, trovato l'avversario, si entrava in partita da soli. Adesso i due si
+   guardano per dieci secondi e devono dirsi di si' tutti e due.
+
+   Il riquadro e' 650x400 e NON ritaglia: i due personaggi devono poter uscire
+   dai lati e da sopra — nel disegno il cappello del pirata sta fuori dal bordo
+   alto — ma non da sotto. La proprieta' overflow non sa fare "tagliato da una
+   parte sola", quindi il fondo non si taglia: si evita. Le due figure sono
+   ancorate al bordo basso, e cosi' sotto non ci vanno per costruzione invece
+   che per ritaglio.
+   (Nessun apice inclinato in questo blocco: vive in un template literal, e uno
+   solo lo chiude a meta'.) */
+#trovato-overlay{ z-index:4560; }
+#trovato-cornice{
+  position:relative;
+  width:650px; height:400px;
+  flex:0 0 auto;
+  border-radius:28px;
+  /* Volutamente VISIBILE: vedi sopra. */
+  overflow:visible;
+  box-shadow:inset 0 0 0 1.5px rgba(255,255,255,0.22);
+  background-image:linear-gradient(135deg, rgba(84,96,98,0.5) 0%, rgba(29,38,39,0.5) 100%);
+  display:flex; flex-direction:column; align-items:center;
+  box-sizing:border-box; padding:30px;
+}
+/* La trama del pannello, come ogni altro riquadro del gioco. Ritagliata dal
+   raggio, cosi' non sborda dagli angoli. */
+#trovato-cornice::before{
+  content:''; position:absolute; inset:0; border-radius:inherit;
+  background-image:var(--hx-trama, none);
+  background-size:cover; background-position:center;
+  opacity:0.4; mix-blend-mode:overlay;
+  pointer-events:none; z-index:0;
+}
+/* ── I DUE PERSONAGGI ────────────────────────────────────────────────────
+   Arrivano da fuori e RALLENTANO avvicinandosi al centro. La curva e' un
+   `ease-out` marcato: parte veloce e si posa, che e' il modo in cui si legge
+   "sono arrivati" invece di "si stanno muovendo".
+   Sono alti piu' del riquadro apposta: la parte che avanza esce dal bordo
+   alto, e il gradiente qui sotto ne copre la meta' bassa. */
+.trovato-attore{
+  position:absolute; bottom:0; z-index:1;
+  height:470px; width:auto; max-width:none;
+  pointer-events:none; user-select:none; -webkit-user-drag:none;
+  opacity:0;
+  transition:opacity 0.7s ease, transform 0.9s cubic-bezier(.12,.72,.24,1);
+}
+#trovato-hook{ left:-70px;  transform:translateX(-160px); }
+#trovato-lrrh{ right:-70px; transform:translateX(160px); }
+#trovato-overlay.attori #trovato-hook,
+#trovato-overlay.attori #trovato-lrrh{ opacity:1; transform:translateX(0); }
+/* Il gradiente sta SOPRA ai due e sotto al testo, ed e' li' dal primo istante:
+   i personaggi entrano gia' sfumati invece di essere coperti a meta' strada.
+   Dal basso verso l'alto: pieno fino al 15%, sparito al 70%. Sono i numeri di
+   Lorenzo. */
+#trovato-velo{
+  position:absolute; inset:0; z-index:2; border-radius:inherit;
+  pointer-events:none;
+  background-image:linear-gradient(to top,
+    #1E2423 15%, rgba(30,36,35,0) 70%);
+}
+/* ── QUEL CHE SI LEGGE E SI PREME ────────────────────────────────────────
+   Entra in ordine: titolo, Accept, Decline, timer. Ogni pezzo ha il suo
+   ritardo, e i ritardi stanno nel foglio e non in JS: sono una cosa sola col
+   resto della veste. */
+#trovato-dentro{
+  position:relative; z-index:3;
+  width:100%; height:100%;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:14px;
+}
+.trovato-entra{ opacity:0; transform:translateY(8px); transition:opacity .45s ease, transform .45s ease; }
+#trovato-overlay.dentro .trovato-entra{ opacity:1; transform:translateY(0); }
+#trovato-overlay.dentro #trovato-titolo{ transition-delay:0ms; }
+#trovato-overlay.dentro #trovato-accetta,
+#trovato-overlay.dentro #trovato-attesa{ transition-delay:220ms; }
+#trovato-overlay.dentro #trovato-rifiuta{ transition-delay:420ms; }
+#trovato-overlay.dentro #trovato-timer{ transition-delay:620ms; }
+#trovato-titolo{
+  margin:0;
+  font-family:'Marcellus',var(--font-display),serif;
+  font-size:40px; font-weight:400; line-height:1;
+  color:#EDE0C6;
+  text-shadow:0 2px 6px rgba(15,23,25,1);
+}
+#trovato-accetta{ width:300px; max-width:none; }
+/* E quando si nascondono, si nascondono davvero. La regola del browser per
+   gli elementi nascosti vale quanto una classe, e .hx-btn porta il suo
+   display scritto dopo: senza queste due righe "Accept" resterebbe in scena
+   accanto alla scritta d-attesa, e premibile. E- lo stesso inciampo del
+   tutorial, ed e- la terza volta in due giorni: quando si nasconde con
+   l-attributo, la regola esplicita va scritta insieme. */
+#trovato-accetta[hidden]{ display:none; }
+#trovato-attesa[hidden]{ display:none; }
+/* Il rosso e' piu' piccolo di un terzo: dire di no non deve costare quanto
+   dire di si'. La misura scende in tutte e due le direzioni, o il pulsante
+   verrebbe basso e largo invece che piu' piccolo. */
+#trovato-rifiuta{ width:210px; max-width:none; }
+#trovato-rifiuta .hxb-label{ font-size:70%; }
+#trovato-rifiuta .hxb-strip{ transform:scaleY(0.7); }
+/* L'attesa prende il posto di "Accept": stesso riquadro dei paragrafi
+   annidati del tutorial, largo 360. */
+#trovato-attesa{
+  box-sizing:border-box; width:360px; padding:16px 20px;
+  border-radius:12px;
+  background:rgba(255,255,255,0.07);
+  border:1px solid rgba(255,255,255,0.10);
+  font-family:'Rosarivo',serif; font-size:16px; line-height:1.35;
+  color:#C5D2D4; text-align:center;
+}
+/* ── IL TIMER ────────────────────────────────────────────────────────────
+   E' la barra della partita, stessi tre pezzi (fondo, riempimento, spilla) e
+   stesse immagini: chi la vede scorrere qui sa gia' cosa vuol dire, e non
+   c'e' un secondo modo di disegnare un tempo che scade. Scorre a ritroso.
+   Sta in fondo al riquadro, dentro al padding. */
+#trovato-timer{
+  position:absolute; left:16px; right:16px; bottom:14px; height:12px;
+  z-index:3;
+}
+#trovato-timer-bg{ position:absolute; left:0; top:0; width:100%; height:12px; }
+#trovato-timer-mask{
+  position:absolute; left:6px; top:0; height:12px;
+  border-radius:6px; overflow:hidden;
+  width:calc(100% - 12px);
+  transition:width 1s linear;
+}
+#trovato-timer-fill{ display:block; height:12px; width:620px; max-width:none; }
+#trovato-timer-pin{
+  position:absolute; top:50%; width:18px; height:auto;
+  transform:translate(-50%,-50%);
+  transition:left 1s linear;
+}
+
 /* ── v0.79.12 — LA FINESTRA DELLA SEGNALAZIONE ────────────────────────────
    Stessa veste di tutte le altre: velo sfocato (.hx-overlay), barra del titolo
    a tre pezzi, pannello con la trama. Qui sotto c'e' solo cio' che e' suo. */
@@ -13254,6 +13390,38 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
      Non si chiude col velo ne' con Esc, ed e' voluto: le prime quattro
      schede stanno fra la scelta del nome e quella del mazzo, cioe- dentro a
      una fila di cose che si fanno decidendo. Si esce dal "Got it!". -->
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     v0.79.84 — "MATCH FOUND!"
+     ══════════════════════════════════════════════════════════════════════
+     Non si chiude col velo ne' con Esc: e' una domanda con due risposte, e
+     tutte e due si danno premendo. Chiuderla di lato vorrebbe dire lasciare
+     l'avversario ad aspettare senza sapere cosa e' successo. -->
+<div id="trovato-overlay" class="hx-overlay">
+  <div id="trovato-cornice">
+    <img class="trovato-attore" id="trovato-hook" alt="" draggable="false">
+    <img class="trovato-attore" id="trovato-lrrh" alt="" draggable="false">
+    <div id="trovato-velo"></div>
+    <div id="trovato-dentro">
+      <h2 class="trovato-entra" id="trovato-titolo">Match found!</h2>
+      <button class="hx-btn hx-azione hx-btn-opaco trovato-entra" id="trovato-accetta" type="button" onclick="trovatoAccetta()">
+        <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
+        <span class="hxb-label">Accept</span>
+      </button>
+      <div class="trovato-entra" id="trovato-attesa" hidden>Waiting for your opponent...</div>
+      <button class="hx-btn hx-btn-warning hx-btn-opaco trovato-entra" id="trovato-rifiuta" type="button" onclick="trovatoRifiuta()">
+        <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
+        <span class="hxb-label">Decline</span>
+      </button>
+    </div>
+    <div class="trovato-entra" id="trovato-timer">
+      <img id="trovato-timer-bg" alt="" draggable="false">
+      <div id="trovato-timer-mask"><img id="trovato-timer-fill" alt="" draggable="false"></div>
+      <img id="trovato-timer-pin" alt="" draggable="false">
+    </div>
+  </div>
+</div>
+
 <div id="tutorial-overlay" class="hx-overlay">
   <!-- v0.79.83 — la barra del titolo, come nelle altre finestre a colonna
        (il disclaimer, la scelta della lettera): sta SOPRA al riquadro e non
@@ -16819,6 +16987,15 @@ function reteMessaggio(md){
     return;
   }
 
+  // v0.79.84 — l'altro non ha accettato (ha detto di no, o ha lasciato
+  // scadere i dieci secondi). Non e' una partita finita: e' una partita mai
+  // cominciata, e chi lo riceve non deve vedere una schermata di risultato.
+  if(op === 13){
+    try{ trovatoAltroNonHaAccettato(); }catch(_){ }
+    PARTITA_RETE = null;
+    return;
+  }
+
   if(op === 9){
     // L'esito, scritto dal server dopo che i due racconti hanno coinciso. Ha
     // la stessa forma che tornava hx_partita, quindi il menu lo sa gia'
@@ -17143,7 +17320,6 @@ function mmTrovato(dati){
   if(et) et.textContent = 'Match found!';
   if(btn) btn.classList.add('trovato');
   if(box) box.classList.add('trovato');
-  try{ playSfxFile('match-found.mp3'); }catch(_){}
   mmFermaTimer();
 
   // v0.77.54 — SE IL SERVER HA CREATO LA PARTITA, CI SI ENTRA. Il socket resta
@@ -17153,9 +17329,12 @@ function mmTrovato(dati){
   // subito e' la differenza fra una partita e due partite diverse.
   if(dati.match_id){
     _reteMatchId = dati.match_id;
-    setTimeout(()=>{
-      mmManda({ cid:'j'+Date.now().toString(36), match_join:{ match_id: dati.match_id } });
-    }, MM2_PASSO_MS);
+    // v0.79.84 — QUI SI ENTRAVA IN PARTITA DA SOLI. Adesso si chiede prima:
+    // lo splash resta dieci secondi e in partita ci si va solo premendo
+    // "Accept" — che e' letteralmente la stessa cosa, perche' accettare VUOL
+    // DIRE entrare (vedi partitaJoin sul server: la partita comincia quando
+    // ci sono tutti e due).
+    apriTrovato(dati.match_id);
     return;
   }
 
@@ -17189,6 +17368,173 @@ function mmFermaTimer(){
   if(_mmTimer){ clearInterval(_mmTimer); _mmTimer = null; }
   if(_mmRinuncia){ clearTimeout(_mmRinuncia); _mmRinuncia = null; }
 }
+
+// ══════════════════════════════════════════════════════════════════════════
+// v0.79.84 — "MATCH FOUND!": DIECI SECONDI PER DIRE DI SI'
+// ══════════════════════════════════════════════════════════════════════════
+// Prima, trovato l'avversario, si entrava in partita da soli. Adesso i due si
+// devono dire di si' tutti e due, e ACCETTARE VUOL DIRE ENTRARE: chi preme
+// "Accept" fa match_join, chi rifiuta semplicemente non entra. Non c'e' un
+// messaggio di "accetto" da inventare — la partita comincia quando il server
+// vede dentro tutti e due (vedi partitaJoin).
+//
+// I dieci secondi li arbitra il SERVER. Questa barra e' il loro disegno, non
+// la loro misura: se li contasse ogni client per se', la latenza li farebbe
+// scadere a uno prima che all'altro.
+const TROVATO_MS = 10000;
+let _trovatoMatch = '';
+let _trovatoFine = 0;       // quando scade, in tempo locale
+let _trovatoTic = null;
+let _trovatoAccettato = false;
+
+function apriTrovato(matchId){
+  const ov = document.getElementById('trovato-overlay');
+  if(!ov) return;
+  _trovatoMatch = matchId;
+  _trovatoAccettato = false;
+  _trovatoFine = Date.now() + TROVATO_MS;
+  vestiTrovato();
+  trovatoMostraScelta();
+  ov.classList.add('show');
+  // Il suono arriva insieme a cio' che annuncia.
+  try{ playSfxFile('match-found.mp3'); }catch(_){ }
+  // Due fotogrammi di distanza fra "esiste" e "entra": senza, il browser vede
+  // una cosa nata gia' al suo posto e non ha niente da animare. E' lo stesso
+  // motivo per cui Customize entra come entra.
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    ov.classList.add('dentro');
+    ov.classList.add('attori');
+  }));
+  trovatoAvviaTimer();
+}
+
+// Gli asset: i due personaggi, la trama del pannello e i tre pezzi della barra.
+// La barra e' quella della PARTITA, stesse immagini: chi la vede scorrere qui
+// sa gia' cosa vuol dire, e non c'e' un secondo modo di disegnare un tempo che
+// scade.
+function vestiTrovato(){
+  const cornice = document.getElementById('trovato-cornice');
+  if(cornice) impostaVariabileDaCandidati(cornice, '--hx-trama', uiFileCandidati('brushed-texture.jpg'));
+  impostaImgDaCandidati(document.getElementById('trovato-hook'), uiFileCandidati('hook-match.png'));
+  impostaImgDaCandidati(document.getElementById('trovato-lrrh'), uiFileCandidati('lrrh-match.png'));
+  const t = (id, file)=>{
+    const el = document.getElementById(id);
+    if(el) impostaImgDaCandidati(el, _candidati('../timer/' + file, 'https://hextalegame.com/timer/' + file));
+  };
+  t('trovato-timer-bg',  'timer-bg.png');
+  t('trovato-timer-fill','timer-fill.png');
+  t('trovato-timer-pin', 'timer-signal.png');
+  try{ vestiPulsante(document.getElementById('trovato-accetta')); }catch(_){ }
+  try{ vestiPulsante(document.getElementById('trovato-rifiuta')); }catch(_){ }
+}
+
+// I due volti dello splash. Prima: due pulsanti. Dopo aver accettato: la
+// scritta d'attesa al posto di "Accept", e il rosso che diventa "Cancel match"
+// nella sua versione trasparente — non e' piu' un rifiuto secco, e' un
+// ripensamento.
+function trovatoMostraScelta(){
+  const acc = document.getElementById('trovato-accetta');
+  const att = document.getElementById('trovato-attesa');
+  const rif = document.getElementById('trovato-rifiuta');
+  if(acc) acc.hidden = false;
+  if(att) att.hidden = true;
+  if(rif){
+    rif.classList.add('hx-btn-opaco');
+    const et = rif.querySelector('.hxb-label');
+    if(et) et.textContent = 'Decline';
+  }
+}
+function trovatoMostraAttesa(){
+  const acc = document.getElementById('trovato-accetta');
+  const att = document.getElementById('trovato-attesa');
+  const rif = document.getElementById('trovato-rifiuta');
+  if(acc) acc.hidden = true;
+  if(att) att.hidden = false;
+  if(rif){
+    rif.classList.remove('hx-btn-opaco');
+    const et = rif.querySelector('.hxb-label');
+    if(et) et.textContent = 'Cancel match';
+  }
+}
+
+// La barra scorre a ritroso. Si ridisegna da una SCADENZA e non da un
+// contatore che scende: un contatore perde colpi se la scheda va in secondo
+// piano, una scadenza no — al ritorno la barra e' semplicemente piu' corta.
+function trovatoAvviaTimer(){
+  trovatoFermaTimer();
+  const passo = ()=>{
+    const resta = Math.max(0, _trovatoFine - Date.now());
+    const quota = Math.max(0, Math.min(1, resta / TROVATO_MS));
+    const mask = document.getElementById('trovato-timer-mask');
+    const pin = document.getElementById('trovato-timer-pin');
+    if(mask) mask.style.width = 'calc((100% - 12px) * ' + quota.toFixed(4) + ')';
+    if(pin) pin.style.left = 'calc(6px + (100% - 12px) * ' + quota.toFixed(4) + ')';
+    if(resta <= 0){
+      trovatoFermaTimer();
+      // Il tempo scaduto vale come un rifiuto, e si dice: l'altro non deve
+      // aspettare la scadenza anche lui per sapere che qui non e' successo
+      // niente.
+      trovatoRifiuta(true);
+    }
+  };
+  passo();
+  _trovatoTic = setInterval(passo, 250);
+}
+function trovatoFermaTimer(){
+  if(_trovatoTic){ clearInterval(_trovatoTic); _trovatoTic = null; }
+}
+
+function trovatoAccetta(){
+  if(_trovatoAccettato) return;
+  _trovatoAccettato = true;
+  trovatoMostraAttesa();
+  // Accettare E' entrare. Da qui in poi si aspetta l'altro: se arriva, il
+  // server manda l'avvio e la partita comincia; se non arriva, manda
+  // OP_NON_ACCETTATO e si torna in cerca.
+  mmManda({ cid:'j'+Date.now().toString(36), match_join:{ match_id: _trovatoMatch } });
+}
+
+// Vale per "Decline", per "Cancel match" e per il tempo scaduto: sono la
+// stessa cosa vista da tre momenti diversi — questa partita non si fa, e chi
+// lo dice esce dalla ricerca.
+function trovatoRifiuta(perTempo){
+  const id = _trovatoMatch;
+  trovatoChiudi();
+  if(id && sessioneAccount && sessioneAccount.token){
+    nakamaRpc('hx_rifiuta', { matchId: id })
+      .catch(e => console.warn('[rete] rifiuto non recapitato: ' + ((e && e.message) || '')));
+  }
+  console.info('[rete] partita non accettata (' + (perTempo ? 'tempo scaduto' : 'rifiutata') + ')');
+  // Chi dice di no esce dalla ricerca: non si rimette in coda da solo, o
+  // "Decline" sarebbe solo un modo lento di ricominciare.
+  mmChiudiSocket();
+  _mm2Cercando = false;
+  mm2FermaRicerca();
+}
+
+function trovatoChiudi(){
+  trovatoFermaTimer();
+  _trovatoMatch = '';
+  _trovatoAccettato = false;
+  const ov = document.getElementById('trovato-overlay');
+  if(ov) ov.classList.remove('show', 'dentro', 'attori');
+}
+
+// L'altro non ha accettato: si torna in cerca da soli, senza far premere
+// niente a nessuno. Ricomincia da capo — il posto in coda non si conserva,
+// perche' oggi una coda con delle priorita' non c'e'.
+function trovatoAltroNonHaAccettato(){
+  trovatoChiudi();
+  console.info('[rete] l\'avversario non ha accettato: si riparte.');
+  mmChiudiSocket();
+  _mm2Cercando = false;
+  mm2FermaRicerca();
+  // Un attimo di respiro prima di rimettersi in coda: il socket si sta
+  // chiudendo, e ripartire nello stesso istante vorrebbe dire aprirne un
+  // secondo mentre il primo se ne va.
+  setTimeout(()=>{ try{ mm2CercaAvversario(); }catch(_){ } }, 600);
+}
+
 function mmChiudiSocket(){
   if(_mmSocket){ try{ _mmSocket.close(); }catch(_){} _mmSocket = null; }
   _mmTicket = null;
@@ -19918,6 +20264,10 @@ let _mm2Cercando = false;
 // perche' e' gia' l'unica porta da cui la ricerca esce: annullata a mano,
 // avversario trovato, o socket caduto.
 let _mmCronoDa = 0, _mmCrono = null;
+// Se il puntatore e- sopra al pulsante della ricerca. Lo dice il mouse e non
+// il CSS perche- l-etichetta la scrive JS a ogni secondo: una regola :hover
+// verrebbe riscritta dal tic successivo.
+let _mmSottoIlDito = false;
 function mmAvviaCronometro(){
   mmFermaCronometro();
   _mmCronoDa = Date.now();
@@ -19926,8 +20276,25 @@ function mmAvviaCronometro(){
     const et = document.querySelector('#mm2-find .hxb-label');
     if(!et) return;
     const s = Math.floor((Date.now() - _mmCronoDa) / 1000);
-    et.textContent = '(' + s + 's) Cancel';
+    // v0.79.84 — i secondi finche' non ci passi sopra, e sotto al dito
+    // "Cancel". Prima diceva sempre tutte e due le cose insieme: un pulsante
+    // che mostra un cronometro E un comando fa leggere il cronometro come
+    // parte del comando. Adesso dice l'attesa, e dice cosa fa solo quando
+    // stai per premerlo.
+    et.textContent = _mmSottoIlDito ? 'Cancel' : '(' + s + 's)';
   };
+  // Il dito. Si aggancia una volta sola e resta: il cronometro parte e si
+  // ferma a ogni ricerca, e riagganciare a ogni giro lascerebbe dietro una
+  // pila di ascoltatori sullo stesso pulsante.
+  const bott = document.getElementById('mm2-find');
+  if(bott && !bott.__ditoPronto){
+    bott.__ditoPronto = true;
+    // `passo()` subito e non al tic dopo: un-etichetta che cambia mezzo
+    // secondo dopo che ci sei arrivato sopra si legge come un ritardo del
+    // gioco, non come una risposta.
+    bott.addEventListener('mouseenter', ()=>{ _mmSottoIlDito = true;  if(_mm2Cercando) passo(); });
+    bott.addEventListener('mouseleave', ()=>{ _mmSottoIlDito = false; if(_mm2Cercando) passo(); });
+  }
   passo();
   _mmCrono = setInterval(passo, 1000);
 }

@@ -609,6 +609,27 @@ function assicuraPossesso(ctx, nk, logger, userId, username) {
 // Il client NON decide: chiede, e qui si controlla che il nome sia uno dei
 // tre. Un nome inventato non scrive niente.
 var TUTORIAL_NOMI = ['principale', 'pacchetti', 'libreria'];
+// v0.79.84 — "non accetto questa partita". Chi la chiama non e' dentro al
+// match e non puo' mandargli un messaggio: si passa da matchSignal, che e' la
+// porta di servizio. Il controllo su CHI puo' rifiutare lo fa il match (vedi
+// partitaSignal): qui si sa solo chi sta chiamando, di la' si sa chi era
+// accoppiato.
+function rpcRifiuta(ctx, logger, nk, payload) {
+  if (!ctx.userId) throw Error('serve un accesso');
+  var d = {};
+  try { d = payload ? JSON.parse(payload) : {}; } catch (e) { d = {}; }
+  var id = String(d.matchId || '');
+  if (!id) return JSON.stringify({ ok: false });
+  try {
+    nk.matchSignal(id, JSON.stringify({ rifiuta: ctx.userId }));
+  } catch (e) {
+    // Un tavolo gia' chiuso non e' un errore: vuol dire che la notizia era
+    // gia' arrivata per un'altra strada.
+    logger.info('rifiuto su %s senza effetto: %s', id, String(e));
+  }
+  return JSON.stringify({ ok: true });
+}
+
 function rpcTutorial(ctx, logger, nk, payload) {
   if (!ctx.userId) throw Error('serve un accesso');
   var d = {};
@@ -3858,6 +3879,12 @@ var OP_ESITO     = 9;   // server -> client, personale: com'e' andata, e cosa ha
 // alla prima carta che chiede qualcosa.
 var OP_SCELGO    = 10;  // client -> server: il bersaglio che ho indicato
 var OP_SCELTA    = 11;  // server -> client: il bersaglio indicato, per tutti e due
+// v0.79.84 — server -> client, personale: l'altro non ha accettato (ha detto
+// di no, o ha lasciato scadere i dieci secondi). Chi lo riceve torna in
+// cerca da solo. E' un messaggio a se' e non un OP_FINE con un motivo: una
+// partita che non e' mai cominciata non e' una partita finita, e chi la
+// riceve non deve vedere una schermata di risultato.
+var OP_NON_ACCETTATO = 13;
 
 // v0.79.57 — quarantacinque secondi. Vedi TURN_SECS in play/index.html: sono
 // lo stesso numero detto due volte, e il server e- quello che comanda. Se i due
@@ -3880,7 +3907,22 @@ var TURNO_MS = 45000;        // i quarantacinque secondi del turno
 var VERSUS_MS = 9000;
 var GRAZIA_MS = 2500;        // quanto si aspetta oltre la scadenza prima di troncare
 var MANO_INIZIALE = 4;
-var ATTESA_INGRESSO_MS = 30000;  // se il secondo non entra, la partita muore da sola
+// ── v0.79.84 — I DIECI SECONDI PER DIRE DI SI' ──────────────────────────
+// Trovato l'avversario, i due hanno dieci secondi per accettare. ACCETTARE
+// VUOL DIRE ENTRARE: il client mostra lo splash e chiama match_join solo se
+// si preme "Accept". Chi rifiuta semplicemente non entra — e lo dice, cosi'
+// l'altro riparte subito invece di aspettare la scadenza (vedi rpcRifiuta).
+//
+// A CONTARLI E' QUI. Se li contasse ogni client per se', la latenza farebbe
+// scadere il tempo a uno prima che all'altro, e il caso in cui accettano
+// tutti e due sul filo diventerebbe una lotteria. La barra che si vede e' un
+// disegno di questa scadenza, non la scadenza.
+//
+// Trenta secondi erano la vecchia rete di sicurezza per una partita in cui i
+// due entravano da soli; adesso l'attesa e' una scelta di chi gioca, e dura
+// quanto lo splash.
+var PRONTI_MS = 10000;
+var ATTESA_INGRESSO_MS = PRONTI_MS + 2000;  // due secondi di grazia per la rete
 
 // ── il tabellone ──────────────────────────────────────────────────────────
 // Le stesse diciannove caselle del client: q e r da -2 a 2, con |q+r| <= 2.
@@ -4694,7 +4736,11 @@ function partitaLeave(ctx, logger, nk, dispatcher, tick, state, presences) {
 function partitaLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
   // Nessuno e' entrato entro il tempo: la partita non c'e' mai stata.
   if (!state.iniziata && Date.now() - state.natoIl > ATTESA_INGRESSO_MS) {
-    logger.info('partita mai cominciata: nessuno e\' entrato in tempo');
+    // v0.79.84 — e chi c'era dentro ad aspettare se lo sente dire. Prima si
+    // tornava null e basta: il tavolo spariva e chi aveva accettato restava a
+    // guardare una finestra che non rispondeva piu'. Una porta che si chiude
+    // in silenzio e' indistinguibile da una porta rotta.
+    _nessunoHaAccettato(state, dispatcher, logger, 'tempo scaduto');
     return null;
   }
   if (state.finita) return null;
@@ -4896,7 +4942,39 @@ function partitaTerminate(ctx, logger, nk, dispatcher, tick, state, graceSeconds
   return { state: state };
 }
 
+// v0.79.84 — CHI DICE DI NO NON E' DENTRO, E DEVE POTER PARLARE LO STESSO.
+// Chi rifiuta non ha mai fatto match_join: non ha una presenza, non puo'
+// mandare un messaggio alla partita. Bussa quindi da fuori, per RPC, e l'RPC
+// usa matchSignal — che e' l'unica porta di servizio che un match ha verso
+// chi non ci sta dentro.
+// Senza questa strada l'altro imparerebbe la notizia solo alla scadenza:
+// dieci secondi passati a fissare "Waiting for your opponent..." quando la
+// risposta era gia' arrivata.
+function _nessunoHaAccettato(state, dispatcher, logger, perche) {
+  var dentro = [];
+  for (var i = 0; i < state.giocatori.length; i++) {
+    var p = state.presenze[state.giocatori[i]];
+    if (p) dentro.push(p);
+  }
+  if (dentro.length) {
+    try {
+      dispatcher.broadcastMessage(OP_NON_ACCETTATO, JSON.stringify({ perche: perche }), dentro, null);
+    } catch (e) { if (logger) logger.warn('avviso non consegnato: %s', String(e)); }
+  }
+  if (logger) logger.info('partita non cominciata (%s): avvisati %d', perche, dentro.length);
+}
 function partitaSignal(ctx, logger, nk, dispatcher, tick, state, data) {
+  var d = {};
+  try { d = data ? JSON.parse(data) : {}; } catch (e) { d = {}; }
+  if (d.rifiuta && !state.iniziata) {
+    // Solo da uno dei due accoppiati: un segnale da chiunque altro non deve
+    // poter buttare giu' un tavolo.
+    if (_indiceDi(state, String(d.rifiuta)) !== -1) {
+      state.rifiutata = true;
+      _nessunoHaAccettato(state, dispatcher, logger, 'rifiutata');
+      return null;   // il tavolo si chiude qui
+    }
+  }
   return { state: state, data: data };
 }
 
@@ -5881,6 +5959,7 @@ function InitModule(ctx, logger, nk, initializer) {
   initializer.registerRpc('hx_accordo', rpcAccordo);
   initializer.registerRpc('hx_starter', rpcStarter);
   initializer.registerRpc('hx_tutorial', rpcTutorial);
+  initializer.registerRpc('hx_rifiuta', rpcRifiuta);
   initializer.registerRpc('hx_posta_config', rpcPostaConfig);
   initializer.registerRpc('hx_verifica_stato', rpcVerificaStato);
   initializer.registerRpc('hx_verifica_invia', rpcVerificaInvia);
