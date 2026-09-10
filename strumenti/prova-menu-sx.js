@@ -1,4 +1,4 @@
-// LA COLONNA DI SINISTRA DEL MENU: Shop, Donate, e le due valute.
+// LE DUE COLONNE DEL MENU: Shop, Donate, le valute — e le Daily quests.
 //
 //     $ELECTRON strumenti/prova-menu-sx.js [scatto.png]
 //
@@ -84,6 +84,70 @@ app.whenReady().then(async () => {
       dice(b.offsetWidth === document.getElementById('mm2-donate-btn').offsetWidth,
         'e largo quanto quello del Donate',
         b.offsetWidth + ' e ' + document.getElementById('mm2-donate-btn').offsetWidth);
+
+      // ── 4. E LE QUEST SONO ALTE QUANTO LA COLONNA (v0.79.69) ─────────────
+      // Non per coincidenza: l'altezza della colonna di sinistra e- una somma
+      // che fa il foglio di stile (--mm2-sx-h), e le quest usano quella. Prima
+      // erano due numeri scollegati, e nella v0.79.67 lo Shop e- passato da 213
+      // a 108: da quel momento i due lati non erano piu- pari, e non se n-e-
+      // lamentato niente — due riquadri di altezza diversa non sono un errore,
+      // sono solo brutti.
+      const sx = document.getElementById('mm2-sx');
+      const quest = document.querySelector('#mm2-dx .mm2-box');
+      dice(!!sx && !!quest, 'le due colonne ci sono');
+      if(sx && quest){
+        dice(quest.offsetHeight === sx.offsetHeight,
+          'le Daily quests sono alte quanto la colonna di sinistra',
+          quest.offsetHeight + ' e ' + sx.offsetHeight);
+        // E la somma torna: quattro caselle e tre stacchi.
+        const atteso = 2*108 + 2*100 + 3*20;
+        dice(sx.offsetHeight === atteso,
+          'e quell-altezza e- la somma delle quattro caselle e dei tre stacchi',
+          sx.offsetHeight + ', attesi ' + atteso + ' (108+108+100+100 + 3x20)');
+        // Il corpo si adatta invece di dettare: e- il pezzo elastico dei tre.
+        const corpo = document.getElementById('mm2-quest-corpo');
+        const testata = document.getElementById('mm2-quest-testata');
+        const bott = document.getElementById('mm2-quest-btn');
+        // clientHeight e non offsetHeight: il riquadro ha un bordo da un pixel
+        // e mezzo per parte, e quello NON e- spazio dentro. Contarlo faceva
+        // mancare due pixel al conto e sembrare storto qualcosa che era giusto.
+        const dentro = quest.clientHeight - 40;   // i venti di padding per parte
+        dice(corpo && Math.abs(corpo.offsetHeight + testata.offsetHeight + 16
+               + bott.offsetHeight + 16 - dentro) <= 2,
+          'e il corpo si prende esattamente quel che avanza',
+          'corpo ' + (corpo?corpo.offsetHeight:0) + ' + testata ' + testata.offsetHeight
+          + ' + pulsante ' + bott.offsetHeight + ' + 32 di stacchi  =  ' + dentro);
+      }
+
+      // ── 5. LA FINE PARTITA NON PROMETTE PIU- UNA BUSTINA (v0.79.69) ──────
+      // Il premio se n-e- andato di la- (andra- fra le quest), ma il conto lo
+      // tiene il server e continua a girare: quel che non deve restare e- il
+      // riquadro. Un premio che sparisce a meta- — l-icona via e la barra
+      // ancora li- — sarebbe peggio di lasciarlo dov-era.
+      //
+      // LA PAGINA DI GIOCO VA MONTATA. Le pagine sono ermetiche: dal menu il
+      // tabellone non e- nel documento, e con lui nemmeno #gameover. Chiedere
+      // "la bustina non c-e- piu-" da li- avrebbe risposto di si- comunque, e
+      // per il motivo sbagliato: non c-era NIENTE. E- il modo piu- rapido per
+      // scrivere un banco che non guarda quello che crede di guardare.
+      showPage('game');
+      await new Promise(r=>setTimeout(r, 400));
+      dice(!!document.getElementById('gameover-premi'),
+        'la schermata di fine partita e- nel documento',
+        'senza questa, i tre controlli qui sotto passerebbero perche- non c-e- niente');
+      dice(!document.getElementById('go-premio-pack'), 'e non ha piu- il premio bustina');
+      dice(!document.getElementById('go-pack-barra') && !document.getElementById('go-pack-num'),
+        'ne- la sua barra, ne- il suo numero');
+      const eti = [...document.querySelectorAll('#gameover-premi .go-premio-eti')].map(e=>e.textContent);
+      dice(eti.length === 2 && eti.join('|') === 'Xp|Magic ink',
+        'e i premi rimasti sono due: esperienza e inchiostro',
+        eti.length ? eti.join(', ') : '(nessuno)');
+      // E la scena non deve piantarsi cercando quel che non c-e- piu-.
+      let piantata = '';
+      try{ goPremi({ xp:12, ink:34, verso:3, quante:5, bustina:true }); }
+      catch(e){ piantata = (e && e.message) || 'boh'; }
+      dice(!piantata, 'e la scena dei premi gira lo stesso, anche dicendole che una bustina c-era',
+        piantata || 'e- il caso in cui prima si accendeva il terzo riquadro');
       return { d, riquadro: { x:shop.getBoundingClientRect().left, y:shop.getBoundingClientRect().top } };
     }catch(e){ return { guasto:(e&&e.message)+' '+String((e&&e.stack)||'').split(String.fromCharCode(10))[1], d }; }
   })()`);
@@ -97,6 +161,11 @@ app.whenReady().then(async () => {
   if (SCATTO) {
     // Il velo di apertura si toglie con una REGOLA: la sequenza di caricamento
     // se lo rimette addosso da sola (vedi prova-disclaimer).
+    // Si torna al menu: l-ultimo controllo ha montato la pagina di gioco, e le
+    // pagine sono ermetiche — di la- la colonna di sinistra non e- nel
+    // documento, e il ritaglio non saprebbe dove andare.
+    await win.webContents.executeJavaScript('apriMenuPrincipale(); 1');
+    await new Promise(r => setTimeout(r, 1200));
     await win.webContents.insertCSS('#splash,#patch-notes-overlay{display:none!important}');
     win.setPosition(-3200, 0); win.showInactive();
     await new Promise(r => setTimeout(r, 1600));

@@ -246,7 +246,7 @@ due che non si rompe in silenzio. Il banco le percorre tutte e due spostando
 e' dentro: arriva dal server col profilo, e chi lo perde non deve restare col
 menu aperto davanti.
 
-## prova-menu-sx.js — la colonna di sinistra del menu
+## prova-menu-sx.js — le due colonne del menu, e la fine partita
 
     $ELECTRON strumenti/prova-menu-sx.js [scatto.png]
 
