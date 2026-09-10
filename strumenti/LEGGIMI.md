@@ -201,6 +201,51 @@ rapido per credere di aver sbagliato il markup. E il velo di apertura si toglie
 con una REGOLA (`insertCSS`), non con uno stile in linea: la sequenza di
 caricamento se lo rimette addosso da sola.
 
+## prova-spazi.js — il testo delle abilita', parola per parola
+
+    $ELECTRON strumenti/prova-spazi.js
+
+Il Cowardly Lion recitava **"When Played , Inflicts -1 RAND to itself"** — uno
+spazio fra "Played" e la virgola. Nel foglio la virgola e' attaccata: a metterlo
+era il gioco.
+
+**Perche' succedeva**, ed e' il genere di cosa che nessuno riprova a mano su
+centoundici carte. Per andare a capo il testo va spezzato in parole, e lo si
+faceva con `split(/\s+/)`, che gli spazi li **butta**. Da li' in poi nessuno
+sapeva piu' dove fossero, e chi disegna ne rimetteva uno fra ogni parola e la
+successiva. Con un grassetto seguito da punteggiatura, la punteggiatura diventa
+una parola per conto suo e si prende il suo spazio davanti. Adesso ogni parola
+porta con se' `spazioPrima`, che e' l'unica cosa che serve per rimetterla dov'era.
+
+**L'invariante che il banco chiede** e' secco: il testo DISEGNATO, rimesso
+insieme, dev'essere esattamente il testo del FOGLIO senza i marcatori. Non
+"simile": uguale. E lo chiede per ogni abilita' del catalogo, a due larghezze —
+una che sta su una riga sola e una che manda a capo spesso, perche' l'andata a
+capo e' proprio il posto in cui uno spazio si puo' perdere o guadagnare. E' cosi'
+che si sa che non c'era una seconda carta con lo stesso difetto.
+
+Prende anche il difetto opposto, che nessuno avrebbe cercato: due parole di
+stile diverso rimaste **attaccate** perche' lo spazio non e' stato messo.
+
+## prova-targhetta.js — cosa succede premendo il numero di versione
+
+    $ELECTRON strumenti/prova-targhetta.js
+
+Dalla v0.79.68 la targhetta fa una cosa per uno: agli admin il menu di debug, a
+tutti gli altri le note di rilascio. E' un bivio che si puo' sbagliare in due
+modi opposti, e **nessuno dei due si vede provando il gioco da admin**:
+
+- un giocatore preme e non succede niente (com'era prima: la targhetta era
+  spenta per chi non e' admin, cioe' per tutti);
+- un giocatore preme e si ritrova il **menu di debug**, che e' la porta che non
+  deve nemmeno vedere.
+
+Chi sviluppa e' admin, quindi la strada che prova ogni giorno e' l'unica delle
+due che non si rompe in silenzio. Il banco le percorre tutte e due spostando
+`GIOCATORE_ADMIN`, e controlla anche il caso in cui il permesso cambia mentre si
+e' dentro: arriva dal server col profilo, e chi lo perde non deve restare col
+menu aperto davanti.
+
 ## prova-menu-sx.js — la colonna di sinistra del menu
 
     $ELECTRON strumenti/prova-menu-sx.js [scatto.png]

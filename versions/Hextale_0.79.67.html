@@ -12009,7 +12009,7 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.68</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.67</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -24571,29 +24571,16 @@ function montaMenuDebug(){
 function debugPermesso(){
   return typeof GIOCATORE_ADMIN !== 'undefined' && !!GIOCATORE_ADMIN;
 }
-// ── v0.79.68 — LA TARGHETTA DELLA VERSIONE RISPONDE A TUTTI ───────────────
-// Prima apriva il menu di debug, e per chi non e' admin era spenta: un numero
-// in un angolo che non fa niente. Adesso fa una cosa per uno — agli admin il
-// menu di debug, a tutti gli altri le note di rilascio — ed e' il posto giusto
-// per metterle, perche' e' esattamente la domanda che uno si fa guardando un
-// numero di versione: "e questa cosa ha cambiato?".
-//
-// Non c'e' niente da nascondere in questo bivio: chi non e' admin non arriva
-// al menu di debug perche' openDebugModal chiede il permesso per conto suo, e
-// non e' questa riga a difenderlo. Qui si decide solo che cosa MOSTRARE.
-function targhettaPremuta(){
-  if(debugPermesso()){ openDebugModal(); return; }
-  try{ apriPatchNotesDalMenu(); }catch(e){ console.warn('[note] ' + (e && e.message)); }
-}
-// La targhetta e' premibile da chiunque, quindi si comporta da premibile.
-// Resta il compito di chiudere il menu di debug a chi ha smesso di poterlo
-// vedere: il permesso arriva dal server e puo' cambiare mentre si e' dentro.
+// La targhetta della versione apre il menu. Per chi non e' admin non deve
+// nemmeno sembrare premibile: un pulsante che non risponde si legge come un
+// guasto.
 function aggiornaAccessoDebug(){
   const t = document.getElementById('build-version-badge');
   if(!t) return;
-  t.style.pointerEvents = 'auto';
-  t.style.cursor = 'var(--cursore)';
-  if(!debugPermesso()){
+  const si = debugPermesso();
+  t.style.pointerEvents = si ? 'auto' : 'none';
+  t.style.cursor = si ? 'var(--cursore)' : 'default';
+  if(!si){
     const ov = document.getElementById('debug-modal-overlay');
     if(ov) ov.classList.remove('show');
   }
@@ -48362,8 +48349,7 @@ function buildFullHandCardSVG(card, boxW, boxH, preview){
       runs.forEach((run,i)=>{
         measureCtx.font = `${run.italic?'italic ':''}${run.bold?'bold ':''}${bodySize}px 'Rosarivo',serif`;
         lineW += measureCtx.measureText(run.text).width;
-        // v0.79.68 — lo spazio fra due tratti c'e' solo se c'era nel foglio.
-        if(i>0 && run.spazioPrima) lineW += measureCtx.measureText(' ').width;
+        if(i>0) lineW += measureCtx.measureText(' ').width;
       });
       const lineStartX = (boxW-lineW)/2;
       runs.forEach((run,i)=>{
@@ -48376,7 +48362,7 @@ function buildFullHandCardSVG(card, boxW, boxH, preview){
         }
         if(run.bold) tspan.setAttribute('font-weight','bold');
         if(run.italic) tspan.setAttribute('font-style','italic');
-        tspan.textContent = (i>0 && run.spazioPrima) ? ' '+run.text : run.text;
+        tspan.textContent = i===0 ? run.text : ' '+run.text;
         descEl.appendChild(tspan);
       });
     });
@@ -48478,33 +48464,13 @@ function svgWrapBoldWords(text, maxWidth, fontFamily, fontSizePx){
   if(!__svgWrapCanvas) __svgWrapCanvas=document.createElement('canvas');
   const ctx=__svgWrapCanvas.getContext('2d');
   const segments = getAbilityKeywordSegments(text);
-  // I tratti si spezzano in parole, perche' l'andata a capo lavora su parole.
-  // Un tratto puo' contenerne piu' d'una: "On Play" e' un grassetto solo e due
-  // parole che possono finire su due righe.
-  //
-  // ── v0.79.68 — E OGNI PAROLA SI RICORDA SE AVEVA UNO SPAZIO DAVANTI ─────
-  // Prima si spezzava con `split(/\s+/)`, che gli spazi li BUTTA: da li' in
-  // poi nessuno sapeva piu' dove fossero, e chi disegna ne rimetteva uno fra
-  // ogni parola e la successiva. Il guaio si vede solo quando un grassetto e'
-  // seguito da punteggiatura, perche' la punteggiatura diventa una parola
-  // per conto suo:
-  //   "When *Played*, *Inflicts* -1 RAND"  ->  "When Played , Inflicts -1 RAND"
-  // Non e' un difetto del foglio (li' la virgola e' attaccata) ne' del
-  // marcatore: e' l'informazione persa nel mezzo. Adesso si spezza TENENDO i
-  // separatori e ogni parola porta con se' `spazioPrima`, che e' l'unica cosa
-  // che serve per rimettere il testo com'era.
+  // Flatten segments into individual {word,bold} tokens (splitting each
+  // segment on whitespace, since a segment can itself span multiple words —
+  // e.g. "On Play" is one bold segment but two separate wrap-able words).
   const tokens=[];
-  // Si porta AVANTI fra un tratto e l'altro: lo spazio dopo "When" sta in
-  // fondo al tratto normale, e la parola che lo segue sta nel grassetto dopo.
-  let spazioAperto = false, primaDiTutte = true;
   for(const seg of segments){
-    for(const pezzo of seg.text.split(/(\s+)/)){
-      if(!pezzo) continue;
-      if(/^\s+$/.test(pezzo)){ spazioAperto = true; continue; }
-      tokens.push({word:pezzo, bold:seg.bold, italic:!!seg.italic,
-                   spazioPrima: !primaDiTutte && spazioAperto});
-      primaDiTutte = false; spazioAperto = false;
-    }
+    const words = seg.text.split(/\s+/).filter(w=>w.length>0);
+    for(const w of words) tokens.push({word:w, bold:seg.bold, italic:!!seg.italic});
   }
   // v0.72.98 — la misura tiene conto anche del corsivo: un carattere inclinato
   // e' largo diversamente, e misurarlo come dritto manderebbe fuori misura
@@ -48519,10 +48485,7 @@ function svgWrapBoldWords(text, maxWidth, fontFamily, fontSizePx){
   let curWidth=0;
   for(const tok of tokens){
     const w = measure(tok.word, tok.bold, tok.italic);
-    // v0.79.68 — lo spazio si conta solo se c'era davvero. Contandone uno di
-    // troppo, una riga che finisce con una virgola andrebbe a capo un pelo
-    // prima del dovuto.
-    const addWidth = (curTokens.length && tok.spazioPrima) ? spaceW+w : w;
+    const addWidth = curTokens.length ? spaceW+w : w;
     if(curWidth+addWidth>maxWidth && curTokens.length){
       lines.push(mergeRuns(curTokens));
       curTokens=[tok];
@@ -48535,23 +48498,15 @@ function svgWrapBoldWords(text, maxWidth, fontFamily, fontSizePx){
   if(curTokens.length) lines.push(mergeRuns(curTokens));
   return lines;
 
-  // Rimette insieme le parole vicine con lo stesso stile in un tratto solo
-  // (["+1","power"] tutte e due in grassetto -> un tratto "+1 power"), cosi'
-  // i <tspan> restano uno per cambio di stile e non uno per parola.
-  // v0.79.68 — e si rimettono insieme COME ERANO: con uno spazio se ce
-  // l'avevano, attaccate se erano attaccate. Il primo tratto di una riga non
-  // ha mai niente davanti, qualunque cosa dica la parola: a capo lo spazio
-  // non esiste piu'.
+  // Rejoins consecutive same-bold tokens on one line into single runs (e.g.
+  // ["+1","power"] both bold → one "+1 power" bold run) so the final <tspan>
+  // count stays minimal — one per bold/plain transition, not one per word.
   function mergeRuns(toks){
     const runs=[];
     for(const t of toks){
       const last=runs[runs.length-1];
-      if(last && last.bold===t.bold && last.italic===t.italic){
-        last.text += (t.spazioPrima ? ' ' : '') + t.word;
-      } else {
-        runs.push({text:t.word, bold:t.bold, italic:t.italic,
-                   spazioPrima: runs.length ? !!t.spazioPrima : false});
-      }
+      if(last && last.bold===t.bold && last.italic===t.italic) last.text+=' '+t.word;
+      else runs.push({text:t.word, bold:t.bold, italic:t.italic});
     }
     return runs;
   }
