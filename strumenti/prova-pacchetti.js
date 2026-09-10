@@ -88,6 +88,18 @@ app.whenReady().then(async () => {
     "  var h1 = q('#pack-header h1');",
     "  dice(h1 && h1.textContent.trim() === 'Card packs', 'il titolo dice Card packs', h1 && h1.textContent.trim());",
     "  dice(!!q('#packs-back img'), 'la freccia indietro e- nella barra');",
+    // v0.79.80 — e il titolo sta a SINISTRA. Non e- una preferenza: dalla
+    // v0.79.72 il centro della barra centra il proprio contenuto, che e- la
+    // regola giusta per le finestre, dove il titolo sta in mezzo. Le PAGINE
+    // no, e questa se l-era ritrovato al centro senza che nessuno lo
+    // chiedesse. A tenerlo a sinistra e- lo spaziatore, come in Library &
+    // Decks. Si misura invece di guardare il CSS: la stessa cosa si puo-
+    // ottenere in tre modi, e quel che conta e- dove finisce.
+    "  var bh1 = h1 && h1.getBoundingClientRect(), bba = barra && barra.getBoundingClientRect();",
+    "  var aSx = bh1 && bba ? Math.round(bh1.left - bba.left) : -1;",
+    "  var aDx = bh1 && bba ? Math.round(bba.right - bh1.right) : -1;",
+    "  dice(aSx >= 0 && aDx > aSx * 3, 'il titolo sta a sinistra, non in mezzo',",
+    "    aSx + 'px a sinistra, ' + aDx + ' a destra — in mezzo sarebbero uguali.');",
     "  var sel = q('#pack-toggle-variant');",
     "  dice(sel && sel.parentElement && sel.parentElement.id === 'pack-header', 'il selettore Dark/Light e- nella barra');",
     "  var selEt = q('#pack-toggle-variant-label');",

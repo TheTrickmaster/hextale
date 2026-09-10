@@ -144,7 +144,10 @@ app.whenReady().then(async () => {
       });
       dice(persi.every(v => v < 50), 'e di nessuna si perde piu- della meta-',
         persi.map((v,k)=>['busta','inchiostro','spunta'][k] + ' ' + v + '%').join(', ') +
-        '.\\n        La spunta e- quella che ci va piu- vicino: era la piu- sporgente delle tre.');
+        '.\\n        La spunta ha un verso da rispettare e alla v0.79.79 ne perdeva il 39%,\\n' +
+        '        cioe- la punta del braccio lungo: dalla v0.79.80 sta dieci pixel piu-\\n' +
+        '        a sinistra ed e- la meno tagliata delle tre. Le altre due un verso non\\n' +
+        '        ce l-hanno — una busta tagliata resta una busta.');
 
       // ── 7. LA BARRA DICE QUANTO MANCA ─────────────────────────────────────
       mm2DisegnaQuest([{ nome:'x', fatto:1, quanto:4, premio:'pack', presa:false }]);

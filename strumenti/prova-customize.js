@@ -242,6 +242,75 @@ app.whenReady().then(async () => {
         'e premendo quella di Customize succede lo stesso',
         'adesso ' + _aiutoEsagono + ', quella in partita dice ' + daPartita.checked);
       closeSettingsModal();
+      await attendi(300);
+
+      // ── 8. LA FINESTRA DEGLI AVATAR STA NELLO SCHERMO ─────────────────────
+      // v0.79.80. Era troppo alta, e il perche- e- il difetto da non rifare: il
+      // tetto stava sulla GRIGLIA (64vh) e l-altezza della finestra era quel
+      // numero piu- la barra del titolo, piu- il pulsante, piu- i bordi. Un
+      // totale che nessuno aveva scritto, e che infatti arrivava in fondo allo
+      // schermo. Adesso il numero sta dove si misura.
+      //
+      // Senza carte in mano la griglia e- vuota e la finestra sta comoda: si
+      // riempie di gente, o si proverebbe il caso che non ha mai dato problemi.
+      const _carteVere = window.carteDelGiocatore;
+      const finte = [];
+      for(const n of ['alice','aladdin','ant','baba-yaga','bagheera','baloo','banshee',
+                      'basilisk','big-bad-wolf','carabosse','centaur','cheshire-cat',
+                      'chimera','cinderella','crow','cyclop','dragon','dorothy-gale',
+                      'ali-baba','catoblepas','chupacabra','cockatrice','captain-hook',
+                      'cowardly-lion','badr-al-budur','dark-strigoi','12-dancing-princesses'])
+        finte.push({ slug:n, name:n.replace(/-/g,' ') });
+      window.carteDelGiocatore = ()=>finte;
+      try{
+        openSettingsModal('menu');
+        await attendi(400);
+        apriCustomize();
+        await attendi(400);
+        apriSceltaAvatar();
+        await attendi(2500);
+        const scatola = document.getElementById('avatar-box');
+        const griglia = document.getElementById('avatar-griglia');
+        const alto = scatola.getBoundingClientRect().height;
+        const tetto = window.innerHeight * 0.8;
+        dice(alto <= tetto + 1, 'la finestra degli avatar sta in otto decimi di schermo',
+          Math.round(alto) + ' contro un tetto di ' + Math.round(tetto) +
+          ' su uno schermo da ' + window.innerHeight);
+        // Quattro per riga: si contano quelli che stanno alla stessa altezza,
+        // non le colonne dichiarate nel CSS. E- la stessa differenza di sempre
+        // fra cio- che e- scritto e cio- che si vede.
+        const perRiga = {};
+        griglia.querySelectorAll('.avatar-scelta').forEach(e=>{
+          const y = Math.round(e.getBoundingClientRect().top);
+          perRiga[y] = (perRiga[y] || 0) + 1;
+        });
+        const righe = Object.keys(perRiga).map(k=>perRiga[k]);
+        dice(righe.length > 1 && righe.slice(0,-1).every(v=>v===4),
+          'e ne mette quattro per riga', righe.join(','));
+        // La misura si prende dallo STILE CALCOLATO e non dal rettangolo sullo
+        // schermo: il gioco scala tutta la scena per stare nella finestra, e a
+        // 1400 di larghezza un avatar da 240 ne misura 173. Quel numero dice
+        // quanto e- grande la finestra del banco, non quanto e- grande
+        // l-avatar — e cambierebbe da solo cambiando le misure qui sopra.
+        const primo = griglia.querySelector('.avatar-scelta');
+        const largo = primo ? Math.round(parseFloat(getComputedStyle(primo).width)) : 0;
+        dice(largo === 240, 'gli avatar sono larghi 240 (erano 300)',
+          largo + 'px in CSS, ' + (primo ? Math.round(primo.getBoundingClientRect().width) : 0) +
+          ' sullo schermo di questo banco (la scena e- scalata).');
+        // E a stringersi e- la griglia, che e- l-unico pezzo che puo- farlo
+        // senza perdere niente: scorre gia-.
+        dice(griglia.scrollHeight > griglia.clientHeight,
+          'e a stringersi e- la griglia, che scorre',
+          'contenuto ' + griglia.scrollHeight + ' dentro ' + griglia.clientHeight +
+          '.\\n        Se a cedere fosse il pannello, il tetto della finestra non varrebbe.');
+        chiudiSceltaAvatar();
+        await attendi(300);
+        chiudiCustomize();
+        await attendi(300);
+        closeSettingsModal();
+      } finally {
+        if(_carteVere) window.carteDelGiocatore = _carteVere;
+      }
       return { d };
     }catch(e){ return { guasto:(e&&e.message)+' '+String((e&&e.stack)||'').split(String.fromCharCode(10))[1], d }; }
   })()`);
