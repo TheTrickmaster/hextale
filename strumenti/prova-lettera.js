@@ -99,6 +99,39 @@ app.whenReady().then(async () => {
   if (dette.guasto) { console.error('GUASTO: ' + dette.guasto); app.exit(1); return; }
   let righe = dette.dette;
 
+  // ── v0.79.61 — LA LETTERA SI INGRANDISCE PASSANDOCI SOPRA ───────────────
+  // Col mouse VERO: :hover non si accende con un evento sintetico da JS, e
+  // nemmeno guardando il foglio di stile si saprebbe se la regola arriva
+  // davvero all'immagine. sendInputEvent muove il puntatore per davvero,
+  // anche a finestra nascosta, e dopo si misura la carta com'e' sullo schermo.
+  const misura = (sel) => win.webContents.executeJavaScript(
+    'getComputedStyle(document.querySelector("' + sel + '")).transform');
+  const dovE = await win.webContents.executeJavaScript(
+    '(function(){ var r=document.querySelector(".starter-col").getBoundingClientRect();' +
+    ' return [Math.round(r.left+r.width/2), Math.round(r.top+r.height-40)]; })()');
+  // La finestra va MOSTRATA, anche se fuori dallo schermo: su una finestra
+  // nascosta Chromium non accende :hover, e il puntatore finto passerebbe
+  // sopra a una colonna che non se ne accorge.
+  win.setPosition(-3200, 0); win.showInactive();
+  await new Promise(r => setTimeout(r, 600));
+  const fermo = await misura('.starter-col .starter-lettera');
+  // In fondo alla colonna, lontano dall'immagine: e' li' che si vede se
+  // l'aggancio e' la COLONNA e non solo la lettera.
+  win.webContents.sendInputEvent({ type:'mouseMove', x:dovE[0], y:dovE[1] });
+  await new Promise(r => setTimeout(r, 400));
+  const sopra = await misura('.starter-col .starter-lettera');
+  const scala = (m) => { const n = String(m||'').match(/matrix\(([-0-9.]+)/); return n ? parseFloat(n[1]) : 1; };
+  righe.push({ ok: scala(fermo) === 1, che: 'ferma, la lettera e- alla sua misura', perche: fermo });
+  righe.push({ ok: scala(sopra) > 1.02 && scala(sopra) < 1.2,
+    che: 'e si ingrandisce passando sul CONTAINER, non solo sulla lettera',
+    perche: 'ingrandita di ' + scala(sopra) + ' (letto "' + sopra + '"), col puntatore in fondo alla colonna' });
+  const tr = await win.webContents.executeJavaScript(
+    'getComputedStyle(document.querySelector(".starter-col .starter-lettera")).transitionProperty');
+  righe.push({ ok: /transform/.test(tr), che: 'e l-ingrandimento e- accompagnato, non a scatto', perche: tr });
+  // Il puntatore torna fuori: le fotografie e la scelta non lo vogliono addosso.
+  win.webContents.sendInputEvent({ type:'mouseMove', x:5, y:5 });
+  await new Promise(r => setTimeout(r, 300));
+
   if (SCATTO) {
     win.setPosition(-3200, 0); win.showInactive();
     await new Promise(r => setTimeout(r, 1500));
