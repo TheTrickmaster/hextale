@@ -65,6 +65,9 @@ app.whenReady().then(async () => {
   ses.webRequest.onBeforeRequest({ urls: ['https://api.github.com/*', 'https://*.githubusercontent.com/*'] },
     (d, cb) => { aGithub.push(d.url); cb({ cancel: true }); });
 
+  // v0.79.71 — il testo VERO, letto dal disco. Serve al controllo
+  // sull'encoding: vedi piu' sotto.
+  const SUL_DISCO = fs.readFileSync(path.join(RADICE, 'patch-notes.txt'), 'utf8');
   const win = new BrowserWindow({ show: false, width: 1400, height: 900,
     webPreferences: { contextIsolation: false } });
   await win.loadURL('http://127.0.0.1:' + porta + '/play/index.html');
@@ -104,7 +107,13 @@ app.whenReady().then(async () => {
       quante: versioni.length,
       prima: versioni.length ? versioni[0].versione : '',
       voci: versioni.length ? versioni[0].voci.length : 0,
-      accenti: /[àèéìòù']/.test(testo),
+      // v0.79.71 — non piu' "c'e' un accento?": dalla riscrittura delle note
+      // (10/09/2026) il file e' inglese secco e di accenti non ne ha uno,
+      // quindi quel controllo aveva smesso di guardare qualcosa. Adesso si
+      // confronta il testo ARRIVATO con quello sul disco, carattere per
+      // carattere: e' la stessa domanda — "e' arrivato intatto?" — fatta in
+      // modo che valga qualunque cosa ci sia scritto dentro.
+      testo: testo,
       blocchi: corpo ? corpo.querySelectorAll('.patch-versione').length : -1,
       riquadro: !!document.getElementById('patch-notes-update'),
       mia: mia,
@@ -123,9 +132,12 @@ app.whenReady().then(async () => {
   dice(esito.quante > 0 && esito.quante <= 10, 'il file si legge e porta le sue versioni',
     esito.quante + ' blocchi (il file ne tiene al massimo dieci)');
   dice(esito.voci > 0, 'e la piu- recente ha le sue voci', esito.prima + ': ' + esito.voci + ' voci');
-  dice(esito.accenti, 'e gli accenti arrivano leggibili',
+  dice(esito.testo === SUL_DISCO, 'e arriva IDENTICO a quello sul disco',
+    (esito.testo === SUL_DISCO ? '' : 'arrivati ' + (esito.testo||'').length +
+      ' caratteri, sul disco ce ne sono ' + SUL_DISCO.length + '.\n        ') +
     'Prima il testo era base64 dentro a una risposta dell-API e andava ricomposto\n' +
-    '        a mano come UTF-8; una fetch quella fatica la fa da se-.');
+    '        a mano come UTF-8; una fetch quella fatica la fa da se-, ma solo se\n' +
+    '        nessuno la aiuta.');
   dice(esito.blocchi === esito.quante, 'e il riquadro si riempie con tutte',
     esito.blocchi + ' nel riquadro, ' + esito.quante + ' lette');
 

@@ -12065,7 +12065,7 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.71</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.70</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
@@ -18800,16 +18800,8 @@ let BUSTINE_TESORO = 0;
 // Quanto costa un treasure pack. Il numero vero e' quello del server: questo
 // e' la cifra da SCRIVERE sul pulsante, e arriva con l'avvio.
 let PACCHETTO_PREZZO = 100;
-// v0.79.71 — se le preferenze sono ARRIVATE, o se ancora non si sa niente.
-// Non e' la stessa cosa di "PREFERENZE e' vuoto": un account nuovo ha le
-// preferenze vuote e le ha ricevute lo stesso. La differenza conta in un
-// punto solo, ed e' quello che decide se aprire le note di rilascio da sole:
-// li' "non ho mai letto niente" e "non lo so ancora" portano a due gesti
-// opposti, e confonderli vuol dire mangiarsi un aggiornamento.
-let _preferenzeNote = false;
 function preferenzeDalServer(p, bustinaProssima, bustineExtra, bustineTesoro, prezzoPacchetto){
   PREFERENZE = p || {};
-  _preferenzeNote = true;
   if(typeof bustinaProssima === 'number') PREFERENZE.bustinaProssima = bustinaProssima;
   if(typeof bustineExtra === 'number') BUSTINE_VINTE = bustineExtra;
   if(typeof bustineTesoro === 'number') BUSTINE_TESORO = bustineTesoro;
@@ -31353,32 +31345,12 @@ function mostraPatchNotes(versioni, opzioni){
   const piuNuova = patchNotesVersionePiuNuova(versioni);
   // Il contenuto si riscrive comunque: cosi' il pulsante del menu trova le
   // note aggiornate anche quando l'apertura automatica ha taciuto.
+  if(automatico && piuNuova && piuNuova === patchNotesUltimaLetta()){
+    riempiPatchNotes(versioni);
+    return;
+  }
   riempiPatchNotes(versioni);
-  if(!automatico){ vestiPatchNotes(); overlay.classList.add('show'); return; }
-
-  // ── v0.79.71 — DA SOLE SI APRONO SOLO A CHI TORNA, E SOLO SE C'E' NOVITA' ─
-  // Tre casi, e prima ce n'erano due perche' i primi due erano confusi.
-  //
-  //   NON SI SA ancora cosa abbia gia' letto: si tace e non si segna niente.
-  //     Le preferenze arrivano col profilo e possono arrivare DOPO che il menu
-  //     si e' aperto (vedi caricaCarteDalServer, che nessuno aspetta).
-  //     Segnare qui vorrebbe dire dire "letto" per conto di chi non ha visto
-  //     niente, e mangiarsi un aggiornamento vero. Tacere non perde niente:
-  //     al prossimo ingresso le note ci sono ancora.
-  //
-  //   PRIMA VOLTA IN ASSOLUTO (non ha mai letto niente): si SEGNA e non si
-  //     apre. Chi entra per la prima volta non ha nessun "da quando manchi" da
-  //     raccontare, e la prima cosa che il gioco gli mette davanti non deve
-  //     essere l'elenco di cos'e' cambiato prima che arrivasse. Segnare adesso
-  //     e' quel che fa scattare la volta dopo: senza, resterebbe per sempre
-  //     "uno che non ha mai letto" e non gli si aprirebbero mai.
-  //
-  //   TORNA e c'e' qualcosa di nuovo: si apre, come sempre.
-  if(!_preferenzeNote) return;
-  const letta = patchNotesUltimaLetta();
-  if(!letta){ ricordaPatchNotesLette(piuNuova); return; }
-  if(piuNuova && piuNuova === letta) return;
-  ricordaPatchNotesLette(piuNuova);
+  if(automatico) ricordaPatchNotesLette(piuNuova);
   vestiPatchNotes();
   overlay.classList.add('show');
 }

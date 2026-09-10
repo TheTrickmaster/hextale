@@ -341,6 +341,29 @@ dichiarato puo' essere schiacciato da un altro margine, e nessuno se ne
 accorge. `HX_SCHERMO` la guarda su un telefono, dove gli stessi controlli
 valgono con le cinque misure che il `@media` cala apposta.
 
+## prova-note-apertura.js — quando le note si aprono da sole
+
+    $ELECTRON strumenti/prova-note-apertura.js
+
+Regola di Lorenzo (10/09/2026): da sole si aprono solo a chi TORNA, e solo se
+c'e' qualcosa di nuovo. Chi entra per la prima volta non se le trova davanti —
+non ha nessun "da quando manchi" da farsi raccontare.
+
+Sono quattro casi, e uno non si vede mai giocando: le preferenze (dove sta
+scritto cosa si e' gia' letto) arrivano col profilo, e possono arrivare **dopo**
+che il menu si e' aperto. In quell'istante "non ho mai letto niente" e "non lo
+so ancora" si somigliano, e portano a due gesti opposti: il primo dice "segna e
+taci", il secondo "taci e non segnare". Confonderli vuol dire segnare come letto
+un aggiornamento che nessuno ha visto — e quello e' perso **per sempre**, perche'
+il segno resta sul server.
+
+Il banco non guarda la finestra: guarda la DECISIONE, caso per caso, e annota
+anche cosa viene SEGNATO come letto, che e' meta' della decisione e a schermo
+non si vede. Poi le due cose che restano vere: chieste col pulsante si aprono
+comunque (e' l'unico modo di rileggerle) e non cambiano cosa risulta letto; e il
+riquadro si riempie anche quando l'apertura automatica tace, o il pulsante del
+menu troverebbe le note di ieri.
+
 ## prova-note.js — le note di rilascio, e nessuna richiesta a GitHub
 
     $ELECTRON strumenti/prova-note.js
