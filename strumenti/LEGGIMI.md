@@ -1364,3 +1364,23 @@ motivo sbagliato — poi controlla che da `fox-dark.jpg` si passi a
 `fox-light.jpg` mentre la finestra e' aperta. Con `Random` la faccia deve
 restare l'ultima uscita: random non e' un colore, e' il modo in cui si decide
 quale sara'.
+
+**v0.79.77 — e l'esagono torna in partita.** Alla v0.79.76 era traslocato
+dentro Customize, e a Customize dal tavolo non si arriva: chi voleva spegnerlo
+mentre giocava non poteva piu'. Adesso le caselle sono **due** — quella di
+Customize e quella delle impostazioni, che compare solo mentre si gioca — e la
+preferenza resta **una**.
+
+Due caselle per una preferenza sola aprono due strade sbagliate, e il banco
+guarda tutte e due. La prima: si scrive solo quella aperta, e l'altra racconta
+lo stato di prima — a scoprirlo sarebbe chi apre la seconda e la trova al
+contrario. La seconda, piu' cattiva: il toggle cerca la casella per nome e
+trova sempre la prima del documento, cosi' premendo l'altra il gioco fa il
+contrario di quel che si e' appena fatto. Per questo la casella premuta arriva
+come argomento (`toggleAiutoEsagono(this)`) e il banco preme da tutte e due le
+parti: premendone una sola, meta' della prova passerebbe comunque.
+
+Il banco non da' per scontato l'ordine delle due nel documento — le
+impostazioni vengono prima di Customize — e non conta la riga di separazione
+guardando il vicino di "Close": in mezzo c'e' il gruppo dell'esagono, che dal
+menu e' fuori scena e la propria riga se la porta dentro.

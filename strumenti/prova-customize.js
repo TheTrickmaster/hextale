@@ -25,6 +25,14 @@
 // E infine la cosa che Lorenzo ha chiesto per nome: l'avatar sta due dita sopra
 // alla tendina, quindi scegliendo un colore lo si sta guardando. Se non cambia
 // li' per li', cambia mentre nessuno guarda — che e' come non cambiare.
+//
+// v0.79.77 — l'esagono torna raggiungibile anche a meta' partita, e le caselle
+// diventano DUE: quella di Customize e quella delle impostazioni, che si vede
+// solo mentre si gioca. La preferenza resta una sola, e il difetto da cercare
+// e' che una casella racconti lo stato di prima — a scoprirlo sarebbe chi apre
+// la seconda e la trova al contrario. Il banco preme una per volta, da tutte e
+// due le parti: un toggle che legge sempre la prima casella del documento
+// passerebbe meta' della prova.
 const { app, BrowserWindow } = require('electron');
 const path = require('path');
 
@@ -80,11 +88,16 @@ app.whenReady().then(async () => {
       dice(!righeAttaccate(cust), 'dentro Customize non ci sono due righe attaccate');
       dice(!righeAttaccate(imp), 'e nemmeno nelle impostazioni',
         'Le due voci se ne sono andate portandosi via i propri separatori.');
-      const ultimoImp = imp.children[imp.children.length-1];
-      const penultimoImp = imp.children[imp.children.length-2];
-      dice(penultimoImp && penultimoImp.classList.contains('filters-riga'),
+      // Prima di "Close" ci vuole ancora una riga. Fra le due, dalla v0.79.77,
+      // puo- esserci il gruppo dell-esagono, che dal menu e- fuori scena e che
+      // la propria riga se la porta dentro: si guarda indietro saltando i
+      // gruppi, o si direbbe "manca" per una riga che c-e- ma sta piu- su.
+      const figliImp = Array.prototype.slice.call(imp.children);
+      let j = figliImp.length - 2;
+      while(j >= 0 && figliImp[j].classList.contains('settings-voci')) j--;
+      dice(j >= 0 && figliImp[j].classList.contains('filters-riga'),
         'e prima di "Close" ce n-e- ancora una',
-        (penultimoImp && penultimoImp.className) + ' -> ' + (ultimoImp && ultimoImp.className));
+        figliImp.slice(Math.max(0,j)).map(e=>e.className.split(' ')[0]).join(' -> '));
 
       // ── 3. IL VESTITO ─────────────────────────────────────────────────────
       openSettingsModal('menu');
@@ -166,6 +179,68 @@ app.whenReady().then(async () => {
 
       chiudiCustomize();
       await attendi(400);
+      closeSettingsModal();
+      await attendi(300);
+
+      // ── 7. L-ESAGONO SI RAGGIUNGE ANCHE DA META- PARTITA ──────────────────
+      // v0.79.77. Alla v0.79.76 era traslocato dentro Customize, e Customize
+      // dal tavolo non si raggiunge: chi voleva spegnerlo mentre giocava non
+      // poteva piu-. Adesso le caselle sono due e la preferenza resta UNA.
+      const caselle = document.querySelectorAll('.hex-helper-check');
+      dice(caselle.length === 2, 'le caselle dell-esagono sono due', caselle.length + '');
+      const inCust = document.getElementById('customize-pannello');
+      const inImp = document.getElementById('settings-esagono');
+      // Senza dare per scontato l-ordine: nel documento le impostazioni vengono
+      // PRIMA di Customize, e un banco che conta sull-ordine dice "sbagliato"
+      // per un motivo che non riguarda nessuno.
+      const quanteIn = (padre)=>Array.prototype.filter.call(caselle, c=>padre && padre.contains(c)).length;
+      dice(quanteIn(inCust) === 1 && quanteIn(inImp) === 1,
+        'una in Customize e una nelle impostazioni',
+        'Customize ' + quanteIn(inCust) + ', impostazioni ' + quanteIn(inImp));
+      dice(inImp && inImp.getAttribute('data-quando') === 'partita',
+        'e quella delle impostazioni si vede SOLO in partita',
+        'Nel menu c-e- gia- quella di Customize, e due caselle a un passo\\n' +
+        '        l-una dall-altra sono due modi di fare la stessa cosa.');
+
+      // Nel menu la seconda resta fuori scena; in partita entra.
+      openSettingsModal('menu');
+      await attendi(400);
+      dice(!inImp.classList.contains('mostra'), 'dal menu la seconda non c-e-');
+      closeSettingsModal();
+      await attendi(300);
+      openSettingsModal('partita');
+      await attendi(400);
+      dice(inImp.classList.contains('mostra'), 'e a meta- partita c-e-');
+      // Le righe attaccate: il gruppo si porta dietro la propria, o dal menu ne
+      // resterebbero due appiccicate sopra a "Close".
+      const figli = Array.prototype.slice.call(document.getElementById('settings-pannello').children);
+      let doppie = false;
+      for(let i=1;i<figli.length;i++){
+        if(figli[i].classList.contains('filters-riga') && figli[i-1].classList.contains('filters-riga')) doppie = true;
+      }
+      dice(!doppie, 'e nessuna riga di separazione resta doppia');
+
+      // La preferenza e- una: chi ne muove una muove anche l-altra.
+      const eraAcceso = !!_aiutoEsagono;
+      const daPartita = Array.prototype.filter.call(caselle, c=>inImp.contains(c))[0];
+      const daCustomize = Array.prototype.filter.call(caselle, c=>inCust.contains(c))[0];
+      daPartita.checked = !eraAcceso;
+      toggleAiutoEsagono(daPartita);
+      await attendi(200);
+      dice(_aiutoEsagono === !eraAcceso, 'premendo quella in partita la preferenza cambia',
+        'era ' + eraAcceso + ', adesso ' + _aiutoEsagono);
+      dice(daCustomize.checked === _aiutoEsagono,
+        'e anche la casella di Customize lo sa gia-',
+        'Una sola verita- scritta su tutte le facce: chi apre l-altra non la\\n' +
+        '        deve trovare al contrario.');
+      // E dall-altra parte funziona uguale — e- il controllo che smaschera un
+      // toggle che legge sempre la prima casella del documento.
+      daCustomize.checked = eraAcceso;
+      toggleAiutoEsagono(daCustomize);
+      await attendi(200);
+      dice(_aiutoEsagono === eraAcceso && daPartita.checked === eraAcceso,
+        'e premendo quella di Customize succede lo stesso',
+        'adesso ' + _aiutoEsagono + ', quella in partita dice ' + daPartita.checked);
       closeSettingsModal();
       return { d };
     }catch(e){ return { guasto:(e&&e.message)+' '+String((e&&e.stack)||'').split(String.fromCharCode(10))[1], d }; }

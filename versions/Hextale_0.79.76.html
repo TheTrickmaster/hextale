@@ -8998,12 +8998,8 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
    la distanza chiesta e' esattamente il gap del pannello — sedici pixel sopra
    e sedici sotto, non ventisei. */
 #settings-pannello .filters-riga{ margin:0; }
-/* Surrender: venti pixel d'aria sopra e sotto, dentro al suo gruppo.
-   v0.79.77 — l'aria e' SUA, non di tutti i gruppi della partita: adesso ce
-   n'e' un secondo (l'esagono d'aiuto) che quei venti pixel non li vuole, gli
-   bastano i sedici del pannello come a tutte le altre voci. La regola era
-   scritta sull'attributo e li avrebbe presi tutti e due. */
-#settings-resa{ margin:20px 0; gap:16px; }
+/* Surrender: venti pixel d'aria sopra e sotto, dentro al suo gruppo. */
+#settings-pannello .settings-voci[data-quando="partita"]{ margin:20px 0; gap:16px; }
 .settings-azione{ width:100%; }
 /* I cursori del volume tengono la meccanica di prima e prendono i caratteri
    di questa finestra: stesso Rosarivo da 20px delle voci dei filtri. */
@@ -12309,7 +12305,7 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.77</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.76</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <!-- v0.79.75 — dove salgono gli avvisi delle quest. Vuoto quasi sempre, e
@@ -12379,7 +12375,7 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
       <!-- v0.73.77 — durante la partita resta solo "Surrender". "Back to main
            menu" era una seconda via d'uscita che lasciava la partita a meta'
            senza dichiararlo: chi vuole andarsene si arrende, e lo dice. -->
-      <div class="settings-voci" data-quando="partita" id="settings-resa">
+      <div class="settings-voci" data-quando="partita">
       <!-- v0.78.15 — a partita finita non c'e' piu' niente a cui arrendersi, e
            il pulsante resta acceso solo mentre si gioca (vedi
            openSettingsModal). -->
@@ -12456,23 +12452,6 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
            Adesso valgono tutte e due dal menu, che e' dove si sta quando si
            decide chi si e'. -->
       <div class="filters-riga"></div>
-      <!-- ── v0.79.77 — L'ESAGONO, ANCHE A META' PARTITA ──────────────────
-           Alla v0.79.76 era traslocato dentro Customize, e Customize dal
-           tavolo non si raggiunge: chi voleva spegnerlo mentre giocava non
-           poteva piu'. Torna qui, ma SOLO in partita — nel menu c'e' gia'
-           quella di Customize, e due caselle a un passo l'una dall'altra
-           sono due modi di fare la stessa cosa.
-           E' la STESSA preferenza, non una seconda: si riconoscono per
-           classe e chi ne muove una muove anche l'altra (vedi
-           aggiornaInterruttoreEsagono). -->
-      <div class="settings-voci" data-quando="partita" id="settings-esagono">
-        <label class="settings-opzione filters-opt">
-          <input type="checkbox" class="hex-helper-check" onchange="toggleAiutoEsagono(this)">
-          <span class="filters-nome">Show hexagon helper on cards</span>
-          <span class="filters-casella"></span>
-        </label>
-        <div class="filters-riga"></div>
-      </div>
       <button class="hx-btn settings-azione" type="button" onclick="closeSettingsModal()">
         <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
         <span class="hxb-label">Close</span>
@@ -12536,7 +12515,7 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
            immagine da due variabili del pannello che la contiene, e adesso
            quel pannello e' un altro: vedi vestiFinestraImpostazioni. -->
       <label class="settings-opzione filters-opt">
-        <input type="checkbox" id="hex-helper-check" class="hex-helper-check" onchange="toggleAiutoEsagono(this)">
+        <input type="checkbox" id="hex-helper-check" onchange="toggleAiutoEsagono()">
         <span class="filters-nome">Show hexagon helper on cards</span>
         <span class="filters-casella"></span>
       </label>
@@ -24212,21 +24191,14 @@ function aggiornaInterruttoreEsagono(){
   // cioe' uno stato che il codice doveva ricordarsi di scrivere; adesso lo
   // stato sta dove il browser gia' lo tiene, e l'immagine della casella lo
   // legge da sola in CSS (vedi .filters-casella).
-  // v0.79.77 — le caselle adesso sono due (Customize e, in partita, le
-  // impostazioni) e la preferenza resta una. Si scrivono TUTTE, sempre:
-  // scriverne una sola vorrebbe dire che l'altra racconta lo stato di prima,
-  // e a scoprirlo sarebbe chi apre la seconda e la trova al contrario.
-  document.querySelectorAll('.hex-helper-check').forEach(c => { c.checked = !!_aiutoEsagono; });
+  const c = document.getElementById('hex-helper-check');
+  if(c) c.checked = !!_aiutoEsagono;
 }
-function toggleAiutoEsagono(quale){
+function toggleAiutoEsagono(){
   // Si legge dalla casella invece di ribaltare alla cieca: il click l'ha gia'
   // cambiata, e ribaltare una seconda volta la lascerebbe al contrario di
   // quello che si vede.
-  // v0.79.77 — e si legge da QUELLA CLICCATA, che arriva come argomento. Con
-  // due caselle in giro, cercarne una per nome vorrebbe dire leggere sempre
-  // la prima del documento: premendo l'altra, il gioco farebbe il contrario
-  // di quel che si e' appena fatto.
-  const c = quale || document.querySelector('.hex-helper-check');
+  const c = document.getElementById('hex-helper-check');
   _aiutoEsagono = c ? !!c.checked : !_aiutoEsagono;
   salvaPreferenze({ aiutoEsagono: _aiutoEsagono });
   aggiornaInterruttoreEsagono();
