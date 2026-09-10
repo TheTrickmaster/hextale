@@ -103,7 +103,8 @@ app.whenReady().then(async () => {
       const iInk = await icona(1,3,false,'ink');
       const iSpuntaA = await icona(3,3,true,'pack');
       const iSpuntaB = await icona(3,3,true,'ink');
-      dice(/card-pack-icon/.test(iBusta), 'la busta ha la busta', iBusta);
+      dice(/pack-icon/.test(iBusta) && !/card-pack-icon/.test(iBusta),
+        'la busta ha la LETTERA, non il libro', iBusta);
       dice(/magic-ink-icon/.test(iInk), 'l-inchiostro ha l-inchiostro', iInk);
       dice(/check-icon/.test(iSpuntaA) && /check-icon/.test(iSpuntaB),
         'e una gia- riscossa ha la spunta, qualunque fosse il premio',

@@ -1090,12 +1090,9 @@ body.mouse-down, body.mouse-down *{
 }
 
 /* ── LA SCHEDA ──────────────────────────────────────────────────────────
-   v0.79.74 — NON taglia piu': la busta esce dal bordo destro, e a fermarla
-   e' il riquadro che contiene le schede (`#mm2-quest-corpo`, che scorre e
-   quindi ritaglia). Restano cosi' i dodici pixel del suo bordo, che sono
-   esattamente quel "po' fuori" — un'icona libera del tutto uscirebbe dal
-   pannello. In verticale non serve niente: l'icona e' centrata e alta quanto
-   la scheda, quindi non arriva mai a quella sopra o a quella sotto. */
+   `overflow:hidden` non e' una precauzione: le icone dei premi SBORDANO dal
+   riquadro ed e' il bordo a tagliarle. Senza, uscirebbero dalla scheda e si
+   accavallerebbero a quella sotto. */
 .quest-scheda{
   position:relative;
   /* Alta 55 e non "quanto viene": il Figma dice 55, e li- il bordo sta DENTRO
@@ -1107,7 +1104,7 @@ body.mouse-down, body.mouse-down *{
   flex:0 0 55px; height:55px;
   display:flex; flex-direction:row; align-items:center; gap:8px;
   padding:10px 16px 13px; box-sizing:border-box;
-  border-radius:8px;
+  border-radius:8px; overflow:hidden;
   background-image:linear-gradient(160deg, #3A4142 0%, #262C2D 100%);
   border:1.5px solid rgba(255,255,255,0.22);
   box-shadow:0 2px 6px rgba(0,0,0,0.45);
@@ -1120,50 +1117,29 @@ body.mouse-down, body.mouse-down *{
    alta 63 invece di 55 — con l'ultima delle cinque tagliata dal bordo.
    Il conto del Figma torna cosi': 20 di riga + 4 + 8 di barra + 23 di
    padding = 55. */
-/* v0.79.74 — il testo sta SOPRA all'icona. Prima l'ordine di disegno era
-   quello del documento e l'icona, venendo dopo, copriva la coda dei titoli
-   lunghi. Bastano due posizionati e un numero: chi deve leggersi sta sopra,
-   chi fa da sfondo sta sotto. */
-.quest-testo{
-  position:relative; z-index:1;
-  flex:1 1 auto; min-width:0; display:flex; flex-direction:column; gap:4px;
-}
+.quest-testo{ flex:1 1 auto; min-width:0; display:flex; flex-direction:column; gap:4px; }
 .quest-riga{ height:20px; display:flex; align-items:center; justify-content:space-between; gap:8px; }
 .quest-nome{
   font-family:'Marcellus SC','Marcellus',var(--font-display),serif;
   font-size:14px; line-height:1; color:#D4CBB9;
-  /* v0.79.74 — l'ombra non e' un vezzo: sotto al testo passa l'icona del
-     premio, e le lettere chiare su una busta di carta chiara si leggono male.
-     Un'ombra sottile le stacca da qualunque cosa finisca dietro, adesso e col
-     premio che verra'. */
-  text-shadow:0 1px 3px rgba(0,0,0,0.85);
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
 }
 .quest-conta{
   font-family:'Marcellus SC','Marcellus',var(--font-display),serif;
   font-size:14px; line-height:1; color:#F8C14A; flex:0 0 auto;
-  text-shadow:0 1px 3px rgba(0,0,0,0.85);
 }
 /* La barra: fondo scuro con l'ombra dentro, e il riempimento in gradiente
    giallo con la lumeggiatura bianca in cima. La larghezza la scrive JS: e'
    l'unico numero di tutta la scheda che cambia da solo. */
 .quest-barra{
-  position:relative; height:6px; border-radius:10px; overflow:hidden;
+  position:relative; height:8px; border-radius:10px; overflow:hidden;
   background:#0E1314; box-shadow:inset 0 2px 4px rgba(0,0,0,0.8);
 }
-/* v0.79.74 — AZZURRA finche' non e' finita, oro quando lo e'. Il colore
-   diventa cosi' la seconda cosa che dice "ci sei": la prima e' la barra
-   piena, e le due arrivano insieme. Il gradiente va da sinistra a destra e
-   non dall'alto in basso, quindi si schiarisce mentre avanza — una barra a
-   meta' e' scura, una quasi piena e' gia' chiara. */
 .quest-barra-piena{
   position:absolute; left:0; top:0; bottom:0; width:0;
   border-radius:10px;
-  background-image:linear-gradient(90deg, #2C4246 0%, #6AAFBA 100%);
-  transition:width .45s cubic-bezier(.22,1,.36,1);
-}
-.quest-scheda.quest-fatta .quest-barra-piena{
   background-image:linear-gradient(180deg, rgba(255,255,255,0.75) 0%, #F8D06A 18%, #E8A72E 100%);
+  transition:width .45s cubic-bezier(.22,1,.36,1);
 }
 /* ── IL PREMIO: POCO POSTO, MOLTO SBORDO ────────────────────────────────
    Nel Figma la colonna del testo e' larga 180 su 217 disponibili: al premio
@@ -1181,24 +1157,15 @@ body.mouse-down, body.mouse-down *{
   position:relative; flex:0 0 28px; align-self:stretch;
   pointer-events:none;
 }
-/* v0.79.74 — le tre icone hanno tre pesi e tre forme, e ognuna ha il suo
-   spostamento. Sono numeri decisi a occhio da Lorenzo sul risultato, non
-   ricavati dal disegno: stanno scritti uno per uno perche' un domani si
-   cambia quello che serve senza toccare gli altri due. */
 .quest-premio{
-  position:absolute; right:-10px; top:50%; transform:translateY(-50%);
+  position:absolute; right:-16px; top:50%; transform:translateY(-50%);
   height:62px; width:auto; max-width:none; display:block;
-  z-index:0; user-select:none; -webkit-user-drag:none;
+  user-select:none; -webkit-user-drag:none;
 }
-/* La busta esce dal bordo destro della scheda. E' piu' BASSA delle altre due
-   perche' e' l'unica sdraiata: alta quanto loro verrebbe larga ottanta pixel
-   e arriverebbe sotto al contatore. */
-.quest-premio.quest-busta{ right:-30px; height:50px; }
-/* L'inchiostro venti pixel piu' a destra. */
-.quest-premio.quest-inchiostro{ right:-30px; }
-/* E la spunta venticinque: e' l'unica delle tre che non e' un premio da
-   prendere ma una cosa gia' presa. */
-.quest-premio.quest-spunta{ right:-33px; height:34px; }
+/* La spunta no: quella sta DENTRO, in mezzo, e non sborda. E' l'unica delle
+   tre che non e' un premio da prendere ma una cosa gia' presa, e una cosa
+   gia' presa non preme sul bordo. */
+.quest-premio.quest-spunta{ right:-8px; height:34px; }
 
 /* ── COMPLETATA, NON ANCORA RISCATTATA ──────────────────────────────────
    L'oro. Il bordo prende un SECONDO strato sopra al bianco: nel Figma sono
@@ -1228,16 +1195,6 @@ body.mouse-down, body.mouse-down *{
 .quest-scheda.quest-presa .quest-conta{ color:#8C8C8C; }
 .quest-scheda.quest-presa .quest-barra{ background:rgba(140,140,140,0.18); box-shadow:none; }
 .quest-scheda.quest-presa .quest-barra-piena{ display:none; }
-
-/* ── v0.79.74 — SI RISCUOTE ANCHE UNA PER UNA ───────────────────────────
-   "Collect rewards" le prende tutte; una scheda finita si puo' anche
-   premere da sola. Il segno che si puo' fare e' il solito del gioco — la
-   cosa si schiarisce sotto il puntatore — e c'e' SOLO sulle schede che
-   accettano il gesto: una in corso o una gia' presa non reagiscono, perche'
-   una cosa che si illumina e non fa niente si legge come un guasto. */
-.quest-scheda.quest-fatta{ cursor:var(--cursore); }
-.quest-scheda.quest-fatta:hover{ filter:brightness(1.12); }
-.quest-scheda.quest-fatta:active{ filter:brightness(0.95); }
 
 /* ── LA FASCIA IN BASSO ──────────────────────────────────────────────── */
 /* Sale l'icona, non il pulsante: e' l'illustrazione a reagire, e il comando
@@ -12258,7 +12215,7 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.74</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.73</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
@@ -13898,17 +13855,9 @@ if(document.readyState==='loading'){
   const LOGO_FADE_MS    = STD_FADE_MS * 2;   // = 1s,   vedi #start-logo-wrap
   const EFFETTI_FADE_MS = STD_FADE_MS * 8;   // = 4s,   vedi #start-effetti
   const BG_FADE_MS = 3000;    // matches #start-bg-img's own 3s transition-duration (see CSS)
-  // v0.71.43 — qui c'era START_LOADING_MIN_MS, il tempo MINIMO in cui la
-  // barra restava a schermo: tremila millisecondi, poi duemila.
-  //
-  // v0.79.74 — non c'e' piu'. Serviva quando il caricamento finiva prima che
-  // qualcuno potesse vedere la barra, e la barra appariva e spariva senza
-  // dire niente: si teneva in scena a forza perche' quel che raccontava non
-  // si era ancora visto. Adesso il caricamento e' quello vero e la barra lo
-  // segue, quindi l'attesa in piu' non racconta piu' niente — aspetta e basta.
-  // Resta la sola attesa onesta: quella della sua dissolvenza d'ingresso (vedi
-  // hideLoadingBarThenRevealRest), perche' una barra che comincia a sparire
-  // mentre sta ancora comparendo non e' una barra veloce, e' una barra rotta.
+  // v0.71.43 ("abbassa il tempo minimo della barra di caricamento a 2
+  // secondi"): 3000ms -> 2000ms.
+  const START_LOADING_MIN_MS = 2000; // bar's own minimum on-screen time
 
   // Step 1: background fades in alone. Nothing else is revealed here anymore
   // (v0.34.0-v0.36.0 bundled the logo into this same call — the logo is now
@@ -13967,10 +13916,10 @@ if(document.readyState==='loading'){
   // next).
   function hideLoadingBarThenRevealRest(){
     const elapsedSinceShown = loadingBarShownAt===null ? -1 : (Date.now()-loadingBarShownAt);
-    // v0.79.74 — si aspetta solo che la dissolvenza d'INGRESSO della barra
-    // abbia avuto il tempo di finire. Il pavimento dei due secondi non c'e'
-    // piu': vedi il cartello su START_LOADING_MIN_MS, dove stava.
-    const requiredElapsed = STD_FADE_MS;
+    // Wait for the LONGER of: (a) the bar's own fade-in transition having
+    // had time to finish, (b) the 3s minimum-display floor — so a fast/
+    // cached load never cuts the bar's visible time short.
+    const requiredElapsed = Math.max(STD_FADE_MS, START_LOADING_MIN_MS);
     if(elapsedSinceShown < requiredElapsed){
       setTimeout(hideLoadingBarThenRevealRest, loadingBarShownAt===null ? STD_STAGGER_MS : (requiredElapsed-elapsedSinceShown));
       return;
@@ -19770,11 +19719,7 @@ function aggiornaSottotitoloBustine(){ mm2AggiornaBustine(); }
 // una scheda 'completata' con la barra a meta' — e a mentire sarebbe proprio
 // la cosa che il giocatore guarda per sapere quanto gli manca.
 let QUEST_OGGI = [];
-// v0.79.74 — la busta e' pack-icon, la stessa del menu e della fine partita:
-// il libro (card-pack-icon) non si usa piu' da nessuna parte. Due disegni per
-// la stessa cosa nella stessa schermata si notano.
-const QUEST_PREMI = { pack:'pack-icon.png', ink:'magic-ink-icon.png' };
-const QUEST_CLASSI = { pack:'quest-busta', ink:'quest-inchiostro' };
+const QUEST_PREMI = { pack:'card-pack-icon.png', ink:'magic-ink-icon.png' };
 function questCompletata(q){ return !!q && (q.fatto||0) >= (q.quanto||1); }
 
 function mm2DisegnaQuest(elenco){
@@ -19824,21 +19769,13 @@ function mm2DisegnaQuest(elenco){
     const casella = document.createElement('div');
     casella.className = 'quest-premio-box';
     const icona = document.createElement('img');
-    icona.className = 'quest-premio ' + (q.presa ? 'quest-spunta'
-      : (QUEST_CLASSI[q.premio] || QUEST_CLASSI.pack));
+    icona.className = 'quest-premio' + (q.presa ? ' quest-spunta' : '');
     icona.alt = ''; icona.draggable = false;
     const file = q.presa ? 'check-icon.png' : (QUEST_PREMI[q.premio] || QUEST_PREMI.pack);
     try{ impostaImgDaCandidati(icona, uiFileCandidati(file)); }catch(_){ }
     casella.appendChild(icona);
 
     scheda.append(testo, casella);
-    // v0.79.74 — e se e' finita e non ancora presa, si puo' riscuotere da qui.
-    // L'indice e' quello dell'elenco: e' cio' che il server chiedera' per
-    // sapere quale, ed e' gia' l'ordine in cui le ha mandate.
-    if(fatta && !q.presa){
-      const dove = QUEST_OGGI.indexOf(q);
-      scheda.addEventListener('click', ()=>mm2RiscuotiQuest(null, dove));
-    }
     corpo.appendChild(scheda);
   }
   mm2AggiornaContaQuest();
@@ -19859,14 +19796,11 @@ function mm2AggiornaContaQuest(){
     b.style.pointerEvents = daPrendere ? '' : 'none';
   }
 }
-// v0.79.73 — a pagare i premi e' il server, e non c'e' ancora.
-// v0.79.74 — due strade, una funzione: il pulsante le prende tutte, una
-// scheda premuta prende la sua. `quale` e' l'indice nell'elenco, o null per
-// dire "tutte quelle finite". Una porta sola perche' e' lo stesso gesto, e
-// due porte diventerebbero due modi di sbagliarlo.
-function mm2RiscuotiQuest(bottone, quale){
-  console.info('[quest] riscossione chiesta (' + (quale == null ? 'tutte' : 'la ' + quale)
-    + '): il server che paga i premi non c\'e\' ancora.');
+// v0.79.73 — il pulsante esiste e non fa ancora niente: a pagare i premi e' il
+// server, e non c'e' ancora. Sta qui perche' il giorno in cui ci sara' non
+// bisogna anche ricordarsi di attaccarlo.
+function mm2RiscuotiQuest(bottone){
+  console.info('[quest] "Collect rewards" premuto: il server che paga i premi non c\'e\' ancora.');
 }
 // Il conto alla rovescia va aggiornato mentre si guarda: entrando col tempo
 // scaduto fra un minuto, il segnalibro deve arrivare da solo a "1 available!"
