@@ -1354,6 +1354,45 @@ modulo dal server (`/opt/nakama/data/modules/index.js`) e gli si fanno le
 stesse domande. Il calendario e' l'unica cosa che un banco non puo' fingere del
 tutto: la giornata vera e' quella in cui gira.
 
+## prova-muto.js — muto vuol dire muto
+
+    $ELECTRON strumenti/prova-muto.js
+
+Col cursore **General volume** a zero non si deve sentire niente. Sembra
+ovvio e non lo e': il volume generale non e' un interruttore, e' un numero che
+ogni strada dell'audio deve ricordarsi di moltiplicare. Una strada che se ne
+dimentica non da' nessun errore — da' un suono, e chi lo sente pensa che il
+muto sia rotto.
+
+Le strade sono cinque e non si somigliano: `playSfxFile` su Web Audio, il suo
+ripiego a `<audio>`, il **volume fisso** dentro `playSfxFile`, `playSfx` per i
+tre `<audio>` del tavolo, la musica su `#bgm` e `#bgm-loop`, piu' i video del
+tutorial, che sono muti per attributo e devono restarlo.
+
+**Il banco non ricalcola le formule.** Ricalcolarle proverebbe solo che so
+copiare una moltiplicazione: se la formula nel gioco fosse sbagliata e il
+banco la ricopiasse, passerebbe. Invece **intercetta** — una mano su
+`createGain` e una su `HTMLMediaElement.play` — fa suonare tutto per davvero
+col generale a zero, e guarda che ogni volume passato sia zero.
+
+Tre accorgimenti che valgono quanto il controllo:
+
+**Gli altri due cursori restano al massimo.** Spegnendo tutti e tre, il banco
+passerebbe anche se il generale non contasse niente. Il punto e' che il
+generale **da solo** basti.
+
+**Si controlla che qualcosa abbia davvero provato a suonare.** Un banco che
+non sente niente direbbe "tutto a posto" anche con l'audio rotto e nessuna
+riproduzione partita. E la prova specchiata in fondo — rialzare il generale e
+risentire — chiude lo stesso buco dall'altra parte.
+
+**Il percorso Web Audio va forzato.** Senza un buffer decodificato
+`playSfxFile` non passa mai dal `GainNode` e risponde solo il ripiego a
+`<audio>`. In partita e' il contrario — i buffer ci sono e il ripiego quasi
+non si vede — quindi il ramo che conta di piu' resterebbe fuori dalla prova.
+Gli si mette in mano un buffer di silenzio da un decimo di secondo: serve la
+strada, non il suono.
+
 ## prova-tutorial.js — le sei schede del tutorial
 
     $ELECTRON strumenti/prova-tutorial.js [foto.png]
@@ -1389,6 +1428,24 @@ E i colori delle rarita' si confrontano con `COLORI_RARITA` invece che con
 quattro costanti scritte nel banco: una rarita' ha un colore solo in tutto il
 gioco, e un banco che ne tenesse una copia sarebbe il secondo posto da
 aggiornare.
+
+**`hidden` non nasconde niente, se qualcuno dopo dice `display`.**
+`[hidden]{display:none}` sta nel foglio del browser e vale quanto una classe.
+Nel tutorial e' stato scavalcato due volte nello stesso giorno: da
+`#tutorial-fondo{display:flex}` (un id, che vince) e da `.hx-btn` sul pulsante
+"Skip tutorial" (stessa forza, ma scritto dopo). In tutti e due i casi il
+codice era convinto di aver nascosto, la proprieta' `hidden` era giusta, e la
+cosa restava in scena. Serve una regola esplicita `#tizio[hidden]{display:none}`.
+
+**Il banco deve guardare `display`, non `.hidden`.** Chiedere la proprieta'
+e' chiedere all'imputato: risponde di si' e ha ragione, ma non e' la domanda.
+
+**Il filo di progresso.** Il banco stampa ogni controllo mentre passa
+(`console-message` nel processo principale, `[passo] ...` dalla pagina). Un
+banco lungo che tace non si distingue da un banco appeso, e la differenza
+cambia cosa si fa dopo: aspettare, o andare a cercare. Per vederlo scorrere
+serve `grep --line-buffered`, o il filtro tiene tutto in pancia fino alla fine
+e il filo non serve a niente.
 
 ## prova-customize.js — le due voci che hanno traslocato
 

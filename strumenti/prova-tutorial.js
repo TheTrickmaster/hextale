@@ -38,13 +38,29 @@ app.disableHardwareAcceleration();
 app.whenReady().then(async () => {
   const win = new BrowserWindow({ show: false, width: 1920, height: 1080, frame: false,
     webPreferences: { contextIsolation: false, webSecurity: false, backgroundThrottling: false } });
+  // Il filo di progresso: ogni controllo dice il suo nome mentre passa. Un
+  // banco lungo che tace non si distingue da un banco appeso, e la
+  // differenza cambia cosa si fa dopo — aspettare o andare a cercare.
+  win.webContents.on('console-message', (...args) => {
+    // Electron recente passa UN oggetto con .message, quello vecchio tre
+    // argomenti col testo al terzo. Scritto per una firma sola, sull-altra il
+    // filo tace e sembra che il banco non stia facendo niente — che e-
+    // esattamente il difetto che questo filo doveva togliere.
+    const a0 = args[0];
+    const msg = (a0 && typeof a0 === 'object' && a0.message !== undefined) ? a0.message : args[2];
+    if (String(msg).indexOf('[passo] ') === 0) console.log('  ..   ' + String(msg).slice(8));
+  });
   await win.loadURL(PAGINA);
   await new Promise(r => setTimeout(r, 14000));
 
   const esito = await win.webContents.executeJavaScript(`(async function(){
     const d = [];
-    const dice = (ok, che, perche) => d.push({ ok:!!ok, che, perche: perche||'' });
+    const dice = (ok, che, perche) => { console.log('[passo] ' + che); d.push({ ok:!!ok, che, perche: perche||'' }); };
     const attendi = (ms)=>new Promise(r=>setTimeout(r,ms));
+    // Il corpo corre contro un orologio. Un banco appeso non dice niente e non
+    // si distingue da uno lento; scaduto il tempo, questo torna i controlli
+    // gia- fatti — e l-ultimo dell-elenco e- il punto in cui si e- fermato.
+    const _corpo = (async function(){
     try{
       ['splash','start-screen'].forEach(id=>{ const e=document.getElementById(id); if(e) e.style.display='none'; });
 
@@ -83,12 +99,35 @@ app.whenReady().then(async () => {
       const sc = getComputedStyle(col);
       dice(Math.round(parseFloat(sc.width)) === 370, 'la colonna e- larga 370',
         Math.round(parseFloat(sc.width)) + 'px');
-      // 700 meno i 40 di padding sopra e sotto.
-      dice(Math.round(parseFloat(sc.height)) === 620, 'e alta quanto il riquadro le lascia',
-        Math.round(parseFloat(sc.height)) + 'px — 700 meno i 40 di padding sopra e sotto.');
+      // 700 meno i 30 di padding sopra e sotto (v0.79.83).
+      dice(Math.round(parseFloat(sc.height)) === 640, 'e alta quanto il riquadro le lascia',
+        Math.round(parseFloat(sc.height)) + 'px — 700 meno i 30 di padding sopra e sotto.');
+      // Lo scostamento si misura in pixel CSS e non a schermo: il gioco scala
+      // tutta la scena per starci dentro, e a 1920 di larghezza 30 pixel ne
+      // misurano 22. Quel numero direbbe quanto e- grande la finestra del
+      // banco, non dove sta la colonna. Il rapporto fra i due rettangoli
+      // invece la scala non la sente.
       const rc = col.getBoundingClientRect(), rk = cornice.getBoundingClientRect();
-      dice(Math.round(rc.left - rk.left) === 40, 'e sta a sinistra, a 40 dal bordo',
-        Math.round(rc.left - rk.left) + 'px');
+      const scala = rk.width / parseFloat(getComputedStyle(cornice).width);
+      dice(Math.round((rc.left - rk.left) / scala) === 30, 'e sta a sinistra, a 30 dal bordo',
+        Math.round((rc.left - rk.left) / scala) + 'px in CSS, ' + Math.round(rc.left - rk.left) +
+        ' sullo schermo di questo banco (scala ' + (Math.round(scala*100)/100) + ').');
+
+      // ── 4b. LA BARRA DEL TITOLO E LA VIA D-USCITA (v0.79.83) ─────────────
+      const barra = document.getElementById('tutorial-titlebar');
+      dice(!!barra && barra.querySelector('h2').textContent.trim() === 'Tutorial',
+        'la barra del titolo dice Tutorial');
+      dice(Math.round(parseFloat(getComputedStyle(barra).width)) === 600,
+        'ed e- larga 600, la meta- del riquadro',
+        Math.round(parseFloat(getComputedStyle(barra).width)) + 'px');
+      dice(Math.round(parseFloat(getComputedStyle(barra).height)) === 68,
+        'e alta 68 come ogni altra barra del gioco',
+        Math.round(parseFloat(getComputedStyle(barra).height)) + 'px');
+      const salta = document.getElementById('tutorial-salta');
+      dice(!!salta && getComputedStyle(salta).display !== 'none',
+        'e "Skip tutorial" sta sotto, fuori dal riquadro');
+      dice(salta.getBoundingClientRect().top >= rk.bottom - 1,
+        'proprio sotto', Math.round(salta.getBoundingClientRect().top) + ' contro ' + Math.round(rk.bottom));
 
       // ── 5. IL GRADIENTE ───────────────────────────────────────────────────
       // I due numeri sono di Lorenzo: pieno fino al 20%, trasparente dal 45%.
@@ -107,6 +146,12 @@ app.whenReady().then(async () => {
       }
       dice(JSON.stringify(visti) === JSON.stringify(attesi),
         'ogni scheda punta al suo video', visti.join(', '));
+
+      // Da qui in poi si prova il TESTO e i comandi, non il video: ogni
+      // tutorialDisegna scarica una clip da quattro megabyte, e una ventina di
+      // volte sono dieci minuti di banco per una cosa gia- provata sopra.
+      const veroVideo = window.tutorialMettiVideo;
+      window.tutorialMettiVideo = function(){};
 
       // ── 7. I PALLINI E LE FRECCE ──────────────────────────────────────────
       const passi = ()=>[...document.querySelectorAll('#tutorial-passi .tutorial-passo')];
@@ -167,14 +212,34 @@ app.whenReady().then(async () => {
       dice(!document.getElementById('tutorial-video').getAttribute('src'),
         'e il video si stacca invece di continuare a girare dietro al nulla');
 
+      // I video tornano: le due schede singole si provano anche per la clip.
+      window.tutorialMettiVideo = veroVideo;
+
       // ── 11. LE SCHEDE SINGOLE ─────────────────────────────────────────────
       // Con una sola scheda, un pallino solo e due frecce spente sarebbero tre
       // comandi che non comandano niente.
       TUTORIAL_VISTI = {};
       apriTutorial('pacchetti');
       await attendi(900);
-      dice(document.getElementById('tutorial-fondo').hidden,
-        'la scheda dei pacchetti non ha ne- pallini ne- frecce');
+      // Si guarda cio- che SI VEDE e non la proprieta- "hidden": fino alla
+      // v0.79.83 la proprieta- era a posto e la riga restava in scena lo
+      // stesso, perche- la regola display:flex e- scritta su un id e batte
+      // quella del browser per gli elementi nascosti. Un banco che chiede la
+      // proprieta- dice di si- e ha torto.
+      // (Niente apici inclinati qui dentro: questo blocco vive in un template
+      //  literal, e un apice inclinato lo chiude a meta- — e- il motivo per cui
+      //  questo banco non e- partito per un paio d-ore.)
+      dice(getComputedStyle(document.getElementById('tutorial-fondo')).display === 'none',
+        'la scheda dei pacchetti non ha ne- pallini ne- frecce',
+        'display: ' + getComputedStyle(document.getElementById('tutorial-fondo')).display);
+      dice(getComputedStyle(document.getElementById('tutorial-salta')).display === 'none',
+        'e nemmeno "Skip tutorial"',
+        'Su una scheda sola, saltare e aver capito sono lo stesso gesto.');
+      // E il "Got it!" si appoggia al fondo della colonna invece di restare
+      // a mezz-aria sotto l-ultimo paragrafo.
+      const gr = ok().getBoundingClientRect(), cr = col.getBoundingClientRect();
+      dice(cr.bottom - gr.bottom < 40, 'e il "Got it!" sta in fondo alla colonna',
+        Math.round(cr.bottom - gr.bottom) + 'px dal fondo (c-e- il padding della colonna).');
       dice(!!ok(), 'e ha il suo "Got it!"');
       dice((document.getElementById('tutorial-video').getAttribute('src')||'').indexOf('open-packs') >= 0,
         'e il video giusto');
@@ -190,7 +255,19 @@ app.whenReady().then(async () => {
       await attendi(300);
       return { d };
     }catch(e){ return { guasto:(e&&e.message)+' '+String((e&&e.stack)||'').split(String.fromCharCode(10))[1], d }; }
+    })();
+    const _guardia = new Promise(r=>setTimeout(()=>r({ d, scaduto:true }), 180000));
+    return await Promise.race([_corpo, _guardia]);
   })()`);
+
+  if (esito && esito.scaduto) {
+    console.error('IL BANCO NON HA FINITO IN TRE MINUTI.');
+    const fatti = esito.d || [];
+    const ultimo = fatti[fatti.length - 1];
+    console.error('Ultimo controllo arrivato (' + fatti.length + ' in tutto): '
+      + (ultimo ? ultimo.che : 'nessuno — si e- fermato prima del primo'));
+    app.exit(1); return;
+  }
 
   if (esito.guasto) {
     console.error('GUASTO: ' + esito.guasto);
