@@ -1328,6 +1328,13 @@ una carta da solo; per il caso "carta gia' giocata" invece `G.gameOver`
 dev'essere falso e `G.turnPlayLocked` vero, e si sostituiscono `autoPlay` e
 `mostraTempoScaduto` per contare se vengono chiamate.
 
+**Il banco puo- puntare la copia SCHIERATA.**  prova quel file invece di quello di casa. Serve a rispondere a una
+domanda diversa da "il codice e- giusto?": *quello che sta girando adesso, oggi,
+si comporta bene?*. Si tira giu- il modulo dal server
+() e gli si fanno le stesse domande. Il
+calendario e- l-unica cosa che un banco non puo- fingere del tutto: la giornata
+vera e- quella in cui gira.
+
 ## prova-customize.js — le due voci che hanno traslocato
 
     $ELECTRON strumenti/prova-customize.js

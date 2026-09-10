@@ -18,7 +18,12 @@
 const fs = require('fs');
 const vm = require('vm');
 
-const sorgente = fs.readFileSync('C:/Users/masil/Desktop/Hextale/game-assets/server/nakama/index.js', 'utf8');
+// Di norma il file di casa. Passandone un altro si prova QUELLO — serve a
+// puntare la copia scaricata dal server, che e- l-unica che sta davvero girando:
+//     node strumenti/prova-quest-server.js /percorso/index.js
+const DOVE = process.argv[2] || 'C:/Users/masil/Desktop/Hextale/game-assets/server/nakama/index.js';
+console.log('provo ' + DOVE + String.fromCharCode(10));
+const sorgente = fs.readFileSync(DOVE, 'utf8');
 const ctx = { console, Date, Math, JSON, parseInt, parseFloat, isFinite, String, Object, Array, Error };
 ctx.global = ctx;
 vm.createContext(ctx);
