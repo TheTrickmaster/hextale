@@ -303,6 +303,19 @@ app.whenReady().then(async () => {
           'e a stringersi e- la griglia, che scorre',
           'contenuto ' + griglia.scrollHeight + ' dentro ' + griglia.clientHeight +
           '.\\n        Se a cedere fosse il pannello, il tetto della finestra non varrebbe.');
+        // v0.79.80 — E LA BARRA DEL TITOLO NON SI SCHIACCIA.
+        // Era il prezzo nascosto del tetto: la finestra e- una colonna flex, e
+        // una colonna che non ci sta accorcia i suoi pezzi. La barra ha
+        // `flex:1 1 auto` perche- nelle PAGINE deve allungarsi in fila col
+        // selettore Dark/Light — e lo stesso numero, in verticale, vuol dire
+        // "comprimibile". Scendeva a 36 dei suoi 68: il titolo restava, la
+        // cornice si appiattiva. Si misura in pixel CSS perche- la scena e-
+        // scalata (vedi la nota sugli avatar qui sopra).
+        const barra = scatola.querySelector('.hx-titlebar');
+        const alta = barra ? Math.round(parseFloat(getComputedStyle(barra).height)) : 0;
+        dice(alta === 68, 'e la barra del titolo resta alta 68',
+          alta + 'px, con la finestra gia- al suo tetto — che e- proprio il\\n' +
+          '        momento in cui la colonna cerca qualcosa da accorciare.');
         chiudiSceltaAvatar();
         await attendi(300);
         chiudiCustomize();
