@@ -201,6 +201,37 @@ rapido per credere di aver sbagliato il markup. E il velo di apertura si toglie
 con una REGOLA (`insertCSS`), non con uno stile in linea: la sequenza di
 caricamento se lo rimette addosso da sola.
 
+## prova-report.js — segnalare un giocatore
+
+    $ELECTRON strumenti/prova-report.js [scatto.png]
+
+Un pulsante speculare a quello delle impostazioni, e una finestra che manda
+un'email a una casella che qualcuno legge davvero. Il banco tiene ferme due
+cose di natura diversa.
+
+**La forma.** "Speculare" e' una parola, e qui diventa una misura: stessa
+grandezza, stessa altezza dal bordo, e la distanza da destra uguale a quella da
+sinistra dell'altro. Due pulsanti quasi speculari non sembrano un errore,
+sembrano una svista di chi guarda.
+
+**La sostanza, e conta di piu'.** Il client NON manda il nome dell'accusato:
+manda l'identificativo del TAVOLO, e chi ci fosse seduto lo dice il server dal
+registro scritto a inizio partita (`COLL_PARTITE`). Se il nome lo dicesse il
+client, chiunque potrebbe accusare chiunque senza averlo mai incontrato — e
+sarebbe una segnalazione che arriva a una persona vera, con dentro un nome
+vero. Il banco guarda **cosa parte**, non cosa la finestra mostra: il nome
+dell'avversario compare nel testo della finestra e non deve comparire nel
+messaggio.
+
+Poi le due cose che si rompono in silenzio: il pulsante si accende **solo in
+rete** (contro la macchina non c'e' nessuno da segnalare, e una finestra per
+accusare un avversario che non esiste manda posta a vuoto), e il modulo vuoto
+non parte, dicendo cosa manca.
+
+Una trappola imparata scrivendolo: il disegno del pulsante lo mette
+`montaGraficaPartita`, che gira dentro a `initGame`. Chiederglielo prima di
+una partita dice che manca il file quando manca solo il momento.
+
 ## prova-spazi.js — il testo delle abilita', parola per parola
 
     $ELECTRON strumenti/prova-spazi.js

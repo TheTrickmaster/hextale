@@ -727,6 +727,16 @@ var SEGN_FOTO_MAX = 400 * 1024;
 var SEGN_CATEGORIE = ['gameplay', 'cards', 'match', 'ui', 'collection',
   'rewards', 'performance', 'visual', 'account', 'other'];
 var SEGN_FREQUENZE = ['once', 'sometimes', 'always'];
+// ── v0.79.70 — I MOTIVI PER CUI SI SEGNALA UNA PERSONA ────────────────────
+// Sono pochi di proposito. Un elenco lungo sembra completo e non lo e' mai,
+// e chi non trova la sua voce sceglie quella che gli somiglia di piu': a
+// leggere le segnalazioni ci si ritrova con categorie piene di cose che non
+// c'entrano. Cinque voci e una casella di testo obbligatoria fanno il lavoro
+// meglio, perche' il lavoro lo fa il testo.
+// Non c'e' 'linguaggio offensivo in chat' perche' una chat non c'e': quel
+// che una persona puo' mandarti addosso qui e' il suo NOME e il suo modo di
+// stare in partita.
+var REPORT_MOTIVI = ['name', 'stalling', 'cheating', 'unsporting', 'other'];
 // Come si leggono nell'email. Nel messaggio vanno le stesse parole che il
 // giocatore ha visto nella finestra: chi legge la segnalazione e chi l'ha
 // scritta devono parlare della stessa cosa con lo stesso nome. Le sigle
@@ -735,7 +745,10 @@ var SEGN_ETICHETTE = {
   gameplay: 'Gameplay', cards: 'Cards & Abilities', match: 'Match / Board',
   ui: 'UI & Menus', collection: 'Collection / Progression', rewards: 'Rewards / Packs',
   performance: 'Performance', visual: 'Visual / Audio', account: 'Account', other: 'Other',
-  once: 'Once', sometimes: 'Sometimes', always: 'Always'
+  once: 'Once', sometimes: 'Sometimes', always: 'Always',
+  // v0.79.70 — e i motivi per cui si segnala una persona.
+  name: 'Offensive name', stalling: 'Stalling / wasting time',
+  cheating: 'Cheating or exploiting', unsporting: 'Unsporting behaviour'
 };
 function _etichetta(sigla) { return SEGN_ETICHETTE[sigla] || String(sigla || ''); }
 
@@ -766,6 +779,16 @@ var KEY_POSTA = 'posta';
 // no. Il conto sta sul server e in un posto solo, perche' un numero che due
 // posti calcolano per conto proprio prima o poi lo assegna due volte.
 var KEY_SEGN_CONTO = 'segnalazioni-conto';
+var COLL_REPORT = 'report-giocatori';
+var KEY_REPORT_CONTO = 'report-conto';
+// ── v0.79.70 — CHI GIOCAVA CONTRO CHI ─────────────────────────────────────
+// Un rigo per partita: l'identificativo del tavolo e i due che ci stavano.
+// Serve a una cosa sola, ed e' quella che rende una segnalazione qualcosa
+// su cui si puo' agire: chi segnala dice "quello con cui sto giocando", e a
+// dire CHI e' dev'essere il server. Il nome che il client vede lo scrive il
+// client, e su una segnalazione non ci si puo' fidare di quello che dice la
+// parte in causa.
+var COLL_PARTITE = 'partite';
 var SEGN_DESTINATARIO = 'support@hextalegame.com';
 // Il servizio vive accanto a Nakama, sulla rete interna di docker: da fuori
 // non e' raggiungibile, ed e' voluto — non ha nessuna ragione di esserlo.
@@ -787,38 +810,78 @@ function _postaConfig(nk) {
 // il numero. Non e' vanita': una casella che riceve segnalazioni le riceve a
 // decine, e il numero grosso in alto e' cio' che permette di ritrovarne una.
 var POSTA_LOGO = 'https://hextalegame.com/ui/hextale-logo-topbar.png';
-function _postaHtml(s, chiave) {
-  var riga = function (etichetta, valore) {
-    return '<tr><td style="padding:2px 14px 2px 0;color:#8a9a9c;white-space:nowrap">' + etichetta +
-      '</td><td style="padding:2px 0;color:#EDE0C6">' + _html(valore) + '</td></tr>';
-  };
-  var blocco = function (titolo, testo) {
-    return '<div style="margin:22px 0 0">' +
-      '<div style="font:600 14px/1.2 Georgia,serif;color:#8a9a9c;text-transform:uppercase;letter-spacing:.08em">' + titolo + '</div>' +
-      '<div style="margin-top:6px;font:16px/1.5 Georgia,serif;color:#EDE0C6;white-space:pre-wrap">' + _html(testo) + '</div>' +
+// ── v0.79.70 — IL VESTITO E' UNO SOLO ─────────────────────────────────────
+// Lo usano la segnalazione di un difetto e quella di un giocatore. Non e' un
+// risparmio di righe: quella casella riceve le due cose insieme, e chi le
+// legge non deve imparare due modi di leggere. Con due copie basta che
+// qualcuno ritocchi una delle due perche' comincino a somigliarsi invece che
+// a essere la stessa busta.
+//   `titolo`   la riga grossa in cima, accanto al marchio (gia' HTML).
+//   `righe`    coppie [etichetta, valore]: la tabella dei fatti.
+//   `blocchi`  coppie [titolo, testo]: i pezzi scritti dal giocatore.
+//   `piede`    la riga piccola in fondo (gia' HTML).
+function _postaHtmlGenerico(titolo, righe, blocchi, piede) {
+  var dentro = '';
+  var i;
+  for (i = 0; i < righe.length; i++) {
+    dentro += '<tr><td style="padding:2px 14px 2px 0;color:#8a9a9c;white-space:nowrap">' + righe[i][0] +
+      '</td><td style="padding:2px 0;color:#EDE0C6">' + _html(righe[i][1]) + '</td></tr>';
+  }
+  var testi = '';
+  for (i = 0; i < blocchi.length; i++) {
+    testi += '<div style="margin:22px 0 0">' +
+      '<div style="font:600 14px/1.2 Georgia,serif;color:#8a9a9c;text-transform:uppercase;letter-spacing:.08em">' + blocchi[i][0] + '</div>' +
+      '<div style="margin-top:6px;font:16px/1.5 Georgia,serif;color:#EDE0C6;white-space:pre-wrap">' + _html(blocchi[i][1]) + '</div>' +
       '</div>';
-  };
+  }
   return '<div style="background:#1b2223;padding:26px;font-family:Georgia,serif">' +
     '<div style="max-width:640px;margin:0 auto;background:#232c2d;border:1px solid #36423f;border-radius:14px;padding:26px">' +
       '<table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-bottom:18px"><tr>' +
         '<td style="padding-right:16px"><img src="' + POSTA_LOGO + '" alt="Hextale" height="46" style="display:block;height:46px;width:auto"></td>' +
-        '<td style="font:bold 28px/1 Georgia,serif;color:#EDE0C6">Bug report n&deg; ' + s.numero + '</td>' +
+        '<td style="font:bold 28px/1 Georgia,serif;color:#EDE0C6">' + titolo + '</td>' +
       '</tr></table>' +
       '<div style="height:1px;background:#36423f;margin:0 0 18px"></div>' +
       '<table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;font:15px/1.5 Georgia,serif">' +
-        riga('Category', _etichetta(s.categoria)) +
-        riga('How often', _etichetta(s.frequenza)) +
-        riga('Player', (s.nome || '(no name)') + '  [' + s.chi + ']') +
-        riga('Version', (s.versione || '?') + '   screen ' + (s.schermo || '?')) +
-        riga('Browser', s.agente || '?') +
+        dentro +
       '</table>' +
-      blocco('What happened', s.cosa) +
-      blocco('What they expected', s.atteso || '(not answered)') +
+      testi +
       '<div style="margin-top:24px;padding-top:14px;border-top:1px solid #36423f;font:13px/1.5 Georgia,serif;color:#6f7d7f">' +
-        'On the server: ' + _html(COLL_SEGNALAZIONI + '/' + chiave) +
-        (s.conFoto ? '<br>Screenshot attached.' : '') +
+        piede +
       '</div>' +
     '</div></div>';
+}
+// La stessa cosa in righe di testo, per chi legge la posta senza figure.
+function _postaTestoGenerico(titolo, righe, blocchi, piede) {
+  var fuori = [titolo, ''];
+  var i;
+  // Le etichette incolonnate: dodici caratteri bastano alla piu' lunga, e una
+  // tabella storta in un messaggio di solo testo si legge peggio di nessuna.
+  for (i = 0; i < righe.length; i++) {
+    var e = righe[i][0] + ':';
+    while (e.length < 13) e += ' ';
+    fuori.push(e + righe[i][1]);
+  }
+  for (i = 0; i < blocchi.length; i++) {
+    fuori.push('', '--- ' + blocchi[i][0] + ' ---', String(blocchi[i][1]));
+  }
+  fuori.push('', '---');
+  for (i = 0; i < piede.length; i++) fuori.push(piede[i]);
+  return fuori.join('\n');
+}
+function _postaHtml(s, chiave) {
+  return _postaHtmlGenerico('Bug report n&deg; ' + s.numero, _segnRighe(s),
+    [['What happened', s.cosa], ['What they expected', s.atteso || '(not answered)']],
+    'On the server: ' + _html(COLL_SEGNALAZIONI + '/' + chiave) +
+      (s.conFoto ? '<br>Screenshot attached.' : ''));
+}
+function _segnRighe(s) {
+  return [
+    ['Category', _etichetta(s.categoria)],
+    ['How often', _etichetta(s.frequenza)],
+    ['Player', (s.nome || '(no name)') + '  [' + s.chi + ']'],
+    ['Version', (s.versione || '?') + '   screen ' + (s.schermo || '?')],
+    ['Browser', s.agente || '?']
+  ];
 }
 function _html(v) {
   return String(v == null ? '' : v)
@@ -826,26 +889,10 @@ function _html(v) {
 }
 // La versione scritta, per chi legge la posta senza figure.
 function _postaTesto(s, chiave) {
-  var righe = [
-    'Bug report n. ' + s.numero,
-    '',
-    'Category:  ' + _etichetta(s.categoria),
-    'How often: ' + _etichetta(s.frequenza),
-    'Player:    ' + (s.nome || '(no name)') + '  [' + s.chi + ']',
-    'Version:   ' + (s.versione || '?') + '   screen ' + (s.schermo || '?'),
-    'Browser:   ' + (s.agente || '?'),
-    '',
-    '--- What happened ---',
-    s.cosa,
-    '',
-    '--- What they expected ---',
-    (s.atteso || '(not answered)'),
-    '',
-    '---',
-    'On the server: ' + COLL_SEGNALAZIONI + '/' + chiave
-  ];
-  if (s.conFoto) righe.push('Screenshot attached (also in ' + COLL_SEGNALAZIONI + '/' + chiave + '-foto)');
-  return righe.join('\n');
+  var piede = ['On the server: ' + COLL_SEGNALAZIONI + '/' + chiave];
+  if (s.conFoto) piede.push('Screenshot attached (also in ' + COLL_SEGNALAZIONI + '/' + chiave + '-foto)');
+  return _postaTestoGenerico('Bug report n. ' + s.numero, _segnRighe(s),
+    [['What happened', s.cosa], ['What they expected', s.atteso || '(not answered)']], piede);
 }
 
 // Spedisce, e se non ci riesce lo dice al registro e basta: la segnalazione e'
@@ -863,6 +910,11 @@ function _spedisciSegnalazione(nk, logger, s, chiave, foto) {
     html: _postaHtml(s, chiave),
     allegato: foto || ''
   };
+  return _spedisci(nk, logger, cfg, corpo, chiave);
+}
+// v0.79.70 — la consegna vera e propria, per chiunque abbia gia' un corpo.
+// Non fa fallire niente: chi la chiama ha gia' salvato quel che doveva.
+function _spedisci(nk, logger, cfg, corpo, chiave) {
   try {
     var intestazioni = { 'Content-Type': 'application/json' };
     if (cfg.chiave) intestazioni['X-Hextale-Chiave'] = cfg.chiave;
@@ -875,9 +927,9 @@ function _spedisciSegnalazione(nk, logger, s, chiave, foto) {
     // messaggio con un allegato non e' istantaneo.
     var r = nk.httpRequest(POSTA_URL, 'post', intestazioni, JSON.stringify(corpo), 25000);
     if (r.code >= 200 && r.code < 300) return true;
-    logger.warn('la posta ha risposto %d per la segnalazione %s: %s', r.code, chiave, String(r.body).slice(0, 300));
+    logger.warn('la posta ha risposto %d per %s: %s', r.code, chiave, String(r.body).slice(0, 300));
   } catch (e) {
-    logger.warn('la segnalazione %s non e partita per posta: %s', chiave, String(e));
+    logger.warn('%s non e partita per posta: %s', chiave, String(e));
   }
   return false;
 }
@@ -1769,6 +1821,124 @@ function rpcSegnalazione(ctx, logger, nk, payload) {
   // parte. Se la posta e' giu', a saperlo e' il registro del server.
   var spedita = _spedisciSegnalazione(nk, logger, segnalazione, chiave, conFoto ? foto : '');
   return JSON.stringify({ ricevuta: true, spedita: spedita, numero: numero });
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// v0.79.70 — SEGNALARE UN GIOCATORE
+// ══════════════════════════════════════════════════════════════════════════
+// Somiglia alla segnalazione di un difetto e non lo e': qui si parla di una
+// PERSONA, e le due differenze che contano sono tutte e due di fiducia.
+//
+// CHI SEGNALA lo dice ctx.userId, e non e' negoziabile: una segnalazione
+// anonima non si puo' valutare, e una firmata da chi vuole si puo' usare per
+// far cadere la colpa su un altro.
+//
+// CHI E' SEGNALATO NON LO DICE IL CLIENT. Il client manda l'identificativo
+// del TAVOLO; a dire chi ci stava seduto e' il registro scritto dal server
+// quando la partita e' cominciata (vedi COLL_PARTITE). E' l'unico punto
+// delicato di tutta questa strada: se il nome dell'accusato arrivasse dal
+// client, chiunque potrebbe segnalare chiunque senza averlo mai incontrato.
+// Senza partita — o con una che il registro non conosce — la segnalazione si
+// prende lo stesso, ma senza un nome addosso: e' una lamentela che qualcuno
+// leggera', non un'accusa a una persona, e nell'email si vede la differenza.
+function _altroGiocatore(nk, logger, matchId, chi) {
+  if (!matchId) return '';
+  try {
+    var r = nk.storageRead([{ collection: COLL_PARTITE, key: matchId,
+      userId: '00000000-0000-0000-0000-000000000000' }]);
+    var v = (r && r.length && r[0].value) ? r[0].value : null;
+    var g = (v && v.giocatori) || [];
+    if (g.length !== 2) return '';
+    // E chi segnala dev'essere uno dei due. Non e' un dettaglio: senza questo
+    // basterebbe conoscere l'identificativo di un tavolo altrui per
+    // segnalarne un giocatore.
+    if (g[0] === chi) return g[1];
+    if (g[1] === chi) return g[0];
+    logger.warn('report: %s non giocava nella partita %s', chi, matchId);
+    return '';
+  } catch (e) { logger.warn('report: registro della partita %s illeggibile: %s', matchId, String(e)); return ''; }
+}
+function rpcReport(ctx, logger, nk, payload) {
+  if (!ctx.userId) throw Error('serve un accesso');
+  var dentro = {};
+  try { dentro = payload ? JSON.parse(payload) : {}; } catch (e) { dentro = {}; }
+
+  var motivo = String(dentro.motivo || '');
+  if (!_inElenco(REPORT_MOTIVI, motivo)) throw Error('motivo non valido');
+  var testo = _testoPulito(dentro.testo);
+  if (!testo) throw Error('serve una descrizione');
+
+  var matchId = _testoPulito(dentro.partita).slice(0, 80);
+  var accusato = _altroGiocatore(nk, logger, matchId, ctx.userId);
+  var accusatoNome = '';
+  if (accusato) {
+    // Il nome vero, chiesto al server. Quello che il client ha visto puo'
+    // essere cambiato nel frattempo, e comunque non e' lui a doverlo dire.
+    try {
+      var conti = nk.usersGetId([accusato]);
+      if (conti && conti.length) accusatoNome = conti[0].username || '';
+    } catch (eU) { logger.warn('report: nome di %s non letto: %s', accusato, String(eU)); }
+  }
+
+  var quando = Date.now();
+  var chiave = 'rep-' + quando + '-' + Math.floor(Math.random() * 1e6);
+  var numero = 1;
+  try {
+    var conto = leggiSistema(nk, KEY_REPORT_CONTO);
+    numero = ((conto && typeof conto.ultimo === 'number') ? conto.ultimo : 0) + 1;
+    scriviSistema(nk, KEY_REPORT_CONTO, { ultimo: numero });
+  } catch (eN) { logger.warn('numero del report non assegnato: %s', String(eN)); }
+
+  var report = {
+    numero: numero,
+    quando: quando,
+    chi: ctx.userId,
+    nome: ctx.username || '',
+    accusato: accusato,
+    accusatoNome: accusatoNome,
+    partita: matchId,
+    motivo: motivo,
+    testo: testo,
+    versione: _testoPulito(dentro.versione).slice(0, 20)
+  };
+  nk.storageWrite([{
+    collection: COLL_REPORT, key: chiave,
+    userId: '00000000-0000-0000-0000-000000000000',
+    value: report,
+    permissionRead: 0, permissionWrite: 0
+  }]);
+  logger.info('report da %s su %s (%s): %s', ctx.userId, accusato || '(ignoto)', motivo, chiave);
+  var spedita = _spedisciReport(nk, logger, report, chiave);
+  return JSON.stringify({ ricevuta: true, spedita: spedita, numero: numero });
+}
+
+// L'email. Stesso vestito della segnalazione di un difetto — stessa busta,
+// stesso marchio, stesso numero grosso in cima — perche' chi legge quella
+// casella non deve imparare due modi di leggere.
+function _reportRighe(s) {
+  return [
+    ['Reason', _etichetta(s.motivo)],
+    ['Reported', (s.accusato ? ((s.accusatoNome || '(no name)') + '  [' + s.accusato + ']')
+                             : 'NOT IDENTIFIED - no match on record')],
+    ['Reported by', (s.nome || '(no name)') + '  [' + s.chi + ']'],
+    ['Match', s.partita || '(none)'],
+    ['Version', s.versione || '?']
+  ];
+}
+function _spedisciReport(nk, logger, s, chiave) {
+  var cfg = _postaConfig(nk);
+  if (!cfg) { logger.info('posta non configurata: il report %s resta solo sul server', chiave); return false; }
+  var righe = _reportRighe(s);
+  var blocchi = [['What happened', s.testo]];
+  var piede = 'On the server: ' + COLL_REPORT + '/' + chiave;
+  var corpo = {
+    a: SEGN_DESTINATARIO,
+    oggetto: '[Hextale] Player report n. ' + s.numero + ' - ' + _etichetta(s.motivo),
+    testo: _postaTestoGenerico('Player report n. ' + s.numero, righe, blocchi, [piede]),
+    html: _postaHtmlGenerico('Player report n&deg; ' + s.numero, righe, blocchi, _html(piede)),
+    allegato: ''
+  };
+  return _spedisci(nk, logger, cfg, corpo, chiave);
 }
 
 // ── v0.79.8 — AZZERARE L'ATTESA DELLA BUSTINA, DAL MENU DI DEBUG ──────────
@@ -3668,6 +3838,21 @@ function _comincia(stato, dispatcher, logger, nk) {
       pubblico: _pubblico(stato)
     });
   }
+  // v0.79.70 — e si segna chi giocava contro chi. Vedi COLL_PARTITE: e' cio'
+  // che permette a una segnalazione di dire un nome invece di una lamentela.
+  // Non fa fallire l'inizio della partita: se non si riesce a scrivere, si
+  // perde la possibilita' di segnalare qualcuno in QUESTA partita — che e'
+  // molto meno grave di non farla cominciare.
+  try {
+    if (stato.matchId) {
+      nk.storageWrite([{
+        collection: COLL_PARTITE, key: stato.matchId,
+        userId: '00000000-0000-0000-0000-000000000000',
+        value: { giocatori: stato.giocatori.slice(), quando: Date.now() },
+        permissionRead: 0, permissionWrite: 0
+      }]);
+    }
+  } catch (eP) { logger.warn('registro della partita non scritto: %s', String(eP)); }
   logger.info('partita cominciata: %s contro %s, comincia il %d',
     stato.giocatori[0], stato.giocatori[1], stato.turno + 1);
 }
@@ -5412,6 +5597,7 @@ function InitModule(ctx, logger, nk, initializer) {
   initializer.registerRpc('hx_avatar', rpcAvatar);
   initializer.registerRpc('hx_bustina_azzera', rpcBustinaAzzera);
   initializer.registerRpc('hx_segnalazione', rpcSegnalazione);
+  initializer.registerRpc('hx_report', rpcReport);
   initializer.registerRpc('hx_accordo', rpcAccordo);
   initializer.registerRpc('hx_starter', rpcStarter);
   initializer.registerRpc('hx_posta_config', rpcPostaConfig);
