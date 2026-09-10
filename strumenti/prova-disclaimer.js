@@ -75,6 +75,16 @@ app.whenReady().then(async () => {
 
       const col = [...document.querySelectorAll('.disclaimer-col')];
       dice(col.length === 2, 'due colonne', 'ne ho contate ' + col.length);
+      // v0.79.66 — larghe il doppio di prima (erano 275). Non e- un numero
+      // scritto nel CSS: le colonne si dividono quel che resta dentro al
+      // riquadro, quindi si misura il risultato e non la regola.
+      // offsetWidth e non getBoundingClientRect: il gioco e- disegnato a
+      // 1920x1080 e poi SCALATO alla finestra, e il rettangolo a schermo porta
+      // dentro quella scala (549 invece di 550). offsetWidth e- la misura nel
+      // disegno, che e- quella di cui si sta parlando.
+      const larghe = col.map(c=>c.offsetWidth);
+      dice(larghe[0] === 550 && larghe[1] === 550, 'larghe 550 l-una, il doppio dei 275 di prima',
+        larghe.join(' e ') + '  (riquadro ' + document.getElementById('disclaimer-box').offsetWidth + ')');
 
       // Formattate come quelle della lettera: stesso fondo, stesso bordo,
       // stessi angoli, stessa trama.

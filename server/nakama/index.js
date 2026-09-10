@@ -630,7 +630,18 @@ var ACCORDO_TIPO = 'playtest_nca';
 // cambio di nome della parte che firma, dentro alla clausola sulla proprieta'
 // intellettuale: non e' una virgola, ed e' esattamente il caso per cui questo
 // numero esiste. Chi aveva accettato la 1.0 se lo rivede davanti una volta.
-var ACCORDO_VERSIONE = '1.1';
+//
+// v0.79.66 — 1.2, e il testo NON e' cambiato. E' l'unico salto di questo
+// numero che non racconta una clausola diversa, quindi va detto perche' esiste:
+// dalla v0.79.65 subito dopo la firma compare il disclaimer del prototipo (che
+// cosa pensiamo dell'arte fatta con l'IA, e cosa non si comprera' mai coi
+// soldi). Quel disclaimer non ha una memoria sua — sta attaccato alla firma —
+// quindi chi aveva gia' firmato non l'avrebbe visto mai. Alzare qui e' il modo
+// che questo meccanismo ha di dire "ripassate tutti da qui", ed e' una
+// decisione di Lorenzo del 10/09/2026.
+// Il prezzo e' che tutti rifirmano l'accordo, non solo leggono il disclaimer:
+// e' quello che chiedeva, e va saputo.
+var ACCORDO_VERSIONE = '1.2';
 
 function _accordoDi(nk, userId) {
   try {
