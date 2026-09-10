@@ -246,6 +246,42 @@ serve questo file con dieci minuti di cache, e senza il `?t=` la sorveglianza
 — che guarda ogni due minuti — rileggerebbe cinque volte di fila la stessa
 copia vecchia.
 
+## prova-gelo.js — le due lastre di ghiaccio
+
+    $ELECTRON strumenti/prova-gelo.js [scatto.png]
+
+In partita si congelano due cose, e sono due mestieri diversi: una **carta in
+mano** (Snow Queen, "Yo. Chill"), che vive in HTML dentro al ventaglio ed e'
+inclinata, si solleva al passaggio del mouse e si rimette in fila nella mano
+espansa; e un **tassello** in campo (Sherazade, "Cliffhanger"), che vive in SVG
+dentro al gruppo della sua cella, cade dall'alto a inizio partita, trema quando
+viene colpito e si solleva se Ali Baba lo prende.
+
+Le due lastre rispondono percio' alle stesse tre domande, e il banco le fa a
+tutte e due: **sono grandi quanto cio' che coprono** (non "circa": in pixel),
+**si fondono in `hard-light`**, e **seguono** cio' che coprono quando si sposta.
+
+La terza e' quella che nessuno controlla a mano, perche' a carta ferma non si
+vede: un overlay tenuto in pari a mano sembra perfetto finche' la cosa sotto
+non si muove, e si scolla al primo caso che nessuno aveva previsto. Qui il
+gruppo della cella viene spostato per davvero e la carta inclinata per davvero,
+e si guarda dove finisce il ghiaccio. Due trappole imparate scrivendola:
+la transizione della carta va **spenta** prima di misurare (`getBoundingClientRect`
+legge il fotogramma di adesso, cioe' ancora quello di partenza), e la seconda
+scrittura su `transform` va messa `important`, o sostituisce l'inclinazione del
+ventaglio invece di aggiungersi.
+
+Il banco allestisce la scena con `startGame`, non montandola a pezzi: `showPage`
+piu' `initGame` lascia `#app` spento — lo accende `startGame` — e il fondo del
+tavolo mai posato. La mano si vede lo stesso, perche' vive fuori da `#app`, e il
+tabellone resta nero: e' il modo piu' rapido per credere che sia il ghiaccio a
+non funzionare mentre meta' della scena non c'e'.
+
+Con un nome di file come argomento fa tre fotografie: la scena intera, la carta
+da vicino e il tassello da vicino. Per il ritratto la carta si solleva, perche'
+nel ventaglio sporge sotto al bordo dei 1080 e un ritaglio che esce dalla
+finestra torna **nero** senza dire perche'.
+
 ## prova-punti.js — i punti si contano come devono
 
     $ELECTRON strumenti/prova-punti.js

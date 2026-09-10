@@ -3203,42 +3203,15 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
 .hand-card-wrap.disabled .hand-card-hitzone{ cursor:var(--cursore); }
 /* v0.77.64 — LA CARTA CONGELATA (Regina delle Nevi).
    Deve dire due cose in un colpo d'occhio: che c'e' e che non si puo' giocare.
-   Il blocco di ghiaccio dice la prima, il cursore la seconda — e restano
-   scritte qui e non nel disegno della carta perche' il gelo e' uno stato del
-   momento, non un modo diverso di essere quella carta.
-
-   v0.79.63 — IL VELO AZZURRO E' DIVENTATO UNA LASTRA DI GHIACCIO.
-   Era un gradiente in `screen`: diceva "gelo" per convenzione, come una
-   tinta su un lucido. Adesso e' il disegno vero (frozen-card.png), steso
-   sulla carta alla SUA misura esatta — `inset:0`, quindi nasce e muore dove
-   nasce e muore la carta — e fuso in `hard-light`, che e' il modo di posare
-   una lastra sopra a un'immagine lasciandone passare il disegno: le parti
-   chiare del ghiaccio schiariscono, quelle scure scuriscono, e la figura
-   sotto continua a leggersi attraverso.
-
-   E' un ::after e non un elemento nel documento perche' il gelo deve seguire
-   la carta OVUNQUE vada senza che nessuno se ne occupi: il ventaglio la
-   inclina, il passaggio del mouse la solleva, la mano espansa la rimette in
-   fila. Tutte queste sono trasformazioni del wrap, e un figlio le eredita
-   per costruzione — mentre un secondo elemento tenuto in pari a mano si
-   sarebbe scollato al primo caso che nessuno aveva previsto.
-
-   `isolation:isolate` non e' un vezzo: senza, `hard-light` fonderebbe col
-   TAVOLO dietro alla mano invece che con la carta, e a seconda di cosa c'e'
-   sotto il ghiaccio cambierebbe colore. Isolando, il fondo della fusione e'
-   la carta e basta.
-
-   Resta l'alone azzurro: non e' parte della lastra, e' cio' che fa capire da
-   lontano — con la carta piccola e inclinata nel ventaglio — che li' c'e'
-   qualcosa che non si puo' giocare. La desaturazione invece se n'e' andata:
-   quel lavoro adesso lo fa il ghiaccio, e farlo due volte spegneva la carta. */
-.hand-card-wrap.congelata{ isolation:isolate; filter:drop-shadow(0 0 8px rgba(150,215,255,.75)); }
+   Il velo azzurro e la desaturazione dicono la prima, il cursore la seconda —
+   e restano scritte qui e non nel disegno della carta perche' il gelo e' uno
+   stato del momento, non un modo diverso di essere quella carta. */
+.hand-card-wrap.congelata{ filter:saturate(.35) brightness(1.06) drop-shadow(0 0 8px rgba(150,215,255,.75)); }
 .hand-card-wrap.congelata .hand-card-hitzone{ cursor:var(--cursore); }
 .hand-card-wrap.congelata::after{
-  content:''; position:absolute; inset:0; pointer-events:none;
-  background-image:url('https://hextalegame.com/cards/card-parts/frozen-card.png');
-  background-size:100% 100%; background-repeat:no-repeat; background-position:center;
-  mix-blend-mode:hard-light;
+  content:''; position:absolute; inset:0; pointer-events:none; border-radius:inherit;
+  background:linear-gradient(150deg, rgba(190,235,255,.34), rgba(120,190,255,.16) 55%, rgba(255,255,255,.28));
+  mix-blend-mode:screen;
 }
 .hand-card-img{
   position:absolute; inset:0; width:100%; height:100%;
@@ -11894,7 +11867,7 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.63</div>
+<div id="build-version-badge" onclick="openDebugModal()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.62</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <!-- v0.72.18 ("quando si clicca su inizia nuova partita... voglio che appaia
      un popup che ti chiede se vuoi iniziare la partita come giocatore Dark o
@@ -33389,11 +33362,6 @@ function initGame(vsAI){
     // Si copia da PARTITA_RETE, che a differenza di G non si rifa' a ogni
     // partita ed e' la sola cosa che sa davvero come ci ha chiamati il server.
     ioSonoIlNumero:(PARTITA_RETE ? (PARTITA_RETE.io || 1) : 1),
-    // v0.79.63 — i tasselli congelati: cella -> turno fino al quale lo sono.
-    // Vive dentro a G e non fuori perche' e' stato di QUESTA partita, e G e'
-    // quello che initGame rifa' da capo (vedi ioSonoIlNumero qui sopra, che e'
-    // l'unico che deve sopravvivere a quel giro).
-    gelo:{},
     // v0.78.13 — chi ha vinto, quando a dirlo e' il server (resa, abbandono) e
     // non il tabellone. Zero vuol dire "lo dicono i punti", che e' il caso
     // normale. Vedi fineDaRete.
@@ -33587,13 +33555,6 @@ function puoCalareSuBloccata(card){
 }
 function canPlace(q,r,card){
   if(isOccupied(q,r)) return false;
-  // v0.79.63 — un tassello congelato non accetta carte, e la risposta va data
-  // QUI e non nei due posti che posano una carta: canPlace e' anche cio' che
-  // decide quali celle si accendono, cosa vede l'IA e dove il trascinamento
-  // si lascia andare. Rispondendo altrove, la cella si sarebbe accesa lo
-  // stesso e la carta sarebbe tornata in mano senza che nessuno dicesse
-  // perche'.
-  if(cellaCongelata(key(q,r))) return false;
   if(!isHole(q,r)) return true;
   return puoCalareSuBloccata(card);
 }
@@ -36934,7 +36895,7 @@ function _effettoSemplice(e){
   // cio' che qualcuno esegue davvero.
   // v0.77.67 — chi sceglie lo dice "Player selection", non piu' "Which".
   if(e.scelta) return false;                             // la sceglie il giocatore: non e' roba da motore
-  if(e.azione === 'freeze' && (e.cosa === 'card' || e.cosa === 'tile')) return true;
+  if(e.azione === 'freeze' && e.cosa === 'card') return true;
   if(['buff','debuff','set'].indexOf(e.azione) < 0) return false;
   if(e.cosa && e.cosa !== 'power') return false;
   if(e.dove === 'drawn' || e.dove === 'deck') return false;
@@ -37038,27 +36999,6 @@ function cartaCongelata(card){
   return !!(card && card.congelataFinoAlTurno && (G.numeroTurno||1) < card.congelataFinoAlTurno);
 }
 
-// ── v0.79.63 — E UN TASSELLO PUO' ESSERE CONGELATO ────────────────────────
-// Sherazade ("Cliffhanger": freeze an empty tile for one turn). Il foglio la
-// descrive dalla v0.77.66 e il motore sapeva gia' produrre il cambiamento —
-// `senzaBersagli` in abilita-motore.js esce apposta per i tasselli, che il
-// motore non ha davanti — ma da questa parte nessuno lo eseguiva: il gioco
-// dichiarava di saper fare il gelo solo `cosa === 'card'`, quindi Sherazade
-// non passava nemmeno dal motore e la sua abilita' non e' mai successa.
-//
-// Si tiene con lo stesso metro della carta: un NUMERO DI TURNO, non una
-// bandiera con un contatore da far scendere. Un numero scade da solo, e una
-// partita che finisce non lascia niente da spegnere.
-function cellaCongelata(k){
-  return !!(G && G.gelo && G.gelo[k] && (G.numeroTurno||1) < G.gelo[k]);
-}
-// Le celle congelate ADESSO, in ordine: serve alla firma del tabellone e al
-// disegno, e in tutti e due i casi l'ordine deve essere sempre lo stesso o
-// due firme uguali sembrerebbero diverse.
-function celleCongelateOra(){
-  return Object.keys((G && G.gelo) || {}).filter(cellaCongelata).sort();
-}
-
 // ── v0.79.17 — DA CHI VIENE UN COLPO DECISO DAL MOTORE ────────────────────
 // Qui si passava la stringa 'abilita', che non e' una fonte: modificaValori si
 // aspetta un oggetto e legge `fonte.chiave`, quindi su una stringa non trovava
@@ -37082,40 +37022,10 @@ function _fonteDelFoglio(c){
   const id = f.id || nome || '?';
   return { chiave: 'foglio:' + id, da: nome, id: f.id || null };
 }
-// ── v0.79.63 — QUALE TASSELLO SI CONGELA ─────────────────────────────────
-// Il foglio dice `free`, cioe' "uno libero", e quanti. Non dice QUALE, e la
-// scelta non puo' essere a sorte: in rete i due client eseguono l'abilita'
-// ognuno per conto suo, e due sorteggi diversi vorrebbero dire due tabelloni
-// diversi — e' esattamente il difetto della sirenetta, chiuso nella v0.79.59
-// prendendo la prima invece di una a caso. Qui si fa lo stesso: `celleLibere`
-// e' gia' l'unica voce del gioco su cosa voglia dire "libera", e restituisce
-// sempre lo stesso ordine, perche' scorre G.cells che non si rimescola.
-//
-// QUALE cella sia la piu' giusta da congelare e' bilanciamento, e lo decide
-// Lorenzo: qui si e' scelto l'unico criterio che la rete permette senza
-// inventare un seme nuovo, non il piu' interessante.
-function congelaTasselli(c){
-  const quante = Math.max(1, (c.quanto && c.quanto.numero) || 1);
-  const libere = (typeof celleLibere === 'function' ? celleLibere() : [])
-    .filter(k => !cellaCongelata(k));
-  if(!libere.length) return;
-  if(!G.gelo) G.gelo = {};
-  // `c.turni` lo scrive il motore quando il foglio dichiara una finestra
-  // `for_turns`; Sherazade dice `always`, quindi resta uno — ed e' quello che
-  // la sua riga promette ("for one turn").
-  const fino = (G.numeroTurno||1) + (c.turni || 1);
-  for(let i = 0; i < quante && i < libere.length; i++) G.gelo[libere[i]] = fino;
-}
 function applicaCambiamenti(elenco){
   for(const c of (elenco || [])){
     if(!c) continue;
     if(c.azione === 'freeze'){
-      // v0.79.63 — il gelo su un TASSELLO arriva senza bersaglio: il motore
-      // non ha il tabellone davanti (vedi `senzaBersagli` in
-      // abilita-motore.js), quindi dice cosa fare e la cella la trova chi
-      // esegue. Prima questo ramo usciva su `!c.carta` e il cambiamento
-      // finiva nel nulla.
-      if(c.cosa === 'tile'){ congelaTasselli(c); continue; }
       if(!c.carta) continue;
       c.carta.congelataFinoAlTurno = (G.numeroTurno||1) + (c.turni || 1);
       continue;
@@ -50686,52 +50596,6 @@ function evidenziaBersaglio(svg, x, y, R){
 // ── TILE CELL DRAWING ───────────────────────────────────────────
 // Draws a hex cell with a tile image clipped to the hex shape.
 // Returns the clip-path overlay path for event handling.
-// ── v0.79.63 — LA LASTRA DI GHIACCIO SU UN TASSELLO ──────────────────────
-// Stessa idea della carta in mano, e stesse tre regole: la MISURA e' quella
-// del tassello (lo stesso riquadro e lo stesso ritaglio esagonale che usa la
-// sua immagine, non un esagono ricalcolato qui), la FUSIONE e' `hard-light`,
-// e il gelo SEGUE il tassello dovunque vada.
-//
-// Seguirlo non e' una promessa: si appende al gruppo della cella, che e'
-// l'elemento che ogni animazione della plancia muove — la caduta dei tasselli
-// a inizio partita, la scossa di chi viene colpito, il sollevamento di Ali
-// Baba. Muovendo quello si muove anche il ghiaccio, senza che nessuno debba
-// ricordarsene.
-//
-// `isolation:isolate` sul gruppo per la stessa ragione della carta: senza,
-// `hard-light` fonderebbe con tutto quello che sta sotto nell'SVG — le celle
-// gia' disegnate — invece che col tassello di questa cella soltanto.
-function disegnaGeloCella(svg, x, y, R, uid){
-  const ri = R - BOARD_GAP;
-  const corners = hexCorners(x, y, ri);
-  const pts = corners.map(p=>`${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ');
-  const defs = svg.querySelector('defs') || (()=>{
-    const d=svgEl('defs'); svg.insertBefore(d,svg.firstChild); return d;
-  })();
-  const clipId = 'clip-gelo-'+uid;
-  const clipPath = document.createElementNS('http://www.w3.org/2000/svg','clipPath');
-  clipPath.setAttribute('id', clipId);
-  const clipPoly = svgEl('polygon');
-  clipPoly.setAttribute('points', pts);
-  clipPath.appendChild(clipPoly);
-  defs.appendChild(clipPath);
-  const xs = corners.map(p=>p.x), ys = corners.map(p=>p.y);
-  const minX=Math.min(...xs), minY=Math.min(...ys);
-  const w=Math.max(...xs)-minX, h=Math.max(...ys)-minY;
-  const img = document.createElementNS('http://www.w3.org/2000/svg','image');
-  img.setAttribute('href', CARD_PARTS_BASE + 'frozen-tile.png');
-  img.setAttribute('x', minX); img.setAttribute('y', minY);
-  img.setAttribute('width', w); img.setAttribute('height', h);
-  // `slice` e non `meet`: e' la stessa parola che usa l'immagine del tassello
-  // qui sotto, ed e' quella che garantisce che le due coprano lo stesso
-  // riquadro invece di lasciare una fascia scoperta su un lato.
-  img.setAttribute('preserveAspectRatio','xMidYMid slice');
-  img.setAttribute('clip-path',`url(#${clipId})`);
-  img.style.mixBlendMode = 'hard-light';
-  img.style.pointerEvents = 'none';
-  svg.appendChild(img);
-  return img;
-}
 function drawTileCell(svg, x, y, R, imgSrc, uid, placeable){
   const ri = R - BOARD_GAP;
   const corners = hexCorners(x, y, ri);
@@ -51188,11 +51052,6 @@ function firmaTabellone(){
     // tassello disegnato sotto la carta.
     rotte: G.destroyedHoles ? [...G.destroyedHoles].sort() : [],
     magiche: G.magicTiles ? Object.keys(G.magicTiles).sort() : [],
-    // v0.79.63 — e quali sono congelate. Senza questa riga il gelo non si
-    // vedrebbe comparire ne' sparire: la firma resterebbe identica e
-    // renderBoard concluderebbe che non c'e' niente da ridisegnare. E' la
-    // lezione scritta due capoversi piu' sotto, e vale anche qui.
-    gelate: celleCongelateOra(),
     // La selezione e il trascinamento accendono l'evidenziazione delle celle
     // giocabili e l'anteprima dei valori.
     scelta: G.selected && G.selected.card ? G.selected.card.id : null,
@@ -51760,15 +51619,6 @@ function renderBoard(){
         ? tileVariant(TILE_FIXED,q,r)
         : tasselloLibero(k,q,r);
       const poly=drawTileCell(svg,x,y,R,tileSrc,k+'f',placeable);
-      // v0.79.63 — e sopra, se e' congelata, la lastra di ghiaccio. Va qui e
-      // non in fondo al ramo: in SVG l'ordine del documento e' l'ordine di
-      // disegno, e il ghiaccio deve stare sopra al tassello e sotto ai cerchi
-      // invisibili con cui si prende la mira (che sono trasparenti, quindi
-      // non coprono niente, ma devono restare raggiungibili dal puntatore).
-      if(cellaCongelata(k)){
-        cellGroup.style.isolation = 'isolate';
-        disegnaGeloCella(svg,x,y,R,k+'f');
-      }
       // Tagged so the Distruggere attack sequence (see doDistruggi) can find
       // THIS cell's overlay polygon right after the wall comes down — by the
       // time doDistruggi's strike-instant renderBoard() runs, G.holes.delete
