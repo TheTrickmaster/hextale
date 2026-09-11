@@ -1715,3 +1715,13 @@ col suono dei soldi due volte. Nell'etichetta l'icona dell'inchiostro sta fra la
 parola e il numero, quindi il testo ha due spazi: il banco li compatta — e dentro
 al corpo del banco la barra si scrive `\s`, perche' il corpo e' un template
 literal e `\s` perderebbe la barra.
+
+**v0.79.92 — "New" solo alla prima copia.** Una carta e' nuova se e' fra le
+sbustate e non fra le viste; ma le carte del mazzo starter (e tutte, per un
+admin) non erano mai state sbustate e quindi nemmeno viste, e la prima volta che
+uscivano da un pacchetto si accendevano come nuove pur essendo in Libreria da
+sempre. `prova-livelli-server.js` controlla che una carta starter uscita da un
+pacchetto non sia nuova e una mai avuta si'; che una sbustata e non ancora
+guardata resti nuova con la seconda copia, e una guardata no; che la migrazione
+(`novitaVersione`) spenga le starter accese a torto lasciando accese quelle
+davvero nuove, una volta sola; e che per un admin si spengano tutte.

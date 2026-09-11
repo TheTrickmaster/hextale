@@ -80,6 +80,10 @@ dice(p.copie.a === 2, 'una carta del mazzo starter pescata vale la SECONDA copia
   'copie di a: ' + p.copie.a + ' (fino alla v0.79.89 era 1: lo starter non contava)');
 dice(p.copie.d === 1, 'e una carta nuova la prima', 'copie di d: ' + p.copie.d);
 dice(r.speso === 50 && p.valute.magicInk === 950, 'tenerne due costa ancora la meno cara', 'speso ' + r.speso);
+// v0.79.92 — "New" solo alla prima copia: a era gia' nella Libreria (starter).
+dice(r.nuove.indexOf('a') < 0, 'una carta del mazzo starter uscita da un pacchetto NON e- nuova',
+  'nuove: ' + JSON.stringify(r.nuove) + ' (fino alla v0.79.91 lo era: nessuno l-aveva mai segnata vista)');
+dice(r.nuove.indexOf('d') >= 0, 'una carta mai avuta si');
 dice(r.copie.a === 2 && r.possedute.a === 1,
   'la risposta porta le copie, e il livello NON sale da solo', 'a: ' + r.copie.a + ' copie, livello ' + r.possedute.a);
 
@@ -173,6 +177,35 @@ ctx.assicuraPossesso(chi('u4'), nk, logger, 'u4', 'u4');
 dice(!magazzino.possesso.u4 || !magazzino.possesso.u4.livelliCarte,
   'senza catalogo la migrazione non si segna come fatta', 'Al prossimo avvio ci si riprova.');
 ctx.leggiSistema = catalogoVero;
+
+// ── 4b. "NEW" SOLO ALLA PRIMA COPIA ───────────────────────────────────────
+// Una gia' sbustata e non ancora guardata resta nuova anche con un'altra copia:
+// la sua prima copia e' ancora da vedere.
+magazzino.possesso.u6 = { admin: false, mazzi: [1], livello: 1, livelliCarte: 1, novitaVersione: 1,
+  valute: { magicInk: 0, fairyDust: 0 }, avatar: 'x', carte: { d: 1 }, copie: { d: 1 }, viste: {} };
+magazzino.bustina.u6 = { carte: ['d', 'b', 'c'], prezzi: { d: 1000, b: 200, c: 500 }, tipo: 'daily' };
+r = JSON.parse(ctx.rpcBustinaRaccogli(chi('u6'), logger, nk, JSON.stringify({ tieni: ['d'] })));
+dice(r.nuove.indexOf('d') >= 0, 'una carta sbustata e non ancora guardata resta nuova con la seconda copia', JSON.stringify(r.nuove));
+// Guardata, un'altra copia non la riaccende.
+magazzino.possesso.u6.viste = { d: 1 };
+magazzino.bustina.u6 = { carte: ['d', 'b', 'c'], prezzi: { d: 1000, b: 200, c: 500 }, tipo: 'daily' };
+r = JSON.parse(ctx.rpcBustinaRaccogli(chi('u6'), logger, nk, JSON.stringify({ tieni: ['d'] })));
+dice(r.nuove.indexOf('d') < 0, 'e una gia- guardata non torna nuova', JSON.stringify(r.nuove));
+// Chi c'era gia': le carte starter accese a torto si spengono, le altre no.
+magazzino.possesso.u5 = { admin: false, mazzi: [1], livello: 1, livelliCarte: 1,
+  valute: { magicInk: 0, fairyDust: 0 }, avatar: 'x',
+  carte: { a: 1, b: 1, d: 1 }, copie: { a: 2, b: 2, d: 1 }, viste: { b: 1 } };
+p = ctx.assicuraPossesso(chi('u5'), nk, logger, 'u5', 'u5');
+dice(p.viste.a === 1 && !p.viste.d && JSON.stringify(ctx._nuoveDi(p, null)) === '["d"]',
+  'chi c-era gia-: la carta starter accesa a torto si spegne, quella davvero nuova resta', 'nuove: ' + JSON.stringify(ctx._nuoveDi(p, null)));
+dice(magazzino.possesso.u5.novitaVersione === 1, 'una volta sola');
+// Un admin ha tutte le carte: per lui nessuna sbustata e- una prima copia.
+ctx.eAdmin = () => true;
+magazzino.possesso.u7 = { admin: true, mazzi: [1], livello: 4, semeAdmin: 999, livelliCarte: 1,
+  valute: { magicInk: 0, fairyDust: 0 }, avatar: 'x', carte: { d: 1 }, copie: {}, viste: {} };
+p = ctx.assicuraPossesso(chi('u7'), nk, logger, 'u7', 'u7');
+dice(p.viste.d === 1, 'e per un admin, che le ha tutte, si spengono tutte');
+ctx.eAdmin = () => false;
 
 // ── 5. IN PARTITA, CARTA PER CARTA ────────────────────────────────────────
 const stato = {

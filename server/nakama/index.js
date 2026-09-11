@@ -540,6 +540,12 @@ function assicuraPossesso(ctx, nk, logger, userId, username) {
     // v0.79.90 — chi c'era prima dei livelli sale subito a quello che le sue
     // copie gli danno, e riceve la copia dello starter che lo sbusto non
     // contava. Vedi _migraLivelliCarte.
+    // v0.79.92 — le carte che si avevano gia' e che lo sbusto aveva acceso come
+    // nuove si spengono. Vedi _migraNovita.
+    if ((attuale.novitaVersione || 0) < NOVITA_VERSIONE && _migraNovita(nk, logger, attuale)) {
+      attuale.novitaVersione = NOVITA_VERSIONE;
+      daRiscrivere = true;
+    }
     if ((attuale.livelliCarte || 0) < LIVELLI_CARTE_VERSIONE && _migraLivelliCarte(nk, logger, attuale)) {
       attuale.livelliCarte = LIVELLI_CARTE_VERSIONE;
       daRiscrivere = true;
@@ -570,7 +576,9 @@ function assicuraPossesso(ctx, nk, logger, userId, username) {
     bustineExtra: admin ? 1 : 0,
     bustineTesoro: admin ? 1 : 0,
     // v0.79.90 — nato coi livelli delle carte: niente da migrare.
-    livelliCarte: LIVELLI_CARTE_VERSIONE
+    livelliCarte: LIVELLI_CARTE_VERSIONE,
+    // v0.79.92 — e niente novita' accese a torto da spegnere.
+    novitaVersione: NOVITA_VERSIONE
   };
   scriviPossesso(nk, userId, possesso);
   // v0.77.84 — e il mazzo si crea GIA' FATTO.
@@ -2566,6 +2574,40 @@ function _migraLivelliCarte(nk, logger, possesso) {
   return true;
 }
 
+// ── v0.79.92 — "NEW" SOLO ALLA PRIMA COPIA ───────────────────────────────
+// Regola di Lorenzo: il nastro New si accende solo quando una carta entra in
+// Libreria per la prima volta. Una carta del mazzo starter ci sta da sempre, e
+// un admin le ha tutte; ma nessuna delle due era mai stata SBUSTATA, quindi
+// nessuno l'aveva mai segnata vista (l'elenco delle viste nasce da quelle
+// sbustate, vedi assicuraPossesso). La prima volta che usciva da un pacchetto
+// entrava fra le sbustate senza essere fra le viste, e si accendeva come nuova.
+// Lo sbusto adesso la segna vista (vedi rpcBustinaRaccogli); qui si spengono,
+// una volta sola, quelle gia' accese a torto.
+// Una carta non starter sbustata e non ancora guardata resta nuova: la sua
+// prima copia e' ancora da vedere.
+var NOVITA_VERSIONE = 1;
+function _migraNovita(nk, logger, possesso) {
+  var carte = possesso.carte || {};
+  if (!possesso.viste) possesso.viste = {};
+  var perSlug = {};
+  if (!possesso.admin) {
+    var catalogo = null;
+    try { catalogo = leggiSistema(nk, KEY_CATALOGO); } catch (e) { catalogo = null; }
+    if (!catalogo || !catalogo.carte) return false;
+    for (var i = 0; i < catalogo.carte.length; i++) perSlug[catalogo.carte[i].slug] = catalogo.carte[i];
+  }
+  var spente = [];
+  for (var slug in carte) {
+    if (!Object.prototype.hasOwnProperty.call(carte, slug) || possesso.viste[slug]) continue;
+    if (possesso.admin || _eDelloStarter(perSlug[slug], possesso)) {
+      possesso.viste[slug] = 1;
+      spente.push(slug);
+    }
+  }
+  if (logger && spente.length) logger.info('novita spente perche\' gia\' possedute: %s', spente.join(', '));
+  return true;
+}
+
 // Cosa possiede un giocatore, dato il catalogo e il suo profilo. Un admin ha
 // tutto al livello massimo; gli altri le carte dei mazzi starter che hanno.
 // ══════════════════════════════════════════════════════════════════════════
@@ -2888,6 +2930,7 @@ function rpcBustinaRaccogli(ctx, logger, nk, payload) {
   // carta e' arrivata e il conto no.
   var rimborso = 0;
   var rimborsate = [];
+  if (!possesso.viste) possesso.viste = {};
   for (var j = 0; j < tieni.length; j++) {
     var tenuta = tieni[j];
     if (vendute[tenuta]) {
@@ -2897,6 +2940,12 @@ function rpcBustinaRaccogli(ctx, logger, nk, payload) {
     } else {
       possesso.copie[tenuta] = copiePrima[tenuta] + 1;
     }
+    // v0.79.92 — "New" solo alla prima copia. Una carta che si aveva gia' ma
+    // che non era mai stata sbustata (mazzo starter, o tutte per un admin) entra
+    // adesso fra le sbustate: senza questa riga sarebbe nuova, perche' nessuno
+    // l'aveva mai segnata vista. Una gia' sbustata e non ancora guardata resta
+    // nuova com'era. Vedi _migraNovita.
+    if (copiePrima[tenuta] > 0 && !((possesso.carte[tenuta] || 0) > 0)) possesso.viste[tenuta] = 1;
     possesso.carte[tenuta] = Math.max(possesso.carte[tenuta] || 0, LIVELLO_SBUSTATA);
   }
   valute.magicInk += rimborso;
