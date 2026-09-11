@@ -1774,3 +1774,21 @@ solo le tenute. Il banco veste le carte del pagamento col loro cartellino — se
 non c'e' nessuna tacca da riempire e il ramo della pausa non si prova — prende la
 scartata PRIMA di raccogliere e controlla che dopo 300ms stia svanendo mentre le
 tenute sono ancora tenute.
+
+**v0.79.95 — i suoni muti.** `playSfxFile` suona solo cio' che e' stato
+registrato: in `SUONI_SFX_EXTRA` (precaricato, cercato prima accanto al gioco e
+poi sul repository), in `AUDIO_DATA_URLS`, o fra i `SUONI_EXTRA` delle voci. Un
+nome che non sta in nessuno dei tre cade sul ripiego `assets/audio/sfx/`, che
+accanto al gioco non esiste, e resta muto con un avviso in console — e leggendo
+il codice la chiamata c'e' e sembra tutto a posto. Cosi' non si sentivano i
+fuochi della salita di livello (se n'e' accorto Lorenzo), `quest-collected`,
+`card-draw` e `card-drop`. `prova-livelli.js` legge adesso il copione della
+pagina, raccoglie ogni `playSfxFile('...')` scritto per nome e controlla che sia
+registrato. Non vede i nomi costruiti a runtime (i whoosh per rarita' passano da
+una tabella): per quelli vale il loro elenco.
+
+**v0.79.95 — prova-pacchetti.js.** Comprato un pacchetto, la sua casella (l'ultimo
+tesoro della fila) lampeggia e pulsa una volta (`pkComprato`: brightness 1,9 e
+scale 1,06 al 22%, bordo d'oro, .55s). Il banco compra con una risposta finta del
+server e controlla che si accenda il tesoro nuovo e non l'altro, e legge i
+fotogrammi-chiave.

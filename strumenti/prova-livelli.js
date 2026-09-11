@@ -76,6 +76,27 @@ app.whenReady().then(async () => {
       CARTE_POSSEDUTE = {}; CARTE_POSSEDUTE[A.slug] = 1; CARTE_POSSEDUTE[B.slug] = 1; CARTE_POSSEDUTE[C.slug] = 2; CARTE_POSSEDUTE[D.slug] = 4;
       CARTE_COPIE = {}; CARTE_COPIE[A.slug] = 1; CARTE_COPIE[B.slug] = 2; CARTE_COPIE[C.slug] = 4; CARTE_COPIE[D.slug] = 9;
 
+      // ── 0. I SUONI ────────────────────────────────────────────────────────
+      // v0.79.95 — playSfxFile suona solo cio- che e- stato registrato (in
+      // SUONI_SFX_EXTRA, in AUDIO_DATA_URLS o fra i SUONI_EXTRA delle voci). Un
+      // nome che non c-e- resta muto con un avviso in console, e leggendo il
+      // codice sembra tutto a posto: e- successo ai fuochi della salita.
+      const copione = [...document.scripts].map(s => s.text).join(' ');
+      const suonati = new Set();
+      let da = 0;
+      while((da = copione.indexOf("playSfxFile('", da)) >= 0){
+        da += 13;
+        suonati.add(copione.slice(da, copione.indexOf("'", da)).split('.')[0]);
+      }
+      const registrati = new Set([].concat(
+        SUONI_SFX_EXTRA.map(n => String(n).split('.')[0]),
+        Object.keys(AUDIO_DATA_URLS),
+        (typeof SUONI_EXTRA !== 'undefined' ? SUONI_EXTRA : []).map(n => String(n).split('.')[0])));
+      const muti = [...suonati].filter(n => !registrati.has(n));
+      dice(suonati.size > 10 && muti.length === 0, 'ogni suono che il gioco chiama e- registrato, e quindi si sente',
+        muti.length ? 'muti: ' + muti.join(', ') : suonati.size + ' suoni, tutti registrati');
+      dice(['fireworks', 'score', 'card-flip', 'quest-collected', 'kaching'].every(n => registrati.has(n)), 'compresi quelli della salita di livello');
+
       // ── 1. A CHE PUNTO E- UNA CARTA ───────────────────────────────────────
       const sa = statoLivelloCarta(A), sb = statoLivelloCarta(B), sc = statoLivelloCarta(C), sd = statoLivelloCarta(D), sn = statoLivelloCarta(N);
       dice(sa.livello === 1 && sa.segmenti === 2 && sa.pieni === 1 && !sa.pronto && sa.mancano === 1,

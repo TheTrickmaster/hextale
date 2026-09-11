@@ -682,6 +682,21 @@ app.whenReady().then(async () => {
     "  tornaAllaBustina();",
     "  dice(!bustaSolleva('zuppa', 900, 500), 'e un tipo che non esiste non si prende affatto');",
 
+    // ── v0.79.95 — il pacchetto comprato si accende ──────────────────────
+    "  BUSTINE_VINTE = 1; BUSTINE_TESORO = 1; pkDisegnaTutto();",
+    "  var rpcCompra = nakamaRpc, sessCompra = sessioneAccount;",
+    "  sessioneAccount = { token: 'finto' }; MENU_GIOCATORE.magicInk = 9999;",
+    "  nakamaRpc = function(nome){ return Promise.resolve(nome === 'hx_bustina_compra' ? { bustineTesoro: 2, valute: { magicInk: 9899, fairyDust: 9999 } } : {}); };",
+    "  await compraPacchetto();",
+    "  var tesori = qa('#pk-tutti .pk-slot.pk-pieno[data-tipo=treasure]');",
+    "  dice(tesori.length === 2 && tesori[1].classList.contains('pk-comprato') && !tesori[0].classList.contains('pk-comprato'), 'comprato un pacchetto, la sua casella si accende e pulsa, e solo lei', tesori.length + ' tesori');",
+    "  var kComprato = regole.filter(function(r){ return r.type === CSSRule.KEYFRAMES_RULE && r.name === 'pkComprato'; })[0];",
+    "  var passoForte = kComprato && [].slice.call(kComprato.cssRules).filter(function(k){ return k.keyText === '22%'; })[0];",
+    "  dice(passoForte && passoForte.style.filter.indexOf('brightness') >= 0 && passoForte.style.scale === '1.06', 'con un lampo e un battito', passoForte && passoForte.cssText);",
+    "  var rComprato = regole.filter(function(r){ return r.selectorText === '.pk-slot.pk-pieno.pk-comprato'; })[0];",
+    "  dice(rComprato && rComprato.style.animationIterationCount === '1', 'una volta sola', rComprato && rComprato.style.animation);",
+    "  nakamaRpc = rpcCompra; sessioneAccount = sessCompra;",
+
     // ── i tre pulsanti nel menu di debug ─────────────────────────────────
     "  var etichette = qa('#debug-modal-overlay .hxb-label').map(function(e){ return e.textContent.trim(); });",
     "  dice(etichette.indexOf('Add 100 magic ink') !== -1, 'c-e- il pulsante dell-inchiostro');",

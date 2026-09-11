@@ -8142,18 +8142,6 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
   border-color:#E6CA8E;
   filter:brightness(1.12);
 }
-/* v0.79.95 — il pacchetto appena comprato: un lampo e un battito, una volta. E'
-   lo stesso gesto delle figure di "Match found!" (trovatoArrivo), un po' piu'
-   acceso perche' e' una casella e non un personaggio. "scale" e non transform:
-   la casella non ne ha una sua, ma se un domani l'avesse questo battito non la
-   cancellerebbe. Il bordo d'oro dell'hover passa per un istante: e' il segno
-   che la casella e' "viva". */
-@keyframes pkComprato{
-  0%   { filter:brightness(1);   scale:1;    border-color:#4E5455; }
-  22%  { filter:brightness(1.9); scale:1.06; border-color:#E6CA8E; }
-  100% { filter:brightness(1);   scale:1;    border-color:#4E5455; }
-}
-.pk-slot.pk-pieno.pk-comprato{ animation:pkComprato .55s ease-out 1; }
 /* Il pacchetto a tempo non ancora maturo. Non e' una casella vuota — una
    casella vuota vuol dire "qui non c'e' niente", e qui invece c'e' qualcosa
    che sta arrivando — quindi tiene la busta, spenta, e al posto del nome
@@ -13046,7 +13034,7 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.95</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.94</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <!-- v0.79.75 — dove salgono gli avvisi delle quest. Vuoto quasi sempre, e
@@ -28059,18 +28047,7 @@ const SUONI_SFX_EXTRA = Object.values(WHOOSH_PER_RARITA)
            'impact-1.wav', 'impact-2.wav', 'impact-3.wav', 'impact-4.wav',
            // v0.79.46 — e il colpo che ROMPE il sigillo, che non e' uno dei
            // quattro: quelli sono martellate, questo e' la ceralacca che cede.
-           'break-seal.mp3',
-           // v0.79.95 — QUATTRO SUONI CHE NON SI SENTIVANO. Chiamati da
-           // playSfxFile e mai registrati, ne' qui ne' in AUDIO_DATA_URLS: il
-           // ripiego cerca assets/audio/sfx/, che accanto al gioco non esiste,
-           // e resta muto con un avviso in console. Se n'e' accorto Lorenzo coi
-           // fuochi della salita di livello; gli altri tre li ha trovati il banco
-           // (prova-livelli.js confronta ogni playSfxFile con questi elenchi).
-           //   fireworks        i fuochi della salita di livello
-           //   quest-collected  la quest riscossa, e la finestra della salita
-           //   card-draw        la carta pescata (c'era un <audio> col suo
-           //   card-drop        indirizzo, ma playSfxFile non lo guarda)
-           'fireworks.mp3', 'quest-collected.mp3', 'card-draw.mp3', 'card-drop.mp3']);
+           'break-seal.mp3']);
 const SFX_REL = '../audio/sfx/';   // vedi ART_REL
 const SFX_BASE = 'https://hextalegame.com/audio/sfx/';
 function registraSuoniExtra(){
@@ -31227,35 +31204,6 @@ function pkAggiornaPulsanteCompra(){
   if(btn) btn.classList.toggle('pk-spento', MENU_GIOCATORE.magicInk < PACCHETTO_PREZZO);
 }
 
-// ── v0.79.95 — IL PACCHETTO COMPRATO SI ACCENDE ───────────────────────────
-// Richiesta di Lorenzo: comprato un pacchetto, la casella che compare deve
-// lampeggiare e pulsare una volta. E' la conferma che l'acquisto e' andato a
-// buon fine e il modo di dire DOVE e' finito il pacchetto: la fila si ricostruisce
-// tutta, e senza un segno il nuovo e' una casella uguale alle altre.
-// Il nuovo e' l'ULTIMO tesoro: la fila mette prima i premi e poi i tesori (vedi
-// pkDisegnaTutti). La fila, ricostruendosi, torna in testa: se il nuovo sta oltre
-// il bordo, scorre quanto basta a mostrarlo, o il lampo si accenderebbe fuori
-// vista.
-function pkEvidenziaComprato(){
-  const pista = document.getElementById('pk-tutti');
-  if(!pista) return null;
-  const tesori = pista.querySelectorAll('.pk-slot.pk-pieno[data-tipo="treasure"]');
-  const nuova = tesori[tesori.length - 1];
-  if(!nuova) return null;
-  const vista = document.querySelector('.pk-gruppo-tutti .pk-vista');
-  if(vista && pkPuoScorrere()){
-    const indice = Array.prototype.indexOf.call(pista.children, nuova);
-    const destra = (indice + 1) * PK_LARGA + indice * PK_STACCO;
-    _pkScorrimento = -Math.max(0, destra - vista.clientWidth);
-    pkApplicaScorrimento(false);
-  }
-  nuova.classList.remove('pk-comprato');
-  void nuova.offsetWidth;
-  nuova.classList.add('pk-comprato');
-  nuova.addEventListener('animationend', () => nuova.classList.remove('pk-comprato'), { once:true });
-  return nuova;
-}
-
 // ── Comprare un treasure pack ─────────────────────────────────────────────
 // Il prezzo lo applica il server, che e' l'unico che puo': qui si chiede, si
 // aspetta la risposta, e si scrive quello che il server dice di avere. Un
@@ -31275,8 +31223,6 @@ async function compraPacchetto(){
     lampeggiaValuta('ink');
     contaValutaAllIndietro('ink', prima, MENU_GIOCATORE.magicInk);
     pkDisegnaTutto();
-    // v0.79.95 — e la casella del pacchetto appena comprato si accende.
-    pkEvidenziaComprato();
   }catch(e){
     toast('Non si e- potuto comprare: ' + ((e && e.message) || 'errore'));
   }finally{
