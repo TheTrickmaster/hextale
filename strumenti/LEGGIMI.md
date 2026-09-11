@@ -1876,3 +1876,46 @@ giusta anche d'ufficio, e la carta ricostruita di la' identica a quella di qua.
 Quello del server legge il foglio (bersaglio per numero e per nome), accetta la
 giocata col nome del mazzo, rifiuta una forma inventata e lascia com'era un
 client che la forma non la manda.
+
+## prova-barra-tempo.js — la barra del tempo ha tre stati
+
+    desktop/node_modules/electron/dist/electron.exe strumenti/prova-barra-tempo.js
+
+Regola di Lorenzo (v0.80.0): durante il turno la barra si svuota piano; nel
+cambio turno sta ferma; al cambio turno torna piena di colpo, senza
+transizione. E "a volte rimbalza avanti e indietro senza motivo".
+
+La larghezza non si ricava piu' dai secondi interi con un secondo di
+transizione CSS: la tiene BARRA_TEMPO (corre / ferma / piena), disegnata a ogni
+fotogramma. Una scadenza corretta a turno in corso non la fa saltare: riparte
+da dove si trova verso la scadenza nuova. endTurn la ferma per prima cosa
+(fermaIlConto), startTurn la riempie, startTimer la fa correre. Il battito del
+server (reteAllineaTimer) corregge solo il turno che sta davvero correndo: a
+carta giocata portava gia' la scadenza del turno dopo, e la barra risaliva.
+
+Il banco campiona la larghezza vera: niente transizioni su maschera e pallino,
+discesa a piccoli passi e mai in salita, ferma quando e' ferma, piena nello
+stesso istante, in rete piena anche se il server ha cominciato prima, e il
+battito che non la sposta a carta giocata o sotto al banner.
+
+## prova-anteprima-caso.js e server/nakama/prova-caso.js — il caso e' caso, e non si mostra prima
+
+    desktop/node_modules/electron/dist/electron.exe strumenti/prova-anteprima-caso.js
+    node server/nakama/prova-caso.js
+
+Segnalazione di Lorenzo (v0.80.0): copiando o rubando il Genio, la carta che
+copiava buffava gli stessi gruppi. L'hash del motore (_semeDi) moltiplicava in
+virgola mobile e perdeva i bit bassi: su due gruppi il primo usciva 171 volte su
+200. Adesso la moltiplicazione e' a 32 bit vera e i bit si rimescolano alla fine;
+l'occasione (_occasione) contiene anche il turno e la carta che agisce, e "set
+1-3" e "or" tirano col seme invece che con Math.random (in rete i due client
+tiravano numeri diversi). Il banco del motore controlla la distribuzione,
+l'hash contro Math.imul, il Genio contro chi lo copia, la stessa carta turno
+dopo turno, la ripetibilita' fra due client e i segni `aCaso` / `fraChi`.
+
+E la regola dell'anteprima: un valore a caso si vede solo dopo aver giocato. I
+cambiamenti marcati `aCaso` nella simulazione non si applicano; le carte che
+potrebbero toccare (tutte le candidate, se il bersaglio e' pescato a caso)
+mostrano il punto interrogativo — la carta trascinata, quelle in campo e
+quelle in mano. Il "?" ha il bordo bianco sulla carta chiara. Il banco del
+client usa un Genio, una Ginevra, un Leone e un +2 ALL finti.

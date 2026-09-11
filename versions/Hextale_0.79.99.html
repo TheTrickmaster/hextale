@@ -2398,12 +2398,7 @@ body.mouse-down, body.mouse-down *{
 #timer-fill-mask{
   position:absolute; left:10px; top:0; width:1900px; height:12px;
   border-radius:6px; overflow:hidden;
-  /* v0.79.99 — la larghezza NON transita piu'. Si scriveva un numero intero
-     di secondi con un secondo di transizione, e ogni correzione — il battito
-     del server, la scadenza vera che arrivava dopo il riempimento — diventava
-     un secondo di barra che tornava indietro e poi riprendeva: il rimbalzo
-     segnalato da Lorenzo. La scrive BARRA_TEMPO a ogni fotogramma. */
-  transition:background-color .2s ease;
+  transition:background-color .2s ease, width 1s linear;
 }
 #timer-fill-img{
   display:block; width:1922px; height:12px; max-width:none;
@@ -2655,9 +2650,7 @@ body.mouse-down, body.mouse-down *{
      blu del timer parte disallineato... qualche pixel di troppo a destra".
      Fallback now matches the real starting value exactly. */
   left:var(--timer-x,1910px);
-  /* v0.79.99 — nessuna transizione: la posizione la scrive la barra a ogni
-     fotogramma (vedi BARRA_TEMPO), e una transizione sopra la farebbe
-     inseguire se stessa con un secondo di ritardo. */
+  transition:left 1s linear;
   pointer-events:none; user-select:none;
 }
 /* Larger invisible hover-hit-area (bar itself is only 12px tall) spanning
@@ -13010,7 +13003,7 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.0</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.99</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <!-- v0.79.75 — dove salgono gli avvisi delle quest. Vuoto quasi sempre, e
@@ -17519,21 +17512,9 @@ function reteAllineaTimer(){
   // `timerDeadline` un sessantesimo di secondo dopo: la correzione durava un
   // fotogramma e non arrivava mai a schermo. Il dato da correggere e' la
   // SCADENZA, che e' quella da cui i secondi si ricavano.
-  // ── v0.79.99 — MA SOLO DEL TURNO CHE STA CORRENDO ─────────────────────
-  // Il server passa il turno nell'istante in cui accetta la giocata, quindi
-  // mentre la carta e' ancora in volo e lo scontro si risolve il suo battito
-  // porta gia' la scadenza del turno DOPO. Applicarla qui faceva risalire la
-  // barra a meta' risoluzione, e il cambio turno la riportava giu' un attimo
-  // dopo: il rimbalzo "senza motivo" segnalato da Lorenzo. Si corregge solo
-  // quando i due sono d'accordo su di chi e' il turno, nessuna giocata e'
-  // a meta' e il conto sta davvero correndo; e la barra non salta, riparte
-  // da dove si trova verso la scadenza nuova (vedi barraCorre).
-  const stessoTurno = G && G.currentPlayer === PARTITA_RETE.turno
-    && !G.turnPlayLocked && !G.turnBannerActive && !G.gameOver;
-  if(stessoTurno && BARRA_TEMPO.modo === 'corre' && Math.abs(restano - timerLeft) >= 2){
+  if(Math.abs(restano - timerLeft) >= 2){
     timerDeadline = PARTITA_RETE.scadenza;
     timerLeft = Math.min(TURN_SECS, restano);
-    barraCorre(timerDeadline);
   }
   reteAllineaTurno();
 }
@@ -22093,36 +22074,10 @@ var ABILITA_MOTORE = (function () {
   // sfarfallerebbe, e in rete i due giocatori vedrebbero lati diversi. Si
   // sceglie quindi in modo RIPETIBILE, dal nome della carta e da un seme che
   // vale per tutta la partita: casuale da fuori, identico sui due schermi.
-  // ── v0.79.99 — IL NUMERO NON ERA A CASO ─────────────────────────────────
-  // Lorenzo: "se copi l'abilita' del Genio, la carta che copia buffa gli stessi
-  // valori". Non era il seme: era la moltiplicazione. `h * 16777619` fra due
-  // numeri a 32 bit supera i 53 bit che un double tiene esatti, e i bit BASSI
-  // del prodotto andavano persi — proprio quelli che `% gruppi.length` legge.
-  // Su una carta a due gruppi il primo usciva 171 volte su 200, qualunque
-  // fosse la chiave: il Genio, lo Specchio e lo Sceriffo pescavano quasi
-  // sempre lo stesso gruppo, e il caso sembrava una regola.
-  // Adesso la moltiplicazione e' a 32 bit vera (Math.imul scritta a mano:
-  // goja e' ES5), e in fondo si rimescolano i bit (il finale di MurmurHash3):
-  // FNV da solo lascia l'ultimo bit legato alla parita' dei caratteri, e un
-  // "% 2" avrebbe ancora guardato solo quella.
-  function _per32(a, b) {
-    return (((a & 0xffff) * b) + ((((a >>> 16) * b) & 0xffff) << 16)) >>> 0;
-  }
   function _semeDi(testo) {
     var h = 2166136261, i;
-    for (i = 0; i < testo.length; i++) { h = (h ^ testo.charCodeAt(i)) >>> 0; h = _per32(h, 16777619); }
-    h = (h ^ (h >>> 16)) >>> 0; h = _per32(h, 0x85ebca6b);
-    h = (h ^ (h >>> 13)) >>> 0; h = _per32(h, 0xc2b2ae35);
-    return (h ^ (h >>> 16)) >>> 0;
-  }
-  // Un tiro fra 0 e 1, per un evento. Chi chiama puo' imporlo (`scena.sorte`,
-  // i banchi); con un seme di partita e' ripetibile — i due client e il
-  // server tirano lo stesso numero — ma cambia a ogni occasione (vedi
-  // _occasione); senza seme resta Math.random.
-  function _tiro(fonte, scena, cosa) {
-    if (scena && typeof scena.sorte === 'number') return scena.sorte;
-    if (scena && scena.seme) return _semeDi(_occasione(fonte, scena) + '|' + String(cosa || '')) / 4294967296;
-    return Math.random();
+    for (i = 0; i < testo.length; i++) { h ^= testo.charCodeAt(i); h = (h * 16777619) >>> 0; }
+    return h;
   }
   // ── v0.77.91 — L'UNITA' DI UNA CARTA E' IL GRUPPO, NON IL LATO ──────────
   // Una carta di Hextale non ha sei numeri: ha dei GRUPPI di lati, e ogni
@@ -22581,14 +22536,8 @@ var ABILITA_MOTORE = (function () {
     if (eff.cosa && eff.cosa !== 'power') return;      // un furto di potenza, e nient'altro
     if (!condizioneVera(cond, fonte, scena)) return;
 
-    var tutti = candidati(fonte, eff, scena);
-    var lista = scelti(tutti, eff, scena, fonte);
+    var lista = scelti(candidati(fonte, eff, scena), eff, scena, fonte);
     var q = quantita(fonte, eff, cond, scena);
-    // v0.79.99 — questo cambiamento lo decide il caso? Lo si dice a chi lo
-    // esegue: l'anteprima del gioco non deve disegnare un numero che il caso
-    // non ha ancora tirato, e mostra un punto interrogativo al suo posto.
-    var casuale = (eff.ambito === 'RAND' || eff.ambito === 'ONE' || eff.quale === 'random'
-      || (az === 'set' && !!eff.quanto && typeof eff.quanto.da === 'number'));
     var i, j, bersaglio, lati;
     for (i = 0; i < lista.length; i++) {
       bersaglio = lista[i];
@@ -22598,10 +22547,8 @@ var ABILITA_MOTORE = (function () {
         // tutti i lati colpiti, cosi' la carta non esce a scacchiera.
         var v = q;
         if (eff.quanto && typeof eff.quanto.da === 'number') {
-          // v0.79.99 — col tiro dell'occasione, non con Math.random: in rete i due
-          // client tiravano due numeri diversi per lo stesso Cappellaio.
-          var r = _tiro(fonte, scena, 'set|' + String((bersaglio && (bersaglio.id || bersaglio.name)) || ''));
-          v = eff.quanto.da + Math.min(eff.quanto.a - eff.quanto.da, Math.floor(r * (eff.quanto.a - eff.quanto.da + 1)));
+          var r = (scena && typeof scena.sorte === 'number') ? scena.sorte : Math.random();
+          v = eff.quanto.da + Math.floor(r * (eff.quanto.a - eff.quanto.da + 1));
         }
         // ── v0.79.17 — E CHI L-HA FATTO ─────────────────────────────────
         // Da qui uscivano cambiamenti orfani: il bersaglio, i lati e il
@@ -22611,16 +22558,11 @@ var ABILITA_MOTORE = (function () {
         // senza nessuno accanto — per meta- del mazzo.
         // La fonte ce l-abbiamo qui da sempre: e- il primo argomento di questa
         // funzione. Va solo detta.
-        fuori.push({ carta: bersaglio, lati: lati, valore: v, azione: 'set', fonte: fonte, aCaso: casuale,
-                     fraChi: eff.quale === 'random' ? tutti : null });
+        fuori.push({ carta: bersaglio, lati: lati, valore: v, azione: 'set', fonte: fonte });
       } else {
         var d = (az === 'debuff' || az === 'steal') ? -q : q;
         if (!d) continue;
-        // `fraChi`: se il bersaglio l'ha pescato il caso, fra chi l'ha pescato.
-        // L'anteprima mette il punto interrogativo su tutti loro, non sul solo
-        // estratto: prima di giocare, nessuno sa ancora chi sara'.
-        fuori.push({ carta: bersaglio, lati: lati, delta: d, azione: az, fonte: fonte, aCaso: casuale,
-                     fraChi: eff.quale === 'random' ? tutti : null });
+        fuori.push({ carta: bersaglio, lati: lati, delta: d, azione: az, fonte: fonte });
       }
     }
   }
@@ -22644,17 +22586,10 @@ var ABILITA_MOTORE = (function () {
   // restare ferme sullo stesso gruppo finche' durano, o il bonus salterebbe da
   // un lato all'altro a ogni ridisegno. Li' l'occasione non esiste: c'e' uno
   // stato che dura.
-  // ── v0.79.99 — E NEMMENO LA STESSA CARTA IN DUE TURNI ────────────────────
-  // La casella distingueva due Geni, ma non una carta che scatta a ogni turno
-  // dalla stessa casella (Carabosse, Pinocchio): quella pescava lo stesso
-  // gruppo per tutta la partita. Entrano quindi anche il turno e la carta che
-  // agisce — il turno cambia a ogni occasione, e i due client lo hanno uguale;
-  // l'id distingue chi agisce anche quando la casella non c'e'.
   function _occasione(fonte, scena) {
     var dove = (scena && scena.cellaDi) ? scena.cellaDi(fonte) : null;
-    return String((scena && scena.seme) || '') + '|' + String(dove || '-')
-      + '|t' + String((scena && scena.turno) || 0)
-      + '|' + String((fonte && (fonte.id || fonte.name)) || '');
+    if (!dove) dove = 't' + String((scena && scena.turno) || 0);
+    return String((scena && scena.seme) || '') + '|' + String(dove);
   }
 
   // I cambiamenti che l'abilita' di questa carta produce a un dato evento.
@@ -22681,10 +22616,8 @@ var ABILITA_MOTORE = (function () {
       }
     } else if (a.legame === 'or') {
       // Una delle due, a sorte.
-      var testa = _tiro(fonte, scena, 'or|' + evento) < 0.5;
+      var testa = (scena && typeof scena.sorte === 'number' ? scena.sorte : Math.random()) < 0.5;
       if (!testa && a.effetto2) { fuori.length = 0; _cambiamentiDi(fonte, a.effetto2, a.se2, scena, fuori, a.finestra); }
-      // Quale delle due l'ha deciso il caso: anche questo non si mostra prima.
-      for (var o = 0; o < fuori.length; o++) fuori[o].aCaso = true;
     }
     // Si segna solo se l'abilita' ha davvero prodotto qualcosa: se la
     // condizione era falsa e non e' uscito niente, il colpo unico non e' stato
@@ -25085,7 +25018,7 @@ function svuotaLaScena(){
 }
 function startGame(vsAI){
   // Cancel any pending timers
-  fermaIlConto();
+  clearInterval(timerInterval);
   stopScreenEdgeFlash();
   stopAiThinkingHover(); // also tears down the AI speech bubble (see that function's own comment) — a reset mid-"thinking" must not leave it stuck showing
 
@@ -34528,7 +34461,7 @@ function abandonCurrentGame(){
     G.currentPlayer=null;
     G.selected=null; G.dragging=null; G.dragOver=null;
   }
-  fermaIlConto(); timerInterval=null;
+  clearInterval(timerInterval); timerInterval=null;
   stopTictoc();
   stopScreenEdgeFlash();
   stopAiThinkingHover();
@@ -35947,7 +35880,7 @@ function initGame(vsAI){
   // the OLD hand (and its dim overlay) must never carry over into the fresh
   // deal.
   collapseAllHandExpand();
-  fermaIlConto(); timerInterval=null;
+  clearInterval(timerInterval); timerInterval=null;
   stopTictoc(); // starting a new game must silence any tictoc still playing from the last one
   const cells=boardCells();
   const cands=cells.filter(c=>!(c.q===0&&c.r===0));
@@ -36333,87 +36266,30 @@ function currentHand(){return G.currentPlayer===1?G.p1Hand:G.p2Hand;}
 // Safe to call more than once in a row (e.g. once from startTurn(), then
 // again from startTimer() itself when it finally runs) — timerLeft is
 // already TURN_SECS by then, so the second call is a harmless no-op update.
-// ── v0.79.99 — LA BARRA HA TRE STATI, E NESSUN ALTRO ──────────────────────
-// Regola di Lorenzo:
-//   1. durante il turno si svuota lentamente, senza scatti;
-//   2. durante il cambio turno sta ferma;
-//   3. al cambio turno torna piena di colpo, senza transizione.
-// Prima la larghezza la dettava `timerLeft` — secondi interi — con un secondo
-// di transizione CSS, e il riempimento ne aveva una sua da 100ms. Ogni volta
-// che il numero cambiava per un motivo diverso dal tempo che passa, la
-// transizione lo trasformava in un movimento: il battito del server che a
-// carta appena giocata portava gia' la scadenza del turno DOPO (la barra
-// risaliva, poi il cambio turno la riportava giu'), la scadenza del server
-// che arrivava un istante dopo il riempimento (piena, e subito un secondo di
-// discesa fino al vero), e il conto del turno finito che continuava a
-// scendere sotto al banner.
-// Adesso la barra ha un orologio suo, separato dai secondi: una frazione che
-// va da `da` a zero fra `t0` e `fine`, disegnata a ogni fotogramma senza
-// transizioni. Una scadenza che cambia a turno in corso non la fa saltare:
-// la discesa riparte da dove si trova e arriva a zero alla scadenza nuova,
-// cambiando solo velocita'. I secondi scritti sul segnaposto restano quelli
-// veri.
-const BARRA_TEMPO = { modo:'ferma', frazione:1, da:1, t0:0, fine:0, giro:0 };
-function _frazioneBarra(){
-  const b = BARRA_TEMPO;
-  if(b.modo !== 'corre') return b.frazione;
-  const tutto = b.fine - b.t0;
-  if(tutto <= 0) return 0;
-  return Math.max(0, Math.min(1, b.da * (b.fine - Date.now()) / tutto));
-}
-function _disegnaBarra(frazione){
-  const maskEl = document.getElementById('timer-fill-mask');
-  const wrapEl = document.getElementById('timer-bar-wrap');
-  if(!maskEl || !wrapEl) return;
-  const fillW = TIMER_FULL_BAR_W * frazione;
-  maskEl.style.width = fillW.toFixed(2) + 'px';
-  // #timer-signal-img e #timer-pin-hover leggono la stessa variabile.
-  wrapEl.style.setProperty('--timer-x', (fillW + TIMER_BAR_INSET).toFixed(2) + 'px');
-}
-function _giroBarra(){
-  BARRA_TEMPO.giro = 0;
-  if(BARRA_TEMPO.modo !== 'corre') return;
-  _disegnaBarra(_frazioneBarra());
-  BARRA_TEMPO.giro = requestAnimationFrame(_giroBarra);
-}
-// Stato 1. Chiamata a turno gia' in corsa (una scadenza corretta) non salta:
-// riparte dalla frazione in cui si trova.
-function barraCorre(scadenza){
-  const b = BARRA_TEMPO;
-  const ora = Date.now();
-  b.da = _frazioneBarra();
-  b.t0 = ora;
-  b.fine = Math.max(ora + 1, scadenza || ora);
-  b.modo = 'corre';
-  _disegnaBarra(_frazioneBarra());
-  if(!b.giro) b.giro = requestAnimationFrame(_giroBarra);
-}
-// Stato 2.
-function barraFerma(){
-  const b = BARRA_TEMPO;
-  b.frazione = _frazioneBarra();
-  b.modo = 'ferma';
-  if(b.giro){ cancelAnimationFrame(b.giro); b.giro = 0; }
-  _disegnaBarra(b.frazione);
-}
-// Stato 3: piena, subito, e ferma finche' il conto non riparte.
-function barraPiena(){
-  barraFerma();
-  BARRA_TEMPO.frazione = 1;
-  _disegnaBarra(1);
-}
-// Il conto si ferma, e la barra con lui. Tutte le porte da cui una partita si
-// chiude o un turno finisce passano di qui invece di fermare il solo
-// intervallo: un intervallo fermo con la barra che scende ancora sarebbe
-// esattamente il genere di disaccordo che questa sezione esiste per togliere.
-function fermaIlConto(){
-  clearInterval(timerInterval);
-  barraFerma();
-}
 function resetTimerBarVisual(){
   timerLeft=TURN_SECS;
-  barraPiena();
-  updateTimerUI();
+  const maskEl=document.getElementById('timer-fill-mask');
+  const sigEl=document.getElementById('timer-signal-img');
+  const pinEl=document.getElementById('timer-pin-hover');
+  if(maskEl){
+    // Same fast-snap override applied to all three elements that track the
+    // countdown position (fill width + the two --timer-x-driven elements),
+    // so the signal dot and hover pin snap back instantly alongside the bar
+    // instead of gliding there over the normal 1s-per-tick transition.
+    maskEl.style.transition='width 100ms linear';
+    if(sigEl) sigEl.style.transition='left 100ms linear';
+    if(pinEl) pinEl.style.transition='opacity .12s ease-out, left 100ms linear';
+    updateTimerUI();
+    requestAnimationFrame(()=>{
+      requestAnimationFrame(()=>{
+        maskEl.style.transition='';
+        if(sigEl) sigEl.style.transition='';
+        if(pinEl) pinEl.style.transition='';
+      });
+    });
+  } else {
+    updateTimerUI();
+  }
 }
 // v0.60.0 FIX ("vorrei che il tempo non si fermasse quando la tab non è in
 // focus"): timerLeft used to be decremented by exactly 1 on every
@@ -36493,19 +36369,11 @@ function startTimer(riprendi){
   // TURN_SECS: e' giusto per un turno che comincia, sbagliato per un conto che
   // riprende. Riprendendo si ridisegna e basta, cosi' la barra resta dov'era.
   if(daRiprendere) updateTimerUI(); else resetTimerBarVisual();
-  // v0.79.99 — e da qui la barra corre verso la scadenza, partendo da dove sta:
-  // piena per un turno nuovo, dov'era per un conto che riprende. In rete il
-  // server puo' aver cominciato il turno qualche secondo prima: la barra parte
-  // piena lo stesso e arriva a zero alla scadenza vera, invece di riempirsi e
-  // poi scendere di colpo al numero giusto.
-  timerLeft = Math.max(0, Math.ceil((timerDeadline - Date.now())/1000));
-  barraCorre(timerDeadline);
-  updateTimerUI();
   timerInterval=setInterval(()=>{
     timerLeft=Math.max(0,Math.ceil((timerDeadline-Date.now())/1000));
     updateTimerUI();
     if(timerLeft<=0){
-      fermaIlConto();
+      clearInterval(timerInterval);
       // Silence the countdown sound the instant time runs out, instead of
       // letting the in-flight clip finish playing.
       stopTictoc();
@@ -36608,10 +36476,9 @@ function updateTimerUI(){
   const wrapEl=document.getElementById('timer-bar-wrap');
   const pinSecondsEl=document.getElementById('timer-pin-seconds');
   if(!maskEl||!wrapEl) return; // headless/edge case — nothing to update
-  // v0.79.99 — la larghezza non si ricava piu' dai secondi: la tiene
-  // BARRA_TEMPO. Qui la si ridisegna soltanto, cosi' anche dove i fotogrammi
-  // arrivano radi (una scheda in secondo piano) il battito la tiene al passo.
-  _disegnaBarra(_frazioneBarra());
+  const frac=Math.max(0,Math.min(1,timerLeft/TURN_SECS));
+  const fillW=TIMER_FULL_BAR_W*frac;
+  maskEl.style.width=fillW.toFixed(2)+'px';
   maskEl.classList.toggle('urgent', timerLeft<=10);
   // ── v0.79.18 — I BORDI LAMPEGGIANO A CHI DEVE MUOVERSI ─────────────────
   // Il richiamo e il ticchettio avevano gia' questa regola da v0.78.5; il
@@ -36622,8 +36489,12 @@ function updateTimerUI(){
   // "tocca a ME?" — in rete si puo' essere il due (vedi sceltaMia).
   const mioIlTempo = (typeof sceltaMia === 'function') ? sceltaMia(G.currentPlayer) : true;
   if(timerLeft<=10 && mioIlTempo) startScreenEdgeFlash(); else stopScreenEdgeFlash();
-  // (--timer-x, che #timer-signal-img e #timer-pin-hover leggono, la scrive
-  // _disegnaBarra insieme alla larghezza: v0.79.99.)
+  // #timer-signal-img and #timer-pin-hover both read this same custom
+  // property for their x-position (left:var(--timer-x)), so the dot and the
+  // (currently hidden-or-not) pin always stay in sync with the fill bar's
+  // current right edge, including while the pin isn't visible — no jump the
+  // instant hover starts.
+  wrapEl.style.setProperty('--timer-x', (fillW+TIMER_BAR_INSET).toFixed(2)+'px');
   // Seconds shown as a plain number ("60", not "1:00") per user request —
   // TURN_SECS is well under a minute-and-a-half in practice, and a bare
   // count reads faster at a glance than a clock-style m:ss format.
@@ -39898,18 +39769,6 @@ function congelaTasselli(c){
 function applicaCambiamenti(elenco){
   for(const c of (elenco || [])){
     if(!c) continue;
-    // ── v0.79.99 — L'ANTEPRIMA NON TIRA I DADI ─────────────────────────────
-    // Regola di Lorenzo: un valore a caso si vede solo DOPO aver giocato la
-    // carta. Nella simulazione un cambiamento deciso dal caso (il motore lo
-    // marca `aCaso`) non si applica: si segnano le carte che potrebbe
-    // toccare — il bersaglio e, se l'ha pescato il caso, tutti quelli fra cui
-    // e' stato pescato — e l'anteprima mette su di loro il punto interrogativo
-    // al posto di un numero (vedi simulaPiazzamento, _segniASorte).
-    if(c.aCaso && _simulazioneInCorso){
-      if(c.carta) c.carta.__aSorte = true;
-      for(const altra of (c.fraChi || [])) if(altra) altra.__aSorte = true;
-      continue;
-    }
     if(c.azione === 'freeze'){
       // v0.79.63 — il gelo su un TASSELLO arriva senza bersaglio: il motore
       // non ha il tabellone davanti (vedi `senzaBersagli` in
@@ -43383,14 +43242,10 @@ function simulaPiazzamento(card, q, r){
     mano2.forEach(c=>{ recalcHoorayShesStays(c); recalcMischief(c); recalcNightmare(c); });
     }
 
-    const esito = { cellaGiocata: cella, tabellone: {}, mani: {1:{}, 2:{}},
-                    aSorte: { tabellone: {}, mani: {1:{}, 2:{}} } };
-    for(const k in clone){
-      esito.tabellone[k] = Object.assign({}, clone[k].card.values);
-      if(clone[k].card.__aSorte) esito.aSorte.tabellone[k] = true;
-    }
-    mano1.forEach(c=>{ esito.mani[1][c.id] = Object.assign({}, c.values); if(c.__aSorte) esito.aSorte.mani[1][c.id] = true; });
-    mano2.forEach(c=>{ esito.mani[2][c.id] = Object.assign({}, c.values); if(c.__aSorte) esito.aSorte.mani[2][c.id] = true; });
+    const esito = { cellaGiocata: cella, tabellone: {}, mani: {1:{}, 2:{}} };
+    for(const k in clone) esito.tabellone[k] = Object.assign({}, clone[k].card.values);
+    mano1.forEach(c=>{ esito.mani[1][c.id] = Object.assign({}, c.values); });
+    mano2.forEach(c=>{ esito.mani[2][c.id] = Object.assign({}, c.values); });
     return esito;
   } catch(_){
     return null;
@@ -43448,12 +43303,9 @@ function _numeriChePossonoCambiare(card){
   return false;
 }
 function valoriDopoAbilita(card, q, r){
-  const esito = _esitoDopoAbilita(card, q, r);
-  return esito ? esito.tabellone[esito.cellaGiocata] : null;
-}
-function _esitoDopoAbilita(card, q, r){
   if(!_numeriChePossonoCambiare(card)) return null;
-  return simulaPiazzamento(card, q, r);
+  const esito = simulaPiazzamento(card, q, r);
+  return esito ? esito.tabellone[esito.cellaGiocata] : null;
 }
 
 // L'anteprima del tavolo per il trascinamento in corso, calcolata una volta
@@ -43514,10 +43366,7 @@ function firmaAnteprimaMani(){
   for(const [giocatore, mano] of [[1,G.p1Hand||[]],[2,G.p2Hand||[]]]){
     for(const c of mano){
       const v = (esito && esito.mani[giocatore][c.id]) || c.values || {};
-      // v0.79.99 — anche il punto interrogativo e' una cosa che si vede: una
-      // carta che il caso potrebbe toccare cambia disegno senza cambiare numeri.
-      const aSorte = !!(esito && esito.aSorte.mani[giocatore][c.id]);
-      pezzi.push(c.id + ':' + SIDES.map(s=>v[s]||0).join('.') + (aSorte ? '?' : ''));
+      pezzi.push(c.id + ':' + SIDES.map(s=>v[s]||0).join('.'));
     }
   }
   return pezzi.join('|');
@@ -44301,16 +44150,6 @@ function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLa
 // animazioni, aspettando la pausa, aspettando l'ondata) e senza questo flag
 // il tabellone verrebbe contato una volta per rientro.
 function endTurn(player, animationsSettled, dannoFatto){
-  // v0.79.99 — IL CAMBIO TURNO COMINCIA QUI, e la barra si ferma (vedi
-  // BARRA_TEMPO, stato 2). Il conto non si ferma mai "dentro" al turno, ed e'
-  // giusto; ma qui il turno e' finito, e il suo conto continuava a scendere
-  // sotto al banner — col ticchettio e i bordi che lampeggiavano per un tempo
-  // che non apparteneva piu' a nessuno. Tornera' piena in startTurn.
-  // Si ripete a ogni rientro (questa funzione si richiama da sola mentre
-  // aspetta le animazioni): fermare una cosa ferma non fa niente.
-  fermaIlConto();
-  stopTictoc();
-  stopScreenEdgeFlash();
   // v0.78.10 — rete di sicurezza. Di norma la coda delle rimozioni la svuota
   // chiudiIlTurno, a scontro finito; se un giorno una strada arrivasse qui
   // senza passare di la', una carta indicata resterebbe in campo per sempre.
@@ -45265,11 +45104,7 @@ function computeDragPreview(card, q, r){
   if(abilitaAConSorteAlPiazzamento(card)){
     uncertain = true;
   } else {
-    const esitoAbilita = _esitoDopoAbilita(Object.assign({}, card, {values}), q, r);
-    const dopoAbilita = esitoAbilita ? esitoAbilita.tabellone[esitoAbilita.cellaGiocata] : null;
-    // v0.79.99 — e se una parte la decide il caso, la carta lo dichiara: i
-    // numeri sono quelli senza il tiro, col punto interrogativo accanto.
-    if(esitoAbilita && esitoAbilita.aSorte.tabellone[esitoAbilita.cellaGiocata]) uncertain = true;
+    const dopoAbilita = valoriDopoAbilita(Object.assign({}, card, {values}), q, r);
     if(dopoAbilita){
       deltas = deltas || {};
       for(const s of SIDES) deltas[s] = (deltas[s]||0) + ((dopoAbilita[s]||0) - (values[s]||0));
@@ -47098,7 +46933,7 @@ function surrenderGame(){
     // fini diverse, e la nostra sarebbe quella senza esito scritto.
     return;
   }
-  fermaIlConto();
+  clearInterval(timerInterval);
   collapseAllHandExpand();
   // ── v0.78.17 — SI ARRENDE CHI PREME, NON CHI HA IL TURNO ────────────────
   // `G.currentPlayer` e' di chi e' il turno, e ci si arrende anche — anzi
@@ -47134,7 +46969,7 @@ function surrenderGame(){
 }
 
 function endGame(){
-  fermaIlConto();
+  clearInterval(timerInterval);
   // v0.75.63 — e si zittisce tutto cio' che era ancora per aria: una voce a
   // meta' frase, una carta che brucia, un'aquila. La partita e' finita, e
   // quei suoni parlano di una cosa che non c'e' piu'.
@@ -47191,7 +47026,7 @@ function endGame(){
 // guarda gia', non in una finestra da chiudere prima di poter leggere.
 function fineDaRete(testo, vincitore){
   if(!G || G.gameOver) return;
-  fermaIlConto();
+  clearInterval(timerInterval);
   collapseAllHandExpand();
   // ── v0.78.13 — IL PUNTEGGIO NON SI INVENTA ──────────────────────────────
   // Qui si SCRIVEVANO due numeri finti: al vincitore il massimo piu' uno, al
@@ -47237,7 +47072,7 @@ function finishGameWithResult(){
   // Non si mette la stessa riga sulle tre porte: si mette QUI, che e' il punto
   // in cui tutte e tre entrano. La quarta che nascera' domani la trovera' gia'
   // fatta — che e' esattamente il motivo per cui questo posto esiste.
-  fermaIlConto(); timerInterval = null;
+  clearInterval(timerInterval); timerInterval = null;
   try{ stopTictoc(); }catch(_){ }
   try{ stopScreenEdgeFlash(); }catch(_){ }
   const{1:hp1,2:hp2}=G.hp;
@@ -49385,9 +49220,7 @@ function drawHexCard(svg,cx,cy,R,card,fillColor,strokeColor,textColor,nameText,i
         // `paint-order: stroke fill` disegna il bordo PRIMA del riempimento:
         // senza, lo stroke sarebbe centrato sul contorno della lettera e ne
         // mangerebbe meta' verso l'interno, assottigliando il segno.
-        // v0.79.99 — bianco sulla carta chiara (Lorenzo): il bordo scuro, su
-        // quel fondo, sembrava una macchia attorno al segno.
-        qMark.setAttribute('stroke', isDarkPlayer ? '#1D2D2F' : '#fff');
+        qMark.setAttribute('stroke', '#1D2D2F');
         qMark.setAttribute('stroke-width', '3');
         qMark.setAttribute('paint-order', 'stroke fill');
         qMark.setAttribute('stroke-linejoin', 'round');
@@ -50569,7 +50402,7 @@ function buildFullHandCardSVG(card, boxW, boxH, preview){
   const hexStrokeColor=isDark?'var(--red)':'var(--blue)';
   const hexTextColor=isDark?'var(--red-light)':'var(--blue-light)';
   drawHexCard(content, hexCx, hexCy, hexR, card, hexFillColor, hexStrokeColor, hexTextColor, card.name, false, null, null,
-              false, preview?preview.values:null, preview?preview.deltas:null, preview ? !!preview.uncertain : false);
+              false, preview?preview.values:null, preview?preview.deltas:null);
 
   // Layer: gem sockets — one card-gem-socket per group slot (0-3, from
   // card.groupGems — a real slot can still be EMPTY, i.e. groupGems[key] is
@@ -51723,13 +51556,9 @@ function renderHand(containerId,hand,playerIdx){
     const partenza = card.tileAbilityBaseValues || card.values;
     let arrivo = card.values;
     const antTavoloMano = anteprimaTavolo();
-    // v0.79.99 — una carta in mano che il caso potrebbe toccare (il Genio,
-    // Ginevra) mostra il punto interrogativo, non il gruppo che uscira'.
-    let aSorteInMano = false;
     if(antTavoloMano && !isBeingDragged){
       const simulati = antTavoloMano.mani[playerIdx===0?1:2][card.id];
       if(simulati) arrivo = simulati;
-      aSorteInMano = !!antTavoloMano.aSorte.mani[playerIdx===0?1:2][card.id];
     }
     {
       const scarti = {};
@@ -51738,7 +51567,7 @@ function renderHand(containerId,hand,playerIdx){
         scarti[s] = (arrivo[s]||0) - (partenza[s]||0);
         if(scarti[s]!==0) cambia = true;
       }
-      if(cambia || aSorteInMano) anteprimaMano = { values: arrivo, deltas: cambia ? scarti : null, uncertain: aSorteInMano };
+      if(cambia) anteprimaMano = { values: arrivo, deltas: scarti };
     }
     const cardSvg = buildFullHandCardSVG(cardFoilVisualCard(card), 210, 360, anteprimaMano);
     // v0.75.7 — qui c'era `cardSvg.classList.add('carta-supercampionata')`,
@@ -54198,7 +54027,7 @@ function firmaMano(hand, playerIdx){
     posate:  (typeof cardsGlowSettled!=='undefined' && cardsGlowSettled) ? [...cardsGlowSettled].sort() : [],
     // I valori che le carte in mano mostrerebbero per via di cio' che sta per
     // succedere in campo (vedi anteprimaTavolo).
-    anteprima: anteprima ? _statoSerializzabile([anteprima.mani[giocatore], anteprima.aSorte.mani[giocatore]]) : null,
+    anteprima: anteprima ? _statoSerializzabile(anteprima.mani[giocatore]) : null,
     lamina: (typeof cardDbHoloEnabled!=='undefined' ? !!cardDbHoloEnabled : null),
     parallasse: (typeof cardDbParallaxEnabled!=='undefined' ? !!cardDbParallaxEnabled : null),
     // v0.73.42 FIX ("le carte non si espandono piu' cliccando col tasto
@@ -54517,8 +54346,6 @@ function renderBoard(){
       // specifico per una carta o per un'abilita': si legge il tavolo simulato
       // (vedi simulaPiazzamento) e si confronta.
       const antTavolo = anteprimaTavolo();
-      // v0.79.99 — il caso non si mostra in anteprima (vedi applicaCambiamenti).
-      const aSorteInCampo = !!(antTavolo && k!==antTavolo.cellaGiocata && antTavolo.aSorte.tabellone[k]);
       if(antTavolo && k!==antTavolo.cellaGiocata && antTavolo.tabellone[k]){
         const simulati = antTavolo.tabellone[k];
         const nuovi = {};
@@ -54583,7 +54410,7 @@ function renderBoard(){
       recoilGroup.appendChild(wobbleGroup);
       // Merge placed.owner into card so border-top reflects current owner after conquest
       const cardWithOwner = {...placed.card, owner: ownerDisegnato};
-      drawHexCard(wobbleGroup,x,y,R,cardWithOwner,fc,sc,tc,placed.card.name,false,null,null,true,displayValuesForCell,factionDeltas,aSorteInCampo);
+      drawHexCard(wobbleGroup,x,y,R,cardWithOwner,fc,sc,tc,placed.card.name,false,null,null,true,displayValuesForCell,factionDeltas);
       // v0.71.6 FIX ("bisogna rimuovere il cerchietto abilità al centro
       // della carta. è obsoleto"): the activated-ability badge (a circle +
       // icon permanently sitting over the middle of every placed card with

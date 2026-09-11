@@ -5735,10 +5735,36 @@ var ABILITA_MOTORE = (function () {
   // sfarfallerebbe, e in rete i due giocatori vedrebbero lati diversi. Si
   // sceglie quindi in modo RIPETIBILE, dal nome della carta e da un seme che
   // vale per tutta la partita: casuale da fuori, identico sui due schermi.
+  // ── v0.79.99 — IL NUMERO NON ERA A CASO ─────────────────────────────────
+  // Lorenzo: "se copi l'abilita' del Genio, la carta che copia buffa gli stessi
+  // valori". Non era il seme: era la moltiplicazione. `h * 16777619` fra due
+  // numeri a 32 bit supera i 53 bit che un double tiene esatti, e i bit BASSI
+  // del prodotto andavano persi — proprio quelli che `% gruppi.length` legge.
+  // Su una carta a due gruppi il primo usciva 171 volte su 200, qualunque
+  // fosse la chiave: il Genio, lo Specchio e lo Sceriffo pescavano quasi
+  // sempre lo stesso gruppo, e il caso sembrava una regola.
+  // Adesso la moltiplicazione e' a 32 bit vera (Math.imul scritta a mano:
+  // goja e' ES5), e in fondo si rimescolano i bit (il finale di MurmurHash3):
+  // FNV da solo lascia l'ultimo bit legato alla parita' dei caratteri, e un
+  // "% 2" avrebbe ancora guardato solo quella.
+  function _per32(a, b) {
+    return (((a & 0xffff) * b) + ((((a >>> 16) * b) & 0xffff) << 16)) >>> 0;
+  }
   function _semeDi(testo) {
     var h = 2166136261, i;
-    for (i = 0; i < testo.length; i++) { h ^= testo.charCodeAt(i); h = (h * 16777619) >>> 0; }
-    return h;
+    for (i = 0; i < testo.length; i++) { h = (h ^ testo.charCodeAt(i)) >>> 0; h = _per32(h, 16777619); }
+    h = (h ^ (h >>> 16)) >>> 0; h = _per32(h, 0x85ebca6b);
+    h = (h ^ (h >>> 13)) >>> 0; h = _per32(h, 0xc2b2ae35);
+    return (h ^ (h >>> 16)) >>> 0;
+  }
+  // Un tiro fra 0 e 1, per un evento. Chi chiama puo' imporlo (`scena.sorte`,
+  // i banchi); con un seme di partita e' ripetibile — i due client e il
+  // server tirano lo stesso numero — ma cambia a ogni occasione (vedi
+  // _occasione); senza seme resta Math.random.
+  function _tiro(fonte, scena, cosa) {
+    if (scena && typeof scena.sorte === 'number') return scena.sorte;
+    if (scena && scena.seme) return _semeDi(_occasione(fonte, scena) + '|' + String(cosa || '')) / 4294967296;
+    return Math.random();
   }
   // ── v0.77.91 — L'UNITA' DI UNA CARTA E' IL GRUPPO, NON IL LATO ──────────
   // Una carta di Hextale non ha sei numeri: ha dei GRUPPI di lati, e ogni
@@ -6197,8 +6223,14 @@ var ABILITA_MOTORE = (function () {
     if (eff.cosa && eff.cosa !== 'power') return;      // un furto di potenza, e nient'altro
     if (!condizioneVera(cond, fonte, scena)) return;
 
-    var lista = scelti(candidati(fonte, eff, scena), eff, scena, fonte);
+    var tutti = candidati(fonte, eff, scena);
+    var lista = scelti(tutti, eff, scena, fonte);
     var q = quantita(fonte, eff, cond, scena);
+    // v0.79.99 — questo cambiamento lo decide il caso? Lo si dice a chi lo
+    // esegue: l'anteprima del gioco non deve disegnare un numero che il caso
+    // non ha ancora tirato, e mostra un punto interrogativo al suo posto.
+    var casuale = (eff.ambito === 'RAND' || eff.ambito === 'ONE' || eff.quale === 'random'
+      || (az === 'set' && !!eff.quanto && typeof eff.quanto.da === 'number'));
     var i, j, bersaglio, lati;
     for (i = 0; i < lista.length; i++) {
       bersaglio = lista[i];
@@ -6208,8 +6240,10 @@ var ABILITA_MOTORE = (function () {
         // tutti i lati colpiti, cosi' la carta non esce a scacchiera.
         var v = q;
         if (eff.quanto && typeof eff.quanto.da === 'number') {
-          var r = (scena && typeof scena.sorte === 'number') ? scena.sorte : Math.random();
-          v = eff.quanto.da + Math.floor(r * (eff.quanto.a - eff.quanto.da + 1));
+          // v0.79.99 — col tiro dell'occasione, non con Math.random: in rete i due
+          // client tiravano due numeri diversi per lo stesso Cappellaio.
+          var r = _tiro(fonte, scena, 'set|' + String((bersaglio && (bersaglio.id || bersaglio.name)) || ''));
+          v = eff.quanto.da + Math.min(eff.quanto.a - eff.quanto.da, Math.floor(r * (eff.quanto.a - eff.quanto.da + 1)));
         }
         // ── v0.79.17 — E CHI L-HA FATTO ─────────────────────────────────
         // Da qui uscivano cambiamenti orfani: il bersaglio, i lati e il
@@ -6219,11 +6253,16 @@ var ABILITA_MOTORE = (function () {
         // senza nessuno accanto — per meta- del mazzo.
         // La fonte ce l-abbiamo qui da sempre: e- il primo argomento di questa
         // funzione. Va solo detta.
-        fuori.push({ carta: bersaglio, lati: lati, valore: v, azione: 'set', fonte: fonte });
+        fuori.push({ carta: bersaglio, lati: lati, valore: v, azione: 'set', fonte: fonte, aCaso: casuale,
+                     fraChi: eff.quale === 'random' ? tutti : null });
       } else {
         var d = (az === 'debuff' || az === 'steal') ? -q : q;
         if (!d) continue;
-        fuori.push({ carta: bersaglio, lati: lati, delta: d, azione: az, fonte: fonte });
+        // `fraChi`: se il bersaglio l'ha pescato il caso, fra chi l'ha pescato.
+        // L'anteprima mette il punto interrogativo su tutti loro, non sul solo
+        // estratto: prima di giocare, nessuno sa ancora chi sara'.
+        fuori.push({ carta: bersaglio, lati: lati, delta: d, azione: az, fonte: fonte, aCaso: casuale,
+                     fraChi: eff.quale === 'random' ? tutti : null });
       }
     }
   }
@@ -6247,10 +6286,17 @@ var ABILITA_MOTORE = (function () {
   // restare ferme sullo stesso gruppo finche' durano, o il bonus salterebbe da
   // un lato all'altro a ogni ridisegno. Li' l'occasione non esiste: c'e' uno
   // stato che dura.
+  // ── v0.79.99 — E NEMMENO LA STESSA CARTA IN DUE TURNI ────────────────────
+  // La casella distingueva due Geni, ma non una carta che scatta a ogni turno
+  // dalla stessa casella (Carabosse, Pinocchio): quella pescava lo stesso
+  // gruppo per tutta la partita. Entrano quindi anche il turno e la carta che
+  // agisce — il turno cambia a ogni occasione, e i due client lo hanno uguale;
+  // l'id distingue chi agisce anche quando la casella non c'e'.
   function _occasione(fonte, scena) {
     var dove = (scena && scena.cellaDi) ? scena.cellaDi(fonte) : null;
-    if (!dove) dove = 't' + String((scena && scena.turno) || 0);
-    return String((scena && scena.seme) || '') + '|' + String(dove);
+    return String((scena && scena.seme) || '') + '|' + String(dove || '-')
+      + '|t' + String((scena && scena.turno) || 0)
+      + '|' + String((fonte && (fonte.id || fonte.name)) || '');
   }
 
   // I cambiamenti che l'abilita' di questa carta produce a un dato evento.
@@ -6277,8 +6323,10 @@ var ABILITA_MOTORE = (function () {
       }
     } else if (a.legame === 'or') {
       // Una delle due, a sorte.
-      var testa = (scena && typeof scena.sorte === 'number' ? scena.sorte : Math.random()) < 0.5;
+      var testa = _tiro(fonte, scena, 'or|' + evento) < 0.5;
       if (!testa && a.effetto2) { fuori.length = 0; _cambiamentiDi(fonte, a.effetto2, a.se2, scena, fuori, a.finestra); }
+      // Quale delle due l'ha deciso il caso: anche questo non si mostra prima.
+      for (var o = 0; o < fuori.length; o++) fuori[o].aCaso = true;
     }
     // Si segna solo se l'abilita' ha davvero prodotto qualcosa: se la
     // condizione era falsa e non e' uscito niente, il colpo unico non e' stato
