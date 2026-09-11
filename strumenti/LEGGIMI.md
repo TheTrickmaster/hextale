@@ -1725,3 +1725,27 @@ pacchetto non sia nuova e una mai avuta si'; che una sbustata e non ancora
 guardata resti nuova con la seconda copia, e una guardata no; che la migrazione
 (`novitaVersione`) spenga le starter accese a torto lasciando accese quelle
 davvero nuove, una volta sola; e che per un admin si spengano tutte.
+
+**v0.79.93 — la salita rifatta.** Un giro solo: a meta' (col dorso) il lampo, i
+fuochi e `fireworks.mp3`. I fuochi sono grandi una volta e mezza
+(`LV_FUOCHI_SCALA`) e spinti verso i lati nel primo mezzo secondo
+(`LV_FUOCHI_SPINTA`). Ogni pezzo cambia NEL lampo: nei keyframes `lvcCambio` il
+pezzo nuovo e' assente fino all'11,9% e compare di colpo al 12%, che e' anche il
+massimo di `lvcBagliore` e l'istante in cui suona `score.mp3`
+(`LV_CAMBIO_PICCO_MS`). `prova-livelli.js` controlla le fasi (arrivo, giro,
+cambi, finestra, fine), l'angolo del lampo fra 180 e 360, un `card-flip`, un
+`fireworks` e nessun `card-ding`, uno `score` per pezzo, che i due fotogrammi a
+opacita' piena siano lo stesso (12%) e che le due animazioni durino quanto il
+codice aspetta. E sullo sbusto, che New! voglia dire solo "non ancora in
+Libreria": una carta ancora da guardare in Libreria e una avuta solo dal mazzo
+starter dicono Owned.
+
+Il conto del saldo che scende e sale non si legge piu' campionando il numero a
+video: il banco registra le chiamate a `contaValutaAllIndietro` (300>250, poi
+250>450) e guarda solo il primo e l'ultimo numero. In una finestra nascosta i
+fotogrammi arrivano radi, e il 250 di mezzo veniva sovrascritto dal secondo
+conto prima che il banco lo leggesse: il controllo passava o no a caso.
+
+**v0.79.93 — prova-tutorial.js.** La barra del titolo sopra al riquadro non c'e'
+piu' (tolta su richiesta di Lorenzo): il banco controlla che non ci sia, al
+posto dei tre controlli su testo, larghezza e altezza.

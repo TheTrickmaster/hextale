@@ -171,6 +171,8 @@ app.whenReady().then(async () => {
         valute: { magicInk: 5000 - sb.costo, fairyDust: 0 }, possedute: posDopo, copie: Object.assign({}, CARTE_COPIE) };
       await apri(B);
       rpc.length = 0;
+      const suoniS = [];
+      window.playSfxFile = function(f){ suoniS.push(f); };
       sali.click();
       const ov = document.getElementById('livello-overlay');
       const fasi = [];
@@ -186,11 +188,27 @@ app.whenReady().then(async () => {
       dice(rpc.length === 1 && rpc[0].nome === 'hx_carta_livella' && rpc[0].corpo.slug === B.slug,
         'il pulsante chiede al server di far salire QUELLA carta', JSON.stringify(rpc));
       dice(!document.getElementById('card-modal-overlay').classList.contains('show'), 'e la finestra della carta si chiude');
-      dice(fasi.join(' > ') === 'arrivo > giri > cambi > finestra > fine', 'la salita passa per le sue fasi in ordine', fasi.join(' > '));
+      dice(fasi.join(' > ') === 'arrivo > giro > cambi > finestra > fine', 'la salita passa per le sue fasi in ordine, con un giro solo', fasi.join(' > '));
       // L-angolo e non la fase: in una finestra nascosta i fotogrammi arrivano radi, e il
       // banco puo- leggere il lampo quando la fase e- gia- quella dopo.
       const angolo = parseInt(lampoInFase, 10);
-      dice(angolo >= 540 && angolo <= 720, 'il lampo arriva al secondo giro, dopo che si e- visto il dorso', 'a ' + lampoInFase + ' gradi');
+      dice(angolo >= 180 && angolo <= 360, 'il lampo arriva a meta- giro, col dorso', 'a ' + lampoInFase + ' gradi');
+      const conta = n => suoniS.filter(f => f === n).length;
+      dice(conta('card-flip.mp3') === 1, 'un giro, un fruscio', suoniS.join(', '));
+      dice(conta('fireworks.mp3') === 1 && conta('card-ding.mp3') === 0, 'i fuochi suonano fireworks.mp3, una volta', suoniS.join(', '));
+      dice(conta('score.mp3') === parseInt(ov.dataset.zone || '0', 10), 'e ogni pezzo che cambia suona score.mp3', conta('score.mp3') + ' su ' + ov.dataset.zone + ' pezzi');
+      window.playSfxFile = function(){};
+      // Il pezzo cambia nell-istante del lampo: i due fotogrammi-chiave devono essere lo stesso.
+      const chiavi = nome => { const k = regole.filter(r => r.type === CSSRule.KEYFRAMES_RULE && r.name === nome)[0]; return k ? [].slice.call(k.cssRules) : []; };
+      const compare = chiavi('lvcCambio').filter(k => k.style.opacity === '1')[0];
+      const picco = chiavi('lvcBagliore').filter(k => k.style.opacity === '1')[0];
+      dice(compare && picco && compare.keyText === picco.keyText && compare.keyText === '12%' && LV_CAMBIO_PICCO_MS === Math.round(LV_CAMBIO_MS * 0.12),
+        'il pezzo compare nel fotogramma in cui il lampo e- al massimo, e score.mp3 suona li-',
+        (compare && compare.keyText) + ' / ' + (picco && picco.keyText) + ', picco a ' + LV_CAMBIO_PICCO_MS + 'ms');
+      const rCambio = regole.filter(r => r.selectorText === '.lvc-cambio.va')[0], rBagl = regole.filter(r => r.selectorText === '.lvc-bagliore.va')[0];
+      dice(rCambio && rBagl && rCambio.style.animationDuration === (LV_CAMBIO_MS/1000) + 's' && rBagl.style.animationDuration === (LV_CAMBIO_MS/1000) + 's',
+        'e le due animazioni durano quanto il codice aspetta', rCambio && (rCambio.style.animationDuration + ' / ' + rBagl.style.animationDuration + ' contro ' + LV_CAMBIO_MS + 'ms'));
+      dice(LV_FUOCHI_SCALA === 1.5 && LV_FUOCHI_SPINTA > 0, 'i fuochi sono grandi una volta e mezza, e spinti verso i lati');
       dice(parseInt(ov.dataset.zone || '0', 10) >= 2, 'e cambiano almeno i valori e le gemme del livello', 'pezzi: ' + ov.dataset.zone);
       dice(MENU_GIOCATORE.magicInk === 5000 - sb.costo, 'il saldo e- quello della risposta', String(MENU_GIOCATORE.magicInk));
       dice(document.getElementById('livello-titolo').textContent === 'Level 2!', 'il titolo dice Level 2!', document.getElementById('livello-titolo').textContent);
@@ -264,6 +282,18 @@ app.whenReady().then(async () => {
       dice(eA.textContent.indexOf('Owned') === 0 && eA.querySelector('.pk-lv').textContent === 'Lvl 1' && eA.querySelectorAll('.lv-seg.pieno').length === 1,
         'una posseduta dice Owned, Lvl 1, una tacca piena', eA.textContent);
       dice(eD.querySelector('.pk-lv').textContent === 'Lvl 4' && !!eD.querySelector('.lv-max'), 'al massimo Lvl 4 e la barra grigia');
+      // Allo sbusto New! vuol dire "non e- ancora in Libreria", e basta. Una carta ancora
+      // da guardare in Libreria e una che si ha solo dal mazzo starter (nessuna copia
+      // contata) dicono Owned.
+      CARTE_NUOVE.add(A.slug);
+      delete CARTE_COPIE[B.slug]; CARTE_POSSEDUTE[B.slug] = 1;
+      const cA2 = _costruisciCartaBustina(A, 0, 1), cB2 = _costruisciCartaBustina(B, 1, 2);
+      [cA2, cB2].forEach(c => { reveal.appendChild(c); vestiEtichettaBustina(c); });
+      dice(!cA2.querySelector('.pk-nastro') && cA2.querySelector('.pack-etichetta').textContent.indexOf('Owned') === 0,
+        'allo sbusto una carta ancora New in Libreria dice Owned: in Libreria c-e- gia-');
+      dice(!cB2.querySelector('.pk-nastro') && cB2.querySelector('.pack-etichetta').textContent.indexOf('Owned') === 0,
+        'e anche una che si ha solo dal mazzo starter');
+      CARTE_NUOVE.delete(A.slug); cA2.remove(); cB2.remove();
       const sE = st(eA);
       dice(sE.paddingTop === '12px' && sE.paddingLeft === '20px' && sE.borderTopLeftRadius === '16px' && sE.rowGap === '12px',
         'padding 12/20, angoli 16, dodici fra riga e barra', sE.paddingTop + '/' + sE.paddingLeft + ' ' + sE.borderTopLeftRadius + ' ' + sE.rowGap);
@@ -309,6 +339,12 @@ app.whenReady().then(async () => {
         return Promise.resolve({ tenute: dati.tieni, speso: 50, rimborso: 200, rimborsate: [D.slug], valute: { magicInk: 450, fairyDust: 0 } });
       };
       wD.classList.add('tenuta'); wA.classList.add('tenuta');
+      // I conti si registrano quando partono: il numero a video si aggiorna a ogni
+      // fotogramma, e in una finestra nascosta i fotogrammi sono radi — il 250 di
+      // mezzo puo- essere sovrascritto dal secondo conto prima che il banco lo legga.
+      const conti = [];
+      const contaVera = contaValutaAllIndietro;
+      contaValutaAllIndietro = function(q, da, a){ conti.push(da + '>' + a); return contaVera.apply(this, arguments); };
       raccogliCarte();
       const numero = document.querySelector('#pack-ink-fisso .mm-cur-value');
       const visti = [];
@@ -320,11 +356,10 @@ app.whenReady().then(async () => {
         if(visti[visti.length-1] !== tx) visti.push(tx);
         await attendi(30);
       }
-      nakamaRpc = rpcVera; _bustinaDalServer = false;
+      nakamaRpc = rpcVera; _bustinaDalServer = false; contaValutaAllIndietro = contaVera;
       dice(rientrato, 'il saldo rientra dal bordo dello schermo');
-      const i300 = visti.indexOf('300'), i250 = visti.indexOf('250'), i450 = visti.lastIndexOf('450');
-      dice(i300 >= 0 && i250 > i300 && i450 > i250 && visti[visti.length-1] === '450',
-        'parte dal saldo di prima, scende di quel che si paga e poi sale di quel che si vende', visti.filter((x, i) => i === 0 || /^(250|450)$/.test(x) || i === visti.length - 1).join(' > '));
+      dice(conti.join(' ') === '300>250 250>450' && visti[0] === '300' && visti[visti.length-1] === '450',
+        'parte dal saldo di prima, scende di quel che si paga e poi sale di quel che si vende', 'conti: ' + conti.join(', ') + '; a video da ' + visti[0] + ' a ' + visti[visti.length-1]);
       dice(suoniV.filter(f => /kaching/.test(f)).length === 2, 'col suono dei soldi due volte, una per verso', suoniV.join(', '));
       window.playSfxFile = function(){};
       try{ tornaAllaBustina(); }catch(_){ }
@@ -385,7 +420,7 @@ app.whenReady().then(async () => {
     await foto('nastro', '(function(){ closeCardModal(); return 1; })()', 900, ['#card-db-grid']);
     await foto('salita', '(function(){ ' + pronta + ' CARTE_POSSEDUTE[e.slug]=2; animaSalitaDiLivello(e, 1, 2); return 1; })()', 7500,
       ['#livello-cornice', '#livello-chiudi']);
-    await foto('lampo', '(function(){ chiudiSalitaDiLivello(); ' + pronta + ' animaSalitaDiLivello(e, 1, 2); return 1; })()', 2350,
+    await foto('lampo', '(function(){ chiudiSalitaDiLivello(); ' + pronta + ' animaSalitaDiLivello(e, 1, 2); return 1; })()', 1500,
       ['#livello-carta']);
     await win.webContents.executeJavaScript('chiudiSalitaDiLivello(); closeCardModal && 1');
     await foto('sbusto', '(async function(){ var b=(FINAL_CARDS||[]).filter(function(x){ return x && x.slug && !soloEvocabile(x) && !x.soloAdmin; });'

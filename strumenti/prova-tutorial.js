@@ -114,15 +114,9 @@ app.whenReady().then(async () => {
         ' sullo schermo di questo banco (scala ' + (Math.round(scala*100)/100) + ').');
 
       // ── 4b. LA BARRA DEL TITOLO E LA VIA D-USCITA (v0.79.83) ─────────────
-      const barra = document.getElementById('tutorial-titlebar');
-      dice(!!barra && barra.querySelector('h2').textContent.trim() === 'Tutorial',
-        'la barra del titolo dice Tutorial');
-      dice(Math.round(parseFloat(getComputedStyle(barra).width)) === 600,
-        'ed e- larga 600, la meta- del riquadro',
-        Math.round(parseFloat(getComputedStyle(barra).width)) + 'px');
-      dice(Math.round(parseFloat(getComputedStyle(barra).height)) === 68,
-        'e alta 68 come ogni altra barra del gioco',
-        Math.round(parseFloat(getComputedStyle(barra).height)) + 'px');
+      // v0.79.93 — la barra del titolo non c-e- piu-: tolta su richiesta di Lorenzo.
+      dice(!document.getElementById('tutorial-titlebar') && !document.querySelector('#tutorial-overlay .hx-titlebar'),
+        'sopra al riquadro non c-e- piu- la barra del titolo');
       const salta = document.getElementById('tutorial-salta');
       dice(!!salta && getComputedStyle(salta).display !== 'none',
         'e "Skip tutorial" sta sotto, fuori dal riquadro');
