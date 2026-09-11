@@ -13003,7 +13003,7 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.99</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.98</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <!-- v0.79.75 — dove salgono gli avvisi delle quest. Vuoto quasi sempre, e
@@ -17131,73 +17131,12 @@ function _valoriDaMandare(carta){
   for(const s of SIDES) fuori[s] = Math.max(0, Math.min(99, (base[s]|0)));
   return fuori;
 }
-// ── v0.79.99 — LA CARTA SI CHIEDE COL NOME CHE HA NEL MAZZO ──────────────
-// Due nomi, e servono tutti e due. `carta` e' come il server l'ha distribuita
-// (Strigoi): e' con quello che la cerca nella mano e la toglie. `forma` e' cio'
-// che la carta e' ADESSO (Dark Strigoi, se in mano si e' trasformata): l'altro
-// client la ricostruisce dal catalogo, e senza questo calerebbe uno Strigoi
-// contro un Dark Strigoi — due carte diverse, due scontri diversi.
-function _idDelMazzo(carta){
-  return carta ? (carta.idDelMazzo || carta.baseId || carta.id) : null;
-}
 function reteGioca(carta, q, r){
   if(!PARTITA_RETE) return;
   mmManda({ cid: 'g' + Date.now().toString(36), match_data_send: {
     match_id: PARTITA_RETE.matchId, op_code: 2,
-    data: btoa(JSON.stringify({ carta: _idDelMazzo(carta), forma: carta.baseId || carta.id,
-                                q: q, r: r, valori: _valoriDaMandare(carta) }))
+    data: btoa(JSON.stringify({ carta: carta.baseId || carta.id, q: q, r: r, valori: _valoriDaMandare(carta) }))
   }});
-}
-// La carta dell'avversario, nella forma in cui l'ha giocata. Si RIFA' la
-// trasformazione invece di costruire la carta d'arrivo dal catalogo: una carta
-// trasformata non e' identica a quella nuova di zecca (si porta dietro livello,
-// colpi presi e la riga d'abilita' che l'ha trasformata, vedi trasformaCartaIn),
-// e le due parti devono avere in campo lo stesso oggetto.
-// Con `forma` decide chi l'ha giocata, che e' l'unico a sapere cosa e'
-// successo nella sua mano; il server ha gia' controllato che quella forma sia
-// davvero una delle trasformazioni della carta. Senza — la giocata d'ufficio
-// del server, o un client di prima — si guarda la stessa regola che guarda la
-// mano ("always", da un certo turno in poi): dipende solo dal numero del turno,
-// che i due client hanno uguale.
-function _formaDiRete(carta, d){
-  if(!carta || carta.sconosciuta || !_haAbilitaNuova(carta)) return false;
-  if(typeof d.forma === 'string' && d.forma){
-    if(d.forma === (carta.baseId || carta.id)) return false;
-    const T = _trasformazioneVerso(carta, d.forma);
-    if(!T){
-      console.warn('[rete] ' + d.carta + ' non ha nessuna trasformazione in ' + d.forma + ': resta com\'e\'.');
-      return false;
-    }
-    return _trasformaInSilenzio(carta, T);
-  }
-  const T = _trasformazioneDelFoglio(carta, 'always');
-  if(!T) return false;
-  const scena = _scenaEvento(carta, null);
-  if(!_motore().finestraAperta(T.a, scena)) return false;
-  if(!_motore().scattoConsentito(carta, 'always', scena)) return false;
-  if(!_condizioneVeraQui(T.a.se, carta, scena)) return false;
-  return _trasformaInSilenzio(carta, T);
-}
-function _trasformazioneVerso(carta, idForma){
-  const a = _haAbilitaNuova(carta) ? _motore().abilitaDi(carta) : null;
-  if(!a) return null;
-  for(const eff of [a.effetto, a.effetto2]){
-    if(!eff || eff.azione !== 'transform') continue;
-    const entry = cartaIndicataDa(eff.quanto && eff.quanto.carta);
-    if(entry && entry.id === idForma) return { a, eff, entry };
-  }
-  return null;
-}
-// Senza grido: sta ancora "in mano", e il grido vero lo fa il piazzamento un
-// istante dopo. Si segna anche il colpo, come lo ha segnato la mano di la'.
-function _trasformaInSilenzio(carta, T){
-  const scena = _scenaEvento(carta, null);
-  carta.gridoRimandato = true;
-  let fatto = false;
-  try{ fatto = trasformaCartaIn(carta, T.entry.name, (T.a && T.a.nome) || 'Transform'); }
-  finally{ delete carta.gridoRimandato; }
-  if(fatto) _motore().segnaScatto(carta, T.a.trigger, scena);
-  return fatto;
 }
 
 // L'impronta dello stato dopo una giocata: chi possiede cosa, e quanta vita
@@ -17411,22 +17350,12 @@ function reteApplicaGiocata(d){
   const mano = d.giocatore === 1 ? G.p1Hand : G.p2Hand;
   let carta = null;
   if(mio){
-    // v0.79.99 — col nome che ha NEL MAZZO (vedi _idDelMazzo): una carta
-    // trasformata in mano non si chiama piu' come l'ha distribuita il server,
-    // e cercandola col nome nuovo si finiva su mano[0], cioe' un'altra carta.
-    // A parita' di nome si preferisce quella nella forma giocata.
-    const suoNome = x => _idDelMazzo(x) === d.carta;
-    carta = mano.find(x => suoNome(x) && (!d.forma || (x.baseId || x.id) === d.forma))
-      || mano.find(suoNome) || mano[0];
+    carta = mano.find(x => (x.baseId || x.id) === d.carta) || mano[0];
   } else {
     // Era un segnaposto: adesso si sa cos'era. Si sostituisce IN MANO prima di
     // giocarla, cosi' il resto del motore la trova dov'e' abituato a cercarla.
     const posto = mano.findIndex(x => x.sconosciuta);
     carta = _cartaDaIdRete(d.carta, d.giocatore, PARTITA_RETE.numeroTurno);
-    // v0.79.99 — e nella forma in cui l'ha giocata, PRIMA dei valori: quelli
-    // che arrivano sono della carta trasformata, e trasformarla dopo li
-    // riscriverebbe con quelli di catalogo.
-    try{ _formaDiRete(carta, d); }catch(e){ console.error('[rete] trasformazione: ' + (e && e.message)); }
     // v0.79.59 — i valori con cui l'avversario l'ha giocata davvero (vedi
     // reteGioca). Base e valori: la base perche' e' da li' che le sinergie
     // ripartono, i valori perche' e' quello che si vede finche' non si ridisegna.
@@ -39370,16 +39299,6 @@ function trasformaCartaIn(card, nomeCarta, etichetta){
   card.abilityDescSheet = nuova.abilityDescSheet || '';
   card.abilityTrigger = nuova.abilityTrigger || '';
   card.abilityNoScript = !!nuova.abilityNoScript;
-  // ── v0.79.99 — MA NEL MAZZO RESTA QUELLA CHE ERA ────────────────────────
-  // In rete il server conosce la mano per id di catalogo, e quegli id sono le
-  // carte come le ha distribuite lui: uno Strigoi che diventa Dark Strigoi in
-  // mano, per il server, e' ancora uno Strigoi. Giocandolo si mandava il
-  // baseId NUOVO, e il server rispondeva "quella carta non e' nella tua mano";
-  // allo scadere del tempo la giocava lui d'ufficio col nome VECCHIO, questo
-  // client non la ritrovava e ne calava un'altra — e la partita si fermava.
-  // Si annota quindi da dove si e' partiti, una volta sola: e' l'id con cui la
-  // carta si chiede e si ritrova in rete (vedi _idDelMazzo).
-  if(!card.idDelMazzo) card.idDelMazzo = card.baseId || card.id;
   card.baseId = entry.id;   // da qui in poi voci, battlecry e arte sono le sue
   card.voci = (nuova.voci||[]).slice();
   card.battlecry = nuova.battlecry || null;

@@ -1850,3 +1850,29 @@ hand") si apre al livello 2. Due difetti, uno per parte:
   _inCimaChiHaFretta riceve i livelli carta per carta della partita e guarda
   abilityUnlockLevel. prova-livelli-server.js ha un Coniglio nel catalogo finto
   e lo prova al livello 1, al 2 e senza livelli.
+
+## prova-trasformate-rete.js e prova-trasformate-server.js — una carta trasformata in mano si gioca anche online
+
+    desktop/node_modules/electron/dist/electron.exe strumenti/prova-trasformate-rete.js
+    node strumenti/prova-trasformate-server.js [percorso/index.js]
+
+Segnalazione di Lorenzo (v0.79.99): online, uno Strigoi diventato Dark Strigoi
+IN MANO non si poteva giocare. Il server conosce la mano per id di catalogo,
+come l'ha distribuita, e rispondeva "quella carta non e' nella tua mano"; allo
+scadere del tempo la giocava d'ufficio col nome vecchio, il client non la
+ritrovava e calava mano[0], e la partita si fermava ("racconti diversi ...
+final-strigoi contro final-dark-strigoi" nel registro).
+
+Adesso la carta si chiede col nome del MAZZO (`idDelMazzo`, annotato da
+trasformaCartaIn) e porta la FORMA in cui scende. Il server controlla sul
+catalogo che la forma sia una trasformazione di quella carta e la rimbalza;
+chi guarda rifa' la trasformazione prima di mettere i valori. Senza forma (la
+giocata d'ufficio) chi guarda la ricava dalla regola "always" e dal turno.
+
+Il banco del client usa due carte finte con la riga dello Strigoi (il catalogo
+dentro la pagina non ha le righe del foglio) e prova i due schermi: la
+trasformazione in mano, i due nomi della giocata, il ritorno che trova la carta
+giusta anche d'ufficio, e la carta ricostruita di la' identica a quella di qua.
+Quello del server legge il foglio (bersaglio per numero e per nome), accetta la
+giocata col nome del mazzo, rifiuta una forma inventata e lascia com'era un
+client che la forma non la manda.

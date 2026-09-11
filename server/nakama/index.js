@@ -4571,6 +4571,34 @@ function ombraSaRifare(a) {
   return true;
 }
 
+// v0.79.99 — `forma` e' una delle carte in cui `id` si trasforma? Si leggono le
+// due meta' della sua riga, e il bersaglio come lo scrive il foglio: "#174"
+// (il numero della carta) oppure il suo nome. E' la stessa lettura di
+// cartaIndicataDa nel client.
+function _formaDellaCarta(catalogo, id, forma) {
+  var carte = (catalogo && catalogo.carte) || [];
+  var da = null, verso = null, i;
+  for (i = 0; i < carte.length; i++) {
+    if (!carte[i]) continue;
+    if (String(carte[i].id) === String(id)) da = carte[i];
+    if (String(carte[i].id) === String(forma)) verso = carte[i];
+  }
+  if (!da || !verso || !da.abilita) return false;
+  var effetti = [da.abilita.effetto, da.abilita.effetto2];
+  for (i = 0; i < effetti.length; i++) {
+    var e = effetti[i];
+    if (!e || e.azione !== 'transform') continue;
+    var sigla = String((e.quanto && e.quanto.carta) || '').replace(/^\s+|\s+$/g, '');
+    if (!sigla) continue;
+    if (sigla.charAt(0) === '#') {
+      if (Number(verso.numero) === parseInt(sigla.slice(1), 10)) return true;
+    } else if (String(verso.name || '').replace(/^\s+|\s+$/g, '').toLowerCase() === sigla.toLowerCase()) {
+      return true;
+    }
+  }
+  return false;
+}
+
 // Una carta dell'ombra ha la forma che il motore si aspetta.
 function ombraCarta(state, id, di) {
   var b = state.ombra.carte[String(id)];
@@ -5177,6 +5205,23 @@ function partitaLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
 
     var posto = state.mano[chi].indexOf(carta);
     if (posto === -1) { _aUno(dispatcher, state, chi, OP_RIFIUTO, { perche: 'quella carta non e\' nella tua mano' }); continue; }
+    // ── v0.79.99 — E LA FORMA IN CUI SCENDE ──────────────────────────────
+    // `carta` e' l'id con cui la carta sta nella mano (quello distribuito qui),
+    // `forma` cio' che e' diventata nel frattempo: uno Strigoi che si e'
+    // trasformato in mano scende come Dark Strigoi. Il server non rifa' la
+    // trasformazione, ma controlla l'unica cosa che il catalogo gli dice:
+    // che quella forma sia davvero una delle trasformazioni della carta. Senza,
+    // un client potrebbe calare qualunque carta al posto di quella che ha.
+    // Un client di prima non la manda: si rimbalza null, e l'altro client
+    // ricava la forma dal numero del turno.
+    var forma = null;
+    if (corpo.forma !== undefined && corpo.forma !== null && corpo.forma !== '') {
+      forma = String(corpo.forma);
+      if (forma !== carta && !_formaDellaCarta(leggiSistema(nk, KEY_CATALOGO), carta, forma)) {
+        _aUno(dispatcher, state, chi, OP_RIFIUTO, { perche: 'quella carta non si trasforma in ' + forma });
+        continue;
+      }
+    }
     if (_caselle().indexOf(k) === -1) { _aUno(dispatcher, state, chi, OP_RIFIUTO, { perche: 'quella casella non esiste' }); continue; }
     if (state.buchi.indexOf(k) !== -1) { _aUno(dispatcher, state, chi, OP_RIFIUTO, { perche: 'quella casella e\' bloccata' }); continue; }
     if (state.occupate[k]) { _aUno(dispatcher, state, chi, OP_RIFIUTO, { perche: 'quella casella e\' gia\' occupata' }); continue; }
@@ -5194,7 +5239,7 @@ function partitaLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
     var pescata = _passaTurno(state, dispatcher, chi);
 
     _aTutti(dispatcher, OP_GIOCATA, {
-      giocatore: idx + 1, carta: carta, q: q, r: r, valori: valori,
+      giocatore: idx + 1, carta: carta, forma: forma, q: q, r: r, valori: valori,
       turno: state.turno + 1, scadenza: state.scadenza,
       numeroTurno: state.numeroTurno, pubblico: _pubblico(state)
     });
