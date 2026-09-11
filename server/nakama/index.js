@@ -2820,30 +2820,12 @@ function rpcBustinaRaccogli(ctx, logger, nk, payload) {
   var possesso = assicuraPossesso(ctx, nk, logger, ctx.userId, ctx.username);
   var valute = valuteDi(possesso);
 
-  // ── v0.79.42 — SI PAGA LA MENO CARA DELLE DUE ─────────────────────────
-  // Non piu' "il prezzo della seconda scelta". L'ordine dei clic non deve
-  // essere una leva: la stessa coppia costerebbe 50 o 200 a seconda di quale
-  // carta si tocca per prima, e chi lo scopre paga sempre 50 mentre chi non lo
-  // scopre paga quattro volte tanto. La coppia vale quello che vale.
-  // Il pagamento e il possesso finiscono nello stesso oggetto e in una sola
-  // scrittura: cosi' non esiste l'istante in cui l'inchiostro e' gia' andato e
-  // le carte non sono ancora arrivate.
-  var costo = 0;
-  if (tieni.length >= 2) {
-    var listino = bustina.prezzi || {};
-    for (var q = 0; q < tieni.length; q++) {
-      var prezzoQ = (typeof listino[tieni[q]] === 'number') ? listino[tieni[q]] : 0;
-      if (q === 0 || prezzoQ < costo) costo = prezzoQ;
-    }
-    if (valute.magicInk < costo) throw Error('inchiostro insufficiente');
-    valute.magicInk -= costo;
-  }
-
   // ── v0.79.90 — IL CATALOGO PRIMA DEL CONTO ────────────────────────────
-  // Si leggeva dopo, solo per la risposta. Adesso servono due cose che solo
-  // lui sa: se la carta si possedeva gia' DAL MAZZO STARTER (che vale una
-  // copia, e che qui prima non si vedeva: si guardava solo cio' che era stato
-  // sbustato), e di che rarita' e', per il rimborso.
+  // Servono due cose che solo lui sa: se la carta si possedeva gia' DAL MAZZO
+  // STARTER (che vale una copia, e che qui prima non si vedeva: si guardava solo
+  // cio' che era stato sbustato), e di che rarita' e', per il rimborso.
+  // v0.79.91 — e sta anche PRIMA DEL PAGAMENTO: per sapere quanto si paga
+  // bisogna sapere quali carte si stanno vendendo (vedi sotto).
   var catalogo = leggiSistema(nk, KEY_CATALOGO);
   var admin = !!possesso.admin;
   var carte = [];
@@ -2854,31 +2836,66 @@ function rpcBustinaRaccogli(ctx, logger, nk, payload) {
     carte.push(catalogo.carte[k]);
   }
   var primaDiQuesta = _possedute(carte, possesso, admin);
-
   if (!possesso.carte) possesso.carte = {};
-  // v0.79.7 — e il conto delle copie sale. Sta QUI, nella stessa scrittura che
-  // consegna le carte: contarle altrove vorrebbe dire un istante in cui la
-  // carta e' arrivata e il conto no.
   if (!possesso.copie) possesso.copie = {};
+
+  // Quante copie aveva ogni carta scelta PRIMA di questa, e quali si vendono.
+  // Chi ce l'aveva gia' senza che nessuno contasse vale una copia: e' lo stesso
+  // ripiego di _copieDi, e i due devono dire la stessa cosa. "Ce l'aveva"
+  // comprende il mazzo starter, che fino alla v0.79.89 qui mancava.
   // v0.79.90 — una copia oltre le nove non puo' piu' servire a niente: il
   // livello 4 ne chiede nove in tutto. Invece di finire in un conto morto torna
   // in inchiostro, quanto costa tenere la seconda carta di quella rarita'.
+  // v0.79.91 — ed e' una VENDITA: allo sbusto il pulsante dice "Sell for N".
   var copieMax = COPIE_PER_LIVELLO[LIVELLO_CARTA_MAX];
+  var copiePrima = {};
+  var vendute = {};
+  for (var v = 0; v < tieni.length; v++) {
+    var gia = possesso.copie[tieni[v]];
+    if (typeof gia !== 'number' || gia < 1) gia = primaDiQuesta[tieni[v]] ? 1 : 0;
+    copiePrima[tieni[v]] = gia;
+    if (gia >= copieMax) vendute[tieni[v]] = true;
+  }
+
+  // ── v0.79.42 — SI PAGA LA MENO CARA DELLE DUE ─────────────────────────
+  // Non piu' "il prezzo della seconda scelta". L'ordine dei clic non deve
+  // essere una leva: la stessa coppia costerebbe 50 o 200 a seconda di quale
+  // carta si tocca per prima, e chi lo scopre paga sempre 50 mentre chi non lo
+  // scopre paga quattro volte tanto. La coppia vale quello che vale.
+  // Il pagamento e il possesso finiscono nello stesso oggetto e in una sola
+  // scrittura: cosi' non esiste l'istante in cui l'inchiostro e' gia' andato e
+  // le carte non sono ancora arrivate.
+  // ── v0.79.91 — UNA CARTA VENDUTA NON E' TENUTA ────────────────────────
+  // Resta una delle due scelte del pacchetto, ma non entra nella coppia che si
+  // paga: sul suo pulsante c'e' scritto "Sell for N", e far pagare l'altra per
+  // colpa sua vorrebbe dire mostrare accanto "Sell for 200" e "Pay 50 and
+  // collect", due promesse che si smentiscono.
+  var costo = 0;
+  var pagate = [];
+  for (var t = 0; t < tieni.length; t++) if (!vendute[tieni[t]]) pagate.push(tieni[t]);
+  if (pagate.length >= 2) {
+    var listino = bustina.prezzi || {};
+    for (var q = 0; q < pagate.length; q++) {
+      var prezzoQ = (typeof listino[pagate[q]] === 'number') ? listino[pagate[q]] : 0;
+      if (q === 0 || prezzoQ < costo) costo = prezzoQ;
+    }
+    if (valute.magicInk < costo) throw Error('inchiostro insufficiente');
+    valute.magicInk -= costo;
+  }
+
+  // v0.79.7 — e il conto delle copie sale. Sta QUI, nella stessa scrittura che
+  // consegna le carte: contarle altrove vorrebbe dire un istante in cui la
+  // carta e' arrivata e il conto no.
   var rimborso = 0;
   var rimborsate = [];
   for (var j = 0; j < tieni.length; j++) {
     var tenuta = tieni[j];
-    // Chi ce l'aveva gia' senza che nessuno contasse vale una copia: e' lo
-    // stesso ripiego di _copieDi, e i due devono dire la stessa cosa. "Ce
-    // l'aveva" comprende il mazzo starter, che fino alla v0.79.89 qui mancava.
-    var gia = possesso.copie[tenuta];
-    if (typeof gia !== 'number' || gia < 1) gia = primaDiQuesta[tenuta] ? 1 : 0;
-    if (gia >= copieMax) {
+    if (vendute[tenuta]) {
       rimborso += costoTenereRarita(perSlug[tenuta] && perSlug[tenuta].rarity);
       rimborsate.push(tenuta);
-      possesso.copie[tenuta] = gia;
+      possesso.copie[tenuta] = copiePrima[tenuta];
     } else {
-      possesso.copie[tenuta] = gia + 1;
+      possesso.copie[tenuta] = copiePrima[tenuta] + 1;
     }
     possesso.carte[tenuta] = Math.max(possesso.carte[tenuta] || 0, LIVELLO_SBUSTATA);
   }

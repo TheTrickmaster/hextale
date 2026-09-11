@@ -1702,3 +1702,16 @@ Libreria, la finestra finale, il lampo coi fuochi, e i cartellini dello sbusto.
 Per quest'ultima le carte si mettono a mano nello stato in cui galleggiano (senza
 la classe `emerging` resterebbero sopra al bordo dello schermo, dove le lascia
 l'animazione d'ingresso che il banco non fa partire).
+
+**v0.79.91 — vendere.** Allo sbusto una carta che ha gia' nove copie non si
+tiene: si vende, e il pulsante dice "Sell for N". `prova-livelli-server.js`
+controlla che vendendone una e tenendone un'altra non si paghi niente (la
+venduta non entra nella coppia che si paga), che l'altra prenda la sua copia e
+che la venduta resti comunque una delle due scelte. `prova-livelli.js` legge le
+etichette (Sell for, Keep (Free) accanto a una venduta, Discarded, un Collect
+senza prezzo) e poi raccoglie con una risposta finta che paga 50 e ne rende 200:
+il saldo deve rientrare dal bordo, partire da 300, scendere a 250, salire a 450,
+col suono dei soldi due volte. Nell'etichetta l'icona dell'inchiostro sta fra la
+parola e il numero, quindi il testo ha due spazi: il banco li compatta — e dentro
+al corpo del banco la barra si scrive `\s`, perche' il corpo e' un template
+literal e `\s` perderebbe la barra.

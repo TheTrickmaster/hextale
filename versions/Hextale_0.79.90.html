@@ -13031,7 +13031,7 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.91</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.90</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <!-- v0.79.75 — dove salgono gli avvisi delle quest. Vuoto quasi sempre, e
@@ -29296,21 +29296,8 @@ function costoDiCarta(carta){
 // Il costo di una carta ANCORA DA PRENDERE e' quindi il minimo fra il suo e
 // quello di cio' che si e' gia' preso: e' la cifra che si paghera' davvero
 // aggiungendola, ed e' quella che deve stare scritta sul suo pulsante.
-// ── v0.79.91 — UNA CARTA VENDUTA NON E' TENUTA ───────────────────────────
-// Una carta che ha gia' tutte le copie che servono (nove, il livello 4) non si
-// tiene: si vende, e il suo pulsante dice "Sell for N". Resta una delle due
-// scelte del pacchetto, ma non entra nella coppia che si paga — la stessa
-// regola del server (vedi rpcBustinaRaccogli), che e' quella che vale.
-function cartaDaVendere(carta){
-  const entry = carta && carta.__entry;
-  if(!entry) return false;
-  const R = LIVELLI_CARTE_REGOLE;
-  return copiePossedute(entry) >= ((R.copie && R.copie[R.max || 4]) || 9);
-}
-function _tenuteDaPagare(){ return _carteTenute().filter(c => !cartaDaVendere(c)); }
 function costoConQuestaCarta(carta){
-  if(cartaDaVendere(carta)) return 0;       // si vende: non costa niente
-  const tenute = _tenuteDaPagare();
+  const tenute = _carteTenute();
   if(!tenute.length) return 0;   // la prima e' gratis: non c'e' niente da pagare
   let costo = costoDiCarta(carta);
   for(const c of tenute) costo = Math.min(costo, costoDiCarta(c));
@@ -29318,7 +29305,7 @@ function costoConQuestaCarta(carta){
 }
 // Quello della coppia gia' composta, per il pulsante finale.
 function costoCoppiaTenuta(){
-  const tenute = _tenuteDaPagare();
+  const tenute = _carteTenute();
   if(tenute.length < 2) return 0;
   let costo = costoDiCarta(tenute[0]);
   for(const c of tenute) costo = Math.min(costo, costoDiCarta(c));
@@ -29382,20 +29369,14 @@ function aggiornaSceltaBustina(){
       // le due carte alla pari. "Discard" prometteva un gesto — scartare quella
       // carta — che non e' quello che succede premendolo.
       testo = 'Cancel';
+    } else if(quante === 0){
+      testo = 'Keep (Free)';
     } else if(quante >= BUSTINA_TENIBILI){
       // Due gia' prese: la terza non si puo' avere in nessun modo. Il pulsante
       // resta li' spento invece di sparire, cosi' si vede che la scelta e'
       // stata fatta e non che il gioco si e' dimenticato una carta.
       testo = 'Discarded';
       spento = true;
-    } else if(cartaDaVendere(c)){
-      // v0.79.91 — ha gia' tutte le copie: prenderla vuol dire venderla. La
-      // cifra e' quella che torna in inchiostro, cioe' quanto costa tenere la
-      // seconda carta di quella rarita'.
-      testo = 'Sell for <img src="' + iconaInchiostro + '" alt="magic ink"> ' + costoDiCarta(c);
-    } else if(costo <= 0){
-      // La prima e' gratis — e lo e' anche quella accanto a una venduta.
-      testo = 'Keep (Free)';
     } else {
       // La seconda si paga, e si paga il prezzo di QUESTA carta. L'icona sta
       // DENTRO l'etichetta, cosi' il numero si legge come un prezzo.
@@ -29418,9 +29399,7 @@ function aggiornaSceltaBustina(){
     // v0.75.22 — il prezzo si legge anche QUI, non solo sul pulsante della
     // carta: e' l'ultimo momento prima di pagare, ed e' il posto in cui una
     // cifra non detta diventa una sorpresa.
-    // v0.79.91 — si scrive il prezzo solo se c'e' davvero qualcosa da pagare:
-    // due carte di cui una venduta non costano niente.
-    if(et) et.innerHTML = (costoFinale > 0)
+    if(et) et.innerHTML = (quante >= 2)
       ? ('Pay <img src="' + iconaInchiostro + '" alt="magic ink"> ' + costoFinale + ' and collect')
       : 'Collect';
     mostraPulsanteBustina('pack-collect', quante > 0);
@@ -30540,10 +30519,7 @@ async function raccogliCarte(){
       }
       // v0.79.90 — la copia appena presa si vede arrivare nella barra.
       try{ copieRiempite = riempiCopiaBustina(tenute, r && r.rimborsate); }catch(_){ copieRiempite = 0; }
-      // v0.79.91 — il saldo rientra anche quando una carta e' stata VENDUTA:
-      // la cifra che torna si deve veder arrivare, come quella che se ne va.
-      const spesoInk = (r && r.speso) || 0, vendutoInk = (r && r.rimborso) || 0;
-      if(spesoInk > 0 || vendutoInk > 0){
+      if(r && r.speso > 0){
         // ── v0.79.44 — PRIMA RIENTRA, POI PAGA ────────────────────────────
         // Il riquadro dell'inchiostro e' fuori schermo insieme al resto della
         // pagina: lampeggiare e scalare la somma addosso a una cosa
@@ -30569,24 +30545,9 @@ async function raccogliCarte(){
           // avvenuto per davvero: sentire il registratore di cassa senza che
           // sia uscito un soldo e' il genere di dettaglio che fa dubitare del
           // resto.
-          const finale = MENU_GIOCATORE.magicInk;
-          const pagato = prima - spesoInk;
-          if(spesoInk > 0){
-            try { playSfxFile('kaching.mp3'); } catch(_){}
-            lampeggiaValuta('ink');
-            contaValutaAllIndietro('ink', prima, pagato);
-          }
-          // Prima scende e poi sale, se sono successe tutte e due: un numero
-          // solo che va dritto al risultato nasconderebbe che si e' pagato E
-          // incassato. Stesso suono e stesso lampo sull'icona, perche' e' lo
-          // stesso gesto nell'altro verso.
-          if(vendutoInk > 0){
-            _bustinaDopo(spesoInk > 0 ? VALUTA_CONTO_MS + 250 : 0, ()=>{
-              try { playSfxFile('kaching.mp3'); } catch(_){}
-              lampeggiaValuta('ink');
-              contaValutaAllIndietro('ink', pagato, finale);
-            });
-          }
+          try { playSfxFile('kaching.mp3'); } catch(_){}
+          lampeggiaValuta('ink');
+          contaValutaAllIndietro('ink', prima, MENU_GIOCATORE.magicInk);
         });
       }
     } else if(tenute.length >= 2){

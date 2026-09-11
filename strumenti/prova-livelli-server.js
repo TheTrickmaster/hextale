@@ -98,6 +98,20 @@ magazzino.bustina.u1 = { carte: ['b', 'c', 'd'], prezzi: { b: 200, c: 500, d: 10
 r = JSON.parse(ctx.rpcBustinaRaccogli(chi('u1'), logger, nk, JSON.stringify({ tieni: ['b'] })));
 dice(r.rimborso === 0 && r.rimborsate.length === 0, 'e una copia che serve non rimborsa niente', JSON.stringify(r.rimborsate));
 
+// v0.79.91 — vendere una carta non fa pagare l'altra: resta una delle due
+// scelte del pacchetto, ma non entra nella coppia che si paga.
+magazzino.possesso.u1.valute.magicInk = 1000;
+magazzino.bustina.u1 = { carte: ['d', 'a', 'c'], prezzi: { d: 1000, a: 50, c: 500 }, tipo: 'daily' };
+const copieAPrima = magazzino.possesso.u1.copie.a;
+r = JSON.parse(ctx.rpcBustinaRaccogli(chi('u1'), logger, nk, JSON.stringify({ tieni: ['d', 'a'] })));
+p = magazzino.possesso.u1;
+dice(r.speso === 0 && r.rimborso === 1000 && p.valute.magicInk === 2000,
+  'vendendone una e tenendone un-altra non si paga niente, e la venduta rende', 'speso ' + r.speso + ', rimborso ' + r.rimborso + ', saldo 1000 -> ' + p.valute.magicInk);
+dice(p.copie.a === copieAPrima + 1 && p.copie.d === 9, 'e l-altra prende la sua copia', 'a: ' + copieAPrima + ' -> ' + p.copie.a);
+magazzino.bustina.u1 = { carte: ['d', 'a', 'c'], prezzi: { d: 1000, a: 50, c: 500 }, tipo: 'daily' };
+dice(/al massimo 2/.test(sbaglia(() => ctx.rpcBustinaRaccogli(chi('u1'), logger, nk, JSON.stringify({ tieni: ['d', 'a', 'c'] })))),
+  'ma la venduta resta una delle due scelte: la terza non si prende');
+
 // ── 3. SALIRE DI LIVELLO ──────────────────────────────────────────────────
 // b adesso ha 2 copie (starter + questa): puo' andare al 2, non al 3.
 p = magazzino.possesso.u1;

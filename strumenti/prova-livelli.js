@@ -274,6 +274,62 @@ app.whenReady().then(async () => {
       dice(riempiCopiaBustina([cD], [D.slug]) === 0, 'e una copia rimborsata non riempie niente');
       reveal.innerHTML = '';
 
+      // ── 8b. VENDERE ───────────────────────────────────────────────────────
+      // v0.79.91 — una carta con tutte le copie non si tiene: si vende. Il suo
+      // pulsante dice Sell for, e non fa pagare l-altra carta presa.
+      MENU_GIOCATORE.magicInk = 5000;
+      const vC = _costruisciCartaBustina(C, -1, 0), vA = _costruisciCartaBustina(A, 0, 1), vD = _costruisciCartaBustina(D, 1, 2);
+      [vC, vA, vD].forEach(c => reveal.appendChild(c));
+      aggiornaSceltaBustina();
+      // L-icona dell-inchiostro sta fra la parola e il numero: gli spazi si compattano.
+      const eti = c => c.__sceltaBtn ? c.__sceltaBtn.querySelector('.hxb-label').textContent.replace(/\\s+/g, ' ').trim() : '';
+      const collect = () => document.querySelector('#pack-collect .hxb-label').textContent.trim();
+      dice(eti(vD) === 'Sell for ' + costoDiCarta(vD), 'una carta con nove copie dice Sell for e quanto rende', eti(vD));
+      dice(eti(vA) === 'Keep (Free)' && eti(vC) === 'Keep (Free)', 'le altre, finche- non si sceglie, Keep (Free)', eti(vA) + ' / ' + eti(vC));
+      scegliCartaBustina(vD);
+      dice(eti(vA) === 'Keep (Free)', 'venduta quella, l-altra resta gratis', eti(vA));
+      scegliCartaBustina(vA);
+      dice(eti(vC) === 'Discarded' && costoCoppiaTenuta() === 0 && collect() === 'Collect',
+        'e presa anche lei non si paga niente: la terza si scarta, e Collect non dice un prezzo', eti(vC) + ' / ' + collect());
+      scegliCartaBustina(vD); scegliCartaBustina(vA);
+      scegliCartaBustina(vA);
+      dice(eti(vC).indexOf('Keep for ') === 0 && eti(vD).indexOf('Sell for ') === 0,
+        'con una tenuta, la seconda normale si paga e quella da vendere no', eti(vC) + ' / ' + eti(vD));
+      // Il saldo che rientra: scende per quel che si paga, poi sale per quel che si vende.
+      const suoniV = [];
+      window.playSfxFile = function(f){ suoniV.push(f); };
+      reveal.innerHTML = '';
+      const wC = _costruisciCartaBustina(C, -1, 0), wA = _costruisciCartaBustina(A, 0, 1), wD = _costruisciCartaBustina(D, 1, 2);
+      [wC, wA, wD].forEach(c => reveal.appendChild(c));
+      MENU_GIOCATORE.magicInk = 300; aggiornaValuteAVideo();
+      _bustinaInCorso = false; _bustinaDaGirare = 0; _raccoltaInCorso = false; _bustinaDalServer = true;
+      const rpcVera = nakamaRpc;
+      nakamaRpc = function(nome, dati){
+        if(nome !== 'hx_bustina_raccogli') return Promise.resolve({});
+        return Promise.resolve({ tenute: dati.tieni, speso: 50, rimborso: 200, rimborsate: [D.slug], valute: { magicInk: 450, fairyDust: 0 } });
+      };
+      wD.classList.add('tenuta'); wA.classList.add('tenuta');
+      raccogliCarte();
+      const numero = document.querySelector('#pack-ink-fisso .mm-cur-value');
+      const visti = [];
+      let rientrato = false;
+      const t2 = Date.now();
+      while(Date.now() - t2 < 3500){
+        if(document.getElementById('pack-overlay').classList.contains('paga')) rientrato = true;
+        const tx = numero ? numero.textContent : '';
+        if(visti[visti.length-1] !== tx) visti.push(tx);
+        await attendi(30);
+      }
+      nakamaRpc = rpcVera; _bustinaDalServer = false;
+      dice(rientrato, 'il saldo rientra dal bordo dello schermo');
+      const i300 = visti.indexOf('300'), i250 = visti.indexOf('250'), i450 = visti.lastIndexOf('450');
+      dice(i300 >= 0 && i250 > i300 && i450 > i250 && visti[visti.length-1] === '450',
+        'parte dal saldo di prima, scende di quel che si paga e poi sale di quel che si vende', visti.filter((x, i) => i === 0 || /^(250|450)$/.test(x) || i === visti.length - 1).join(' > '));
+      dice(suoniV.filter(f => /kaching/.test(f)).length === 2, 'col suono dei soldi due volte, una per verso', suoniV.join(', '));
+      window.playSfxFile = function(){};
+      try{ tornaAllaBustina(); }catch(_){ }
+      reveal.innerHTML = '';
+
       // ── 9. IN RETE ────────────────────────────────────────────────────────
       const reteVera = PARTITA_RETE;
       PARTITA_RETE = { io: 1, livelloAvversario: 1, livelliAvversario: {} };
