@@ -127,6 +127,10 @@ app.whenReady().then(async () => {
         dice(sn0.right === '-2px' && sn0.top === '65px' && sn0.height === '40px',
           'a destra, sporgente di due pixel, alto quaranta', 'right ' + sn0.right + ', top ' + sn0.top + ', height ' + sn0.height);
         dice(/lv-up-banner\\.png/.test(nastri[0].src || ''), 'ed e- lv-up-banner.png', nastri[0].src);
+        // v0.80.2 — dentro al piano che si inclina, cosi- segue il tilt della carta.
+        const pianoN = nastri[0].parentElement;
+        dice(sB.dataset.foil !== '1' || (pianoN && pianoN.classList.contains('card-db-foil-tilt')),
+          'e sta dentro al piano che si inclina (segue il tilt)', (pianoN ? pianoN.className : '(niente)') + ', lamina ' + sB.dataset.foil);
       }
       const regole = [].concat.apply([], [].slice.call(document.styleSheets).map(function(s){ try{ return [].slice.call(s.cssRules); }catch(_){ return []; } }));
       const rNew = regole.filter(r => r.selectorText === '.card-db-card-slot .nuova-nastro')[0];

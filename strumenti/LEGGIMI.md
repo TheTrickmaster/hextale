@@ -1956,3 +1956,23 @@ ondataDanno), chiudiBollaPunti incassa anche senza bolla, i contatori del
 ritratto girano in fila (_codaPunteggio) e la bolla conta dal suo valore invece
 che da zero. finishGameWithResult e reteMandaImpronta leggono i punti veri.
 (Da non confondere con prova-punti.js, che prova come si CONTANO i punti.)
+
+## prova-buff-con-nome.js — nel riquadro "Buffs/debuffs" ogni riga dice da chi
+
+    desktop/node_modules/electron/dist/electron.exe strumenti/prova-buff-con-nome.js
+
+Segnalazione di Lorenzo (v0.80.2), col Bianconiglio: "+1", "+2", "+2 ALL Self",
+"-1 from Robin Hood". I numeri nudi erano i totali per gruppo, scritti per non
+tacere mai e tolti solo se una riga col nome diceva alla lettera la stessa cosa:
+con due fonti sulla stessa carta non succedeva mai. Regola nuova: "se un buff o
+debuff non ha un nome non e' valido e non va mostrato". Il totale si scrive solo
+quando ha un nome ("Self"); una voce del registro senza nome non si scrive.
+
+Nella stessa versione:
+- prova-gelo.js segue la lastra di ghiaccio della carta, che adesso e' un
+  elemento .ghiaccio-carta dentro al piano che si inclina (e non piu' un
+  ::after del supporto), e controlla che il gelo si formi (animazione
+  geloArriva, ripresa al punto giusto se si ridisegna, vedi _geloDa); la lastra
+  del tassello ha fusione e ritaglio sul gruppo che la contiene.
+- prova-livelli.js controlla che il nastro "Lv up" stia dentro al piano che si
+  inclina, cosi' segue il tilt della carta.

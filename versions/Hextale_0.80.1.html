@@ -3512,39 +3512,11 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
    una cosa che la contiene. */
 .hand-card-wrap.congelata{ isolation:isolate; filter:drop-shadow(0 0 8px rgba(150,215,255,.75)); }
 .hand-card-wrap.congelata .hand-card-hitzone{ cursor:var(--cursore); }
-/* v0.80.2 — LA LASTRA E' UN ELEMENTO, DENTRO AL PIANO CHE SI INCLINA.
-   Lorenzo: "il ghiacciolo sulla carta dovrebbe essere ancorato ai movimenti
-   della carta (move, tilt), adesso e' statico". Il ::after stava sul wrap, e
-   il wrap e' il SUPPORTO della carta: si inclina nel ventaglio, ma il tilt al
-   passaggio del puntatore e il sollevamento stanno piu' dentro, sul piano
-   .card-db-foil-tilt. La carta ruotava e il ghiaccio no.
-   Adesso e' un elemento appeso a quel piano (o, se la carta e' coperta, al
-   .hand-card-flip-wrap, che gira con il dorso): ne eredita ogni movimento. Il
-   piano ha una trasformazione, quindi e' gia' un gruppo isolato e hard-light
-   fonde col disegno della carta e basta. Misura, sbordatura e fusione restano
-   quelle di prima (v0.79.63 / v0.79.64). */
-.hand-card-wrap .ghiaccio-carta{
-  position:absolute; inset:-4%; pointer-events:none; z-index:3;
+.hand-card-wrap.congelata::after{
+  content:''; position:absolute; inset:-4%; pointer-events:none;
   background-image:url('https://hextalegame.com/cards/card-parts/frozen-card.png');
   background-size:100% 100%; background-repeat:no-repeat; background-position:center;
   mix-blend-mode:hard-light;
-}
-/* v0.80.2 — E SI FORMA, invece di comparire. Arriva grande e trasparente, si
-   stringe sulla carta con un lampo freddo, rimbalza appena e si ferma: e' il
-   momento in cui la carta finisce nel blocco, e deve vedersi succedere.
-   La durata e' in --gelo-ms e il ritardo lo scrive il gioco: se la carta viene
-   ridisegnata a meta', l'animazione riparte dal punto in cui era (vedi
-   _geloDa) invece che da capo. */
-.ghiaccio-carta.gelo-arriva,
-#board-svg .gelo-arriva{
-  animation:geloArriva var(--gelo-ms, 700ms) cubic-bezier(.2,.9,.3,1.15) both;
-}
-#board-svg .gelo-arriva{ transform-box:fill-box; transform-origin:center; }
-@keyframes geloArriva{
-  0%  { opacity:0; transform:scale(1.32); filter:brightness(2.6) saturate(.5); }
-  45% { opacity:1; transform:scale(.96);  filter:brightness(1.9) saturate(.8); }
-  70% { opacity:1; transform:scale(1.02); filter:brightness(1.25); }
-  100%{ opacity:1; transform:scale(1);    filter:none; }
 }
 .hand-card-img{
   position:absolute; inset:0; width:100%; height:100%;
@@ -13038,7 +13010,7 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.2</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.1</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <!-- v0.79.75 — dove salgono gli avvisi delle quest. Vuoto quasi sempre, e
@@ -31895,14 +31867,12 @@ function cardDbRenderRoster(){
     // "New", ma sul bordo destro e sporgente di due pixel, come quello. Non se
     // ne va passandoci sopra: non e' una novita' da guardare una volta, e' una
     // cosa da fare, e resta finche' non la si fa.
-    // v0.80.2 — il nastro si costruisce qui ma si appende piu' sotto, DENTRO al
-    // piano che si inclina: vedi dove si monta la carta.
-    let nastroLivello = null;
     if(cartaProntaASalire(entry)){
       slot.classList.add('carta-pronta');
-      nastroLivello = document.createElement('img');
-      nastroLivello.className = 'lvup-nastro'; nastroLivello.alt = 'Lv up'; nastroLivello.draggable = false;
-      impostaImgDaCandidati(nastroLivello, uiFileCandidati('lv-up-banner.png'));
+      const lv = document.createElement('img');
+      lv.className = 'lvup-nastro'; lv.alt = 'Lv up'; lv.draggable = false;
+      impostaImgDaCandidati(lv, uiFileCandidati('lv-up-banner.png'));
+      slot.appendChild(lv);
     }
     if(_eCartaNuova(entry)){
       slot.classList.add('carta-nuova');
@@ -31976,19 +31946,10 @@ function cardDbRenderRoster(){
       const foilGlare = document.createElement('div');
       foilGlare.className = 'card-db-foil-glare';
       foilTilt.appendChild(foilGlare);
-      // ── v0.80.2 — "LV UP" SEGUE LA CARTA ──────────────────────────────────
-      // Lorenzo: "l'icona Lv up deve seguire movimenti e tilt della carta".
-      // Stava sulla casella, fuori dal piano che si inclina: la carta ruotava
-      // sotto al puntatore e il nastro restava piatto, staccato. Dentro al
-      // piano ne eredita la rotazione, e dopo il riflesso (che e' appeso prima)
-      // resta sopra al disegno. Il piano ha la stessa misura della casella,
-      // quindi le misure del CSS restano quelle.
-      if(nastroLivello) foilTilt.appendChild(nastroLivello);
       foilWrap.appendChild(foilTilt);
       slot.appendChild(foilWrap);
     } else {
       slot.appendChild(cardSvg);
-      if(nastroLivello) slot.appendChild(nastroLivello);
     }
     // v0.71.92 ("l'audio si riproduce anche nella collezione carte, quando
     // si clicca su una delle carte disponibili"): clicking a real (non
@@ -36071,8 +36032,6 @@ function initGame(vsAI){
   _hpCountdownState[2]=null;
   // v0.80.1 — e i contatori del punteggio in fila della partita di prima.
   try{ _codaPunteggio[1].length = 0; _codaPunteggio[2].length = 0; }catch(_){ }
-  // v0.80.2 — e i geli visti nella partita di prima.
-  try{ _geloDa.clear(); }catch(_){ }
   _hpQueue[1].length=0;
   _hpQueue[2].length=0;
   _hpProcessing[1]=false;
@@ -37050,8 +37009,6 @@ function elencoModificatori(card){
     // chi legge sta guardando un elenco di CHI le ha messo le mani addosso, e
     // due elenchi con due grammatiche diverse si leggono come due cose diverse.
     const suDiSe = !!(m.id && card.id && m.id === card.id);
-    // v0.80.2 — senza un nome non e' una riga (vedi bloccoModificatoriHTML).
-    if(!suDiSe && !m.da) continue;
     righe.push({
       testo: segno + Math.abs(m.delta) + (m.ambito ? ' '+m.ambito : '')
            + (suDiSe ? ' Self' : (m.da ? ' from '+m.da : '')),
@@ -51972,15 +51929,6 @@ function renderHand(containerId,hand,playerIdx){
     // ora eredita la stessa trasformazione 3D.
     const tiltPlane = cardFoilHost.querySelector('.card-db-foil-tilt');
     if(tiltPlane && glowImg) tiltPlane.insertBefore(glowImg, tiltPlane.firstChild);
-    // v0.80.2 — il ghiaccio, appeso a cio' che si muove davvero: il piano che
-    // si inclina se la carta e' scoperta, il flip-wrap (che gira col dorso) se
-    // e' coperta. Vedi .ghiaccio-carta nel CSS.
-    if(cartaCongelata(card)){
-      const ghiaccio = document.createElement('div');
-      ghiaccio.className = 'ghiaccio-carta';
-      ((isCovered || !tiltPlane) ? flipWrap : tiltPlane).appendChild(ghiaccio);
-      _geloAnima(ghiaccio, 'c:' + card.id);
-    } else _geloFinito('c:' + card.id);
     // Il variant guida le regole CSS per-fazione di glare e specular map.
     wrap.dataset.foilVariant = playerFactionName(card.owner||1);
 
@@ -53800,26 +53748,6 @@ function evidenziaBersaglio(svg, x, y, R){
 // `isolation:isolate` sul gruppo per la stessa ragione della carta: senza,
 // `hard-light` fonderebbe con tutto quello che sta sotto nell'SVG — le celle
 // gia' disegnate — invece che col tassello di questa cella soltanto.
-// ── v0.80.2 — QUANDO E' COMINCIATO IL GELO ─────────────────────────────────
-// La mano e la plancia si ridisegnano da capo, e un'animazione messa su un
-// elemento nuovo ripartirebbe a ogni ridisegno. Si ricorda quindi il primo
-// istante in cui una carta o un tassello e' stato disegnato ghiacciato, e ogni
-// disegno successivo rimette l'animazione al punto giusto con un ritardo
-// negativo. Finita l'animazione il ghiaccio resta fermo; smesso il gelo, la
-// voce si cancella e un gelo nuovo si rivede formare.
-const GELO_MS = 700;
-const _geloDa = new Map();
-function _geloAnima(el, chiave){
-  if(!el) return;
-  let da = _geloDa.get(chiave);
-  if(da === undefined){ da = performance.now(); _geloDa.set(chiave, da); }
-  const passati = performance.now() - da;
-  if(passati >= GELO_MS) return;              // gia' formato: resta com'e'
-  el.classList.add('gelo-arriva');
-  el.style.setProperty('--gelo-ms', GELO_MS + 'ms');
-  el.style.animationDelay = (-passati) + 'ms';
-}
-function _geloFinito(chiave){ _geloDa.delete(chiave); }
 function disegnaGeloCella(svg, x, y, R, uid){
   const ri = R - BOARD_GAP;
   const corners = hexCorners(x, y, ri);
@@ -53845,19 +53773,10 @@ function disegnaGeloCella(svg, x, y, R, uid){
   // qui sotto, ed e' quella che garantisce che le due coprano lo stesso
   // riquadro invece di lasciare una fascia scoperta su un lato.
   img.setAttribute('preserveAspectRatio','xMidYMid slice');
+  img.setAttribute('clip-path',`url(#${clipId})`);
+  img.style.mixBlendMode = 'hard-light';
   img.style.pointerEvents = 'none';
-  // v0.80.2 — il ritaglio sta su un gruppo e non sull'immagine: l'animazione
-  // del gelo la ingrandisce, e un clip-path sull'immagine crescerebbe con lei
-  // uscendo dall'esagono. Cosi' la lastra si stringe DENTRO al tassello.
-  const taglio = svgEl('g');
-  taglio.setAttribute('clip-path',`url(#${clipId})`);
-  taglio.style.pointerEvents = 'none';
-  // La fusione sta sul gruppo: un gruppo ritagliato e' isolato, e un
-  // hard-light sull'immagine dentro fonderebbe col vuoto invece che col tassello.
-  taglio.style.mixBlendMode = 'hard-light';
-  taglio.appendChild(img);
-  svg.appendChild(taglio);
-  _geloAnima(img, 't:' + uid);
+  svg.appendChild(img);
   return img;
 }
 function drawTileCell(svg, x, y, R, imgSrc, uid, placeable){
@@ -54898,7 +54817,7 @@ function renderBoard(){
       if(cellaCongelata(k)){
         cellGroup.style.isolation = 'isolate';
         disegnaGeloCella(svg,x,y,R,k+'f');
-      } else _geloFinito('t:' + k + 'f');
+      }
       // Tagged so the Distruggere attack sequence (see doDistruggi) can find
       // THIS cell's overlay polygon right after the wall comes down — by the
       // time doDistruggi's strike-instant renderBoard() runs, G.holes.delete
@@ -55445,24 +55364,12 @@ function bloccoModificatoriHTML(card){
   // Se nessuna riga con un nome spiega quel totale e la riga del foglio dice
   // che quella carta agisce su SE STESSA, allora il colpevole e' lei, e lo si
   // scrive. Non e' una deduzione azzardata: e' l'unica fonte rimasta.
-  // ── v0.80.2 — UNA RIGA SENZA NOME NON SI MOSTRA ─────────────────────────
-  // Regola di Lorenzo: "se un buff o debuff non ha un nome, vuol dire che non e'
-  // valido e non va mostrato". Il totale per gruppo qui sotto era nato
-  // (v0.78.5) per non tacere mai, e tace invece quando c'e' qualcuno a
-  // spiegarlo — ma lo riconosceva solo se una riga col nome diceva ALLA
-  // LETTERA la stessa cosa. Con due fonti sulla stessa carta non succede mai:
-  // il Bianconiglio con "+2 ALL Self" e "-1 from Robin Hood" ha un gruppo a +1
-  // e gli altri a +2, e il riquadro scriveva anche "+1" e "+2" nudi, sopra alle
-  // due righe che li spiegavano gia'.
-  // Adesso il totale si scrive solo quando ha un nome: quando nessun altro
-  // spiega il cambiamento e la riga del foglio dice che la carta agisce su se
-  // stessa ("Self"). Negli altri casi le righe sono quelle coi nomi, e basta.
   const daSe = (!nomi.length) && _abilitaSuDiSe(card);
   const quantiGruppi = ((typeof gruppiDiCarta === 'function') ? gruppiDiCarta(card) : []).length;
   const tutta = quantiGruppi > 0 && scarti.length >= quantiGruppi
              && scarti.every(s => s.delta === scarti[0].delta);
   const quantita = tutta ? [scarti[0].delta] : [...new Set(scarti.map(s => s.delta))];
-  for(const d of (daSe ? quantita : [])){
+  for(const d of quantita){
     righe.push({
       testo: (d > 0 ? '+' : '\u2212') + Math.abs(d) + (tutta ? ' ALL' : '') + (daSe ? ' Self' : ''),
       positivo: d > 0,

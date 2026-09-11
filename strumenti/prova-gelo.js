@@ -107,70 +107,63 @@ app.whenReady().then(async () => {
     dice(!!wrap, 'la carta congelata e- riconoscibile nel ventaglio',
       wrap ? '' : 'nessun .hand-card-wrap.congelata: senza questa il resto non si puo- chiedere');
     if(!wrap) return d;
-    const dopo = getComputedStyle(wrap, '::after');
+    // v0.80.2 — la lastra non e- piu- un ::after del wrap ma un elemento
+    // .ghiaccio-carta DENTRO al piano che si inclina (.card-db-foil-tilt):
+    // Lorenzo l-aveva visto restare fermo mentre la carta si inclinava.
+    const lastra = wrap.querySelector('.ghiaccio-carta');
+    dice(!!lastra, 'c-e- la lastra .ghiaccio-carta', lastra ? '' : 'nessun .ghiaccio-carta nella carta congelata');
+    if(!lastra) return d;
+    const piano = lastra.parentElement;
+    dice(piano && piano.classList.contains('card-db-foil-tilt'),
+      'e sta dentro al piano che si inclina, non sul supporto',
+      'appesa a ' + (piano ? piano.className : '(niente)'));
+    const dopo = getComputedStyle(lastra);
     dice(/frozen-card\\.png/.test(dopo.backgroundImage),
       'e ci sta sopra la lastra frozen-card.png',
       'ho letto "' + String(dopo.backgroundImage).slice(0, 120) + '"');
     dice(dopo.mixBlendMode === 'hard-light',
       'fusa in hard-light', 'ho letto "' + dopo.mixBlendMode + '"');
-    // La misura: dalla v0.79.64 la lastra sborda dell'otto per cento, e resta
-    // centrata. Non e- "circa": si controlla il fattore su tutte e due le
-    // direzioni, perche- una percentuale su left/right si conta sulla
-    // larghezza e una su top/bottom sull-altezza — sbagliare l-una o l-altra
-    // darebbe un ghiaccio ovale che a occhio sembra giusto.
-    const lw = parseFloat(dopo.width), lh = parseFloat(dopo.height);
-    const cw = wrap.clientWidth, ch = wrap.clientHeight;
+    // La misura: dalla v0.79.64 la lastra sborda dell-otto per cento, e resta
+    // centrata, su tutte e due le direzioni.
+    const lw = lastra.offsetWidth, lh = lastra.offsetHeight;
+    const cw = piano.clientWidth, ch = piano.clientHeight;
     const fx = lw / cw, fy = lh / ch;
-    dice(Math.abs(fx - 1.08) < 0.005 && Math.abs(fy - 1.08) < 0.005,
+    dice(Math.abs(fx - 1.08) < 0.01 && Math.abs(fy - 1.08) < 0.01,
       'grande l-otto per cento piu- della carta, nelle due direzioni',
-      'lastra ' + Math.round(lw) + 'x' + Math.round(lh) + ', carta ' + Math.round(cw) + 'x' + Math.round(ch)
-      + '   ->  ' + fx.toFixed(3) + ' per ' + fy.toFixed(3));
-    // E centrata: quel che sborda si divide in parti uguali sui due lati.
-    dice(Math.abs(parseFloat(dopo.left) + (lw - cw)/2) < 0.5
-      && Math.abs(parseFloat(dopo.top) + (lh - ch)/2) < 0.5,
+      'lastra ' + lw + 'x' + lh + ', carta ' + cw + 'x' + ch + '   ->  ' + fx.toFixed(3) + ' per ' + fy.toFixed(3));
+    dice(Math.abs(lastra.offsetLeft + (lw - cw)/2) < 1 && Math.abs(lastra.offsetTop + (lh - ch)/2) < 1,
       'e centrata sulla carta, non spostata da un lato',
-      'sporge di ' + dopo.left + ' a sinistra e ' + dopo.top + ' in alto');
-    // v0.79.63 — senza isolamento hard-light fonderebbe col TAVOLO dietro alla
-    // mano invece che con la carta, e il ghiaccio cambierebbe colore a seconda
-    // di cosa gli passa sotto.
-    const suo = getComputedStyle(wrap);
-    dice(suo.isolation === 'isolate' || suo.filter !== 'none',
+      'sporge di ' + lastra.offsetLeft + ' a sinistra e ' + lastra.offsetTop + ' in alto');
+    // Il piano ha una trasformazione, quindi e- un gruppo isolato: hard-light
+    // fonde col disegno della carta e non col tavolo dietro.
+    const suoPiano = getComputedStyle(piano);
+    dice(suoPiano.transform !== 'none' || suoPiano.isolation === 'isolate',
       'e la fusione e- confinata alla carta, non al tavolo dietro',
-      'isolation=' + suo.isolation + '  filter=' + String(suo.filter).slice(0,40));
+      'transform=' + String(suoPiano.transform).slice(0,40) + '  isolation=' + suoPiano.isolation);
 
-    // SEGUE LA CARTA? Il ventaglio le inclina: se la carta e- girata, e- girata
-    // anche la lastra, perche- il ::after e- dentro all-elemento che gira.
-    // Si misura sull-elemento, che e- cio- che porta la trasformazione.
-    const t = suo.transform;
-    const giaGirata = t && t !== 'none';
-    // E si prova a muoverla per davvero: si aggiunge una rotazione e si guarda
-    // che il riquadro a schermo cambi. Se la lastra fosse un elemento tenuto in
-    // pari a mano, resterebbe dov-era.
-    // La transizione va spenta prima di misurare: .hand-card-wrap fa scorrere
-    // la sua trasformazione, e getBoundingClientRect legge il fotogramma di
-    // ADESSO — cioe- ancora quello di partenza. Senza questa riga la carta
-    // sembrava non muoversi affatto.
+    // SEGUE LA CARTA QUANDO SI INCLINA? Si inclina il piano come fa il tilt
+    // al passaggio del puntatore, e si guarda la lastra girare con il disegno.
+    const svg = piano.querySelector('svg');
+    piano.style.transition = 'none';
+    const lPrima = lastra.getBoundingClientRect(), sPrima = svg.getBoundingClientRect();
+    piano.style.setProperty('--foil-rx', '1'); piano.style.setProperty('--foil-ry', '-1');
+    const lPoi = lastra.getBoundingClientRect(), sPoi = svg.getBoundingClientRect();
+    const spostata = (a, b) => Math.abs(a.left - b.left) + Math.abs(a.width - b.width) + Math.abs(a.top - b.top) + Math.abs(a.height - b.height);
+    dice(spostata(sPrima, sPoi) > 2 && spostata(lPrima, lPoi) > 2,
+      'e inclinando la carta la lastra si inclina con lei',
+      'carta ' + Math.round(sPrima.width) + 'x' + Math.round(sPrima.height) + ' -> ' + Math.round(sPoi.width) + 'x' + Math.round(sPoi.height)
+      + ', lastra ' + Math.round(lPrima.width) + 'x' + Math.round(lPrima.height) + ' -> ' + Math.round(lPoi.width) + 'x' + Math.round(lPoi.height));
+    piano.style.setProperty('--foil-rx', '0'); piano.style.setProperty('--foil-ry', '0');
+    piano.style.transition = '';
+    // E SI SPOSTA CON LEI? Si muove il supporto, come il ventaglio e il sollevamento.
     wrap.style.transition = 'none';
-    const prima = wrap.getBoundingClientRect();
+    const prima = lastra.getBoundingClientRect();
     const eraStile = wrap.style.transform;
-    // "important": il ventaglio scrive la sua inclinazione nello stile in
-    // linea, e una seconda scrittura sulla stessa proprieta- la sostituisce
-    // invece di aggiungersi. Senza questo la carta non si muoveva di un
-    // pixel e il controllo passava per finta.
     wrap.style.setProperty('transform', (eraStile ? eraStile + ' ' : '') + 'rotate(18deg) translate(40px, -30px)', 'important');
-    const poi = wrap.getBoundingClientRect();
-    const dopo2 = getComputedStyle(wrap, '::after');
-    // Il ::after resta della misura della carta anche girato: la rotazione non
-    // cambia le sue dimensioni proprie, cambia dove finisce sullo schermo.
-    dice(Math.abs(parseFloat(dopo2.width)/cw - 1.08) < 0.005
-      && Math.abs(parseFloat(dopo2.height)/ch - 1.08) < 0.005,
-      'e inclinando la carta la lastra resta della sua misura',
-      Math.round(parseFloat(dopo2.width)) + 'x' + Math.round(parseFloat(dopo2.height)));
+    const poi = lastra.getBoundingClientRect();
     dice(Math.abs(poi.left - prima.left) > 5 || Math.abs(poi.top - prima.top) > 5,
-      'e si sposta insieme a lei (e- dentro all-elemento che si muove)',
-      'la carta e- passata da ' + Math.round(prima.left) + ',' + Math.round(prima.top)
-      + ' a ' + Math.round(poi.left) + ',' + Math.round(poi.top) + '; il ::after e- suo figlio,'
-      + ' quindi non c-e- niente da tenere in pari.');
+      'e si sposta insieme a lei',
+      'la lastra e- passata da ' + Math.round(prima.left) + ',' + Math.round(prima.top) + ' a ' + Math.round(poi.left) + ',' + Math.round(poi.top));
     wrap.style.setProperty('transform', eraStile);
     wrap.style.transition = '';
 
@@ -187,8 +180,11 @@ app.whenReady().then(async () => {
     dice(!!ghiaccio, 'con sopra la lastra frozen-tile.png',
       immagini.map(i=>String(i.getAttribute('href')).split('/').pop()).join(', '));
     if(!ghiaccio) return d;
-    dice(getComputedStyle(ghiaccio).mixBlendMode === 'hard-light',
-      'fusa in hard-light', getComputedStyle(ghiaccio).mixBlendMode);
+    // v0.80.2 — fusione e ritaglio stanno sul gruppo che contiene la lastra:
+    // l-animazione del gelo ingrandisce l-immagine, e il ritaglio deve restare fermo.
+    const busta = ghiaccio.parentNode;
+    dice(busta && getComputedStyle(busta).mixBlendMode === 'hard-light',
+      'fusa in hard-light', busta && getComputedStyle(busta).mixBlendMode);
     const q = a => Math.round(parseFloat(a));
     dice(!!tassello && q(ghiaccio.getAttribute('x')) === q(tassello.getAttribute('x'))
       && q(ghiaccio.getAttribute('y')) === q(tassello.getAttribute('y'))
@@ -197,9 +193,9 @@ app.whenReady().then(async () => {
       'grande esattamente quanto il tassello, e nello stesso posto',
       'ghiaccio ' + [ghiaccio.getAttribute('x'),ghiaccio.getAttribute('y'),ghiaccio.getAttribute('width'),ghiaccio.getAttribute('height')].map(q).join(',')
       + '   tassello ' + (tassello ? [tassello.getAttribute('x'),tassello.getAttribute('y'),tassello.getAttribute('width'),tassello.getAttribute('height')].map(q).join(',') : '(manca)'));
-    dice((ghiaccio.getAttribute('clip-path')||'').indexOf('clip-gelo-') >= 0,
+    dice(((busta && busta.getAttribute('clip-path'))||'').indexOf('clip-gelo-') >= 0,
       'e ritagliata sull-esagono, non su un rettangolo',
-      ghiaccio.getAttribute('clip-path'));
+      busta && busta.getAttribute('clip-path'));
     dice(getComputedStyle(gruppo).isolation === 'isolate',
       'e la fusione e- confinata a questa cella, non a tutta la plancia',
       getComputedStyle(gruppo).isolation);
@@ -218,6 +214,27 @@ app.whenReady().then(async () => {
       'tassello ' + dt + ',' + dty + '   ghiaccio ' + dg + ',' + dgy
       + '. Il gruppo della cella e- quello che muovono la caduta a inizio partita,'
       + ' la scossa di chi viene colpito e il sollevamento di Ali Baba.');
+
+    // ── v0.80.2 — IL GELO SI FORMA ───────────────────────────────────────────
+    // Una carta e un tassello appena congelati si vedono formare (animazione
+    // geloArriva); a gelo formato un nuovo disegno non la rifa- da capo.
+    const altra = G.p1Hand[0];
+    altra.congelataFinoAlTurno = (G.numeroTurno||1) + 2;
+    render();
+    const nuova = document.querySelector('#p1-hand-fan .hand-card-wrap[data-carta="' + altra.id + '"] .ghiaccio-carta');
+    dice(!!nuova && nuova.classList.contains('gelo-arriva') && getComputedStyle(nuova).animationName === 'geloArriva',
+      'una carta appena congelata si vede formare il ghiaccio',
+      nuova ? (nuova.className + ' / ' + getComputedStyle(nuova).animationName) : 'nessuna lastra');
+    const k2 = celleLibere().find(x => x !== k);
+    G.gelo[k2] = (G.numeroTurno||1) + 2;
+    _firmaTabellonePrecedente = null; renderBoard();
+    const g2 = document.querySelector('#board-svg g[data-cellkey="' + k2 + '"] image[href*="frozen-tile"]');
+    dice(!!g2 && g2.classList.contains('gelo-arriva'), 'e un tassello appena congelato pure', g2 ? g2.getAttribute('class') : 'nessuna lastra');
+    // La carta di prima e- congelata da un pezzo: ridisegnata, resta ferma.
+    const vecchia = document.querySelector('#p1-hand-fan .hand-card-wrap[data-carta="' + wrap.dataset.carta + '"] .ghiaccio-carta');
+    dice(!!vecchia && !vecchia.classList.contains('gelo-arriva'),
+      'mentre un ghiaccio gia- formato, ridisegnato, non riparte', vecchia ? vecchia.className : '(manca)');
+    altra.congelataFinoAlTurno = 0; delete G.gelo[k2];
 
     // ── E NON CI SI PUO- GIOCARE ────────────────────────────────────────────
     const [cq, cr] = k.split(',').map(Number);
