@@ -1837,3 +1837,16 @@ da Lorenzo): adesso foto-titoli.js li trova tutti dentro allo stendardo. Nota:
 lo strumento raccoglie gli avvisi scritti fra apici singoli; "Can't level up" e'
 fra virgolette doppie per via dell'apostrofo, e per questo sta nell'elenco dei
 titoli che misura sempre.
+
+**v0.79.98 — White Rabbit in mano.** L'abilita' del Coniglio ("Starts the game in
+hand") si apre al livello 2. Due difetti, uno per parte:
+- contro l'IA la cima del mazzo si decideva in makeDeck coi livelli del catalogo
+  (Coniglio al 1, abilita' chiusa), e pareggiaILivelli portava DOPO le carte
+  dell'IA al livello del giocatore: il Coniglio poteva finire al 2, con
+  l'abilita' aperta, in mezzo al mazzo. Adesso la cima si rifa' dopo i livelli.
+  prova-livelli.js controlla l'ordine delle due chiamate in makeBalancedDecks e
+  la regola su una carta finta che si apre;
+- in rete il server lo metteva in cima sempre, anche chiuso. Adesso
+  _inCimaChiHaFretta riceve i livelli carta per carta della partita e guarda
+  abilityUnlockLevel. prova-livelli-server.js ha un Coniglio nel catalogo finto
+  e lo prova al livello 1, al 2 e senza livelli.

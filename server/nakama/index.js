@@ -4239,19 +4239,31 @@ function _idConFretta(nk) {
   for (var i = 0; i < catalogo.carte.length; i++) {
     var c = catalogo.carte[i];
     if (c && c.cardAbility === 'rush_hour') {
-      if (c.id) fuori[String(c.id)] = true;
-      if (c.slug) fuori[String(c.slug)] = true;
+      // v0.79.98 — col livello a cui l'abilita' si apre, e lo slug con cui
+      // la partita conosce il livello della carta (vedi _livelliPerLaPartita).
+      var voce = { sblocco: (typeof c.abilityUnlockLevel === 'number' && c.abilityUnlockLevel > 0) ? c.abilityUnlockLevel : 1, slug: String(c.slug || '') };
+      if (c.id) fuori[String(c.id)] = voce;
+      if (c.slug) fuori[String(c.slug)] = voce;
     }
   }
   _fretta = fuori;
   _frettaVersione = catalogo.versione;
   return fuori;
 }
-function _inCimaChiHaFretta(nk, carte) {
+// ── v0.79.98 — SOLO SE LA SUA ABILITA' E' APERTA ──────────────────────────
+// "Starts the game in hand" e' l'abilita' di White Rabbit, e si apre al livello
+// 2. Il client la applica solo se e' aperta (abilitaAttivaDi); il server la
+// applicava sempre, e in rete un Coniglio al livello 1 — senza abilita', e con
+// la citazione al posto del testo sulla carta — partiva in mano lo stesso.
+// `livelli` e' la mappa slug -> livello del mazzo di quel giocatore; senza (una
+// partita nata prima di questa versione) si fa come prima.
+function _inCimaChiHaFretta(nk, carte, livelli) {
   var fretta = _idConFretta(nk);
   var prima = [], dopo = [];
   for (var i = 0; i < carte.length; i++) {
-    (fretta[String(carte[i])] ? prima : dopo).push(carte[i]);
+    var f = fretta[String(carte[i])];
+    var aperta = !!f && (!livelli || (livelli[f.slug] || 1) >= f.sblocco);
+    (aperta ? prima : dopo).push(carte[i]);
   }
   return prima.concat(dopo);
 }
@@ -4395,7 +4407,8 @@ function _comincia(stato, dispatcher, logger, nk) {
     // v0.79.59 — mescolato, e POI chi ha fretta in cima: e' la stessa regola
     // del client, e vale anche qui, che e' l'unico posto in cui in rete la
     // mano si decide davvero.
-    var mescolato = _inCimaChiHaFretta(nk, _mescola(stato.mazzoIniziale[u].slice()));
+    var mescolato = _inCimaChiHaFretta(nk, _mescola(stato.mazzoIniziale[u].slice()),
+      (stato.info && stato.info[u] && stato.info[u].livelli) || null);
     stato.mano[u] = mescolato.slice(0, MANO_INIZIALE);
     stato.mazzo[u] = mescolato.slice(MANO_INIZIALE);
   }

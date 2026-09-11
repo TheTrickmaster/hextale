@@ -419,6 +419,22 @@ app.whenReady().then(async () => {
       try{ tornaAllaBustina(); }catch(_){ }
       reveal.innerHTML = '';
 
+      // ── 8c. CHI HA FRETTA, DOPO I LIVELLI ─────────────────────────────────
+      // v0.79.98 — contro l-IA White Rabbit partiva in mano solo per caso: la cima
+      // del mazzo si decideva coi livelli del catalogo (Coniglio al 1, abilita-
+      // chiusa), e pareggiaILivelli lo portava al 2 DOPO. Qui una carta con
+      // rush_hour chiusa in mezzo al mazzo, che poi si apre: rifatta la cima, e- prima.
+      const finte = [0,1,2,3,4,5].map(i => ({ id:'f'+i, name:'F'+i, cardAbility:null }));
+      const coniglio = { id:'coniglio', name:'White Rabbit', cardAbility:'rush_hour', abilityLocked:true, level:1, abilityUnlockLevel:2 };
+      finte.splice(3, 0, coniglio);
+      dice(_inCimaChiHaFretta(finte)[0] !== coniglio, 'con l-abilita- chiusa il Coniglio non va in cima');
+      coniglio.abilityLocked = false; coniglio.level = 2;
+      dice(_inCimaChiHaFretta(finte)[0] === coniglio, 'aperta, si')
+      const sorg = makeBalancedDecks.toString();
+      const iPar = sorg.indexOf('pareggiaILivelli(d1, migliore)'), iCima = sorg.indexOf('migliore = _inCimaChiHaFretta(migliore)');
+      dice(iPar > 0 && iCima > iPar, 'e contro l-IA la cima si rifa- DOPO aver dato i livelli alle sue carte',
+        'pareggiaILivelli a ' + iPar + ', la cima a ' + iCima);
+
       // ── 9. IN RETE ────────────────────────────────────────────────────────
       const reteVera = PARTITA_RETE;
       PARTITA_RETE = { io: 1, livelloAvversario: 1, livelliAvversario: {} };

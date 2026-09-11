@@ -37,7 +37,9 @@ const CATALOGO = { versione: 1, carte: [
   { id: 'final-b', slug: 'b', name: 'B', rarity: 'rare',     starterDecks: [1] },
   { id: 'final-c', slug: 'c', name: 'C', rarity: 'mythic',   starterDecks: [2] },
   { id: 'final-d', slug: 'd', name: 'D', rarity: 'timeless', starterDecks: [] },
-  { id: 'final-x', slug: 'x', name: 'X', rarity: 'rare',     starterDecks: [], soloAdmin: true }
+  { id: 'final-x', slug: 'x', name: 'X', rarity: 'rare',     starterDecks: [], soloAdmin: true },
+  // v0.79.98 — un Coniglio: parte in mano, ma solo con l'abilita' aperta (livello 2).
+  { id: 'final-r', slug: 'r', name: 'R', rarity: 'rare',     starterDecks: [], cardAbility: 'rush_hour', abilityUnlockLevel: 2 }
 ] };
 const magazzino = { possesso: {}, bustina: {} };
 ctx.leggiSistema = () => copia(CATALOGO);
@@ -222,6 +224,19 @@ dice(stato.info.u1.nome === 'uno', 'e il resto delle informazioni resta com-era'
 const init = sorgente.slice(sorgente.indexOf('function partitaInit('));
 dice(init.slice(0, init.indexOf('\n}\n')).indexOf('_livelliPerLaPartita(nk, logger, stato)') >= 0,
   'e la partita li calcola quando nasce, col mazzo che scende in campo');
+
+// ── 5b. CHI HA FRETTA PARTE IN MANO, SE LA SUA ABILITA' E' APERTA ─────────
+// v0.79.98 — il server metteva in cima White Rabbit sempre, anche al livello 1,
+// dove la sua abilita' ("Starts the game in hand") e' chiusa.
+const mazzoR = ['final-a', 'final-b', 'final-d', 'final-r'];
+let ordineR = ctx._inCimaChiHaFretta(nk, mazzoR, { a: 1, b: 1, d: 1, r: 2 });
+dice(ordineR[0] === 'final-r', 'col Coniglio al livello 2 la sua abilita- e- aperta, e parte in cima', ordineR.join(' '));
+ordineR = ctx._inCimaChiHaFretta(nk, mazzoR, { a: 1, b: 1, d: 1, r: 1 });
+dice(ordineR.join(' ') === mazzoR.join(' '), 'al livello 1, con l-abilita- chiusa, resta dov-e-', ordineR.join(' '));
+ordineR = ctx._inCimaChiHaFretta(nk, mazzoR, null);
+dice(ordineR[0] === 'final-r', 'e senza livelli (una partita di prima) si fa come prima', ordineR.join(' '));
+const comincia = sorgente.slice(sorgente.indexOf('var mescolato = _inCimaChiHaFretta('));
+dice(comincia.slice(0, 200).indexOf('stato.info[u].livelli') >= 0, 'e la partita gli passa i livelli carta per carta');
 
 // ── 6. LA PORTA ───────────────────────────────────────────────────────────
 dice(/registerRpc\('hx_carta_livella', rpcCartaLivella\)/.test(sorgente), 'hx_carta_livella e- registrata');
