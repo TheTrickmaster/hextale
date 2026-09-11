@@ -331,6 +331,148 @@ app.whenReady().then(async () => {
       window.apriAvviso = veroAvviso;
       window.mm2CercaAvversario = veraCerca;
 
+      // ── 7c. LE CORREZIONI DELLA v0.79.87 ───────────────────────────────
+      // Il rosso: un pulsante intero, delle sue misure e della sua famiglia.
+      const pezziRosso = ()=>[...document.querySelectorAll('#trovato-rifiuta .hxb-strip > span')];
+      const famiglie = ()=>pezziRosso().map(p => getComputedStyle(p).backgroundImage);
+      apriTrovato('m-rosso');
+      for(let i = 0; i < 30 && famiglie().some(f => f === 'none'); i++) await attendi(100);
+      await attendi(300);
+      const rossoEl = document.getElementById('trovato-rifiuta');
+      dice(getComputedStyle(rossoEl).zoom === '1' || getComputedStyle(rossoEl).zoom === '',
+        'il rosso non e- piu- rimpicciolito con lo zoom', 'zoom: ' + getComputedStyle(rossoEl).zoom);
+      dice(getComputedStyle(document.querySelector('#trovato-rifiuta .hxb-fill')).backgroundSize === '1px 100%',
+        'e il suo riempitivo prende tessere larghe un pixel intero',
+        getComputedStyle(document.querySelector('#trovato-rifiuta .hxb-fill')).backgroundSize + ' - sotto il pixel il browser mescola i toni e compaiono le strisce.');
+      const tuttiOpachi = famiglie().every(f => f.indexOf('button-opaque-') >= 0 && f.indexOf('-warning') >= 0);
+      dice(pezziRosso().length === 5 && tuttiOpachi, 'Decline e- fatto di cinque pezzi, tutti della famiglia rossa opaca',
+        famiglie().map(f => (f.match(/button-[a-z]+-[a-z]+/) || ['?'])[0]).join(', '));
+      trovatoMostraAttesa();
+      for(let i = 0; i < 30 && famiglie().some(f => f.indexOf('button-transparent-') < 0); i++) await attendi(100);
+      const tuttiTrasparenti = famiglie().every(f => f.indexOf('button-transparent-') >= 0 && f.indexOf('-warning') >= 0);
+      dice(tuttiTrasparenti, 'e Cancel match e- fatto di cinque pezzi, tutti della famiglia rossa trasparente',
+        famiglie().map(f => (f.match(/button-[a-z]+-[a-z]+/) || ['?'])[0]).join(', '));
+      trovatoMostraScelta();
+      for(let i = 0; i < 30 && famiglie().some(f => f.indexOf('button-opaque-') < 0); i++) await attendi(100);
+      dice(famiglie().every(f => f.indexOf('button-opaque-') >= 0),
+        'e tornando alla scelta, di nuovo tutti opachi', 'Vestito prima del cambio, restava coi pezzi dell-altra famiglia.');
+      trovatoChiudi();
+
+      // Chi non ha accettato in tempo non rientra, mai.
+      let rientri = 0;
+      const veraCerca2 = window.mm2CercaAvversario;
+      window.mm2CercaAvversario = function(){ rientri++; };
+      apriTrovato('m-scaduta');
+      await attendi(200);
+      trovatoNotifiche({ notifications: [ { code: 101, content: JSON.stringify({ matchId: 'm-scaduta', torna: false }) } ] });
+      await attendi(900);
+      dice(!ov.classList.contains('show') && rientri === 0,
+        'se il server dice di non tornare, lo splash si chiude e non si rientra in coda',
+        rientri + ' rientri. Nessuno dei due aveva accettato: nessuno dei due rientra.');
+      apriTrovato('m-filo-tempo');
+      await attendi(200);
+      _trovatoFine = Date.now() - 1;
+      trovatoNotifiche({ notifications: [ { code: 101, content: JSON.stringify({ matchId: 'm-filo-tempo' }) } ] });
+      await attendi(900);
+      dice(rientri === 0, 'e chi ha il tempo finito senza aver accettato non rientra nemmeno se la notizia arriva senza verdetto',
+        'La rete di sicurezza dalla parte del client.');
+      apriTrovato('m-accettata');
+      await attendi(200);
+      trovatoAccetta();
+      _trovatoFine = Date.now() - 1;
+      trovatoNotifiche({ notifications: [ { code: 101, content: JSON.stringify({ matchId: 'm-accettata', torna: true }) } ] });
+      await attendi(900);
+      dice(rientri === 1, 'mentre chi aveva accettato torna in cerca, anche a tempo finito', rientri + ' rientri');
+      window.mm2CercaAvversario = veraCerca2;
+
+      // Le schede VS escono proseguendo nella direzione da cui sono entrate.
+      // Gli spostamenti si leggono dalle REGOLE e non dallo schermo: la scena
+      // sta in display:none finche- non e- in partita, e un elemento senza
+      // scatola non ha una trasformazione da leggere.
+      const regola = (sel)=>{
+        for(const foglio of [...document.styleSheets]){
+          let regole = [];
+          try{ regole = [...foglio.cssRules]; }catch(_){ continue; }
+          for(const r of regole) if(r.selectorText === sel && r.style && r.style.transform) return r.style.transform;
+        }
+        return '';
+      };
+      // Il numero di pixel dopo il -50%: con segno, zero se non c-e-.
+      const scarto = (tr)=>{
+        const s = String(tr).split(' ').join('');
+        const i = s.indexOf('%');
+        if(i < 0) return NaN;
+        const segno = s.charAt(i + 1);
+        if(segno !== '+' && segno !== '-') return 0;
+        return (segno === '-' ? -1 : 1) * parseFloat(s.slice(i + 2));
+      };
+      const vsParte = { sx: scarto(regola('.vs-scheda-sx')), dx: scarto(regola('.vs-scheda-dx')) };
+      const vsSta = scarto(regola('.vs-scheda.dentro'));
+      const vsVa = { sx: scarto(regola('.vs-scheda-sx.via')), dx: scarto(regola('.vs-scheda-dx.via')) };
+      const verso = (a, b)=>Math.sign(b - a);
+      dice(verso(vsParte.sx, vsSta) === 1 && verso(vsSta, vsVa.sx) === 1,
+        'la scheda di sinistra entra scendendo ed esce continuando a scendere',
+        'parte ' + vsParte.sx + ', sta ' + vsSta + ', va ' + vsVa.sx + ' pixel');
+      dice(verso(vsParte.dx, vsSta) === -1 && verso(vsSta, vsVa.dx) === -1,
+        'e quella di destra entra salendo ed esce continuando a salire',
+        'parte ' + vsParte.dx + ', sta ' + vsSta + ', va ' + vsVa.dx + ' pixel');
+
+      // Il pallino della Libreria conta solo le carte che la Libreria mostra.
+      const pallino = ()=>!!document.querySelector('#mm2-sc-library .hx-btn .mm2-pallino-novita');
+      // Prima di tutto il pulsante deve esserci: senza, aggiornaPallinoNovita
+      // esce subito e ogni controllo in negativo passerebbe a vuoto.
+      dice(!!document.querySelector('#mm2-sc-library .hx-btn'), 'il pulsante Library and decks e- in scena');
+      // Senza un account l-elenco della Libreria e- vuoto: se ne mette uno
+      // finto, con una carta che si vede. La regola provata e- che il pallino
+      // conta QUELL-elenco, qualunque cosa ci sia dentro.
+      const nuovePrima = CARTE_NUOVE;
+      const veroElenco = window.carteDelGiocatore;
+      const vista = { slug: 'carta-finta-in-libreria', id: 'final-carta-finta-in-libreria', name: 'Finta', dropRate: 10 };
+      window.carteDelGiocatore = function(){ return [vista]; };
+      CARTE_NUOVE = new Set(['carta-che-in-libreria-non-c-e']);
+      aggiornaPallinoNovita();
+      dice(!pallino(), 'una carta nuova che la Libreria non mostra non accende il pallino',
+        'Non c-e- modo di guardarla, quindi non si spegnerebbe mai.');
+      const evocata = { slug: 'excalibur-finta', dropRate: 0 };
+      dice(soloEvocabile(evocata) && String(carteGiocabili).indexOf('soloEvocabile') >= 0,
+        'la Libreria esclude per regola le carte a drop rate zero',
+        'carteGiocabili filtra con soloEvocabile: e- la stessa regola di mazzi e bustine.');
+      CARTE_NUOVE = new Set([evocata.slug]);
+      aggiornaPallinoNovita();
+      dice(!pallino(), 'e una di quelle, anche se il server la manda come nuova, non accende il pallino');
+      CARTE_NUOVE = new Set([vista.slug]);
+      aggiornaPallinoNovita();
+      dice(pallino(), 'mentre una carta nuova che si vede lo accende', vista.name);
+      CARTE_NUOVE = new Set([vista.id]);
+      aggiornaPallinoNovita();
+      dice(pallino(), 'anche se il server la conosce per id invece che per slug', vista.id);
+      window.carteDelGiocatore = veroElenco;
+      CARTE_NUOVE = nuovePrima;
+      aggiornaPallinoNovita();
+
+      // Tutti e due accettano: lo splash svanisce e il suo orologio si ferma.
+      dice(String(reteMessaggio).indexOf('trovatoEsciPerPartita') >= 0,
+        'l-avvio della partita chiude lo splash', 'Prima non lo chiudeva nessuno e restava sopra alla partita.');
+      rpc.length = 0;
+      apriTrovato('m-cominciata');
+      // Si aspetta che le figure siano entrate: qui il primo fotogramma arriva
+      // dopo un secondo e mezzo, e senza questa attesa lo splash si chiuderebbe
+      // prima che ci sia qualcosa da tenere fermo.
+      for(let i = 0; i < 40 && !ov.classList.contains('attori'); i++) await attendi(100);
+      trovatoAccetta();
+      trovatoEsciPerPartita();
+      dice(!ov.classList.contains('show'), 'quando la partita comincia lo splash se ne va');
+      dice(getComputedStyle(ov).transitionDuration.indexOf('0.15s') >= 0,
+        'in dissolvenza, come ogni finestra del gioco', getComputedStyle(ov).transitionDuration);
+      dice(ov.classList.contains('attori'), 'e le figure restano ferme mentre svanisce',
+        'Tolte subito, tornerebbero indietro durante la dissolvenza.');
+      _trovatoFine = Date.now() - 1;
+      await attendi(700);
+      dice(rpc.filter(r => r.nome === 'hx_rifiuta').length === 0,
+        'e il suo orologio non fa scattare nessun rifiuto a partita cominciata',
+        'Scattando, avrebbe chiuso il socket: il giocatore staccato dalla partita in corso.');
+      dice(!ov.classList.contains('attori'), 'e a dissolvenza finita le animazioni interne si spengono');
+
       // ── 8. IL PULSANTE DELLA RICERCA ──────────────────────────────────────
       // I secondi finche- non ci passi sopra, "Cancel" sotto al dito. Prima
       // diceva tutte e due le cose insieme, e il cronometro si leggeva come
@@ -381,13 +523,24 @@ app.whenReady().then(async () => {
         const k=document.getElementById('trovato-cornice').getBoundingClientRect();
         const h=document.getElementById('trovato-hook').getBoundingClientRect();
         const l=document.getElementById('trovato-lrrh').getBoundingClientRect();
-        const x=Math.max(0,Math.round(Math.min(k.left,h.left,l.left))-14);
+        const x=Math.max(0,Math.round(k.left)-40);
         const y=Math.max(0,Math.round(Math.min(k.top,h.top,l.top))-14);
-        return { x, y, width:Math.round(Math.max(k.right,h.right,l.right)-x)+14,
-                 height:Math.round(k.bottom-y)+14 };
+        return { x, y, width:Math.round(k.right-x)+40,
+                 height:Math.round(k.bottom-y)+14, vw: window.innerWidth };
       })()`);
-      fs.writeFileSync(SCATTO.replace(/\.png$/, '-' + nome + '.png'),
-        (await win.webContents.capturePage(b)).toPNG());
+      // Si fotografa la finestra INTERA e si ritaglia dopo, in pixel
+      // dell'immagine. capturePage con un rettangolo lavora nelle unita' della
+      // finestra, e se la finestra spostata fuori schermo finisce su un monitor
+      // con un'altra scala il ritaglio cade altrove: e' successo, le foto
+      // mostravano un pezzo di menu accanto al riquadro invece del riquadro.
+      const intera = await win.webContents.capturePage();
+      const dim = intera.getSize();
+      const s = dim.width / b.vw;
+      const rx = Math.max(0, Math.round(b.x * s)), ry = Math.max(0, Math.round(b.y * s));
+      const ritaglio = intera.crop({ x: rx, y: ry,
+        width: Math.min(Math.round(b.width * s), dim.width - rx),
+        height: Math.min(Math.round(b.height * s), dim.height - ry) });
+      fs.writeFileSync(SCATTO.replace(/\.png$/, '-' + nome + '.png'), ritaglio.toPNG());
       console.log('scritto ' + nome);
     };
     await foto('scelta', `(async function(){ apriTrovato('foto'); 1 })()`);

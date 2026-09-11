@@ -1438,6 +1438,57 @@ del riquadro. Serve a non farsi ingannare: se le figure stessero dentro da
 sole, un palco senza taglio passerebbe tutti gli altri controlli, e il
 giorno in cui qualcuno allarga l'uncino nessuno se ne accorgerebbe.
 
+### v0.79.87 — cinque correzioni, e un difetto che staccava dalla partita
+
+**Lo splash non si chiudeva quando accettavano tutti e due**, e il suo
+orologio continuava a girare: a dieci secondi faceva scattare il rifiuto per
+tempo scaduto, che chiude il socket. Il banco controlla che l'avvio della
+partita chiuda lo splash e che, fatto questo, nessun rifiuto parta piu'.
+Controlla anche che le figure restino ferme durante la dissolvenza: tolte
+subito, tornerebbero indietro mentre la finestra svanisce.
+
+**Il rosso a strisce** aveva due cause, e la seconda non era nel codice. Lo
+zoom rimpiccioliva anche il riempitivo, una fetta larga 2 pixel ripetuta, e
+sotto al pixel il browser ne mescola i toni: adesso il pulsante e'
+rimpicciolito con le sue misure e il riempitivo prende tessere da un pixel
+intero. Il pulsante inoltre veniva vestito prima del cambio fra opaco e
+trasparente e restava con i pezzi dell'altra famiglia: adesso si riveste a
+ogni cambio, e il banco guarda che i cinque pezzi siano della stessa famiglia.
+
+Ma su Decline le bande restavano, e il motivo e' l'immagine:
+`button-opaque-filler-warning.png` e' semitrasparente (alfa 165) e piu' chiaro
+dei tappi e del centro della sua famiglia (alfa 255) — di fatto e' il
+riempitivo della famiglia trasparente. Nessun altro pulsante usava il rosso
+opaco, e un controllo sulla famiglia lo lascia passare: e' un pezzo della
+famiglia giusta, solo disegnato sbagliato. L'ha trovato una sonda che legge il
+colore ai bordi di ogni pezzo. L'immagine e' di Lorenzo e non si tocca da qui.
+
+**Il pallino della Libreria** contava le carte nuove che il server manda, e
+il server manda anche quelle a drop rate zero, che la Libreria non mostra mai.
+Adesso conta sull'elenco che la Libreria disegna, con la domanda che accende
+il nastro "New". Il banco lo prova con una carta inesistente, con una a drop
+rate zero e con una vera.
+
+**Le schede VS** si misurano con la matrice di trasformazione in tre momenti
+(partenza, in scena, uscita), con le transizioni spente: il banco guarda il
+SEGNO dei due spostamenti, cosi' resta vero anche se un domani cambiano i
+trenta e i quaranta pixel.
+
+## prova-rifiuto-server.js — chi torna in cerca dopo un Match found a vuoto
+
+    node strumenti/prova-rifiuto-server.js [percorso/index.js]
+
+La regola di Lorenzo: chi non preme Accept in tempo non rientra in coda,
+mai; chi aveva accettato rientra; chi viene interrotto da un Decline mentre
+ha ancora tempo rientra. A decidere e' il server, dentro alla notifica che
+manda quando qualcuno rifiuta, perche' e' l'unico che conosce la scadenza
+vera. Il caso rotto era il piu' banale: nessuno accetta, il primo a scadere
+avvisa l'altro, e l'altro veniva rimesso in coda.
+
+Come prova-quest-server: index.js in un contesto finto, e partitaSignal
+chiamato con un tavolo e un dispatcher scritti a mano che annotano cosa viene
+mandato a chi. Accetta un percorso, per provare la copia scaricata dal server.
+
 ## prova-muto.js — muto vuol dire muto
 
     $ELECTRON strumenti/prova-muto.js

@@ -621,7 +621,7 @@ function rpcRifiuta(ctx, logger, nk, payload) {
   var id = String(d.matchId || '');
   if (!id) return JSON.stringify({ ok: false });
   try {
-    nk.matchSignal(id, JSON.stringify({ rifiuta: ctx.userId }));
+    nk.matchSignal(id, JSON.stringify({ rifiuta: ctx.userId, perTempo: !!d.perTempo }));
   } catch (e) {
     // Un tavolo gia' chiuso non e' un errore: vuol dire che la notizia era
     // gia' arrivata per un'altra strada.
@@ -4963,12 +4963,21 @@ function partitaTerminate(ctx, logger, nk, dispatcher, tick, state, graceSeconds
 // Il mittente e' null e non una stringa vuota: il runtime vuole un
 // identificativo valido o niente, e con '' si ferma.
 var CODICE_NON_ACCETTATO = 101;
-function _avvisaGliAltri(nk, logger, state, chiRifiuta, matchId) {
+function _avvisaGliAltri(nk, logger, state, chiRifiuta, matchId, scaduto) {
   for (var i = 0; i < state.giocatori.length; i++) {
     var u = state.giocatori[i];
     if (u === chiRifiuta) continue;
     try {
-      nk.notificationSend(u, 'partita-rifiutata', { matchId: matchId }, CODICE_NON_ACCETTATO, null, false);
+      // v0.79.87 — e dice a ciascuno se deve TORNARE IN CERCA. La regola di
+      // Lorenzo: chi non ha premuto Accept in tempo non rientra, mai. Torna
+      // quindi solo chi aveva accettato (e' dentro alla partita, ha una
+      // presenza), oppure chi e' stato interrotto da un rifiuto esplicito
+      // mentre aveva ancora tempo. Il caso che si rompeva: nessuno dei due
+      // accetta, il primo a scadere avvisa l'altro, e l'altro — il cui
+      // orologio segnava ancora qualche centesimo — tornava in coda.
+      // Lo decide il server perche' la scadenza vera la conosce solo lui.
+      var torna = !!state.presenze[u] || !scaduto;
+      nk.notificationSend(u, 'partita-rifiutata', { matchId: matchId, torna: torna }, CODICE_NON_ACCETTATO, null, false);
     } catch (e) { if (logger) logger.warn('notifica di rifiuto non consegnata a %s: %s', u, String(e)); }
   }
 }
@@ -4994,7 +5003,11 @@ function partitaSignal(ctx, logger, nk, dispatcher, tick, state, data) {
     if (_indiceDi(state, String(d.rifiuta)) !== -1) {
       state.rifiutata = true;
       _nessunoHaAccettato(state, dispatcher, logger, 'rifiutata');
-      _avvisaGliAltri(nk, logger, state, String(d.rifiuta), (ctx && ctx.matchId) || '');
+      // v0.79.87 — il tempo e' finito se chi rifiuta lo dice (il suo orologio
+      // e' arrivato a zero) o se lo dice il nostro. Vale il primo dei due: la
+      // regola deve stare dalla parte di chi non ha accettato in tempo.
+      var scaduto = !!d.perTempo || (Date.now() - state.natoIl >= PRONTI_MS);
+      _avvisaGliAltri(nk, logger, state, String(d.rifiuta), (ctx && ctx.matchId) || '', scaduto);
       return null;   // il tavolo si chiude qui
     }
   }

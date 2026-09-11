@@ -5442,13 +5442,8 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
   transition:transform 260ms ease-in, opacity 220ms ease-in;
   opacity:0;
 }
-/* v0.79.87 — e se ne vanno PROSEGUENDO, non tornando indietro. La sinistra
-   entra scendendo e continua a scendere; la destra entra salendo e continua a
-   salire. Prima risalivano da dove erano venute, e l'uscita si leggeva come un
-   ripensamento invece che come la fine dello stesso gesto — lo stesso motivo
-   per cui le due meta' dell'arte si aprono nelle loro direzioni d'ingresso. */
-.vs-scheda-sx.via{ transform:translateY(calc(-50% + 30px)); }
-.vs-scheda-dx.via{ transform:translateY(calc(-50% - 30px)); }
+.vs-scheda-sx.via{ transform:translateY(calc(-50% - 30px)); }
+.vs-scheda-dx.via{ transform:translateY(calc(-50% + 30px)); }
 /* E l'uscita di tutto il resto. */
 #versus.svanisce{ transition:opacity 200ms ease-in; opacity:0; }
 
@@ -9895,23 +9890,19 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
 #trovato-attesa[hidden]{ display:none; }
 /* Il rosso e' piu' piccolo di un terzo: dire di no non deve costare quanto
    dire di si'.
-   v0.79.87 — CON LE SUE MISURE, NON CON LO ZOOM. Lo zoom rimpiccioliva anche
-   il riempitivo, che e' una fetta d'immagine larga 2 pixel ripetuta in fila:
-   al settanta per cento ogni fetta scendeva sotto al pixel, il browser ne
-   faceva la media con quel che aveva accanto, e fra tappi e centro comparivano
-   bande di un altro tono. E' la stessa cosa che si vedeva "a strisce".
-   Le misure sono quelle di un .hx-btn moltiplicate per 0,7 e arrotondate al
-   pixel: un tappo largo 34,3 lascerebbe fessure fra i pezzi. Il riempitivo
-   prende tessere larghe esattamente un pixel, come in un pulsante normale. */
-#trovato-rifiuta{
-  width:210px; min-width:140px; max-width:none;
-  --hxb-h:48px; --hxb-cap-w:35px; --hxb-mid-w:41px;
-  padding:0 24px;
-}
-#trovato-rifiuta .hxb-label{ font-size:15px; }
-#trovato-rifiuta .hxb-strip > .hxb-fill{ background-size:1px 100%; }
-/* E il rosso con loro. */
-#trovato-rifiuta{ position:relative; top:30px; }
+   Si rimpicciolisce col fattore di scala e non a mano. Rimpicciolire i pezzi
+   uno per uno — la larghezza qui, il carattere li', la fascia schiacciata in
+   verticale — non da' un pulsante piu' piccolo: da' un pulsante DEFORMATO, con
+   la cornice sottile e la scritta che ci sta dentro a fatica.
+   `zoom` e non `transform:scale` perche' lo rimpicciolisce anche nella
+   disposizione: con transform il pulsante si vedrebbe piccolo ma continuerebbe
+   a occupare lo spazio di prima, e sotto resterebbe un buco da compensare a
+   mano. */
+#trovato-rifiuta{ width:300px; max-width:none; zoom:0.7; }
+/* E il rosso con loro. Il suo top e' diviso per lo zoom: zoom rimpicciolisce
+   anche le misure del pezzo stesso, e trenta pixel scritti qui ne diventano
+   ventuno sullo schermo — il rosso si staccherebbe dal grigio. */
+#trovato-rifiuta{ position:relative; top:calc(30px / 0.7); }
 /* L'attesa prende il posto di "Accept": stesso riquadro dei paragrafi
    annidati del tutorial, largo 360. */
 #trovato-attesa{
@@ -12780,7 +12771,7 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.87</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.86</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <!-- v0.79.75 — dove salgono gli avvisi delle quest. Vuoto quasi sempre, e
@@ -17015,10 +17006,6 @@ function reteMessaggio(md){
       try { if(typeof G === 'object' && G) G.ioSonoIlNumero = d.tu; } catch(_){}
       mm2FermaRicerca();
       _mm2Cercando = false;
-      // v0.79.87 — tutti e due hanno accettato: lo splash svanisce e lascia il
-      // posto alla scena d'inizio partita. Prima di requestNewGame e non dopo,
-      // perche' il suo orologio va fermato prima che la partita esista.
-      try{ trovatoEsciPerPartita(); }catch(_){ }
       try{ requestNewGame(false); }catch(e){ console.error('[rete] la partita non parte: ' + (e && e.stack || e)); }
       return;
     }
@@ -17502,12 +17489,6 @@ function apriTrovato(matchId){
   // motivo per cui Customize entra come entra.
   ov.classList.remove('arrivati');
   requestAnimationFrame(()=>requestAnimationFrame(()=>{
-    // v0.79.87 — solo se lo splash e' ancora aperto. Due fotogrammi possono
-    // essere tanti (in una scheda in secondo piano non arrivano finche' non
-    // torna in primo piano), e se nel frattempo la partita e' cominciata o
-    // l'altro ha rifiutato, questo ingresso partirebbe su una finestra gia'
-    // chiusa e ci resterebbe acceso.
-    if(!ov.classList.contains('show')) return;
     ov.classList.add('dentro');
     ov.classList.add('attori');
     trovatoQuandoArrivano(ov);
@@ -17570,11 +17551,6 @@ function trovatoMostraScelta(){
   if(att) att.hidden = true;
   if(rif){
     rif.classList.add('hx-btn-opaco');
-    // v0.79.87 — e si riveste. Opaco e trasparente sono due famiglie con
-    // immagini diverse, e vestiPulsante sceglie le immagini guardando le classi
-    // del momento: vestito prima del cambio, il pulsante restava coi pezzi
-    // dell'altra famiglia sotto alle regole di questa.
-    try{ vestiPulsante(rif); }catch(_){ }
     const et = rif.querySelector('.hxb-label');
     if(et) et.textContent = 'Decline';
   }
@@ -17587,8 +17563,6 @@ function trovatoMostraAttesa(){
   if(att) att.hidden = false;
   if(rif){
     rif.classList.remove('hx-btn-opaco');
-    // v0.79.87 — e si riveste da trasparente: vedi trovatoMostraScelta.
-    try{ vestiPulsante(rif); }catch(_){ }
     const et = rif.querySelector('.hxb-label');
     if(et) et.textContent = 'Cancel match';
   }
@@ -17643,7 +17617,7 @@ function trovatoRifiuta(perTempo){
   const id = _trovatoMatch;
   trovatoChiudi();
   if(id && sessioneAccount && sessioneAccount.token){
-    nakamaRpc('hx_rifiuta', { matchId: id, perTempo: !!perTempo })
+    nakamaRpc('hx_rifiuta', { matchId: id })
       .catch(e => console.warn('[rete] rifiuto non recapitato: ' + ((e && e.message) || '')));
   }
   console.info('[rete] partita non accettata (' + (perTempo ? 'tempo scaduto' : 'rifiutata') + ')');
@@ -17654,28 +17628,6 @@ function trovatoRifiuta(perTempo){
   mm2FermaRicerca();
 }
 
-// v0.79.87 — TUTTI E DUE HANNO ACCETTATO: LO SPLASH SE NE VA.
-// Non lo chiudeva nessuno. Restava a schermo sopra alla partita appena
-// cominciata, e peggio ancora il suo orologio continuava a girare: a dieci
-// secondi faceva scattare il rifiuto per tempo scaduto, che CHIUDE IL SOCKET —
-// cioe' staccava il giocatore da una partita in corso.
-// Si chiude in due tempi. Subito la finestra, con la dissolvenza che hanno
-// tutte le finestre del gioco (togliere show basta, vedi --hx-dissolvenza).
-// Le classi dell'animazione interna solo a dissolvenza finita: tolte insieme,
-// le figure e i pulsanti tornerebbero indietro mentre la finestra svanisce, e
-// si vedrebbe un'uscita al contrario invece di una dissolvenza.
-function trovatoEsciPerPartita(){
-  if(!_trovatoMatch) return;
-  trovatoFermaTimer();
-  _trovatoMatch = '';
-  _trovatoAccettato = false;
-  const ov = document.getElementById('trovato-overlay');
-  if(!ov) return;
-  ov.classList.remove('show');
-  setTimeout(()=>{
-    if(!ov.classList.contains('show')) ov.classList.remove('dentro', 'attori', 'arrivati');
-  }, 400);
-}
 function trovatoChiudi(){
   trovatoFermaTimer();
   _trovatoMatch = '';
@@ -17687,35 +17639,17 @@ function trovatoChiudi(){
 // L'altro non ha accettato: si torna in cerca da soli, senza far premere
 // niente a nessuno. Ricomincia da capo — il posto in coda non si conserva,
 // perche' oggi una coda con delle priorita' non c'e'.
-// Quanto prima della scadenza vale gia' come "tempo finito". Serve alla rete
-// di sicurezza qui sotto: la notizia dell'altro puo' arrivare pochi centesimi
-// prima che questo orologio segni zero.
-const TROVATO_MARGINE_MS = 300;
-function trovatoAltroNonHaAccettato(torna){
+function trovatoAltroNonHaAccettato(){
   // v0.79.85 — una volta sola per partita. Chi era gia' entrato riceve la
   // notizia due volte — dalla partita e come notifica — e ripartire due volte
   // vorrebbe dire aprire due code. La seconda trova lo splash gia' chiuso e si
   // ferma qui.
   if(!_trovatoMatch) return;
-  // v0.79.87 — CHI NON HA ACCETTATO IN TEMPO NON RIENTRA, MAI.
-  // La regola di Lorenzo: se non premi Accept entro i dieci secondi, non torni
-  // in cerca da solo, qualunque cosa abbia fatto l'altro. Il caso che la
-  // rompeva era il piu' banale: nessuno dei due accetta. Il primo a scadere
-  // avvisava l'altro, e l'altro — il cui orologio segnava ancora qualche
-  // centesimo — veniva rimesso in coda come se fosse stato lasciato li'.
-  // Il verdetto lo da' il server (torna, vedi _avvisaGliAltri), che conosce la
-  // scadenza vera. Qui c'e' la stessa regola vista da questa parte, come rete:
-  // chi non ha accettato e ha il tempo finito non rientra nemmeno se la
-  // notizia arriva senza verdetto.
-  // Si decide PRIMA di chiudere: trovatoChiudi dimentica se si era accettato.
-  const tempoFinito = Date.now() >= _trovatoFine - TROVATO_MARGINE_MS;
-  const rientra = (torna !== false) && (_trovatoAccettato || !tempoFinito);
   trovatoChiudi();
-  console.info('[rete] partita non cominciata: ' + (rientra ? 'si torna in cerca.' : 'non si rientra in coda.'));
+  console.info('[rete] l\'avversario non ha accettato: si riparte.');
   mmChiudiSocket();
   _mm2Cercando = false;
   mm2FermaRicerca();
-  if(!rientra) return;
   // Un attimo di respiro prima di rimettersi in coda: il socket si sta
   // chiudendo, e ripartire nello stesso istante vorrebbe dire aprirne un
   // secondo mentre il primo se ne va.
@@ -17735,7 +17669,7 @@ function trovatoNotifiche(pacco){
     try{ c = (typeof n.content === 'string') ? JSON.parse(n.content) : (n.content || {}); }catch(_){ c = {}; }
     // Solo se parla di QUESTA partita: una notifica rimasta indietro da un
     // accoppiamento di prima non deve chiudere quello nuovo.
-    if(_trovatoMatch && (!c.matchId || c.matchId === _trovatoMatch)) trovatoAltroNonHaAccettato(c.torna);
+    if(_trovatoMatch && (!c.matchId || c.matchId === _trovatoMatch)) trovatoAltroNonHaAccettato();
   }
 }
 // v0.79.85 — GLI ERRORI DEL SOCKET NON SONO TUTTI UGUALI.
@@ -20682,27 +20616,6 @@ function segnaCartaGuardata(id){
 // Il pallino accanto a "Library & decks": c'e' finche' resta qualcosa da
 // guardare. Non porta un numero — non serve sapere QUANTE, serve sapere che
 // c'e' qualcosa di la'.
-// v0.79.87 — QUANTE CARTE NUOVE SI POSSONO DAVVERO VEDERE IN LIBRERIA.
-// Il server manda come nuove tutte le carte possedute e mai guardate. Ma la
-// Libreria non le mostra tutte: quelle a drop rate zero (Excalibur e le altre
-// che esistono solo perche' qualcuno le evoca) stanno fuori per regola, e una
-// carta che non entra mai nello schermo non viene mai dichiarata vista. Il
-// pallino restava acceso per sempre, su una novita' che non c'era modo di
-// guardare.
-// Adesso conta sullo STESSO elenco che la Libreria disegna (carteDelGiocatore)
-// e con la STESSA domanda che accende il nastro "New" (_eCartaNuova): il
-// pallino e' acceso se e solo se in Libreria c'e' almeno un nastro da vedere.
-// Le carte che non si vedono non si dichiarano viste da qui: una carta oggi
-// fuori elenco perche' il catalogo non e' ancora arrivato tornera' visibile, e
-// merita di restare nuova.
-function carteNuoveInCollezione(){
-  if(!CARTE_NUOVE.size) return 0;
-  let elenco = [];
-  try{ elenco = carteDelGiocatore() || []; }catch(_){ elenco = []; }
-  let n = 0;
-  for(const e of elenco) if(_eCartaNuova(e)) n++;
-  return n;
-}
 function aggiornaPallinoNovita(){
   // v0.79.28 — appeso al PULSANTE e non all'etichetta: il pallino sta in
   // posizione assoluta, e il suo riferimento dev'essere la scatola del
@@ -20711,7 +20624,7 @@ function aggiornaPallinoNovita(){
   const dove = document.querySelector('#mm2-sc-library .hx-btn');
   if(!dove) return;
   let pallino = dove.querySelector('.mm2-pallino-novita');
-  if(carteNuoveInCollezione() > 0){
+  if(CARTE_NUOVE.size > 0){
     if(!pallino){
       pallino = document.createElement('span');
       pallino.className = 'mm2-pallino-novita';
