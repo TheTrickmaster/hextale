@@ -74,7 +74,7 @@ app.whenReady().then(async () => {
         ts.fontFamily + '  ' + ts.fontSize + '  ' + ts.color);
 
       const col = [...document.querySelectorAll('.disclaimer-col')];
-      dice(col.length === 2, 'due colonne', 'ne ho contate ' + col.length);
+      dice(col.length === 3, 'tre colonne', 'ne ho contate ' + col.length + ' (v0.79.88: si e- aggiunta Progress will be wiped)');
       // v0.79.66 — larghe il doppio di prima (erano 275). Non e- un numero
       // scritto nel CSS: le colonne si dividono quel che resta dentro al
       // riquadro, quindi si misura il risultato e non la regola.
@@ -83,7 +83,7 @@ app.whenReady().then(async () => {
       // dentro quella scala (549 invece di 550). offsetWidth e- la misura nel
       // disegno, che e- quella di cui si sta parlando.
       const larghe = col.map(c=>c.offsetWidth);
-      dice(larghe[0] === 550 && larghe[1] === 550, 'larghe 550 l-una, il doppio dei 275 di prima',
+      dice(larghe.length === 3 && larghe.every(l => l === 550), 'larghe 550 l-una, tutte e tre',
         larghe.join(' e ') + '  (riquadro ' + document.getElementById('disclaimer-box').offsetWidth + ')');
 
       // Formattate come quelle della lettera: stesso fondo, stesso bordo,
@@ -103,18 +103,18 @@ app.whenReady().then(async () => {
       // lettere fra cui scegliere, qui non c'e' niente da scegliere.
       dice(!document.querySelector('#disclaimer-overlay .starter-tinta'),
         'e senza la tinta colorata sopra');
-      dice(Math.abs(col[0].getBoundingClientRect().height - col[1].getBoundingClientRect().height) < 1,
-        'e sono alte uguali, anche se una dice un capoverso in piu-',
-        Math.round(col[0].getBoundingClientRect().height) + ' e ' + Math.round(col[1].getBoundingClientRect().height));
+      dice(col.every(c => Math.abs(c.getBoundingClientRect().height - col[0].getBoundingClientRect().height) < 1),
+        'e sono alte uguali tutte e tre, anche se una dice un capoverso in piu-',
+        col.map(c => Math.round(c.getBoundingClientRect().height)).join(' e '));
 
       // Le icone: cento pixel, centrate.
       const icone = [...document.querySelectorAll('.disclaimer-icona')];
-      dice(icone.map(i=>i.getAttribute('data-disclaimer-icona')).join(',') === 'no-ai-icon.png,no-p2w-icon.png',
-        'a sinistra no-ai-icon, a destra no-p2w-icon',
+      dice(icone.map(i=>i.getAttribute('data-disclaimer-icona')).join(',') === 'no-ai-icon.png,no-p2w-icon.png,clean-icon.png',
+        'da sinistra no-ai-icon, no-p2w-icon e clean-icon',
         icone.map(i=>i.getAttribute('data-disclaimer-icona')).join('  '));
       dice(icone.every(i=>i.offsetWidth === 100), 'larghe 100', icone.map(i=>i.offsetWidth).join(' '));
-      dice(icone.every(i=>/no-(ai|p2w)-icon\\.png/.test(i.getAttribute('src')||'')),
-        'e il disegno e- arrivato davvero',
+      dice(icone.every(i=>String(i.getAttribute('src')||'').indexOf(i.getAttribute('data-disclaimer-icona')) >= 0),
+        'e il disegno e- arrivato davvero, ognuno il suo',
         icone.map(i=>String(i.getAttribute('src')).split('/').pop()).join('  '));
       dice(icone.every((i, n)=>{
         const r = i.getBoundingClientRect(), c = col[n].getBoundingClientRect();
@@ -125,13 +125,22 @@ app.whenReady().then(async () => {
 
       // I titoli e i testi.
       const titoli = [...document.querySelectorAll('.disclaimer-titolo')].map(e=>e.textContent);
-      dice(titoli.join('|') === 'No AI policy|No Pay-to-win policy', 'i due titoli', titoli.join('  '));
+      dice(titoli.join('|') === 'No AI policy|No Pay-to-win policy|Progress will be wiped', 'i tre titoli', titoli.join('  '));
+      // E alla stessa altezza. Le icone non hanno tutte la stessa proporzione, e
+      // se ognuna occupa l-altezza del suo disegno il titolo di una colonna sale o
+      // scende rispetto alle altre: con la scopa di clean-icon saliva di tredici
+      // pixel. Il banco lo guarda sullo schermo, perche- e- li- che si vede.
+      const cimeTitoli = [...document.querySelectorAll('.disclaimer-titolo')].map(e => e.getBoundingClientRect().top);
+      dice(cimeTitoli.every(y => Math.abs(y - cimeTitoli[0]) < 1), 'e i tre titoli stanno alla stessa altezza',
+        cimeTitoli.map(y => Math.round(y)).join('  '));
       const capoversi = col.map(c=>c.querySelectorAll('.disclaimer-testo p').length);
-      dice(capoversi.join(',') === '3,4', 'tre capoversi a sinistra, quattro a destra', capoversi.join(' e '));
+      dice(capoversi.join(',') === '3,4,3', 'tre capoversi, poi quattro, poi tre', capoversi.join(' e '));
       const primo = col[0].querySelector('.disclaimer-testo p').textContent;
       const secondo = col[1].querySelector('.disclaimer-testo p').textContent;
+      const terzo = col[2] ? col[2].querySelector('.disclaimer-testo p').textContent : '';
       dice(primo.indexOf('We do not believe AI should be considered a replacement') === 0
-        && secondo.indexOf('Hextale is, and will always be, a strictly no-pay-to-win game') === 0,
+        && secondo.indexOf('Hextale is, and will always be, a strictly no-pay-to-win game') === 0
+        && terzo.indexOf('Please note that all player progress from the current prototype') === 0,
         'e ognuna comincia col suo discorso');
 
       // ── 3. IL PULSANTE ────────────────────────────────────────────────────
