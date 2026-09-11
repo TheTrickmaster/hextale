@@ -5671,176 +5671,6 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
 }
 #card-modal-overlay.show{display:flex;}
 #card-modal-overlay *{ cursor:var(--cursore); }
-/* ══════════════════════════════════════════════════════════════════════════
-   v0.79.90 — I LIVELLI DELLE CARTE
-   ══════════════════════════════════════════════════════════════════════════
-   Tre posti, un pezzo in comune: la riga "Level N / quanto manca" con sotto la
-   barra delle copie a tacche. Misure e colori dal Figma (966:19278, 885:8914,
-   966:18547). */
-.lv-riga{ display:flex; align-items:center; justify-content:space-between; gap:12px; height:28px; }
-.lv-liv{ font-family:'Marcellus SC','Marcellus',serif; font-size:22px; line-height:1; color:#EDE0C6; white-space:nowrap; }
-.lv-testo{ font-family:'Rosarivo',serif; font-size:20px; line-height:1.2; color:#B5C5C7; text-align:right; white-space:nowrap; }
-/* Le tacche: otto pixel, otto di spazio. La tacca vuota nel Figma e' un grigio
-   caldo in "moltiplica" sul fondo; qui e' un nero al 27%, che su un fondo scuro
-   da' lo stesso numero senza dipendere da cosa c'e' dietro — la fusione dentro
-   a un pannello che apre un suo contesto di sovrapposizione moltiplicherebbe
-   il trasparente, cioe' niente, e la tacca verrebbe chiara. */
-.lv-barre{ display:flex; gap:8px; height:8px; width:100%; }
-.lv-seg{
-  position:relative; flex:1 1 0; min-width:0; height:8px; border-radius:10px;
-  background:rgba(0,0,0,0.27); box-shadow:inset 0 1px 1px rgba(0,0,0,0.5);
-}
-.lv-riemp{
-  position:absolute; left:0; top:0; bottom:0; width:0;
-  box-sizing:border-box; border:1px solid #806A40; border-radius:30px;
-  background-image:linear-gradient(rgba(0,0,0,0.2), rgba(0,0,0,0.2)),
-                   var(--lv-riemp-img, linear-gradient(90deg, #B8902F, #F8D06A));
-  background-size:100% 100%;
-  box-shadow:0 0 1.5px rgba(0,0,0,0.5);
-  opacity:0;
-  transition:width .45s cubic-bezier(.22,1,.36,1), opacity .12s linear;
-}
-.lv-seg.pieno .lv-riemp{ width:100%; opacity:1; }
-/* Al massimo: una barra sola, piena, del grigio di una quest riscossa. */
-.lv-barre.lv-max .lv-seg{ background:rgba(140,140,140,0.18); box-shadow:none; }
-
-/* ── IL RIQUADRO SOTTO ALLA CARTA APERTA ─────────────────────────────────── */
-#card-modal-overlay.con-livello{ gap:16px; }
-#card-modal-livello{
-  flex-direction:row; align-items:center; gap:40px;
-  padding:30px; box-sizing:border-box;
-  border-color:rgba(255,255,255,0.22);
-}
-#card-modal-livello[hidden]{ display:none; }
-#card-modal-livello .cml-sx{ flex:1 1 auto; min-width:0; display:flex; flex-direction:column; gap:3px; }
-#card-modal-sali{ width:355px; flex:0 0 355px; }
-#card-modal-sali[hidden]{ display:none; }
-/* Spento finche' le copie non bastano: nel Figma e' lo stesso pulsante a meta'
-   luce. Senza puntatore, cosi' non si accende nemmeno passandoci sopra. */
-#card-modal-sali:disabled{ pointer-events:none; opacity:0.5; }
-#card-modal-sali .hxb-label{ display:inline-flex; align-items:center; gap:8px; }
-#card-modal-sali .cml-ink{ width:47px; height:40px; object-fit:contain; }
-
-/* ── LA SALITA ───────────────────────────────────────────────────────────── */
-#livello-overlay{
-  position:fixed; inset:0; z-index:5300;
-  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px;
-  background:rgba(3,7,7,0.7);
-  -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px);
-  opacity:0; visibility:hidden; pointer-events:none;
-  transition:opacity var(--hx-dissolvenza) ease, visibility 0s linear var(--hx-dissolvenza);
-}
-#livello-overlay.show{
-  opacity:1; visibility:visible; pointer-events:auto;
-  transition:opacity var(--hx-dissolvenza) ease, visibility 0s linear 0s;
-}
-#livello-overlay *{ cursor:var(--cursore); }
-#livello-palco{ position:absolute; inset:0; z-index:2; pointer-events:none; }
-#livello-scintille{ position:absolute; inset:0; width:100%; height:100%; }
-#livello-carta{
-  position:absolute; width:292px; height:501px;
-  perspective:1600px;
-  opacity:0; transform:translateY(-90px);
-}
-#livello-carta.arriva{
-  opacity:1; transform:none;
-  transition:opacity .45s ease, transform .5s cubic-bezier(.22,1,.36,1);
-}
-#livello-carta.sposta{ transition:transform .65s cubic-bezier(.22,1,.36,1); }
-#livello-carta .lvc-giro{ position:absolute; inset:0; transform-style:preserve-3d; }
-#livello-carta .lvc-faccia{
-  position:absolute; inset:0; border-radius:30px;
-  backface-visibility:hidden; -webkit-backface-visibility:hidden;
-}
-#livello-carta .lvc-faccia.dorso{ transform:rotateY(180deg); }
-#livello-carta .lvc-faccia.dorso img{ width:100%; height:100%; object-fit:contain; display:block; }
-#livello-carta .lvc-faccia svg{ position:absolute; inset:0; width:100%; height:100%; display:block; }
-/* La carta nuova intera sta nella faccia, invisibile: e' lo stampo da cui si
-   ritagliano i pezzi, e deve essere disegnata perche' le si possano chiedere
-   le misure. */
-#livello-carta .lvc-faccia svg.lvc-riferimento{ visibility:hidden; }
-#livello-carta .lvc-lampo{
-  position:absolute; inset:-40%; border-radius:50%; pointer-events:none; opacity:0; z-index:3;
-  background:radial-gradient(circle, rgba(255,255,255,1) 0%, rgba(255,236,190,0.7) 22%, rgba(255,236,190,0) 60%);
-  mix-blend-mode:screen;
-}
-#livello-carta .lvc-lampo.va{ animation:lvcLampo .7s ease-out forwards; }
-@keyframes lvcLampo{
-  0%  { opacity:0; transform:scale(.5); }
-  18% { opacity:1; transform:scale(1); }
-  100%{ opacity:0; transform:scale(1.35); }
-}
-.lvc-cambio{ position:absolute; inset:0; opacity:0; pointer-events:none; }
-.lvc-cambio.va{ animation:lvcCambio .56s cubic-bezier(.3,0,.2,1) forwards; }
-@keyframes lvcCambio{
-  0%  { opacity:0; transform:scale(1); }
-  40% { opacity:1; transform:scale(1.22); }
-  100%{ opacity:1; transform:scale(1); }
-}
-.lvc-bagliore{
-  position:absolute; border-radius:50%; pointer-events:none; opacity:0;
-  background:radial-gradient(circle, rgba(255,255,255,0.95) 0%, rgba(255,240,200,0.55) 30%, rgba(255,240,200,0) 65%);
-  mix-blend-mode:screen;
-}
-.lvc-bagliore.va{ animation:lvcBagliore .56s ease-out forwards; }
-@keyframes lvcBagliore{
-  0%  { opacity:0; transform:scale(.4); }
-  35% { opacity:1; transform:scale(1); }
-  100%{ opacity:0; transform:scale(1.25); }
-}
-/* La finestra finale: Figma "Unpack - Card lvl up", 846x561. */
-#livello-cornice{
-  flex-direction:row; align-items:stretch; gap:40px;
-  width:846px; height:561px; padding:30px; box-sizing:border-box;
-  border-color:rgba(255,255,255,0.22);
-  opacity:0; transform:scale(.96);
-  transition:opacity .4s ease, transform .45s cubic-bezier(.22,1,.36,1);
-}
-#livello-cornice.aperta{ opacity:1; transform:none; }
-#livello-posto-carta{ flex:0 0 292px; width:292px; height:501px; }
-#livello-colonna{ flex:0 0 454px; width:454px; display:flex; flex-direction:column; gap:20px; }
-#livello-testi{
-  flex:1 1 auto; min-height:0;
-  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:20px;
-  text-align:center;
-}
-#livello-titolo{
-  margin:0; font-family:'Marcellus SC','Marcellus',serif; font-weight:400;
-  font-size:36px; line-height:40px; color:#EDE0C6;
-}
-#livello-bonus, #livello-sblocco-testo{ font-family:'Rosarivo',serif; font-size:16px; line-height:1.2; color:#C5D2D4; }
-#livello-bonus[hidden]{ display:none; }
-#livello-sblocco{ display:flex; flex-direction:column; align-items:center; gap:20px; }
-#livello-sblocco[hidden]{ display:none; }
-.livello-riga{
-  width:454px; height:20px;
-  background:linear-gradient(rgba(255,255,255,0.1), rgba(255,255,255,0.1)) center / 242px 1px no-repeat;
-}
-#livello-abilita{
-  position:relative; width:311px; box-sizing:border-box;
-  padding:16px 20px; border:1.5px solid #4E5455; border-radius:16px;
-  background-image:linear-gradient(90deg, #496063 0%, #1E2423 100%);
-  filter:drop-shadow(0 0 7.5px rgba(0,0,0,0.5));
-  display:flex; flex-direction:column; align-items:center; gap:12px;
-}
-#livello-abilita::before{
-  content:''; position:absolute; inset:0; border-radius:inherit;
-  background-image:var(--hx-trama, none); background-size:cover;
-  opacity:0.4; mix-blend-mode:overlay; pointer-events:none;
-}
-#livello-abilita .la-nome{
-  position:relative; font-family:'Marcellus SC','Marcellus',serif;
-  font-size:17.936px; line-height:1; color:#D37B00;
-}
-#livello-abilita .la-desc{
-  position:relative; width:227px; font-family:'Rosarivo',serif;
-  font-size:12.555px; line-height:1.2; color:#D0DADB;
-}
-#livello-barra{ display:flex; flex-direction:column; gap:3px; }
-.lv-entra{ opacity:0; transform:translateY(8px); transition:opacity .35s ease, transform .35s ease; }
-.lv-entra.dentro{ opacity:1; transform:none; }
-#livello-chiudi{ opacity:0; pointer-events:none; transition:opacity .3s ease; }
-#livello-chiudi.dentro{ opacity:1; pointer-events:auto; }
 /* v0.71.8 FIX: #card-modal-info (the old HTML text panel) is no longer
    populated — openCardModal() now shows one big full-card SVG (see that
    function's own comment) instead of a bare hex + separate info box, so the
@@ -5987,10 +5817,6 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
 #card-modal-info .cm-lv-et{ color:#B5C5C7; }
 #card-modal-info .cm-lv-val{ color:#FFFFFF; }
 #card-modal-info .cm-livello b{ font-size:27px; font-weight:400; }
-/* v0.79.90 — "Level N" come nel Figma: Marcellus SC 22, il colore dei titoli. */
-#card-modal-info .cm-lv-val{
-  font-family:'Marcellus SC','Marcellus',serif; font-size:22px; line-height:1; color:#EDE0C6;
-}
 /* v0.74.5 — le frecce stanno ai due BORDI della colonna, non appiccicate al
    numero. `margin` automatico invece di space-between sul contenitore: cosi'
    in partita, dove le frecce non ci sono, il testo resta centrato da solo
@@ -7512,30 +7338,24 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
    nuove e una scritta nuda per quelle che si avevano gia'. */
 .pack-etichetta{
   position:absolute; left:50%; bottom:100%;
-  /* v0.79.90 — Figma "Unpack - Cards": venti pixel sopra alla carta, largo
-     quanto lei, con la stessa pelle delle finestre (gradiente, bordo chiaro,
-     sfocatura dietro). Dentro, una riga e la barra delle copie. */
-  margin-bottom:20px;
+  margin-bottom:34px;
   transform:translateX(-50%);
-  width:calc(100% + 1px); box-sizing:border-box;
-  display:flex; flex-direction:column; gap:12px;
-  padding:12px 20px;
+  padding:20px 12px;
   border-radius:16px;
-  border:1.5px solid rgba(255,255,255,0.22);
-  background-image:linear-gradient(135deg, rgba(84,96,98,0.5) 0%, rgba(29,38,39,0.5) 100%);
-  -webkit-backdrop-filter:blur(30px); backdrop-filter:blur(30px);
-  font-family:'Marcellus SC','Marcellus',serif;
+  /* v0.79.42 — mezzo trasparente col fondale sfocato dietro, come l'istruzione
+     sulla busta e come le finestre del gioco: e' un cartello appoggiato sopra
+     alla scena, e sopra a una carta che si muove la trasparenza e' anche cio'
+     che gli impedisce di sembrare incollato allo schermo. */
+  background-image:linear-gradient(135deg, rgba(47,56,55,0.5) 0%, rgba(26,31,30,0.5) 100%);
+  -webkit-backdrop-filter:blur(20px); backdrop-filter:blur(20px);
+  box-shadow:inset 0 0 0 1.5px rgba(255,255,255,0.2), 0 8px 28px rgba(0,0,0,0.6);
+  font-family:'Marcellus',var(--font-display),serif;
   font-size:22px; font-weight:400; line-height:1;
   color:#EDE0C6; white-space:nowrap;
   z-index:7; pointer-events:none;
   opacity:0; transition:opacity .25s ease;
 }
-.pack-etichetta .pk-riga{ display:flex; align-items:center; justify-content:space-between; height:28px; }
-/* La nuova non ha "Owned": il suo posto lo prende il nastro, che non sta nel
-   flusso e sporge di due pixel dal bordo sinistro. Il bordo e' di 1,5, quindi
-   dal riquadro interno sono 3,5. */
-.pack-etichetta.pk-nuova .pk-riga{ justify-content:flex-end; }
-.pack-etichetta .pk-nastro{ position:absolute; left:-3.5px; top:5px; width:109px; height:41px; }
+.pack-etichetta.pk-nuova{ background-image:none; background-color:rgba(125,19,19,0.5); }
 /* v0.79.40 — premuto Collect, i cartellini se ne vanno in dissolvenza da TUTTE
    le carte, tenute e scartate. Hanno risposto alla domanda che c'era da fare
    (ce l'avevi gia'?), la scelta e' stata fatta, e restare mentre le carte
@@ -8646,14 +8466,6 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
 .card-db-card-slot:not(.carta-nuova) .nuova-nastro{ opacity:0; }
 .card-db-card-slot.carta-nuova:hover{ filter:none; }
 .card-db-card-slot.carta-nuova:hover .nuova-nastro{ opacity:0; }
-/* v0.79.90 — "Lv up": la stessa altezza e la stessa sporgenza di "New", ma a
-   destra. lv-up-banner.png ha le proporzioni di new-card-banner.png (120x82),
-   quindi a quaranta di altezza i due nastri vengono identici. */
-.card-db-card-slot .lvup-nastro{
-  position:absolute; right:-2px; top:65px;
-  height:40px; width:auto; z-index:6;
-  pointer-events:none; user-select:none; -webkit-user-drag:none;
-}
 /* Il pallino accanto a "Library & decks". Otto pixel: e' un segno, non un
    distintivo — deve farsi notare senza chiedere di essere letto.
    (v0.78.18 — otto invece di quattro: a quattro si poteva scambiare per un
@@ -12808,62 +12620,10 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
     <div id="card-modal-card"></div>
     <div id="card-modal-info"></div>
   </div>
-  <!-- v0.79.90 — IL LIVELLO, FUORI DALLA FINESTRA. Figma "Library & Decks -
-       Card fully Open" e "... lvl up": sotto al riquadro della carta, largo
-       quanto lui, a sedici pixel. A sinistra il livello e le copie verso il
-       prossimo, a destra il pulsante che lo compra. Si vede solo in Libreria:
-       e' l'unico posto da cui una carta sale (regola di Lorenzo). -->
-  <div id="card-modal-livello" class="hx-pannello" hidden>
-    <div class="cml-sx">
-      <div class="lv-riga"><span class="lv-liv cml-liv"></span><span class="lv-testo cml-testo"></span></div>
-      <div class="cml-barre"></div>
-    </div>
-    <button class="hx-btn" type="button" id="card-modal-sali" onclick="livellaCartaDallaScheda()">
-      <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
-      <span class="hxb-label">Level up for <span class="cml-costo"></span><img class="cml-ink" alt="" draggable="false"></span>
-    </button>
-  </div>
   <button class="hx-btn" type="button" id="card-modal-chiudi" onclick="closeCardModal()">
     <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
     <span class="hxb-label">Close</span>
   </button>
-</div>
-<!-- v0.79.90 — LA SALITA DI LIVELLO. A schermo intero, sopra a tutto.
-     Due strati: la finestra finale (Figma "Unpack - Card lvl up") e il
-     pulsante Close stanno nel flusso, centrati, e restano invisibili finche'
-     l'animazione non li chiama; la carta e le scintille stanno su un palco
-     assoluto sopra di loro, perche' la carta deve poter partire dal centro
-     dello schermo e arrivare al proprio posto dentro alla finestra. -->
-<div id="livello-overlay">
-  <div id="livello-cornice" class="hx-pannello">
-    <div id="livello-posto-carta"></div>
-    <div id="livello-colonna">
-      <div id="livello-testi">
-        <h2 id="livello-titolo" class="lv-entra"></h2>
-        <div id="livello-bonus" class="lv-entra"></div>
-        <div id="livello-sblocco">
-          <div class="livello-riga lv-entra"></div>
-          <div id="livello-sblocco-testo" class="lv-entra">New ability unlocked!</div>
-          <div id="livello-abilita" class="lv-entra"><span class="la-nome"></span><span class="la-desc"></span></div>
-        </div>
-      </div>
-      <div id="livello-barra" class="lv-entra">
-        <div class="lv-riga"><span class="lv-liv"></span><span class="lv-testo"></span></div>
-        <div class="livello-barre"></div>
-      </div>
-    </div>
-  </div>
-  <button class="hx-btn" type="button" id="livello-chiudi" onclick="chiudiSalitaDiLivello()">
-    <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
-    <span class="hxb-label">Close</span>
-  </button>
-  <div id="livello-palco">
-    <canvas id="livello-scintille"></canvas>
-    <div id="livello-carta">
-      <div class="lvc-giro"><div class="lvc-faccia fronte"></div><div class="lvc-faccia dorso"><img alt="" draggable="false"></div></div>
-      <div class="lvc-lampo"></div>
-    </div>
-  </div>
 </div>
 <div id="toast"></div>
 <!-- ── bottom timer bar (v0.31.0) ──────────────────────────────────
@@ -13031,7 +12791,7 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.90</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.79.89</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <!-- v0.79.75 — dove salgono gli avvisi delle quest. Vuoto quasi sempre, e
@@ -17140,23 +16900,16 @@ function _cartaSconosciuta(owner, i){
 // vero — e la partita, che ne mostrava un altro.
 // Ogni carta va al livello del SUO proprietario: le mie a quello che dice il
 // mio possesso, le sue a quello che il server ha dichiarato per lei.
-function _livelloDiRete(owner, entry){
+function _livelloDiRete(owner){
   if(!PARTITA_RETE) return null;
   if(owner === PARTITA_RETE.io) return null;          // le mie: decide il possesso
-  // v0.79.90 — CARTA PER CARTA. Il server manda il livello di ogni carta del
-  // suo mazzo (vedi _livelliPerLaPartita): da quando le carte salgono una per
-  // una, un numero solo per giocatore darebbe a due client due carte diverse.
-  // Il numero unico resta come ripiego per un server che non li manda ancora.
-  const mappa = PARTITA_RETE.livelliAvversario;
-  const sua = mappa && entry ? mappa[entry.slug] : undefined;
-  if(typeof sua === 'number' && sua > 0) return sua;
   const suo = PARTITA_RETE.livelloAvversario;
   return (typeof suo === 'number' && suo > 0) ? suo : 1;
 }
 function _cartaDaIdRete(idCatalogo, owner, i){
   let entry = entryDaId(idCatalogo);
   if(!entry) return _cartaSconosciuta(owner, i);
-  const suo = _livelloDiRete(owner, entry);
+  const suo = _livelloDiRete(owner);
   entry = (suo === null)
     ? alLivelloDelGiocatore(entry)
     : ((entry.level === suo || typeof cartaAlLivello !== 'function') ? entry : cartaAlLivello(entry, suo));
@@ -17277,8 +17030,6 @@ function reteMessaggio(md){
       // dichiarare, perche' decide i numeri sui lati.
       PARTITA_RETE.livelloAvversario =
         (d.avversario && typeof d.avversario.livello === 'number') ? d.avversario.livello : 1;
-      // v0.79.90 — e quello di ogni sua carta, che e' quello che conta.
-      PARTITA_RETE.livelliAvversario = (d.avversario && d.avversario.livelli) || null;
       PARTITA_ERA_IN_RETE = true;
       // Il numero serve anche dopo che PARTITA_RETE e' sparito: e' l'unico
       // modo, a partita interrotta, di sapere quale delle due mani e' la mia.
@@ -18384,22 +18135,6 @@ let CARTE_POSSEDUTE = {};      // slug -> livello
 // qui non si somma niente a mano, altrimenti il numero a schermo sarebbe una
 // nostra opinione — la stessa regola del saldo e del roster.
 let CARTE_COPIE = {};
-// v0.79.90 — le tabelle dei livelli delle carte. Le manda il server col profilo
-// (vedi regoleLivelliCarte in index.js) e sono QUELLE che valgono: queste qui
-// sotto servono solo finche' il profilo non e' arrivato, e sono la stessa
-// tabella, cosi' una pagina aperta prima della risposta non mostra numeri
-// diversi da quelli che poi verranno applicati.
-let LIVELLI_CARTE_REGOLE = {
-  max: 4,
-  copie: { 1: 1, 2: 2, 3: 5, 4: 9 },
-  inchiostro: {
-    common:   { 2: 50,  3: 150, 4: 400 },
-    rare:     { 2: 100, 3: 300, 4: 800 },
-    mythic:   { 2: 150, 3: 450, 4: 1200 },
-    timeless: { 2: 200, 3: 600, 4: 1600 }
-  },
-  rimborso: { common: 50, rare: 200, mythic: 500, timeless: 1000 }
-};
 let GIOCATORE_ADMIN = false;
 // "Non ne so niente" e "ne so, ed e' vuoto" sono stati diversi: senza questa
 // distinzione un giocatore scollegato vedrebbe una Collezione vuota invece
@@ -18532,7 +18267,6 @@ async function caricaCarteDalServer(){
   }
   CARTE_POSSEDUTE = risposta.possedute || {};
   CARTE_COPIE = risposta.copie || {};
-  if(risposta.livelliCarte && risposta.livelliCarte.copie) LIVELLI_CARTE_REGOLE = risposta.livelliCarte;
   GIOCATORE_ADMIN = !!risposta.admin;
   try{ aggiornaAccessoDebug(); }catch(_){ }
   // v0.78.16 — e quali carte non sono ancora state guardate in Collezione.
@@ -29426,43 +29160,18 @@ function vestiEtichettaBustina(carta){
   if(!carta || carta.__etichettaFatta) return;
   carta.__etichettaFatta = true;
   // v0.79.39 — un cartellino solo, sopra alla carta, per tutti e due i casi.
-  // v0.79.90 — e adesso dice anche a che livello e' quella carta, e quante
-  // copie mancano al prossimo (Figma "Unpack - Cards"). La domanda "ce l'avevi
-  // gia'?" resta a sinistra: "Owned", o il nastro rosso "New!" che sporge di
-  // due pixel dal bordo. A destra il livello, sotto la barra delle copie: e'
-  // lei che si riempie di una tacca quando la carta viene tenuta.
-  _vestiLivelli();
-  const entry = carta.__entry;
-  const nuova = copiePossedute(entry) <= 0;
-  const st = statoLivelloCarta(entry);
+  // Prima erano due cose diverse — un nastro disegnato per le nuove, una
+  // scritta nuda per quelle gia' possedute — cioe' due linguaggi per
+  // rispondere alla stessa domanda. Quello che cambia e' il colore del fondo,
+  // ed e' l'unica cosa che deve cambiare.
+  const nuova = copiePossedute(carta.__entry) <= 0;
   const et = document.createElement('div');
   et.className = 'pack-etichetta' + (nuova ? ' pk-nuova' : '');
-  et.innerHTML = '<div class="pk-riga">'
-    + (nuova ? '<img class="pk-nastro" alt="New!" draggable="false">' : '<span>Owned</span>')
-    + '<span class="pk-lv">Lvl ' + st.livello + '</span></div>'
-    + barraLivelloHTML(st);
-  if(nuova) impostaImgDaCandidati(et.querySelector('.pk-nastro'), uiFileCandidati('new-card-banner-wide.png'));
+  et.textContent = nuova ? 'New!' : 'Owned';
   carta.appendChild(et);
   // Un fotogramma di distanza fra "esiste" e "si accende": senza, il browser
   // vede una cosa nata gia' visibile e non ha niente da dissolvere.
   requestAnimationFrame(()=>requestAnimationFrame(()=>carta.classList.add('mostra-etichetta')));
-}
-// v0.79.90 — la carta tenuta aggiunge una copia, e la barra lo mostra: una
-// tacca in piu', riempita con la stessa transizione di sempre. Non si tocca il
-// livello, che non sale da solo. Una copia rimborsata (oltre le nove) non
-// riempie niente: e' diventata inchiostro.
-function riempiCopiaBustina(tenute, rimborsate){
-  const via = rimborsate || [];
-  let quante = 0;
-  for(const c of tenute){
-    const slug = c.__entry && c.__entry.slug;
-    if(!slug || via.indexOf(slug) >= 0) continue;
-    const vuota = c.querySelector('.pack-etichetta .lv-seg:not(.pieno)');
-    if(!vuota || vuota.closest('.lv-max')) continue;
-    vuota.classList.add('pieno');
-    quante++;
-  }
-  return quante;
 }
 function mostraSceltaBustina(){
   aggiornaSceltaBustina();
@@ -30100,10 +29809,7 @@ function _costruisciCartaBustina(entry, dir, indice){
 
   const fronte = document.createElement('div');
   fronte.className = 'pack-card-face front';
-  // v0.79.90 — la carta si disegna al livello che il giocatore ne ha (1 se e'
-  // nuova), non a quello della voce di catalogo: il cartellino sopra dice "Lvl
-  // N", e le gemme del livello sulla carta devono dire lo stesso numero.
-  const cardObj = _makeCardDbCard(alLivelloDelGiocatore(entry), _cardDbVariant);
+  const cardObj = _makeCardDbCard(entry, _cardDbVariant);
   const visiva = (typeof cardFoilVisualCard==='function') ? cardFoilVisualCard(cardObj) : cardObj;
   fronte.appendChild(buildFullHandCardSVG(visiva, 242, 414));
 
@@ -30470,8 +30176,6 @@ async function raccogliCarte(){
     // numeri che non c-entrano niente l-uno con l-altro — e con 500 di
     // polvere e 250 di inchiostro contava da 500 a 200.
     const prima = MENU_GIOCATORE.magicInk;
-    // v0.79.90 — quante barre delle copie si sono appena riempite di una tacca.
-    let copieRiempite = 0;
     if(_bustinaDalServer){
       const slug = tenute.map(c=>c.__entry && c.__entry.slug).filter(Boolean);
       let r;
@@ -30517,8 +30221,6 @@ async function raccogliCarte(){
         try{ if(typeof cardDbRenderRoster === 'function') cardDbRenderRoster(); }catch(_){}
         try{ if(typeof renderListaMazzi === 'function') renderListaMazzi(); }catch(_){}
       }
-      // v0.79.90 — la copia appena presa si vede arrivare nella barra.
-      try{ copieRiempite = riempiCopiaBustina(tenute, r && r.rimborsate); }catch(_){ copieRiempite = 0; }
       if(r && r.speso > 0){
         // ── v0.79.44 — PRIMA RIENTRA, POI PAGA ────────────────────────────
         // Il riquadro dell'inchiostro e' fuori schermo insieme al resto della
@@ -30563,9 +30265,6 @@ async function raccogliCarte(){
     mostraPulsanteBustina('pack-collect', false);
     document.querySelectorAll('.pack-scelta-btn').forEach(b=>b.classList.add('pack-nascosto'));
     _bustinaDalServer = false;
-    // v0.79.90 — prima di volare via, il tempo di vedere la tacca riempirsi:
-    // l'uscita toglie i cartellini, e con loro la barra.
-    if(copieRiempite) await new Promise(res => setTimeout(res, 700));
     uscitaDopoLaScelta(tenute, scartate);
   } finally {
     _raccoltaInCorso = false;
@@ -31583,17 +31282,6 @@ function cardDbRenderRoster(){
     // sbustate e contate. La domanda non trovava mai niente, quindi nessuna
     // carta si accendeva mai. Si accettano tutte e due le forme: chi legge non
     // deve sapere quale delle due gli e' arrivata.
-    // v0.79.90 — PRONTA A SALIRE. Il nastro "Lv up" sta alla stessa altezza di
-    // "New", ma sul bordo destro e sporgente di due pixel, come quello. Non se
-    // ne va passandoci sopra: non e' una novita' da guardare una volta, e' una
-    // cosa da fare, e resta finche' non la si fa.
-    if(cartaProntaASalire(entry)){
-      slot.classList.add('carta-pronta');
-      const lv = document.createElement('img');
-      lv.className = 'lvup-nastro'; lv.alt = 'Lv up'; lv.draggable = false;
-      impostaImgDaCandidati(lv, uiFileCandidati('lv-up-banner.png'));
-      slot.appendChild(lv);
-    }
     if(_eCartaNuova(entry)){
       slot.classList.add('carta-nuova');
       const nastro = document.createElement('img');
@@ -50138,14 +49826,6 @@ function buildFullHandCardSVG(card, boxW, boxH, preview){
   vvImg.setAttribute('x', vvX.toFixed(2)); vvImg.setAttribute('y', vvY.toFixed(2));
   vvImg.setAttribute('width', vvW.toFixed(2)); vvImg.setAttribute('height', vvH.toFixed(2));
   chromeGroup.appendChild(vvImg);
-  { // v0.79.90 — dove sta aiuto: lo chiede l'animazione della salita di livello.
-    const z=document.createElementNS('http://www.w3.org/2000/svg','rect');
-    z.setAttribute('data-lv-zona','aiuto');
-    z.setAttribute('x', (vvX).toFixed(2)); z.setAttribute('y', (vvY).toFixed(2));
-    z.setAttribute('width', Math.max(0,vvW).toFixed(2)); z.setAttribute('height', Math.max(0,vvH).toFixed(2));
-    z.setAttribute('fill','none'); z.style.pointerEvents='none';
-    chromeGroup.appendChild(z);
-  }
 
   // Overlay: the actual value-group boundaries + numbers, drawn as a second,
   // invisible (no fill/background) pointy-top hex sized/positioned to
@@ -50522,14 +50202,6 @@ function buildFullHandCardSVG(card, boxW, boxH, preview){
     }
     levelX += levelSocketSize+levelGap;
   }
-  { // v0.79.90 — dove sta livelli: lo chiede l'animazione della salita di livello.
-    const z=document.createElementNS('http://www.w3.org/2000/svg','rect');
-    z.setAttribute('data-lv-zona','livelli');
-    z.setAttribute('x', (levelX-LEVEL_SLOTS*(levelSocketSize+levelGap)).toFixed(2)); z.setAttribute('y', (levelY).toFixed(2));
-    z.setAttribute('width', Math.max(0,levelRowW).toFixed(2)); z.setAttribute('height', Math.max(0,levelSocketSize).toFixed(2));
-    z.setAttribute('fill','none'); z.style.pointerEvents='none';
-    chromeGroup.appendChild(z);
-  }
 
   // Inside card-fill-bottom: card ability description (if the card has one)
   // OR the character's quote (if it doesn't) — never both, per explicit
@@ -50561,14 +50233,6 @@ function buildFullHandCardSVG(card, boxW, boxH, preview){
   // card's own side border.
   const fillTextSideInset = DECO_SIDE_GAP*2;
   const fillTextW = boxW-2*fillTextSideInset;
-  { // v0.79.90 — dove sta abilita: lo chiede l'animazione della salita di livello.
-    const z=document.createElementNS('http://www.w3.org/2000/svg','rect');
-    z.setAttribute('data-lv-zona','abilita');
-    z.setAttribute('x', (fillTextSideInset).toFixed(2)); z.setAttribute('y', (bassoY).toFixed(2));
-    z.setAttribute('width', Math.max(0,fillTextW).toFixed(2)); z.setAttribute('height', Math.max(0,testoFineY-bassoY).toFixed(2));
-    z.setAttribute('fill','none'); z.style.pointerEvents='none';
-    chromeGroup.appendChild(z);
-  }
   // v0.71.6 FIX ("i font sono ancora troppo piccoli, ingrandiscili tutti di
   // parecchio che così sono illeggibili"): the previous 34/44 native sizes
   // were already roughly proportional to the reference screenshot's own
@@ -55365,9 +55029,6 @@ function disegnaCardModal(card, playerIdx){
   // si sta guardando, come gia' facevano lamina e parallax.
   cardDbBuildGlossLayer(cardHost, cartaMostrata, svg);
   _cardModalCard=card;
-  // v0.79.90 — il riquadro del livello, dopo che la carta e' in pagina: la sua
-  // larghezza si copia da quella della finestra, e prima non ce l'ha.
-  aggiornaStrisciaLivello(card);
 
   overlay.classList.add('show');
 }
@@ -55468,19 +55129,14 @@ function costruisciSchedaCarta(card, livello, conSelettore){
   // niente.
   // Le frecce sono quelle di ui/ — back-button e right-button, le stesse del
   // resto delle finestre nuove — e non piu' i tappi di player-ui.
-  // v0.79.90 — la riga come nel Figma "Card fully Open": le due frecce ai bordi
-  // e in mezzo "Level N", nient'altro. Non e' piu' una casella: le copie e il
-  // pulsante per salire stanno nel riquadro SOTTO alla finestra (vedi
-  // #card-modal-livello), e due caselle che parlano del livello una sopra
-  // l'altra sarebbero state due campi per la stessa cosa.
-  // Via anche "/4 (Current)": nel Figma non c'e', e il livello vero lo dice il
-  // riquadro di sotto, che non si sfoglia.
-  html += '<div class="cm-livello">';
+  html += '<div class="cm-livello'+(conSelettore?' hx-campo':'')+'">';
   if(conSelettore){
     html += '<button class="cm-freccia" data-cm-passo="-1"'+(livello<=1?' disabled':'')+'>'
           + '<img data-cm-icona="back-button.png" alt="&lt;"></button>';
   }
-  html += '<span class="cm-lv-val">Level '+livello+'</span>';
+  html += '<span class="cm-lv-et">Level:</span>'
+        + '<span class="cm-lv-val"><b>'+livello+'</b>/<b>'+CM_LIVELLO_MAX+'</b>'
+        + (conSelettore && livello===(card.level||1) ? ' (Current)' : '')+'</span>';
   if(conSelettore){
     html += '<button class="cm-freccia" data-cm-passo="1"'+(livello>=CM_LIVELLO_MAX?' disabled':'')+'>'
           + '<img data-cm-icona="right-button.png" alt="&gt;"></button>';
@@ -55530,526 +55186,6 @@ function initCardModalTilt(){
     cardFoilApply(host, px*2-1, py*2-1, px, py);
   });
   overlay.addEventListener('pointerleave', ()=>{ cardFoilReset(host); });
-}
-
-// ══════════════════════════════════════════════════════════════════════════
-// v0.79.90 — I LIVELLI DELLE CARTE
-// ══════════════════════════════════════════════════════════════════════════
-// Le regole sono di Lorenzo (11/09/2026) e le fa valere il server (vedi I
-// LIVELLI DELLE CARTE in index.js). Qui ci sono le tre facce che il giocatore
-// vede:
-//   - quanto manca al prossimo livello, in tacche (statoLivelloCarta);
-//   - il riquadro sotto alla carta aperta in Libreria, col pulsante che compra
-//     il livello (aggiornaStrisciaLivello, livellaCartaDallaScheda);
-//   - la salita vera e propria, a schermo intero (animaSalitaDiLivello).
-
-// La voce di catalogo di una carta disegnata. La Libreria costruisce le sue
-// carte con id "voce-proprietario" e senza slug, quindi si cerca per id.
-function _entryDellaCarta(card){
-  if(!card || !Array.isArray(FINAL_CARDS)) return null;
-  if(card.slug){
-    const perSlug = FINAL_CARDS.find(e => e && e.slug === card.slug);
-    if(perSlug) return perSlug;
-  }
-  const baseId = card.baseId || String(card.id||'').replace(/-\d+$/,'');
-  return FINAL_CARDS.find(e => e && e.id === baseId) || null;
-}
-
-// ── A CHE PUNTO E' UNA CARTA ──────────────────────────────────────────────
-// Le copie per stare a un livello sono TOTALI (2, 5, 9), ma la barra ne mostra
-// solo il tratto verso il prossimo: al livello 1 sono due tacche (da zero
-// copie a due), al 2 tre, al 3 quattro. E' quello che disegna il Figma: una
-// carta posseduta una volta al livello 1 ha una tacca piena su due.
-// Le copie in piu' di quelle che servono non traboccano nella barra dopo:
-// riempiono questa, e la carta e' pronta. Saliranno insieme a lei.
-function statoLivelloCarta(entry){
-  const R = LIVELLI_CARTE_REGOLE;
-  const max = R.max || 4;
-  const livello = Math.max(1, Math.min(max, livelloPosseduto(entry)));
-  const copie = copiePossedute(entry);
-  if(livello >= max){
-    return { livello, copie, max:true, segmenti:1, pieni:1, mancano:0, pronto:false, verso:max, costo:0 };
-  }
-  const base = livello <= 1 ? 0 : (R.copie[livello] || 0);
-  const segmenti = Math.max(1, (R.copie[livello+1] || 0) - base);
-  const pieni = Math.max(0, Math.min(segmenti, copie - base));
-  const tabella = R.inchiostro[String((entry && entry.rarity) || '').toLowerCase()] || R.inchiostro.common;
-  return {
-    livello, copie, max:false, segmenti, pieni,
-    mancano: segmenti - pieni,
-    pronto: pieni >= segmenti && copie > 0,
-    verso: livello + 1,
-    costo: tabella[livello+1] || 0
-  };
-}
-function cartaProntaASalire(entry){
-  if(!entry) return false;
-  const st = statoLivelloCarta(entry);
-  return !st.max && st.pronto;
-}
-// La barra delle copie: una tacca per copia che serve. Al massimo e' una barra
-// sola, piena, del grigio delle quest gia' riscosse (regola 9 di Lorenzo).
-function barraLivelloHTML(st){
-  if(st.max) return '<div class="lv-barre lv-max"><span class="lv-seg pieno"></span></div>';
-  let h = '<div class="lv-barre">';
-  for(let i = 0; i < st.segmenti; i++){
-    h += '<span class="lv-seg' + (i < st.pieni ? ' pieno' : '') + '"><span class="lv-riemp"></span></span>';
-  }
-  return h + '</div>';
-}
-
-// I pezzi grafici dei livelli si montano al primo bisogno, come quelli della
-// finestra della carta: la Libreria, le bustine e la salita possono arrivarci
-// ognuna per prima.
-let _livelliVestiti = false;
-function _vestiLivelli(){
-  if(_livelliVestiti) return;
-  _livelliVestiti = true;
-  try{
-    impostaVariabileDaCandidati(document.documentElement, '--lv-riemp-img', uiFileCandidati('slider-bar-fill.png'));
-    ['card-modal-livello', 'livello-cornice'].forEach(id =>
-      impostaVariabileDaCandidati(document.getElementById(id), '--hx-trama', uiFileCandidati('brushed-texture.jpg')));
-    vestiPulsante(document.getElementById('card-modal-sali'));
-    vestiPulsante(document.getElementById('livello-chiudi'));
-    document.querySelectorAll('.cml-ink').forEach(im => impostaImgDaCandidati(im, uiFileCandidati('magic-ink-icon.png')));
-  }catch(e){ _livelliVestiti = false; }
-}
-
-// ── IL RIQUADRO SOTTO ALLA CARTA APERTA ───────────────────────────────────
-// Solo in Libreria e solo per una carta posseduta: e' l'unico posto da cui
-// una carta sale, e altrove (in partita, sulle bustine) il riquadro sarebbe un
-// pulsante che non deve esserci.
-let _cmCartaStriscia = null;
-let _livellaInCorso = false;
-function aggiornaStrisciaLivello(card){
-  const s = document.getElementById('card-modal-livello');
-  const ov = document.getElementById('card-modal-overlay');
-  if(!s) return;
-  const entry = _entryDellaCarta(card);
-  const mostra = !!(_cmConSelettore && _activePage === 'collection' && entry && copiePossedute(entry) > 0);
-  s.hidden = !mostra;
-  // Col riquadro sotto, i due spazi del Figma sono di sedici pixel: finestra,
-  // riquadro, pulsante. Senza, il pulsante resta ai quaranta di prima.
-  if(ov) ov.classList.toggle('con-livello', mostra);
-  _cmCartaStriscia = mostra ? card : null;
-  if(!mostra) return;
-  _vestiLivelli();
-  const st = statoLivelloCarta(entry);
-  s.querySelector('.cml-liv').textContent = 'Level ' + st.livello;
-  s.querySelector('.cml-testo').textContent = st.max ? 'MAX'
-    : (st.pronto ? 'Ready to level up!' : st.mancano + ' more for level up');
-  s.querySelector('.cml-barre').innerHTML = barraLivelloHTML(st);
-  s.querySelector('.cml-costo').textContent = st.costo.toLocaleString('en-US');
-  s.dataset.slug = entry.slug || '';
-  const b = document.getElementById('card-modal-sali');
-  if(b){
-    // Al massimo non c'e' niente da comprare: il pulsante se ne va e resta "MAX".
-    b.hidden = st.max;
-    b.disabled = !st.pronto || _livellaInCorso;
-  }
-  // Largo quanto la finestra: nel Figma sono due riquadri con lo stesso bordo
-  // sinistro e lo stesso destro.
-  const m = document.getElementById('card-modal');
-  if(m && m.offsetWidth) s.style.width = m.offsetWidth + 'px';
-}
-
-async function livellaCartaDallaScheda(){
-  if(_livellaInCorso) return;
-  const card = _cmCartaStriscia;
-  const entry = _entryDellaCarta(card);
-  if(!entry) return;
-  const st = statoLivelloCarta(entry);
-  if(st.max || !st.pronto) return;
-  const senzaInchiostro = () => apriAvviso('Not enough Magic Ink',
-    'You need ' + st.costo.toLocaleString('en-US') + ' Magic Ink to level up this card.', false);
-  // Il saldo lo controlla il server; qui si evita solo di chiedergli una cosa
-  // che si sa gia' che dira' di no.
-  if((MENU_GIOCATORE.magicInk || 0) < st.costo){ senzaInchiostro(); return; }
-  _livellaInCorso = true;
-  const b = document.getElementById('card-modal-sali');
-  if(b) b.disabled = true;
-  let r;
-  try{
-    r = await nakamaRpc('hx_carta_livella', { slug: entry.slug });
-  }catch(e){
-    _livellaInCorso = false;
-    const m = String(e && e.message || e);
-    if(/inchiostro insufficiente/i.test(m)) senzaInchiostro();
-    else apriAvviso('Could not level up', 'The card could not be leveled up. Check your connection and try again.', true);
-    aggiornaStrisciaLivello(card);
-    return;
-  }
-  // Saldo, livelli e copie arrivano dalla risposta: non si toccano a mano.
-  const prima = MENU_GIOCATORE.magicInk;
-  applicaValuteDalServer(r && r.valute);
-  if(r && r.possedute){
-    CARTE_POSSEDUTE = r.possedute;
-    if(r.copie) CARTE_COPIE = r.copie;
-    _possessoNoto = true;
-    salvaPossessoInCache();
-  }
-  try{
-    document.querySelectorAll('[data-valuta="ink"]').forEach(el => { el.textContent = prima.toLocaleString('en-US'); });
-    playSfxFile('kaching.mp3');
-    lampeggiaValuta('ink');
-    contaValutaAllIndietro('ink', prima, MENU_GIOCATORE.magicInk);
-  }catch(_){ }
-  // La Libreria si rifa SUBITO, dietro alla salita: quando la salita finisce il
-  // nastro "Lv up" e' gia' andato via e la carta mostra i numeri nuovi.
-  try{ if(typeof cardDbRenderRoster === 'function') cardDbRenderRoster(); }catch(_){ }
-  try{ if(typeof renderListaMazzi === 'function') renderListaMazzi(); }catch(_){ }
-  closeCardModal();
-  _livellaInCorso = false;
-  const da = (r && typeof r.da === 'number') ? r.da : st.livello;
-  const a = (r && typeof r.livello === 'number') ? r.livello : st.verso;
-  await animaSalitaDiLivello(entry, da, a);
-}
-
-// ── LA SALITA ─────────────────────────────────────────────────────────────
-// Il racconto, nell'ordine chiesto da Lorenzo:
-//   1. lo schermo si scurisce e sfoca; la carta, al livello di prima, scende
-//      dall'alto e si ferma al centro;
-//   2. gira due volte su se stessa. Al secondo giro, mentre mostra il dorso,
-//      un lampo, e da dietro di lei un fuoco d'artificio colorato;
-//   3. ferma, i pezzi che cambiano si accendono uno dopo l'altro: ognuno
-//      lampeggia, pulsa e cambia. I valori sempre; l'abilita' solo se a questo
-//      livello si apre; le gemme del livello sempre;
-//   4. compare la finestra, la carta scivola al suo posto a sinistra e a
-//      destra entrano, in fila, "Level N!", i bonus, l'abilita' sbloccata e la
-//      barra del livello. Poi il pulsante Close.
-//
-// COME CAMBIA UN PEZZO SOLO. La carta e' un SVG disegnato tutto insieme, e i
-// suoi pezzi non si possono ridisegnare uno per volta. Allora si disegnano DUE
-// carte, quella di prima e quella di dopo, identiche tranne che nei numeri, e
-// per ogni pezzo si posa sopra alla vecchia una copia della nuova ritagliata
-// sul riquadro di quel pezzo. Dove stanno i pezzi lo dicono i cerchi dei
-// valori (data-role) e tre segnaposto invisibili che il disegno della carta
-// lascia apposta (data-lv-zona).
-const LV_CARTA_W = 292, LV_CARTA_H = 501;   // Figma: la carta nella finestra finale
-const LV_ARRIVO_MS = 520;
-const LV_CAMBIO_MS = 560;
-let _lvGen = 0;
-let _lvChiusura = null;
-let _lvFuochiRaf = 0;
-const _lvAspetta = ms => new Promise(res => setTimeout(res, ms));
-const _lvFotogramma = () => new Promise(res => requestAnimationFrame(() => res()));
-
-// Il riquadro di un elemento dell'SVG, nelle coordinate della carta. Si passa
-// dalla matrice dell'elemento e non dal rettangolo a schermo: durante i giri la
-// carta e' ruotata in 3D, e quel rettangolo sarebbe deformato.
-function _lvZona(el, margine){
-  let bb, m;
-  try{ bb = el.getBBox(); m = el.getCTM(); }catch(_){ return null; }
-  if(!bb || !m) return null;
-  const punti = [[bb.x,bb.y],[bb.x+bb.width,bb.y],[bb.x,bb.y+bb.height],[bb.x+bb.width,bb.y+bb.height]]
-    .map(p => [m.a*p[0] + m.c*p[1] + m.e, m.b*p[0] + m.d*p[1] + m.f]);
-  const xs = punti.map(p => p[0]), ys = punti.map(p => p[1]);
-  const x = Math.min.apply(null, xs) - margine, y = Math.min.apply(null, ys) - margine;
-  return { x, y, w: Math.max.apply(null, xs) + margine - x, h: Math.max.apply(null, ys) + margine - y };
-}
-// Le scritte che cadono dentro a un riquadro: servono a sapere se un cerchio
-// dei valori cambia davvero (con una scaletta del foglio un lato puo' restare
-// uguale salendo).
-function _lvTestiIn(svg, z){
-  let t = '';
-  svg.querySelectorAll('text').forEach(el => {
-    const q = _lvZona(el, 0);
-    if(!q) return;
-    const cx = q.x + q.w/2, cy = q.y + q.h/2;
-    if(cx >= z.x && cx <= z.x + z.w && cy >= z.y && cy <= z.y + z.h) t += '|' + el.textContent;
-  });
-  return t;
-}
-function _lvZoneCheCambiano(svgV, svgN, vecchia, nuova){
-  const zone = [];
-  const valori = [];
-  svgV.querySelectorAll('[data-role="owner-value-circle"]').forEach(c => {
-    const z = _lvZona(c, 6);
-    if(z && _lvTestiIn(svgV, z) !== _lvTestiIn(svgN, z)) valori.push(z);
-  });
-  // Da sinistra a destra, come si leggono.
-  valori.sort((p, q) => (p.x - q.x) || (p.y - q.y));
-  zone.push.apply(zone, valori);
-  // L'esagono di aiuto accanto al nome ripete i numeri: cambia con loro.
-  const aiuto = svgV.querySelector('[data-lv-zona="aiuto"]');
-  if(aiuto && valori.length){ const z = _lvZona(aiuto, 4); if(z) zone.push(z); }
-  if(vecchia.abilityLocked && !nuova.abilityLocked){
-    const ab = svgV.querySelector('[data-lv-zona="abilita"]');
-    const z = ab && _lvZona(ab, 4);
-    if(z) zone.push(z);
-  }
-  const lv = svgV.querySelector('[data-lv-zona="livelli"]');
-  const zl = lv && _lvZona(lv, 6);
-  if(zl) zone.push(zl);
-  return zone;
-}
-// Un pezzo che cambia: la copia della carta nuova ritagliata su di lui entra
-// con un battito, e dietro un bagliore. Resta dov'e' a fine animazione (e'
-// ormai la carta vera, in quel punto).
-async function _lvCambia(fronte, svgNuova, z){
-  const W = LV_CARTA_W, H = LV_CARTA_H;
-  const strato = document.createElement('div');
-  strato.className = 'lvc-cambio';
-  strato.style.clipPath = 'inset(' + z.y.toFixed(1) + 'px ' + (W - z.x - z.w).toFixed(1) + 'px '
-    + (H - z.y - z.h).toFixed(1) + 'px ' + z.x.toFixed(1) + 'px round 10px)';
-  strato.style.transformOrigin = (z.x + z.w/2).toFixed(1) + 'px ' + (z.y + z.h/2).toFixed(1) + 'px';
-  const copia = svgNuova.cloneNode(true);
-  copia.classList.remove('lvc-riferimento');
-  strato.appendChild(copia);
-  const bagliore = document.createElement('div');
-  bagliore.className = 'lvc-bagliore';
-  const lato = Math.max(z.w, z.h) * 2.2;
-  bagliore.style.left = (z.x + z.w/2 - lato/2).toFixed(1) + 'px';
-  bagliore.style.top = (z.y + z.h/2 - lato/2).toFixed(1) + 'px';
-  bagliore.style.width = bagliore.style.height = lato.toFixed(1) + 'px';
-  fronte.appendChild(strato);
-  fronte.appendChild(bagliore);
-  void strato.offsetWidth;
-  strato.classList.add('va');
-  bagliore.classList.add('va');
-  await _lvAspetta(LV_CAMBIO_MS);
-}
-// Un giro, fotogramma per fotogramma. Col tempo e non coi fotogrammi: un
-// fotogramma in ritardo salta avanti invece di rallentare il giro.
-function _lvGira(el, da, a, ms, gen, alPasso){
-  return new Promise(res => {
-    const t0 = performance.now();
-    const passo = (ora) => {
-      if(gen !== _lvGen) return res();
-      const t = Math.min(1, (ora - t0) / ms);
-      const e = t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t + 2, 3) / 2;
-      const ang = da + (a - da) * e;
-      el.style.transform = 'rotateY(' + ang.toFixed(2) + 'deg)';
-      if(alPasso) alPasso(ang);
-      if(t < 1) requestAnimationFrame(passo); else res();
-    };
-    requestAnimationFrame(passo);
-  });
-}
-// Il fuoco d'artificio: tre scoppi a pochi istanti l'uno dall'altro, scie
-// colorate che rallentano e cadono. Sta su una tela DIETRO alla carta, cosi'
-// le scintille escono dai suoi bordi invece di coprirla.
-function _lvFuochi(canvas, cx, cy){
-  const g = canvas && canvas.getContext && canvas.getContext('2d');
-  if(!g) return;
-  canvas.width = canvas.clientWidth || 1920;
-  canvas.height = canvas.clientHeight || 1080;
-  const colori = ['#F8D06A', '#FFF4D6', '#6AAFBA', '#E8A72E', '#C77DFF', '#7FE0A0', '#FF7A6B'];
-  const scintille = [];
-  const scoppio = (quante, forza, ritardo) => {
-    for(let i = 0; i < quante; i++){
-      const ang = Math.random() * Math.PI * 2;
-      const v = forza * (0.3 + Math.random() * 0.7);
-      scintille.push({ x:cx, y:cy, vx:Math.cos(ang)*v, vy:Math.sin(ang)*v, nata:ritardo,
-        vita:900 + Math.random()*900, colore:colori[(Math.random()*colori.length)|0], spessore:1.2 + Math.random()*2.4 });
-    }
-  };
-  scoppio(110, 0.95, 0);
-  scoppio(70, 0.65, 160);
-  scoppio(60, 1.25, 320);
-  cancelAnimationFrame(_lvFuochiRaf);
-  const t0 = performance.now();
-  let prima = t0;
-  const passo = (ora) => {
-    const dt = Math.min(48, ora - prima);
-    prima = ora;
-    const t = ora - t0;
-    g.clearRect(0, 0, canvas.width, canvas.height);
-    g.globalCompositeOperation = 'lighter';
-    g.lineCap = 'round';
-    let vive = 0;
-    const attrito = Math.pow(0.9975, dt);
-    for(const s of scintille){
-      const eta = t - s.nata;
-      if(eta < 0){ vive++; continue; }
-      if(eta > s.vita) continue;
-      vive++;
-      s.vx *= attrito;
-      s.vy = s.vy * attrito + 0.0009 * dt;
-      s.x += s.vx * dt;
-      s.y += s.vy * dt;
-      g.globalAlpha = Math.max(0, 1 - eta / s.vita);
-      g.strokeStyle = s.colore;
-      g.lineWidth = s.spessore;
-      g.beginPath();
-      g.moveTo(s.x - s.vx * 34, s.y - s.vy * 34);
-      g.lineTo(s.x, s.y);
-      g.stroke();
-    }
-    g.globalAlpha = 1;
-    g.globalCompositeOperation = 'source-over';
-    if(vive) _lvFuochiRaf = requestAnimationFrame(passo);
-    else { _lvFuochiRaf = 0; g.clearRect(0, 0, canvas.width, canvas.height); }
-  };
-  _lvFuochiRaf = requestAnimationFrame(passo);
-}
-function _lvFermaFuochi(){
-  cancelAnimationFrame(_lvFuochiRaf);
-  _lvFuochiRaf = 0;
-  const c = document.getElementById('livello-scintille');
-  const g = c && c.getContext && c.getContext('2d');
-  if(g) g.clearRect(0, 0, c.width, c.height);
-}
-// "+1 Power on ALL sides" quando tutti i lati salgono dello stesso numero
-// (regola 7 di Lorenzo); altrimenti una riga per gruppo di valori, col numero
-// di prima e quello di dopo, perche' su una carta i lati si riconoscono dal
-// numero che portano.
-function righeBonusLivello(vecchia, nuova){
-  const salti = SIDES.map(l => (nuova.values[l] || 0) - (vecchia.values[l] || 0));
-  if(salti.every(s => s === salti[0])) return salti[0] ? [(salti[0] > 0 ? '+' : '') + salti[0] + ' Power on ALL sides'] : [];
-  const righe = [];
-  for(const gr of gruppiDiCarta(vecchia)){
-    const da = vecchia.values[gr.sides[0]] || 0, a = nuova.values[gr.sides[0]] || 0;
-    if(a !== da) righe.push((a > da ? '+' : '') + (a - da) + ' Power: ' + da + ' → ' + a);
-  }
-  return righe;
-}
-function _lvPreparaTesti(entry, vecchia, nuova, a){
-  document.getElementById('livello-titolo').textContent = 'Level ' + a + '!';
-  const righe = righeBonusLivello(vecchia, nuova);
-  const bonus = document.getElementById('livello-bonus');
-  bonus.innerHTML = righe.map(t => '<div>' + escapeHtml(t) + '</div>').join('');
-  bonus.hidden = !righe.length;
-  const testi = (vecchia.abilityLocked && !nuova.abilityLocked) ? testiAbilitaDi(nuova) : null;
-  const blocco = document.getElementById('livello-sblocco');
-  blocco.hidden = !testi;
-  if(testi){
-    blocco.querySelector('.la-nome').textContent = testoSenzaMarcatori(testi.name || '');
-    blocco.querySelector('.la-desc').textContent = testoSenzaMarcatori(testi.desc || '');
-  }
-  const st = statoLivelloCarta(entry);
-  const barra = document.getElementById('livello-barra');
-  barra.querySelector('.lv-liv').textContent = 'Level ' + st.livello;
-  barra.querySelector('.lv-testo').textContent = st.max ? 'MAX'
-    : (st.pronto ? 'Ready to level up!' : st.mancano + ' more for level ' + st.verso);
-  barra.querySelector('.livello-barre').innerHTML = barraLivelloHTML(st);
-}
-
-async function animaSalitaDiLivello(entry, da, a){
-  const gen = ++_lvGen;
-  _vestiLivelli();
-  const ov = document.getElementById('livello-overlay');
-  const cornice = document.getElementById('livello-cornice');
-  const carta = document.getElementById('livello-carta');
-  const chiudi = document.getElementById('livello-chiudi');
-  if(!ov || !cornice || !carta || !entry) return;
-  const giro = carta.querySelector('.lvc-giro');
-  const fronte = carta.querySelector('.lvc-faccia.fronte');
-  const dorso = carta.querySelector('.lvc-faccia.dorso img');
-  const W = LV_CARTA_W, H = LV_CARTA_H;
-
-  // Le due carte, di prima e di dopo, dalla stessa voce e con la stessa pelle
-  // della Libreria.
-  const base = _makeCardDbCard(entry, _cardDbVariant);
-  const vecchia = cartaAlLivello(base, da);
-  const nuova = cartaAlLivello(base, a);
-  const disegna = c => {
-    const s = buildFullHandCardSVG((typeof cardFoilVisualCard === 'function') ? cardFoilVisualCard(c) : c, W, H);
-    s.classList.remove('hand-card-full-svg', 'hand-card-svg');
-    return s;
-  };
-  const svgVecchia = disegna(vecchia);
-  const svgNuova = disegna(nuova);
-  svgNuova.classList.add('lvc-riferimento');
-  fronte.innerHTML = '';
-  fronte.appendChild(svgVecchia);
-  fronte.appendChild(svgNuova);
-  if(dorso) dorso.src = varianteCollezioneScura() ? CARD_BACK_DARK : CARD_BACK_LIGHT;
-  _lvPreparaTesti(entry, vecchia, nuova, a);
-
-  // Tutto da capo: una salita dopo l'altra non deve ereditare niente.
-  cornice.classList.remove('aperta');
-  chiudi.classList.remove('dentro');
-  ov.querySelectorAll('.lv-entra').forEach(el => el.classList.remove('dentro'));
-  carta.classList.remove('arriva', 'sposta');
-  carta.style.transform = '';
-  giro.style.transform = 'rotateY(0deg)';
-  carta.querySelector('.lvc-lampo').classList.remove('va');
-  _lvFermaFuochi();
-  const cx = (ov.clientWidth - W) / 2, cy = (ov.clientHeight - H) / 2;
-  carta.style.left = cx + 'px';
-  carta.style.top = cy + 'px';
-
-  // 1. arriva
-  ov.dataset.fase = 'arrivo';
-  ov.classList.add('show');
-  await _lvFotogramma(); await _lvFotogramma();
-  if(gen !== _lvGen) return;
-  carta.classList.add('arriva');
-  await _lvAspetta(LV_ARRIVO_MS);
-  if(gen !== _lvGen) return;
-  // I pezzi si misurano adesso, a carta ferma e dritta.
-  const zone = _lvZoneCheCambiano(svgVecchia, svgNuova, vecchia, nuova);
-  ov.dataset.zone = String(zone.length);
-
-  // 2. due giri, e al secondo il lampo
-  ov.dataset.fase = 'giri';
-  try{ playSfxFile('card-flip.mp3'); }catch(_){ }
-  await _lvGira(giro, 0, 360, 650, gen);
-  if(gen !== _lvGen) return;
-  try{ playSfxFile('card-flip.mp3'); }catch(_){ }
-  let lampo = false;
-  await _lvGira(giro, 360, 720, 950, gen, ang => {
-    if(lampo || ang < 540) return;
-    lampo = true;
-    // L'angolo a cui e' scattato: dice che e' successo nel secondo giro,
-    // dopo che il dorso si e' visto, anche quando i fotogrammi sono radi.
-    ov.dataset.lampo = String(Math.round(ang));
-    carta.querySelector('.lvc-lampo').classList.add('va');
-    try{ playSfxFile('card-ding.mp3'); }catch(_){ }
-    _lvFuochi(document.getElementById('livello-scintille'), cx + W/2, cy + H/2);
-  });
-  if(gen !== _lvGen) return;
-  giro.style.transform = 'rotateY(0deg)';
-
-  // 3. i pezzi, uno per volta
-  ov.dataset.fase = 'cambi';
-  await _lvAspetta(250);
-  for(let i = 0; i < zone.length; i++){
-    if(gen !== _lvGen) return;
-    ov.dataset.cambio = String(i + 1);
-    await _lvCambia(fronte, svgNuova, zone[i]);
-    await _lvAspetta(120);
-  }
-  if(gen !== _lvGen) return;
-  // Finiti i cambi, la faccia torna a essere UNA carta: quella nuova, pulita.
-  fronte.innerHTML = '';
-  fronte.appendChild(disegna(nuova));
-  await _lvAspetta(300);
-  if(gen !== _lvGen) return;
-
-  // 4. la finestra, e la carta al suo posto
-  ov.dataset.fase = 'finestra';
-  cornice.classList.add('aperta');
-  const posto = document.getElementById('livello-posto-carta');
-  const tx = cornice.offsetLeft + cornice.clientLeft + posto.offsetLeft;
-  const ty = cornice.offsetTop + cornice.clientTop + posto.offsetTop;
-  carta.classList.add('sposta');
-  carta.style.transform = 'translate(' + (tx - cx).toFixed(1) + 'px,' + (ty - cy).toFixed(1) + 'px)';
-  try{ playSfxFile('quest-collected.mp3'); }catch(_){ }
-  await _lvAspetta(380);
-  const pezzi = [...cornice.querySelectorAll('.lv-entra')].filter(el => !el.closest('[hidden]'));
-  for(const p of pezzi){
-    if(gen !== _lvGen) return;
-    p.classList.add('dentro');
-    await _lvAspetta(130);
-  }
-  chiudi.classList.add('dentro');
-  ov.dataset.fase = 'fine';
-  return new Promise(res => { _lvChiusura = res; });
-}
-function chiudiSalitaDiLivello(){
-  const ov = document.getElementById('livello-overlay');
-  if(!ov) return;
-  _lvGen++;
-  ov.classList.remove('show');
-  delete ov.dataset.fase;
-  delete ov.dataset.lampo;
-  delete ov.dataset.cambio;
-  _lvFermaFuochi();
-  const res = _lvChiusura;
-  _lvChiusura = null;
-  if(res) res();
 }
 
 function closeCardModal(){

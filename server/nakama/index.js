@@ -537,6 +537,13 @@ function assicuraPossesso(ctx, nk, logger, userId, username) {
       attuale.bustineTesoro = (attuale.bustineTesoro || 0) + 1;
       daRiscrivere = true;
     }
+    // v0.79.90 — chi c'era prima dei livelli sale subito a quello che le sue
+    // copie gli danno, e riceve la copia dello starter che lo sbusto non
+    // contava. Vedi _migraLivelliCarte.
+    if ((attuale.livelliCarte || 0) < LIVELLI_CARTE_VERSIONE && _migraLivelliCarte(nk, logger, attuale)) {
+      attuale.livelliCarte = LIVELLI_CARTE_VERSIONE;
+      daRiscrivere = true;
+    }
     if (daRiscrivere) scriviPossesso(nk, userId, attuale);
     return attuale;
   }
@@ -561,7 +568,9 @@ function assicuraPossesso(ctx, nk, logger, userId, username) {
     // chiamata crea il possesso e non passa mai dalla migrazione.
     semeAdmin: admin ? SEME_ADMIN_VERSIONE : 0,
     bustineExtra: admin ? 1 : 0,
-    bustineTesoro: admin ? 1 : 0
+    bustineTesoro: admin ? 1 : 0,
+    // v0.79.90 — nato coi livelli delle carte: niente da migrare.
+    livelliCarte: LIVELLI_CARTE_VERSIONE
   };
   scriviPossesso(nk, userId, possesso);
   // v0.77.84 — e il mazzo si crea GIA' FATTO.
@@ -2329,6 +2338,9 @@ function rpcAvvio(ctx, logger, nk, payload) {
     nuove: _nuoveDi(possesso, _visibiliDi(catalogo, admin)),
     // v0.79.7 — quante copie di ciascuna carta posseduta. Vedi _copieDi.
     copie: _copieDi(possesso, possedute),
+    // v0.79.90 — le tabelle dei livelli delle carte: copie, inchiostro,
+    // rimborso. Il client le mostra; a farle valere e' il server.
+    livelliCarte: regoleLivelliCarte(),
     // v0.79.15 — e se l'accordo del playtest e' stato accettato, in questa
     // versione. Viaggia con tutto il resto: e' una domanda in meno all'avvio.
     accordo: {
@@ -2455,6 +2467,105 @@ function dopoAccesso(ctx, logger, nk, data, request) {
   } catch (e) { logger.error('segno di verifica non scritto: %s', String(e)); }
 }
 
+// ══════════════════════════════════════════════════════════════════════════
+// v0.79.90 — I LIVELLI DELLE CARTE
+// ══════════════════════════════════════════════════════════════════════════
+// Le regole sono di Lorenzo (11/09/2026), e stanno tutte qui perche' sono una
+// cosa sola vista da quattro parti:
+//
+//   LE COPIE. Per il livello 2 servono 2 copie in tutto, per il 3 ne servono
+//     5, per il 4 ne servono 9: cioe' 2, poi altre 3, poi altre 4. Le carte del
+//     mazzo starter valgono una copia ciascuna, come se fossero uscite da un
+//     pacchetto.
+//   L'INCHIOSTRO. Salire non e' mai automatico: lo chiede il giocatore dalla
+//     Libreria, e costa inchiostro magico secondo rarita' e livello.
+//   IL RIMBORSO. Una copia che non puo' piu' servire a niente torna indietro in
+//     inchiostro: quanto costa tenere la seconda carta di quella rarita' allo
+//     sbusto (COSTO_TENERE_PER_RARITA).
+//   CHI C'ERA GIA'. Sale subito, senza pagare e senza animazione, al livello
+//     che le copie gia' contate gli danno (vedi _migraLivelliCarte).
+//
+// Il client riceve queste tabelle col profilo (regoleLivelliCarte) e le
+// MOSTRA; a farle valere e' il server, in hx_carta_livella e allo sbusto.
+var LIVELLO_CARTA_MAX = 4;
+// Copie TOTALI per stare a ogni livello. Il livello 1 e' la carta stessa.
+var COPIE_PER_LIVELLO = { 1: 1, 2: 2, 3: 5, 4: 9 };
+// Inchiostro per salire AL livello indicato, per rarita'.
+var INCHIOSTRO_PER_LIVELLO = {
+  common:   { 2: 50,  3: 150, 4: 400 },
+  rare:     { 2: 100, 3: 300, 4: 800 },
+  mythic:   { 2: 150, 3: 450, 4: 1200 },
+  timeless: { 2: 200, 3: 600, 4: 1600 }
+};
+// Si alza quando la migrazione cambia: chi ha un numero piu' basso la ripassa.
+var LIVELLI_CARTE_VERSIONE = 1;
+
+function costoLivello(rarita, verso) {
+  var t = INCHIOSTRO_PER_LIVELLO[String(rarita || '').toLowerCase()] || INCHIOSTRO_PER_LIVELLO.common;
+  return typeof t[verso] === 'number' ? t[verso] : 0;
+}
+// Il livello piu' alto che un certo numero di copie permette.
+function livelloDaCopie(n) {
+  var l = 1;
+  while (l < LIVELLO_CARTA_MAX && n >= COPIE_PER_LIVELLO[l + 1]) l++;
+  return l;
+}
+function regoleLivelliCarte() {
+  return {
+    max: LIVELLO_CARTA_MAX,
+    copie: COPIE_PER_LIVELLO,
+    inchiostro: INCHIOSTRO_PER_LIVELLO,
+    rimborso: COSTO_TENERE_PER_RARITA
+  };
+}
+// Se una carta arriva da un mazzo starter che il giocatore possiede.
+function _eDelloStarter(carta, possesso) {
+  var sd = (carta && carta.starterDecks) || [];
+  var mazzi = (possesso && possesso.mazzi) || [];
+  for (var k = 0; k < sd.length; k++) if (mazzi.indexOf(sd[k]) !== -1) return true;
+  return false;
+}
+
+// ── LA MIGRAZIONE, UNA VOLTA SOLA ─────────────────────────────────────────
+// Due cose, nell'ordine.
+//
+// 1. LA COPIA DELLO STARTER CHE MANCAVA. Fino alla v0.79.89 lo sbusto contava
+//    come gia' posseduta solo una carta gia' SBUSTATA: una carta del mazzo
+//    starter uscita da un pacchetto partiva da zero e arrivava a una copia
+//    invece che a due. Ogni carta starter sbustata almeno una volta e' quindi
+//    indietro di esattamente una copia: sia quelle contate dopo la v0.79.7, sia
+//    quelle sbustate prima, a cui una copia la dava gia' _copieDi.
+// 2. IL LIVELLO CHE LE COPIE DANNO. Senza pagare: e' la regola 4 di Lorenzo.
+//    Il livello non scende mai.
+//
+// Torna false se non ha potuto farlo (catalogo assente): il contrassegno
+// allora non si scrive, e ci si riprova al prossimo avvio.
+function _migraLivelliCarte(nk, logger, possesso) {
+  if (possesso.admin) return true;
+  var catalogo = null;
+  try { catalogo = leggiSistema(nk, KEY_CATALOGO); } catch (e) { catalogo = null; }
+  if (!catalogo || !catalogo.carte) return false;
+  if (!possesso.carte) possesso.carte = {};
+  if (!possesso.copie) possesso.copie = {};
+  var saliti = [];
+  for (var i = 0; i < catalogo.carte.length; i++) {
+    var c = catalogo.carte[i];
+    if (!c || !c.slug) continue;
+    var starter = _eDelloStarter(c, possesso);
+    var contate = possesso.copie[c.slug];
+    if (starter && (possesso.carte[c.slug] || 0) > 0) {
+      possesso.copie[c.slug] = ((typeof contate === 'number' && contate > 0) ? contate : 1) + 1;
+    }
+    var n = possesso.copie[c.slug];
+    if (typeof n !== 'number' || n < 2) continue;
+    var spetta = livelloDaCopie(n);
+    var ha = Math.max(possesso.carte[c.slug] || 0, starter ? (possesso.livello || LIVELLO_NORMALE) : 0);
+    if (spetta > ha) { possesso.carte[c.slug] = spetta; saliti.push(c.slug + ' ' + spetta); }
+  }
+  if (logger && saliti.length) logger.info('livelli dalle copie: %s', saliti.join(', '));
+  return true;
+}
+
 // Cosa possiede un giocatore, dato il catalogo e il suo profilo. Un admin ha
 // tutto al livello massimo; gli altri le carte dei mazzi starter che hanno.
 // ══════════════════════════════════════════════════════════════════════════
@@ -2468,10 +2579,10 @@ function dopoAccesso(ctx, logger, nk, data, request) {
 // owned" sopra a una carta che si ha gia'. Un numero mostrato dev'essere un
 // numero vero — e non esisteva.
 //
-// Le copie NON fanno niente nel gioco: non sbloccano, non salgono di livello,
-// non si scambiano. Oggi sono un conto e basta. E' voluto: il posto in cui
-// contarle e' uno solo, ed e' qui, quindi il giorno in cui serviranno a
-// qualcosa il numero c'e' gia' e non va ricostruito dal nulla.
+// Alla v0.79.7 le copie erano solo un conto, tenuto in un posto solo perche' il
+// giorno in cui fossero servite il numero ci fosse gia'. Quel giorno e' la
+// v0.79.90: sono cio' con cui una carta sale di livello (vedi I LIVELLI DELLE
+// CARTE, qui sopra).
 //
 // CHI C'ERA PRIMA parte da una copia per ogni carta che possiede. Non e' una
 // stima: e' l'unica cosa vera che si puo' dire di una storia che non e' stata
@@ -2728,20 +2839,50 @@ function rpcBustinaRaccogli(ctx, logger, nk, payload) {
     valute.magicInk -= costo;
   }
 
+  // ── v0.79.90 — IL CATALOGO PRIMA DEL CONTO ────────────────────────────
+  // Si leggeva dopo, solo per la risposta. Adesso servono due cose che solo
+  // lui sa: se la carta si possedeva gia' DAL MAZZO STARTER (che vale una
+  // copia, e che qui prima non si vedeva: si guardava solo cio' che era stato
+  // sbustato), e di che rarita' e', per il rimborso.
+  var catalogo = leggiSistema(nk, KEY_CATALOGO);
+  var admin = !!possesso.admin;
+  var carte = [];
+  var perSlug = {};
+  for (var k = 0; k < catalogo.carte.length; k++) {
+    perSlug[catalogo.carte[k].slug] = catalogo.carte[k];
+    if (catalogo.carte[k].soloAdmin && !admin) continue;
+    carte.push(catalogo.carte[k]);
+  }
+  var primaDiQuesta = _possedute(carte, possesso, admin);
+
   if (!possesso.carte) possesso.carte = {};
   // v0.79.7 — e il conto delle copie sale. Sta QUI, nella stessa scrittura che
   // consegna le carte: contarle altrove vorrebbe dire un istante in cui la
   // carta e' arrivata e il conto no.
   if (!possesso.copie) possesso.copie = {};
+  // v0.79.90 — una copia oltre le nove non puo' piu' servire a niente: il
+  // livello 4 ne chiede nove in tutto. Invece di finire in un conto morto torna
+  // in inchiostro, quanto costa tenere la seconda carta di quella rarita'.
+  var copieMax = COPIE_PER_LIVELLO[LIVELLO_CARTA_MAX];
+  var rimborso = 0;
+  var rimborsate = [];
   for (var j = 0; j < tieni.length; j++) {
-    var avuto = possesso.carte[tieni[j]] || 0;
+    var tenuta = tieni[j];
     // Chi ce l'aveva gia' senza che nessuno contasse vale una copia: e' lo
-    // stesso ripiego di _copieDi, e i due devono dire la stessa cosa.
-    var gia = possesso.copie[tieni[j]];
-    if (typeof gia !== 'number' || gia < 1) gia = avuto ? 1 : 0;
-    possesso.copie[tieni[j]] = gia + 1;
-    possesso.carte[tieni[j]] = Math.max(avuto, LIVELLO_SBUSTATA);
+    // stesso ripiego di _copieDi, e i due devono dire la stessa cosa. "Ce
+    // l'aveva" comprende il mazzo starter, che fino alla v0.79.89 qui mancava.
+    var gia = possesso.copie[tenuta];
+    if (typeof gia !== 'number' || gia < 1) gia = primaDiQuesta[tenuta] ? 1 : 0;
+    if (gia >= copieMax) {
+      rimborso += costoTenereRarita(perSlug[tenuta] && perSlug[tenuta].rarity);
+      rimborsate.push(tenuta);
+      possesso.copie[tenuta] = gia;
+    } else {
+      possesso.copie[tenuta] = gia + 1;
+    }
+    possesso.carte[tenuta] = Math.max(possesso.carte[tenuta] || 0, LIVELLO_SBUSTATA);
   }
+  valute.magicInk += rimborso;
   possesso.valute = valute;
   // v0.78.16 — le carte appena raccolte NON si segnano come viste: sono
   // esattamente quelle che devono accendersi in Collezione. Qui si scrive solo
@@ -2775,15 +2916,7 @@ function rpcBustinaRaccogli(ctx, logger, nk, payload) {
   scriviPossesso(nk, ctx.userId, possesso);
   cancellaBustina(nk, ctx.userId);
 
-  var catalogo = leggiSistema(nk, KEY_CATALOGO);
-  var admin = !!possesso.admin;
-  var carte = [];
-  for (var k = 0; k < catalogo.carte.length; k++) {
-    if (catalogo.carte[k].soloAdmin && !admin) continue;
-    carte.push(catalogo.carte[k]);
-  }
-
-  logger.info('pacchetto raccolto da %s: %d carte, %d di inchiostro', ctx.userId, tieni.length, costo);
+  logger.info('pacchetto raccolto da %s: %d carte, %d di inchiostro, %d rimborsati', ctx.userId, tieni.length, costo, rimborso);
   return JSON.stringify({
     tenute: tieni,
     speso: costo,
@@ -2797,7 +2930,69 @@ function rpcBustinaRaccogli(ctx, logger, nk, payload) {
     nuove: _nuoveDi(possesso, _visibiliDi(catalogo, admin)),
     possedute: _possedute(carte, possesso, admin),
     // v0.79.7 — e quante se ne hanno adesso, questa compresa.
-    copie: _copieDi(possesso, _possedute(carte, possesso, admin))
+    copie: _copieDi(possesso, _possedute(carte, possesso, admin)),
+    // v0.79.90 — l'inchiostro tornato per le copie oltre le nove, e da quali carte.
+    rimborso: rimborso,
+    rimborsate: rimborsate
+  });
+}
+
+// ── v0.79.90 — RPC: una carta sale di un livello ─────────────────────────
+// La chiede il pulsante "Level up for N" della Libreria. Il client dice
+// soltanto QUALE carta: livello di partenza, copie e prezzo li ricava il
+// server, perche' sono esattamente le tre cose che un client potrebbe voler
+// raccontare diversamente.
+// Un livello alla volta: da 1 a 3 sono due richieste, e due animazioni.
+function rpcCartaLivella(ctx, logger, nk, payload) {
+  if (!ctx.userId) throw Error('serve un accesso');
+  var richiesta = {};
+  try { richiesta = payload ? JSON.parse(payload) : {}; } catch (e) { richiesta = {}; }
+  var slug = String(richiesta.slug || '');
+  if (!slug) throw Error('quale carta?');
+
+  var catalogo = leggiSistema(nk, KEY_CATALOGO);
+  if (!catalogo || !catalogo.carte) throw Error('catalogo non ancora importato');
+  var possesso = assicuraPossesso(ctx, nk, logger, ctx.userId, ctx.username);
+  var admin = !!possesso.admin;
+  var carte = [];
+  var carta = null;
+  for (var i = 0; i < catalogo.carte.length; i++) {
+    var c = catalogo.carte[i];
+    if (c.soloAdmin && !admin) continue;
+    carte.push(c);
+    if (c.slug === slug) carta = c;
+  }
+  if (!carta) throw Error('carta sconosciuta: ' + slug);
+
+  var possedute = _possedute(carte, possesso, admin);
+  var da = possedute[slug] || 0;
+  if (!da) throw Error('non possiedi questa carta');
+  if (da >= LIVELLO_CARTA_MAX) throw Error('livello massimo gia\' raggiunto');
+  var verso = da + 1;
+  var copie = _copieDi(possesso, possedute)[slug] || 0;
+  if (copie < COPIE_PER_LIVELLO[verso]) throw Error('copie insufficienti');
+  var costo = costoLivello(carta.rarity, verso);
+  var valute = valuteDi(possesso);
+  if (valute.magicInk < costo) throw Error('inchiostro insufficiente');
+
+  // Pagamento e livello nella stessa scrittura, come allo sbusto: non esiste
+  // l'istante in cui l'inchiostro e' andato e la carta non e' ancora salita.
+  valute.magicInk -= costo;
+  possesso.valute = valute;
+  if (!possesso.carte) possesso.carte = {};
+  possesso.carte[slug] = verso;
+  scriviPossesso(nk, ctx.userId, possesso);
+
+  possedute = _possedute(carte, possesso, admin);
+  logger.info('%s porta %s al livello %d per %d di inchiostro', ctx.userId, slug, verso, costo);
+  return JSON.stringify({
+    slug: slug,
+    da: da,
+    livello: verso,
+    speso: costo,
+    valute: valute,
+    possedute: possedute,
+    copie: _copieDi(possesso, possedute)
   });
 }
 
@@ -4520,6 +4715,44 @@ function _occupateDaImpronta(state, impronta) {
   state.occupate = nuove;
 }
 
+// ── v0.79.90 — IL LIVELLO DI OGNI CARTA, PER CHI GIOCA CONTRO ─────────────
+// Fino a ieri viaggiava un numero solo per giocatore (info.livello, quello del
+// suo account), e il client lo applicava a tutte le sue carte. Adesso ogni
+// carta ha il suo, e i due client devono vedere la stessa carta con gli stessi
+// numeri: il livello lo dice il server, carta per carta, e solo per le carte
+// del mazzo che scende in campo. Il resto della collezione non e' affare
+// dell'avversario.
+// Si calcola QUI e non in accoppiati: col mazzo casuale _mazzoDi ne compone uno
+// nuovo a ogni chiamata, e il mazzo che conta e' quello scritto qui.
+function _livelliPerLaPartita(nk, logger, stato) {
+  var catalogo = leggiSistema(nk, KEY_CATALOGO);
+  if (!catalogo || !catalogo.carte) return;
+  for (var g = 0; g < stato.giocatori.length; g++) {
+    var u = stato.giocatori[g];
+    var pos = null;
+    try { pos = leggiPossesso(nk, u); } catch (e) { pos = null; }
+    if (!pos) continue;
+    var admin = !!pos.admin;
+    var carte = [];
+    var perId = {};
+    for (var i = 0; i < catalogo.carte.length; i++) {
+      var c = catalogo.carte[i];
+      perId[String(c.id)] = c;
+      if (c.soloAdmin && !admin) continue;
+      carte.push(c);
+    }
+    var possedute = _possedute(carte, pos, admin);
+    var livelli = {};
+    var mazzo = stato.mazzoIniziale[u] || [];
+    for (var m = 0; m < mazzo.length; m++) {
+      var carta = perId[String(mazzo[m])];
+      if (carta) livelli[carta.slug] = possedute[carta.slug] || LIVELLO_NORMALE;
+    }
+    if (!stato.info[u]) stato.info[u] = {};
+    stato.info[u].livelli = livelli;
+  }
+}
+
 function partitaInit(ctx, logger, nk, params) {
   var giocatori = JSON.parse(params.giocatori || '[]');
   var info = JSON.parse(params.info || '{}');
@@ -4571,6 +4804,8 @@ function partitaInit(ctx, logger, nk, params) {
     stato.mano[giocatori[i]] = [];
     stato.mazzo[giocatori[i]] = [];
   }
+  try { _livelliPerLaPartita(nk, logger, stato); }
+  catch (el) { logger.warn('livelli delle carte non calcolati: %s', String(el)); }
   // Un tick al secondo basta: qui non si anima niente, si guarda un orologio.
   return { state: stato, tickRate: 1, label: JSON.stringify({ gioco: 'hextale' }) };
 }
@@ -6019,6 +6254,7 @@ function InitModule(ctx, logger, nk, initializer) {
   initializer.registerRpc('hx_bustina_apri', rpcBustinaApri);
   initializer.registerRpc('hx_bustina_raccogli', rpcBustinaRaccogli);
   initializer.registerRpc('hx_bustina_compra', rpcBustinaCompra);
+  initializer.registerRpc('hx_carta_livella', rpcCartaLivella);
   initializer.registerRpc('hx_debug_regala', rpcDebugRegala);
   // ── v0.79.46 — IL GANCIO SUL CAMBIO NOME ────────────────────────────────
   // Il nome lo cambia il client con una PUT a /v2/account: questo e' l'unico

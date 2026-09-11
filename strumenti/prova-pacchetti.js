@@ -564,18 +564,21 @@ app.whenReady().then(async () => {
     // il cartellino sopra la carta
     "  var cart = uscite[0].querySelector('.pack-etichetta');",
     "  dice(!!cart, 'sopra a ogni carta c-e- il cartellino');",
-    "  dice(cart && (cart.textContent === 'New!' || cart.textContent === 'Owned'), 'che dice New! o Owned', cart && cart.textContent);",
+    // v0.79.90 — il cartellino dice anche il livello, con la barra delle copie
+    // sotto (Figma "Unpack - Cards"). Il dettaglio lo prova prova-livelli.js;
+    // qui resta che ci sia e che abbia la sua pelle.
+    "  var nuovaQui = cart && !!cart.querySelector('.pk-nastro');",
+    "  dice(cart && (nuovaQui || cart.textContent.indexOf('Owned') === 0), 'che dice New! (col nastro) o Owned', cart && cart.textContent);",
+    "  dice(cart && cart.querySelector('.pk-lv') && /^Lvl [1-4]$/.test(cart.querySelector('.pk-lv').textContent), 'e il livello', cart && cart.querySelector('.pk-lv') && cart.querySelector('.pk-lv').textContent);",
+    "  dice(cart && cart.querySelectorAll('.lv-seg').length >= 1, 'con la barra delle copie sotto');",
     "  var sCart = st(cart);",
     "  dice(sCart.borderTopLeftRadius === '16px', 'con gli angoli a 16', sCart.borderTopLeftRadius);",
-    "  dice(sCart.paddingTop === '20px' && sCart.paddingLeft === '12px', 'e il padding 20/12', sCart.paddingTop + '/' + sCart.paddingLeft);",
+    "  dice(sCart.paddingTop === '12px' && sCart.paddingLeft === '20px', 'e il padding 12/20', sCart.paddingTop + '/' + sCart.paddingLeft);",
     "  dice(sCart.fontSize === '22px' && sCart.color === 'rgb(237, 224, 198)', 'a 22px in EDE0C6', sCart.fontSize + ' ' + sCart.color);",
     "  dice(!qa('.pack-card .nuova-nastro').length, 'e il vecchio nastro non c-e- piu-');",
-    "  var perForza = uscite[0].querySelector('.pack-etichetta'); perForza.classList.add('pk-nuova');",
-    "  dice(st(perForza).backgroundColor === 'rgba(125, 19, 19, 0.5)', 'le nuove hanno il fondo 7D1313 al 50%', st(perForza).backgroundColor);",
-    "  dice(st(cart).backdropFilter === 'blur(20px)' || st(cart).webkitBackdropFilter === 'blur(20px)', 'e il cartellino ha il fondale sfocato dietro', st(cart).backdropFilter);",
+    "  dice(st(cart).backdropFilter === 'blur(30px)' || st(cart).webkitBackdropFilter === 'blur(30px)', 'e il cartellino ha il fondale sfocato dietro', st(cart).backdropFilter);",
     "  var rCart = regole.filter(function(r){ return r.selectorText === '.pack-etichetta'; })[0];",
     "  dice(rCart && rCart.style.backgroundImage.indexOf('0.5') !== -1, 'ed e- mezzo trasparente', rCart && rCart.style.backgroundImage.slice(0,70));",
-    "  perForza.classList.toggle('pk-nuova', perForza.textContent === 'New!');",
     "  dice(etichetta(uscite[0]).indexOf('Keep (Free)') === 0, 'la prima e- gratis', etichetta(uscite[0]));",
     "  scegliCartaBustina(uscite[0]);",
     "  dice(etichetta(uscite[0]) === 'Cancel', 'presa, si puo- disfare', etichetta(uscite[0]));",

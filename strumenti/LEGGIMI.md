@@ -1638,3 +1638,67 @@ Il banco non da' per scontato l'ordine delle due nel documento — le
 impostazioni vengono prima di Customize — e non conta la riga di separazione
 guardando il vicino di "Close": in mezzo c'e' il gruppo dell'esagono, che dal
 menu e' fuori scena e la propria riga se la porta dentro.
+
+## prova-livelli-server.js — le regole dei livelli, senza Nakama
+
+    node strumenti/prova-livelli-server.js
+    node strumenti/prova-livelli-server.js /percorso/index.js   (la copia schierata)
+
+Le regole dei livelli (Lorenzo, 11/09/2026) sono tutte numeri, e un numero
+sbagliato non da' nessun errore: si prende un livello in piu' o in meno, o si
+paga il prezzo di un'altra rarita'. Il banco carica `index.js` in un contesto
+finto, sostituisce le letture e le scritture con un magazzino in memoria e
+prova:
+
+- **le tabelle**: 2, 5 e 9 copie in tutto per i livelli 2, 3 e 4; l'inchiostro
+  per rarita' (600, 1200, 1800 e 2400 in tutto); e che il profilo le mandi;
+- **lo sbusto**: una carta del mazzo starter pescata vale la SECONDA copia (fino
+  alla v0.79.89 valeva la prima); una copia oltre le nove torna in inchiostro,
+  quanto costa tenere la seconda carta di quella rarita', e il conto resta a
+  nove; e il livello non sale mai da solo;
+- **hx_carta_livella**: niente senza copie o senza inchiostro (e senza pagare
+  niente), un livello per volta, mai oltre il 4, mai una carta che non si ha;
+- **la migrazione**: le carte starter sbustate ricevono la copia che mancava,
+  ognuna sale al livello che le copie le danno, gratis, una volta sola; un
+  livello gia' piu' alto non scende; senza catalogo non si segna come fatta;
+- **la partita**: ogni giocatore porta il livello di ogni carta del SUO mazzo,
+  calcolato quando la partita nasce (col mazzo casuale `_mazzoDi` ne compone uno
+  nuovo a ogni chiamata, quindi non si puo' calcolare prima).
+
+## prova-livelli.js — i livelli delle carte, a schermo
+
+    $ELECTRON strumenti/prova-livelli.js [foto.png]
+
+Senza server il catalogo ha quattro carte e il possesso non e' mai "noto" (la
+Libreria resta vuota finche' `_possessoNoto` non e' vero): il banco lo accende e
+si costruisce un possesso con una carta per ogni stato — una tacca su due,
+pronta, due tacche su tre, al massimo.
+
+**La barra a tacche** conta il tratto verso il prossimo livello, non le copie
+totali: al 2 con quattro copie sono due tacche su tre. **Il nastro Lv up** c'e'
+solo sulla carta pronta, a destra, sporgente di due pixel, alla stessa altezza
+del nastro New. **Il riquadro sotto alla carta aperta** si vede solo in
+Libreria, e' largo quanto la finestra, a sedici pixel da lei e da Close; il
+pulsante e' spento finche' le copie non bastano e sparisce al massimo, dove la
+barra e' una sola e grigia e il testo e' MAX. Senza inchiostro lo dice e non
+chiama il server.
+
+**La salita** si fa partire dal pulsante vero, con la risposta del server
+finta, e il banco ne registra le fasi: arrivo, giri, cambi, finestra, fine,
+nell'ordine. Il lampo non si controlla per fase ma per ANGOLO (fra 540 e 720,
+cioe' nel secondo giro, dopo il dorso): in una finestra nascosta i fotogrammi
+arrivano radi e il lampo puo' scattare sull'ultimo fotogramma del giro, quando
+la fase letta dal banco e' gia' quella dopo. Poi: il saldo della risposta, il
+titolo, il bonus, la barra del livello NUOVO, la carta che va al suo posto nella
+finestra, e il nastro Lv up gia' andato via dalla Libreria.
+
+**Il cartellino dello sbusto**: la nuova ha `new-card-banner-wide` 109x41 che
+sporge di due pixel, la posseduta dice Owned, al massimo la barra e' grigia;
+tenendole ognuna riempie una tacca, e una copia rimborsata no. **In rete** le
+carte dell'avversario vanno al livello che il server dice per ognuna.
+
+Con un nome di file scrive cinque foto: la scheda col riquadro, il nastro in
+Libreria, la finestra finale, il lampo coi fuochi, e i cartellini dello sbusto.
+Per quest'ultima le carte si mettono a mano nello stato in cui galleggiano (senza
+la classe `emerging` resterebbero sopra al bordo dello schermo, dove le lascia
+l'animazione d'ingresso che il banco non fa partire).
