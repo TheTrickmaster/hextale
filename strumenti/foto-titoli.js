@@ -109,7 +109,7 @@ app.whenReady().then(async () => {
   // stare nello stendardo lo stesso. Si misurano dentro alla barra dell'avviso.
   const daCodice = await win.webContents.executeJavaScript('(function(){'
     + ' var testo = [].slice.call(document.scripts).map(function(s){ return s.text; }).join(" ");'
-    + ' var titoli = ["Change player name", "New deck!"], da = 0, chiave = "apriAvviso", i;'
+    + ' var titoli = ["Change name", "New deck!", "Can\'t level up"], da = 0, chiave = "apriAvviso", i;'
     + ' while((i = testo.indexOf(chiave, da)) >= 0){ da = i + chiave.length; var q = testo.indexOf("(", da); if(q < 0 || q - da > 10) continue; var c = testo.charAt(q + 1); if(c !== "\x27") continue; var f = q + 2, t = ""; while(f < testo.length && testo.charAt(f) !== "\x27"){ if(testo.charAt(f) === "\\\\"){ f++; } t += testo.charAt(f); f++; } if(titoli.indexOf(t) < 0) titoli.push(t); }'
     + ' var ov = document.getElementById("avviso-overlay"); ov.classList.add("show");'
     + ' var h2 = document.getElementById("avviso-titolo"), bar = document.getElementById("avviso-barra"), fuori = [];'

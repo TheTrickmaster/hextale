@@ -1830,3 +1830,10 @@ NOTA: in prova-ricordami resta un controllo storto da prima di oggi ("la stessa
 regola vale per le altre caselle"): cerca una casella nelle impostazioni, e dalla
 v0.79.76 quella casella sta in un gruppo che si vede solo in partita, quindi
 misura zero.
+
+**v0.79.97 — i titoli scritti dal codice, accorciati.** Change name, Activate, No
+connection, Match error, No decks, Error, Not enough ink, Can't level up (scelti
+da Lorenzo): adesso foto-titoli.js li trova tutti dentro allo stendardo. Nota:
+lo strumento raccoglie gli avvisi scritti fra apici singoli; "Can't level up" e'
+fra virgolette doppie per via dell'apostrofo, e per questo sta nell'elenco dei
+titoli che misura sempre.

@@ -167,7 +167,7 @@ app.whenReady().then(async () => {
     window.apriAvviso = (t, c)=>{ avviso = { titolo:t, corpo:c }; };
     mmRifiutato({ message: 'verifica la tua email prima di giocare in rete' });
     dice(fermata === 1, 'la ricerca si ferma', 'fermate: ' + fermata);
-    dice(!!avviso && /Activate your account/.test(avviso.titolo),
+    dice(!!avviso && /^Activate$/.test(avviso.titolo),
       'e si dice che manca il codice, non un errore qualunque',
       avviso ? avviso.titolo : 'nessun avviso');
     dice(!!avviso && /6 digit code/.test(avviso.corpo), 'e si dice cosa fare per averlo');
