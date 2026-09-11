@@ -122,6 +122,71 @@ app.whenReady().then(async () => {
       dice(/15%/.test(velo) && /70%/.test(velo) && /30,\\s*36,\\s*35/.test(velo),
         'e va dal 15% al 70% partendo dal basso', velo.slice(0, 110));
 
+      // ── 3b. LE CORREZIONI DI LORENZO (v0.79.85) ──────────────────────────
+      const hook = document.getElementById('trovato-hook');
+      const lrrh = document.getElementById('trovato-lrrh');
+      dice(getComputedStyle(hook).left === '-30px' && getComputedStyle(lrrh).right === '-30px',
+        'i due stanno centoventi pixel piu- vicini al centro',
+        'uncino a ' + getComputedStyle(hook).left + ', Cappuccetto a ' + getComputedStyle(lrrh).right);
+      dice(Math.round(parseFloat(getComputedStyle(hook).height)) === 530,
+        'l-uncino e- alto 530', getComputedStyle(hook).height);
+      dice(Math.round(parseFloat(getComputedStyle(lrrh).height)) === 430,
+        'e Cappuccetto 430', getComputedStyle(lrrh).height);
+      // Si ASPETTA la classe invece di contare un tempo fisso. Nella finestra
+      // fuori schermo del banco il primo fotogramma arriva dopo un secondo e
+      // mezzo e le transizioni non finiscono mai: il lampo parte dalla rete di
+      // sicurezza, verso i due secondi e mezzo. Un attesa fissa da novecento
+      // diceva "non arriva" per il motivo sbagliato.
+      for(let i = 0; i < 40 && !ov.classList.contains('arrivati'); i++) await attendi(100);
+      dice(ov.classList.contains('arrivati'), 'finita la corsa, arrivano il lampo e il battito',
+        'La classe parte a transizione finita, o allo scadere della rete di sicurezza.');
+      dice(getComputedStyle(hook).animationName === 'trovatoArrivo',
+        'e il battito e- un-animazione sola, sulla proprieta- scale',
+        getComputedStyle(hook).animationName + ', ' + getComputedStyle(hook).animationIterationCount + ' volta');
+
+      // Il fondo del timer e- slider-bar-bg tagliato in tre, e i tappi hanno la
+      // proporzione dell-immagine: larghi quanto meta- dell-altezza.
+      const binario = document.getElementById('trovato-timer-bg');
+      const sb = getComputedStyle(binario);
+      dice(sb.borderImageSource.indexOf('slider-bar-bg') >= 0, 'il fondo del timer e- slider-bar-bg',
+        sb.borderImageSource.slice(0, 90));
+      dice(sb.borderImageSource.indexOf('timer-bg') < 0 && binario.tagName !== 'IMG',
+        'e non e- piu- timer-bg steso come immagine');
+      const imgBinario = new Image();
+      imgBinario.src = uiFileCandidati('slider-bar-bg.png')[0];
+      for(let i = 0; i < 30 && !imgBinario.naturalHeight; i++) await attendi(100);
+      const tappo = parseFloat(String(sb.borderImageWidth).split(' ')[1] || sb.borderImageWidth);
+      const alto = parseFloat(sb.height);
+      const taglio = parseFloat(String(sb.borderImageSlice).split(' ')[1] || sb.borderImageSlice);
+      dice(imgBinario.naturalHeight > 0 && Math.abs(tappo / alto - taglio / imgBinario.naturalHeight) < 0.01,
+        'e i tappi non sono schiacciati',
+        'tappo ' + tappo + ' su ' + alto + ' di altezza, nell-immagine ' + taglio + ' su ' + imgBinario.naturalHeight + ': stessa proporzione.');
+      dice(sb.borderImageRepeat.indexOf('round') >= 0, 'e il tratto di mezzo si ripete invece di allungarsi',
+        sb.borderImageRepeat);
+      const riemp = document.getElementById('trovato-timer-fill');
+      for(let i = 0; i < 30 && !riemp.naturalWidth; i++) await attendi(100);
+      const sr = getComputedStyle(riemp);
+      dice(riemp.naturalWidth > 0 && Math.abs(parseFloat(sr.width) / parseFloat(sr.height) - riemp.naturalWidth / riemp.naturalHeight) < 0.5,
+        'e il riempimento e- alla sua proporzione vera',
+        sr.width + ' x ' + sr.height + ', immagine ' + riemp.naturalWidth + ' x ' + riemp.naturalHeight);
+
+      // I pulsanti trenta pixel piu- in basso: si toglie lo spostamento e si
+      // misura quanto risalgono. Il rosso ha lo zoom, e trenta scritti li- ne
+      // diventerebbero ventuno: il banco guarda lo schermo, non il foglio.
+      const scende = (el)=>{
+        const a = el.getBoundingClientRect().top;
+        const prima = el.style.top;
+        el.style.top = '0px';
+        const b = el.getBoundingClientRect().top;
+        el.style.top = prima;
+        return Math.round((a - b) / scala);
+      };
+      const sAcc = scende(document.getElementById('trovato-accetta'));
+      const sRif = scende(document.getElementById('trovato-rifiuta'));
+      dice(Math.abs(sAcc - 30) <= 1 && Math.abs(sRif - 30) <= 1,
+        'i due pulsanti stanno trenta pixel piu- in basso, tutti e due',
+        'Accept ' + sAcc + ', Decline ' + sRif + ' pixel sullo schermo.');
+
       // ── 4. PRIMA DI RISPONDERE ────────────────────────────────────────────
       const acc = document.getElementById('trovato-accetta');
       const att = document.getElementById('trovato-attesa');
@@ -192,6 +257,58 @@ app.whenReady().then(async () => {
         '        opponent..." con la risposta gia- arrivata.');
       dice(rpc[0] && rpc[0].corpo && rpc[0].corpo.matchId === 'match-finto-1',
         'e sa di quale partita', JSON.stringify(rpc[0] && rpc[0].corpo));
+
+      // ── 7b. SE L-ALTRO DICE DI NO, QUI SI CHIUDE SUBITO (v0.79.85) ───────
+      // Il caso che si vedeva rotto: l-altro rifiuta e io non ho ancora premuto
+      // niente. Non sono dentro alla partita, quindi la notizia arriva come
+      // NOTIFICA sul socket.
+      const avvisi = [];
+      const veroAvviso = window.apriAvviso;
+      window.apriAvviso = function(){ avvisi.push([].slice.call(arguments)); };
+      let cerche = 0;
+      const veraCerca = window.mm2CercaAvversario;
+      window.mm2CercaAvversario = function(){ cerche++; };
+      apriTrovato('m-altro');
+      await attendi(400);
+      trovatoNotifiche({ notifications: [ { code: 101, content: JSON.stringify({ matchId: 'm-altro' }) } ] });
+      await attendi(100);
+      dice(!ov.classList.contains('show'), 'se l-altro rifiuta, qui lo splash si chiude subito',
+        'Anche senza aver premuto niente.');
+      // Chi era gia- entrato la riceve due volte: dalla partita e come notifica.
+      trovatoNotifiche({ notifications: [ { code: 101, content: JSON.stringify({ matchId: 'm-altro' }) } ] });
+      try{ reteMessaggio({ op_code: 13, data: '' }); }catch(_){ }
+      await attendi(1000);
+      dice(cerche === 1, 'e si torna in cerca, una volta sola',
+        cerche + ' ricerche ripartite: ripartire due volte vorrebbe dire due code.');
+      dice(avvisi.length === 0, 'e non compare nessun errore',
+        avvisi.map(a => a[0]).join(', ') || 'nessun avviso');
+      // Una notifica rimasta indietro da un accoppiamento di prima non chiude
+      // quello nuovo.
+      apriTrovato('m-nuovo');
+      await attendi(300);
+      trovatoNotifiche({ notifications: [ { code: 101, content: JSON.stringify({ matchId: 'm-vecchio' }) } ] });
+      await attendi(150);
+      dice(ov.classList.contains('show'), 'e una notifica di una partita di prima non chiude quella nuova');
+      trovatoChiudi();
+      // Il caso sul filo: premo Accept mentre l-altro rifiuta, e il server
+      // risponde che il tavolo non c-e- piu-.
+      apriTrovato('m-filo');
+      await attendi(300);
+      trovatoAccetta();
+      mmErroreDalSocket({ cid: 'j-filo', error: { code: 4, message: 'Match not found' } });
+      await attendi(1000);
+      dice(!ov.classList.contains('show') && avvisi.length === 0,
+        'e premendo Accept su un tavolo appena chiuso, nessun errore',
+        avvisi.map(a => a[0]).join(', ') || 'nessun avviso');
+      dice(cerche === 2, 'ma di nuovo in cerca', cerche + ' ricerche in tutto');
+      // Un errore vero, fuori dallo splash, deve vedersi ancora: zittirli tutti
+      // sarebbe il difetto opposto.
+      mmErroreDalSocket({ cid: 'x1', error: { message: 'guasto vero' } });
+      await attendi(200);
+      dice(avvisi.length === 1, 'mentre un errore vero, fuori dallo splash, si vede ancora',
+        avvisi.map(a => a[0]).join(', ') || 'nessun avviso');
+      window.apriAvviso = veroAvviso;
+      window.mm2CercaAvversario = veraCerca;
 
       // ── 8. IL PULSANTE DELLA RICERCA ──────────────────────────────────────
       // I secondi finche- non ci passi sopra, "Cancel" sotto al dito. Prima

@@ -1398,6 +1398,34 @@ servono DUE caratteri (```` seguito da n), non uno: scritto con uno solo, il
 template esterno lo trasforma subito in un a-capo vero e spezza la stringa
 interna. Stesso sintomo, stessa caccia.
 
+### v0.79.85 — il rifiuto che non arrivava
+
+Il caso piu' comune era quello rotto: A dice di no e B non ha ancora premuto
+niente. B non e' dentro alla partita, quindi OP_NON_ACCETTATO — che passa
+dalla partita — non lo raggiunge. Restava davanti allo splash, e se premeva
+Accept entrava in un tavolo gia' chiuso: il server rispondeva con un errore,
+e il socket trasformava OGNI errore in "Cannot search".
+
+Adesso chi rifiuta manda anche una **notifica** di Nakama, che arriva al
+socket del giocatore e non alla partita. Chi era gia' entrato la riceve due
+volte (dalla partita e come notifica) e il client la conta una volta sola:
+il banco lo prova mandandola due volte piu' un OP_NON_ACCETTATO, e contando
+le ricerche ripartite. Prova anche il caso sul filo (Accept premuto su un
+tavolo appena chiuso: niente errore, di nuovo in cerca) e il caso opposto —
+un errore vero, fuori dallo splash, deve vedersi ancora. Zittirli tutti
+sarebbe il difetto rovesciato.
+
+**Il lampo d'arrivo si aspetta, non si cronometra.** Nella finestra fuori
+schermo il primo fotogramma arriva dopo un secondo e mezzo e le transizioni
+non finiscono mai: il lampo parte dalla rete di sicurezza, verso i due
+secondi e mezzo. Un'attesa fissa diceva "non arriva" per il motivo
+sbagliato; adesso il banco aspetta la classe con un limite.
+
+**I tappi del timer si misurano come proporzione.** Il fondo e'
+slider-bar-bg tagliato in tre: nell'immagine il tappo e' 8 su 16 di
+altezza, sulla barra deve essere 6 su 12. Il banco confronta i due rapporti
+invece di un numero, cosi' resta vero se un domani la barra cambia altezza.
+
 ## prova-muto.js — muto vuol dire muto
 
     $ELECTRON strumenti/prova-muto.js

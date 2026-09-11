@@ -4950,6 +4950,28 @@ function partitaTerminate(ctx, logger, nk, dispatcher, tick, state, graceSeconds
 // Senza questa strada l'altro imparerebbe la notizia solo alla scadenza:
 // dieci secondi passati a fissare "Waiting for your opponent..." quando la
 // risposta era gia' arrivata.
+// v0.79.85 — L'AVVISO CHE ARRIVA ANCHE A CHI NON E' ANCORA ENTRATO.
+// OP_NON_ACCETTATO passa dalla partita, e dalla partita lo sente solo chi ci e'
+// dentro — cioe' chi ha gia' premuto Accept. L'altro caso, il piu' comune, e'
+// che nessuno dei due abbia ancora premuto niente: A dice di no, e B resta
+// davanti allo splash senza saperlo. Se poi B preme Accept, entra in un tavolo
+// gia' chiuso e il server gli risponde con un errore.
+// La notifica di Nakama arriva al socket del giocatore e non alla partita:
+// raggiunge B dovunque sia. Si manda a tutti e due gli accoppiati tranne chi
+// ha rifiutato; chi era gia' entrato la riceve due volte (anche da
+// OP_NON_ACCETTATO) e il client la conta una volta sola.
+// Il mittente e' null e non una stringa vuota: il runtime vuole un
+// identificativo valido o niente, e con '' si ferma.
+var CODICE_NON_ACCETTATO = 101;
+function _avvisaGliAltri(nk, logger, state, chiRifiuta, matchId) {
+  for (var i = 0; i < state.giocatori.length; i++) {
+    var u = state.giocatori[i];
+    if (u === chiRifiuta) continue;
+    try {
+      nk.notificationSend(u, 'partita-rifiutata', { matchId: matchId }, CODICE_NON_ACCETTATO, null, false);
+    } catch (e) { if (logger) logger.warn('notifica di rifiuto non consegnata a %s: %s', u, String(e)); }
+  }
+}
 function _nessunoHaAccettato(state, dispatcher, logger, perche) {
   var dentro = [];
   for (var i = 0; i < state.giocatori.length; i++) {
@@ -4972,6 +4994,7 @@ function partitaSignal(ctx, logger, nk, dispatcher, tick, state, data) {
     if (_indiceDi(state, String(d.rifiuta)) !== -1) {
       state.rifiutata = true;
       _nessunoHaAccettato(state, dispatcher, logger, 'rifiutata');
+      _avvisaGliAltri(nk, logger, state, String(d.rifiuta), (ctx && ctx.matchId) || '');
       return null;   // il tavolo si chiude qui
     }
   }
