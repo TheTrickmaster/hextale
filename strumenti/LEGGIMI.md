@@ -1749,3 +1749,28 @@ conto prima che il banco lo leggesse: il controllo passava o no a caso.
 **v0.79.93 — prova-tutorial.js.** La barra del titolo sopra al riquadro non c'e'
 piu' (tolta su richiesta di Lorenzo): il banco controlla che non ci sia, al
 posto dei tre controlli su testo, larghezza e altezza.
+
+**v0.79.94 — i pezzi cambiano davvero nel lampo.** Alla v0.79.93 i numeri nuovi
+comparivano solo quando tutti i lampi erano finiti, e nessun controllo se n'era
+accorto: i banchi contavano suoni e fasi, non guardavano il disegno. Ogni pezzo
+era un CLONE della carta nuova, e i suoi `url(#id)` (il clipPath degli angoli)
+si risolvevano nella carta di riferimento, che portava gli stessi id ed era
+nascosta con `visibility:hidden` — una forma invisibile dentro a un clipPath
+ritaglia via tutto. Adesso ogni pezzo e' una carta disegnata da capo, preparata
+prima dei lampi (`_lvPreparaCambio`), e la carta di riferimento e' trasparente
+invece che nascosta. `prova-livelli.js` percorre ogni riferimento per id dentro
+ai pezzi: deve esistere una volta sola nel documento, e dentro allo stesso
+pezzo. Controlla anche che fra un lampo e l'altro passino 100ms
+(`LV_CAMBIO_PASSO_MS`, dai tempi di `score.mp3`), e con un nome di file scrive
+la foto `cambio`: la salita fermata 160ms dopo l'inizio del primo cambio, col
+primo cerchio gia' al valore nuovo e gli altri ancora ai vecchi. (La carta in
+quella foto sembra sbiadita perche' fermando TUTTE le animazioni si ferma anche
+il lampo grande del giro; nel gioco a quel punto e' gia' spento.)
+
+**v0.79.94 — prova-pacchetti.js.** Le scartate svaniscono in 230ms invece che in
+460 (`USCITA_SVANIRE_MS` e `.pack-card.svanisce`, che devono combaciare), e
+premuto Collect cominciano subito: la pausa per la tacca delle copie la fanno
+solo le tenute. Il banco veste le carte del pagamento col loro cartellino — senza,
+non c'e' nessuna tacca da riempire e il ramo della pausa non si prova — prende la
+scartata PRIMA di raccogliere e controlla che dopo 300ms stia svanendo mentre le
+tenute sono ancora tenute.

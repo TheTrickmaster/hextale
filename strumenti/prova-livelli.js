@@ -171,8 +171,34 @@ app.whenReady().then(async () => {
         valute: { magicInk: 5000 - sb.costo, fairyDust: 0 }, possedute: posDopo, copie: Object.assign({}, CARTE_COPIE) };
       await apri(B);
       rpc.length = 0;
-      const suoniS = [];
-      window.playSfxFile = function(f){ suoniS.push(f); };
+      const suoniS = [], tempiScore = [];
+      window.playSfxFile = function(f){ suoniS.push(f); if(f === 'score.mp3') tempiScore.push(performance.now()); };
+      // v0.79.94 — i pezzi erano cloni della carta nuova, e i loro url(#id)
+      // finivano sulle maschere della carta di riferimento, nascosta: il clone
+      // veniva ritagliato via tutto e i numeri cambiavano solo alla fine. Il
+      // banco contava suoni e fasi e non se n-era accorto. Adesso guarda ogni
+      // riferimento per id dentro ai pezzi: deve esistere una volta sola, e
+      // dentro allo stesso pezzo.
+      const verificaId = () => {
+        const svgPezzi = [...document.querySelectorAll('#livello-carta .lvc-cambio svg')];
+        let rif = 0, rotti = [];
+        for(const s of svgPezzi){
+          s.querySelectorAll('*').forEach(el => {
+            for(const a of el.attributes){
+              const v = a.value.split('"').join('').split("'").join('');
+              const i = v.indexOf('url(#');
+              if(i < 0) continue;
+              const id = v.slice(i + 5, v.indexOf(')', i));
+              rif++;
+              const tutti = document.querySelectorAll('[id="' + id + '"]');
+              if(tutti.length !== 1 || !s.contains(tutti[0])) rotti.push(id + ' x' + tutti.length);
+            }
+          });
+        }
+        const r = document.querySelector('#livello-carta svg.lvc-riferimento');
+        return { pezzi: svgPezzi.length, rif, rotti, riferimento: r ? getComputedStyle(r).visibility : 'assente' };
+      };
+      let controlloId = null;
       sali.click();
       const ov = document.getElementById('livello-overlay');
       const fasi = [];
@@ -182,6 +208,7 @@ app.whenReady().then(async () => {
         const f = ov.dataset.fase || '';
         if(f && fasi[fasi.length-1] !== f) fasi.push(f);
         if(ov.dataset.lampo && !lampoInFase) lampoInFase = ov.dataset.lampo;
+        if(f === 'cambi' && !controlloId) controlloId = verificaId();
         if(f === 'fine') break;
         await attendi(40);
       }
@@ -197,6 +224,12 @@ app.whenReady().then(async () => {
       dice(conta('card-flip.mp3') === 1, 'un giro, un fruscio', suoniS.join(', '));
       dice(conta('fireworks.mp3') === 1 && conta('card-ding.mp3') === 0, 'i fuochi suonano fireworks.mp3, una volta', suoniS.join(', '));
       dice(conta('score.mp3') === parseInt(ov.dataset.zone || '0', 10), 'e ogni pezzo che cambia suona score.mp3', conta('score.mp3') + ' su ' + ov.dataset.zone + ' pezzi');
+      dice(controlloId && controlloId.pezzi === parseInt(ov.dataset.zone || '0', 10) && controlloId.rif > 0 && !controlloId.rotti.length,
+        'ogni pezzo ha le sue maschere: i suoi url(#id) esistono una volta sola, dentro di lui',
+        controlloId ? (controlloId.pezzi + ' pezzi, ' + controlloId.rif + ' riferimenti, rotti: ' + (controlloId.rotti.join(', ') || 'nessuno')) : 'mai arrivato ai cambi');
+      dice(controlloId && controlloId.riferimento === 'visible', 'e la carta di riferimento non e- nascosta con visibility', controlloId && controlloId.riferimento);
+      const passi = tempiScore.slice(1).map((t, i) => Math.round(t - tempiScore[i]));
+      dice(passi.length >= 1 && passi.every(p => p >= 70 && p <= 170), 'fra un lampo e l-altro passano 100ms', passi.join(', ') + ' ms');
       window.playSfxFile = function(){};
       // Il pezzo cambia nell-istante del lampo: i due fotogrammi-chiave devono essere lo stesso.
       const chiavi = nome => { const k = regole.filter(r => r.type === CSSRule.KEYFRAMES_RULE && r.name === nome)[0]; return k ? [].slice.call(k.cssRules) : []; };
@@ -420,6 +453,12 @@ app.whenReady().then(async () => {
     await foto('nastro', '(function(){ closeCardModal(); return 1; })()', 900, ['#card-db-grid']);
     await foto('salita', '(function(){ ' + pronta + ' CARTE_POSSEDUTE[e.slug]=2; animaSalitaDiLivello(e, 1, 2); return 1; })()', 7500,
       ['#livello-cornice', '#livello-chiudi']);
+    await foto('cambio', '(async function(){ chiudiSalitaDiLivello(); ' + pronta + ' CARTE_POSSEDUTE[e.slug]=2; animaSalitaDiLivello(e, 1, 2);'
+      + ' var ov=document.getElementById("livello-overlay"); var t=Date.now();'
+      + ' while(ov.dataset.cambio !== "1" && Date.now()-t < 9000) await new Promise(function(r){setTimeout(r,5);});'
+      + ' _lvGen++; await new Promise(function(r){setTimeout(r,20);});'
+      + ' document.getAnimations().forEach(function(a){ a.pause(); a.currentTime = 160; }); return 1; })()', 400,
+      ['#livello-carta']);
     await foto('lampo', '(function(){ chiudiSalitaDiLivello(); ' + pronta + ' animaSalitaDiLivello(e, 1, 2); return 1; })()', 1500,
       ['#livello-carta']);
     await win.webContents.executeJavaScript('chiudiSalitaDiLivello(); closeCardModal && 1');

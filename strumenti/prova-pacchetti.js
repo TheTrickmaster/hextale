@@ -322,9 +322,15 @@ app.whenReady().then(async () => {
     "    if(nome !== 'hx_bustina_raccogli') return Promise.resolve({});",
     "    return Promise.resolve({ tenute: (dati && dati.tieni) || [], speso: 50, valute: { magicInk: 200, fairyDust: 9999 } });",
     "  };",
-    "  qa('#pack-reveal .pack-card').forEach(function(c, i){ c.classList.toggle('tenuta', i < 2); });",
+    "  qa('#pack-reveal .pack-card').forEach(function(c, i){ c.classList.toggle('tenuta', i < 2); vestiEtichettaBustina(c); });",
+    "  var scartataOra = qa('#pack-reveal .pack-card')[2];",
     "  raccogliCarte();",
     "  await respira(300);",
+    // v0.79.94 — la scartata svanisce subito, senza aspettare la tacca delle copie
+    // delle tenute; e la dissolvenza e' la meta' di prima.
+    "  dice(scartataOra && scartataOra.classList.contains('svanisce') && qa('#pack-reveal .pack-card.tenuta').length === 2, 'premuto Collect, la scartata svanisce subito, mentre le tenute aspettano la tacca delle copie', (scartataOra && scartataOra.className) + ' / tenute ' + qa('#pack-reveal .pack-card.tenuta').length);",
+    "  var rSvanisce = regole.filter(function(r){ return r.selectorText === '.pack-card.svanisce'; })[0];",
+    "  dice(rSvanisce && rSvanisce.style.transitionDuration === '0.22s' && USCITA_SVANIRE_MS === 230, 'in 230ms, la meta- di prima', (rSvanisce && rSvanisce.style.transitionDuration) + ' / ' + USCITA_SVANIRE_MS + 'ms');",
     "  var num = q('#pack-ink-fisso .mm-cur-value');",
     "  dice(q('#pack-overlay').classList.contains('paga'), 'pagando, il saldo rientra');",
     "  dice(num && num.textContent === '250', 'ed entra col saldo di PRIMA, non gia- scalato', num && num.textContent);",
