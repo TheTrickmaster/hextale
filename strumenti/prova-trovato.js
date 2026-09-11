@@ -8,12 +8,11 @@
 //
 // Le cose che si rompono in silenzio:
 //
-//   IL RIQUADRO CHE RITAGLIA. I due personaggi devono uscire dai lati e da
-//     SOPRA — nel disegno il cappello del pirata sta fuori dal bordo alto — e
-//     mai da sotto. Un overflow:hidden li taglierebbe tutti e tre i lati; il
-//     fondo si evita ancorandoli al bordo basso, non tagliandoli. Se un domani
-//     qualcuno mette overflow:hidden per "pulizia", il disegno si perde e
-//     nessun errore lo dice.
+//   I PERSONAGGI CHE ESCONO DAI LATI. Possono uscire solo dal bordo alto
+//     (nel disegno il cappello del pirata sta sopra al riquadro). Lati e
+//     fondo li taglia il palco che li contiene, non il riquadro: se un domani
+//     qualcuno toglie il palco o il suo overflow, le figure tornano a
+//     sbordare e nessun errore lo dice.
 //   IL SUONO CHE ARRIVA PRIMA DI CIO' CHE ANNUNCIA. Suonava all'accoppiamento;
 //     adesso deve suonare quando lo splash si vede.
 //   I DUE VOLTI. Prima di accettare: Accept e Decline. Dopo: la scritta
@@ -78,7 +77,7 @@ app.whenReady().then(async () => {
       // ── 1. I PEZZI ────────────────────────────────────────────────────────
       const ov = document.getElementById('trovato-overlay');
       dice(!!ov, 'lo splash esiste');
-      for(const id of ['trovato-cornice','trovato-hook','trovato-lrrh','trovato-velo',
+      for(const id of ['trovato-cornice','trovato-palco','trovato-hook','trovato-lrrh','trovato-velo',
                        'trovato-titolo','trovato-accetta','trovato-attesa','trovato-rifiuta',
                        'trovato-timer','trovato-timer-mask','trovato-timer-pin']){
         if(!document.getElementById(id)) dice(false, 'manca il pezzo #' + id);
@@ -101,8 +100,30 @@ app.whenReady().then(async () => {
       dice(Math.round(parseFloat(sk.width)) === 650 && Math.round(parseFloat(sk.height)) === 400,
         'il riquadro e- 650x400',
         Math.round(parseFloat(sk.width)) + 'x' + Math.round(parseFloat(sk.height)));
-      dice(sk.overflow === 'visible', 'e NON ritaglia',
-        'overflow: ' + sk.overflow + '.\\n        I due devono uscire dai lati e da sopra: tagliarli e- perdere il disegno.');
+      dice(sk.overflow === 'visible', 'il riquadro lascia libero il bordo alto',
+        'overflow: ' + sk.overflow + ' - lati e fondo li taglia il palco dei personaggi, non il riquadro.');
+      // v0.79.86 — lati e fondo mascherati, bordo alto libero.
+      const palco = document.getElementById('trovato-palco');
+      const sp = getComputedStyle(palco);
+      const pr = palco.getBoundingClientRect();
+      const kr0 = k.getBoundingClientRect();
+      dice(!!palco && sp.overflow === 'hidden', 'il palco dei personaggi ritaglia', 'overflow: ' + sp.overflow);
+      dice(Math.abs(pr.left - kr0.left) < 1 && Math.abs(pr.right - kr0.right) < 1 && Math.abs(pr.bottom - kr0.bottom) < 1,
+        'e i suoi lati e il suo fondo sono quelli del riquadro',
+        'sinistra ' + Math.round(pr.left - kr0.left) + ', destra ' + Math.round(pr.right - kr0.right) + ', fondo ' + Math.round(pr.bottom - kr0.bottom));
+      dice(palco.contains(document.getElementById('trovato-hook')) && palco.contains(document.getElementById('trovato-lrrh')),
+        'e dentro ci sono tutti e due i personaggi');
+      dice(sp.borderBottomLeftRadius === '28px' && sp.borderBottomRightRadius === '28px',
+        'e il taglio in basso segue gli angoli arrotondati', sp.borderBottomLeftRadius + ' / ' + sp.borderBottomRightRadius);
+      const hr0 = document.getElementById('trovato-hook').getBoundingClientRect();
+      dice(pr.top < hr0.top - hr0.height * 0.05,
+        'e sopra lascia spazio a tutto l-uncino, battito compreso',
+        Math.round(hr0.top - pr.top) + ' pixel di margine sopra al cappello');
+      // Le figure sono ancora piu- larghe del riquadro: e- il palco a
+      // nasconderne i lati. Se non lo fossero, questo controllo non
+      // proverebbe niente.
+      dice(hr0.left < pr.left, 'e l-uncino sborderebbe a sinistra, se il palco non lo tagliasse',
+        Math.round(pr.left - hr0.left) + ' pixel tagliati');
       const kr = k.getBoundingClientRect();
       const scala = kr.width / parseFloat(sk.width);
       for(const [id, nome] of [['trovato-hook','hook'],['trovato-lrrh','lrrh']]){

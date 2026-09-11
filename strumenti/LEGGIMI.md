@@ -1426,6 +1426,18 @@ slider-bar-bg tagliato in tre: nell'immagine il tappo e' 8 su 16 di
 altezza, sulla barra deve essere 6 su 12. Il banco confronta i due rapporti
 invece di un numero, cosi' resta vero se un domani la barra cambia altezza.
 
+### v0.79.86 — lati e fondo mascherati, l'alto no
+
+I personaggi possono uscire solo dal bordo alto. Il taglio non sta sul
+riquadro ma su #trovato-palco, un livello con i lati e il fondo del riquadro
+che sale di quattrocento pixel: overflow taglia quattro lati o nessuno, e un
+clip-path sul riquadro intero isolerebbe anche la trama del pannello.
+
+Il banco ha un controllo che sembra al contrario: che l'uncino SIA piu' largo
+del riquadro. Serve a non farsi ingannare: se le figure stessero dentro da
+sole, un palco senza taglio passerebbe tutti gli altri controlli, e il
+giorno in cui qualcuno allarga l'uncino nessuno se ne accorgerebbe.
+
 ## prova-muto.js — muto vuol dire muto
 
     $ELECTRON strumenti/prova-muto.js
