@@ -1919,3 +1919,40 @@ potrebbero toccare (tutte le candidate, se il bersaglio e' pescato a caso)
 mostrano il punto interrogativo — la carta trascinata, quelle in campo e
 quelle in mano. Il "?" ha il bordo bianco sulla carta chiara. Il banco del
 client usa un Genio, una Ginevra, un Leone e un +2 ALL finti.
+
+## prova-accoppiamento-server.js e prova-rete-e-quest.js — online, hint, quest e scudi
+
+    node strumenti/prova-accoppiamento-server.js [percorso/index.js]
+    desktop/node_modules/electron/dist/electron.exe strumenti/prova-rete-e-quest.js
+
+Quattro segnalazioni di Lorenzo (v0.80.1).
+- ENTRARE IN PARTITA CON SE STESSI. Due sessioni dello stesso account in cerca
+  (due finestre, due dispositivi) venivano accoppiate: "partita cominciata:
+  f59b... contro f59b..." nel registro. accoppiati rifiuta l'accoppiamento; il
+  biglietto porta `utente` (l'id senza trattini) e la domanda lo esclude; se un
+  accoppiamento con se stessi arriva lo stesso, il client rimette in coda un
+  biglietto invece di mostrare "Match error".
+- L'HINT DELLA MANO. In rete si passava dal ramo del gioco a turni sullo stesso
+  schermo, e a turno dell'avversario si accendeva il suo hint (a destra). Adesso
+  in rete la mano apribile e l'hint sono solo i miei, a qualunque turno.
+- LE QUEST. Il pannello sta nel menu, staccato dalla pagina durante la partita:
+  mm2DisegnaQuest usciva prima di tenere l'elenco nuovo, e il pannello restava
+  quello dell'accesso (i popup, fuori da ogni pagina, salivano giusti). L'elenco
+  si tiene sempre; all'ingresso nel menu si ridisegna e si chiede a hx_quest.
+- CARABOSSE E GLI SCUDI. La scena del gioco passa `latoProtetto` al motore; un
+  debuff a caso sorteggia fra i gruppi scoperti e fra le carte che ne hanno
+  (il motore lo prova in server/nakama/prova-caso.js, sezione 7).
+
+## prova-punti-veri.js — i punti si incassano tutti, e la musica di fine partita e' giusta
+
+    desktop/node_modules/electron/dist/electron.exe strumenti/prova-punti-veri.js
+
+Segnalazione di Lorenzo (v0.80.1): "a volte suona la musica di vittoria se si
+perde". Due colpi ravvicinati aprivano una bolla sola e la chiudevano due
+volte: la seconda chiusura non trovava la bolla e non incassava. 3 + 4 a 300ms
+davano 3. E G.hp decideva vincitore, titolo, musica e racconto al server.
+Adesso G.puntiFatti si scrive nell'istante dell'assegnazione (assegnaPunti,
+ondataDanno), chiudiBollaPunti incassa anche senza bolla, i contatori del
+ritratto girano in fila (_codaPunteggio) e la bolla conta dal suo valore invece
+che da zero. finishGameWithResult e reteMandaImpronta leggono i punti veri.
+(Da non confondere con prova-punti.js, che prova come si CONTANO i punti.)

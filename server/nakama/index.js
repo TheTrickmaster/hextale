@@ -5468,6 +5468,16 @@ function accoppiati(ctx, logger, nk, matches) {
     logger.warn('accoppiamento con %d giocatori: non e\' una partita', giocatori.length);
     return '';
   }
+  // ── v0.80.1 — NESSUNO GIOCA CONTRO SE STESSO ────────────────────────────
+  // Lo stesso account puo' avere due sessioni aperte (due finestre, due
+  // dispositivi) e cercare da tutte e due: il matchmaker vede due biglietti e
+  // li accoppia. Nel registro: "partita cominciata: f59b... contro f59b...".
+  // I client escludono gia' se stessi dalla domanda (vedi mmDomanda), ma la
+  // regola la tiene il server: senza partita, i client riprendono a cercare.
+  if (giocatori[0] === giocatori[1]) {
+    logger.warn('accoppiamento rifiutato: %s contro se stesso (due sessioni in cerca)', giocatori[0]);
+    return '';
+  }
   // ── v0.79.59 — I MAZZI SI CONTROLLANO QUI, NON DOPO ─────────────────────
   // matchInit li legge e, se uno dei due non e' valido, torna null: la partita
   // non nasce, Nakama manda ai due un accoppiamento SENZA match_id, e il
@@ -5644,6 +5654,16 @@ var ABILITA_MOTORE = (function () {
   }
 
   // Quel lato non cade, qualunque numero gli si punti contro.
+  // v0.80.1 — un lato e' difeso se lo protegge una regola del foglio
+  // (side_protected) o se la scena sa di una protezione che il motore non vede:
+  // nel gioco lo scudo di Pinocchio e la corona della Principessa di Cristallo
+  // (vedi latoInconquistabile). Il server non passa `latoProtetto` e vede solo
+  // le regole: le carte con quelle protezioni sono gia' fra quelle che l'ombra
+  // non sa rifare.
+  function _latoDifeso(carta, lato, scena) {
+    if (latoProtetto(carta, lato)) return true;
+    return !!(scena && typeof scena.latoProtetto === 'function' && scena.latoProtetto(carta, lato));
+  }
   function latoProtetto(carta, lato, valori) {
     var r = regolaDi(carta, 'side_protected');
     if (!r) return false;
@@ -5811,7 +5831,11 @@ var ABILITA_MOTORE = (function () {
     }
     return out;
   }
-  function latiColpiti(ambito, valori, carta, seme) {
+  // v0.80.1 — `escludi(lato)`, se c'e', toglie dal sorteggio i gruppi che hanno
+  // anche un solo lato escluso: e' cosi' che un debuff a caso salta i lati
+  // protetti (vedi _latoDifeso). Il sorteggio si fa fra quelli che restano, e
+  // se non ne resta nessuno non si colpisce niente.
+  function latiColpiti(ambito, valori, carta, seme, escludi) {
     if (ambito === 'ALL' || !ambito) return SEI_LATI.slice();
     var gruppi = _gruppiDi(valori || {}, carta), i;
     if (!gruppi.length) return [];
@@ -5824,6 +5848,16 @@ var ABILITA_MOTORE = (function () {
       return [];
     }
     if (ambito === 'RAND' || ambito === 'ONE') {
+      if (typeof escludi === 'function') {
+        var liberi = [];
+        for (i = 0; i < gruppi.length; i++) {
+          var buono = true;
+          for (var gl = 0; gl < gruppi[i].length; gl++) if (escludi(gruppi[i][gl])) { buono = false; break; }
+          if (buono) liberi.push(gruppi[i]);
+        }
+        gruppi = liberi;
+        if (!gruppi.length) return [];
+      }
       var chiave = String((carta && (carta.id || carta.name)) || '?') + '|' + String(seme || '');
       return gruppi[_semeDi(chiave) % gruppi.length].slice();
     }
@@ -6224,6 +6258,24 @@ var ABILITA_MOTORE = (function () {
     if (!condizioneVera(cond, fonte, scena)) return;
 
     var tutti = candidati(fonte, eff, scena);
+    // ── v0.80.1 — UN DEBUFF A CASO NON COLPISCE UN LATO PROTETTO ────────────
+    // Lorenzo: "escludi i lati protetti (quelli invincibili con lo scudo) dai
+    // target dell'abilita' di Carabosse". Carabosse toglie 1 a un gruppo a caso
+    // di una carta nemica a caso, e poteva finire sotto lo scudo di Pinocchio o
+    // sulla corona della Principessa di Cristallo — un colpo su un lato che la
+    // carta dichiara intoccabile. Vale per ogni debuff che sceglie il gruppo a
+    // caso: si sorteggia fra i gruppi scoperti, e fra le carte che ne hanno
+    // almeno uno, cosi' il colpo non si spreca su una carta tutta protetta.
+    var difeso = null;
+    if (az === 'debuff' && (eff.ambito === 'RAND' || eff.ambito === 'ONE')) {
+      difeso = function (carta) { return function (lato) { return _latoDifeso(carta, lato, scena); }; };
+      var scoperte = [];
+      for (var sc = 0; sc < tutti.length; sc++) {
+        var cand = tutti[sc];
+        if (latiColpiti(eff.ambito, (cand.valoriBase || cand.values) || {}, cand, '', difeso(cand)).length) scoperte.push(cand);
+      }
+      tutti = scoperte;
+    }
     var lista = scelti(tutti, eff, scena, fonte);
     var q = quantita(fonte, eff, cond, scena);
     // v0.79.99 — questo cambiamento lo decide il caso? Lo si dice a chi lo
@@ -6234,7 +6286,9 @@ var ABILITA_MOTORE = (function () {
     var i, j, bersaglio, lati;
     for (i = 0; i < lista.length; i++) {
       bersaglio = lista[i];
-      lati = latiColpiti(eff.ambito, (bersaglio.valoriBase || bersaglio.values) || {}, bersaglio, _occasione(fonte, scena));
+      lati = latiColpiti(eff.ambito, (bersaglio.valoriBase || bersaglio.values) || {}, bersaglio, _occasione(fonte, scena),
+        difeso ? difeso(bersaglio) : null);
+      if (difeso && !lati.length) continue;
       if (az === 'set') {
         // "diventa un valore fra 1 e 3": il numero si tira QUI e vale per
         // tutti i lati colpiti, cosi' la carta non esce a scacchiera.

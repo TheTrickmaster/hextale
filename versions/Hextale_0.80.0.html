@@ -13010,7 +13010,7 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.1</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.0</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <!-- v0.79.75 — dove salgono gli avvisi delle quest. Vuoto quasi sempre, e
@@ -15989,9 +15989,6 @@ const PAGE_ENTER_HOOKS = {
   // nome, valute e numero di versione si riscrivono a ogni entrata.
   mainmenu(){
     if(typeof montaMenuPrincipale === 'function') montaMenuPrincipale();
-    // v0.80.1 — le quest: subito quelle che si conoscono, poi quelle del server
-    // (una partita appena finita le ha mosse, e a mezzanotte GMT cambiano).
-    try{ mm2DisegnaQuest(QUEST_OGGI); questChiediAlServer(); }catch(_){ }
     // La polvere va riavviata a ogni entrata e non solo alla prima: le tele
     // staccate perdono il proprio contenuto (stessa ragione della pagina
     // bustine, vedi sotto). montaMenuPrincipale la riavvia gia' in fondo.
@@ -17239,9 +17236,7 @@ function reteMandaImpronta(finita){
       turno: PARTITA_RETE.numeroTurno,
       impronta: reteImpronta(),
       punteggio: { 1: (G.scores&&G.scores[1])||0, 2: (G.scores&&G.scores[2])||0 },
-      // v0.80.1 — i punti veri (vedi G.puntiFatti): da questi il server decide
-      // chi ha vinto, e non devono dipendere da quanto e' avanti un'animazione.
-      hp: { 1: (G.puntiFatti || G.hp)[1], 2: (G.puntiFatti || G.hp)[2] },
+      hp: { 1: G.hp[1], 2: G.hp[2] },
       finita: !!finita
     }))
   }});
@@ -17570,40 +17565,22 @@ function mmManda(oggetto){
 // La domanda da fare al matchmaker, larga quanto la forbice del momento.
 // La tolleranza sui mazzi cresce insieme al rank: al massimo dell'apertura non
 // vincola piu' niente, perche' a quel punto la priorita' e' trovare qualcuno.
-// ── v0.80.1 — E MAI SE STESSI ─────────────────────────────────────────────
-// Due sessioni dello stesso account in cerca insieme (due finestre, due
-// dispositivi) si trovavano a vicenda, e si entrava in partita con se stessi.
-// Il biglietto porta l'id dell'account e la domanda lo esclude. L'id si scrive
-// senza trattini: nella domanda del matchmaker un trattino in mezzo a un
-// valore non e' un carattere qualsiasi, e un id spezzato non escluderebbe
-// niente. Il server rifiuta comunque un accoppiamento con se stessi.
-function mmMioId(){
-  try{
-    const mezzo = String((sessioneAccount && sessioneAccount.token) || '').split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
-    const dati = JSON.parse(atob(mezzo + '==='.slice((mezzo.length + 3) % 4)));
-    return String(dati.uid || '').replace(/[^0-9a-zA-Z]/g, '').toLowerCase();
-  }catch(_){ return ''; }
-}
 function mmDomanda(rank, forza, forbice){
   const capMin = Math.max(0,  Math.round(forza.capacita - 2 - forbice * 2));
   const capMax = Math.round(forza.capacita + 2 + forbice * 2);
-  const io = mmMioId();
   return '+properties.gioco:hextale'
-    + (io ? ' -properties.utente:' + io : '')
     + ' +properties.rank:>=' + Math.max(0, rank - forbice)
     + ' +properties.rank:<=' + (rank + forbice)
     + ' +properties.capacita:>=' + capMin
     + ' +properties.capacita:<=' + capMax;
 }
 
-let _mmUltimoBiglietto = null;
 function mmConsegnaBiglietto(rank, forza, codice){
-  _mmUltimoBiglietto = { rank: rank, forza: forza, codice: codice };
   mmManda({ cid: 'mm-' + Date.now().toString(36), matchmaker_add: {
     min_count: 2, max_count: 2,
     query: mmDomanda(rank, forza, _mmForbice),
     string_properties: { gioco: 'hextale', mazzo: codice, nome: nomeGiocatore(),
-                         avatar: miaSiglaAvatar(), utente: mmMioId() },
+                         avatar: miaSiglaAvatar() },
     numeric_properties: { rank: rank, capacita: Math.round(forza.capacita),
                           livello: Math.round(forza.livelloMedio * 10) }
   }});
@@ -17693,11 +17670,7 @@ async function mm2CercaAvversario(){
     if(!_mm2Cercando) return;
     if(_mmForbice >= MM_FORBICE_MAX) return;
     _mmForbice++;
-    // v0.80.1 — si ritira solo un biglietto che c'e': dopo un accoppiamento con
-    // se stessi quello vecchio e' gia' stato consumato, e ritirarlo darebbe un
-    // errore che fermerebbe la ricerca con "Cannot search".
-    if(_mmTicket) mmManda({ cid:'rm-'+Date.now().toString(36), matchmaker_remove:{ ticket:_mmTicket } });
-    _mmTicket = null;
+    mmManda({ cid:'rm-'+Date.now().toString(36), matchmaker_remove:{ ticket:_mmTicket||'' } });
     mmConsegnaBiglietto(rank, forza, codice);
     console.info('[ricerca] forbice allargata a ' + _mmForbice + ' rank');
     if(_mmForbice >= MM_FORBICE_MAX && !_mmRinuncia){
@@ -17716,20 +17689,6 @@ function mmTrovato(dati){
   if(!_mm2Cercando) return;
   const io = dati.self && dati.self.presence && dati.self.presence.user_id;
   const altro = (dati.users || []).find(u => u.presence && u.presence.user_id !== io);
-  // v0.80.1 — accoppiati con noi stessi (due sessioni dello stesso account):
-  // non e' un avversario, e il server non ha creato nessuna partita. I due
-  // biglietti pero' sono stati consumati, quindi se ne rimette in coda uno
-  // nuovo e si continua a cercare, senza fermare niente e senza avvisi.
-  if(!altro){
-    console.warn('[ricerca] accoppiati con noi stessi (due sessioni in cerca): si continua a cercare.');
-    _mmTicket = null;
-    const b = _mmUltimoBiglietto;
-    setTimeout(()=>{
-      if(!_mm2Cercando || !b) return;
-      mmConsegnaBiglietto(b.rank, b.forza, b.codice);
-    }, 800);
-    return;
-  }
   const codice = altro && altro.string_properties && altro.string_properties.mazzo;
   const nome = (altro && altro.string_properties && altro.string_properties.nome) || 'Opponent';
   // v0.77.53 — chi e', non solo con che mazzo gioca. Il rank viaggia gia' fra
@@ -21151,18 +21110,9 @@ const QUEST_CLASSI = { pack:'quest-busta', ink:'quest-inchiostro' };
 function questCompletata(q){ return !!q && (q.fatto||0) >= (q.quanto||1); }
 
 function mm2DisegnaQuest(elenco){
-  // ── v0.80.1 — L'ELENCO SI TIENE ANCHE QUANDO IL PANNELLO NON C'E' ─────────
-  // Lorenzo: "le daily quest non si aggiornano, ma vedo i popup". Il pannello
-  // sta nel menu, e durante la partita il menu e' staccato dalla pagina (le
-  // pagine sono ermetiche, vedi unmountPage): qui si guardava se il pannello
-  // c'era e, non trovandolo, si usciva PRIMA di tenere l'elenco nuovo. I
-  // popup in partita salivano giusti — li disegna quest-avvisi, che sta fuori
-  // da ogni pagina — e il pannello restava fermo a com'era all'accesso.
-  // Adesso l'elenco si tiene sempre, e si disegna quando il pannello c'e'
-  // (all'ingresso nel menu, vedi PAGE_ENTER_HOOKS.mainmenu).
-  if(elenco !== QUEST_OGGI) QUEST_OGGI = Array.isArray(elenco) ? elenco : [];
   const corpo = document.getElementById('mm2-quest-corpo');
   if(!corpo) return;
+  QUEST_OGGI = Array.isArray(elenco) ? elenco : [];
   corpo.innerHTML = '';
   if(!QUEST_OGGI.length){
     corpo.classList.add('vuoto');
@@ -21320,20 +21270,6 @@ async function questRaccontaFinePartita(pvp){
     if(r && r.quest) mm2DisegnaQuest(r.quest);
     if(r && r.mosse) questMostraMosse(r.mosse);
   }catch(e){ console.warn('[quest] avanzamento non registrato: ' + ((e && e.message) || '')); }
-}
-// v0.80.1 — lo stato delle quest, chiesto e basta: hx_quest senza eventi non
-// conta niente, rifa' la giornata se e' cambiata e restituisce l'elenco.
-// Una chiamata alla volta: il menu si puo' riaprire piu' volte di fila.
-let _questRichiestaInCorso = false;
-async function questChiediAlServer(){
-  if(_questRichiestaInCorso) return;
-  if(typeof sessioneAccount === 'undefined' || !sessioneAccount || !sessioneAccount.token) return;
-  _questRichiestaInCorso = true;
-  try{
-    const r = await nakamaRpc('hx_quest', {});
-    if(r && r.quest) mm2DisegnaQuest(r.quest);
-  }catch(e){ console.warn('[quest] stato non letto: ' + ((e && e.message) || '')); }
-  finally{ _questRichiestaInCorso = false; }
 }
 // I popup in basso a sinistra: una scheda per ogni quest che si e' mossa.
 // Salgono, lampeggiano, restano tre secondi e riscendono. Sfalsate di quattro
@@ -22066,16 +22002,6 @@ var ABILITA_MOTORE = (function () {
   }
 
   // Quel lato non cade, qualunque numero gli si punti contro.
-  // v0.80.1 — un lato e' difeso se lo protegge una regola del foglio
-  // (side_protected) o se la scena sa di una protezione che il motore non vede:
-  // nel gioco lo scudo di Pinocchio e la corona della Principessa di Cristallo
-  // (vedi latoInconquistabile). Il server non passa `latoProtetto` e vede solo
-  // le regole: le carte con quelle protezioni sono gia' fra quelle che l'ombra
-  // non sa rifare.
-  function _latoDifeso(carta, lato, scena) {
-    if (latoProtetto(carta, lato)) return true;
-    return !!(scena && typeof scena.latoProtetto === 'function' && scena.latoProtetto(carta, lato));
-  }
   function latoProtetto(carta, lato, valori) {
     var r = regolaDi(carta, 'side_protected');
     if (!r) return false;
@@ -22243,11 +22169,7 @@ var ABILITA_MOTORE = (function () {
     }
     return out;
   }
-  // v0.80.1 — `escludi(lato)`, se c'e', toglie dal sorteggio i gruppi che hanno
-  // anche un solo lato escluso: e' cosi' che un debuff a caso salta i lati
-  // protetti (vedi _latoDifeso). Il sorteggio si fa fra quelli che restano, e
-  // se non ne resta nessuno non si colpisce niente.
-  function latiColpiti(ambito, valori, carta, seme, escludi) {
+  function latiColpiti(ambito, valori, carta, seme) {
     if (ambito === 'ALL' || !ambito) return SEI_LATI.slice();
     var gruppi = _gruppiDi(valori || {}, carta), i;
     if (!gruppi.length) return [];
@@ -22260,16 +22182,6 @@ var ABILITA_MOTORE = (function () {
       return [];
     }
     if (ambito === 'RAND' || ambito === 'ONE') {
-      if (typeof escludi === 'function') {
-        var liberi = [];
-        for (i = 0; i < gruppi.length; i++) {
-          var buono = true;
-          for (var gl = 0; gl < gruppi[i].length; gl++) if (escludi(gruppi[i][gl])) { buono = false; break; }
-          if (buono) liberi.push(gruppi[i]);
-        }
-        gruppi = liberi;
-        if (!gruppi.length) return [];
-      }
       var chiave = String((carta && (carta.id || carta.name)) || '?') + '|' + String(seme || '');
       return gruppi[_semeDi(chiave) % gruppi.length].slice();
     }
@@ -22670,24 +22582,6 @@ var ABILITA_MOTORE = (function () {
     if (!condizioneVera(cond, fonte, scena)) return;
 
     var tutti = candidati(fonte, eff, scena);
-    // ── v0.80.1 — UN DEBUFF A CASO NON COLPISCE UN LATO PROTETTO ────────────
-    // Lorenzo: "escludi i lati protetti (quelli invincibili con lo scudo) dai
-    // target dell'abilita' di Carabosse". Carabosse toglie 1 a un gruppo a caso
-    // di una carta nemica a caso, e poteva finire sotto lo scudo di Pinocchio o
-    // sulla corona della Principessa di Cristallo — un colpo su un lato che la
-    // carta dichiara intoccabile. Vale per ogni debuff che sceglie il gruppo a
-    // caso: si sorteggia fra i gruppi scoperti, e fra le carte che ne hanno
-    // almeno uno, cosi' il colpo non si spreca su una carta tutta protetta.
-    var difeso = null;
-    if (az === 'debuff' && (eff.ambito === 'RAND' || eff.ambito === 'ONE')) {
-      difeso = function (carta) { return function (lato) { return _latoDifeso(carta, lato, scena); }; };
-      var scoperte = [];
-      for (var sc = 0; sc < tutti.length; sc++) {
-        var cand = tutti[sc];
-        if (latiColpiti(eff.ambito, (cand.valoriBase || cand.values) || {}, cand, '', difeso(cand)).length) scoperte.push(cand);
-      }
-      tutti = scoperte;
-    }
     var lista = scelti(tutti, eff, scena, fonte);
     var q = quantita(fonte, eff, cond, scena);
     // v0.79.99 — questo cambiamento lo decide il caso? Lo si dice a chi lo
@@ -22698,9 +22592,7 @@ var ABILITA_MOTORE = (function () {
     var i, j, bersaglio, lati;
     for (i = 0; i < lista.length; i++) {
       bersaglio = lista[i];
-      lati = latiColpiti(eff.ambito, (bersaglio.valoriBase || bersaglio.values) || {}, bersaglio, _occasione(fonte, scena),
-        difeso ? difeso(bersaglio) : null);
-      if (difeso && !lati.length) continue;
+      lati = latiColpiti(eff.ambito, (bersaglio.valoriBase || bersaglio.values) || {}, bersaglio, _occasione(fonte, scena));
       if (az === 'set') {
         // "diventa un valore fra 1 e 3": il numero si tira QUI e vale per
         // tutti i lati colpiti, cosi' la carta non esce a scacchiera.
@@ -36030,8 +35922,6 @@ function initGame(vsAI){
   document.querySelectorAll('.hp-dmg-popup').forEach(el=>el.remove());
   _hpCountdownState[1]=null;
   _hpCountdownState[2]=null;
-  // v0.80.1 — e i contatori del punteggio in fila della partita di prima.
-  try{ _codaPunteggio[1].length = 0; _codaPunteggio[2].length = 0; }catch(_){ }
   _hpQueue[1].length=0;
   _hpQueue[2].length=0;
   _hpProcessing[1]=false;
@@ -36185,10 +36075,6 @@ function initGame(vsAI){
     p1Deck:d1,p2Deck:d2,
     currentPlayer:(PARTITA_RETE ? PARTITA_RETE.turno : 1),selected:null,gameOver:false,scores:{1:0,2:0},
     hp:{1:HP_START,2:HP_START},
-    // v0.80.1 — i punti VERI, scritti nell'istante in cui vengono assegnati.
-    // G.hp e' quello che il contatore ha gia' incassato (vedi salePunteggio):
-    // chi decide chi ha vinto legge questo, non l'animazione.
-    puntiFatti:{1:HP_START,2:HP_START},
     dragging:null,dragOver:null,
     magicTiles:{}, // v0.74.6 — resta SEMPRE vuota: le caselle magiche non si generano piu' (vedi il punto in cui venivano accese, piu' sotto). Il tabellone ha solo caselle libere e bloccate.
     // no firstTurn flag needed; initial deal handled by drawInitialHands()
@@ -37730,9 +37616,6 @@ function _scenaTabellone(){
     // Che turno e', per le abilita' che valgono solo da un certo punto in poi
     // (Strigoi dal quarto). Il motore, se non lo sa, tiene la finestra CHIUSA.
     turno: (G && G.numeroTurno) || 0,
-    // v0.80.1 — quali lati sono intoccabili, per chi sceglie un lato da colpire
-    // (un debuff a caso non finisce sotto uno scudo, vedi _latoDifeso).
-    latoProtetto: (carta, lato) => { try{ return latoInconquistabile(carta, lato); }catch(_){ return false; } },
     seme: (typeof PARTITA_RETE !== 'undefined' && PARTITA_RETE)
       ? PARTITA_RETE.matchId : (G._semeSinergie || '')
   };
@@ -47357,9 +47240,7 @@ function finishGameWithResult(){
   fermaIlConto(); timerInterval = null;
   try{ stopTictoc(); }catch(_){ }
   try{ stopScreenEdgeFlash(); }catch(_){ }
-  // v0.80.1 — i punti veri, non quelli che il contatore ha gia' incassato: il
-  // vincitore, il titolo, i numeri della schermata e la musica escono da qui.
-  const{1:hp1,2:hp2}=(G.puntiFatti || G.hp);
+  const{1:hp1,2:hp2}=G.hp;
   // ── v0.78.12 — IL NOME VERO, NON "PLAYER 1" ─────────────────────────────
   // Qui c'erano due etichette scritte a mano, e vincevano sempre loro: sullo
   // schermo di fine partita si leggeva "Player 1 wins!" anche quando il
@@ -47886,19 +47767,15 @@ function scorriBollaPunti(player, bersaglio, poi){
       b.valore = v; b.mostrato = v; b.num.textContent = conSegno(v);
       suonoDelPunto();
     };
-    // v0.80.1 — si conta DA DOVE la bolla e' arrivata, non da zero: due colpi
-    // ravvicinati finiscono nella stessa bolla, e il secondo ripartiva da 0
-    // cancellando a schermo il primo.
-    const base = b.valore || 0;
     if(Math.abs(bersaglio) <= 1){
-      scrivi(base + bersaglio);
+      scrivi(bersaglio);
       setTimeout(()=>poi && poi(), BOLLA_CIFRA_MS*2);
       return;
     }
     let n = 0;
     const passo = ()=>{
       n += dir;
-      scrivi(base + n);
+      scrivi(n);
       if(Math.abs(n) < Math.abs(bersaglio)) setTimeout(passo, BOLLA_CIFRA_MS);
       else setTimeout(()=>poi && poi(), BOLLA_CIFRA_MS*2);
     };
@@ -47923,14 +47800,7 @@ function lampeggiaPunteggio(player){
 function chiudiBollaPunti(player, punti, poi){
   const b = _bolle[player];
   const fine = ()=>{ if(typeof poi==='function') poi(); };
-  // ── v0.80.1 — UNA BOLLA GIA' CHIUSA NON SI MANGIA I PUNTI ────────────────
-  // Due colpi ravvicinati aprivano UNA bolla sola e la chiudevano due volte:
-  // la prima chiusura la portava via coi suoi punti, la seconda la trovava
-  // sparita e usciva senza incassare niente. Due colpi da 3 e 4 a 300ms
-  // l'uno dall'altro davano 3 punti invece di 7 — e i punti decidono chi
-  // vince, quindi anche la musica di fine partita. I punti adesso si
-  // incassano comunque; la bolla e' solo il loro disegno.
-  if(!b){ salePunteggio(player, punti, fine); return; }
+  if(!b){ fine(); return; }
   _bolle[player] = null;
   b.el.classList.add('viaggia');                                  // 4. viaggia
   setTimeout(()=>{
@@ -47949,30 +47819,7 @@ function chiudiBollaPunti(player, punti, poi){
 // v0.77.3 — il contatore si muove nella direzione giusta, e non scende sotto
 // zero: un punteggio negativo non vuol dire niente in questo gioco, e un
 // numero che si puo' leggere ma non ottenere e' solo confusione.
-// v0.80.1 — IN FILA. Due contatori dello stesso giocatore insieme partivano
-// ognuno dal suo "da" e scrivevano ognuno i suoi numeri sul ritratto: vinceva
-// a schermo chi finiva per ultimo, non il totale. Adesso ne gira uno per volta.
-const _codaPunteggio = {1:[], 2:[]};
 function salePunteggio(player, punti, poi){
-  const coda = _codaPunteggio[player] || (_codaPunteggio[player] = []);
-  const generazione = (typeof gameGeneration !== 'undefined') ? gameGeneration : 0;
-  coda.push({ punti, poi, generazione });
-  if(coda.length === 1) _saleProssimo(player);
-}
-function _saleProssimo(player){
-  const coda = _codaPunteggio[player];
-  const voce = coda && coda[0];
-  if(!voce) return;
-  const avanti = ()=>{
-    if(coda[0] === voce) coda.shift();
-    try{ if(typeof voce.poi === 'function') voce.poi(); }
-    finally{ _saleProssimo(player); }
-  };
-  // Un contatore rimasto da una partita finita non tocca quella nuova.
-  if(typeof gameGeneration !== 'undefined' && voce.generazione !== gameGeneration){ avanti(); return; }
-  _saleUno(player, voce.punti, avanti);
-}
-function _saleUno(player, punti, poi){
   const da = (G && G.hp && typeof G.hp[player]==='number') ? G.hp[player] : 0;
   const a = Math.max(0, da + (punti||0));
   if(G && G.hp) G.hp[player] = a;
@@ -47989,18 +47836,11 @@ function _saleUno(player, punti, poi){
 }
 // La porta unica. `sourceKey` non serve piu' a nessuno ma resta accettato: i
 // due punti di conquista lo passano ancora.
-// v0.80.1 — i punti veri, subito (vedi G.puntiFatti).
-function _segnaPuntiFatti(player, punti){
-  if(!G || !punti) return;
-  if(!G.puntiFatti) G.puntiFatti = {1: (G.hp && G.hp[1]) || 0, 2: (G.hp && G.hp[2]) || 0};
-  G.puntiFatti[player] = Math.max(0, (G.puntiFatti[player] || 0) + punti);
-}
 function assegnaPunti(player, punti, sourceKey){
   // v0.77.3 — passa anche un numero negativo: zero no, perche' una bolla che
   // annuncia "niente" e' una pausa in mezzo al turno senza niente da dire.
   if(!punti) return;
   void sourceKey;
-  _segnaPuntiFatti(player, punti);   // v0.80.1 — subito, non a conto finito
   apriBollaPunti(player);
   scorriBollaPunti(player, punti, ()=>chiudiBollaPunti(player, punti));
 }
@@ -48036,7 +47876,6 @@ function ondataDanno(owner, cellKeys, onDone){
   // ci sta sopra (vedi puntiDiCarta). Prima era la sola chiave e il punto era
   // sempre uno.
   const totale = cellKeys.reduce((n,c)=>n + (c.punti|0), 0);
-  _segnaPuntiFatti(owner, totale);   // v0.80.1 — subito, non a conto finito
   cellKeys.forEach((cella,i)=>{
     const k = cella.k;
     setTimeout(()=>{
@@ -50124,9 +49963,6 @@ let handExpandState={1:false,2:false};
 // that player's turn.
 function isHandExpandEligible(player){
   if(G.gameOver) return false;
-  // v0.80.1 — in rete la mano che si puo' aprire e' una sola: la MIA. Quella
-  // dell'avversario sono segnaposto coperti, e non c'e' niente da mostrare.
-  if(typeof PARTITA_RETE !== 'undefined' && PARTITA_RETE) return player === PARTITA_RETE.io;
   return G.vsAI ? player===1 : true;
 }
 
@@ -50146,16 +49982,7 @@ function updateHandExpandHints(){
     // extra check is a no-op (isHandExpandEligible already restricts to
     // player 1 only, and it's always P1's screen), so vsAI behavior is
     // unchanged.
-    // ── v0.80.1 — IN RETE L'HINT E' SEMPRE IL MIO, E STA A SINISTRA ────────
-    // Lorenzo: "salta da giocatore a giocatore in base a di chi e' il turno".
-    // La partita in rete non e' vsAI, quindi si passava dal ramo del gioco a
-    // turni sullo stesso schermo: a turno dell'avversario si accendeva il SUO
-    // hint, che sta dalla sua parte (a destra). In rete la mano apribile e'
-    // solo la mia (vedi isHandExpandEligible), e io sto sempre a sinistra
-    // (body.io-sono-2): l'hint resta acceso dalla mia parte per tutta la
-    // partita, come contro l'IA.
-    const inRete = (typeof PARTITA_RETE !== 'undefined' && !!PARTITA_RETE);
-    const isTurnGated = (G.vsAI || inRete) ? true : G.currentPlayer===player;
+    const isTurnGated = G.vsAI ? true : G.currentPlayer===player;
     const eligible=isHandExpandEligible(player) && !handExpandState[player] && isTurnGated;
     hint.classList.toggle('show', eligible);
   });

@@ -137,5 +137,39 @@ const fermo = carta('final-fermo-1-r1', 1, riga({ azione: 'buff', chi: 'self', c
 const c8 = M.cambiamentiAllEvento(fermo, 'on_play', scena(fermo, '0,0', 3, 'm'));
 dice(c8.length === 1 && !c8[0].aCaso && !c8[0].fraChi, 'un +2 ALL non e- a caso');
 
+// ── 7. v0.80.1 — Carabosse non colpisce un lato protetto ─────────────────
+console.log('── 7. un debuff a caso salta i lati protetti ──');
+const CARABOSSE = riga({ azione: 'debuff', chi: 'opponent', dove: 'board', cosa: 'power', quale: 'random', ambito: 'RAND', quanto: { numero: 1 } }, { trigger: 'end_of_turn' });
+const strega = carta('final-carabosse-1-r1', 1, CARABOSSE);
+const mezzaProtetta = carta('final-pinocchio-2-r1', 2);
+const tuttaProtetta = carta('final-crystal-2-r2', 2);
+// Come nel gioco: la scena sa quali lati sono sotto uno scudo.
+const scudi = { 'final-pinocchio-2-r1': ['NE', 'E', 'SE'], 'final-crystal-2-r2': ['NE', 'E', 'SE', 'SW', 'W', 'NW'] };
+const scenaScudi = (t, bersagli) => ({ inCampo: [strega].concat(bersagli), inMano: [], cellaDi: c => (c === strega ? '0,0' : c.id),
+  vicini: () => [], latiLiberi: () => 0, turno: t, seme: 'partita-scudi',
+  latoProtetto: (c, lato) => (scudi[c.id] || []).indexOf(lato) >= 0 });
+let sottoScudo = 0, colpiti = 0;
+for (let t = 1; t <= 40; t++) {
+  const c = M.cambiamentiAllEvento(strega, 'end_of_turn', scenaScudi(t, [mezzaProtetta]));
+  for (const x of c) { colpiti++; if (x.lati.some(l => scudi[x.carta.id].indexOf(l) >= 0)) sottoScudo++; }
+}
+dice(colpiti === 40 && sottoScudo === 0, 'su una carta mezza protetta colpisce sempre il gruppo scoperto', colpiti + ' colpi, ' + sottoScudo + ' sotto lo scudo');
+let suQuellaProtetta = 0;
+for (let t = 1; t <= 40; t++) {
+  const c = M.cambiamentiAllEvento(strega, 'end_of_turn', scenaScudi(t, [mezzaProtetta, tuttaProtetta]));
+  if (c.some(x => x.carta === tuttaProtetta)) suQuellaProtetta++;
+}
+dice(suQuellaProtetta === 0, 'una carta tutta protetta non viene nemmeno estratta', suQuellaProtetta);
+const c9 = M.cambiamentiAllEvento(strega, 'end_of_turn', scenaScudi(1, [tuttaProtetta]));
+dice(c9.length === 0, 'se sono tutte protette, nessun colpo');
+// Senza scudi in scena, colpisce come prima (tutti e due i gruppi escono).
+const gruppiVisti = new Set();
+for (let t = 1; t <= 30; t++) {
+  const c = M.cambiamentiAllEvento(strega, 'end_of_turn', { inCampo: [strega, mezzaProtetta], inMano: [], cellaDi: () => '0,0',
+    vicini: () => [], latiLiberi: () => 0, turno: t, seme: 'partita-scudi' });
+  if (c[0]) gruppiVisti.add(primoGruppo(c[0].lati));
+}
+dice(gruppiVisti.size === 2, 'senza scudi i gruppi escono tutti e due, come prima');
+
 console.log('\n' + (ko ? 'FALLITO: ' + ko : 'OK: il caso cambia a ogni occasione, e di qua e di la- e- lo stesso'));
 process.exit(ko ? 1 : 0);
