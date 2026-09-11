@@ -83,7 +83,7 @@ app.whenReady().then(async () => {
       // dentro quella scala (549 invece di 550). offsetWidth e- la misura nel
       // disegno, che e- quella di cui si sta parlando.
       const larghe = col.map(c=>c.offsetWidth);
-      dice(larghe.length === 3 && larghe.every(l => l === 550), 'larghe 550 l-una, tutte e tre',
+      dice(larghe.length === 3 && larghe.every(l => l === 400), 'larghe 400 l-una, tutte e tre (erano 550 fino alla v0.79.88)',
         larghe.join(' e ') + '  (riquadro ' + document.getElementById('disclaimer-box').offsetWidth + ')');
 
       // Formattate come quelle della lettera: stesso fondo, stesso bordo,
