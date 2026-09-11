@@ -1792,3 +1792,41 @@ tesoro della fila) lampeggia e pulsa una volta (`pkComprato`: brightness 1,9 e
 scale 1,06 al 22%, bordo d'oro, .55s). Il banco compra con una risposta finta del
 server e controlla che si accenda il tesoro nuovo e non l'altro, e legge i
 fotogrammi-chiave.
+
+## foto-titoli.js — la barra del titolo di ogni finestra, fotografata e misurata
+
+    $ELECTRON strumenti/foto-titoli.js <cartella>
+
+v0.79.96 — le finestre hanno lo stendardo nuovo (`.hx-titolo`: title-bar.png, o
+title-bar-warning.png, alto 90 e largo 297, appeso al bordo superiore del
+riquadro e centrato). Lo strumento apre ognuna delle 24 finestre con la sua
+funzione vera, la fotografa ritagliata sul riquadro e scrive per ognuna la
+distanza dello stendardo dal bordo interno (0,3 e' l'arrotondamento del bordo da
+1,5), lo scarto dal centro, e se il titolo ci sta (testo piu' largo di 277px:
+"NON CI STA"). In fondo misura anche i titoli che il codice scrive da se' — gli
+avvisi, "Change player name", "New deck!" — dentro alla barra dell'avviso.
+
+Due trappole pagate scrivendolo: i moduli d'accesso stanno in `#start-accesso`,
+che e' `.start-fade` e si vede solo con `.show`; e "Update available" non va
+aperta con la sua funzione, che fa partire un conto alla rovescia che ricarica la
+pagina.
+
+**v0.79.96 — i banchi sulla barra nuova.** prova-customize (lo stendardo alto 90),
+prova-disclaimer ("Disclaimer", 36px), prova-dissolvenze (lo stendardo di Pick a
+letter dentro al riquadro, 297x90, centrato e appeso), prova-report e
+prova-ricordami (la fila del pannello di login comincia col titolo).
+
+**prova-lettera.js non arrivava piu' alla fine dalla v0.79.82**, e non per la
+lettera. Tre cose: chiediStarterSeServe aspetta che si chiuda il tutorial
+d'apertura, e il banco non diceva che era gia' visto (restava fermo per sempre);
+le misure della galleria erano a schermo, e la finestra del banco non e' sempre
+larga 1920 (fuori dallo schermo viene 1280, e una colonna da 330 misurava 220);
+e Chromium ricorda lo zoom di ogni pagina nel profilo di Electron, e su questo
+computer play/index.html se n'era tenuto uno a 1,5 — il puntatore finto dell'hover
+cadeva una volta e mezza piu' in la'. Adesso il banco segna il tutorial visto,
+riporta le misure al disegno 1920x1080 e mette lo zoom a 1.
+
+NOTA: in prova-ricordami resta un controllo storto da prima di oggi ("la stessa
+regola vale per le altre caselle"): cerca una casella nelle impostazioni, e dalla
+v0.79.76 quella casella sta in un gruppo che si vede solo in partita, quindi
+misura zero.

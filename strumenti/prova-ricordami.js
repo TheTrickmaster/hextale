@@ -56,6 +56,8 @@ const CORPO = `(async function(){
       if(el.id) return '#' + el.id;
       if(el.classList.contains('hx-riga-oppure')) return 'or';
       if(el.classList.contains('hx-riga-corta')) return 'tratto';
+      // v0.79.96 — lo stendardo del titolo sta dentro al pannello, in cima.
+      if(el.classList.contains('hx-titolo-riga')) return 'titolo';
       if(el.classList.contains('hx-riga-scelte')) return 'scelte';
       if(el.classList.contains('hx-campo-pwd')) return 'password';
       if(el.classList.contains('hx-link')) return 'forgot';
@@ -67,7 +69,7 @@ const CORPO = `(async function(){
       return [].slice.call(dentro.children).map(sigla).join(' | ');
     };
     var pannello = document.querySelector('#modulo-login .hx-pannello');
-    var atteso = ['#login-user', 'password', 'scelte', '#login-messaggio',
+    var atteso = ['titolo', '#login-user', 'password', 'scelte', '#login-messaggio',
                   'btn:Login', 'or', '#login-google-btn',
                   '#accesso-offline'].join(' | ');
     dice(pannello && fila(pannello) === atteso, 'il pannello e- nell-ordine chiesto',

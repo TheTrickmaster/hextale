@@ -66,10 +66,11 @@ app.whenReady().then(async () => {
         '        gia- aperto invece dell-ultimo passo dell-ingresso.');
 
       // ── 2. COM-E- FATTO ───────────────────────────────────────────────────
-      const tit = document.querySelector('#disclaimer-titlebar h2');
+      // v0.79.96 — lo stendardo nuovo, e il titolo accorciato da Lorenzo.
+      const tit = document.querySelector('#disclaimer-barra h2');
       const ts = getComputedStyle(tit);
-      dice(tit.textContent === 'Prototype disclaimer', 'il titolo dice "Prototype disclaimer"', tit.textContent);
-      dice(/Marcellus/.test(ts.fontFamily) && ts.fontSize === '30px' && ts.color === 'rgb(237, 224, 198)',
+      dice(tit.textContent === 'Disclaimer', 'il titolo dice "Disclaimer"', tit.textContent);
+      dice(/Marcellus/.test(ts.fontFamily) && ts.fontSize === '36px' && ts.color === 'rgb(237, 224, 198)',
         'ed e- vestito come quello di ogni altra finestra',
         ts.fontFamily + '  ' + ts.fontSize + '  ' + ts.color);
 

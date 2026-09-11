@@ -94,10 +94,10 @@ app.whenReady().then(async () => {
       await attendi(300);
       const ov = document.getElementById('report-overlay');
       dice(ov.classList.contains('show'), 'premendolo si apre la finestra');
-      const tit = document.querySelector('#report-titlebar h2');
+      const tit = document.querySelector('#report-barra h2');
       const ts = getComputedStyle(tit);
       dice(tit.textContent === 'Report player', 'che si chiama "Report player"', tit.textContent);
-      dice(/Marcellus/.test(ts.fontFamily) && ts.fontSize === '30px',
+      dice(/Marcellus/.test(ts.fontFamily) && ts.fontSize === '36px',
         'ed e- vestita come ogni altra finestra', ts.fontFamily + ' ' + ts.fontSize);
       dice(document.getElementById('report-chi').textContent === 'Mallory',
         'e dice contro chi si sta per andare', document.getElementById('report-chi').textContent);

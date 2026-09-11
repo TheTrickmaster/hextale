@@ -25,6 +25,13 @@ app.whenReady().then(async () => {
     // per un motivo che non ha niente a che fare con la regola che prova.
     webPreferences: { contextIsolation: false, webSecurity: false, backgroundThrottling: false } });
   await win.loadURL(PAGINA);
+  // v0.79.96 — lo zoom a 1, sempre. Chromium ricorda lo zoom di ogni pagina nel
+  // profilo di Electron, e su questo computer play/index.html se n'era tenuto
+  // uno a 1,5: la finestra da 1920 diventava larga 1280 in pixel CSS e il
+  // puntatore finto di sendInputEvent cadeva una volta e mezza piu' in la',
+  // fuori dalla colonna. La prova dell'hover falliva per un motivo che non
+  // aveva niente a che fare con la lettera.
+  win.webContents.setZoomFactor(1);
   await new Promise(r => setTimeout(r, 2500));
 
   const dette = await win.webContents.executeJavaScript(`(async function(){ try{
@@ -48,6 +55,11 @@ app.whenReady().then(async () => {
     window.mazzoPerId = (id)=> ({ id:id, nome:'Starter Wild', carte:new Array(20).fill('final-robin-hood') });
 
     // ── 1. si apre, e cosa c'e' dentro ─────────────────────────────────────
+    // v0.79.96 — il tutorial d'apertura viene PRIMA della lettera, e
+    // chiediStarterSeServe aspetta che lo si chiuda (v0.79.82). Senza dirgli
+    // che e' gia' stato visto il banco restava fermo li' per sempre, e dalla
+    // v0.79.82 non arrivava piu' alla fine.
+    TUTORIAL_VISTI = { principale:1, pacchetti:1, libreria:1 };
     await chiediStarterSeServe();
     const ov = document.getElementById('starter-overlay');
     dice(!!ov && ov.classList.contains('show'), 'la finestra si apre quando il mazzo non e- ancora scelto');
@@ -77,8 +89,8 @@ app.whenReady().then(async () => {
     dice(testi[0].indexOf('Hey!') === 0 && testi[1].indexOf('My dearest,') === 0
       && testi[2].indexOf('To thee who hast found this letter,') === 0,
       'e ognuna dice la sua');
-    const tit = getComputedStyle(document.querySelector('#starter-titlebar h2'));
-    dice(/Marcellus/.test(tit.fontFamily) && tit.fontSize === '30px'
+    const tit = getComputedStyle(document.querySelector('#starter-barra h2'));
+    dice(/Marcellus/.test(tit.fontFamily) && tit.fontSize === '36px'
       && tit.textAlign === 'center' && tit.color === 'rgb(237, 224, 198)',
       'il titolo e- come quello di ogni altra finestra',
       tit.fontFamily + '  ' + tit.fontSize + '  ' + tit.textAlign + '  ' + tit.color);
@@ -110,14 +122,17 @@ app.whenReady().then(async () => {
   // anche a finestra nascosta, e dopo si misura la carta com'e' sullo schermo.
   const misura = (sel) => win.webContents.executeJavaScript(
     'getComputedStyle(document.querySelector("' + sel + '")).transform');
-  const dovE = await win.webContents.executeJavaScript(
-    '(function(){ var r=document.querySelector(".starter-col").getBoundingClientRect();' +
-    ' return [Math.round(r.left+r.width/2), Math.round(r.top+r.height-40)]; })()');
   // La finestra va MOSTRATA, anche se fuori dallo schermo: su una finestra
   // nascosta Chromium non accende :hover, e il puntatore finto passerebbe
   // sopra a una colonna che non se ne accorge.
   win.setPosition(-3200, 0); win.showInactive();
   await new Promise(r => setTimeout(r, 600));
+  // v0.79.96 — il punto si calcola DOPO aver mostrato la finestra: mostrandola,
+  // Windows puo' ridimensionarla, la scena si riscala e la colonna si sposta.
+  // Calcolato prima, il puntatore finiva dove la colonna non c'era piu'.
+  const dovE = await win.webContents.executeJavaScript(
+    '(function(){ var r=document.querySelector(".starter-col").getBoundingClientRect();' +
+    ' return [Math.round(r.left+r.width/2), Math.round(r.top+r.height-40)]; })()');
   const fermo = await misura('.starter-col .starter-lettera');
   // In fondo alla colonna, lontano dall'immagine: e' li' che si vede se
   // l'aggancio e' la COLONNA e non solo la lettera.
@@ -163,6 +178,13 @@ app.whenReady().then(async () => {
     const scelta = col[0];
     await scegliStarter(scelta.querySelector('.starter-pick'));
     await attendi(200);
+    // v0.79.96 — le misure a schermo si riportano al disegno 1920x1080. Il gioco
+    // scala la scena alla finestra (fitGameRoot), e la finestra del banco non e-
+    // sempre larga 1920: su questo computer, fuori dallo schermo, viene 1280x720, e
+    // una colonna da 330 misura 220. Prima il banco passava o no a seconda di come
+    // Windows dimensionava la finestra.
+    const k = (typeof _fit === 'object' && _fit.scale) ? _fit.scale : 1;
+    const R = el => { const r = el.getBoundingClientRect(); return { left:r.left/k, right:r.right/k, top:r.top/k, bottom:r.bottom/k, width:r.width/k, height:r.height/k }; };
 
     dice(scelta.classList.contains('starter-presa'), 'quella scelta si accende');
     // v0.79.60 — il riquadro e il titolo RESTANO: fino alla v0.79.59 se ne
@@ -172,8 +194,8 @@ app.whenReady().then(async () => {
     dice(ps.backgroundImage !== 'none' && parseFloat(ps.paddingLeft) === 30,
       'il riquadro che le conteneva resta, col suo fondo e i suoi trenta di bordo',
       'fondo "' + ps.backgroundImage.slice(0, 40) + '", bordo ' + ps.paddingLeft);
-    const h2 = document.querySelector('#starter-titlebar h2');
-    dice(getComputedStyle(document.getElementById('starter-titlebar')).opacity === '1'
+    const h2 = document.querySelector('#starter-barra h2');
+    dice(getComputedStyle(document.getElementById('starter-barra')).opacity === '1'
       && h2.textContent === 'New deck!',
       'e il titolo resta e dice "New deck!"', h2.textContent);
     dice(scelta.classList.contains('starter-lampo'), 'la colonna lampeggia');
@@ -191,8 +213,8 @@ app.whenReady().then(async () => {
       'larghezze: ' + col.map(c=>c.offsetWidth).join(' / ') + '  —  ' +
       'Se restassero larghe, quella scelta non arriverebbe al centro:\\n' +
       '        il centro non e- calcolato, e- dove finiscono le altre.');
-    const riga = document.getElementById('starter-colonne').getBoundingClientRect();
-    const mia = scelta.getBoundingClientRect();
+    const riga = R(document.getElementById('starter-colonne'));
+    const mia = R(scelta);
     // v0.79.60 — non piu' al centro: a SINISTRA, e a destra la galleria.
     dice(Math.abs(mia.left - riga.left) < 2, 'e quella rimasta scivola a sinistra',
       'scarto di ' + Math.abs(mia.left - riga.left).toFixed(1) + 'px dal bordo della riga');
@@ -202,7 +224,7 @@ app.whenReady().then(async () => {
     const ov = document.getElementById('starter-overlay');
     dice(ov.classList.contains('starter-carte'), 'e a destra si apre la galleria');
     const gal = document.getElementById('starter-galleria');
-    const rg = gal.getBoundingClientRect();
+    const rg = R(gal);
     dice(Math.round(rg.width) === 960, 'larga 960: tre carte da 300 e due gap da 30', 'larga ' + Math.round(rg.width));
     dice(Math.abs(rg.left - mia.right - 30) < 2, 'a trenta pixel dalla colonna', 'distanza ' + (rg.left - mia.right).toFixed(1));
     dice(Math.abs(rg.top - mia.top) < 2, 'allineata in alto con la colonna', 'scarto ' + (rg.top - mia.top).toFixed(1));
@@ -212,7 +234,7 @@ app.whenReady().then(async () => {
     const carte = [...gal.querySelectorAll('.starter-carta')];
     dice(carte.length === 20, 'dentro ci sono le carte del mazzo, tutte', 'ne ho contate ' + carte.length + ' su 20 finte');
     dice(carte.every(c=>c.querySelector('svg')), 'e ognuna e- una carta disegnata intera');
-    const rc = carte.slice(0, 4).map(c=>c.getBoundingClientRect());
+    const rc = carte.slice(0, 4).map(R);
     dice(rc.length === 4 && Math.round(rc[0].width) === 300 && Math.round(rc[0].height) === Math.round(300*360/210),
       'larghe 300 e con le proporzioni della carta', rc.length ? Math.round(rc[0].width) + 'x' + Math.round(rc[0].height) : '-');
     dice(rc.length === 4 && rc[0].top === rc[1].top && rc[1].top === rc[2].top && rc[3].top > rc[0].bottom,
@@ -227,7 +249,7 @@ app.whenReady().then(async () => {
     gal.scrollTop = 10000;
     dice(Math.abs(gal.scrollTop - (gal.scrollHeight - gal.clientHeight)) < 1 && gal.scrollTop > 0,
       'e arriva in fondo', 'scrollTop ' + gal.scrollTop);
-    const ultima = carte[carte.length-1].getBoundingClientRect();
+    const ultima = R(carte[carte.length-1]);
     dice(Math.abs(rg.bottom - ultima.bottom - 30) < 2,
       'in fondo l-ultima riga si ferma trenta pixel prima del bordo, come la colonna',
       'scarto ' + (rg.bottom - ultima.bottom).toFixed(1));

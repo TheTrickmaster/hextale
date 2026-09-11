@@ -311,9 +311,10 @@ app.whenReady().then(async () => {
         // "comprimibile". Scendeva a 36 dei suoi 68: il titolo restava, la
         // cornice si appiattiva. Si misura in pixel CSS perche- la scena e-
         // scalata (vedi la nota sugli avatar qui sopra).
-        const barra = scatola.querySelector('.hx-titlebar');
+        // v0.79.96 — la barra e- lo stendardo nuovo, alto 90, dentro al riquadro.
+        const barra = scatola.querySelector('.hx-titolo');
         const alta = barra ? Math.round(parseFloat(getComputedStyle(barra).height)) : 0;
-        dice(alta === 68, 'e la barra del titolo resta alta 68',
+        dice(alta === 90, 'e la barra del titolo resta alta 90',
           alta + 'px, con la finestra gia- al suo tetto — che e- proprio il\\n' +
           '        momento in cui la colonna cerca qualcosa da accorciare.');
         chiudiSceltaAvatar();

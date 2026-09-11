@@ -106,31 +106,25 @@ app.whenReady().then(async () => {
       sbagliate.slice(0,6).join('\\n        '));
 
     // ── LA BARRA DI "PICK A LETTER" ────────────────────────────────────────
-    const barra = document.getElementById('starter-titlebar');
+    // v0.79.96 — e' lo stendardo nuovo: dentro al riquadro, 297x90, appeso al
+    // bordo di sopra e centrato su di lui (prima era una barra da 600 sopra alle
+    // tre colonne).
+    const barra = document.getElementById('starter-barra');
     dice(!!barra, 'c-e- la barra del titolo di Pick a letter');
     if(barra){
       const ov = document.getElementById('starter-overlay');
       ov.classList.add('show');
-      dice(Math.round(barra.offsetWidth) === 600, 'larga 600',
-        'ne misura ' + Math.round(barra.offsetWidth) + ' — prima era larga quanto le tre colonne');
-      // E ALTA quanto una barra del titolo. Sembra una domanda oziosa e non lo
-      // e': il riquadro e' una colonna, e in una colonna "flex-basis" e'
-      // l'altezza — scrivendo la larghezza li' dentro la barra viene larga
-      // giusta e ALTA seicento, e un controllo che guarda solo la larghezza
-      // dice di si' mentre le tre lettere sono finite fuori dallo schermo.
-      // E' successo scrivendo questa riga.
-      dice(Math.round(barra.offsetHeight) === 68, 'e alta 68, come ogni altra barra',
-        'ne misura ' + Math.round(barra.offsetHeight));
-      const centro = barra.querySelector('.hx-titlebar-center');
-      dice(getComputedStyle(centro).justifyContent === 'center', 'e il titolo sta in mezzo',
-        getComputedStyle(centro).justifyContent);
-      // In mezzo alle colonne, non appoggiata a un bordo.
-      const colonne = document.getElementById('starter-colonne');
-      if(colonne && colonne.offsetWidth){
-        const rb = barra.getBoundingClientRect(), rc = colonne.getBoundingClientRect();
-        dice(Math.abs((rb.left+rb.right)/2 - (rc.left+rc.right)/2) <= 1,
-          'e centrata sulle tre colonne',
-          'fuori asse di ' + Math.abs((rb.left+rb.right)/2 - (rc.left+rc.right)/2).toFixed(1));
+      const pan = document.getElementById('starter-pannello');
+      dice(pan && pan.contains(barra) && barra.classList.contains('hx-titolo'), 'ed e- lo stendardo, dentro al riquadro');
+      dice(Math.round(barra.offsetWidth) === 297 && Math.round(barra.offsetHeight) === 90, 'largo 297 e alto 90',
+        Math.round(barra.offsetWidth) + 'x' + Math.round(barra.offsetHeight));
+      if(pan && pan.offsetWidth){
+        const rb = barra.getBoundingClientRect(), rp = pan.getBoundingClientRect();
+        const k = rp.width / pan.offsetWidth;
+        dice(Math.abs((rb.left+rb.right)/2 - (rp.left+rp.right)/2) <= 1, 'centrato sul riquadro',
+          'fuori asse di ' + Math.abs((rb.left+rb.right)/2 - (rp.left+rp.right)/2).toFixed(1));
+        dice(Math.abs((rb.top - rp.top) / k - pan.clientTop) <= 1, 'e appeso al suo bordo di sopra',
+          ((rb.top - rp.top) / k - pan.clientTop).toFixed(1) + 'px dal bordo');
       }
       ov.classList.remove('show');
     }
