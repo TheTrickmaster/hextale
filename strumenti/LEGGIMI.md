@@ -2000,3 +2000,22 @@ Due segnalazioni di Lorenzo (v0.80.3).
 Carabosse che colpiva sempre lo stesso avversario: con due nemici l'hash della
 v0.79.x estraeva sempre il primo (30 su 30); era gia' corretto dalla v0.80.0.
 server/nakama/prova-caso.js lo prova adesso con due nemici.
+
+## prova-badr-scambio.js — Badr al-Budur scambia con un nemico accanto, poi attacca
+
+    desktop/node_modules/electron/dist/electron.exe strumenti/prova-badr-scambio.js
+
+Segnalazione di Lorenzo (v0.80.4): l'abilita' non funzionava. La riga del foglio
+("on play, once per game, swap chosen opponent adjacent card single") non aveva
+nessuno che la costruisse: sceltaDalFoglio conosceva lo scambio di posizione fra
+due carte (il Pifferaio) e quello dei valori, non lo scambio della carta giocata.
+La finestra non si apriva, la console diceva "[scelta non aperta]" e la carta
+attaccava da dove era caduta; nessun NO_SCRIPT, perche' la riga c'era.
+
+Adesso _sceltaScambiaCarta apre la finestra sui nemici accanto (candidatiDalFoglio:
+mai un intoccabile), scambiaCarteConScivolata scambia le due carte facendole
+scivolare con lo strascico di Rapunzel (diventato un elenco, _scivolate, perche'
+le carte in movimento sono due) e ferma la caduta di chi era appena stato giocato,
+e resolveConquestAndEndTurn fa partire lo scontro dalla casella in cui la carta
+sta davvero. L'IA prova lo scambio sul tabellone e lo fa solo se rende di piu'.
+Il banco prova finestra, scambio, scontro dalla casella nuova, rinuncia e IA.

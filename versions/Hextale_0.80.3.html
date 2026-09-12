@@ -13038,7 +13038,7 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.4</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.3</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <!-- v0.79.75 — dove salgono gli avvisi delle quest. Vuoto quasi sempre, e
@@ -42211,7 +42211,6 @@ function sceltaDalFoglio(card, q, r, giocatore){
   for(const eff of [a.effetto, a.effetto2]){
     if(!eff || !eff.scelta) continue;
     if(eff.azione === 'swap' && eff.cosa === 'position') return _sceltaScambioPosizioni(card, q, r, giocatore, a, eff);
-    if(eff.azione === 'swap' && eff.cosa === 'card')     return _sceltaScambiaCarta(card, q, r, giocatore, a, eff);
     if(eff.azione === 'copy' && eff.cosa === 'trait')     return _sceltaCopiaTratti(card, q, r, giocatore, a, eff);
     if(eff.azione === 'move' && eff.dove === 'board' && _muoveQualcuno(eff))
       return _sceltaSpostaOvunque(card, q, r, giocatore, a, eff);
@@ -42459,59 +42458,6 @@ function _sceltaScambioPosizioni(card, q, r, giocatore, a, eff){
 // Un vicino senza tratti non e' un bersaglio, e non e' una regola in piu':
 // copiare da chi non ha niente non e' un'azione. Quel filtro sta gia' in
 // _effettoHaSensoSu, dove sta per tutte.
-// ── v0.80.4 — "SWAPS WITH AN ADJACENT ENEMY BEFORE ATTACKING" ────────────
-// Badr al-Budur. Il foglio lo diceva da tempo ("swap chosen opponent adjacent
-// card single") e il gioco non lo faceva: sceltaDalFoglio sapeva costruire lo
-// scambio di POSIZIONE fra due carte (il Pifferaio) e quello dei VALORI, non lo
-// scambio della carta giocata con un'altra. La finestra non si apriva, in
-// console restava "[scelta non aperta]", e la carta attaccava da dove era
-// caduta — senza nessun NO_SCRIPT a dirlo, perche' la riga c'era.
-// Si scelgono i vicini idonei (candidatiDalFoglio: nemici, adiacenti, e mai
-// una carta intoccabile come Excalibur, che non si puo' spostare); scelto uno,
-// le due carte si scambiano scivolando e lo scontro parte dalla casella NUOVA
-// (vedi resolveConquestAndEndTurn, che cerca dove la carta sta davvero).
-// Rinunciare vuol dire attaccare da dove si e'.
-function _sceltaScambiaCarta(card, q, r, giocatore, a, eff){
-  const bersagli = candidatiDalFoglio(card, q, r, giocatore, a, eff);
-  if(!bersagli.length) return null;
-  const origine = key(q, r);
-  return {
-    chiave: 'scambio_carta',
-    giocatore,
-    icona: ICONA_SCAMBIO,
-    cellaOrigine: origine,
-    bersagli,
-    applicaEAspetta: (cella, poi) => {
-      // Dove sta la carta ADESSO: di norma la casella in cui e' stata giocata,
-      // ma chi la usa copiata (lo Specchio, lo Sceriffo) la usa dalla sua.
-      const da = _cellaDellaCarta(card) || origine;
-      scambiaCarteConScivolata(da, cella, poi);
-    },
-    rinuncia: () => {},
-    // L'IA: conviene attaccare dalla casella del nemico o restare dove si e'?
-    // Si prova lo scambio sul tabellone vero, si misura, e si rimette tutto a
-    // posto prima di tornare.
-    valuta: (scelta) => {
-      const misura = (qq, rr) => {
-        try{ const ev = aiEvaluateConquests(card, qq, rr); return ev.damage + ev.count*2 - ev.autolesione; }
-        catch(_){ return -Infinity; }
-      };
-      const da = _cellaDellaCarta(card) || origine;
-      const [dq, dr] = da.split(',').map(Number);
-      let migliore = null, punteggio = misura(dq, dr);
-      for(const cella of scelta.bersagli){
-        const A = G.board[da], B = G.board[cella];
-        if(!A || !B) continue;
-        G.board[da] = B; G.board[cella] = A;
-        const [cq, cr] = cella.split(',').map(Number);
-        let p = -Infinity;
-        try{ p = misura(cq, cr); } finally { G.board[da] = A; G.board[cella] = B; }
-        if(p > punteggio){ punteggio = p; migliore = cella; }
-      }
-      return migliore;
-    },
-  };
-}
 function _sceltaCopiaTratti(card, q, r, giocatore, a, eff){
   const bersagli = candidatiDalFoglio(card, q, r, giocatore, a, eff);
   if(!bersagli.length) return null;   // nessun vicino con tratti: nessuna pausa
@@ -44110,19 +44056,6 @@ function shakeBoard(hitIndex, ux, uy){
 }
 
 function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLandAnim){
-  // ── v0.80.4 — DA DOVE LA CARTA STA, NON DA DOVE E' STATA GIOCATA ──────────
-  // Le coordinate arrivano da chi ha aperto la scelta, cioe' dalla casella in
-  // cui la carta e' caduta. Badr al-Budur la cambia prima di attaccare, e con
-  // lei chiunque ne copi l'abilita': senza questa riga lo scontro partirebbe
-  // dalla casella vecchia, dove adesso sta il nemico appena scambiato.
-  try{
-    const dove = _cellaDellaCarta(card);
-    if(dove && dove !== k){
-      k = dove;
-      const pz = dove.split(',').map(Number);
-      q = pz[0]; r = pz[1];
-    }
-  }catch(_){ }
   // v0.75.94 — PRIMA DI COMBATTERE, I NUMERI VANNO FATTI. Le sinergie di
   // vicinato si ricavano da quello che c'e' intorno, e fra il piazzamento e
   // questa riga il tabellone e' appena cambiato: e' arrivata una carta nuova.
@@ -54152,21 +54085,11 @@ function cardJumpApplyTo(el){
 // gia' coerente dal primo fotogramma — chiunque lo legga nel frattempo trova la
 // carta al suo posto nuovo — e a muoversi e' solo il disegno.
 const CARD_SLIDE_MS = 480;  // deve combaciare con la durata di .card-slide
-// v0.80.4 — UN ELENCO, NON UNA CARTA SOLA. Lo strascico e' nato per Rapunzel,
-// che tira una carta per volta. Badr al-Budur scambia DUE carte di posto, e le
-// due devono scivolare insieme, ognuna verso la casella dell'altra: con una
-// variabile sola la seconda avrebbe cancellato la prima. Ogni voce e' una carta
-// in movimento, e i ridisegni le riagganciano tutte.
-let _scivolate = [];        // [{k, t0, dx, dy, daSchermo, misurato}]
-function cardSlideApplyTo(el, _cardSlide){
-  if(!el) return;
-  if(!_cardSlide){
-    const k = el.getAttribute && el.getAttribute('data-conquered');
-    _cardSlide = _scivolate.find(v => v.k === k) || null;
-  }
-  if(!_cardSlide) return;
+let _cardSlide = null;      // {k, t0, dx, dy}
+function cardSlideApplyTo(el){
+  if(!el || !_cardSlide) return;
   const passato = performance.now() - _cardSlide.t0;
-  if(passato >= CARD_SLIDE_MS){ _scivolate = _scivolate.filter(v => v !== _cardSlide); return; }
+  if(passato >= CARD_SLIDE_MS){ _cardSlide = null; return; }
   // ── v0.80.3 — LO SCOSTAMENTO SI MISURA SULLA CARTA, NON SUL TASSELLO ─────
   // Si partiva da "centro della carta dov'era" meno "centro del TASSELLO
   // d'arrivo". Carta e tassello non hanno lo stesso riquadro (i cerchi dei
@@ -54203,70 +54126,11 @@ function cardSlideApplyTo(el, _cardSlide){
   el.classList.add('card-slide');
 }
 function cardSlideReattach(){
-  if(!_scivolate.length) return;
-  const ora = performance.now();
-  _scivolate = _scivolate.filter(v => ora - v.t0 < CARD_SLIDE_MS);
+  if(!_cardSlide) return;
+  if(performance.now() - _cardSlide.t0 >= CARD_SLIDE_MS){ _cardSlide = null; return; }
   const bsvg=document.getElementById('board-svg');
-  for(const voce of _scivolate.slice()){
-    const el=bsvg && bsvg.querySelector(`[data-conquered="${voce.k}"]`);
-    if(el) cardSlideApplyTo(el, voce);
-  }
-}
-// I residui che lo strascico lascia su un elemento (vedi v0.79.59 in
-// trascinaCarta): la classe, il ritardo negativo e i due scostamenti.
-function _pulisciStrascico(cella){
-  try{
-    const bs = document.getElementById('board-svg');
-    const rest = bs && bs.querySelector('[data-conquered="'+cella+'"]');
-    if(rest){
-      rest.classList.remove('card-slide');
-      rest.style.animationDelay = '';
-      rest.style.removeProperty('--strascico-x');
-      rest.style.removeProperty('--strascico-y');
-    }
-  }catch(_){}
-}
-// ── v0.80.4 — BADR AL-BUDUR, "Sultan's Jewel": LO SCAMBIO DI POSTO ─────────
-// Due carte in campo si scambiano la casella, scivolando ognuna verso quella
-// dell'altra con lo strascico di Rapunzel (e' la stessa idea: a spostarle e'
-// qualcuno, non saltano da sole). Il tabellone cambia SUBITO, come per la
-// treccia, e a muoversi e' solo il disegno.
-function scambiaCarteConScivolata(cellaA, cellaB, poi){
-  const finito = ()=>{ if(typeof poi === 'function') poi(); };
-  const A = G.board[cellaA], B = G.board[cellaB];
-  if(!A || !B || !A.card || !B.card || cellaA === cellaB){ finito(); return false; }
-  const bsvg = document.getElementById('board-svg');
-  const centro = (cella)=>{
-    try{
-      const el = bsvg && bsvg.querySelector('[data-conquered="'+cella+'"]');
-      const b = el && el.getBoundingClientRect();
-      return (b && b.width) ? { x: b.left + b.width/2, y: b.top + b.height/2 } : null;
-    }catch(_){ return null; }
-  };
-  const daA = centro(cellaA), daB = centro(cellaB);
-  G.board[cellaA] = B;
-  G.board[cellaB] = A;
-  const t0 = performance.now();
-  const voci = [];
-  // La caduta di chi e' appena stato giocato e' legata alla CASELLA: se e'
-  // ancora in corso, dopo lo scambio la farebbe il nemico arrivato li', insieme
-  // allo strascico e sulla stessa trasformazione. Lo strascico la sostituisce.
-  if(typeof _cardLand !== 'undefined' && _cardLand && (_cardLand.k === cellaA || _cardLand.k === cellaB)) _cardLand = null;
-  // La carta che era in A arriva in B partendo da dove stava A, e viceversa.
-  if(daA) voci.push({ k: cellaB, t0, dx: 0, dy: 0, daSchermo: daA });
-  if(daB) voci.push({ k: cellaA, t0, dx: 0, dy: 0, daSchermo: daB });
-  for(const v of voci) _scivolate.push(v);
-  try { ricalcolaTabellone(); } catch(_){ }
-  try { renderBoard(); } catch(_){ }
-  try { lampeggiaSpostamentoValori(A.card); lampeggiaSpostamentoValori(B.card); } catch(_){ }
-  const chiudi = ()=>{
-    _scivolate = _scivolate.filter(v => voci.indexOf(v) < 0);
-    _pulisciStrascico(cellaA); _pulisciStrascico(cellaB);
-    try { renderBoard(); } catch(_){ }
-    finito();
-  };
-  if(voci.length) setTimeout(chiudi, CARD_SLIDE_MS); else chiudi();
-  return true;
+  const el=bsvg && bsvg.querySelector(`[data-conquered="${_cardSlide.k}"]`);
+  if(el) cardSlideApplyTo(el);
 }
 // v0.75.47 — DA UN PEZZO DEL TABELLONE A UN ALTRO, in unita' del disegno.
 // La prima versione usava getBBox() sui due elementi e ne sottraeva i centri.
@@ -54332,11 +54196,10 @@ function trascinaCarta(daCella, aCella, poi){
     // di una carta che parte da un punto a caso.
     // v0.80.3 — e il punto di partenza a schermo, perche' cardSlideApplyTo
     // rifaccia la misura carta contro carta (vedi li').
-    const voce = salto ? { k: aCella, t0: performance.now(), dx: salto.dx, dy: salto.dy, daSchermo: centroDa } : null;
-    if(voce) _scivolate.push(voce);
+    if(salto) _cardSlide = { k: aCella, t0: performance.now(), dx: salto.dx, dy: salto.dy, daSchermo: centroDa };
     renderBoard();
     setTimeout(()=>{
-      _scivolate = _scivolate.filter(v => v !== voce);
+      _cardSlide = null;
       // v0.79.59 — e si tolgono i RESIDUI, non solo la classe. cardSlideApplyTo
       // scrive sull'elemento un animation-delay negativo e i due --strascico:
       // se l'elemento sopravvive al ridisegno, il ritardo negativo resta e si
