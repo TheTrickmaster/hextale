@@ -1976,3 +1976,27 @@ Nella stessa versione:
   del tassello ha fusione e ritaglio sul gruppo che la contiene.
 - prova-livelli.js controlla che il nastro "Lv up" stia dentro al piano che si
   inclina, cosi' segue il tilt della carta.
+
+## prova-specchio-e-treccia.js — lo Specchio non eredita una trasformazione, la treccia tira dal punto giusto
+
+    desktop/node_modules/electron/dist/electron.exe strumenti/prova-specchio-e-treccia.js
+
+Due segnalazioni di Lorenzo (v0.80.3).
+- MAGIC MIRROR E GREEN PRINCE. trasformaCartaIn cambiava chiave, nomi e testi
+  dell'abilita' ma non `abilita`: il Green Prince restava con la riga del
+  Ranocchio ("se accanto a una Principessa, trasformati"), e chi copiava quella
+  riga poteva trasformarsi a sua volta. Adesso la carta trasformata prende la
+  riga della carta nuova (nessuna per il Green Prince e la Dark Strigoi), e
+  _prendiAbilita scarta una trasformazione verso la forma che il donatore ha
+  gia' (rete per le carte trasformate prima). Il banco prova la trasformazione
+  in una carta senza riga e in una con una riga, la copia dal principe con la
+  riga vecchia, la copia da una rana vera, e la rana calata in partita.
+- RAPUNZEL. Lo strascico partiva da "centro della carta" meno "centro del
+  tassello d'arrivo": riquadri diversi, quattro-cinque pixel che diventavano un
+  primo passo all'indietro. cardSlideApplyTo misura adesso la carta d'arrivo
+  prima di animarla (carta contro carta). Il banco guarda che il primo
+  fotogramma sia dove la carta era e che da li' vada solo verso Rapunzel.
+
+Carabosse che colpiva sempre lo stesso avversario: con due nemici l'hash della
+v0.79.x estraeva sempre il primo (30 su 30); era gia' corretto dalla v0.80.0.
+server/nakama/prova-caso.js lo prova adesso con due nemici.

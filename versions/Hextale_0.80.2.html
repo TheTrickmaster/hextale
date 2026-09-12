@@ -13038,7 +13038,7 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.3</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.2</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <!-- v0.79.75 — dove salgono gli avvisi delle quest. Vuoto quasi sempre, e
@@ -39654,20 +39654,6 @@ function trasformaCartaIn(card, nomeCarta, etichetta){
   card.rarity = nuova.rarity || card.rarity;
   card.cardAbility = nuova.cardAbility || null;
   card.activatedTileAbility = card.cardAbility;
-  // ── v0.80.3 — E LA RIGA DEL FOGLIO DIVENTA QUELLA NUOVA ─────────────────
-  // Qui si cambiavano chiave, nomi e testi dell'abilita', ma non `abilita`,
-  // cioe' la riga che il motore esegue davvero. Il Green Prince restava quindi
-  // con la riga del Ranocchio addosso — "se accanto a una Principessa,
-  // trasformati in Green Prince" — muta finche' nessuno la leggeva.
-  // Lo Specchio la leggeva: copiare un'abilita' vuol dire copiare quella riga
-  // (vedi _prendiAbilita), e uno Specchio che copiava dal Principe si portava
-  // via la trasformazione del Ranocchio e, accanto a una principessa, diventava
-  // Green Prince anche lui. Segnalazione di Lorenzo.
-  // Adesso la carta trasformata ha la riga della carta in cui si e' trasformata
-  // — per il Green Prince nessuna, come la Dark Strigoi — e non puo' piu'
-  // passare a nessuno una trasformazione che ha gia' fatto.
-  if(nuova.abilita) card.abilita = JSON.parse(JSON.stringify(nuova.abilita));
-  else delete card.abilita;
   card.abilityLocked = false;
   card.abilityNameSheet = nuova.abilityNameSheet || '';
   card.abilityDescSheet = nuova.abilityDescSheet || '';
@@ -42010,19 +41996,6 @@ function _prendiAbilita(donatore, ricevente, chiave){
   // scambierebbero anche la memoria del "una volta per partita".
   if(donatore.abilita) ricevente.abilita = JSON.parse(JSON.stringify(donatore.abilita));
   else delete ricevente.abilita;
-  // v0.80.3 — rete di sicurezza per le carte trasformate PRIMA di questa
-  // versione (una partita aperta, una carta rimasta in memoria): se la riga
-  // presa dice "trasformati in X" e chi la da' E' GIA' X, quella trasformazione
-  // e' gia' avvenuta e non si copia. Vedi trasformaCartaIn.
-  if(ricevente.abilita && typeof cartaIndicataDa === 'function'){
-    const a = ricevente.abilita;
-    const giaFatta = [a.effetto, a.effetto2].some(e => {
-      if(!e || e.azione !== 'transform') return false;
-      const verso = cartaIndicataDa(e.quanto && e.quanto.carta);
-      return !!(verso && donatore.baseId && verso.id === donatore.baseId);
-    });
-    if(giaFatta) delete ricevente.abilita;
-  }
   // E si riparte da zero coi colpi gia' sparati: l'abilita' presa dev'essere
   // come appena giocata, quindi un `once_per_game` che il donatore aveva gia'
   // speso — o che il ricevente aveva speso con la PROPRIA abilita' un istante
@@ -54090,30 +54063,6 @@ function cardSlideApplyTo(el){
   if(!el || !_cardSlide) return;
   const passato = performance.now() - _cardSlide.t0;
   if(passato >= CARD_SLIDE_MS){ _cardSlide = null; return; }
-  // ── v0.80.3 — LO SCOSTAMENTO SI MISURA SULLA CARTA, NON SUL TASSELLO ─────
-  // Si partiva da "centro della carta dov'era" meno "centro del TASSELLO
-  // d'arrivo". Carta e tassello non hanno lo stesso riquadro (i cerchi dei
-  // valori e la cornice sporgono in modo diverso), e la differenza — quattro,
-  // cinque pixel — diventava un primo fotogramma in cui la carta, afferrata,
-  // arretrava di un passo nella direzione da cui arrivava prima di partire.
-  // La prima volta che l'elemento d'arrivo e' disegnato, e prima di dargli
-  // l'animazione, si misura LUI: carta contro carta, lo stesso riquadro.
-  if(_cardSlide.daSchermo && !_cardSlide.misurato){
-    try{
-      el.classList.remove('card-slide');
-      el.style.animationDelay = '';
-      el.style.removeProperty('--strascico-x');
-      el.style.removeProperty('--strascico-y');
-      const bsvg = el.ownerSVGElement || document.getElementById('board-svg');
-      const m = bsvg && bsvg.getScreenCTM && bsvg.getScreenCTM();
-      const b = el.getBoundingClientRect();
-      if(m && m.a && m.d && b.width){
-        _cardSlide.dx = (_cardSlide.daSchermo.x - (b.left + b.width/2)) / m.a;
-        _cardSlide.dy = (_cardSlide.daSchermo.y - (b.top + b.height/2)) / m.d;
-      }
-    }catch(_){ }
-    _cardSlide.misurato = true;
-  }
   // Stessa trappola del salto: in SVG comanda l'ordine nel documento, e la
   // carta trascinata deve passare sopra a quelle che attraversa. Va spostata
   // la CELLA intera, non la carta dentro la cella.
@@ -54179,8 +54128,6 @@ function trascinaCarta(daCella, aCella, poi){
   const elA  = bsvg && (bsvg.querySelector('[data-tile-wrap="'+aCella+'f"]')
                      || bsvg.querySelector('[data-tile-wrap="'+aCella+'h"]'));
   const salto = (elDa && elA) ? _spostamentoDisegnato(elDa, elA) : null;
-  let centroDa = null;
-  try{ if(elDa){ const bd = elDa.getBoundingClientRect(); if(bd.width) centroDa = { x: bd.left + bd.width/2, y: bd.top + bd.height/2 }; } }catch(_){ }
   // v0.75.47 — PRIMA IL LAMPO, POI IL MOVIMENTO. La carta indicata si accende
   // un istante prima di partire: e' il momento in cui la treccia la afferra, e
   // senza, il primo segno che qualcosa sta succedendo e' la carta gia' in
@@ -54194,9 +54141,7 @@ function trascinaCarta(daCella, aCella, poi){
     G.board[aCella] = contenuto;
     // Senza la misura si sposta e basta: un'animazione mancante e' molto meglio
     // di una carta che parte da un punto a caso.
-    // v0.80.3 — e il punto di partenza a schermo, perche' cardSlideApplyTo
-    // rifaccia la misura carta contro carta (vedi li').
-    if(salto) _cardSlide = { k: aCella, t0: performance.now(), dx: salto.dx, dy: salto.dy, daSchermo: centroDa };
+    if(salto) _cardSlide = { k: aCella, t0: performance.now(), dx: salto.dx, dy: salto.dy };
     renderBoard();
     setTimeout(()=>{
       _cardSlide = null;

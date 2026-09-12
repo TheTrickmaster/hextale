@@ -162,6 +162,18 @@ for (let t = 1; t <= 40; t++) {
 dice(suQuellaProtetta === 0, 'una carta tutta protetta non viene nemmeno estratta', suQuellaProtetta);
 const c9 = M.cambiamentiAllEvento(strega, 'end_of_turn', scenaScudi(1, [tuttaProtetta]));
 dice(c9.length === 0, 'se sono tutte protette, nessun colpo');
+// v0.80.3 — Lorenzo: "Carabosse toglie punti sempre allo stesso avversario".
+// Con due nemici l'hash di prima (v0.79.x) estraeva sempre il primo: 30 volte
+// su 30. Dalla v0.80.0 si alternano.
+const dueNemici = [carta('final-fox-2-r1', 2), carta('final-alice-2-r3', 2)];
+const colpitiPer = {};
+for (let t = 1; t <= 30; t++) {
+  const c = M.cambiamentiAllEvento(strega, 'end_of_turn', { inCampo: [strega].concat(dueNemici), inMano: [],
+    cellaDi: x => (x === strega ? '0,0' : x.id), vicini: () => [], latiLiberi: () => 0, turno: t, seme: 'partita-due' });
+  for (const x of c) colpitiPer[x.carta.id] = (colpitiPer[x.carta.id] || 0) + 1;
+}
+const quanti = Object.values(colpitiPer);
+dice(quanti.length === 2 && Math.min.apply(null, quanti) >= 8, 'con due nemici in trenta turni li colpisce tutti e due, non sempre lo stesso', JSON.stringify(colpitiPer));
 // Senza scudi in scena, colpisce come prima (tutti e due i gruppi escono).
 const gruppiVisti = new Set();
 for (let t = 1; t <= 30; t++) {
