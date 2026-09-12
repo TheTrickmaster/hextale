@@ -3540,32 +3540,6 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
   animation:geloArriva var(--gelo-ms, 700ms) cubic-bezier(.2,.9,.3,1.15) both;
 }
 #board-svg .gelo-arriva{ transform-box:fill-box; transform-origin:center; }
-/* v0.80.5 — LE BRICIOLE DI TOM THUMB.
-   Arrivano cadendo appena e rimbalzando (una dopo l'altra: il ritardo lo scrive
-   il gioco, vedi disegnaBriciola), e la carta alleata che ne mangia una brilla e
-   pulsa. Il bagliore sta sul gruppo interno della carta (wobble-host): quello
-   esterno lo usano la caduta e l'affondo, e due animazioni sulla stessa
-   trasformazione si escludono. */
-#board-svg .briciola-arriva{
-  transform-box:fill-box; transform-origin:center;
-  animation:briciolaArriva 460ms cubic-bezier(.2,.9,.3,1.25) both;
-}
-@keyframes briciolaArriva{
-  0%  { opacity:0; transform:translateY(-22px) scale(.3); }
-  60% { opacity:1; transform:translateY(0) scale(1.15); }
-  100%{ opacity:1; transform:none; }
-}
-#board-svg .briciola-mangiata{
-  transform-box:fill-box; transform-origin:center;
-  animation:briciolaMangiata 760ms ease-out both;
-}
-@keyframes briciolaMangiata{
-  0%  { transform:scale(1);    filter:none; }
-  22% { transform:scale(1.13); filter:brightness(1.7) drop-shadow(0 0 16px rgba(255,232,160,.95)); }
-  50% { transform:scale(.97);  filter:brightness(1.3) drop-shadow(0 0 10px rgba(255,232,160,.75)); }
-  72% { transform:scale(1.05); filter:brightness(1.15) drop-shadow(0 0 6px rgba(255,232,160,.5)); }
-  100%{ transform:scale(1);    filter:none; }
-}
 @keyframes geloArriva{
   0%  { opacity:0; transform:scale(1.32); filter:brightness(2.6) saturate(.5); }
   45% { opacity:1; transform:scale(.96);  filter:brightness(1.9) saturate(.8); }
@@ -13064,7 +13038,7 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.5</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.4</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <!-- v0.79.75 — dove salgono gli avvisi delle quest. Vuoto quasi sempre, e
@@ -28264,8 +28238,6 @@ const SUONI_SFX_EXTRA = Object.values(WHOOSH_PER_RARITA)
   // prima cifra suonerebbe in ritardo sulla propria animazione.
   .concat(['kaching.mp3', 'card-ding.mp3', 'card-fly.mp3', 'shield.mp3', 'eagle.mp3', 'break-stone.mp3',
            'score.mp3', 'scored.mp3',
-           // v0.80.5 — la briciola mangiata (Tom Thumb).
-           'munch.mp3',
            // v0.77.13 — bell (il "ding" del tempo scaduto) stava SOLO in
            // AUDIO_DATA_URLS. I due elenchi non sono equivalenti: quello lo
            // precarica con fetch, e il precarico si salta interamente quando
@@ -35670,8 +35642,6 @@ const TILE_ABILITIES_DEF = {
   // gruppo di ogni nemico che tocca e consegna tutto il bottino all'alleato in
   // campo che ne ha piu' bisogno (vedi activateEatTheRich).
   eat_the_rich:      { carta:'Robin Hood', name:'Eat the Rich',       desc:"*Steals* 1 Power from every adjacent enemy and gives it to an ally in need." },
-  // v0.80.5 — Tom Thumb, "Crumbs": vedi lasciaBriciole.
-  '!tomthumb':       { carta:'Tom Thumb',  name:'Crumbs',             desc:'*Drops* 3 Crumbs on random empty tiles. An ally played on one *Gains* +2 on its HIGHEST.' },
   // Snow White, "Hooray! She stays!": a live SYNERGY (not an on-play
   // trigger like Robin Hood above) — see activateSnowWhiteSynergy for the
   // actual mechanic. Registered here purely for the quote-box name/desc
@@ -36103,8 +36073,6 @@ function initGame(vsAI){
   try{ _codaPunteggio[1].length = 0; _codaPunteggio[2].length = 0; }catch(_){ }
   // v0.80.2 — e i geli visti nella partita di prima.
   try{ _geloDa.clear(); }catch(_){ }
-  // v0.80.5 — e le briciole viste e la carta che ne stava mangiando una.
-  try{ _bricioleViste.clear(); _briciolaMangiata = null; }catch(_){ }
   _hpQueue[1].length=0;
   _hpQueue[2].length=0;
   _hpProcessing[1]=false;
@@ -36298,8 +36266,6 @@ function initGame(vsAI){
     // quello che initGame rifa' da capo (vedi ioSonoIlNumero qui sopra, che e'
     // l'unico che deve sopravvivere a quel giro).
     gelo:{},
-    // v0.80.5 — le briciole di Tom Thumb: cella -> {owner, da, nome, variante, scura, ordine}.
-    briciole:{},
     // v0.78.13 — chi ha vinto, quando a dirlo e' il server (resa, abbandono) e
     // non il tabellone. Zero vuol dire "lo dicono i punti", che e' il caso
     // normale. Vedi fineDaRete.
@@ -38697,8 +38663,6 @@ function doPlace(card,playerIdx,q,r,daServer){
   _spegniSegnoTrasformazione();
   if(player===1) G.p1Hand=G.p1Hand.filter(c=>c.id!==card.id);
   else           G.p2Hand=G.p2Hand.filter(c=>c.id!==card.id);
-  // v0.80.5 — una briciola di Tom Thumb sotto? Se e' di chi gioca, la mangia.
-  try{ mangiaBriciola(card, player, k); }catch(e){ console.warn('[briciole] ' + (e && e.message)); }
 
   // ── Card ability pre-conquest activations ──
   // EXPERIMENTAL (v0.21.0-abilities-on-cards): the ability now lives on the
@@ -40572,134 +40536,6 @@ function applicaAbilitaPiazzamento(card, q, r, chiave){
 // al piazzamento vero. La regola per orientarsi: se l'effetto cambia dei
 // valori, va in EFFETTI_PIAZZAMENTO e ottiene l'anteprima gratis; se cambia
 // altro, o tira un dado, va qui e non si vede in anticipo.
-// ══════════════════════════════════════════════════════════════════════════
-// v0.80.5 — TOM THUMB, "CRUMBS"
-// ══════════════════════════════════════════════════════════════════════════
-// Regola di Lorenzo: giocato, lascia 3 briciole al centro di 3 caselle libere a
-// caso; una carta ALLEATA giocata sopra a una di quelle caselle la mangia —
-// munch.mp3, la carta brilla e pulsa — e prende +2 sul suo valore piu' alto.
-//
-// A CASO, MA LO STESSO CASO SUI DUE SCHERMI. In rete le caselle devono essere
-// le stesse di qua e di la', quindi niente Math.random: il seme e' la partita
-// (l'id del match, o il seme locale contro l'IA), la casella di Tom Thumb e il
-// turno. NON l'id della carta: la stessa carta ha due id diversi sui due client
-// (chi la tiene la costruisce dal mazzo, chi guarda dalla giocata).
-//
-// Le briciole sono del giocatore che le lascia e valgono solo per i suoi. Una
-// carta nemica giocata sopra la copre e basta: la briciola se ne va senza dare
-// niente. Una carta spostata sopra da un'abilita' non la mangia (non e'
-// "giocata"): la copre, e la briciola torna a vedersi se la casella si libera.
-const BONUS_BRICIOLA = 2;
-const BRICIOLE_PER_TOM = 3;
-const BRICIOLA_LARGA_HD = 80;       // px al tabellone in HD (R = 126.77)
-const BRICIOLA_ARRIVO_MS = 460;     // deve combaciare con .briciola-arriva
-const BRICIOLA_PASSO_MS = 110;      // fra una briciola e la successiva
-const BRICIOLA_MANGIATA_MS = 760;   // deve combaciare con .briciola-mangiata
-function _semeBriciole(testo){
-  let h = 2166136261 >>> 0;
-  for(let i = 0; i < testo.length; i++){ h = Math.imul(h ^ testo.charCodeAt(i), 16777619) >>> 0; }
-  h ^= h >>> 16; h = Math.imul(h, 0x85ebca6b) >>> 0;
-  h ^= h >>> 13; h = Math.imul(h, 0xc2b2ae35) >>> 0;
-  return (h ^ (h >>> 16)) >>> 0;
-}
-function lasciaBriciole(card, q, r){
-  if(!G || _simulazioneInCorso) return [];
-  if(!G.briciole) G.briciole = {};
-  const proprietario = card.owner || G.currentPlayer;
-  const libere = (typeof celleLibere === 'function' ? celleLibere() : [])
-    .map(c => (typeof c === 'string') ? c : key(c.q, c.r))
-    .filter(k => !G.briciole[k]);
-  const seme = String((typeof PARTITA_RETE !== 'undefined' && PARTITA_RETE) ? PARTITA_RETE.matchId : (G._semeSinergie || ''))
-    + '|briciole|' + key(q, r) + '|' + (G.numeroTurno || 0);
-  // Fisher-Yates col seme: le prime tre sono le scelte.
-  for(let i = libere.length - 1; i > 0; i--){
-    const j = _semeBriciole(seme + '|' + i) % (i + 1);
-    const t = libere[i]; libere[i] = libere[j]; libere[j] = t;
-  }
-  const scelte = libere.slice(0, BRICIOLE_PER_TOM);
-  const scura = playerFactionIsDark(proprietario);
-  scelte.forEach((k, i) => {
-    G.briciole[k] = { owner: proprietario, da: card.id, nome: card.name || 'Tom Thumb',
-                      variante: 1 + (_semeBriciole(seme + '|variante|' + k) % 3), scura: scura, ordine: i };
-  });
-  return scelte;
-}
-// Il gruppo col valore piu' alto (a pari merito il primo, come HIGHEST nel motore).
-function _latiPiuAlti(card){
-  const gruppi = (typeof gruppiDiCarta === 'function') ? gruppiDiCarta(card) : [];
-  if(!gruppi.length) return [];
-  let migliore = gruppi[0];
-  for(const g of gruppi) if((g.val || 0) > (migliore.val || 0)) migliore = g;
-  return migliore.sides.slice();
-}
-// La carta giocata su una briciola. Il +2 arriva SUBITO, prima dello scontro:
-// e' un dono del piazzamento e deve contare per chi si conquista. Il suono e il
-// bagliore aspettano l'istante in cui la carta tocca il tassello.
-let _briciolaMangiata = null;   // {k, t0}
-function mangiaBriciola(card, player, k){
-  const b = G && G.briciole && G.briciole[k];
-  if(!b) return false;
-  delete G.briciole[k];
-  if(b.owner !== player) return false;           // nemica: la copre e basta
-  const lati = _latiPiuAlti(card);
-  if(!lati.length) return false;
-  modificaValori(card, lati, BONUS_BRICIOLA, undefined, { chiave: 'briciola:' + b.da, da: b.nome, id: b.da });
-  setTimeout(()=>{
-    if(!G || G.gameOver) return;
-    try{ playSfxFile('munch.mp3'); }catch(_){ }
-    _briciolaMangiata = { k: k, t0: performance.now() };
-    _applicaBriciolaMangiata(k);
-  }, (typeof CARD_LAND_IMPACT_MS === 'number') ? CARD_LAND_IMPACT_MS : 300);
-  return true;
-}
-// Nella simulazione (anteprima del trascinamento, conti dell'IA) il +2 si vede
-// ma la briciola resta dov'e': non e' ancora stata mangiata da nessuno.
-function bonusBricioleSimulato(carta, cella, proprietario){
-  const b = G && G.briciole && G.briciole[cella];
-  if(!b || b.owner !== proprietario) return;
-  const lati = _latiPiuAlti(carta);
-  if(lati.length) modificaValori(carta, lati, BONUS_BRICIOLA, undefined, null);
-}
-// Il bagliore: stesso schema del gelo, un istante ricordato e un ritardo
-// negativo, cosi' un ridisegno a meta' non lo fa ripartire da capo.
-function _applicaBriciolaMangiata(k, host){
-  const m = _briciolaMangiata;
-  if(!m || m.k !== k) return;
-  const passati = performance.now() - m.t0;
-  if(passati >= BRICIOLA_MANGIATA_MS){ _briciolaMangiata = null; return; }
-  const bsvg = document.getElementById('board-svg');
-  const el = host || (bsvg && bsvg.querySelector('[data-conquered="' + k + '"] [data-role="wobble-host"]'))
-               || (bsvg && bsvg.querySelector('[data-conquered="' + k + '"]'));
-  if(!el) return;
-  el.classList.remove('briciola-mangiata');
-  void el.getBoundingClientRect();
-  el.style.animationDelay = (-passati).toFixed(0) + 'ms';
-  el.classList.add('briciola-mangiata');
-}
-// Il disegno: al centro della casella, largo 80 al tabellone in HD.
-const _bricioleViste = new Map();
-function disegnaBriciola(svg, x, y, R, k){
-  const b = G.briciole && G.briciole[k];
-  if(!b) return null;
-  const lato = BRICIOLA_LARGA_HD * (R / 126.77);
-  const img = document.createElementNS('http://www.w3.org/2000/svg', 'image');
-  img.setAttribute('href', UI_BASE + 'crumb-' + (b.scura ? 'dark-' : '') + (b.variante || 1) + '.png');
-  img.setAttribute('x', (x - lato/2).toFixed(2)); img.setAttribute('y', (y - lato/2).toFixed(2));
-  img.setAttribute('width', lato.toFixed(2)); img.setAttribute('height', lato.toFixed(2));
-  img.setAttribute('preserveAspectRatio', 'xMidYMid meet');
-  img.setAttribute('data-briciola', k);
-  img.style.pointerEvents = 'none';
-  svg.appendChild(img);
-  const chiave = k + '|' + b.da;
-  let da = _bricioleViste.get(chiave);
-  if(da === undefined){ da = performance.now(); _bricioleViste.set(chiave, da); }
-  const passati = performance.now() - da - (b.ordine || 0) * BRICIOLA_PASSO_MS;
-  if(passati < BRICIOLA_ARRIVO_MS){
-    img.classList.add('briciola-arriva');
-    img.style.animationDelay = (-passati).toFixed(0) + 'ms';
-  }
-  return img;
-}
 const EFFETTI_PIAZZAMENTO_REALI = {
   // v0.75.77 — la trasformazione di Cenerentola NON sta piu' qui. Faceva il
   // cambio all'istante, cioe' mentre la carta stava ancora atterrando, e senza
@@ -40726,9 +40562,6 @@ const EFFETTI_PIAZZAMENTO_REALI = {
   // quindi qui e non fra gli effetti simulabili, o ogni passaggio del puntatore
   // farebbe salire il drop rate di un decimo.
   unicorn_hunt: (card) => attivaUnicornHunt(card),
-  // v0.80.5 — Tom Thumb: lascia le briciole. Qui e non fra gli effetti simulabili,
-  // perche' cambia lo stato della partita (le caselle con la briciola).
-  '!tomthumb': (card, q, r) => lasciaBriciole(card, q, r),
 };
 function applicaEffettiRealiPiazzamento(card, q, r, chiave){
   // v0.78.5 — se la riga del foglio ha gia' fatto la sua parte, la vecchia
@@ -43739,8 +43572,6 @@ function simulaPiazzamento(card, q, r){
 
     const chiave = abilitaAttivaDi(card);
     if(chiave) applicaAbilitaPiazzamento(cartaClone, q, r, chiave);
-    // v0.80.5 — e la briciola sotto, se c'e' ed e' sua: il +2 si vede in anteprima.
-    bonusBricioleSimulato(cartaClone, cella, proprietario);
     // ── v0.78.8 — E LA PROMESSA LASCIATA DA UN'ALTRA CARTA ────────────────
     // Lo Spaventapasseri (e il Grillo Parlante) non toccano se stessi: lasciano
     // un segno che la PROSSIMA carta giocata riscuote. Quella carta e' proprio
@@ -43836,8 +43667,6 @@ function simulaPiazzamento(card, q, r){
 // meno di un numero che non si vede.
 function _numeriChePossonoCambiare(card){
   if(motoreFaLEvento(card, 'on_play')) return true;
-  // v0.80.5 — con delle briciole in campo, qualunque carta puo' cambiare numeri.
-  if(G && G.briciole && Object.keys(G.briciole).length) return true;
   const chiave = abilitaAttivaDi(card);
   if(chiave && EFFETTI_PIAZZAMENTO[chiave]) return true;
   const motore = (typeof _motore === 'function') ? _motore() : null;
@@ -54684,8 +54513,6 @@ function firmaTabellone(){
     // renderBoard concluderebbe che non c'e' niente da ridisegnare. E' la
     // lezione scritta due capoversi piu' sotto, e vale anche qui.
     gelate: celleCongelateOra(),
-    // v0.80.5 — e le briciole: comparire e sparire sono cambiamenti di disegno.
-    briciole: (G && G.briciole) ? JSON.stringify(G.briciole) : '',
     // La selezione e il trascinamento accendono l'evidenziazione delle celle
     // giocabili e l'anteprima dei valori.
     scelta: G.selected && G.selected.card ? G.selected.card.id : null,
@@ -55203,8 +55030,6 @@ function renderBoard(){
       // Merge placed.owner into card so border-top reflects current owner after conquest
       const cardWithOwner = {...placed.card, owner: ownerDisegnato};
       drawHexCard(wobbleGroup,x,y,R,cardWithOwner,fc,sc,tc,placed.card.name,false,null,null,true,displayValuesForCell,factionDeltas,aSorteInCampo);
-      // v0.80.5 — se questa carta sta mangiando una briciola, il bagliore riprende.
-      if(_briciolaMangiata && _briciolaMangiata.k === k) _applicaBriciolaMangiata(k, wobbleGroup);
       // v0.71.6 FIX ("bisogna rimuovere il cerchietto abilità al centro
       // della carta. è obsoleto"): the activated-ability badge (a circle +
       // icon permanently sitting over the middle of every placed card with
@@ -55266,8 +55091,6 @@ function renderBoard(){
         cellGroup.style.isolation = 'isolate';
         disegnaGeloCella(svg,x,y,R,k+'f');
       } else _geloFinito('t:' + k + 'f');
-      // v0.80.5 — e la briciola di Tom Thumb, sopra al tassello e al ghiaccio.
-      if(G.briciole && G.briciole[k]) disegnaBriciola(svg, x, y, R, k);
       // Tagged so the Distruggere attack sequence (see doDistruggi) can find
       // THIS cell's overlay polygon right after the wall comes down — by the
       // time doDistruggi's strike-instant renderBoard() runs, G.holes.delete

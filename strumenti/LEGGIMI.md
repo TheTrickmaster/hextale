@@ -2019,3 +2019,29 @@ le carte in movimento sono due) e ferma la caduta di chi era appena stato giocat
 e resolveConquestAndEndTurn fa partire lo scontro dalla casella in cui la carta
 sta davvero. L'IA prova lo scambio sul tabellone e lo fa solo se rende di piu'.
 Il banco prova finestra, scambio, scontro dalla casella nuova, rinuncia e IA.
+
+## prova-briciole.js — le briciole di Tom Thumb
+
+    desktop/node_modules/electron/dist/electron.exe strumenti/prova-briciole.js
+
+Regola di Lorenzo (v0.80.5): giocato, Tom Thumb lascia 3 briciole al centro di 3
+caselle libere a caso (crumb-1/2/3.png, o crumb-dark-1/2/3.png se e' dark, larghe
+80px al tabellone in HD). Una carta ALLEATA giocata sopra a una di quelle caselle
+la mangia: munch.mp3, la carta brilla e pulsa, e prende +2 sul gruppo piu' alto.
+
+- lasciaBriciole (in EFFETTI_PIAZZAMENTO_REALI['!tomthumb']): le caselle si
+  sorteggiano col seme della partita, la casella di Tom e il turno — non l'id
+  della carta, che in rete e' diverso sui due client — cosi' sono le stesse di
+  qua e di la'. G.briciole: cella -> {owner, da, nome, variante, scura, ordine}.
+- mangiaBriciola (in doPlace, appena la carta lascia la mano): +2 subito, prima
+  dello scontro; munch e bagliore (.briciola-mangiata sul wobble-host) all'impatto.
+  Una carta nemica copre la briciola e basta.
+- bonusBricioleSimulato (in simulaPiazzamento): il +2 si vede in anteprima e l'IA
+  lo conta, senza consumare la briciola.
+- disegnaBriciola nel ramo delle caselle vuote di renderBoard; arrivo in fila
+  (.briciola-arriva col ritardo); le briciole stanno nella firma della plancia.
+- TILE_ABILITIES_DEF['!tomthumb'] la rende "programmata" (niente NO_SCRIPT).
+
+Il banco prova numero, caselle, fazione, misura e centro, stesso caso con un
+altro id, anteprima, alleato che mangia (+2, munch, bagliore, riga "from") e
+nemico che copre.
