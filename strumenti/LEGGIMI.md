@@ -2188,3 +2188,19 @@ dentro, le icone delle valute cosi' come sono): da Figma solo misure e colori.
 Il banco prova i tre riquadri (misure, posti, vetro uguale, pulsanti, riga
 delle bustine, PayPal), che lo Shop e le valute non stiano piu' a sinistra, e
 che le quest siano alte 638 come la colonna e finiscano con le modalita'.
+
+v0.80.12 — LA v0.80.11 AVEVA CANCELLATO 351 RIGHE DI CSS CHE NON C'ENTRAVANO.
+Segnalato da Lorenzo con due schermate: moduli d'accesso tutti aperti insieme,
+frecce indietro enormi, finestre senza pannello. Lo script del menu toglieva la
+vecchia fascia in basso "fino a #mm2-xp-mask": avevo letto due tratti del file
+incollati (sed '1301,1336p;1687,1704p') credendoli uno, e quel #mm2-xp-mask stava
+390 righe piu' in la'. In mezzo c'erano la colonna d'accesso (.hx-modulo,
+#start-accesso, .hx-indietro), le finestre, le caselle dei mazzi, gli avvisi.
+I banchi del menu passavano tutti: guardavano il menu, non le finestre.
+
+Rimesso il tratto esatto dalla v0.80.10 (versions/Hextale_0.80.10.html, dalla
+riga 1337), nello stesso punto. Poi confronto dei selettori di primo livello
+fra v0.80.10 e adesso: mancano 25 selettori, tutti del menu vecchio, nessun
+altro. Per le prossime sostituzioni a tratti: dopo, fare SEMPRE quel
+confronto — dice in un colpo cosa e' sparito, anche da parti che nessun banco
+guarda.
