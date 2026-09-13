@@ -1402,6 +1402,10 @@ function rpcVerificaStato(ctx, logger, nk, payload) {
   return JSON.stringify({
     verificato: !!v.verificato,
     mai: false,
+    // v0.80.6 — se un codice e' gia' partito. Chi arriva da Google nasce
+    // "da verificare" senza che nessuno gli abbia spedito niente: il client
+    // lo spedisce da solo solo quando qui c'e' scritto no.
+    inviato: !!v.inviato,
     email: (conto && conto.email) || '',
     scaduto: !v.verificato && !!v.quando && (Date.now() - v.quando) > VERIFICA_MS
   });
@@ -2466,8 +2470,10 @@ function dopoAccesso(ctx, logger, nk, data, request) {
   try {
     if (data && data.created) {
       var conto = nk.accountGetId(ctx.userId);
-      // Senza email non c'e' niente da verificare — e' il caso di Google, che
-      // l'indirizzo l'ha gia' confermato per conto suo, e dei device id.
+      // Senza email non c'e' niente da verificare — e' il caso dei device id.
+      // Google invece l'email la porta, e passa di qui come gli altri: il
+      // codice glielo spedisce il client entrando (v0.80.6, vedi `inviato`
+      // in rpcVerificaStato).
       if (conto && conto.email && !leggiVerifica(nk, ctx.userId)) {
         scriviVerifica(nk, ctx.userId, { verificato: false, nato: Date.now() });
       }

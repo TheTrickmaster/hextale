@@ -2045,3 +2045,54 @@ la mangia: munch.mp3, la carta brilla e pulsa, e prende +2 sul gruppo piu' alto.
 Il banco prova numero, caselle, fazione, misura e centro, stesso caso con un
 altro id, anteprima, alleato che mangia (+2, munch, bagliore, riga "from") e
 nemico che copre.
+
+## prova-codice.js — il codice parte da solo, e dopo il codice si entra (v0.80.6)
+
+    desktop/node_modules/electron/dist/electron.exe strumenti/prova-codice.js
+
+Segnalazione di Lorenzo (v0.80.6): registrandosi con Google il codice a 6 cifre
+non arrivava (arrivava solo con "Send a new code"), e dopo averlo inserito si
+tornava al login e bisognava ripremere "Login with Google".
+
+- accessoEntra: se l'account e' da verificare e non e' mai partito un codice (o
+  quello partito e' scaduto) lo spedisce da solo prima di aprire le caselle. Il
+  server lo dice con `inviato` in hx_verifica_stato (nuovo campo, schierato).
+  Un codice ancora buono non si rimanda: lo annullerebbe.
+- completaRegistrazione: codice giusto -> accessoEntra con la stessa sessione
+  (sedia, accordo, menu). Vale anche per la registrazione con email.
+
+Il banco, sezioni 4 e 4b: si entra da soli; account Google nuovo -> codice
+spedito; codice buono gia' partito -> niente; scaduto -> nuovo.
+
+## prova-uscita-senza-splash.js — Disconnect torna subito al login (v0.80.6)
+
+    desktop/node_modules/electron/dist/electron.exe strumenti/prova-uscita-senza-splash.js
+
+Richiesta di Lorenzo (v0.80.6): Disconnect salta lo splash di Big Fennel.
+
+- _fuoriDalGioco({senzaSplash}) scrive #uscito nell'indirizzo prima di
+  ricaricare (niente nel browser). Uno script subito sotto a #splash lo legge,
+  toglie il velo e ripulisce l'indirizzo: RIENTRO_DA_USCITA.
+- runPreload: niente dissolvenza di 3s dello sfondo; revealLogoAndButtons: il
+  modulo entra col logo. Il segno vale una volta sola.
+- decode() dopo una ricarica puo' non rispondere mai (misurato in Electron):
+  sfondo, immagini nascoste, precaricamento e arte hanno un tetto di 800ms
+  (DECODE_ATTESA_MAX_MS). Prima lo copriva lo splash; senza, la barra restava
+  ferma.
+
+Il banco: splash all'avvio, niente splash e indirizzo pulito dopo Disconnect,
+modulo in ~2.5s invece di ~8, splash di nuovo a un aggiornamento a mano.
+
+## prova-icone-scelta.js — icone di scelta a meta' (v0.80.6)
+
+    desktop/node_modules/electron/dist/electron.exe strumenti/prova-icone-scelta.js
+
+Richiesta di Lorenzo (v0.80.6): tutte le icone che compaiono quando un'abilita'
+chiede un'azione, piu' piccole del 50%.
+
+- SCALA_ICONE_SCELTA = 0.5 dentro buildSvgIconBtn: mirino/icona della scelta,
+  mano da trascinare e X per rinunciare. Anello e contatore delle scelte
+  multiple seguono. .scarta-croce (mano) da 74 a 37px.
+
+Il banco misura mirino (R*0.31) e X (R*0.21) contro il tabellone, il clic sul
+mirino, e la croce dello scarto.

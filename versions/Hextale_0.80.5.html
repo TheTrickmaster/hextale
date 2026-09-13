@@ -3434,8 +3434,7 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
 }
 .scarta-croce{
   position:absolute; left:50%; top:50%;
-  /* v0.80.6 — meta' di prima (erano 74): vedi SCALA_ICONE_SCELTA. */
-  width:37px; height:37px; margin:-18.5px 0 0 -18.5px;
+  width:74px; height:74px; margin:-37px 0 0 -37px;
   z-index:60;
   pointer-events:auto;
   cursor:var(--cursore);
@@ -11911,24 +11910,6 @@ body.io-sono-2 #p2-hand-expand-hint{ right:auto; left:30px; flex-direction:row; 
        sopra allo splash, qualunque z-index gli si desse. -->
   <div id="splash-versione" aria-hidden="true"></div>
 </div>
-<script>
-// v0.80.6 — CHI HA PREMUTO DISCONNECT NON RIVEDE LO SPLASH. Uscire ricarica la
-// pagina (vedi _fuoriDalGioco), e la ricarica rigiocava tutto l'avvio: logo di
-// Big Fennel, sfondo in dissolvenza, e solo dopo il modulo d'accesso. Chi e'
-// appena uscito vuole il modulo. Il segno viaggia nell'indirizzo (#uscito) e
-// non nel browser, che non si tocca: si legge qui, subito sotto al velo, prima
-// che il velo abbia il tempo di dipingersi, e si cancella dall'indirizzo cosi'
-// che un aggiornamento fatto a mano dopo rigiochi lo splash come sempre.
-var RIENTRO_DA_USCITA = false;
-try{
-  if(location.hash === '#uscito'){
-    RIENTRO_DA_USCITA = true;
-    var _veloUscita = document.getElementById('splash');
-    if(_veloUscita) _veloUscita.remove();
-    history.replaceState(null, '', location.pathname + location.search);
-  }
-}catch(_){}
-</script>
 <div id="game-root">
 <!-- Persistent gameboard background — now a STATIC full-viewport backdrop
      (per explicit request) instead of a board-radius-relative image sized to
@@ -13083,7 +13064,7 @@ try{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.6</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.5</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <!-- v0.79.75 — dove salgono gli avvisi delle quest. Vuoto quasi sempre, e
@@ -14661,10 +14642,7 @@ if(document.readyState==='loading'){
     return new Promise(resolve=>{
       const img = new Image();
       img.onload = ()=>{
-        // v0.80.6 — con un tetto: dopo una ricarica decode() puo' non
-        // rispondere mai, e la barra restava piena a meta' per sempre (vedi
-        // DECODE_ATTESA_MAX_MS). resolve due volte non fa niente.
-        if(img.decode){ img.decode().then(resolve).catch(resolve); setTimeout(resolve, DECODE_ATTESA_MAX_MS); }
+        if(img.decode) img.decode().then(resolve).catch(resolve);
         else resolve();
       };
       img.onerror = resolve; // never block the loading gate on one bad image
@@ -14987,14 +14965,10 @@ if(document.readyState==='loading'){
     // v0.77.19 — al posto dei due pulsanti entra il modulo di accesso, un
     // blocco solo. I due pulsanti in cascata non ci sono piu': erano due
     // elementi affiancati e sfalsarli aveva senso, una finestra sola no.
-    // v0.80.6 — dopo un Disconnect il modulo entra insieme al logo, non dopo:
-    // e' lui che si e' venuti a cercare. Il segno vale una volta sola.
-    const subito = RIENTRO_DA_USCITA;
-    RIENTRO_DA_USCITA = false;
     setTimeout(()=>{
       const accesso = document.getElementById('start-accesso');
       if(accesso) accesso.classList.add('show');
-    }, subito ? 0 : LOGO_FADE_MS);
+    }, LOGO_FADE_MS);
   }
 
   // Vero dal momento in cui la cascata finale e' PARTITA (non da quando e'
@@ -15089,14 +15063,7 @@ if(document.readyState==='loading'){
       if(!img.src) return Promise.resolve();
       // decode() rejects if the image errors or is removed mid-decode —
       // never let one bad/slow image block the whole gate.
-      // v0.80.6 — e nemmeno una promessa che non risponde: dopo una ricarica
-      // decode() puo' restare aperto per sempre (vedi DECODE_ATTESA_MAX_MS),
-      // e la barra di caricamento con lui.
-      if(!img.decode) return Promise.resolve();
-      return Promise.race([
-        img.decode().catch(()=>{}),
-        new Promise(res=>setTimeout(res, DECODE_ATTESA_MAX_MS))
-      ]);
+      return img.decode ? img.decode().catch(()=>{}) : Promise.resolve();
     }));
   }
 
@@ -15249,8 +15216,6 @@ if(document.readyState==='loading'){
   // Rete lenta o asset rotto non devono pero' lasciare lo schermo nero per
   // sempre: c'e' un tetto massimo di attesa, scaduto il quale si parte comunque.
   const FONDALE_ATTESA_MAX_MS = 8000;
-  // v0.80.6 — quanto si aspetta un decode() che non risponde (vedi sotto).
-  const DECODE_ATTESA_MAX_MS = 800;
   function attendiFondalePronto(){
     const promesse = [];
     // 1) lo sfondo, decodificato
@@ -15261,11 +15226,7 @@ if(document.readyState==='loading'){
     promesse.push(new Promise(res=>{
       const im = new Image();
       const fine = ()=>res();
-      // v0.80.6 — decode() puo' non rispondere MAI: dopo una ricarica, su
-      // un'immagine gia' in memoria, Chromium tiene la promessa aperta e si
-      // aspettavano gli otto secondi del tetto con lo schermo nero (misurato).
-      // Arrivati a onload i byte ci sono: al decode si concede un attimo.
-      im.onload = ()=>{ if(im.decode){ im.decode().then(fine, fine); setTimeout(fine, DECODE_ATTESA_MAX_MS); } else fine(); };
+      im.onload = ()=>{ if(im.decode) im.decode().then(fine, fine); else fine(); };
       im.onerror = fine; // un asset rotto non deve bloccare l'avvio
       im.src = bgUrl;
     }));
@@ -15303,18 +15264,6 @@ if(document.readyState==='loading'){
     // v0.72.59: il tutto e' ora subordinato al fondale pronto (vedi sopra).
     attendiFondalePronto().then(()=>{
       startIntroBegan = true;
-      // v0.80.6 — dopo un Disconnect lo sfondo c'e' e basta: niente tre
-      // secondi di dissolvenza dal nero (vedi RIENTRO_DA_USCITA).
-      if(RIENTRO_DA_USCITA){
-        const strati = ['start-bg-img','start-particles-far','start-particles-mid','start-particles-near']
-          .map(id=>document.getElementById(id)).filter(Boolean);
-        strati.forEach(el=>{ el.style.transition = 'none'; });
-        revealBg();
-        strati.forEach(el=>{ void el.offsetWidth; });
-        requestAnimationFrame(()=>requestAnimationFrame(()=>strati.forEach(el=>{ el.style.transition = ''; })));
-        beginLoadingPhase();
-        return;
-      }
       revealBg();
       setTimeout(beginLoadingPhase, BG_FADE_MS);
     });
@@ -16978,32 +16927,12 @@ async function accessoEntra(sessione){
   // controllo sta PRIMA di prendere la sedia: occupare un posto per qualcuno
   // che non sta entrando lo terrebbe occupato per mezzo minuto dopo che se
   // n'e' andato.
-  // ── v0.80.6 — E IL CODICE PARTE DA SOLO SE NON E' MAI PARTITO ─────────
-  // Chi si registra con Google non passa da registraAccount, che il codice lo
-  // spedisce: arrivava qui, con l'account appena nato e segnato "da
-  // verificare", e trovava sei caselle vuote e nessuna email — il codice
-  // arrivava solo premendo "Send a new code". Adesso lo si spedisce qui quando
-  // non ne e' mai partito uno, o quando quello partito e' scaduto: chi ha
-  // chiuso la finestra dieci minuti fa ha ancora in casella un codice buono, e
-  // mandargliene un altro lo annullerebbe.
-  const statoCodice = sessione ? await _statoDelCodice() : null;
-  if(statoCodice && statoCodice.verificato === false){
+  if(sessione && await serveIlCodice()){
     accessoMessaggio('login', '', '');
-    let messaggio = 'This account still needs its activation code.', genere = 'attesa';
-    if(!statoCodice.inviato || statoCodice.scaduto){
-      try{
-        const r = await nakamaRpc('hx_verifica_invia', {});
-        if(r && r.inviato === false && r.aspetta){ /* uno e' appena partito: vale quello */ }
-        else { messaggio = ''; genere = ''; }
-      }catch(e){
-        messaggio = 'We could not send the email. Use "Send a new code".';
-        genere = 'errore';
-      }
-    }
     apriVerifica(sessione, {
-      email: statoCodice.email || sessione.email || '',
-      messaggio: messaggio,
-      genere: genere
+      email: sessione.email || '',
+      messaggio: 'This account still needs its activation code.',
+      genere: 'attesa'
     });
     return;
   }
@@ -18838,12 +18767,8 @@ function precaricaArteDelleCarte(){
   const t0 = (typeof performance !== 'undefined') ? performance.now() : Date.now();
   const una = (url)=> new Promise(ok=>{
     const img = new Image();
-    // v0.80.6 — una volta sola, e con un tetto: dopo una ricarica decode()
-    // puo' non rispondere mai (vedi DECODE_ATTESA_MAX_MS nel precaricamento),
-    // e un canale fermo su un'immagine fermerebbe tutte quelle dopo.
-    let finita = false;
-    const fine = ()=>{ if(finita) return; finita = true; fatte++; ok(); };
-    img.onload  = ()=>{ if(img.decode){ img.decode().then(fine, fine); setTimeout(fine, 800); } else fine(); };
+    const fine = ()=>{ fatte++; ok(); };
+    img.onload  = ()=>{ if(img.decode) img.decode().then(fine, fine); else fine(); };
     img.onerror = fine;   // un'immagine che manca non deve fermare le altre
     img.src = url;
   });
@@ -19314,26 +19239,14 @@ async function completaRegistrazione(bottone){
     await nakamaRpc('hx_verifica_prova', { codice: codice });
     accessoOccupato(bottone, false);
     _verificaInCorso = false;
-    // ── v0.80.6 — FATTO: SI ENTRA ─────────────────────────────────────────
-    // Prima si tornava all'accesso e si dimenticava la sessione, e chi era
-    // arrivato con Google doveva ripremere "Login with Google" per entrare in
-    // un account appena confermato. La sessione in tasca e' buona — e' quella
-    // con cui il server ha appena accettato il codice — quindi si entra con
-    // lei, dalla stessa porta di tutti: accessoEntra, con la sedia e l'accordo.
-    const sessioneFatta = _verificaSessione || sessioneAccount;
+    // Fatto. Si torna all'accesso, come ha chiesto Lorenzo: l'account e'
+    // creato per davvero adesso, e la prima cosa che si fa con un account e'
+    // entrarci. La sessione si dimentica apposta — si rientra dalla porta
+    // principale, non da quella di servizio.
     _verificaSessione = null;
+    try{ nakamaDimenticaSessione(); }catch(_){}
     _svuotaCodice();
     accessoMessaggio('verifica', '', '');
-    if(sessioneFatta){
-      sessioneAccount = sessioneFatta;
-      // Fuori dal try di sopra: un intoppo nell'entrare non e' un codice
-      // sbagliato, e raccontarlo come tale farebbe riscrivere un codice buono.
-      accessoEntra(sessioneFatta).catch(function(){
-        accessoMessaggio('login', 'Your account is ready. Log in to start playing.', 'ok');
-        mostraModuloAccesso('login');
-      });
-      return;
-    }
     accessoMessaggio('login', 'Your account is ready. Log in to start playing.', 'ok');
     mostraModuloAccesso('login');
   }catch(e){
@@ -19400,14 +19313,10 @@ async function rimandaIlCodice(bottone){
 // ha fatto tutto giusto resta chiuso fuori dal proprio account perche' una
 // lettura non e' andata a buon fine.
 async function serveIlCodice(){
-  const r = await _statoDelCodice();
-  return !!(r && r.verificato === false);
-}
-// La risposta intera, per chi deve sapere anche SE un codice e' gia' partito
-// (v0.80.6, vedi accessoEntra). Stesso patto: nel dubbio, null — cioe' passa.
-async function _statoDelCodice(){
-  try{ return (await nakamaRpc('hx_verifica_stato', {})) || null; }
-  catch(e){ return null; }
+  try{
+    const r = await nakamaRpc('hx_verifica_stato', {});
+    return !!(r && r.verificato === false);
+  }catch(e){ return false; }
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -21574,9 +21483,6 @@ const UI_BASE = 'https://hextalegame.com/ui/';
 // BASE_CONCAT_PATTERN): un indirizzo costruito altrove non verrebbe mai
 // contato, e l'icona comparirebbe a schermo mentre ancora si scarica.
 const ICONA_MIRINO      = UI_BASE+'crosshair-icon.png';   // scegli un bersaglio
-// v0.80.6 — la misura delle icone di scelta rispetto a quella di prima (vedi
-// buildSvgIconBtn e .scarta-croce, che nel CSS e' scritta gia' dimezzata).
-const SCALA_ICONE_SCELTA = 0.5;
 const ICONA_RINUNCIA    = UI_BASE+'close-icon-red.png';   // lascia perdere / scarta
 const ICONA_SCAMBIO     = UI_BASE+'swap-icon.png';        // March Hare
 const ICONA_PICCONE     = UI_BASE+'hammer-icon.png';      // sfonda un muro
@@ -27080,7 +26986,7 @@ function vestiFinestraSemplice(prefisso){
 // prossimo account con addosso qualcosa del precedente.
 // Ricaricando, quel rischio non esiste: quel che non e' scritto da nessuna
 // parte non torna.
-async function _fuoriDalGioco(opzioni){
+async function _fuoriDalGioco(){
   // v0.79.3 — si libera la sedia PRIMA di ricaricare, e si aspetta: dopo la
   // ricarica questa pagina non c'e' piu' e la richiesta morirebbe per strada.
   // Chi rientra subito deve trovare il posto libero; chi chiude di brutto la
@@ -27093,16 +26999,11 @@ async function _fuoriDalGioco(opzioni){
   // che si e' appena chiuso — o uno che non esiste piu'.
   try{ ricordoDimentica(); }catch(_){}
   try{ fermaTuttiISuoni(); }catch(_){}
-  // v0.80.6 — il segno per saltare lo splash: vedi RIENTRO_DA_USCITA. Si
-  // scrive nell'indirizzo, e ricaricando l'indirizzo resta quello.
-  if(opzioni && opzioni.senzaSplash){
-    try{ history.replaceState(null, '', location.pathname + location.search + '#uscito'); }catch(_){}
-  }
   try{ location.reload(); }catch(_){}
 }
 function disconnetti(){
   closeSettingsModal();
-  _fuoriDalGioco({ senzaSplash: true });
+  _fuoriDalGioco();
 }
 function closeSettingsModal(){
   document.getElementById('settings-modal-overlay').classList.remove('show');
@@ -55537,12 +55438,6 @@ function renderBoard(){
     const d=svgEl('defs'); svg.insertBefore(d,svg.firstChild); return d;
   })();
   function buildSvgIconBtn(href, cxIcon, cyIcon, size, onClick){
-    // v0.80.6 — "tutte le icone che appaiono quando si gioca un'abilita' che
-    // necessita di un'azione del giocatore, piu' piccole del 50%" (Lorenzo).
-    // Qui e non a ogni chiamata: tutte le icone di scelta sulla plancia
-    // (mirino, scambio, mano da trascinare, X per rinunciare) nascono da
-    // questa funzione, e una nuova non potra' uscire della misura vecchia.
-    size = size * SCALA_ICONE_SCELTA;
     const maskId='svg-icon-mask-'+Math.random().toString(36).slice(2,8);
     const maskEl=document.createElementNS('http://www.w3.org/2000/svg','mask');
     maskEl.setAttribute('id',maskId);
@@ -55659,8 +55554,7 @@ function renderBoard(){
             const anello = svgEl('circle');
             anello.setAttribute('cx', bx.toFixed(1));
             anello.setAttribute('cy', by.toFixed(1));
-            // v0.80.6 — l'anello segue l'icona, che e' dimezzata.
-            anello.setAttribute('r', (R*0.46*SCALA_ICONE_SCELTA).toFixed(1));
+            anello.setAttribute('r', (R*0.46).toFixed(1));
             anello.setAttribute('fill','none');
             anello.setAttribute('stroke','#FFE991');
             anello.setAttribute('stroke-width', Math.max(2, R*0.06).toFixed(1));
@@ -55670,8 +55564,7 @@ function renderBoard(){
           }
           const quanti = svgEl('text');
           quanti.setAttribute('x', bx.toFixed(1));
-          // v0.80.6 — sotto all'icona dimezzata, non dove finiva quella grande.
-          quanti.setAttribute('y', (by + R*(0.27 + 0.31*SCALA_ICONE_SCELTA)).toFixed(1));
+          quanti.setAttribute('y', (by + R*0.58).toFixed(1));
           quanti.setAttribute('text-anchor','middle');
           quanti.setAttribute('font-family',"'Marcellus SC','Marcellus',serif");
           quanti.setAttribute('font-size', Math.max(10, R*0.30).toFixed(1));

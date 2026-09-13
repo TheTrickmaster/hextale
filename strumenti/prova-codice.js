@@ -54,6 +54,10 @@ app.whenReady().then(async () => {
       return {};
     };
     window.nakamaDimenticaSessione = ()=>{};
+    // Si entra davvero solo fino alla porta: il menu non c'entra con il codice.
+    const entrati = [];
+    const veroEntra = window.accessoEntra;
+    window.accessoEntra = async (s)=>{ entrati.push(s); };
 
     // ── 1. LA SCHERMATA SI APRE ────────────────────────────────────────────
     showPage('start');
@@ -118,8 +122,47 @@ app.whenReady().then(async () => {
     dice(chiesto.indexOf('hx_verifica_prova') >= 0, 'e alla sesta cifra si prova da solo');
     dice(verificato === true, 'il codice giusto verifica l-account');
     await attendi(600);
-    dice(document.getElementById('modulo-login').classList.contains('mostra'),
-      'e si torna alla schermata di accesso', 'E- quello che ha chiesto Lorenzo.');
+    // v0.80.6 — e si ENTRA, con la sessione che ha appena confermato il codice:
+    // prima si tornava all-accesso, e chi veniva da Google doveva ripremere
+    // "Login with Google" (segnalato da Lorenzo).
+    dice(entrati.length === 1 && entrati[0] && entrati[0].token === 'finto',
+      'e si entra da soli, con la stessa sessione', 'accessoEntra chiamata ' + entrati.length + ' volte');
+    dice(!document.getElementById('modulo-login').classList.contains('mostra'),
+      'senza ripassare dalla schermata di accesso');
+
+    // ── 4b. IL CODICE PARTE DA SOLO (GOOGLE) ───────────────────────────────
+    // Chi arriva da Google entra da accessoEntra con l-account appena nato e
+    // nessun codice spedito: il codice deve partire senza premere niente. Ma
+    // se ne e- gia- partito uno ancora buono non se ne manda un altro, che
+    // annullerebbe quello in casella.
+    window.accessoEntra = veroEntra;
+    const vecchioRpc = window.nakamaRpc;
+    let stato = { verificato:false, mai:false, inviato:false, scaduto:false, email:'google@esempio.it' };
+    const chiesteEntrando = [];
+    window.nakamaRpc = async (nome)=>{
+      chiesteEntrando.push(nome);
+      if(nome === 'hx_verifica_stato') return stato;
+      if(nome === 'hx_verifica_invia'){ stato.inviato = true; return { inviato:true, aspetta:60 }; }
+      return {};
+    };
+    await accessoEntra({ token:'google', userId:'u2', email:'' });
+    await attendi(400);
+    dice(chiesteEntrando.indexOf('hx_verifica_invia') >= 0, 'un account Google appena nato riceve il codice da solo',
+      chiesteEntrando.join(', '));
+    dice(document.getElementById('modulo-verifica').classList.contains('mostra'), 'e si apre la schermata del codice');
+    dice((document.getElementById('verifica-dove')||{}).textContent === 'google@esempio.it',
+      'con l-indirizzo detto dal server', (document.getElementById('verifica-dove')||{}).textContent);
+    chiesteEntrando.length = 0;
+    await accessoEntra({ token:'google', userId:'u2', email:'' });
+    await attendi(300);
+    dice(chiesteEntrando.indexOf('hx_verifica_invia') < 0, 'se un codice buono e- gia- partito non se ne manda un altro',
+      chiesteEntrando.join(', '));
+    stato.scaduto = true; chiesteEntrando.length = 0;
+    await accessoEntra({ token:'google', userId:'u2', email:'' });
+    await attendi(300);
+    dice(chiesteEntrando.indexOf('hx_verifica_invia') >= 0, 'se quello partito e- scaduto se ne manda uno nuovo');
+    window.nakamaRpc = vecchioRpc;
+    window.accessoEntra = async (s)=>{ entrati.push(s); };
 
     // ── 5. IL CODICE SBAGLIATO ─────────────────────────────────────────────
     verificato = false; vero = '999999';
