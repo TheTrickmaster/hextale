@@ -2204,3 +2204,13 @@ fra v0.80.10 e adesso: mancano 25 selettori, tutti del menu vecchio, nessun
 altro. Per le prossime sostituzioni a tratti: dopo, fare SEMPRE quel
 confronto — dice in un colpo cosa e' sparito, anche da parti che nessun banco
 guarda.
+
+v0.80.13 — PLAY VS BOT (segnalato da Lorenzo: "non posso piu' cliccare").
+#mm2-giocatore e #mm2-valute sono larghi meta' barra ciascuno (flex:1) e
+stavano sopra a #mm2-nav, che e' assoluto al centro: il gruppo delle valute
+copriva Play vs Bot e si prendeva il clic. #mm2-nav ha adesso z-index 2.
+E la vista contro il bot (mm2Vista('ai')): stesso centro, titoli "PvB Draft" e
+"PvB Normal", #mm2-online nascosto (#mm2-centro.vista-bot); l'etichetta "Start
+match vs Bot" e quel che fa il pulsante non cambiano. Il banco (sezione 3b)
+clicca dove clicca il mouse — elementFromPoint al centro del pulsante — perche'
+chiamare mm2Vista a mano sarebbe passato anche col pulsante coperto.

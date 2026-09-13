@@ -111,6 +111,39 @@ app.whenReady().then(async () => {
           normal ? ((pos(normal).y + normal.offsetHeight) + ' e ' + (pos(quest).y + quest.offsetHeight)) : 'manca');
       }
 
+      // ── 3b. PLAY VS BOT (v0.80.13) ───────────────────────────────────────
+      // Nella v0.80.11 non si poteva piu- premere: il gruppo delle valute,
+      // largo meta- barra, stava sopra al pulsante. Si chiede quindi al
+      // browser COSA c-e- sotto al centro del pulsante, e si clicca li-, come
+      // farebbe il mouse: chiamare mm2Vista direttamente passerebbe anche col
+      // pulsante coperto.
+      const botBtn = document.querySelector('#mm2-nav .mm2-nav-btn[data-vista="ai"]');
+      const bb = botBtn.getBoundingClientRect();
+      const sotto = document.elementFromPoint(bb.left + bb.width / 2, bb.top + bb.height / 2);
+      dice(sotto && botBtn.contains(sotto), 'al centro di Play vs Bot c-e- il pulsante, non qualcosa sopra',
+        sotto ? (sotto.id || sotto.className) : 'niente');
+      const mmBtn = document.querySelector('#mm2-nav .mm2-nav-btn[data-vista="matchmaking"]');
+      const mb = mmBtn.getBoundingClientRect();
+      const sottoMm = document.elementFromPoint(mb.left + mb.width * 0.85, mb.top + mb.height / 2);
+      dice(sottoMm && mmBtn.contains(sottoMm), 'e nemmeno su Matchmaking', sottoMm ? (sottoMm.id || sottoMm.className) : 'niente');
+      if(sotto) sotto.click();
+      await new Promise(r=>setTimeout(r, 200));
+      const h2 = id => (document.querySelector('#' + id + ' h2') || {}).textContent;
+      const online = document.getElementById('mm2-online');
+      const etichetta = () => (document.querySelector('#mm2-find .hxb-label') || {}).textContent;
+      dice(botBtn.classList.contains('attivo'), 'cliccato, Play vs Bot e- la vista scelta');
+      dice(h2('mm2-modo-draft') === 'PvB Draft' && h2('mm2-modo-normal') === 'PvB Normal',
+        'le modalita- diventano PvB Draft e PvB Normal', h2('mm2-modo-draft') + ' / ' + h2('mm2-modo-normal'));
+      dice(etichetta() === 'Start match vs Bot', 'il pulsante dice Start match vs Bot', etichetta());
+      dice(online && getComputedStyle(online).display === 'none', 'e i giocatori online non si vedono');
+      dice(document.getElementById('mm2-modo-normal').classList.contains('scelto') && document.getElementById('mm2-modo-draft').classList.contains('spento'),
+        'e il resto del centro e- identico: Normal scelta, Draft spenta');
+      mmBtn.click();
+      await new Promise(r=>setTimeout(r, 200));
+      dice(h2('mm2-modo-draft') === 'Draft pick' && h2('mm2-modo-normal') === 'Normal' && etichetta() === 'Find opponent'
+        && getComputedStyle(online).display !== 'none', 'e tornando a Matchmaking torna tutto com-era',
+        h2('mm2-modo-draft') + ' / ' + h2('mm2-modo-normal') + ' / ' + etichetta());
+
       // ── 4. LA FINE PARTITA NON PROMETTE PIU- UNA BUSTINA (v0.79.69) ──────
       // LA PAGINA DI GIOCO VA MONTATA. Le pagine sono ermetiche: dal menu il
       // tabellone non e- nel documento, e con lui nemmeno #gameover. Chiedere
