@@ -62,7 +62,7 @@ app.whenReady().then(async () => {
       dice(!corpo.classList.contains('vuoto'), 'e il riquadro non e- piu- quello vuoto');
 
       // ── 3. CI STANNO TUTTE E CINQUE ───────────────────────────────────────
-      dice(schede.every(s=>s.offsetHeight === 55), 'alte 55 come nel disegno',
+      dice(schede.every(s=>s.offsetHeight === 61), 'alte 61 come nel disegno (v0.80.11, menu nuovo)',
         schede.map(s=>s.offsetHeight).join(' '));
       dice(corpo.scrollHeight <= corpo.clientHeight,
         'e ci stanno tutte senza scorrere',
@@ -211,7 +211,7 @@ app.whenReady().then(async () => {
     fs.writeFileSync(SCATTO, (await win.webContents.capturePage()).toPNG());
     console.log('scritto ' + SCATTO);
     const dove = await win.webContents.executeJavaScript(`(function(){
-      const b = document.querySelector('#mm2-dx .mm2-box').getBoundingClientRect();
+      const b = document.getElementById('mm2-quest-pannello').getBoundingClientRect();
       const x = Math.max(0, Math.round(b.left) - 30), y = Math.max(0, Math.round(b.top) - 40);
       return { x, y, width: Math.min(Math.round(b.width) + 60, window.innerWidth - x),
                height: Math.min(Math.round(b.height) + 80, window.innerHeight - y) };

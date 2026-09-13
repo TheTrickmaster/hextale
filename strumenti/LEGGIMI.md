@@ -2153,3 +2153,38 @@ del colore e' stata ingrandita.
   un id batte una classe e avrebbero ricoperto la barra nuova. Gli id restano
   (packs-back, pack-toggle-variant, -label, -icon): li cercano la sequenza di
   apertura, packUpdateToggleLabel e i banchi.
+
+## prova-menu-sx.js — il Main menu nuovo (v0.80.11)
+
+    desktop/node_modules/electron/dist/electron.exe strumenti/prova-menu-sx.js
+
+Richiesta di Lorenzo (v0.80.11): stessi elementi, disposizione nuova (Figma:
+Main menu, 985:29258). Decisioni sue: via il logo e lo Shop; "+" solo sulla
+fairy dust; la riga e l'alone delle bustine restano; via "Season N rank"; il
+mazzo resta la casella di sempre (prima carta del mazzo); modalita' non scelta
+= niente bagliore, bordo bianco 20% in overlay; Play vs Bot mostra lo stesso
+centro e il pulsante non cambia funzione; le schede delle quest cambiano solo
+misure e stacchi; il numero di versione resta quello del gioco. Gli asset sono
+quelli di ui/ (avatar-frame.png, matchmaking-container.png con cornice gia'
+dentro, le icone delle valute cosi' come sono): da Figma solo misure e colori.
+
+- .mm2-vetro: il materiale di tutti i riquadri (gradiente per riquadro,
+  --hx-trama in overlay 40%, bordo ::after che non occupa spazio, sotto ai
+  figli posizionati).
+- #mm2-topbar 102: #mm2-giocatore (avatar 80x87.37 con la cornice spostata
+  perche' la foto sia 69.28x80, orb 46 a 17/60.69, nome e XP 134), #mm2-nav a
+  7 di gap con i non scelti al 60%, #mm2-valute (id #mm-ink/#mm-dust: adesso il
+  lampo del pagamento si vede anche nel menu).
+- #mm2-sx: .mm2-scheda 370x200 a 19, icone inclinate come nel disegno.
+- #mm2-centro 890 a 515.5/236: #mm2-testata (rank 260x59, separatore, "Select
+  deck:", #mm2-gioca-deck 381x70), #mm2-modi (.mm2-modo scelto/spento,
+  mm2ScegliModo), #mm2-gioca 313x82 con #mm2-find-raggi.
+- #mm2-dx a 1551/237: #mm2-quest-pannello 370x638, schede 61 a 12 (solo nel
+  menu; l'avviso in basso resta a 55).
+- #mm2-basso: settings, bug, news 48x51 a 20 dai bordi.
+- Tolte le regole CSS del menu vecchio; quelle di #pack-ink-fisso (Unpack)
+  riscritte a parte con gli stessi numeri.
+
+Il banco prova i tre riquadri (misure, posti, vetro uguale, pulsanti, riga
+delle bustine, PayPal), che lo Shop e le valute non stiano piu' a sinistra, e
+che le quest siano alte 638 come la colonna e finiscano con le modalita'.
