@@ -8745,10 +8745,15 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
   transform:translateX(-50%);
   background:linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.2) 50%, rgba(255,255,255,0) 100%);
 }
+/* v0.80.18 — IL PULSANTE PRENDE TUTTA LA SUA PARTE DI BARRA. Era alto quanto la
+   scritta (26px) dentro una barra da 80: si mancava facilmente. Il padding lo
+   allarga fino al bordo alto, basso e destro della barra e a meta' dello
+   spazio verso il divisore; i margini negativi uguali lasciano dov'era tutto
+   quello che si vede. */
 #library-filters{
-  flex:0 0 auto;
+  flex:0 0 auto; align-self:stretch;
   display:flex; align-items:center; gap:8px;
-  background:none; border:0; padding:0; margin:0;
+  background:none; border:0; padding:16px 20px 16px 8px; margin:-16px -20px -16px -8px;
   font-family:'Marcellus SC','Marcellus',var(--font-display),serif;
   font-size:22px; font-weight:400; line-height:normal;
   color:#DDCAA1; white-space:nowrap;
@@ -9573,6 +9578,9 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
   font-family:'Marcellus',var(--font-display),serif;
   font-size:24px; font-weight:400; color:#EDE0C6; text-align:left;
 }
+/* v0.80.18 — nel Figma "Rarity" e "Trait" sono tagliati alla maiuscola: e' da
+   li' che partono i 16 di spazio sopra e sotto. */
+#filters-pannello .filters-titolo{ text-box:trim-both cap alphabetic; }
 
 /* ══════════════════════════════════════════════════════════════════════════
    v0.77.11 — LA FINESTRA DELLE IMPOSTAZIONI
@@ -10820,7 +10828,10 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
 }
 .filters-opt .filters-icona{ width:24px; height:24px; display:block; flex:0 0 24px; }
 .filters-rarita .filters-icona{ width:20px; height:20px; flex:0 0 20px; }
-.filters-rarita .filters-nome{ margin:0 8px; }
+/* v0.80.18 — la casella a sinistra (Figma, Filters modal): 12 fra la casella
+   e l'icona, 8 fra la gemma e il nome, e dopo il nome niente. */
+.filters-rarita .filters-nome{ margin:0 0 0 8px; }
+#filters-pannello .filters-casella{ margin-right:12px; }
 .filters-opt input[type="checkbox"]{ position:absolute; opacity:0; pointer-events:none; }
 /* La casella e' un'immagine, e cambia da sola perche' il CSS legge lo stato
    della casella VERA nascosta dietro: nessuno stato in JS da tenere allineato,
@@ -10840,10 +10851,10 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
    casella cresce dal centro e non sposta niente: senza, ogni spunta
    allargherebbe la sua riga, e la griglia dei dodici tratti — che sta in
    colonne fisse — salterebbe a ogni clic. */
+/* v0.80.18 — ...e non piu'. Lorenzo ha rifatto le due immagini alla stessa
+   misura (64x64), e ingrandita la spuntata sembrava piu' grossa dell'altra.
+   Adesso cambia solo l'immagine. */
 .filters-opt input[type="checkbox"]:checked ~ .filters-casella{
-  width:calc(var(--hx-casella-lato) + 10px);
-  height:calc(var(--hx-casella-lato) + 10px);
-  margin:-5px;
   background-image:var(--hx-casella-on, none);
 }
 /* Le due caselle spinte a destra da un margine automatico sono l-eccezione:
@@ -10851,18 +10862,18 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
    posto per crescere ce l-hanno gia- a sinistra. Il margine automatico vince
    comunque su questa regola (e- scritto con un id), quindi qui si toglie solo
    quello di destra. */
-.settings-opzione input[type="checkbox"]:checked ~ .filters-casella,
-#nca-spunta-riga input[type="checkbox"]:checked ~ .filters-casella{ margin-right:0; }
+/* v0.80.18 — senza piu' margini negativi sulla casella spuntata, l'eccezione
+   qui sopra non ha piu' niente da togliere. */
 /* Dodici tratti in tre colonne da 160px. Le colonne sono FISSE e non
    proporzionali: cosi' le caselle di spunta cadono tutte sulla stessa
    verticale, che e' l'unica cosa che rende leggibile una griglia di scelte. */
 .filters-tratti{
   display:grid;
-  grid-template-columns:repeat(3, 160px);
+  grid-template-columns:162px 163px 162px;   /* v0.80.18 — le colonne del Figma */
   column-gap:52px; row-gap:26px;
   justify-content:start;
 }
-.filters-tratti .filters-opt{ width:160px; }
+.filters-tratti .filters-opt{ width:auto; }
 .filters-tratti .filters-nome{ margin-left:4px; margin-right:auto; }
 .filters-azione{ width:100%; }
 /* La versione rossa del pulsante: stessi cinque pezzi, altri file. */
@@ -18990,6 +19001,11 @@ async function riferisciPartita(vinta, pari, controIA){
     return;
   }
   if(!sessioneAccount || !sessioneAccount.token) return;
+  // v0.80.18 — le carte girate si prendono SUBITO, prima di aspettare il
+  // server: se nel frattempo parte un'altra partita, initGame azzera il conto
+  // e il racconto di questa si perderebbe.
+  const contoQuest = QUEST_CONTO;
+  questAzzeraConto();
   try{
     // v0.78.11 — e quanti turni si e' giocato. In rete non passa da qui (lo
     // conta il server); questa strada serve le partite contro l'IA, e li' il
@@ -19004,7 +19020,7 @@ async function riferisciPartita(vinta, pari, controIA){
     // v0.79.75 — come sopra, ma contro la macchina: `pvp` e' falso, e le quest
     // che dicono PvP non si muovono.
     try{ if(r.quest) questMostraMosse(r.quest); }catch(_){ }
-    try{ questRaccontaFinePartita(false); }catch(_){ }
+    try{ questRaccontaFinePartita(false, contoQuest); }catch(_){ }
   }catch(e){
     console.warn('[profilo] la partita non e\' stata registrata: ' + (e && e.message));
   }
@@ -21933,6 +21949,7 @@ function questSegnaConquiste(player, prese, prima){
   // sue. Fuori rete sono sempre il primo, in rete lo dice il server.
   const mio = (typeof _goIoSono === 'function') ? _goIoSono() : 1;
   if(player !== mio) return;
+  const contoPrima = Object.assign({}, QUEST_CONTO);   // v0.80.18 — per i popup in partita
   QUEST_CONTO.flip += prese.length;
   if(prese.length >= QUEST_MULTIPLO_DA) QUEST_CONTO.flip_multiplo += 1;
   for(const k of prese){
@@ -21940,14 +21957,47 @@ function questSegnaConquiste(player, prese, prima){
     const c = era && era.card;
     if(c && String(c.rarity||'').toLowerCase() === 'timeless') QUEST_CONTO.flip_timeless += 1;
   }
+  try{ questAvanzaInPartita(contoPrima); }catch(_){ }
+}
+// ── v0.80.18 — L'AVANZAMENTO SI VEDE MENTRE SI GIOCA ───────────────────────
+// Lorenzo: "ancora non vedo poppare in partita l'avanzamento delle daily
+// quests". Le carte girate si contano qui, ma al server si raccontavano solo
+// a fine partita: in partita non saliva niente. Adesso il popup sale
+// nell'istante in cui la carta viene girata. Traguardo e punto di partenza
+// sono quelli del server (QUEST_OGGI), l'avanzamento quello contato in questa
+// partita. Il server resta chi decide: a fine partita conferma, e i popup gia'
+// visti qui non si ripetono (vedi questMostraMosse).
+// Quale conto muove quale quest: l'elenco del server non lo dice (vedi
+// questPerIlClient), quindi si legge da qui. Sono le quest di QUEST_POOL che
+// avanzano girando carte; una nuova di quel tipo va aggiunta anche qui.
+const QUEST_CONTA_IN_PARTITA = { flip20:'flip', fliptimeless:'flip_timeless', flip2con1:'flip_multiplo' };
+let _questMostrateInPartita = {};
+function questAvanzaInPartita(contoPrima){
+  let t = 0;
+  for(const q of (QUEST_OGGI || [])){
+    const conta = q && (q.conta || QUEST_CONTA_IN_PARTITA[q.id]);
+    if(!conta || q.presa) continue;
+    const quanto = q.quanto || 1, base = q.fatto || 0;
+    if(base >= quanto) continue;
+    const ora = Math.min(quanto, base + (QUEST_CONTO[conta] || 0));
+    const prima = Math.min(quanto, base + ((contoPrima && contoPrima[conta]) || 0));
+    if(ora <= prima) continue;
+    _questMostrateInPartita[q.id] = ora;
+    const copia = Object.assign({}, q, { fatto: ora, presa: false });
+    setTimeout(()=>questPopup(copia, ora >= quanto), t);
+    t += 400;
+  }
 }
 // A fine partita: si manda quel che si e' contato e si azzera. Se la chiamata
 // non riesce il conto si perde, ed e' la scelta giusta — rimandarlo alla
 // prossima partita vorrebbe dire accreditare a domani cio' che si e' fatto
 // ieri, e le quest sono di oggi.
-async function questRaccontaFinePartita(pvp){
-  const conto = QUEST_CONTO;
-  questAzzeraConto();
+// v0.80.18 — chi ha gia' preso il conto (riferisciPartita, prima di aspettare
+// il server) lo passa, e quello che c'e' adesso non si tocca: puo' essere gia'
+// di una partita nuova.
+async function questRaccontaFinePartita(pvp, contoGiaPreso){
+  const conto = contoGiaPreso || QUEST_CONTO;
+  if(!contoGiaPreso) questAzzeraConto();
   if(!sessioneAccount || !sessioneAccount.token) return;
   if(!conto.flip && !conto.flip_timeless && !conto.flip_multiplo) return;
   try{
@@ -21996,6 +22046,9 @@ async function questMostraMosse(mosse){
   for(const m of mosse){
     const def = QUEST_OGGI.filter(q=>q && q.id === m.id)[0];
     if(!def) continue;
+    // v0.80.18 — gia' visto in partita, a quel punto o piu' avanti: il server
+    // sta solo confermando (vedi questAvanzaInPartita).
+    if((_questMostrateInPartita[m.id] || 0) >= (m.fatto || 0)) continue;
     const copia = Object.assign({}, def, { fatto:m.fatto, presa:false });
     const finita = !!m.finita;
     setTimeout(()=>questPopup(copia, finita), t);
@@ -33562,7 +33615,9 @@ function _filtroOpzione(chiave, etichetta, iconaFile, attributo, spuntata, dimen
   testo.textContent = etichetta;
   const casella = document.createElement('span');
   casella.className = 'filters-casella';
-  label.append(cb, icona, testo, casella);
+  // v0.80.18 — la casella prima, come nel Figma (Filters modal). Resta DOPO la
+  // <input>: il CSS la accende con `input:checked ~ .filters-casella`.
+  label.append(cb, casella, icona, testo);
   return label;
 }
 function cardDbBuildRarityFilter(){
@@ -36918,7 +36973,7 @@ function initGame(vsAI){
   // v0.79.75 — il conto delle carte girate riparte da zero: e' di QUESTA
   // partita, e quello di prima e' gia' stato raccontato (o perso, se la
   // partita e' finita male).
-  try{ questAzzeraConto(); }catch(_){ }
+  try{ questAzzeraConto(); _questMostrateInPartita = {}; }catch(_){ }
   // v0.76.8 — la grafica della schermata di partita, montata alla prima partita.
   try{ montaGraficaPartita(); }catch(_){}
   // Cancel all active animation frames from the previous game
@@ -38671,6 +38726,11 @@ function ricalcolaValoriVivi(card, cella){
   if(sinergieDalFoglio()){
     if(!card.valoriBase) card.valoriBase = {...card.values};
     card.values = ABILITA_MOTORE.valoriEffettivi(card, _scenaTabellone());
+    // v0.80.18 — nell'anteprima un numero deciso dal caso non si mostra, e vale
+    // anche per le sinergie continue: le Pixies danno +2 a un gruppo A CASO per
+    // ogni altro Trickster, e trascinandole si vedeva gia' dove sarebbe finito.
+    // Segnata cosi', la carta mostra "?" (vedi _toccataDaContinuoACaso).
+    if(_simulazioneInCorso && _toccataDaContinuoACaso(card, _scenaTabellone())) card.__aSorte = true;
     // v0.78.27 — e se accanto c'e' Bagheera, nessuna sinergia puo' portare un
     // valore SOTTO la sua base. Si taglia il risultato invece di filtrare i
     // contributi uno per uno: al motore non si chiede di conoscere una carta,
@@ -44551,6 +44611,16 @@ function clonaPerSimulazione(card){
 // la sua anteprima senza che nessuno debba ricordarsi di aggiungerla qui.
 function simulaPiazzamento(card, q, r){
   const tabelloneVero = G.board, manoVera1 = G.p1Hand, manoVera2 = G.p2Hand;
+  // ── v0.80.18 — ANCHE IL GELO DEI TASSELLI E' DEL TABELLONE ───────────────
+  // Lorenzo: "una volta il bot non ha giocato carte per tutta la partita e se
+  // nel suo turno espando le mie carte, la board si ricopre di tile ghiacciati".
+  // La simulazione sostituiva tabellone e mani ma non G.gelo: il gelo di
+  // Sherazade, simulato per l'anteprima o per il ragionamento dell'IA,
+  // congelava un tassello VERO a ogni prova — il primo libero non ancora
+  // congelato, quindi uno diverso ogni volta — finche' non ne restava nessuno.
+  // L'IA non trovava piu' dove giocare. Adesso la simulazione gela una copia.
+  const geloVero = G.gelo;
+  G.gelo = Object.assign({}, geloVero || {});
   _simulazioneInCorso = true; // vedi segnaLampoValori: qui non si accende niente
   try {
     const clone = {};
@@ -44644,6 +44714,7 @@ function simulaPiazzamento(card, q, r){
     // lancia: lasciarli sostituiti da un clone significherebbe che la partita
     // continua su una copia, e sarebbe un disastro silenzioso.
     G.board = tabelloneVero; G.p1Hand = manoVera1; G.p2Hand = manoVera2;
+    G.gelo = geloVero;   // v0.80.18 — vedi sopra
     _simulazioneInCorso = false;
   }
 }
@@ -56549,6 +56620,33 @@ function toast(msg){
 // "RAND". Senza, due partite con la stessa carta mostrerebbero la stessa riga
 // per due cose diverse, e chi legge non saprebbe che quel +2 sarebbe potuto
 // finire da un'altra parte.
+// v0.80.18 — c'e' in campo una sinergia continua che cambia i numeri di questa
+// carta e che sceglie i lati a caso? (Le Pixies: "+2 Power RAND per ogni altro
+// Trickster".) La regola del caso (vedi applicaCambiamenti) vale anche li':
+// nell'anteprima quel numero non si mostra.
+// Come si capisce: si rifa' il conto con semi diversi. Se i numeri cambiano, a
+// deciderli e' il caso. Non si isola la fonte togliendo le altre dal campo: le
+// Pixies contano proprio gli ALTRI Trickster, e da sole non darebbero niente.
+function _toccataDaContinuoACaso(card, scena){
+  const motore = (typeof _motore === 'function') ? _motore() : null;
+  if(!motore || typeof motore.deltaContinuo !== 'function' || typeof motore.abilitaDi !== 'function') return false;
+  const fonti = (scena && scena.inCampo) || [];
+  const ceNeUna = fonti.some(fonte => {
+    let a = null;
+    try{ a = motore.abilitaDi(fonte); }catch(_){ return false; }
+    return !!a && a.trigger === 'while_on_board'
+      && [a.effetto, a.effetto2].some(e => e && (e.ambito === 'RAND' || e.ambito === 'ONE' || e.quale === 'random'));
+  });
+  if(!ceNeUna) return false;
+  let base = null;
+  try{ base = motore.deltaContinuo(card, scena); }catch(_){ return false; }
+  for(let i = 1; i <= 6; i++){
+    let d = null;
+    try{ d = motore.deltaContinuo(card, Object.assign({}, scena, { seme: String(scena.seme || '') + '#caso' + i })); }catch(_){ continue; }
+    if(d && SIDES.some(l => (d[l] || 0) !== ((base && base[l]) || 0))) return true;
+  }
+  return false;
+}
 function _fonteACaso(fonte){
   const motore = (typeof _motore === 'function') ? _motore() : null;
   if(!motore || typeof motore.abilitaDi !== 'function' || !fonte) return false;
