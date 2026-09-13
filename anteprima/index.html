@@ -6349,6 +6349,90 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
   user-select:none;
 }
 #settings-btn img{ width:100%; height:auto; display:block; pointer-events:none; }
+/* ══════════════════════════════════════════════════════════════════════════
+   v0.80.19 — GLI STICKER (Figma "Battle Screen - Stickers")
+   ══════════════════════════════════════════════════════════════════════════
+   L'icona sta sotto al pulsante delle impostazioni, solo dal lato di chi gioca
+   (che e' sempre il sinistro, vedi body.io-sono-2). Nel Figma e' a 89.74 sotto
+   le impostazioni e centrata su di esse: il pulsante qui e' largo 67, l'icona
+   63, quindi due pixel di rientro. Il menu la tiene nello stesso posto: si apre
+   con 20 di padding attorno. */
+#sticker-btn{
+  display:none;
+  position:fixed; left:426px; top:119.74px; z-index:20;
+  width:63px; height:63px;
+  padding:0; border:0; background:transparent;
+  cursor:var(--cursore); user-select:none;
+  transition:filter .16s ease, transform .16s ease;
+}
+#sticker-btn img{ width:100%; height:100%; display:block; pointer-events:none; }
+#sticker-btn:hover{ filter:brightness(1.15); }
+#sticker-btn:active{ transform:scale(.95); }
+#sticker-menu{
+  display:none;
+  position:fixed; left:406px; top:99.74px; z-index:950;
+  width:776px; box-sizing:border-box; padding:20px;
+  flex-direction:column; align-items:stretch; gap:16px;
+  border-radius:28px; isolation:isolate;
+  background:linear-gradient(-24.41deg, rgba(0,0,0,0.2) 0%, rgba(255,255,255,0.2) 100%), rgba(24,36,38,0.5);
+  -webkit-backdrop-filter:blur(20px); backdrop-filter:blur(20px);
+}
+#sticker-menu.show{ display:flex; }
+#sticker-menu::before{
+  content:''; position:absolute; inset:0; border-radius:inherit; z-index:-1;
+  background-image:var(--hx-trama, none);
+  background-size:847px 809.5px; background-position:top left; background-repeat:repeat;
+  mix-blend-mode:overlay; opacity:0.4; pointer-events:none;
+}
+#sticker-menu::after{
+  content:''; position:absolute; inset:0; border-radius:inherit; pointer-events:none;
+  border:1.5px solid rgba(255,255,255,0.22);
+}
+#sticker-menu, #sticker-menu *{ cursor:var(--cursore); }
+.sticker-testa{ display:flex; align-items:center; justify-content:space-between; }
+.sticker-testa-icona{ width:63px; height:63px; padding:0; margin:0; border:0; background:none; flex:none; }
+.sticker-testa-icona img{ width:100%; height:100%; display:block; pointer-events:none; }
+.sticker-titolo{
+  font-family:'Marcellus SC','Marcellus',var(--font-display),serif;
+  font-size:30px; font-weight:400; line-height:normal;
+  color:#DDCAA1; white-space:nowrap;
+}
+.sticker-set{ display:flex; flex-wrap:wrap; align-items:center; gap:24px; }
+/* Si illumina seguendo la sagoma (Figma: ombra 0 0 10 #FAEED2). */
+.sticker-voce{
+  width:128px; height:128px; padding:0; margin:0; border:0; background:none;
+  transition:filter .14s ease, opacity .2s ease, transform .14s ease;
+}
+.sticker-voce img{ width:100%; height:100%; object-fit:contain; display:block; pointer-events:none; }
+.sticker-voce:hover{ filter:drop-shadow(0 0 10px #FAEED2); }
+.sticker-voce:active{ transform:scale(.96); }
+/* Bloccato: gli sticker restano, trasparenti al 30%, e non si accendono. */
+#sticker-menu.bloccato .sticker-voce{ opacity:0.3; }
+#sticker-menu.bloccato .sticker-voce:hover{ filter:none; }
+#sticker-menu.bloccato .sticker-voce:active{ transform:none; }
+/* La bolla: sticker-bubble.png e' 720x428, cioe' 360x214 a doppia risoluzione,
+   con la coda verso destra. La punta, misurata sull'alfa, e' a (359, 36): e'
+   quel punto a finire al centro dell'avatar di chi manda (vedi stickerMostra).
+   Per il giocatore di sinistra si specchia il disegno, non lo sticker. Lo
+   sticker sta a (19, 27) come nel Figma, e a (180, 27) quando e' specchiata. */
+.sticker-bolla{
+  display:none; position:fixed; z-index:860;
+  width:360px; height:214px; pointer-events:none;
+}
+.sticker-bolla.show{ display:block; }
+.sticker-bolla-molla{ position:absolute; inset:0; transform-origin:99.7% 16.8%; }
+.sticker-bolla.a-sinistra .sticker-bolla-molla{ transform-origin:0.3% 16.8%; }
+.sticker-bolla-fondo{ position:absolute; inset:0; width:100%; height:100%; display:block; }
+.sticker-bolla.a-sinistra .sticker-bolla-fondo{ transform:scaleX(-1); }
+.sticker-bolla-img{ position:absolute; left:19px; top:27px; width:161px; height:161px; object-fit:contain; display:block; }
+.sticker-bolla.a-sinistra .sticker-bolla-img{ left:180px; }
+/* L'entrata e' quella del fumetto del bot (aiSpeechPop), dalla punta. */
+.sticker-bolla-molla.entra{ animation:aiSpeechPop 0.38s cubic-bezier(.2,.9,.25,1.1); }
+.sticker-bolla-molla.esce{ animation:stickerEsce 0.25s ease-in forwards; }
+@keyframes stickerEsce{
+  from{ transform:scale(1); opacity:1; }
+  to  { transform:scale(0.55); opacity:0; }
+}
 /* ── v0.79.70 — SEGNALARE UN GIOCATORE ────────────────────────────────────
    Speculare al pulsante delle impostazioni: stessa misura, stessa altezza,
    stessa distanza dal bordo — dall'altra parte. Le due regole sono scritte
@@ -13462,9 +13546,22 @@ try{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.18</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.19</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
+<!-- v0.80.19 — gli sticker: l'icona (solo per chi gioca), il menu, e due bolle
+     fisse, una per lato, cosi' quelle dei due giocatori possono stare a schermo
+     insieme. Vedi stickerMostra. -->
+<button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
+<div id="sticker-menu">
+  <div class="sticker-testa">
+    <button class="sticker-testa-icona" type="button" onclick="stickerChiudiMenu()" aria-label="Close"><img alt="" draggable="false"></button>
+    <span class="sticker-titolo" id="sticker-titolo">Send a sticker</span>
+  </div>
+  <div class="sticker-set" id="sticker-set"></div>
+</div>
+<div class="sticker-bolla a-sinistra" id="sticker-bolla-sinistra"><div class="sticker-bolla-molla"><img class="sticker-bolla-fondo" alt="" draggable="false"><img class="sticker-bolla-img" alt="" draggable="false"></div></div>
+<div class="sticker-bolla" id="sticker-bolla-destra"><div class="sticker-bolla-molla"><img class="sticker-bolla-fondo" alt="" draggable="false"><img class="sticker-bolla-img" alt="" draggable="false"></div></div>
 <!-- v0.79.75 — dove salgono gli avvisi delle quest. Vuoto quasi sempre, e
      fuori da ogni pagina: una quest puo' avanzare in partita e l'avviso si
      vede in partita, ma il posto non appartiene al tavolo. -->
@@ -16369,6 +16466,7 @@ const PAGE_ELEMENT_IDS = {
     'banner-dim-overlay','turn-banner','turn-banner-text','timesup-banner','timesup-content',
     'drag-ghost','hand-hover-preview',
     'timer-bar-wrap','gameover','settings-btn','report-btn',
+    'sticker-btn','sticker-menu','sticker-bolla-sinistra','sticker-bolla-destra',   // v0.80.19
   ],
   mainmenu: ['main-menu'],
   collection: ['card-db-overlay'],
@@ -17853,6 +17951,162 @@ function reteScegli(cella){
 }
 
 // Un messaggio della partita.
+// ══════════════════════════════════════════════════════════════════════════
+// v0.80.19 — GLI STICKER
+// ══════════════════════════════════════════════════════════════════════════
+// Lorenzo: funzionano come il fumetto del bot, ma li lanciano i giocatori.
+// Si clicca l'icona sotto alle impostazioni, si sceglie uno dei cinque, il menu
+// si chiude, e lo sticker compare dentro sticker-bubble — per tutti e due, dal
+// lato di chi l'ha mandato secondo lo schermo di ognuno — per tre secondi.
+// Piu' di cinque in dieci secondi e per due minuti non se ne mandano: accanto a
+// "Send a sticker" compare quanto manca, e gli sticker diventano trasparenti.
+// Il limite lo tiene il server (vedi _sticker in server/nakama/index.js); qui si
+// tiene lo stesso conto per mostrarlo subito, e contro il bot e' l'unico.
+// Tutto dura una partita: initGame riparte da zero (stickerNuovaPartita).
+const STICKER_NOMI = ['carabosse-menacing', 'frog-prince-okay', 'merlin-perfect', 'queen-of-hearts-angry', 'bagheera-scared'];
+const STICKER_A_SCHERMO_MS = 3000;
+const STICKER_USCITA_MS = 250;        // deve combaciare con stickerEsce nel CSS
+const STICKER_MAX = 5, STICKER_FINESTRA_MS = 10000, STICKER_BLOCCO_MS = 120000;
+// La punta della coda in sticker-bubble.png (720x428 a doppia risoluzione),
+// misurata sull'alfa: e' il punto che va al centro dell'avatar.
+const STICKER_BOLLA_W = 360, STICKER_PUNTA_X = 359, STICKER_PUNTA_Y = 36;
+let _stickerInvii = [];
+let _stickerBloccatoFino = 0;          // performance.now()
+let _stickerOrologio = null;
+const _stickerTempi = { sinistra: null, destra: null };
+
+function stickerCostruisciSet(){
+  const set = document.getElementById('sticker-set');
+  if(!set || set.children.length) return;
+  for(const nome of STICKER_NOMI){
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'sticker-voce'; b.dataset.sticker = nome;
+    b.setAttribute('aria-label', nome.replace(/-/g, ' '));
+    const im = document.createElement('img');
+    im.alt = ''; im.draggable = false;
+    impostaImgDaCandidati(im, uiFileCandidati('sticker/' + nome + '.png'));
+    b.appendChild(im);
+    b.onclick = ()=> stickerManda(nome);
+    set.appendChild(b);
+  }
+}
+function stickerMenuAperto(){
+  const m = document.getElementById('sticker-menu');
+  return !!(m && m.classList.contains('show'));
+}
+function stickerApriChiudi(){ stickerMenuAperto() ? stickerChiudiMenu() : stickerApriMenu(); }
+function stickerApriMenu(){
+  const m = document.getElementById('sticker-menu');
+  if(!m || !G || G.gameOver) return;
+  stickerCostruisciSet();
+  m.classList.add('show');
+  stickerAggiornaBlocco();
+  if(!_stickerOrologio) _stickerOrologio = setInterval(stickerAggiornaBlocco, 250);
+}
+function stickerChiudiMenu(){
+  const m = document.getElementById('sticker-menu');
+  if(m) m.classList.remove('show');
+  if(_stickerOrologio){ clearInterval(_stickerOrologio); _stickerOrologio = null; }
+}
+function _stickerTempo(ms){
+  const s = Math.max(1, Math.ceil(ms / 1000));
+  return s < 60 ? (s + 's') : (Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'));
+}
+function stickerAggiornaBlocco(){
+  const resta = _stickerBloccatoFino - performance.now();
+  const bloccato = resta > 0;
+  const m = document.getElementById('sticker-menu');
+  if(m) m.classList.toggle('bloccato', bloccato);
+  const t = document.getElementById('sticker-titolo');
+  if(t) t.textContent = bloccato ? ('Send a sticker (' + _stickerTempo(resta) + ')') : 'Send a sticker';
+}
+function stickerBloccaPer(ms){
+  const quanto = Math.max(0, Number(ms) || 0);
+  _stickerInvii = [];
+  _stickerBloccatoFino = Math.max(_stickerBloccatoFino, performance.now() + quanto);
+  stickerAggiornaBlocco();
+}
+function stickerManda(nome){
+  if(STICKER_NOMI.indexOf(nome) < 0 || !G || G.gameOver) return;
+  const ora = performance.now();
+  if(ora < _stickerBloccatoFino) return;
+  _stickerInvii = _stickerInvii.filter(t => ora - t < STICKER_FINESTRA_MS);
+  if(_stickerInvii.length >= STICKER_MAX){
+    // Il sesto: non parte, e il menu resta aperto per far vedere perche'.
+    stickerBloccaPer(STICKER_BLOCCO_MS);
+    return;
+  }
+  _stickerInvii.push(ora);
+  stickerChiudiMenu();
+  stickerMostra(_goIoSono(), nome);
+  if(typeof PARTITA_RETE !== 'undefined' && PARTITA_RETE && PARTITA_RETE.matchId){
+    mmManda({ cid: 'k' + Date.now().toString(36), match_data_send: {
+      match_id: PARTITA_RETE.matchId, op_code: 14,
+      data: btoa(JSON.stringify({ sticker: nome }))
+    }});
+  }
+}
+// Dove: dal lato dell'avatar di chi l'ha mandato, cosi' come quell'avatar sta
+// su QUESTO schermo (in rete chi e' il 2 si vede a sinistra, vedi io-sono-2).
+// La punta della coda va al centro dell'avatar; a sinistra la bolla e' specchiata.
+function stickerMostra(numero, nome){
+  if(STICKER_NOMI.indexOf(nome) < 0) return;
+  const lato = (numero === _goIoSono()) ? 'sinistra' : 'destra';
+  const bolla = document.getElementById('sticker-bolla-' + lato);
+  const avatar = document.querySelector('#p' + numero + '-info .player-avatar');
+  const radice = document.getElementById('game-root');
+  if(!bolla || !avatar || !radice) return;
+  const rr = radice.getBoundingClientRect(), k = rr.width / 1920 || 1;
+  const ra = avatar.getBoundingClientRect();
+  const cx = (ra.left + ra.width / 2 - rr.left) / k, cy = (ra.top + ra.height / 2 - rr.top) / k;
+  const puntaX = (lato === 'destra') ? STICKER_PUNTA_X : (STICKER_BOLLA_W - STICKER_PUNTA_X);
+  bolla.style.left = (cx - puntaX) + 'px';
+  bolla.style.top = (cy - STICKER_PUNTA_Y) + 'px';
+  const im = bolla.querySelector('.sticker-bolla-img');
+  if(im) impostaImgDaCandidati(im, uiFileCandidati('sticker/' + nome + '.png'));
+  bolla.dataset.sticker = nome;
+  const molla = bolla.querySelector('.sticker-bolla-molla');
+  if(molla){ molla.classList.remove('entra', 'esce'); void molla.offsetWidth; molla.classList.add('entra'); }
+  bolla.classList.add('show');
+  try{ playSfxFile('sticker.mp3'); }catch(_){ }
+  clearTimeout(_stickerTempi[lato]);
+  _stickerTempi[lato] = setTimeout(()=>{
+    if(molla){ molla.classList.remove('entra'); molla.classList.add('esce'); }
+    _stickerTempi[lato] = setTimeout(()=>{
+      bolla.classList.remove('show');
+      if(molla) molla.classList.remove('esce');
+      _stickerTempi[lato] = null;
+    }, STICKER_USCITA_MS);
+  }, STICKER_A_SCHERMO_MS);
+}
+function stickerNascondiBolle(){
+  for(const lato of ['sinistra', 'destra']){
+    clearTimeout(_stickerTempi[lato]); _stickerTempi[lato] = null;
+    const b = document.getElementById('sticker-bolla-' + lato);
+    if(b) b.classList.remove('show');
+  }
+}
+function stickerNuovaPartita(){
+  _stickerInvii = [];
+  _stickerBloccatoFino = 0;
+  stickerChiudiMenu();
+  stickerNascondiBolle();
+  stickerAggiornaBlocco();
+}
+// A fine partita l'icona se ne va e il menu si chiude; una bolla gia' a schermo
+// finisce i suoi tre secondi.
+function stickerFinePartita(){
+  stickerChiudiMenu();
+  const b = document.getElementById('sticker-btn');
+  if(b) b.style.display = 'none';
+}
+// Un clic fuori dal menu lo chiude (l'icona fa gia' da interruttore).
+document.addEventListener('pointerdown', (e)=>{
+  if(!stickerMenuAperto()) return;
+  const dove = e.target && e.target.closest ? e.target.closest('#sticker-menu, #sticker-btn') : null;
+  if(!dove) stickerChiudiMenu();
+}, true);
+
 function reteMessaggio(md){
   const op = Number(md.op_code);
   let d = {};
@@ -17905,6 +18159,12 @@ function reteMessaggio(md){
     chiudiSceltaBersaglio(d.cella === null ? null : String(d.cella), true);
     return;
   }
+
+  // v0.80.19 — gli sticker. Il 15 e' uno sticker mandato da uno dei due: il mio
+  // l'ho gia' mostrato quando l'ho cliccato, quello dell'altro va dal suo lato.
+  // Il 16 e' il server che dice che sono bloccato, e per quanto.
+  if(op === 15){ if(PARTITA_RETE && d.di !== PARTITA_RETE.io) stickerMostra(d.di, d.sticker); return; }
+  if(op === 16){ stickerBloccaPer(d.resta); return; }
 
   if(op === 4){
     // Il battito del tempo: la scadenza vera e' quella del server.
@@ -22233,6 +22493,13 @@ function montaGraficaPartita(){
   // la fazione sbagliata e correggerli dopo.
   vestiOrbDelPunteggio();
   img('#settings-btn img', 'settings-button.png');
+  // v0.80.19 — gli sticker: l'icona, la bolla, la trama del menu e i cinque.
+  img('#sticker-btn img', 'sticker-icon.png');
+  img('.sticker-testa-icona img', 'sticker-icon.png');
+  img('.sticker-bolla-fondo', 'sticker-bubble.png');
+  impostaVariabileDaCandidati(document.getElementById('sticker-menu'),
+    '--hx-trama', uiFileCandidati('brushed-texture.jpg'));
+  try{ stickerCostruisciSet(); }catch(_){ }
   img('#report-btn img',   'report-player-button.png');
   // v0.77.53 — LA BARRA DEL NOME NON HA PIU' UNO SFONDO. Prima erano i tre
   // pezzi opachi della Libreria; adesso il nome sta direttamente sul drappo.
@@ -26032,6 +26299,8 @@ function startGame(vsAI){
   // c'e' nessuno da segnalare. Si guarda PARTITA_RETE e non "vsAI", perche'
   // la domanda vera e' "dall'altra parte c'e' una persona?".
   document.getElementById('report-btn').style.display = PARTITA_RETE ? 'block' : 'none';
+  // v0.80.19 — e l'icona degli sticker, per chi gioca: in rete e contro il bot.
+  document.getElementById('sticker-btn').style.display = 'block';
   document.getElementById('gameover').classList.remove('show');
   toggleBoardView(false);
   // Position the persistent gameboard background THE INSTANT the game
@@ -29025,6 +29294,8 @@ const SUONI_SFX_EXTRA = Object.values(WHOOSH_PER_RARITA)
            'score.mp3', 'scored.mp3',
            // v0.80.5 — la briciola mangiata (Tom Thumb).
            'munch.mp3',
+           // v0.80.19 — lo sticker che compare.
+           'sticker.mp3',
            // v0.77.13 — bell (il "ding" del tempo scaduto) stava SOLO in
            // AUDIO_DATA_URLS. I due elenchi non sono equivalenti: quello lo
            // precarica con fetch, e il precarico si salta interamente quando
@@ -35639,6 +35910,8 @@ function backToMainMenu(){
   // show/hide rather than relying on z-index alone.
   document.getElementById('settings-btn').style.display='none';
   document.getElementById('report-btn').style.display='none';
+  document.getElementById('sticker-btn').style.display='none';   // v0.80.19
+  try{ stickerNuovaPartita(); }catch(_){ }
   // v0.73.53 — "Back to main menu" adesso porta al MENU PRINCIPALE, che da
   // questa versione esiste davvero. Prima riportava alla schermata di
   // apertura col logo, perche' era l'unica cosa che ci fosse.
@@ -36974,6 +37247,8 @@ function initGame(vsAI){
   // partita, e quello di prima e' gia' stato raccontato (o perso, se la
   // partita e' finita male).
   try{ questAzzeraConto(); _questMostrateInPartita = {}; }catch(_){ }
+  // v0.80.19 — gli sticker (e il loro blocco) valgono una partita.
+  try{ stickerNuovaPartita(); }catch(_){ }
   // v0.76.8 — la grafica della schermata di partita, montata alla prima partita.
   try{ montaGraficaPartita(); }catch(_){}
   // Cancel all active animation frames from the previous game
@@ -48640,6 +48915,7 @@ function finishGameWithResult(){
   // Vale per QUESTA partita: ritrovarlo sulla prossima incoronerebbe qualcuno
   // che non ha ancora giocato.
   if(G) G.vincitoreDichiarato = 0;
+  try{ stickerFinePartita(); }catch(_){ }   // v0.80.19 — a fine partita niente sticker
   setTimeout(()=>{
     document.getElementById('gameover').classList.add('show');
     // v0.78.12 — la fascia c'e' subito, il resto entra a tempo.
@@ -58074,6 +58350,8 @@ function closeCardModal(){
     // arrivare a guardare cosa c'e' sotto.
     const sceltaNome = document.getElementById('username-overlay');
     if(sceltaNome && sceltaNome.classList.contains('show')){ e.preventDefault(); return; }
+    // v0.80.19 — il menu degli sticker si chiude per primo.
+    if(typeof stickerMenuAperto === 'function' && stickerMenuAperto()){ stickerChiudiMenu(); return; }
     const finestra = _finestraPiuInAlto();
     if(finestra){ finestra.click(); return; }
     // Nessuna finestra aperta: resta il mazzo in modifica, che non e' una
