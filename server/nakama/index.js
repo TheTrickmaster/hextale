@@ -436,6 +436,11 @@ function primaDiGoogle(ctx, logger, nk, data) {
     logger.warn('token Google per un altra applicazione: aud=%s', String(aud));
     throw Error('questo accesso Google non e per Hextale');
   }
+  // v0.80.17 — anche da qui un nome da admin non si prende (vedi _nomeDaAdmin).
+  if (data && data.username && _nomeDaAdmin(data.username)) {
+    logger.warn('registrazione Google rifiutata: nome da admin (%s)', data.username);
+    throw Error('That player name is not allowed.');
+  }
   return data;
 }
 
@@ -472,14 +477,45 @@ function scriviPossesso(nk, userId, valore) {
   }]);
 }
 
+// ── v0.80.17 — I NOMI DEGLI ADMIN NON SI PRENDONO ─────────────────────────
+// Un nome che somiglia a uno di NOMI_ADMIN a meno delle maiuscole. Nessuno lo
+// puo' scegliere registrandosi (primaDiEntrareConNome) ne' cambiandosi il nome
+// (primaDiCambiareProfilo), a meno di essere gia' admin per contrassegno.
+function _nomeDaAdmin(nome) {
+  var n = String(nome || '').toLowerCase();
+  for (var i = 0; i < NOMI_ADMIN.length; i++) {
+    if (n === NOMI_ADMIN[i].toLowerCase()) return true;
+  }
+  return false;
+}
+function _adminDaContrassegno(nk, userId) {
+  if (!userId) return false;
+  var conti = nk.usersGetId([userId]);
+  var meta = (conti && conti.length && conti[0].metadata) ? conti[0].metadata : {};
+  return !!(meta && meta.admin === true);
+}
+// Registrazione con email, dispositivo o id personalizzato: un nome da admin
+// nella richiesta ferma tutto. Chi c'e' gia' non manda nome, e passa.
+function primaDiEntrareConNome(ctx, logger, nk, dati) {
+  if (dati && dati.username && _nomeDaAdmin(dati.username)) {
+    logger.warn('registrazione rifiutata: nome da admin (%s)', dati.username);
+    throw Error('That player name is not allowed.');
+  }
+  return dati;
+}
+
 function eAdmin(nk, userId, username) {
   var conti = nk.usersGetId([userId]);
   var meta = (conti && conti.length && conti[0].metadata) ? conti[0].metadata : {};
   if (meta && meta.admin === true) return true;
   // Semina: il nome sta nell'elenco ma il contrassegno non c'e' ancora.
   var nome = username || ((conti && conti.length) ? conti[0].username : '');
+  // v0.80.17 — il nome ESATTO, maiuscole comprese. Col confronto in minuscolo
+  // bastava registrarsi come "loreadmin" (un nome diverso per il database, lo
+  // stesso per questo controllo) per diventare admin per sempre. E quei nomi
+  // non si possono piu' prendere: vedi _nomeDaAdmin.
   for (var i = 0; i < NOMI_ADMIN.length; i++) {
-    if (String(nome || '').toLowerCase() === NOMI_ADMIN[i].toLowerCase()) {
+    if (String(nome || '') === NOMI_ADMIN[i]) {
       meta.admin = true;
       nk.accountUpdateId(userId, null, null, null, null, null, null, meta);
       return true;
@@ -3568,6 +3604,11 @@ function _paroleDelGioco(nk) {
 //   "js registerBeforeUpdateAccount function key could not be extracted"
 // E' la stessa ragione per cui ogni RPC qui sotto passa un nome.
 function primaDiCambiareProfilo(ctx, logger, nk, dati) {
+  // v0.80.17 — un nome da admin se lo tiene solo chi e' gia' admin.
+  if (dati && dati.username && _nomeDaAdmin(dati.username) && !_adminDaContrassegno(nk, ctx.userId)) {
+    logger.warn('nome da admin rifiutato per %s: %s', ctx.userId, dati.username);
+    throw Error('That player name is not allowed.');
+  }
   if (dati && dati.username) {
     var brutta = nomeSporco(nk, dati.username);
     if (brutta) {
@@ -6659,6 +6700,10 @@ function InitModule(ctx, logger, nk, initializer) {
   initializer.registerRtBefore('MatchmakerAdd', primaDiCercare);
   // Tutte le strade d'ingresso, non solo quella con l'email: chi entra con
   // Google deve ricevere il mazzo esattamente come gli altri.
+  // v0.80.17 — i nomi degli admin non si prendono registrandosi (vedi _nomeDaAdmin).
+  initializer.registerBeforeAuthenticateEmail(primaDiEntrareConNome);
+  initializer.registerBeforeAuthenticateDevice(primaDiEntrareConNome);
+  initializer.registerBeforeAuthenticateCustom(primaDiEntrareConNome);
   initializer.registerAfterAuthenticateEmail(dopoAccesso);
   initializer.registerAfterAuthenticateGoogle(dopoAccesso);
   // PRIMA di autenticare con Google si controlla per chi e stato emesso il token.

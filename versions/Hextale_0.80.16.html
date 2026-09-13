@@ -13451,7 +13451,7 @@ try{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.17</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.16</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <!-- v0.79.75 — dove salgono gli avvisi delle quest. Vuoto quasi sempre, e
@@ -16911,9 +16911,6 @@ const NAKAMA_CHIAVE_SESSIONE = 'hextale.sessione';
 // il gioco contro l'IA continua a funzionare senza mai guardare qui dentro.
 let sessioneAccount = null;
 let giocatoreOnline = false;
-// v0.80.17 — di quale account sono i dati che il client ha in memoria (carte,
-// admin, mazzi, pacchetti): l'uid scritto nel token. Vedi azzeraStatoAccount.
-let _utenteDelloStato = '';
 
 function nakamaIndirizzo(){
   const schema = NAKAMA.ssl ? 'https' : 'http';
@@ -17019,27 +17016,7 @@ function nakamaScadenzaDaToken(token){
     return (dati.exp || 0) * 1000;
   }catch(_){ return 0; }
 }
-// v0.80.17 — di chi e' un token: l'uid che Nakama scrive nella parte di mezzo.
-// Stesso uid vuol dire stesso account anche dopo un rinnovo del token.
-function nakamaUtenteDaToken(token){
-  try{
-    const mezzo = String(token).split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
-    const dati = JSON.parse(atob(mezzo + '==='.slice((mezzo.length + 3) % 4)));
-    return String(dati.uid || '');
-  }catch(_){ return ''; }
-}
-// v0.80.17 — si passa a una sessione: se e' di un ALTRO account, quello che la
-// memoria sa del precedente si butta prima di tutto il resto.
-function _passaAllaSessione(s){
-  const uid = (s && s.token) ? nakamaUtenteDaToken(s.token) : '';
-  if(uid !== _utenteDelloStato){
-    azzeraStatoAccount();
-    _utenteDelloStato = uid;
-  }
-  sessioneAccount = s;
-}
 function nakamaSalvaSessione(risposta, email, precedente){
-  _passaAllaSessione({ token: risposta.token });
   sessioneAccount = {
     token: risposta.token,
     refresh: risposta.refresh_token || (precedente && precedente.refresh) || '',
@@ -17148,35 +17125,6 @@ function nakamaLeggiSessione(){
 function nakamaDimenticaSessione(){
   sessioneAccount = null;
   giocatoreOnline = false;
-  azzeraStatoAccount();
-  _utenteDelloStato = '';
-}
-// ══════════════════════════════════════════════════════════════════════════
-// v0.80.17 — CIO' CHE SI SA DI UN ACCOUNT RESTA DI QUELL'ACCOUNT
-// ══════════════════════════════════════════════════════════════════════════
-// Il 13 set 2026 un giocatore si e' ritrovato "sbloccate" tutte e 107 le carte
-// e il menu di debug aperto, mentre il server lo trattava da giocatore normale
-// (i regali del debug gli sono stati rifiutati). Al login successivo tutto e'
-// tornato a posto: sul server non era cambiato niente.
-// Tutte le carte e il debug si accendono per una cosa sola, GIOCATORE_ADMIN,
-// che arriva con la risposta di hx_avvio. In quella pagina era quindi arrivata
-// la risposta di un account admin mentre la sessione era gia' di un altro. Due
-// porte lo lasciavano passare:
-//   1. nakamaRpc applicava qualunque risposta arrivasse, anche se nel frattempo
-//      la sessione era cambiata (vedi li');
-//   2. cambiando account, carte possedute, admin, mazzi e pacchetti del
-//      precedente restavano in memoria finche' qualcosa non li riscriveva.
-// Questa e' la seconda: tutto cio' che e' dell'account torna a "non si sa".
-// Ogni riga ha il suo try perche' le variabili nascono piu' avanti nel file.
-function azzeraStatoAccount(){
-  try{ GIOCATORE_ADMIN = false; }catch(_){}
-  try{ CARTE_POSSEDUTE = {}; }catch(_){}
-  try{ CARTE_COPIE = {}; }catch(_){}
-  try{ _possessoNoto = false; }catch(_){}
-  try{ MAZZI = []; MAZZO_SCELTO = null; }catch(_){}
-  try{ _mazziVersione = 0; _mazziLetture++; }catch(_){}
-  try{ BUSTINE_VINTE = 0; BUSTINE_TESORO = 0; }catch(_){}
-  try{ aggiornaAccessoDebug(); }catch(_){}
 }
 // Chi ha giocato prima di oggi ha ancora le vecchie chiavi nel browser. Si
 // cancellano una volta per tutte: lasciarle vorrebbe dire che il difetto e'
@@ -19079,21 +19027,6 @@ let _arteVerificataPer = null;
 function nakamaRpc(nome, corpo, opzioni){
   const s = sessioneAccount;
   if(!s || !s.token) throw erroreNakama('serve un accesso', 401);
-  // ── v0.80.17 — LA RISPOSTA E' DELL'ACCOUNT CHE L'HA CHIESTA ─────────────
-  // Una risposta che arriva quando la sessione e' ormai di un altro account
-  // (o non c'e' piu') non si consegna: chi l'aspetta la applicherebbe al
-  // giocatore sbagliato — le carte e l'admin di uno sullo schermo dell'altro.
-  // Si confronta l'ACCOUNT e non il token: un rinnovo del token dello stesso
-  // account non deve buttare via niente. Vedi azzeraStatoAccount.
-  const chi = nakamaUtenteDaToken(s.token);
-  const scarta = (dati) => {
-    const ora = sessioneAccount;
-    if(!ora || !ora.token || nakamaUtenteDaToken(ora.token) !== chi){
-      console.warn('[rete] la risposta di ' + nome + ' e\' arrivata per un account che non e\' piu\' quello attivo: scartata.');
-      throw erroreNakama('la sessione e\' cambiata', 409);
-    }
-    return dati;
-  };
   // `unwrap` dice a Nakama di prendere il corpo come payload e di restituire
   // la risposta cosi' com'e', senza incartarla in un oggetto con dentro una
   // stringa JSON. Meno passaggi, meno posti dove sbagliare.
@@ -19103,7 +19036,7 @@ function nakamaRpc(nome, corpo, opzioni){
     corpo: corpo || {},
     // v0.79.11 — vedi nakamaChiedi: serve solo al saluto d'addio.
     persistente: !!(opzioni && opzioni.persistente)
-  }).then(scarta);
+  });
 }
 
 function _applicaCatalogo(carte){
@@ -19786,10 +19719,7 @@ async function completaRegistrazione(bottone){
   accessoOccupato(bottone, true, 'Checking...');
   accessoMessaggio('verifica', '', '');
   try{
-    // v0.80.17 — la sessione appena nata vince su quella che c'era: il codice
-    // e' del NUOVO account. Prima vinceva la vecchia, se c'era, e il codice si
-    // provava sull'account sbagliato.
-    if(_verificaSessione) _passaAllaSessione(_verificaSessione);
+    if(!sessioneAccount && _verificaSessione) sessioneAccount = _verificaSessione;
     await nakamaRpc('hx_verifica_prova', { codice: codice });
     accessoOccupato(bottone, false);
     _verificaInCorso = false;
@@ -19804,7 +19734,7 @@ async function completaRegistrazione(bottone){
     _svuotaCodice();
     accessoMessaggio('verifica', '', '');
     if(sessioneFatta){
-      _passaAllaSessione(sessioneFatta);
+      sessioneAccount = sessioneFatta;
       // Fuori dal try di sopra: un intoppo nell'entrare non e' un codice
       // sbagliato, e raccontarlo come tale farebbe riscrivere un codice buono.
       accessoEntra(sessioneFatta).catch(function(){
@@ -19850,7 +19780,7 @@ async function rimandaIlCodice(bottone){
   accessoOccupato(bottone, true, 'Sending...');
   accessoMessaggio('verifica', '', '');
   try{
-    if(_verificaSessione) _passaAllaSessione(_verificaSessione);   // v0.80.17
+    if(!sessioneAccount && _verificaSessione) sessioneAccount = _verificaSessione;
     const r = await nakamaRpc('hx_verifica_invia', {});
     if(r && r.gia){
       accessoMessaggio('login', 'Your account is already active. Log in to start playing.', 'ok');
@@ -22516,9 +22446,6 @@ async function mandaMazziAlServer(){
       _mazziVersione = risposta.versione;
     }
   }catch(e){
-    // v0.80.17 — account cambiato mentre il salvataggio era in volo: quei mazzi
-    // non sono piu' di chi sta giocando, e non c'e' niente da dirgli.
-    if(e && e.codice === 409){ _mazziDaRimandare = false; return; }
     // v0.77.56 — prima questa riga finiva con "(restano in locale)", e non e'
     // piu' vero: in locale non resta niente. Un salvataggio che non riesce e'
     // una modifica PERSA, e una modifica persa non si racconta in console.

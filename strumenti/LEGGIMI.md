@@ -2382,3 +2382,42 @@ CLIENT
 - importaMazzoDalCampo tiene solo le carte tue e dice quante ha lasciato fuori.
 - Match error: "one of the two decks could not be used" (poteva essere il mazzo
   dell'altro) e i mazzi si rileggono dal server.
+
+## prova-sessione-account.js e prova-nomi-admin.js — le carte di un altro (v0.80.17)
+
+    desktop/node_modules/electron/dist/electron.exe strumenti/prova-sessione-account.js
+    node strumenti/prova-nomi-admin.js
+
+Lorenzo (13 set 2026): "dopo aver comprato una busta, un utente aveva
+sbloccato tutte e 107 le carte. al login sono sparite quelle extra". Registro di
+Nakama: il server non ha mai dato carte a nessuno (solo acquisti e aperture
+normali, e "admin=false" ovunque); fra le 12:37 e le 12:40 pero' un client ha
+premuto i pulsanti del menu di debug (hx_debug_regala, hx_bustina_azzera) e il
+server li ha rifiutati ("serve un account admin"), e alle 12:48 ha provato ad
+aprire pacchetti reward che per il server non aveva.
+Tutte le carte (carteDelGiocatore) e il menu di debug (debugPermesso) si
+accendono per una cosa sola, GIOCATORE_ADMIN, che arriva con hx_avvio. Quindi in
+quella pagina e' arrivata la risposta di un account admin mentre la sessione era
+di un altro account. Porte che lo lasciavano passare, chiuse:
+- nakamaRpc consegnava qualunque risposta arrivasse. Adesso confronta l'uid del
+  token (nakamaUtenteDaToken) di chi l'ha chiesta con quello della sessione
+  attiva quando arriva: se l'account e' cambiato, o si e' usciti, la scarta con
+  codice 409. Un rinnovo del token dello stesso account non scarta niente.
+- cambiando account (_passaAllaSessione, usata da nakamaSalvaSessione e dalla
+  verifica del codice) o dimenticando la sessione, azzeraStatoAccount butta
+  admin, carte possedute, copie, mazzi, versione dei mazzi, pacchetti, e chiude
+  il menu di debug. _utenteDelloStato dice di chi sono i dati in memoria.
+- completaRegistrazione e rimandaIlCodice usavano la sessione che c'era gia'
+  al posto di quella appena nata (`if(!sessioneAccount && _verificaSessione)`):
+  il codice si provava sull'account sbagliato e si entrava con quello.
+- mandaMazziAlServer: un 409 (account cambiato) non avvisa nessuno.
+Il percorso preciso che ha portato quel giocatore ad avere due account nella
+stessa pagina non si legge dal registro: le RPC rifiutate non portano l'uid.
+SERVER (va schierato) — trovato cercando, non la causa di quel giorno:
+eAdmin dava l'admin (per sempre, nei metadati) a chi aveva un nome uguale a
+NOMI_ADMIN in minuscolo. Per il database "loreadmin" e "LoreAdmin" sono nomi
+diversi, quindi il primo si poteva prendere. Adesso: admin per nome solo col
+nome esatto; _nomeDaAdmin ferma registrazioni (email, dispositivo, custom:
+primaDiEntrareConNome; Google: dentro primaDiGoogle) e cambi di nome
+(primaDiCambiareProfilo) con un nome da admin, salvo per chi e' gia' admin per
+contrassegno (_adminDaContrassegno).
