@@ -2214,3 +2214,27 @@ E la vista contro il bot (mm2Vista('ai')): stesso centro, titoli "PvB Draft" e
 match vs Bot" e quel che fa il pulsante non cambiano. Il banco (sezione 3b)
 clicca dove clicca il mouse — elementFromPoint al centro del pulsante — perche'
 chiamare mm2Vista a mano sarebbe passato anche col pulsante coperto.
+
+v0.80.14 — i titoli contro il bot diventano "Draft vs Bot" e "Normal vs Bot"
+(Lorenzo), e il riquadro Normal ha un'immagine sua: matchmaking-container-bot.png.
+Le due immagini stanno tutte e due nel riquadro (.mm2-modo-fondo e
+.mm2-modo-fondo-bot) e #mm2-centro.vista-bot sceglie quale si vede: cambiare
+l'indirizzo di un'immagine sola e' asincrono, e passando in fretta da una vista
+all'altra resterebbe quella arrivata per ultima. Il banco controlla quale
+immagine si vede nelle due viste.
+Nella stessa versione, sempre da Lorenzo: #mm2-find (e #mm2-gioca, che lo
+centra) largo 400 invece dei 313 del Figma; le due illustrazioni della colonna
+di sinistra non piu' in object-fit:cover sul riquadro del Figma, che le
+tagliava (la busta perdeva la cima) — un lato scritto, l'altro dal file; la
+scatola dei mazzi il 15% piu' grande (188.09 di altezza).
+E ancora:
+- titoli delle modalita': 16 di margine ai lati invece dei 46 del Figma, o
+  "Draft vs Bot" (208) e "Normal vs Bot" (244) venivano tagliati nei 205.
+- la trama (--hx-trama, 847x809.5) si RIPETE: in no-repeat copriva meno di
+  meta' della barra in alto. Vale per .mm2-vetro, #mm2-rank, i contenitori
+  della top-bar di Unpack e #board-score.
+- quest: i popup vanno in basso a destra (#quest-avvisi right:24px);
+  quest-advance.mp3 e quest-complete.mp3 non erano fra i suoni precaricati
+  (SUONI_SFX_EXTRA) e restavano muti; questMostraMosse, se una mossa non trova
+  la sua quest in QUEST_OGGI, chiede prima l'elenco al server e scrive in
+  console quelle che restano senza.

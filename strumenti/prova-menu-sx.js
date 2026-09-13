@@ -85,6 +85,13 @@ app.whenReady().then(async () => {
         'e il Donate e- ancora il modulo di PayPal');
       dice((document.getElementById('mm2-supporta') || {}).textContent === 'Support the development',
         'con sopra "Support the development"');
+      // v0.80.14 — le illustrazioni non si tagliano: disegnate con le proporzioni
+      // del loro file (la busta aveva perso la cima, segnalato da Lorenzo).
+      const icone = ['#mm2-sc-packs','#mm2-sc-library'].map(s => document.querySelector(s + ' .mm2-scorciatoia-icona'));
+      dice(icone.every(im => im && im.naturalWidth && Math.abs(im.offsetWidth / im.offsetHeight - im.naturalWidth / im.naturalHeight) < 0.02
+          && getComputedStyle(im).objectFit !== 'cover'),
+        'la busta e la scatola dei mazzi hanno le proporzioni del loro file, niente tagli',
+        icone.map(im => im ? (im.offsetWidth + 'x' + im.offsetHeight + ' contro ' + im.naturalWidth + 'x' + im.naturalHeight) : 'manca').join(' / '));
 
       // ── 3. E LE QUEST SONO ALTE QUANTO LA COLONNA ────────────────────────
       const quest = document.getElementById('mm2-quest-pannello');
@@ -111,6 +118,13 @@ app.whenReady().then(async () => {
           normal ? ((pos(normal).y + normal.offsetHeight) + ' e ' + (pos(quest).y + quest.offsetHeight)) : 'manca');
       }
 
+      // ── 3a. LA TRAMA RIEMPIE TUTTA LA BARRA (v0.80.14) ────────────────────
+      // brushed-texture e- larga 847: senza ripetersi copriva meno di meta- dei
+      // 1920 della barra in alto (segnalato da Lorenzo). In Figma si ripete.
+      const tramaBarra = getComputedStyle(document.getElementById('mm2-topbar'), '::before');
+      dice(/brushed-texture/.test(tramaBarra.backgroundImage) && tramaBarra.backgroundRepeat === 'repeat',
+        'la trama della barra in alto si ripete su tutta la larghezza', tramaBarra.backgroundRepeat);
+
       // ── 3b. PLAY VS BOT (v0.80.13) ───────────────────────────────────────
       // Nella v0.80.11 non si poteva piu- premere: il gruppo delle valute,
       // largo meta- barra, stava sopra al pulsante. Si chiede quindi al
@@ -132,10 +146,14 @@ app.whenReady().then(async () => {
       const online = document.getElementById('mm2-online');
       const etichetta = () => (document.querySelector('#mm2-find .hxb-label') || {}).textContent;
       dice(botBtn.classList.contains('attivo'), 'cliccato, Play vs Bot e- la vista scelta');
-      dice(h2('mm2-modo-draft') === 'PvB Draft' && h2('mm2-modo-normal') === 'PvB Normal',
-        'le modalita- diventano PvB Draft e PvB Normal', h2('mm2-modo-draft') + ' / ' + h2('mm2-modo-normal'));
+      dice(h2('mm2-modo-draft') === 'Draft vs Bot' && h2('mm2-modo-normal') === 'Normal vs Bot',
+        'le modalita- diventano Draft vs Bot e Normal vs Bot', h2('mm2-modo-draft') + ' / ' + h2('mm2-modo-normal'));
       dice(etichetta() === 'Start match vs Bot', 'il pulsante dice Start match vs Bot', etichetta());
       dice(online && getComputedStyle(online).display === 'none', 'e i giocatori online non si vedono');
+      // v0.80.14 — e il riquadro Normal ha la sua immagine contro il bot.
+      const fondi = [...document.querySelectorAll('#mm2-modo-normal .mm2-modo-fondo')];
+      const fondoVisto = () => fondi.filter(f => getComputedStyle(f).display !== 'none').map(f => (f.getAttribute('src') || '').split('/').pop()).join(', ');
+      dice(fondoVisto() === 'matchmaking-container-bot.png', 'e Normal vs Bot ha la sua immagine, matchmaking-container-bot', fondoVisto());
       dice(document.getElementById('mm2-modo-normal').classList.contains('scelto') && document.getElementById('mm2-modo-draft').classList.contains('spento'),
         'e il resto del centro e- identico: Normal scelta, Draft spenta');
       mmBtn.click();
@@ -143,6 +161,11 @@ app.whenReady().then(async () => {
       dice(h2('mm2-modo-draft') === 'Draft pick' && h2('mm2-modo-normal') === 'Normal' && etichetta() === 'Find opponent'
         && getComputedStyle(online).display !== 'none', 'e tornando a Matchmaking torna tutto com-era',
         h2('mm2-modo-draft') + ' / ' + h2('mm2-modo-normal') + ' / ' + etichetta());
+      dice(fondoVisto() === 'matchmaking-container.png', 'e il riquadro torna alla sua immagine', fondoVisto());
+      // v0.80.14 — il pulsante e- largo 400 (Lorenzo) e sta al centro, sotto alle modalita-.
+      const trova = document.getElementById('mm2-find');
+      dice(trova.offsetWidth === 400 && Math.abs(pos(trova).x + 200 - 960) <= 1, 'Find opponent e- largo 400, al centro',
+        trova.offsetWidth + ' a ' + pos(trova).x);
 
       // ── 4. LA FINE PARTITA NON PROMETTE PIU- UNA BUSTINA (v0.79.69) ──────
       // LA PAGINA DI GIOCO VA MONTATA. Le pagine sono ermetiche: dal menu il
