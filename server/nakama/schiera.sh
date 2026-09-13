@@ -13,6 +13,25 @@ S="ssh -i $CHIAVE -o StrictHostKeyChecking=no -o BatchMode=yes"
 LOCALE="C:/Users/masil/Desktop/Hextale/game-assets/server/nakama/index.js"
 REMOTO=/opt/nakama/data/modules/index.js
 
+# ── v0.80.15 — PRIMA DI RIAVVIARE: C'E' QUALCUNO IN GIOCO? ─────────────────────
+# Il riavvio di Nakama chiude ogni collegamento e ogni partita in corso (Lorenzo:
+# "ci sono dei giocatori online e non voglio che vengano disconnessi"). Si chiede
+# a hx_giocatori quanti hanno battuto negli ultimi secondi. La chiamata parte da
+# DENTRO al contenitore di Caddy, che ha la chiave del runtime nel suo ambiente:
+# la chiave non passa da qui e non si stampa. Senza un utente, hx_giocatori
+# conta e basta, non segna nessuno come presente.
+# Se c'e' qualcuno ci si ferma; per riavviare lo stesso: HEXTALE_FORZA=1.
+ONLINE=$($S $SRV "cd /opt/nakama && docker compose exec -T caddy sh -c 'wget -qO- --header=\"Content-Type: application/json\" --post-data=\"{}\" \"http://nakama:7350/v2/rpc/hx_giocatori?unwrap&http_key=\$NAKAMA_HTTP_KEY\"'" 2>/dev/null | grep -oE '"giocatori": *[0-9]+' | grep -oE '[0-9]+$')
+if [ -z "$ONLINE" ]; then
+  echo "giocatori online: non so dirlo (hx_giocatori non ha risposto)"
+else
+  echo "giocatori online adesso: $ONLINE"
+fi
+if [ "${ONLINE:-0}" != "0" ] && [ "${HEXTALE_FORZA:-}" != "1" ]; then
+  echo "FERMO: il riavvio li butterebbe fuori. Rilancia con HEXTALE_FORZA=1 per riavviare lo stesso."
+  exit 2
+fi
+
 $S $SRV "cp $REMOTO $REMOTO.rete-precedente"
 scp -i "$CHIAVE" -o StrictHostKeyChecking=no "$LOCALE" "$SRV:$REMOTO" > /dev/null || { echo "copia fallita"; exit 1; }
 $S $SRV "cd /opt/nakama && docker compose restart nakama" > /dev/null 2>&1
