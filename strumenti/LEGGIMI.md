@@ -2530,3 +2530,69 @@ pescata). Nota: gli effetti a sorte "una tantum" del motore (Genie, Guinevere,
 Cowardly Lion...) in simulazione non si applicano affatto (applicaCambiamenti
 salta gli aCaso e segna __aSorte), quindi i loro numeri non cambiano: il banco
 li prova a parte, chiedendo che l'incertezza sia dichiarata.
+
+## prova-sticker-server.js e prova-sticker.js — gli sticker (v0.80.19, anteprima)
+
+    node strumenti/prova-sticker-server.js
+    desktop/node_modules/electron/dist/electron.exe strumenti/prova-sticker.js
+
+Figma "Battle Screen - Stickers". Chi gioca ha l'icona sotto alle impostazioni;
+cliccandola si apre "Send a sticker" con cinque sticker (uguali per tutti), che
+si illuminano al passaggio. Cliccandone uno il menu si chiude e compare
+sticker-bubble con lo sticker in mezzo, per 3 secondi, dal lato di chi l'ha
+mandato: la punta della coda (359,36 in sticker-bubble.png) sul centro del suo
+avatar, specchiata a sinistra. Entrata elastica (aiSpeechPop), senza suono ("troppo spammy").
+Piu' di 5 in 10 secondi: bloccati 2 minuti, "Send a sticker (1:59)" / "(7s)",
+sticker al 30%. Il blocco vale solo dentro la partita.
+
+In rete: il client manda op 14 {sticker}; il server (_sticker) controlla nome,
+partita cominciata e non finita, conta per giocatore dentro state.sticker e
+rimanda a tutti op 15 {di, sticker}, oppure al solo mittente op 16 {resta}. Il
+mio lo mostro subito al clic, quindi l'op 15 col mio numero si ignora. Contro il
+bot e' tutto locale (il bot non risponde). Il menu si chiude anche con Esc e
+con un clic fuori; a fine partita l'icona sparisce, initGame azzera il blocco.
+
+Il banco del server fa girare partitaLoop con un orologio finto (5 passano, il
+sesto blocca 120000 detti solo a lui, a meta' blocco resta 60000, l'avversario
+non e' toccato, dopo due minuti si rimanda, sparsi non bloccano mai). Quello del
+client misura impostazioni (369,30), icona (371,119.74 63x63) e menu (351,99.74 largo 776), clicca,
+controlla bolla, specchio, punta sull'avatar (anche da giocatore 2), suono,
+uscita, blocco, Esc, clic fuori, op 14/15/16 con mmManda finto e fine partita.
+Nota: lo sticker dentro la bolla si misura a molla ferma (dopo l'entrata).
+Poi (Lorenzo): impostazioni e icona sticker 55px piu' a sinistra (369 e 371, il
+menu a 351; #report-btn resta speculare a right:369, lo pretende prova-report);
+il menu si apre e si chiude in dissolvenza di 200ms (opacity + visibility, il
+banco guarda getAnimations perche' fuori schermo i fotogrammi non corrono);
+"Send a sticker" e il timer a sinistra, 16 dopo l'icona.
+
+## prova-quest-volo.js — il premio di una quest vola dove va (v0.80.19)
+
+    desktop/node_modules/electron/dist/electron.exe strumenti/prova-quest-volo.js
+
+Lorenzo: riscosso un premio, la sua icona vola sopra all'elemento a cui
+appartiene, con una traiettoria curva che accelera e una scia. Il magic ink va
+all'icona del contatore in cima: arrivato sparisce, l'icona lampeggia e pulsa
+una volta, il saldo si aggiorna, kaching.mp3. La busta va al pulsante "Card
+packs", che lampeggia, pulsa e suona card-draw.mp3. quest-collected.mp3 al clic
+resta.
+
+Come (questVolaPremi, dopo mm2RiscuotiQuest): le partenze si misurano sulle
+icone delle schede PRIMA che si ridisegnino con la spunta; ogni icona vola in
+#quest-volo (dentro #game-root, coordinate del disegno) su una curva di Bezier
+quadratica con progresso u^2.4, dopo uno stacco di 160ms; la scia e' una tela
+(nastro degli ultimi 200ms + granelli). I saldi veri arrivano subito dal
+server: _questInkFermo tiene il numero a video (aggiornaValuteAVideo) e
+_questBusteFerme la riga del pulsante (mm2AggiornaBustine) finche' l'icona non
+arriva; con piu' inchiostri il numero sale a ogni arrivo e all'ultimo e' quello
+del server. "Collect all" li lancia a 140ms l'uno dall'altro. Senza scheda o
+senza bersaglio (menu staccato) il premio arriva subito; un tempo di riserva
+chiude il volo anche se i fotogrammi non corrono.
+
+Il banco finge il server (nakamaRpc) e campiona: partenza dalla scheda, curva
+(scarto dalla retta), accelerazione (strada nella seconda meta' del tempo contro
+la prima), saldo fermo in volo e aggiornato all'arrivo, arrivo sul bersaglio
+letto all'ultimo fotogramma (agganciando questVoloArriva: i campioni a
+setTimeout perdono il tratto finale), suoni, lampo e pulsazione (le animazioni
+premioArrivato / premioArrivatoPulsante), scia sulla tela, tre premi con saldo
+100 > 150 > 180, riga del pulsante ferma e poi aggiornata, arrivo immediato
+senza scheda.

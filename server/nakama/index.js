@@ -4329,6 +4329,20 @@ var OP_SCELTA    = 11;  // server -> client: il bersaglio indicato, per tutti e 
 // partita che non e' mai cominciata non e' una partita finita, e chi la
 // riceve non deve vedere una schermata di risultato.
 var OP_NON_ACCETTATO = 13;
+// v0.80.19 — GLI STICKER (Figma "Battle Screen - Stickers"). Uno lo manda, il
+// server lo gira a tutti e due dicendo chi l'ha mandato, e ognuno lo disegna
+// dal lato di quel giocatore sul PROPRIO schermo. Il limite lo tiene il server
+// — i client lo mostrano soltanto, e un client toccato in console non lo
+// aggira: piu' di STICKER_MAX in STICKER_FINESTRA_MS e per STICKER_BLOCCO_MS
+// non passa piu' niente. Vale solo dentro la partita (Lorenzo): lo stato sta in
+// `state`, e con la partita se ne va.
+var OP_STICKER        = 14;  // client -> server: { sticker }
+var OP_STICKER_MOSTRA = 15;  // server -> client, a tutti: { di, sticker }
+var OP_STICKER_BLOCCO = 16;  // server -> client, personale: { resta } in ms (niente orologi da confrontare)
+var STICKER_NOMI = ['carabosse-menacing', 'frog-prince-okay', 'merlin-perfect', 'queen-of-hearts-angry', 'bagheera-scared'];
+var STICKER_MAX = 5;
+var STICKER_FINESTRA_MS = 10000;
+var STICKER_BLOCCO_MS = 120000;
 
 // v0.79.57 — quarantacinque secondi. Vedi TURN_SECS in play/index.html: sono
 // lo stesso numero detto due volte, e il server e- quello che comanda. Se i due
@@ -5262,6 +5276,34 @@ function partitaLeave(ctx, logger, nk, dispatcher, tick, state, presences) {
   return { state: state };
 }
 
+// v0.80.19 — uno sticker: si controlla il nome, il limite, e si gira a tutti.
+// Il sesto in dieci secondi non passa e fa scattare il blocco; durante il blocco
+// chi prova si sente dire quanto manca.
+function _sticker(state, dispatcher, chi, idx, corpo) {
+  if (!state.iniziata || state.finita) return;
+  var nome = String((corpo && corpo.sticker) || '');
+  if (STICKER_NOMI.indexOf(nome) === -1) return;
+  if (!state.sticker) state.sticker = {};
+  var mio = state.sticker[chi];
+  if (!mio) { mio = { invii: [], bloccatoFino: 0 }; state.sticker[chi] = mio; }
+  var ora = Date.now();
+  if (ora < mio.bloccatoFino) {
+    _aUno(dispatcher, state, chi, OP_STICKER_BLOCCO, { resta: mio.bloccatoFino - ora });
+    return;
+  }
+  var recenti = [];
+  for (var i = 0; i < mio.invii.length; i++) if (ora - mio.invii[i] < STICKER_FINESTRA_MS) recenti.push(mio.invii[i]);
+  if (recenti.length >= STICKER_MAX) {
+    mio.invii = [];
+    mio.bloccatoFino = ora + STICKER_BLOCCO_MS;
+    _aUno(dispatcher, state, chi, OP_STICKER_BLOCCO, { resta: STICKER_BLOCCO_MS });
+    return;
+  }
+  recenti.push(ora);
+  mio.invii = recenti;
+  _aTutti(dispatcher, OP_STICKER_MOSTRA, { di: idx + 1, sticker: nome });
+}
+
 function partitaLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
   // Nessuno e' entrato entro il tempo: la partita non c'e' mai stata.
   if (!state.iniziata && Date.now() - state.natoIl > ATTESA_INGRESSO_MS) {
@@ -5338,6 +5380,11 @@ function partitaLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
         _chiudiPartita(state, dispatcher, logger, nk, uno);
         return { state: state };
       }
+      continue;
+    }
+
+    if (m.opCode === OP_STICKER) {
+      _sticker(state, dispatcher, chi, idx, corpo);
       continue;
     }
 
