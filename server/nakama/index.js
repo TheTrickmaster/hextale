@@ -680,6 +680,12 @@ function rpcStarter(ctx, logger, nk, payload) {
     scriviPossesso(nk, ctx.userId, possesso);
     try { creaMazzoStarter(nk, logger, ctx.userId, numero, !!possesso.admin); }
     catch (e) { logger.warn('mazzo starter non rifatto per %s: %s', ctx.userId, String(e)); }
+    // v0.80.16 — se aveva gia' altri mazzi, creaMazzoStarter non riscrive: il
+    // sorteggio si toglie lo stesso, e lo starter scelto prende il suo posto.
+    try {
+      var dopo = nk.storageRead([{ collection: COLL_PROFILO, key: KEY_MAZZI, userId: ctx.userId }]);
+      _riparaMazzi(nk, logger, ctx.userId, (dopo && dopo.length && dopo[0].value) ? dopo[0].value : null, possesso);
+    } catch (e2) { logger.warn('mazzi non riparati dopo la scelta per %s: %s', ctx.userId, String(e2)); }
     suo = numero;
     giaScelto = true;
     logger.info('mazzo iniziale SCELTO da %s: %d (%s)', ctx.userId, numero, NOMI_STARTER[numero] || '?');
@@ -2404,15 +2410,7 @@ function creaMazzoStarter(nk, logger, userId, numero, admin) {
   var catalogo = leggiSistema(nk, KEY_CATALOGO);
   if (!catalogo || !catalogo.carte) { logger.warn('mazzo starter: catalogo non ancora importato'); return; }
 
-  var carte = [], i, k;
-  for (i = 0; i < catalogo.carte.length && carte.length < MAZZO_CARTE; i++) {
-    var carta = catalogo.carte[i];
-    if (!carta || (carta.soloAdmin && !admin)) continue;
-    var sd = carta.starterDecks || [];
-    for (k = 0; k < sd.length; k++) {
-      if (sd[k] === numero) { carte.push(String(carta.id)); break; }
-    }
-  }
+  var carte = _carteDelloStarter(catalogo, numero, admin);
   // Un mazzo con un numero di carte diverso da MAZZO_CARTE il server lo
   // rifiuta all'inizio della partita (vedi _mazzoDi), e lo farebbe in
   // silenzio: meglio dirlo adesso, quando si sa ancora perche'.
@@ -2426,12 +2424,115 @@ function creaMazzoStarter(nk, logger, userId, numero, admin) {
     value: {
       mazzi: [{ id: 'starter-' + numero, nome: NOMI_STARTER[numero] || ('Starter ' + numero), carte: carte }],
       scelto: 'starter-' + numero,
+      // v0.80.16 — ogni scrittura alza la versione: e' cio' che ferma una copia
+      // letta prima (vedi rpcMazziScrivi).
+      versione: ((gia && gia.length && gia[0].value && gia[0].value.versione) || 0) + 1,
       modificatoIl: Math.floor(Date.now() / 1000)
     },
     // Come rpcMazziScrivi: il giocatore li legge, non li scrive.
     permissionRead: 1, permissionWrite: 0
   }]);
   logger.info('mazzo starter creato per %s: "%s" con %d carte', userId, NOMI_STARTER[numero], carte.length);
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// v0.80.16 — IL MAZZO DEL SORTEGGIO E QUELLO SCELTO NON SI CONFONDONO PIU'
+// ══════════════════════════════════════════════════════════════════════════
+// Un account nasce con uno starter a sorte (la rete di sicurezza, vedi
+// assicuraPossesso) e poco dopo ne sceglie uno dalla lettera (rpcStarter).
+// Il 13 set 2026 un giocatore nuovo ha scelto il Trickster, ma sul server e'
+// tornato il Princess del sorteggio: un client con la copia dei mazzi letta
+// PRIMA della scelta l'ha salvata sopra quella nuova, e il salvataggio ha tolto
+// le carte che non erano piu' sue. Restavano tre carte (le due in comune fra i
+// due starter e una da un pacchetto), il matchmaking ha rifiutato la partita e
+// tutti e due i giocatori hanno visto "Match error".
+// Tre regole, tutte qui:
+//   1. un mazzo "starter-N" di uno starter che il giocatore NON ha e' il
+//      sorteggio rimasto indietro: una lista che lo contiene e' una copia
+//      vecchia, e non si scrive (rpcMazziScrivi);
+//   2. i mazzi hanno una VERSIONE, e una copia letta prima dell'ultima
+//      scrittura non ci passa sopra (rpcMazziScrivi, campo `base`);
+//   3. chi e' gia' finito cosi' viene riparato alla prima lettura: via il
+//      sorteggio, dentro lo starter scelto (_riparaMazzi: da rpcMazziLeggi, da
+//      rpcMazziScrivi, dalla scelta e da _mazzoDi, cioe' anche in matchmaking).
+
+// Le carte che il foglio marca per uno starter, fino a MAZZO_CARTE.
+function _carteDelloStarter(catalogo, numero, admin) {
+  var carte = [], i, k;
+  for (i = 0; i < catalogo.carte.length && carte.length < MAZZO_CARTE; i++) {
+    var carta = catalogo.carte[i];
+    if (!carta || (carta.soloAdmin && !admin)) continue;
+    var sd = carta.starterDecks || [];
+    for (k = 0; k < sd.length; k++) {
+      if (sd[k] === numero) { carte.push(String(carta.id)); break; }
+    }
+  }
+  return carte;
+}
+
+// Il numero dello starter di un id "starter-N", o 0 se l'id non e' di uno starter.
+function _numeroStarter(idMazzo) {
+  var m = /^starter-(\d+)$/.exec(String(idMazzo || ''));
+  return m ? Number(m[1]) : 0;
+}
+
+// Vero se l'id e' il mazzo di uno starter che il giocatore NON ha.
+function _eStarterNonSuo(idMazzo, possesso) {
+  var n = _numeroStarter(idMazzo);
+  if (!n) return false;
+  var suoi = (possesso && possesso.mazzi) || [];
+  return suoi.indexOf(n) < 0;
+}
+
+// Ripara i mazzi letti dal magazzino: toglie il mazzo del sorteggio e, se
+// manca, rimette al suo posto quello dello starter del giocatore. Scrive solo
+// se ha cambiato qualcosa, e torna i mazzi come sono adesso.
+function _riparaMazzi(nk, logger, userId, valore, possesso) {
+  if (!valore || !valore.mazzi || !valore.mazzi.length || !possesso) return valore;
+  var tenuti = [], tolti = [], posto = -1, i;
+  for (i = 0; i < valore.mazzi.length; i++) {
+    var m = valore.mazzi[i] || {};
+    if (_eStarterNonSuo(m.id, possesso)) {
+      tolti.push(String(m.id));
+      if (posto < 0) posto = tenuti.length;
+    } else {
+      tenuti.push(m);
+    }
+  }
+  if (!tolti.length) return valore;
+
+  var suo = (possesso.mazzi && possesso.mazzi.length) ? Number(possesso.mazzi[0]) : 0;
+  var idSuo = suo ? 'starter-' + suo : '';
+  var giaDentro = false;
+  for (i = 0; i < tenuti.length; i++) if (String(tenuti[i].id) === idSuo) giaDentro = true;
+  var rimesso = false;
+  if (idSuo && !giaDentro) {
+    var catalogo = leggiSistema(nk, KEY_CATALOGO);
+    var carte = (catalogo && catalogo.carte) ? _carteDelloStarter(catalogo, suo, !!possesso.admin) : [];
+    if (carte.length === MAZZO_CARTE) {
+      tenuti.splice(posto, 0, { id: idSuo, nome: NOMI_STARTER[suo] || ('Starter ' + suo), carte: carte });
+      rimesso = true;
+    }
+  }
+  // Se il mazzo scelto era il sorteggio, si sceglie lo starter vero.
+  var scelto = valore.scelto ? String(valore.scelto) : null;
+  if (scelto && tolti.indexOf(scelto) >= 0) scelto = (rimesso || giaDentro) ? idSuo : null;
+  if (!scelto && tenuti.length) scelto = String(tenuti[0].id);
+
+  var nuovo = {
+    mazzi: tenuti,
+    scelto: scelto,
+    versione: (valore.versione || 0) + 1,
+    modificatoIl: Math.floor(Date.now() / 1000)
+  };
+  nk.storageWrite([{
+    collection: COLL_PROFILO, key: KEY_MAZZI, userId: userId,
+    value: nuovo,
+    permissionRead: 1, permissionWrite: 0
+  }]);
+  logger.warn('mazzi riparati per %s: tolto il mazzo del sorteggio (%s)%s', userId, tolti.join(', '),
+    rimesso ? ', rimesso ' + idSuo : '');
+  return nuovo;
 }
 
 // Ricalcola il possesso di TUTTI gli utenti gia' esistenti. Serve una volta,
@@ -3594,6 +3695,10 @@ function rpcMazziLeggi(ctx, logger, nk, payload) {
   if (!ctx.userId) throw Error('serve un accesso');
   var r = nk.storageRead([{ collection: COLL_PROFILO, key: KEY_MAZZI, userId: ctx.userId }]);
   var v = (r && r.length && r[0].value) ? r[0].value : { mazzi: [], scelto: null, modificatoIl: 0 };
+  // v0.80.16 — chi e' rimasto col mazzo del sorteggio viene riparato qui.
+  try { v = _riparaMazzi(nk, logger, ctx.userId, v, leggiPossesso(nk, ctx.userId)) || v; }
+  catch (e) { logger.warn('mazzi non riparati per %s: %s', ctx.userId, String(e)); }
+  if (typeof v.versione !== 'number') v.versione = 0;
   return JSON.stringify(v);
 }
 
@@ -3601,7 +3706,38 @@ function rpcMazziScrivi(ctx, logger, nk, payload) {
   if (!ctx.userId) throw Error('serve un accesso');
   var dati;
   try { dati = JSON.parse(payload || '{}'); } catch (e) { throw Error('mazzi illeggibili'); }
+  // ── v0.80.16 — PRIMA DI SCRIVERE SI GUARDA COSA C'E' GIA' ──────────────
+  // Il possesso prima della lettura: per un account nuovo e' assicuraPossesso
+  // a creare il mazzo starter, e la lettura deve gia' vederlo.
+  var possesso = assicuraPossesso(ctx, nk, logger, ctx.userId, ctx.username);
+  var letti = nk.storageRead([{ collection: COLL_PROFILO, key: KEY_MAZZI, userId: ctx.userId }]);
+  var attuale = (letti && letti.length && letti[0].value) ? letti[0].value : null;
+  try { attuale = _riparaMazzi(nk, logger, ctx.userId, attuale, possesso) || attuale; }
+  catch (e) { logger.warn('mazzi non riparati per %s: %s', ctx.userId, String(e)); }
+  var versione = (attuale && typeof attuale.versione === 'number') ? attuale.versione : 0;
+  // Una copia VECCHIA non passa: letta prima dell'ultima scrittura (`base`), o
+  // con dentro il mazzo di uno starter che il giocatore non ha (il sorteggio).
+  // I client di prima della v0.80.16 non mandano `base`: per loro vale la
+  // seconda regola sola. Al posto dell'errore si risponde con la copia buona,
+  // che il client adotta.
+  var vecchia = !!(dati && typeof dati.base === 'number' && dati.base < versione);
+  var sorteggio = '';
+  var dentro = (dati && dati.mazzi) || [];
+  for (var d = 0; d < dentro.length && !sorteggio; d++) {
+    if (dentro[d] && _eStarterNonSuo(dentro[d].id, possesso)) sorteggio = String(dentro[d].id);
+  }
+  if (vecchia || sorteggio) {
+    logger.warn('mazzi di %s NON scritti: %s', ctx.userId, sorteggio
+      ? 'dentro c\'e\' ' + sorteggio + ', il mazzo del sorteggio: e\' una copia di prima della scelta'
+      : 'copia letta alla versione ' + dati.base + ', sul server c\'e\' la ' + versione);
+    var qui = attuale || { mazzi: [], scelto: null, modificatoIl: 0 };
+    return JSON.stringify({
+      conflitto: true, mazzi: qui.mazzi || [], scelto: qui.scelto || null,
+      versione: versione, modificatoIl: qui.modificatoIl || 0
+    });
+  }
   var puliti = _mazziPuliti(ctx, nk, dati);
+  puliti.versione = versione + 1;
   nk.storageWrite([{
     collection: COLL_PROFILO, key: KEY_MAZZI, userId: ctx.userId,
     value: puliti,
@@ -4337,6 +4473,10 @@ function _mazzoDi(nk, logger, userId) {
   var r = nk.storageRead([{ collection: COLL_PROFILO, key: KEY_MAZZI, userId: userId }]);
   var dati = (r && r.length && r[0].value) ? r[0].value : null;
   if (!dati) return null;
+  // v0.80.16 — anche qui: il matchmaking non rifiuta una partita per il mazzo
+  // del sorteggio rimasto al posto dello starter scelto. Si ripara e si gioca.
+  try { dati = _riparaMazzi(nk, logger, userId, dati, leggiPossesso(nk, userId)) || dati; }
+  catch (e) { logger.warn('mazzi non riparati per %s: %s', userId, String(e)); }
   // v0.78.4 — se ha scelto il casuale, se ne compone uno adesso. Sta PRIMA del
   // controllo sui mazzi salvati: col casuale non serve averne nemmeno uno, e
   // finora si finiva per ripiegare sul primo — cioe' si giocava un mazzo

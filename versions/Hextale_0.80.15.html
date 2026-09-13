@@ -13451,7 +13451,7 @@ try{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.16</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.15</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <!-- v0.79.75 — dove salgono gli avvisi delle quest. Vuoto quasi sempre, e
@@ -18169,7 +18169,7 @@ async function mm2CercaAvversario(){
   const mio = (typeof mazzoConCuiGiocare === 'function') ? mazzoConCuiGiocare() : null;
   // Un mazzo incompleto e' la ragione piu' probabile per cui questo pulsante
   // non fa niente: merita una finestra, non una riga che si puo' non vedere.
-  if(!mio || !mazzoGiocabile(mio)){   // v0.80.16 — anche le carte devono essere tue
+  if(!mio || !mazzoValido(mio)){
     // Col casuale il messaggio di prima sarebbe un consiglio impossibile da
     // seguire — un mazzo lo ha scelto, e' la macchina che non lo ha saputo
     // comporre — quindi si dice l'unica cosa vera: mancano carte.
@@ -18324,13 +18324,9 @@ function mmTrovato(dati){
   mmChiudiSocket();
   _mm2Cercando = false;
   mm2FermaRicerca();
-  // v0.80.16 — il mazzo che non va puo' essere quello dell'avversario: il testo
-  // non da' piu' la colpa a chi legge. E i mazzi si rileggono dal server, cosi'
-  // una copia rimasta indietro in memoria si rimette in pari da sola.
-  Promise.resolve().then(()=>sincronizzaMazzi()).then(()=>{ try{ mm2AggiornaMazzo(); }catch(_){} }).catch(()=>{});
   apriAvviso('Match error',
-    'An opponent was found, but one of the two decks could not be used, so the match did not start. '
-    + 'Your decks have been reloaded: check your selected deck and search again.', true);
+    'An opponent was found but the server could not start the match. '
+    + 'Check that your selected deck is valid and try again.', true);
 }
 
 function mm2AnnullaRicerca(){
@@ -22367,11 +22363,6 @@ function mazzoDaCodice(codice){
 // volesse tenere sarebbe peggio: si inventerebbe una risposta invece di
 // prenderne una.
 let _mazziModificatoIl = 0;
-// v0.80.16 — la versione dei mazzi letta l'ultima volta dal server (vedi
-// mandaMazziAlServer) e il numero dell'ultima lettura partita (vedi
-// sincronizzaMazzi).
-let _mazziVersione = 0;
-let _mazziLetture = 0;
 
 // ── v0.77.56 — I MAZZI STANNO SUL DATABASE, E BASTA ───────────────────────
 // Fino alla v0.77.55 vivevano in due posti: localStorage e il server, con una
@@ -22420,31 +22411,8 @@ async function mandaMazziAlServer(){
   if(_mazziInVolo){ _mazziDaRimandare = true; return; }
   _mazziInVolo = true;
   try{
-    // ── v0.80.16 — LA VERSIONE SU CUI SI E' LAVORATO ───────────────────────
-    // `base` e' la versione dei mazzi letta l'ultima volta. Se sul server ce
-    // n'e' una piu' nuova — un'altra finestra, un altro dispositivo, o la
-    // scelta dello starter arrivata dopo che questa copia era stata letta — il
-    // server non scrive e risponde con la sua, che si adotta. Senza, una copia
-    // vecchia passava sopra a quella buona: e' il "Match error" del 13 set
-    // 2026, col mazzo del sorteggio al posto dello starter scelto.
-    const risposta = await nakamaRpc('hx_mazzi_scrivi', { mazzi: MAZZI, scelto: MAZZO_SCELTO, base: _mazziVersione });
+    await nakamaRpc('hx_mazzi_scrivi', { mazzi: MAZZI, scelto: MAZZO_SCELTO });
     _mazziGuastoDetto = false;
-    if(risposta && risposta.conflitto){
-      _mazziDaRimandare = false;
-      console.warn('[mazzi] sul server c\'e\' una copia piu\' recente (versione ' + risposta.versione
-        + '): questa modifica non e\' stata salvata, adotto quella.');
-      _adottaMazziDalServer(risposta);
-      try{ mm2AggiornaMazzo(); }catch(_){}
-      try{ apriAvviso('Decks updated', 'Your decks were changed somewhere else, so this change was not saved. '
-        + 'The latest version of your decks is now loaded.', false); }catch(_){}
-    }else if(risposta && !_mazziDaRimandare){
-      // Quello che il server ha scritto davvero, cioe' senza le carte che non
-      // sono tue: in memoria deve esserci la stessa cosa.
-      _adottaMazziDalServer(risposta, true);
-      try{ mm2AggiornaMazzo(); }catch(_){}
-    }else if(risposta && typeof risposta.versione === 'number'){
-      _mazziVersione = risposta.versione;
-    }
   }catch(e){
     // v0.77.56 — prima questa riga finiva con "(restano in locale)", e non e'
     // piu' vero: in locale non resta niente. Un salvataggio che non riesce e'
@@ -22463,17 +22431,9 @@ async function mandaMazziAlServer(){
 // sono piu'.
 async function sincronizzaMazzi(){
   if(!sessioneAccount || !sessioneAccount.token) return;
-  // ── v0.80.16 — CONTA SOLO L'ULTIMA LETTURA ─────────────────────────────
-  // All'accesso e dopo la scelta dello starter partono due letture, e quella
-  // dell'accesso non si aspetta: se arrivava DOPO l'altra, in memoria tornava
-  // la copia di prima della scelta — col mazzo del sorteggio — e il primo
-  // salvataggio la riscriveva sul server. Ogni lettura prende un numero, e se
-  // quando arriva ne e' gia' partita un'altra, si butta.
-  const mia = ++_mazziLetture;
   let dalServer;
   try{ dalServer = await nakamaRpc('hx_mazzi_leggi', {}); }
   catch(e){
-    if(mia !== _mazziLetture) return;
     // v0.77.56 — non c'e' nessuna copia locale in cui restare: senza database
     // non ci sono mazzi, e la Libreria si apre vuota. Meglio dirlo che lasciar
     // credere che siano andati persi.
@@ -22482,25 +22442,11 @@ async function sincronizzaMazzi(){
       'Your decks live on your account and could not be loaded. Check your connection and try again.', true);
     return;
   }
-  if(mia !== _mazziLetture){
-    console.info('[mazzi] e\' gia\' partita una lettura piu\' recente: questa si scarta.');
-    return;
-  }
   // v0.77.56 — non c'e' piu' niente da SINCRONIZZARE: si legge, e quello che
   // arriva e' cio' che si ha. Il confronto fra due date serviva a decidere
   // quale copia vincesse; adesso di copie ce n'e' una.
-  _adottaMazziDalServer(dalServer);
-  console.info('[mazzi] ' + MAZZI.length + ' mazzi dal database (versione ' + _mazziVersione + ').');
-}
-
-// v0.80.16 — cio' che arriva dal server diventa cio' che si ha: mazzi, scelta
-// e versione. Serve alla lettura e alla risposta di ogni salvataggio. Con
-// `soloSeDiversi` non si ridisegna niente se la copia del server e' uguale a
-// quella in memoria, che e' il caso normale dopo un salvataggio andato bene.
-function _adottaMazziDalServer(dalServer, soloSeDiversi){
   const suoi = (dalServer && dalServer.mazzi) || [];
-  const nuovi = suoi.map(m => ({ id:String(m.id), nome:String(m.nome||'Untitled deck'), carte:(m.carte||[]).map(String) }));
-  _mazziVersione = (dalServer && typeof dalServer.versione === 'number') ? dalServer.versione : 0;
+  MAZZI = suoi.map(m => ({ id:String(m.id), nome:String(m.nome||'Untitled deck'), carte:(m.carte||[]).map(String) }));
   // ── v0.77.89 — LA SCELTA TORNA COM'ERA, CASUALE COMPRESO ───────────────
   // "MAZZI.some(...)" chiede se `scelto` e' l'id di un mazzo vero, e per il
   // mazzo casuale la risposta e' no — non e' un mazzo, e' la richiesta di
@@ -22508,16 +22454,14 @@ function _adottaMazziDalServer(dalServer, soloSeDiversi){
   // sostituito dal primo mazzo della lista alla riapertura del gioco.
   // Il ripiego sul primo mazzo resta, ma per il caso che lo merita: quando la
   // scelta di prima punta a un mazzo che non c'e' piu'.
-  const sceltaValida = dalServer && dalServer.scelto
-    && (dalServer.scelto === MAZZO_CASUALE || nuovi.some(m=>m.id===dalServer.scelto));
-  const scelto = sceltaValida ? dalServer.scelto : (nuovi.length ? nuovi[0].id : null);
-  if(soloSeDiversi && scelto === MAZZO_SCELTO && JSON.stringify(nuovi) === JSON.stringify(MAZZI)) return;
-  MAZZI = nuovi;
-  MAZZO_SCELTO = scelto;
+  const sceltaValida = dalServer.scelto
+    && (dalServer.scelto === MAZZO_CASUALE || MAZZI.some(m=>m.id===dalServer.scelto));
+  MAZZO_SCELTO = sceltaValida ? dalServer.scelto : (MAZZI.length ? MAZZI[0].id : null);
   _mazziModificatoIl = (dalServer && dalServer.modificatoIl) || 0;
   // Le carte che non esistono piu' si buttano lo stesso: la regola non cambia
   // perche' cambia la provenienza.
   _potaMazzi();
+  console.info('[mazzi] ' + MAZZI.length + ' mazzi dal database.');
   try{ if(typeof renderListaMazzi === 'function' && document.getElementById('card-db-overlay')) renderListaMazzi(); }catch(_){}
 }
 
@@ -23755,14 +23699,6 @@ function _rigaImporta(){
   box.append(campo, bottone);
   return box;
 }
-// v0.80.16 — una carta che il giocatore possiede davvero, secondo il server.
-// Senza possesso noto (partita in locale, scollegati) non si toglie niente:
-// non si saprebbe cosa.
-function cartaTua(entry){
-  if(!entry) return false;
-  if(!_possessoNoto || GIOCATORE_ADMIN) return true;
-  return !!CARTE_POSSEDUTE[entry.slug];
-}
 function importaMazzoDalCampo(){
   const campo = document.getElementById('deck-importa-campo');
   if(!campo) return;
@@ -23777,26 +23713,13 @@ function importaMazzoDalCampo(){
       + '(numeri: ' + esito.perse.join(', ') + '). Il mazzo entra incompleto e non si potra\' salvare '
       + 'finche\' non torna a ' + MAZZO_CARTE + ' carte.');
   }
-  // ── v0.80.16 — SOLO LE CARTE CHE HAI ────────────────────────────────────
-  // Il codice puo' venire dal mazzo di un altro, con carte che non possiedi.
-  // Il server al salvataggio le toglieva in silenzio: qui il mazzo restava
-  // 12/12, sul server ne aveva meno, e il matchmaking rifiutava la partita.
-  // Si tolgono subito, e si dice quante.
-  const carte = esito.carte.filter(id => cartaTua(entryDaId(id)));
-  const nonTue = esito.carte.length - carte.length;
   const m = { id:'m'+Date.now().toString(36)+Math.floor(Math.random()*1e4).toString(36),
-              nome:esito.nome, carte:carte };
+              nome:esito.nome, carte:esito.carte };
   MAZZI.push(m);
   if(!MAZZO_SCELTO) MAZZO_SCELTO = m.id;
   salvaMazzi();
   campo.value = '';
   renderListaMazzi();
-  if(nonTue){
-    const una = (nonTue === 1);
-    try{ apriAvviso('Deck imported', nonTue + (una ? ' card' : ' cards') + ' of this deck '
-      + (una ? 'is' : 'are') + ' not in your collection and ' + (una ? 'was' : 'were')
-      + ' left out. Add cards you own to complete it.', false); }catch(_){}
-  }
 }
 // Copia negli appunti. Si prova prima la via moderna e poi quella vecchia:
 // navigator.clipboard esige un contesto sicuro, e aprendo il gioco da file://
@@ -23876,15 +23799,8 @@ const MAZZO_CASUALE = '__casuale';
 // La regola sta QUI e non nelle due schermate: ci passano tutte e due, e una
 // terza che arrivasse domani sarebbe protetta senza doversene ricordare.
 // Torna true se la scelta e' andata a buon fine.
-// v0.80.16 — GIOCABILE DA TE: valido E fatto di carte tue. mazzoValido resta
-// com'era perche' giudica anche mazzi che non sono del giocatore (quello
-// dell'avversario in rete, i mazzi generati): e' qui, sulle scelte del
-// giocatore, che conta il possesso. E' la stessa domanda che il server fa in
-// matchmaking, dove una carta non tua non c'e': un mazzo 12/12 qui e da nove
-// la', e la partita non partiva.
 function mazzoGiocabile(mazzo){
-  return !!mazzo && typeof mazzoValido === 'function' && mazzoValido(mazzo)
-    && carteDelMazzo(mazzo).every(cartaTua);
+  return !!mazzo && typeof mazzoValido === 'function' && mazzoValido(mazzo);
 }
 function selezionaMazzo(id){
   if(id === MAZZO_CASUALE){ MAZZO_SCELTO = id; salvaMazzi(); renderListaMazzi(); return true; }
@@ -24215,7 +24131,7 @@ function aggiornaPannelloModifica(){
   disegnaDistribuzione(p.querySelector('.deck-distrib-hex'), m);
   // il pulsante
   const salva = p.querySelector('.deck-edit-save');
-  salva.setAttribute('aria-disabled', mazzoGiocabile(m) ? 'false' : 'true');   // v0.80.16
+  salva.setAttribute('aria-disabled', mazzoValido(m) ? 'false' : 'true');
 }
 function _rigaCartaMazzo(entry){
   const r = document.createElement('div');
@@ -24307,7 +24223,7 @@ function togliCartaDalMazzo(id){
 }
 function salvaMazzoInModifica(){
   const m = _mazzoInModifica;
-  if(!m || !mazzoGiocabile(m)) return;   // il pulsante e' gia' spento, ma la
+  if(!m || !mazzoValido(m)) return;   // il pulsante e' gia' spento, ma la
                                       // regola non vive nel pulsante
   const vero = mazzoPerId(_mazzoInModificaId);
   if(vero){ vero.nome = (m.nome||'').trim() || 'Untitled deck'; vero.carte = m.carte.slice(); }

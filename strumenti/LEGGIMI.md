@@ -2335,3 +2335,50 @@ filters, ma resta).
 Il banco clona le quattro carte offline fino a quaranta (meta' "Fox") e guarda
 misure, ricerca (anche sommata alla rarita'), fondo della griglia, caselle con
 4, 10 e 12 mazzi, e il pannello di modifica.
+
+## prova-mazzi-server.js e prova-mazzi-client.js — il sorteggio non torna (v0.80.16)
+
+    node strumenti/prova-mazzi-server.js
+    desktop/node_modules/electron/dist/electron.exe strumenti/prova-mazzi-client.js
+
+Il "Match error" del 13 set 2026 (registro di Nakama, 13:02:51 UTC):
+"mazzo di e18cf1a1... con 3 carte invece di 12". Account nato alle 12:09 col
+sorteggio (Starter Princess), alle 12:11 ha scelto dalla lettera lo Starter
+Trickster. Sul server pero' il mazzo scelto era di nuovo "starter-3": una copia
+dei mazzi letta PRIMA della scelta e' stata salvata sopra a quella nuova, e
+_mazziPuliti ha tolto le carte non piu' sue. Restavano fox e kitsune (in comune
+fra i due starter) e hare (da un pacchetto alle 12:57). Il suo client diceva
+12/12 perche' mazzoValido non guardava il possesso, quindi lo ha lasciato
+cercare; il server ha rifiutato l'accoppiamento e il messaggio a entrambi
+diceva "Check that your selected deck is valid". Lorenzo: "fai in modo che
+non succeda piu' che il server sbagli tra mazzo temporaneo e quello definitivo".
+SERVER (va schierato)
+- i mazzi hanno una `versione`: la alzano creaMazzoStarter, rpcMazziScrivi e
+  _riparaMazzi. rpcMazziScrivi riceve `base` (la versione su cui il client ha
+  lavorato) e, se sul server ce n'e' una piu' nuova, NON scrive e risponde
+  { conflitto:true, mazzi, scelto, versione }.
+- una lista con "starter-N" di uno starter che il giocatore non ha
+  (_eStarterNonSuo: N non in possesso.mazzi) e' una copia di prima della scelta:
+  stesso rifiuto, anche dai client vecchi che `base` non la mandano.
+- _riparaMazzi toglie il mazzo del sorteggio e rimette al suo posto quello
+  dello starter del giocatore (e la scelta, se puntava al sorteggio). Gira in
+  rpcMazziLeggi, rpcMazziScrivi, dopo la scelta in rpcStarter (anche quando il
+  giocatore ha altri mazzi e creaMazzoStarter non riscrive) e in _mazzoDi,
+  cioe' anche in matchmaking: chi e' gia' rotto si ripara da solo.
+  Nel registro: "mazzi riparati per ..." e "mazzi di ... NON scritti: ...".
+- _carteDelloStarter: le carte di uno starter, tolte da creaMazzoStarter.
+CLIENT
+- sincronizzaMazzi: conta solo l'ultima lettura partita (_mazziLetture); la
+  lettura all'accesso non e' aspettata e poteva arrivare dopo quella della
+  scelta. _adottaMazziDalServer e' l'unico punto che mette in memoria mazzi,
+  scelta e _mazziVersione.
+- mandaMazziAlServer manda `base`; col conflitto adotta la copia del server e
+  avvisa ("Decks updated"); a salvataggio riuscito adotta cio' che il server ha
+  scritto (solo se diverso, e solo se non c'e' un altro salvataggio in coda).
+- cartaTua(entry): posseduta secondo il server (sempre vero senza possesso noto
+  o per un admin). mazzoGiocabile = mazzoValido + carte tutte tue, e lo usano
+  la ricerca (mm2CercaAvversario), la scelta e Save Deck. mazzoValido NON
+  cambia: giudica anche il mazzo dell'avversario e quelli generati.
+- importaMazzoDalCampo tiene solo le carte tue e dice quante ha lasciato fuori.
+- Match error: "one of the two decks could not be used" (poteva essere il mazzo
+  dell'altro) e i mazzi si rileggono dal server.
