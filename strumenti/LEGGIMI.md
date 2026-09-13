@@ -2096,3 +2096,30 @@ chiede un'azione, piu' piccole del 50%.
 
 Il banco misura mirino (R*0.31) e X (R*0.21) contro il tabellone, il clic sul
 mirino, e la croce dello scarto.
+
+## prova-board-score.js — il punteggio delle carte in tavola (v0.80.7)
+
+    desktop/node_modules/electron/dist/electron.exe strumenti/prova-board-score.js
+
+Richiesta di Lorenzo (v0.80.7): il componente "!board-score" del Figma (Battle
+Screen, 975:28506) in partita, appeso al bordo superiore (-2px). Dice quanti
+punti valgono adesso le carte di ognuno, cioe' quanti ne arriveranno a fine
+turno. dark-card-icon al giocatore dark, light-card-icon al light.
+
+- #board-score (markup accanto a #p2-info, in PAGE_ELEMENT_IDS.game): 68 di
+  altezza, padding 12, gap 16, angoli bassi a 12; bordo 1.5px bianco 22% come
+  strato (::after) perche' in Figma il tratto non occupa spazio; fondo a
+  gradiente + brushed-texture in overlay al 40% (--hx-trama da
+  montaGraficaPartita) + backdrop blur 20. Numeri Marcellus SC 50 in oro
+  (text-box trim cap), scritta 22 DDCAA1. A 0 e 0 e' largo 329 come nel disegno.
+- carteCheFruttano(): il primo pezzo di dannoDiFineTurno, estratto: lo leggono
+  sia l'onda sia aggiornaBoardScore, quindi il pannello promette esattamente
+  quello che l'onda consegna (common 3, rare 2, mythic 1, timeless 0).
+- aggiornaBoardScore() gira in cima a renderBoard, prima della firma.
+- io-sono-2: il pannello e i due lati si rovesciano, icone sempre fuori.
+- #board-wrap scende di 25px (translateY da -15.4 a 9.6, anche in
+  BASE_TRANSFORM del pizzico): la punta del tassello in cima finiva sotto al
+  pannello. E' la posizione del Battle Screen.
+
+Il banco prova misure, conto (anche dopo una conquista), icone per fazione,
+scambio dei lati, tabellone sotto al pannello e assenza nel menu.
