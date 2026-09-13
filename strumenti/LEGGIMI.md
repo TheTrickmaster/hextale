@@ -2421,3 +2421,112 @@ nome esatto; _nomeDaAdmin ferma registrazioni (email, dispositivo, custom:
 primaDiEntrareConNome; Google: dentro primaDiGoogle) e cambi di nome
 (primaDiCambiareProfilo) con un nome da admin, salvo per chi e' gia' admin per
 contrassegno (_adminDaContrassegno).
+
+## prova-bustina-rifiutata.js — il pacchetto che il server non apre (v0.80.18)
+
+    desktop/node_modules/electron/dist/electron.exe strumenti/prova-bustina-rifiutata.js
+
+Registro di Nakama, 13 set 2026 12:48-12:49 UTC: tre volte "hx_bustina_apri ...
+non hai un pacchetto di tipo reward". _bustinaChiediAlServer tornava null per
+QUALSIASI errore e bustaPosa, che aveva gia' scalato il contatore, pescava tre
+carte in locale (_pescaCartaBustina): il giocatore le vedeva uscire, sceglieva,
+le vedeva volare nella collezione, e la raccolta scriveva solo "bustina locale:
+niente possesso". Il commento diceva "rete muta", ma il ramo prendeva anche i
+rifiuti veri.
+COSA FA ADESSO (solo client, il server non cambia)
+- _bustinaChiediAlServer lancia, col `codice` di nakamaChiedi: 0 se la
+  richiesta non e' arrivata, altrimenti la risposta del server; 200 per una
+  risposta senza le tre carte o con slug che il catalogo del client non conosce.
+- bustaPosa annota cosa scala (_bustaSpesa) e il numero della busta
+  (_bustaGiro): la risposta di una busta che non e' piu' quella in corso non
+  tocca niente, e nemmeno una che arriva a pagina gia' tornata indietro.
+- bustaNonSiApre: la busta svanisce (busta-via, come in bustaRimetti), i colpi
+  smettono di contare, dopo 400 ms tornaAllaBustina libera la pagina. Avviso
+  rosso "Can't open pack": "Check your connection and try again" col codice 0,
+  "it is not available right now" negli altri casi.
+- _bustinaRidaiPacchetto rilegge da hx_avvio SOLO bustineExtra, bustineTesoro e
+  bustinaProssima: se il server ha detto di no il numero del client era
+  sbagliato, e rimetterlo e basta farebbe ripetere lo stesso rifiuto (quel
+  giocatore ci ha provato tre volte). Se nemmeno hx_avvio risponde si rimette a
+  mano quello scalato; con un 409 (account cambiato) no.
+- bustaApri, se stava aspettando la risposta, si ferma; senza carte chiama
+  bustaNonSiApre prima del lampo (c'era un toast in italiano).
+- La pescata locale non c'e' piu', nemmeno a rete muta: il server tiene da parte
+  il pacchetto gia' sorteggiato (`ripresa` in rpcBustinaApri), quindi riprovare
+  non perde niente, mentre tre carte mostrate e mai date sono una bugia.
+Il banco finge fetch solo per le RPC (il resto va alla fetch vera), cosi' gli
+errori passano da nakamaRpc e nakamaChiedi veri. Sei casi: rifiuto mentre si
+martella la ceralacca, rifiuto con il pacchetto ancora sul server, rifiuto a
+sigillo gia' rotto, rete muta sul pacchetto a tempo, apertura buona, risposta
+per una busta lasciata. Sulla v0.80.17 fallisce 19 controlli su 35.
+Trappola: showPage('packs') va chiamata PRIMA di cercare #pack-overlay. Le
+pagine che non si vedono non sono nel documento, e cercato prima risponde null.
+
+## prova-segnalazioni-v08018.js — filtri, gelo simulato, Pixies, quest in partita (v0.80.18, anteprima)
+
+    desktop/node_modules/electron/dist/electron.exe strumenti/prova-segnalazioni-v08018.js
+
+Segnalazioni di Lorenzo, 13 set 2026 pomeriggio. Il banco carica il catalogo da
+server/importazione/.lavoro/catalogo.json (servono Sherazade, le Pixies, Robin Hood).
+- FILTRI (Figma "Library & Decks - Filters modal"): _filtroOpzione mette la
+  casella PRIMA di icona e nome (sempre dopo la <input>, per `:checked ~`);
+  12 fra casella e icona (#filters-pannello .filters-casella), 8 fra gemma e
+  nome, 4 fra icona del tratto e nome; tratti in colonne 162/163/162 con 52 e
+  26; "Rarity" e "Trait" tagliati alla maiuscola. Nient'altro cambiato.
+- CASELLE QUADRATE: checkbox-square-checked/unchecked sono 64x64 tutte e due;
+  la spuntata non cresce piu' di 10px (tolte anche le eccezioni per
+  .settings-opzione e #nca-spunta-riga, che toglievano quel margine).
+- FILTERS nella barra in basso: alto 26 in una barra da 80. Adesso padding
+  16/20/16/8 e margini negativi uguali: prende tutta l'altezza e fino al bordo
+  destro, e quello che si vede non si sposta.
+- IL BOT CHE NON GIOCA E LA BOARD GHIACCIATA: simulaPiazzamento sostituiva
+  tabellone e mani ma non G.gelo. Il gelo di Sherazade ("freeze any board tile
+  free 1"), simulato per l'anteprima della mano o per l'IA (aiEvaluateConquests
+  simula ogni carta su ogni casella), gelava un tassello VERO a ogni prova, il
+  primo libero non ancora gelato: in un turno dell'IA si gelava tutto, e l'IA
+  non trovava piu' caselle. Adesso la simulazione gela una copia e rimette G.gelo.
+- PIXIES: le sinergie dal foglio passano da ricalcolaValoriVivi, che non segnava
+  il caso. In simulazione, se una sinergia continua a lati RAND/ONE/random
+  cambia i numeri di una carta (_toccataDaContinuoACaso), la carta e'
+  __aSorte e l'anteprima mostra "?".
+- QUEST IN PARTITA: questSegnaConquiste chiama questAvanzaInPartita, che fa
+  salire il popup nell'istante in cui si girano carte (QUEST_OGGI + QUEST_CONTO;
+  quali quest si muovono girando carte sta in QUEST_CONTA_IN_PARTITA, perche'
+  l'elenco del server non lo dice). _questMostrateInPartita evita che a fine
+  partita questMostraMosse ripeta lo stesso avanzamento; si azzera in initGame.
+  riferisciPartita prende il conto PRIMA di aspettare hx_partita e lo passa a
+  questRaccontaFinePartita(pvp, conto), che allora non azzera quello di adesso.
+- BRUCALIFFO DEL BOT: non e' un difetto. Il bot gioca le carte a un livello
+  pareggiato sul mazzo del giocatore (pareggiaILivelli); l'abilita' del
+  Caterpillar si sblocca al livello 2, e a livello 1 non fa niente (niente fumo).
+NOTA: due sessioni di Claude hanno lavorato nella stessa cartella. Il commit
+fcc6f95 (pacchetti rifiutati) ha preso dentro meta' di queste modifiche mentre
+erano in corso; il commit che segue le completa.
+
+### prova-caso-tutte-le-carte.js — il caso non si vede in anteprima, carta per carta
+
+    desktop/node_modules/electron/dist/electron.exe strumenti/prova-caso-tutte-le-carte.js
+
+Lorenzo (Pixies, dopo la prima correzione): "appare il punto interrogativo ma
+appare ancora la preview. così non è più random" e poi "quando c'è incertezza,
+mostra sempre i '?' e mai i valori in anteprima. Fai un check di tutte le carte".
+Il "?" c'era, ma accanto ai numeri SIMULATI (col tiro dentro). Adesso, col caso
+di mezzo, i numeri simulati non si usano da nessuna parte: restano quelli di
+adesso, senza verde e rosso, col "?":
+- computeDragPreview: se l'esito e' a sorte, dopoAbilita non si applica;
+- renderBoard (carte in campo): con aSorteInCampo i valori simulati non si applicano;
+- renderHand (carte in mano): con aSorteInMano `arrivo` resta card.values;
+- riscuotiPremioProssimaGiocata in anteprima, premio a lato RAND/ONE (Tin
+  Woodman): la carta che lo riscuote e' __aSorte;
+- _toccataDaContinuoACaso capisce il caso delle sinergie continue rifacendo il
+  conto con semi diversi (le Pixies contano gli ALTRI Trickster: isolarle le
+  azzerava).
+Il banco non ha un elenco di carte: per ognuna del catalogo (livello 4) simula
+il piazzamento con sei semi diversi (G._semeSinergie) su una scena con vicini
+alleati e nemici di tratti diversi, e dove i numeri cambiano pretende il "?"
+senza numeri simulati (trascinata, in campo, in mano). Controlla anche che la
+simulazione non lasci niente sulla partita vera (gelo, premio, briciole, muri,
+pescata). Nota: gli effetti a sorte "una tantum" del motore (Genie, Guinevere,
+Cowardly Lion...) in simulazione non si applicano affatto (applicaCambiamenti
+salta gli aCaso e segna __aSorte), quindi i loro numeri non cambiano: il banco
+li prova a parte, chiedendo che l'incertezza sia dichiarata.
