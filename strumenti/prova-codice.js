@@ -223,12 +223,17 @@ app.whenReady().then(async () => {
     // ── 9. "FORGOT PASSWORD" ───────────────────────────────────────────────
     // Non passa da nakamaRpc: chi ha perso la password non ha una sessione, e
     // le due chiamate vanno alla porta pubblica che Caddy riscrive. Qui si
-    // finge quella.
+    // finge quella — e SOLO quella. La pagina intanto fa le sue letture:
+    // finito il caricamento legge in silenzio ../patch-notes.txt, e quando
+    // quel momento cadeva qui dentro la lettura finiva nel conto delle
+    // chiamate del recupero (tre invece di due, una volta si' e una no).
+    // Tutto il resto va alla rete vera, come prima di questo pezzo.
     const chieste = [];
     const veroFetch = window.fetch;
     let esitoFinto = { inviato:true };
     let rispostaOk = true;
     window.fetch = async (url, opz)=>{
+      if(String(url).indexOf('/recupero/') < 0) return veroFetch.call(window, url, opz);
       chieste.push({ url:String(url), corpo: JSON.parse((opz && opz.body) || '{}') });
       return { ok: rispostaOk, text: async ()=>JSON.stringify(esitoFinto) };
     };
