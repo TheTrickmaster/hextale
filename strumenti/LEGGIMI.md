@@ -2131,3 +2131,25 @@ ora padding 10/6/20 con margini negativi uguali: si dipinge piu' in largo, ma
 l'ingombro resta 35 e la cifra non si sposta. Il banco misura con un canvas
 quanto le cifre di Marcellus SC escono da base e maiuscola e controlla che il
 padding le contenga, e che l'ingombro sia ancora 35.
+
+## prova-pacchetti.js — la top-bar nuova di Unpack (v0.80.10)
+
+    desktop/node_modules/electron/dist/electron.exe strumenti/prova-pacchetti.js
+
+Richiesta di Lorenzo (v0.80.10): la barra del titolo di Unpack diventa la
+"top-bar" del Figma (987:31546). A sinistra Back in un contenitore, al centro lo
+stendardo del titolo, a destra il colore delle carte in un contenitore; l'icona
+del colore e' stata ingrandita.
+
+- .hx-topbar (classi generiche: Main menu e Library & Decks la prenderanno):
+  fascia 90 in cima, 12 ai lati. .hx-topbar-contenitore 150x66, raggio 20, lo
+  stesso vetro di #board-score (gradiente -32.1deg, --hx-trama in overlay 40%,
+  blur 20, bordo 1.5 bianco 22% come ::after). .hx-topbar-titolo 297x90 con
+  title-bar.png (--hx-titolo-sfondo, vestiTitoli), h1 Marcellus SC 36 EDE0C6,
+  ombra 8, box tagliato alla maiuscola a 20 dal bordo.
+- Freccia: back-button.png a 40.34x42.71. Colore: color-dark/light.png a 40.5
+  con margini -2.25 (nodo 36, anello che sborda), scritta larga 53.
+- Via le regole per id di #pack-header / #pack-main h1 / #pack-toggle-variant:
+  un id batte una classe e avrebbero ricoperto la barra nuova. Gli id restano
+  (packs-back, pack-toggle-variant, -label, -icon): li cercano la sequenza di
+  apertura, packUpdateToggleLabel e i banchi.

@@ -82,30 +82,40 @@ app.whenReady().then(async () => {
     "  try {",
 
     // ── la barra ──────────────────────────────────────────────────────────
-    "  var barra = q('#packs-titlebar');",
-    "  dice(!!barra, 'la barra del titolo esiste');",
-    "  dice(barra && barra.offsetHeight === 68, 'la barra e- alta 68', barra && barra.offsetHeight);",
+    // v0.80.10 — la top-bar nuova del Figma (Unpack > top-bar, 987:31546). Le
+    // misure si leggono con offset*, che sono in pixel del disegno anche
+    // quando la finestra rimpicciolisce #game-root.
+    "  var barra = q('#pack-header');",
+    "  dice(barra && barra.classList.contains('hx-topbar'), 'la barra in alto e- la top-bar nuova');",
+    "  dice(barra && barra.offsetTop === 0 && barra.offsetHeight === 90, 'appesa in cima, alta 90', barra && (barra.offsetTop + ' / ' + barra.offsetHeight));",
+    "  dice(!q('#packs-titlebar'), 'la vecchia barra a tre pezzi non c-e- piu-');",
+    "  var tit = q('#pack-header .hx-topbar-titolo');",
+    "  dice(tit && tit.offsetWidth === 297 && tit.offsetHeight === 90 && tit.offsetTop === 0, 'lo stendardo del titolo e- 297x90, appeso in cima', tit && (tit.offsetWidth + 'x' + tit.offsetHeight + ' a ' + tit.offsetTop));",
+    "  dice(tit && /title-bar\\.png/.test(st(tit).backgroundImage), 'ed e- title-bar.png', tit && st(tit).backgroundImage.slice(-40));",
+    // offsetLeft non vede il translateX(-50%) che lo centra: il bordo sinistro
+    // vero e- offsetLeft meno meta- larghezza.
+    "  dice(tit && barra && Math.abs((tit.offsetLeft - tit.offsetWidth / 2) - (barra.offsetWidth - 297) / 2) <= 1, 'al centro della pagina', tit && (tit.offsetLeft - tit.offsetWidth / 2));",
     "  var h1 = q('#pack-header h1');",
     "  dice(h1 && h1.textContent.trim() === 'Card packs', 'il titolo dice Card packs', h1 && h1.textContent.trim());",
-    "  dice(!!q('#packs-back img'), 'la freccia indietro e- nella barra');",
-    // v0.79.80 — e il titolo sta a SINISTRA. Non e- una preferenza: dalla
-    // v0.79.72 il centro della barra centra il proprio contenuto, che e- la
-    // regola giusta per le finestre, dove il titolo sta in mezzo. Le PAGINE
-    // no, e questa se l-era ritrovato al centro senza che nessuno lo
-    // chiedesse. A tenerlo a sinistra e- lo spaziatore, come in Library &
-    // Decks. Si misura invece di guardare il CSS: la stessa cosa si puo-
-    // ottenere in tre modi, e quel che conta e- dove finisce.
-    "  var bh1 = h1 && h1.getBoundingClientRect(), bba = barra && barra.getBoundingClientRect();",
-    "  var aSx = bh1 && bba ? Math.round(bh1.left - bba.left) : -1;",
-    "  var aDx = bh1 && bba ? Math.round(bba.right - bh1.right) : -1;",
-    "  dice(aSx >= 0 && aDx > aSx * 3, 'il titolo sta a sinistra, non in mezzo',",
-    "    aSx + 'px a sinistra, ' + aDx + ' a destra — in mezzo sarebbero uguali.');",
+    "  dice(h1 && st(h1).fontSize === '36px' && st(h1).color === 'rgb(237, 224, 198)' && /Marcellus SC/.test(st(h1).fontFamily), 'Marcellus SC 36 in EDE0C6', h1 && (st(h1).fontSize + ' ' + st(h1).color));",
+    "  var back = q('#packs-back');",
+    "  dice(back && back.classList.contains('hx-topbar-contenitore') && back.offsetWidth === 150 && back.offsetHeight === 66, 'Back sta in un contenitore 150x66', back && (back.offsetWidth + 'x' + back.offsetHeight));",
+    "  dice(back && back.offsetLeft === 12 && back.offsetTop === 12, 'a 12 dal bordo sinistro e da quello alto', back && (back.offsetLeft + ',' + back.offsetTop));",
+    "  var backIco = q('#packs-back img');",
+    "  dice(backIco && /back-button/.test(backIco.getAttribute('src') || ''), 'la freccia indietro e- nella barra');",
+    // Chromium arrotonda le misure al sessantaquattresimo di pixel: 40.34 esce 40.328.
+    "  dice(backIco && Math.abs(parseFloat(st(backIco).width) - 40.34) < 0.02 && Math.abs(parseFloat(st(backIco).height) - 42.71) < 0.02, 'la freccia e- 40.34x42.71 come nel disegno', backIco && (st(backIco).width + 'x' + st(backIco).height));",
     "  var sel = q('#pack-toggle-variant');",
     "  dice(sel && sel.parentElement && sel.parentElement.id === 'pack-header', 'il selettore Dark/Light e- nella barra');",
+    "  dice(sel && sel.classList.contains('hx-topbar-contenitore') && sel.offsetWidth === 150 && sel.offsetHeight === 66, 'anche lui in un contenitore 150x66', sel && (sel.offsetWidth + 'x' + sel.offsetHeight));",
+    "  dice(sel && barra && barra.offsetWidth - sel.offsetLeft - sel.offsetWidth === 12 && sel.offsetTop === 12, 'a 12 dal bordo destro', sel && (barra.offsetWidth - sel.offsetLeft - sel.offsetWidth));",
     "  var selEt = q('#pack-toggle-variant-label');",
     "  dice(selEt && (selEt.textContent === 'Dark' || selEt.textContent === 'Light'), 'il selettore dice lo stato', selEt && selEt.textContent);",
+    "  dice(selEt && selEt.offsetWidth === 53 && st(selEt).fontSize === '22px', 'la scritta e- larga 53, a 22', selEt && (selEt.offsetWidth + ' ' + st(selEt).fontSize));",
     "  var selIco = q('#pack-toggle-variant-icon');",
     "  dice(selIco && selIco.getAttribute('src'), 'il selettore ha la sua icona');",
+    // Lorenzo ha ingrandito l'icona: 36 di ingombro, 40.5 con l'anello che sborda.
+    "  dice(selIco && st(selIco).width === '40.5px' && st(selIco).height === '40.5px' && st(selIco).marginLeft === '-2.25px', 'l-icona del colore e- quella ingrandita: 40.5 disegnata, 36 di ingombro', selIco && (st(selIco).width + ' ' + st(selIco).marginLeft));",
     "  dice(!q('#pack-back'), 'il vecchio pulsante Back non c-e- piu-');",
 
     // ── la fila in basso ──────────────────────────────────────────────────
