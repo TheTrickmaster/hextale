@@ -8545,13 +8545,12 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
   background-size:cover; background-position:center; background-repeat:no-repeat;
   z-index:0;
 }
+/* v0.80.15 — i pezzi della pagina stanno dove li mette il Figma, in pixel sulla
+   tela da 1920x1080: la top-bar in cima, la lista delle carte, la barra di
+   ricerca che le galleggia sopra e la colonna dei mazzi staccata dal bordo.
+   Questo contenitore e' solo il riferimento delle loro posizioni. */
 #card-db-left{
-  position:relative; z-index:1;
-  flex:1 1 auto;
-  display:flex; flex-direction:column;
-  min-width:0;
-  padding:20px;
-  gap:20px;
+  position:absolute; inset:0; z-index:1;
 }
 /* ══════════════════════════════════════════════════════════════════════════
    v0.75.83 — LIBRARY & DECKS: LA BARRA IN ALTO
@@ -8559,10 +8558,6 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
    Titolo, pulsante dei filtri e selettore Dark/Light in fila, separati da
    16px. La barra del titolo si allunga a riempire quello che avanza; gli
    altri due restano della loro larghezza. */
-#card-db-header{
-  display:flex; align-items:center; gap:16px;
-  padding-left:0;
-}
 /* Gli asset sono a doppia risoluzione (136px di altezza nativa): si mostrano
    a meta', cioe' 68px, che e' l'altezza di tutta la fila. Le testate tengono
    la proporzione dell'immagine — 129/136 — invece di un numero tondo, o si
@@ -8681,24 +8676,89 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
   position:absolute; left:0; top:0; height:76px;
   display:flex; align-items:center;
 }
-#card-db-header h1{
-  margin:0;
-  font-family:'Marcellus',var(--font-display),serif;
-  font-size:40px; font-weight:400; line-height:1;
-  color:#EDE0C6;
-  text-shadow:0 0 4px rgba(0,0,0,1);
-  white-space:nowrap;
-}
-/* Il contatore: la cifra di sinistra e' quella che conta e sta piu' grande,
-   la destra e' il totale ed e' spenta. Due misure e due colori nello stesso
-   blocco, allineati sulla linea di base. */
+/* v0.80.15 — il conto delle carte, sotto al titolo e dentro allo stendardo.
+   Come nel Figma: Marcellus SC 16 in C6CFD0, tagliato alla maiuscola, con la
+   cima a 59 dal bordo e mezzo pixel a destra del centro. */
 #card-db-count{
-  display:flex; align-items:baseline; gap:0;
-  font-family:'Marcellus',var(--font-display),serif;
+  position:absolute; left:calc(50% + 0.5px); top:59px;
+  transform:translateX(-50%);
+  font-family:'Marcellus SC','Marcellus',var(--font-display),serif;
+  font-size:16px; font-weight:400; line-height:normal;
+  text-box:trim-both cap alphabetic;
+  color:#C6CFD0; text-shadow:0 0 8px #000000;
   white-space:nowrap;
 }
-#card-db-count .hx-count-hai{ font-size:30px; color:#EDE0C6; }
-#card-db-count .hx-count-tot{ font-size:24px; color:#8C9899; }
+/* ── v0.80.15 — LA BARRA DI RICERCA ────────────────────────────────────────
+   771x80 a (358, 970): centrata sulla lista delle carte, non sullo schermo.
+   Stesso vetro dei contenitori della top-bar, con il gradiente girato come nel
+   disegno. Dentro, il campo per cercare per nome, un divisore e "Filters". */
+#card-db-barra-cerca{
+  position:absolute; left:358px; top:970px; z-index:5;
+  isolation:isolate;
+  width:771px; height:80px; box-sizing:border-box;
+  padding:16px 20px 16px 16px;
+  display:flex; align-items:center; justify-content:center; gap:16px;
+  border-radius:20px;
+  background:linear-gradient(-8.41deg, rgba(29,38,39,0.5) 0%, rgba(84,96,98,0.5) 100%);
+  -webkit-backdrop-filter:blur(20px); backdrop-filter:blur(20px);
+}
+#card-db-barra-cerca::before{
+  content:''; position:absolute; inset:0; border-radius:inherit; z-index:-1;
+  background-image:var(--hx-trama, none);
+  background-size:847px 809.5px; background-position:top left; background-repeat:repeat;
+  mix-blend-mode:overlay; opacity:0.4; pointer-events:none;
+}
+#card-db-barra-cerca::after{
+  content:''; position:absolute; inset:0; border-radius:inherit; pointer-events:none;
+  border:1.5px solid rgba(255,255,255,0.22);
+}
+#card-db-barra-cerca, #card-db-barra-cerca *{ cursor:var(--cursore); }
+.card-db-cerca-campo{
+  position:relative; flex:1 1 0; min-width:0;
+  height:48px; box-sizing:border-box;
+  padding:0 12px 0 20px;
+  display:flex; align-items:center; justify-content:space-between; gap:8px;
+  background:rgba(0,0,0,0.15);
+  border:1px solid rgba(255,255,255,0.2); border-radius:16px;
+  box-shadow:inset 0 4px 10px rgba(0,0,0,0.34);
+  transition:border-color 0.18s ease;
+}
+.card-db-cerca-campo:focus-within{ border-color:#B29B6C; }
+#card-db-cerca{
+  flex:1 1 auto; min-width:0;
+  background:none; border:0; outline:none; padding:0; margin:0;
+  font-family:'Rosarivo',serif; font-size:20px; line-height:1.2; color:#EDE0C6;
+}
+#card-db-cerca::placeholder{ color:#ABB7B9; opacity:1; }
+#card-db-cerca::selection{ background:#4B585C; color:#EDE0C6; }
+/* search-icon.png (78x83) porta la sua ombra: il nodo del disegno e' 25x25 e
+   l'immagine ne sborda come in Figma, senza allargare la riga. */
+#card-db-cerca-icona{
+  display:block; flex:none;
+  width:26.35px; height:28.04px; margin:-0.66px -0.68px -2.38px;
+}
+.card-db-barra-divisore{
+  flex:0 0 10px; height:47px; position:relative;
+}
+.card-db-barra-divisore::before{
+  content:''; position:absolute; left:50%; top:0; bottom:0; width:1px;
+  transform:translateX(-50%);
+  background:linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.2) 50%, rgba(255,255,255,0) 100%);
+}
+#library-filters{
+  flex:0 0 auto;
+  display:flex; align-items:center; gap:8px;
+  background:none; border:0; padding:0; margin:0;
+  font-family:'Marcellus SC','Marcellus',var(--font-display),serif;
+  font-size:22px; font-weight:400; line-height:normal;
+  color:#DDCAA1; white-space:nowrap;
+  transition:filter 0.16s ease, transform 0.16s ease;
+}
+/* filters-icon.png e' 90x75 con l'ombra dentro: largo 32 come il nodo, e i
+   margini negativi gli lasciano occupare in altezza i 20.36 del disegno. */
+#library-filters img{ display:block; flex:none; width:32px; height:26.67px; margin:-3.15px 0; }
+#library-filters:hover{ filter:brightness(1.2); }
+#library-filters:active{ transform:scale(0.97); }
 /* Il pulsante indietro. Immagine sola, senza cornice: la cornice ce l'ha gia'
    la barra che lo contiene. */
 .hx-icon-btn{
@@ -8854,7 +8914,6 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
    destra, contro l'icona. "Dark" e "Light" sono lunghe diverso: lasciandole
    libere, l'icona faceva un saltino a ogni cambio — e un elemento che si
    sposta da solo attira l'occhio proprio quando non dovrebbe. */
-#card-db-toggle-variant-label{ display:inline-block; width:50px; text-align:right; }
 .hx-variant-toggle img{ display:block; width:27px; height:27px; }
 .hx-variant-toggle:hover{ filter:brightness(1.2); }
 .hx-variant-toggle:active{ transform:scale(0.97); }
@@ -8895,10 +8954,12 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
       DOM order so the visual overlap looks natural) means a card only
       actually gets clipped if it scales past the ENTIRE column's edge,
       which never happens at a 1.06x hover scale. */
+/* v0.80.15 — la lista del Figma: 1424 di larghezza a partire da 32, fino in
+   fondo allo schermo. Parte da 81 e non da 106: le carte hanno 25px di margine
+   sopra (vedi PAD_TOP in cardDbLayoutGrid, che lascia posto all'ingrandimento
+   al passaggio del mouse), e 81 + 25 e' esattamente il 106 del disegno. */
 #card-db-grid-viewport{
-  position:relative;
-  flex:1 1 auto;
-  min-height:0;
+  position:absolute; left:32px; top:81px; width:1424px; bottom:0;
   overflow:hidden;
   /* v0.71.77 NEW ("le carte non si 'tagliassero di netto'... che il taglio
      sia una specie di maschera con gradiente da 0 a 100 opacity"): fades
@@ -9405,15 +9466,18 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
    "overlay": la trama non colora, ridistribuisce il contrasto di quello che
    ha sotto, ed e' per questo che si vede sul chiaro in alto a sinistra e
    quasi niente sullo scuro in basso. */
+/* v0.80.15 — PIU' BASSA E STACCATA DAL BORDO: 423x962 a (1485, 106), angoli
+   da 28, padding 20. Le caselle vengono cosi' larghe 381, come nel disegno. */
 #card-db-right{
-  position:relative; z-index:1;
-  flex:0 0 440px; align-self:stretch;
+  position:absolute; left:1485px; top:106px; z-index:1;
+  width:423px; height:962px;
   display:flex; flex-direction:column;
-  align-items:stretch;
+  align-items:stretch; justify-content:flex-end;
   gap:0;
-  padding:30px;
-  background-image:linear-gradient(135deg, rgba(105,114,115,0.5) 0%, rgba(24,34,34,0.5) 100%);
-  border:1px solid rgba(255,255,255,0.2);
+  padding:20px;
+  border-radius:28px;
+  background-image:linear-gradient(-72.86deg, rgba(24,34,34,0.5) 0%, rgba(105,114,115,0.5) 100%);
+  border:1px solid rgba(255,255,255,0.21);
   box-sizing:border-box;
   overflow:hidden;
   /* v0.71.76 ("rimuovi la barra laterale della colonna di destra"): stays
@@ -9429,9 +9493,9 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
    stesso elemento. Scritta come secondo background non si fonderebbe con
    niente e coprirebbe il gradiente. */
 #card-db-right::before{
-  content:''; position:absolute; inset:0;
+  content:''; position:absolute; inset:0; border-radius:inherit;
   background-image:var(--hx-trama, none);
-  background-size:cover; background-position:center;
+  background-size:847px 809.5px; background-position:top left; background-repeat:repeat;
   opacity:0.4; mix-blend-mode:overlay;
   pointer-events:none; z-index:0;
 }
@@ -10819,8 +10883,12 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
   display:flex; flex-direction:column;
   width:100%;
   flex:1 1 auto; min-height:0;
+  /* v0.80.15 — scorre solo se i mazzi sono piu' delle caselle (chi ne aveva
+     undici o dodici prima che scendessero a dieci). */
+  overflow-y:auto; scrollbar-width:none; -ms-overflow-style:none;
 }
-#deck-list > *{ margin-bottom:8px; }
+#deck-list::-webkit-scrollbar{ display:none; width:0; height:0; }
+#deck-list > *{ margin-bottom:10px; }
 #deck-list > *:last-child{ margin-bottom:0; }
 /* ── LA CASELLA DI UN MAZZO ────────────────────────────────────────────────
    Sfondo: l'illustrazione della PRIMA carta del mazzo, nella variante che si
@@ -11010,12 +11078,16 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
 #deck-list > *{ transition:flex-basis 0.32s ease, height 0.32s ease, opacity 0.24s ease, margin-bottom 0.32s ease; }
 .deck-slot-svanita{
   flex-basis:0 !important; height:0 !important; margin-bottom:0 !important;
+  flex-grow:0 !important; min-height:0 !important;   /* v0.80.15 — la separazione si allunga */
   padding-top:0 !important; padding-bottom:0 !important;
   opacity:0; overflow:hidden; pointer-events:none;
 }
 .deck-slot-piena.in-modifica{
   align-items:stretch; flex-direction:column;
-  padding:16px; gap:12px;
+  /* v0.80.15 — padding come nel Figma "Edit deck", e nessun gap: in fila c'e'
+     solo il pannello, e un gap in piu' sopra di lui (per il velo verticale,
+     alto zero) mangiava 12px che nella colonna piu' bassa non ci sono. */
+  padding:24px 24px 16px; gap:0;
   background:#25292A;
 }
 .deck-slot-piena.in-modifica:hover{ box-shadow:none; }
@@ -11041,14 +11113,24 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
 .deck-edit{ display:none; }
 .deck-slot-piena.in-modifica .deck-edit{
   position:relative; z-index:2;
-  display:flex; flex-direction:column; gap:12px;
+  display:flex; flex-direction:column; gap:16px;
   flex:1 1 auto; min-height:0;
 }
+/* ── v0.80.15 — IL PANNELLO NELLA COLONNA PIU' BASSA ───────────────────────
+   La colonna e' scesa a 962 e il pannello di prima non ci stava piu': Save
+   usciva di sotto e la barra della capacita' si schiacciava a zero. Si
+   stringe come nel Figma (Library & Decks - Edit deck): spazi da 16, niente
+   righe di separazione, e contatore, barra e capacita' in un gruppo solo con
+   4px fra l'uno e l'altro (16 del gap meno 12). Nessun pezzo si schiaccia:
+   se un giorno non ci stara' di nuovo, deve vedersi che esce, non sparire. */
+.deck-edit > *{ flex-shrink:0; }
+.deck-edit > .filters-riga{ display:none; }
+.deck-edit > .hx-capacity, .deck-edit > .deck-edit-cap-riga{ margin-top:-12px; }
 /* ── la riga in alto: nome del mazzo e cestino ───────────────────────────── */
 .deck-edit-top{ display:flex; align-items:center; gap:12px; }
 .deck-edit-nome{
   flex:1 1 auto; min-width:0;
-  height:44px; padding:0 12px;
+  height:38px; padding:0 8px; box-sizing:border-box;   /* v0.80.15 — 38, dal Figma */
   background:#1A1E1F;
   border:1.5px solid #4E5455; border-radius:8px;
   box-shadow:inset 0 4px 10px rgba(0,0,0,0.35);
@@ -11088,15 +11170,26 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
    Ultima riga della lista, sotto a una separazione. Stessa scatola della
    casella del nome mazzo — e' lo stesso gesto, scrivere dentro un riquadro —
    con l'icona appoggiata a destra, dentro al riquadro e non accanto. */
-.deck-lista-riga{ flex:0 0 auto; }
+/* v0.80.15 — la separazione si prende tutto lo spazio che avanza fra l'ultima
+   casella e il campo, con la riga nel mezzo: come nel Figma, dove la colonna
+   e' appoggiata in fondo e il divisore riempie il resto. */
+.deck-lista-riga{
+  flex:1 1 auto; min-height:1px; height:auto;
+  margin:0; background:none; position:relative;
+}
+.deck-lista-riga::before{
+  content:''; position:absolute; left:0; right:0; top:50%; height:1px;
+  background:rgba(255,255,255,0.1);
+}
+/* v0.80.15 — il riquadro del Figma: 48 di altezza, angoli da 16, vetro scuro
+   con l'ombra dentro. */
 .deck-importa{
-  position:relative; flex:0 0 auto;
-  margin-top:8px;   /* v0.76.2 — aria fra la separazione e il riquadro */
-  display:flex; align-items:center; gap:8px;
-  height:44px; padding:0 12px; box-sizing:border-box;
-  background:#1A1E1F;
-  border:1.5px solid #4E5455; border-radius:8px;
-  box-shadow:inset 0 4px 10px rgba(0,0,0,0.35);
+  position:relative; flex:0 0 48px;
+  display:flex; align-items:center; justify-content:space-between; gap:8px;
+  height:48px; padding:0 12px 0 20px; box-sizing:border-box;
+  background:rgba(0,0,0,0.15);
+  border:1px solid rgba(255,255,255,0.2); border-radius:16px;
+  box-shadow:inset 0 4px 10px rgba(0,0,0,0.34);
 }
 .deck-importa:focus-within{ border-color:#B29B6C; }
 .deck-importa-campo{
@@ -11115,7 +11208,7 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
   opacity:0.4; pointer-events:none;
   transition:opacity 0.18s ease, filter 0.16s ease;
 }
-.deck-importa-vai img{ display:block; height:24px; width:auto; }
+.deck-importa-vai img{ display:block; height:25px; width:auto; }
 .deck-importa.valido .deck-importa-vai{ opacity:1; pointer-events:auto; }
 .deck-importa.valido .deck-importa-vai:hover{ filter:brightness(1.35); }
 /* ── il contatore delle carte ─────────────────────────────────────────────── */
@@ -11270,9 +11363,11 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
    L'esagono deborda in altezza dal suo riquadro, di proposito: e' 100px
    dentro a un contenitore da 76, e sporgere e' cio' che lo fa leggere come
    una vetrina e non come una riga di modulo. */
+/* v0.80.15 — 54 di altezza con l'esagono da 72, come nel Figma "Edit deck":
+   deborda ancora, e con la colonna piu' bassa i 76 di prima non ci stavano. */
 .deck-distrib{
   position:relative;
-  height:76px; box-sizing:border-box;
+  height:54px; box-sizing:border-box;
   display:flex; align-items:center;
   padding:0 20px;
   border-radius:16px;
@@ -11285,8 +11380,8 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
 }
 /* Fuori dal flusso, cosi' la sua altezza maggiore non allarga il riquadro. */
 .deck-distrib-hex{
-  position:absolute; right:20px; top:50%;
-  width:100px; height:100px; transform:translateY(-50%);
+  position:absolute; right:28px; top:50%;
+  width:72px; height:72px; transform:translateY(-50%);
   background-size:contain; background-position:center; background-repeat:no-repeat;
 }
 .deck-distrib-hex svg{ position:absolute; inset:0; width:100%; height:100%; display:block; }
@@ -14488,23 +14583,18 @@ try{
          mette il JS (vedi montaGraficaLibreria): come ogni altro asset vanno
          cercate prima accanto al file e poi sul repository, e scriverle nel
          CSS vorrebbe dire vederle solo dopo aver pubblicato. -->
-    <div id="card-db-header">
-      <div class="hx-titlebar" id="library-titlebar">
-        <span class="hx-titlebar-cap hx-titlebar-left"></span>
-        <div class="hx-titlebar-center">
-          <button class="hx-icon-btn" id="library-back" aria-label="Back" onclick="closeCardDbOverlay()"><img alt="" draggable="false"></button>
-          <h1>Library &amp; Decks</h1>
-          <div class="hx-titlebar-spacer"></div>
-          <span id="card-db-count"></span>
-        </div>
-        <span class="hx-titlebar-cap hx-titlebar-right"></span>
-      </div>
-      <button class="hx-btn" id="library-filters" type="button" onclick="apriFiltri()">
-        <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
-        <span class="hxb-label"><img class="hxb-icon" alt="" draggable="false">Filters</span>
+    <!-- v0.80.15 — la top-bar del Figma, la stessa di Unpack (.hx-topbar): Back
+         a sinistra, lo stendardo al centro, il colore a destra. L'unica
+         differenza e' il conto delle carte, scritto sotto al titolo dentro allo
+         stendardo. I filtri sono scesi nella barra in basso. -->
+    <div id="card-db-header" class="hx-topbar">
+      <button class="hx-topbar-contenitore hx-topbar-indietro" id="library-back" type="button" aria-label="Back" onclick="closeCardDbOverlay()">
+        <img alt="" draggable="false">
+        <span class="hx-topbar-voce">Back</span>
       </button>
-      <button class="hx-variant-toggle" id="card-db-toggle-variant" type="button" onclick="cardDbToggleVariant()">
-        <span id="card-db-toggle-variant-label">Dark</span>
+      <div class="hx-topbar-titolo"><h1>Library &amp; decks</h1><span id="card-db-count"></span></div>
+      <button class="hx-topbar-contenitore hx-topbar-colore" id="card-db-toggle-variant" type="button" onclick="cardDbToggleVariant()">
+        <span class="hx-topbar-voce" id="card-db-toggle-variant-label">Dark</span>
         <img id="card-db-toggle-variant-icon" alt="" draggable="false">
       </button>
     </div>
@@ -14518,6 +14608,21 @@ try{
          One slot per FINAL_CARDS roster entry — see cardDbRenderRoster(). -->
     <div id="card-db-grid-viewport">
       <div id="card-db-grid"></div>
+    </div>
+    <!-- v0.80.15 — LA BARRA IN BASSO: si cerca una carta per nome e si aprono
+         i filtri. Galleggia sopra alla griglia, centrata sulla lista delle
+         carte; la griglia lascia in fondo lo spazio perche' l'ultima fila possa
+         salire sopra di lei (vedi CARD_DB_SPAZIO_BARRA). -->
+    <div id="card-db-barra-cerca">
+      <label class="card-db-cerca-campo">
+        <input id="card-db-cerca" type="text" placeholder="Search card" spellcheck="false" autocomplete="off" oninput="cardDbApplyFilters()">
+        <img id="card-db-cerca-icona" alt="" draggable="false">
+      </label>
+      <span class="card-db-barra-divisore" aria-hidden="true"></span>
+      <button id="library-filters" type="button" onclick="apriFiltri()">
+        <img id="library-filters-icona" alt="" draggable="false">
+        <span>Filters</span>
+      </button>
     </div>
   </div>
   <!-- ── v0.75.83 — LA COLONNA DEI MAZZI ────────────────────────────────────
@@ -21935,6 +22040,7 @@ const PEZZI_LIBRERIA = [
   ['filters-overlay',    'la finestra dei filtri'],
   ['delete-overlay',     'la conferma di eliminazione'],
   ['card-db-sort',       'l\'ordinamento'],
+  ['card-db-cerca',      'la ricerca delle carte per nome'],
 ];
 function controllaPezziLibreria(){
   const mancanti = PEZZI_LIBRERIA.filter(([id])=>!document.getElementById(id));
@@ -22022,17 +22128,15 @@ function montaGraficaLibreria(){
     const el = document.querySelector(sel);
     if(el) impostaImgDaCandidati(el, uiFileCandidati(file));
   };
-  sfondo('#library-titlebar .hx-titlebar-left',   'title-bg-left.png');
-  sfondo('#library-titlebar .hx-titlebar-center', 'title-bg-center.png');
-  sfondo('#library-titlebar .hx-titlebar-right',  'title-bg-right.png');
-  sfondo('#library-filters .hxb-left',   'button-transparent-left.png');
-  sfondo('#library-filters .hxb-center', 'button-transparent-center.png');
-  sfondo('#library-filters .hxb-right',  'button-transparent-right.png');
-  document.querySelectorAll('#library-filters .hxb-fill').forEach(el=>{
-    impostaSfondoDaCandidati(el, uiFileCandidati('button-transparent-filler.png'));
-  });
-  icona('#library-filters .hxb-icon', 'filters-icon.png');
+  // v0.80.15 — la top-bar e la barra in basso. Lo stendardo e' quello delle
+  // finestre (vestiTitoli lo mette sulla radice); la trama va sui contenitori
+  // di vetro, come in Unpack.
+  try{ vestiTitoli(); }catch(_){}
+  document.querySelectorAll('#card-db-header .hx-topbar-contenitore, #card-db-barra-cerca').forEach(el=>
+    impostaVariabileDaCandidati(el, '--hx-trama', uiFileCandidati('brushed-texture.jpg')));
   icona('#library-back img', 'back-button.png');
+  icona('#library-filters-icona', 'filters-icon.png');
+  icona('#card-db-cerca-icona', 'search-icon.png');
   // La freccetta della tendina "Sort by": e' qui che mancava.
   montaFreccetteTendine();
   // La trama spazzolata va sullo ::before della colonna, non sulla colonna:
@@ -22081,7 +22185,10 @@ function impostaVariabileDaCandidati(el, nomeVar, candidati){
 // sempre in campo con un mazzo GENERATO e bilanciato sul primo. Era gia' il
 // comportamento di chi non si era composto un mazzo per il P2 (vedi
 // makeBalancedDecks), adesso e' l'unico.
-const MAZZI_SLOT = 12;   // caselle in tutto, tutte del giocatore
+// v0.80.15 — DIECI, dal Figma nuovo: la colonna e' piu' bassa. Il server ne
+// accetta ancora dodici (MAZZI_MAX): chi ne aveva gia' undici o dodici li
+// vede tutti (vedi renderListaMazzi), solo non ne crea di nuovi.
+const MAZZI_SLOT = 10;   // caselle in tutto, tutte del giocatore
 // Un mazzo e' { id, nome, carte:[idCarta...] }. Le carte si tengono per ID e
 // non per oggetto: gli oggetti carta nascono dal foglio a ogni avvio e non
 // sopravvivono a un riavvio, mentre l'id e' quello che il foglio garantisce.
@@ -23470,7 +23577,10 @@ function renderListaMazzi(){
   // v0.77.37 — dodici caselle tutte uguali: non c'e' piu' niente da infilare
   // in una posizione fissa.
   const caselle = [];
-  const mazzi = mazziOrdinati().slice(0, MAZZI_SLOT);
+  // v0.80.15 — senza tagliare: con le caselle scese a dieci, chi aveva gia'
+  // undici o dodici mazzi non deve vederne sparire nessuno. La lista in quel
+  // caso scorre (vedi #deck-list).
+  const mazzi = mazziOrdinati();
   for(const m of mazzi) caselle.push(_slotMazzoPieno(m));
   // Il pulsante "crea" esiste solo se c'e' ancora posto.
   if(caselle.length < MAZZI_SLOT) caselle.push(_slotMazzoAggiungi());
@@ -23595,7 +23705,7 @@ function importaMazzoDalCampo(){
   const esito = mazzoDaCodice(campo.value);
   if(esito.errore){ console.warn('[codice mazzo] ' + esito.errore); return; }
   if(MAZZI.length >= MAZZI_SLOT){
-    console.warn('[codice mazzo] le dodici caselle sono piene: elimina un mazzo prima di importarne un altro.');
+    console.warn('[codice mazzo] le ' + MAZZI_SLOT + ' caselle sono piene: elimina un mazzo prima di importarne un altro.');
     return;
   }
   if(esito.perse && esito.perse.length){
@@ -32352,6 +32462,8 @@ function cardDbRenderRoster(){
     // same pattern as data-has-ability/data-traits above, consumed by
     // cardDbApplyFilters' own rarity-matching pass.
     slot.dataset.rarity = entry.rarity || '';
+    // v0.80.15 — il nome, gia' pronto per la ricerca (vedi normalizzaRicerca).
+    slot.dataset.nome = normalizzaRicerca(entry.name || '');
     // v0.75.84 — l'id della riga del foglio da cui viene questa carta. E' quello
     // che i mazzi salvano, quindi e' anche l'unico modo per sapere se questa
     // casella e' gia' nel mazzo che si sta componendo, e cosa aggiungere
@@ -32505,16 +32617,10 @@ function cardDbRenderRoster(){
   // v0.77.36 — adesso esiste, e le due si separano: a sinistra le carte CHE
   // HAI, a destra quante ne esistono da avere. Un admin le vede coincidere di
   // nuovo, perche' le ha tutte davvero.
+  // v0.80.15 — e adesso sta sotto al titolo, in una misura e un colore soli.
   const mostrate = carteDelGiocatore().length;
   const totali = carteGiocabili().length;
-  if(countEl){
-    countEl.innerHTML = '';
-    const hai = document.createElement('span');
-    hai.className = 'hx-count-hai'; hai.textContent = String(mostrate);
-    const tot = document.createElement('span');
-    tot.className = 'hx-count-tot'; tot.textContent = '/' + totali;
-    countEl.append(hai, tot);
-  }
+  if(countEl) countEl.textContent = mostrate + '/' + totali;
   // v0.72.4 NEW: every slot just got position:absolute with no left/top/
   // width/height at all (CSS Grid used to provide these) — lay them all out
   // NOW, before cardDbApplyFilters (which may hide some via display:none;
@@ -32579,13 +32685,23 @@ const CARD_DB_GRID_GAP = 30;
 // reserves around the grid from this, so retuning the hover zoom
 // automatically retunes the clearance that keeps it from being clipped.
 const CARD_DB_HOVER_SCALE = 1.06;
+// v0.80.15 — LE MISURE DEL FIGMA (Library & Decks > card list): carte larghe
+// 252.34, la prima a 18.67 dal bordo della lista. Prima la larghezza veniva
+// dallo spazio disponibile; adesso la lista ha la sua misura scritta nel CSS
+// (#card-db-grid-viewport), e ricavarla da li' darebbe lo stesso numero con un
+// giro in piu'. L'altezza resta quella della carta (210x360): e' il disegno
+// della carta a deciderla, e 2px di scarto dal Figma non si vedono.
+const CARD_DB_CARD_W = 252.34;
+const CARD_DB_PAD_SX = 18.67;
+// Quanto spazio in piu' si lascia sotto all'ultima fila: l'altezza della barra
+// di ricerca dal suo bordo alto (970) al fondo dello schermo. Senza, l'ultima
+// fila resterebbe per sempre dietro alla barra.
+const CARD_DB_SPAZIO_BARRA = 110;
 function cardDbLayoutGrid(){
   const grid=document.getElementById('card-db-grid');
   if(!grid) return new Map();
-  // Padding is 20px 20px 32px 20px (top right bottom left) per the CSS above.
-  const PAD_LEFT = 20, PAD_RIGHT = 20;
-  const availW = grid.clientWidth - PAD_LEFT - PAD_RIGHT;
-  const colW = (availW - CARD_DB_GRID_GAP*(CARD_DB_GRID_COLS-1)) / CARD_DB_GRID_COLS;
+  const PAD_LEFT = CARD_DB_PAD_SX;
+  const colW = CARD_DB_CARD_W;
   const colH = colW * (360/210); // same aspect-ratio the old CSS `aspect-ratio:210/360` enforced
   // v0.72.9 FIX ("quando si zooma su una carta, questa viene tagliata dal div
   // che la contiene"): .card-db-card-slot:hover applies scale(1.06) about the
@@ -32657,7 +32773,7 @@ function cardDbLayoutGrid(){
   const contentBottom = rowsUsed>0
     ? PAD_TOP + rowsUsed*colH + (rowsUsed-1)*CARD_DB_GRID_GAP
     : PAD_TOP;
-  spacer.style.top = (contentBottom + Math.ceil(bleedY) + 6).toFixed(2)+'px';
+  spacer.style.top = (contentBottom + Math.ceil(bleedY) + 6 + CARD_DB_SPAZIO_BARRA).toFixed(2)+'px';
   return rects;
 }
 // v0.75.83 — L'ETICHETTA DICE LO STATO, NON L'AZIONE. Prima c'era scritto
@@ -32768,6 +32884,11 @@ function cardDbApplyFilters(animate){
   const checkedRarities = [...document.querySelectorAll('#card-db-rarity-filter-options input[type="checkbox"]:checked')]
     .map(cb=>cb.dataset.rarityFilter);
   const noRarityFilter = checkedRarities.length===0;
+  // v0.80.15 — la ricerca per nome della barra in basso. Si somma ai filtri:
+  // una carta resta se passa quelli E il suo nome contiene cio' che si e'
+  // scritto.
+  const cercaEl = document.getElementById('card-db-cerca');
+  const cerca = normalizzaRicerca(cercaEl ? cercaEl.value : '');
   // v0.72.3 REWORK ("quando si filtra le carte, dovresti riarrangiarle così
   // che non rimangano buchi nelle linee... con una transizione in easing...
   // le carte che non rientrano devono sparire con un fadeout e riapparire
@@ -32793,9 +32914,18 @@ function cardDbApplyFilters(animate){
     if(!noRarityFilter){
       matches = matches && checkedRarities.includes(slot.dataset.rarity);
     }
+    if(cerca){
+      matches = matches && (slot.dataset.nome || '').includes(cerca);
+    }
     matchResults.set(slot, matches);
   });
   cardDbAnimateFilterChange(matchResults, animate);
+}
+// v0.80.15 — maiuscole, accenti e spazi doppi non contano: "cheshire",
+// "Cheshire" e "chéshire  cat" trovano la stessa carta.
+function normalizzaRicerca(testo){
+  return String(testo || '').normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .toLowerCase().replace(/\s+/g, ' ').trim();
 }
 // v0.72.3 NEW: true while a FLIP reflow/fade pass is in flight — guards
 // against cardDbRenderRoster() (toggle-variant re-render, or re-opening the
