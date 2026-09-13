@@ -2238,3 +2238,100 @@ E ancora:
   (SUONI_SFX_EXTRA) e restavano muti; questMostraMosse, se una mossa non trova
   la sua quest in QUEST_OGGI, chiede prima l'elenco al server e scrive in
   console quelle che restano senza.
+
+v0.80.15 — ritocchi di Lorenzo: nel pannello delle quest nome e conto delle
+schede a 16 invece di 14 (#mm2-quest-corpo .quest-nome/.quest-conta; l'avviso
+in basso resta a 14); la scatola di Library & decks un altro 20% piu' grande
+(225.71 di altezza) e 15 piu' in basso (translate da -24.85 a -9.85, e lo
+stesso nell'hover). prova-menu-sx controlla le tre misure.
+
+## Anteprima e rilascio (v0.80.15) — prova-anteprima-rilascio.js
+
+    desktop/node_modules/electron/dist/electron.exe strumenti/prova-anteprima-rilascio.js
+
+Lorenzo (13 set 2026): "ci sono dei giocatori online e non voglio che vengano
+disconnessi al push di una nuova versione". Due cose buttavano fuori chi gioca:
+- ogni client guarda patch-notes.txt ogni 2 minuti (sorvegliaLaVersione) e, se
+  la prima voce e' piu' nuova della targhetta, blocca e ricarica in 10 secondi,
+  anche a partita in corso;
+- server/nakama/schiera.sh riavvia Nakama: cadono collegamenti e partite.
+
+COME SI LAVORA ADESSO
+- Si sviluppa su play/index.html sul computer. Per farla vedere a Lorenzo:
+      bash strumenti/pubblica-anteprima.sh "cosa c'e' di nuovo"
+  copia play/index.html in anteprima/index.html e committa/pusha SOLO quella:
+  https://hextalegame.com/anteprima/ . patch-notes.txt non si tocca, quindi per
+  chi e' su /play/ non esce niente di nuovo e nessuno viene ricaricato.
+- L'anteprima e' la stessa pagina con ANTEPRIMA vera (percorso /anteprima/):
+  la targhetta dice "preview" e Find opponent non cerca in rete (si
+  incontrerebbero giocatori con un'altra versione); Play vs Bot funziona. Parla
+  col server vero e con l'account vero.
+- Il rilascio lo decide Lorenzo: allora si committano insieme play/index.html,
+  patch-notes.txt, l'archivio in versions/, LEGGIMI e i banchi, e se c'e' un
+  cambio al server si schiera nello stesso momento.
+
+E PERCHE' IL RILASCIO FACCIA MENO MALE
+- controllaVersioneDaNote non blocca piu' a partita in corso (_activePage ===
+  'game', schermata di fine compresa): segna _aggiornamentoInAttesa, e
+  PAGE_ENTER_HOOKS.mainmenu riguarda subito le note al ritorno nel menu.
+  (I client gia' in giro prima di questa versione si comportano ancora alla
+  vecchia maniera: vale dal rilascio successivo.)
+- schiera.sh chiede prima a hx_giocatori quanti sono online (da dentro al
+  contenitore di Caddy, con la chiave del suo ambiente: qui non passa). Se c'e'
+  qualcuno si ferma; HEXTALE_FORZA=1 per riavviare lo stesso.
+
+E NELLA STESSA VERSIONE: "Give us feedback" (Lorenzo) apre
+https://forms.gle/54LgVmaoXKpnVpwh9 con window.open (nell'app desktop il browser
+di sistema, via setWindowOpenHandler). Nel menu sta nel riquadro della
+donazione sotto al Donate, al posto della scritta "Support the development";
+nelle impostazioni sotto al Donate.
+
+Il banco apre la pagina da /play/ (niente preview, modulo dal menu e dalle
+impostazioni, aggiornamento che aspetta la partita) e una copia in una cartella
+/anteprima/ temporanea (targhetta preview, niente rete, bot si').
+
+v0.80.15 (anteprima) — #board-score largo 500 (Lorenzo): justify-content
+space-between porta i due gruppi punteggio+icona contro i bordi, e .bs-etichetta
+e' assoluta al centro del pannello, cosi' non scivola quando i punteggi cambiano
+numero di cifre. prova-board-score: larghezza, gruppi ai bordi, scritta al centro.
+
+## prova-libreria.js — Library & Decks col Figma nuovo (v0.80.15, anteprima)
+
+    desktop/node_modules/electron/dist/electron.exe strumenti/prova-libreria.js
+
+Lorenzo (13 set 2026): la barra sopra e' la top-bar di Card packs con il numero
+di carte sbloccate e totali sotto al titolo; la barra laterale e' piu' bassa e
+le caselle dei mazzi sono 10 (prima 12); la barra in basso filtra le carte per
+nome e il tasto a destra apre la finestra dei filtri. "Il resto e' pressoche'
+tutto uguale" — la finestra dei filtri non cambia (nel Figma manca Reset
+filters, ma resta).
+- #card-db-header e' una .hx-topbar (stessi pezzi di #pack-header: Back, lo
+  stendardo, il colore; id di prima). #card-db-count sta dentro allo stendardo:
+  assoluto, cima a 59, Marcellus SC 16 in C6CFD0, testo unico "possedute/totali".
+  montaGraficaLibreria chiama vestiTitoli e mette la trama ai contenitori.
+- la lista: #card-db-grid-viewport 1424 a partire da (32,81) fino in fondo;
+  cardDbLayoutGrid usa CARD_DB_CARD_W 252.34 e CARD_DB_PAD_SX 18.67 del Figma
+  invece di dividere lo spazio. L'altezza resta quella della carta (210x360:
+  432.58, il Figma dice 430.33). 81 + PAD_TOP 25 = il 106 del disegno.
+  CARD_DB_SPAZIO_BARRA (110) allunga lo scorrimento perche' l'ultima fila salga
+  sopra alla barra.
+- #card-db-barra-cerca 771x80 a (358,970), centrata sulla lista. #card-db-cerca
+  chiama cardDbApplyFilters a ogni tasto; ogni casella porta dataset.nome gia'
+  passato per normalizzaRicerca (minuscole, senza accenti, spazi singoli). La
+  ricerca si SOMMA a rarita' e tratti; Reset filters non la tocca.
+  #library-filters e' sceso qui (niente piu' .hx-btn).
+- #card-db-right 423x962 a (1485,106), angoli 28, padding 20, appoggiata in
+  fondo. MAZZI_SLOT = 10; il server (MAZZI_MAX) accetta ancora 12, quindi non
+  c'e' niente da schierare: chi ne ha gia' 11 o 12 li vede tutti (non si taglia
+  piu' la lista) e #deck-list scorre. La separazione prende lo spazio che avanza
+  (.deck-lista-riga flex 1; .deck-slot-svanita gli azzera flex-grow in
+  modifica); .deck-importa del Figma, 48 con angoli 16.
+- in modifica il pannello di prima non ci stava (911 in 876: Save usciva e la
+  barra della capacita' si schiacciava a 0). Stretto come nel Figma "Edit deck":
+  padding 24/24/16 e gap 0 sulla riga, gap 16 nel pannello, nome 38, niente
+  .filters-riga, contatore-barra-capacita' a 4px, .deck-distrib 54 con
+  l'esagono a 72. .deck-edit > * non si restringe: se un giorno non ci sta,
+  deve vedersi.
+Il banco clona le quattro carte offline fino a quaranta (meta' "Fox") e guarda
+misure, ricerca (anche sommata alla rarita'), fondo della griglia, caselle con
+4, 10 e 12 mazzi, e il pannello di modifica.

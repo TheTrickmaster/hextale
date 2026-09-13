@@ -89,8 +89,17 @@ const CORPO = `(async function(){
     dice(p1() === '0' && p2() === '0', 'tabellone vuoto: 0 e 0', p1() + ' / ' + p2());
     // Col disegno a 0 e 0 il pannello e' largo esattamente 329: il testo "0"
     // in Figma e' largo 41, e tutto il resto sono misure fisse.
-    var w0 = inTela(document.getElementById('board-score').getBoundingClientRect()).width;
-    dice(Math.abs(w0 - 329) <= 1.5, 'a 0 e 0 e- largo 329 come nel disegno', giro(w0));
+    // v0.80.15 — largo 500 (Lorenzo, al posto dei 329 del disegno): i due
+    // punteggi con la loro icona contro i due bordi, la scritta al centro.
+    var pan = inTela(document.getElementById('board-score').getBoundingClientRect());
+    dice(Math.abs(pan.width - 500) <= 1, 'il pannello e- largo 500', giro(pan.width));
+    var gSx = inTela(document.getElementById('bs-p1').getBoundingClientRect());
+    var gDx = inTela(document.getElementById('bs-p2').getBoundingClientRect());
+    var scritta = inTela(document.querySelector('#board-score .bs-etichetta').getBoundingClientRect());
+    dice(Math.abs(gSx.left - (pan.left + 12)) <= 1 && Math.abs((gDx.left + gDx.width) - (pan.left + pan.width - 12)) <= 1,
+      'i due punteggi stanno contro i bordi opposti (12 di margine)', giro(gSx.left - pan.left) + ' / ' + giro(pan.left + pan.width - gDx.left - gDx.width));
+    var centroScritta = function(){ var b = inTela(document.querySelector('#board-score .bs-etichetta').getBoundingClientRect()); return b.left + b.width / 2; };
+    dice(Math.abs(centroScritta() - (pan.left + pan.width / 2)) <= 1, 'e "Board score" e- al centro del pannello', giro(centroScritta() - pan.left));
     G.board[key(0,0)] = { card: fai(di('common'), 1), owner: 1 };
     G.board[key(-1,1)] = { card: fai(di('rare'), 1), owner: 1 };
     G.board[key(1,0)] = { card: fai(di('mythic'), 2), owner: 2 };
