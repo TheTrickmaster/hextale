@@ -2123,3 +2123,11 @@ turno. dark-card-icon al giocatore dark, light-card-icon al light.
 
 Il banco prova misure, conto (anche dopo una conquista), icone per fazione,
 scambio dei lati, tabellone sotto al pannello e assenza nel menu.
+
+v0.80.8 — i numeri erano tagliati in basso (segnalato da Lorenzo). text-box
+chiude il box sulla linea di base e background-clip:text dipinge l'oro solo
+dentro al box: le cifre che scendono (3, 5, 7, 9) restavano mozzate. .bs-num ha
+ora padding 10/6/20 con margini negativi uguali: si dipinge piu' in largo, ma
+l'ingombro resta 35 e la cifra non si sposta. Il banco misura con un canvas
+quanto le cifre di Marcellus SC escono da base e maiuscola e controlla che il
+padding le contenga, e che l'ingombro sia ancora 35.

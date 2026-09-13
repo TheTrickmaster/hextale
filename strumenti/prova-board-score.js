@@ -40,17 +40,43 @@ const CORPO = `(async function(){
     try{ fermaIlConto(); }catch(_){}
     var el = document.getElementById('board-score');
     dice(!!el, 'in partita il pannello c-e-');
-    var r = el.getBoundingClientRect();
+    // Le misure si leggono nella tela del gioco (1920x1080), non nella
+    // finestra: #game-root si rimpicciolisce per starci dentro, e su una
+    // finestra appena piu' piccola ogni pixel del disegno diventa 0.95.
+    var radice = document.getElementById('game-root').getBoundingClientRect();
+    var scala = radice.width / 1920;
+    var inTela = function(b){ return { top: (b.top - radice.top) / scala, bottom: (b.bottom - radice.top) / scala,
+      left: (b.left - radice.left) / scala, width: b.width / scala, height: b.height / scala }; };
+    var r = inTela(el.getBoundingClientRect());
     dice(giro(r.top) === -2, 'appeso al bordo superiore, 2px fuori', giro(r.top));
     dice(giro(r.height) === 68, 'alto 68 come nel disegno (il bordo non conta)', giro(r.height));
     dice(Math.abs((r.left + r.width / 2) - 960) < 0.6, 'centrato', giro(r.left + r.width / 2));
     var cs = getComputedStyle(el);
     dice(cs.gap === '16px' && cs.paddingTop === '12px', '16 fra i pezzi, 12 di margine', cs.gap + ' / ' + cs.paddingTop);
     dice(cs.borderBottomLeftRadius === '12px' && cs.borderTopLeftRadius === '0px', 'angoli bassi a 12, alti dritti');
-    var ico = document.getElementById('bs-p1-icona').getBoundingClientRect();
+    var ico = inTela(document.getElementById('bs-p1-icona').getBoundingClientRect());
     dice(giro(ico.width) === 26 && giro(ico.height) === 44, 'icone 26x44', giro(ico.width) + 'x' + giro(ico.height));
     var num = getComputedStyle(document.getElementById('bs-p1-num'));
     dice(num.fontSize === '50px' && /Marcellus SC/.test(num.fontFamily), 'numero a 50 in Marcellus SC', num.fontSize);
+    // v0.80.8 — le cifre non vengono mozzate. Il box del numero e' tagliato
+    // alla maiuscola (text-box) e l'oro si dipinge solo dentro al box con il
+    // suo padding: quel padding deve contenere quanto ogni cifra scende sotto
+    // la base e sale sopra alla maiuscola. Si misura col carattere vero.
+    await document.fonts.ready;
+    var tela = document.createElement('canvas').getContext('2d');
+    tela.font = '50px "Marcellus SC"';
+    var giu = 0, su = 0, capo = tela.measureText('H').actualBoundingBoxAscent;
+    '0123456789'.split('').forEach(function(c){
+      var m = tela.measureText(c);
+      giu = Math.max(giu, m.actualBoundingBoxDescent);
+      su = Math.max(su, m.actualBoundingBoxAscent - capo);
+    });
+    var pb = parseFloat(num.paddingBottom), pt = parseFloat(num.paddingTop);
+    dice(pb >= giu + 1 && pt >= su + 1, 'l-oro copre le cifre intere: nessuna e- tagliata sotto o sopra',
+      'scendono ' + giro(giu) + ' (padding ' + pb + '), salgono ' + giro(su) + ' (padding ' + pt + ')');
+    var numBox = document.getElementById('bs-p1-num');
+    var ingombro = giro(inTela(numBox.getBoundingClientRect()).height - pt - pb);
+    dice(ingombro === 35, 'e il numero occupa ancora 35 di altezza, come nel disegno', ingombro);
     var et = document.querySelector('#board-score .bs-etichetta');
     var cse = getComputedStyle(et);
     dice(et.textContent === 'Board score' && cse.fontSize === '22px' && cse.color === 'rgb(221, 202, 161)', 'scritta "Board score" a 22, DDCAA1', cse.color);
@@ -63,7 +89,7 @@ const CORPO = `(async function(){
     dice(p1() === '0' && p2() === '0', 'tabellone vuoto: 0 e 0', p1() + ' / ' + p2());
     // Col disegno a 0 e 0 il pannello e' largo esattamente 329: il testo "0"
     // in Figma e' largo 41, e tutto il resto sono misure fisse.
-    var w0 = document.getElementById('board-score').getBoundingClientRect().width;
+    var w0 = inTela(document.getElementById('board-score').getBoundingClientRect()).width;
     dice(Math.abs(w0 - 329) <= 1.5, 'a 0 e 0 e- largo 329 come nel disegno', giro(w0));
     G.board[key(0,0)] = { card: fai(di('common'), 1), owner: 1 };
     G.board[key(-1,1)] = { card: fai(di('rare'), 1), owner: 1 };
@@ -98,7 +124,7 @@ const CORPO = `(async function(){
     // Le caselle vere, non tutti i poligoni: quelli dentro a un clipPath non si
     // disegnano e getBoundingClientRect li mette a zero.
     var celle = Array.prototype.slice.call(document.querySelectorAll('#board-svg [data-cellkey]'))
-      .map(function(p){ return p.getBoundingClientRect(); })
+      .map(function(p){ return inTela(p.getBoundingClientRect()); })
       .filter(function(b){ return b.height > 0; });
     var cima = Math.min.apply(null, celle.map(function(b){ return b.top; }));
     dice(cima > r.bottom, 'la punta del tabellone resta sotto al pannello', 'tabellone da ' + giro(cima) + ', pannello fino a ' + giro(r.bottom));
