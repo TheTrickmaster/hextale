@@ -41414,6 +41414,9 @@ function riscuotiPremioProssimaGiocata(card, giocatore, quanteConquiste, soloAnt
   if(!p.quanto) return false;
   const lati = _motore().latiColpiti(p.ambito, (card.valoriBase || card.values) || {}, card, G._semeSinergie || '');
   if(!lati.length) return false;
+  // v0.80.18 — il premio del Tin Woodman ("buff next RAND 2") cade su un lato a
+  // caso: nell'anteprima la carta che lo riscuote mostra "?" e non il +2.
+  if(soloAnteprima && (p.ambito === 'RAND' || p.ambito === 'ONE')) card.__aSorte = true;
   modificaValori(card, lati, p.quanto, undefined, {chiave: p.chiave, da: p.da});
   return true;
 }
@@ -46597,10 +46600,14 @@ function computeDragPreview(card, q, r){
     uncertain = true;
   } else {
     const esitoAbilita = _esitoDopoAbilita(Object.assign({}, card, {values}), q, r);
-    const dopoAbilita = esitoAbilita ? esitoAbilita.tabellone[esitoAbilita.cellaGiocata] : null;
     // v0.79.99 — e se una parte la decide il caso, la carta lo dichiara: i
     // numeri sono quelli senza il tiro, col punto interrogativo accanto.
     if(esitoAbilita && esitoAbilita.aSorte.tabellone[esitoAbilita.cellaGiocata]) uncertain = true;
+    // v0.80.18 — ...e quei numeri senza il tiro erano in realta' quelli SIMULATI,
+    // tiro compreso. Lorenzo (Pixies): "appare il punto interrogativo ma appare
+    // ancora la preview. così non è più random". Col caso di mezzo i numeri
+    // simulati non si usano affatto: restano quelli di adesso, col "?".
+    const dopoAbilita = (esitoAbilita && !uncertain) ? esitoAbilita.tabellone[esitoAbilita.cellaGiocata] : null;
     if(dopoAbilita){
       deltas = deltas || {};
       for(const s of SIDES) deltas[s] = (deltas[s]||0) + ((dopoAbilita[s]||0) - (values[s]||0));
@@ -53144,8 +53151,10 @@ function renderHand(containerId,hand,playerIdx){
     let aSorteInMano = false;
     if(antTavoloMano && !isBeingDragged){
       const simulati = antTavoloMano.mani[playerIdx===0?1:2][card.id];
-      if(simulati) arrivo = simulati;
       aSorteInMano = !!antTavoloMano.aSorte.mani[playerIdx===0?1:2][card.id];
+      // v0.80.18 — col caso di mezzo i numeri simulati non si mostrano: restano
+      // quelli di adesso, col "?" (vedi computeDragPreview).
+      if(simulati && !aSorteInMano) arrivo = simulati;
     }
     {
       const scarti = {};
@@ -56076,7 +56085,9 @@ function renderBoard(){
       const antTavolo = anteprimaTavolo();
       // v0.79.99 — il caso non si mostra in anteprima (vedi applicaCambiamenti).
       const aSorteInCampo = !!(antTavolo && k!==antTavolo.cellaGiocata && antTavolo.aSorte.tabellone[k]);
-      if(antTavolo && k!==antTavolo.cellaGiocata && antTavolo.tabellone[k]){
+      // v0.80.18 — una carta in campo che il caso potrebbe toccare non mostra i
+      // numeri simulati: solo i suoi di adesso col "?" (vedi computeDragPreview).
+      if(antTavolo && k!==antTavolo.cellaGiocata && antTavolo.tabellone[k] && !aSorteInCampo){
         const simulati = antTavolo.tabellone[k];
         const nuovi = {};
         for(const s of SIDES){
