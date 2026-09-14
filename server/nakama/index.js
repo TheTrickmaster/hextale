@@ -407,7 +407,7 @@ function _testoDaBase64Url(nk, pezzo) {
   var resto = s.length % 4;
   if (resto === 2) s += '==';
   else if (resto === 3) s += '=';
-  else if (resto === 1) throw Error('lunghezza base64 impossibile');
+  else if (resto === 1) throw Error('Invalid base64 length.');
   var d = nk.base64UrlDecode(s);
   if (typeof d === 'string') return d;
   var b = new Uint8Array(d), s = '';
@@ -417,9 +417,9 @@ function _testoDaBase64Url(nk, pezzo) {
 
 function primaDiGoogle(ctx, logger, nk, data) {
   var token = data && data.account && data.account.token;
-  if (!token) throw Error('token Google mancante');
+  if (!token) throw Error('Missing Google token.');
   var parti = String(token).split('.');
-  if (parti.length !== 3) throw Error('token Google malformato');
+  if (parti.length !== 3) throw Error('Malformed Google token.');
   var payload;
   try {
     // nk.base64UrlDecode restituisce un ArrayBuffer, NON una stringa: passarlo
@@ -427,14 +427,14 @@ function primaDiGoogle(ctx, logger, nk, data) {
     // accesso con Google. Verificato sul server, non dedotto.
     // I byte si rileggono uno per uno: qui serve solo `aud`, che e' ASCII.
     payload = JSON.parse(_testoDaBase64Url(nk, parti[1]));
-  } catch (e) { throw Error('token Google illeggibile: ' + String(e && e.message || e)); }
+  } catch (e) { throw Error('Unreadable Google token: ' + String(e && e.message || e)); }
   // aud puo essere una stringa o un elenco, secondo come Google lo emette.
   var aud = payload.aud;
   var ok = (aud === GOOGLE_CLIENT_ID) ||
            (Object.prototype.toString.call(aud) === '[object Array]' && aud.indexOf(GOOGLE_CLIENT_ID) !== -1);
   if (!ok) {
     logger.warn('token Google per un altra applicazione: aud=%s', String(aud));
-    throw Error('questo accesso Google non e per Hextale');
+    throw Error('This Google sign-in is not for Hextale.');
   }
   // v0.80.17 — anche da qui un nome da admin non si prende (vedi _nomeDaAdmin).
   if (data && data.username && _nomeDaAdmin(data.username)) {
@@ -668,7 +668,7 @@ var TUTORIAL_NOMI = ['principale', 'pacchetti', 'libreria'];
 // partitaSignal): qui si sa solo chi sta chiamando, di la' si sa chi era
 // accoppiato.
 function rpcRifiuta(ctx, logger, nk, payload) {
-  if (!ctx.userId) throw Error('serve un accesso');
+  if (!ctx.userId) throw Error('You need to log in.');
   var d = {};
   try { d = payload ? JSON.parse(payload) : {}; } catch (e) { d = {}; }
   var id = String(d.matchId || '');
@@ -684,7 +684,7 @@ function rpcRifiuta(ctx, logger, nk, payload) {
 }
 
 function rpcTutorial(ctx, logger, nk, payload) {
-  if (!ctx.userId) throw Error('serve un accesso');
+  if (!ctx.userId) throw Error('You need to log in.');
   var d = {};
   try { d = payload ? JSON.parse(payload) : {}; } catch (e) { d = {}; }
   var possesso = assicuraPossesso(ctx, nk, logger, ctx.userId, ctx.username);
@@ -700,7 +700,7 @@ function rpcTutorial(ctx, logger, nk, payload) {
 }
 
 function rpcStarter(ctx, logger, nk, payload) {
-  if (!ctx.userId) throw Error('serve un accesso');
+  if (!ctx.userId) throw Error('You need to log in.');
   var d = {};
   try { d = payload ? JSON.parse(payload) : {}; } catch (e) { d = {}; }
 
@@ -710,7 +710,7 @@ function rpcStarter(ctx, logger, nk, payload) {
 
   if (d.mazzo !== undefined && d.mazzo !== null && !giaScelto) {
     var numero = Math.floor(Number(d.mazzo));
-    if (MAZZI_STARTER.indexOf(numero) < 0) throw Error('mazzo iniziale non valido');
+    if (MAZZI_STARTER.indexOf(numero) < 0) throw Error('Invalid starter deck.');
     possesso.mazzi = [numero];
     possesso.origine = 'scelta';
     scriviPossesso(nk, ctx.userId, possesso);
@@ -839,7 +839,7 @@ function _preferenzePulite(dentro, gia) {
 }
 
 function rpcPreferenze(ctx, logger, nk, payload) {
-  if (!ctx.userId) throw Error('serve un accesso');
+  if (!ctx.userId) throw Error('You need to log in.');
   var dentro = {};
   try { dentro = payload ? JSON.parse(payload) : {}; } catch (e) { dentro = {}; }
   var possesso = assicuraPossesso(ctx, nk, logger, ctx.userId, ctx.username);
@@ -912,13 +912,13 @@ function _accordoInRegola(nk, userId) {
 // quella del server. Chi mandasse un numero diverso otterrebbe solo di vedersi
 // rifiutare l'accettazione, non di firmare un testo che non ha letto.
 function rpcAccordo(ctx, logger, nk, payload) {
-  if (!ctx.userId) throw Error('serve un accesso');
+  if (!ctx.userId) throw Error('You need to log in.');
   var d = {};
   try { d = payload ? JSON.parse(payload) : {}; } catch (e) { d = {}; }
 
   if (d.accetto === true) {
     if (String(d.versione || '') !== ACCORDO_VERSIONE) {
-      throw Error('versione dell accordo non corrispondente: ricarica il gioco');
+      throw Error('Agreement version mismatch: reload the game.');
     }
     var riga = {
       user_id: ctx.userId,
@@ -1429,7 +1429,7 @@ function _verificato(nk, userId) {
 function primaDiCercare(ctx, logger, nk, envelope) {
   if (ctx.userId && !_verificato(nk, ctx.userId)) {
     logger.info('coda rifiutata a %s: casella non ancora verificata', ctx.userId);
-    throw Error('verifica la tua email prima di giocare in rete');
+    throw Error('Verify your email before playing online.');
   }
   return envelope;
 }
@@ -1437,7 +1437,7 @@ function primaDiCercare(ctx, logger, nk, envelope) {
 // Dove sta questo account: gia' verificato, o gli si deve ancora chiedere il
 // codice. Il codice NON esce mai da qui.
 function rpcVerificaStato(ctx, logger, nk, payload) {
-  if (!ctx.userId) throw Error('serve un accesso');
+  if (!ctx.userId) throw Error('You need to log in.');
   var v = leggiVerifica(nk, ctx.userId);
   if (!v) return JSON.stringify({ verificato: true, mai: true });
   var conto = nk.accountGetId(ctx.userId);
@@ -1458,10 +1458,10 @@ function rpcVerificaStato(ctx, logger, nk, payload) {
 // ancora, e l'attesa fra un invio e l'altro esiste proprio perche' questa
 // chiamata costa una email vera.
 function rpcVerificaInvia(ctx, logger, nk, payload) {
-  if (!ctx.userId) throw Error('serve un accesso');
+  if (!ctx.userId) throw Error('You need to log in.');
   var conto = nk.accountGetId(ctx.userId);
   var email = (conto && conto.email) || '';
-  if (!email) throw Error('questo account non ha una email');
+  if (!email) throw Error('This account has no email address.');
 
   var v = leggiVerifica(nk, ctx.userId) || { verificato: false };
   if (v.verificato) return JSON.stringify({ gia: true });
@@ -1475,7 +1475,7 @@ function rpcVerificaInvia(ctx, logger, nk, payload) {
   var codice = _codiceASeiCifre(nk);
   var nome = _nomeDallEmail(email);
   var andata = _spedisciCodice(nk, logger, email, nome, codice);
-  if (!andata) throw Error('non riesco a mandare l email: riprova fra poco');
+  if (!andata) throw Error('Could not send the email: try again in a moment.');
 
   // Si scrive DOPO la spedizione riuscita: se la posta non parte, il codice
   // vecchio resta valido invece di essere sostituito da uno che nessuno ha mai
@@ -1490,7 +1490,7 @@ function rpcVerificaInvia(ctx, logger, nk, payload) {
 // Il confronto. Chi sbaglia troppe volte deve chiedere un codice nuovo: senza
 // un tetto, sei cifre si provano tutte.
 function rpcVerificaProva(ctx, logger, nk, payload) {
-  if (!ctx.userId) throw Error('serve un accesso');
+  if (!ctx.userId) throw Error('You need to log in.');
   var d = {};
   try { d = payload ? JSON.parse(payload) : {}; } catch (e) { d = {}; }
   var dato = String(d.codice || '').replace(/[^0-9]/g, '');
@@ -1500,18 +1500,18 @@ function rpcVerificaProva(ctx, logger, nk, payload) {
   if (v.verificato) return JSON.stringify({ ok: true });
 
   if (v.quando && (Date.now() - v.quando) > VERIFICA_MS)
-    throw Error('questo codice e scaduto: chiedine uno nuovo');
+    throw Error('This code has expired: ask for a new one.');
   if ((v.tentativi || 0) >= VERIFICA_TENTATIVI)
-    throw Error('troppi tentativi: chiedi un codice nuovo');
-  if (dato.length !== 6) throw Error('servono sei cifre');
+    throw Error('Too many attempts: ask for a new code.');
+  if (dato.length !== 6) throw Error('Six digits are required.');
 
   if (dato !== String(v.codice)) {
     v.tentativi = (v.tentativi || 0) + 1;
     scriviVerifica(nk, ctx.userId, v);
     var restano = VERIFICA_TENTATIVI - v.tentativi;
     throw Error(restano > 0
-      ? ('codice sbagliato: ti restano ' + restano + ' tentativi')
-      : 'codice sbagliato: chiedi un codice nuovo');
+      ? ('Wrong code: ' + restano + (restano === 1 ? ' attempt left.' : ' attempts left.'))
+      : 'Wrong code: ask for a new code.');
   }
 
   // Giusto. Il codice si CANCELLA: tenerlo scritto accanto a "verificato:true"
@@ -1629,7 +1629,7 @@ function rpcGoogleEntra(ctx, logger, nk, payload) {
   var d = {};
   try { d = payload ? JSON.parse(payload) : {}; } catch (e) { d = {}; }
   var codice = String(d.codice || '');
-  if (!codice) throw Error('manca il codice');
+  if (!codice) throw Error('Missing code.');
   var cfg = _googleConfig(nk);
   if (!cfg) {
     // Non si finge che sia un guasto di rete: e' una cosa da configurare, e il
@@ -1678,13 +1678,13 @@ function rpcGoogleEntra(ctx, logger, nk, payload) {
 function rpcGoogleConfig(ctx, logger, nk, payload) {
   if (ctx.userId) {
     var possesso = assicuraPossesso(ctx, nk, logger, ctx.userId, ctx.username);
-    if (!possesso.admin) throw Error('non sei un admin');
+    if (!possesso.admin) throw Error('Admins only.');
   }
   var d = {};
   try { d = payload ? JSON.parse(payload) : {}; } catch (e) { d = {}; }
   var cliente = String(d.cliente || '');
   var segreto = String(d.segreto || '');
-  if (!cliente || !segreto) throw Error('servono il client id e il segreto');
+  if (!cliente || !segreto) throw Error('Client id and secret are required.');
   scriviSistema(nk, KEY_GOOGLE, { cliente: cliente, segreto: segreto });
   // Il segreto non si riscrive nella risposta ne' nel registro: si dice solo
   // che c'e'.
@@ -1761,8 +1761,8 @@ function rpcContatto(ctx, logger, nk, payload) {
   try { d = payload ? JSON.parse(payload) : {}; } catch (e) { d = {}; }
   var email = _emailPulita(d.email);
   var testo = String(d.messaggio || '').slice(0, CONTATTO_MAX).trim();
-  if (!email || email.indexOf('@') < 1) throw Error('scrivi un indirizzo email');
-  if (testo.length < 10) throw Error('scrivi qualcosa di piu');
+  if (!email || email.indexOf('@') < 1) throw Error('Enter an email address.');
+  if (testo.length < 10) throw Error('Write a little more.');
 
   // Prima di ogni altra cosa, e prima del freno: se non e' una persona, non c'e'
   // niente da frenare e niente da spedire.
@@ -1771,7 +1771,7 @@ function rpcContatto(ctx, logger, nk, payload) {
   if (!_recaptchaVaBene(nk, logger, d.gettone, ip)) {
     // Non si dice "sei un programma": chi lo e' non legge, e a una persona
     // rifiutata per sbaglio serve sapere che c'e' un'altra strada.
-    throw Error('non riesco a mandare l email, scrivi a support@hextalegame.com');
+    throw Error('Could not send the email, write to support@hextalegame.com');
   }
 
   // Lo stesso freno del recupero, e per lo stesso motivo: ogni chiamata qui e'
@@ -1785,7 +1785,7 @@ function rpcContatto(ctx, logger, nk, payload) {
   }
 
   var cfg = _postaConfig(nk);
-  if (!cfg) { logger.warn('posta non configurata: il messaggio dal sito non parte'); throw Error('non riesco a mandare l email'); }
+  if (!cfg) { logger.warn('posta non configurata: il messaggio dal sito non parte'); throw Error('Could not send the email.'); }
   var corpo = {
     a: SEGN_DESTINATARIO,
     oggetto: '[Hextale] Message from the website - ' + email,
@@ -1804,11 +1804,11 @@ function rpcContatto(ctx, logger, nk, payload) {
     var r = nk.httpRequest(POSTA_URL, 'post', intestazioni, JSON.stringify(corpo), 25000);
     if (!(r.code >= 200 && r.code < 300)) {
       logger.warn('la posta ha risposto %d al messaggio dal sito', r.code);
-      throw Error('non riesco a mandare l email');
+      throw Error('Could not send the email.');
     }
   } catch (e) {
     logger.warn('il messaggio dal sito non e partito: %s', String(e));
-    throw Error('non riesco a mandare l email');
+    throw Error('Could not send the email.');
   }
   scriviSistema(nk, chiave, { quando: ora });
   logger.info('messaggio dal sito, da %s', email);
@@ -1819,7 +1819,7 @@ function rpcRecuperoChiedi(ctx, logger, nk, payload) {
   var d = {};
   try { d = payload ? JSON.parse(payload) : {}; } catch (e) { d = {}; }
   var email = _emailPulita(d.email);
-  if (!email || email.indexOf('@') < 0) throw Error('scrivi un indirizzo email');
+  if (!email || email.indexOf('@') < 0) throw Error('Enter an email address.');
 
   // ── SI RISPONDE SEMPRE DI SI' ────────────────────────────────────────────
   // Anche se quell'indirizzo non e' di nessuno. Rispondere "questa email non
@@ -1857,7 +1857,7 @@ function rpcRecuperoChiedi(ctx, logger, nk, payload) {
     testo4: 'The code expires in ' + VERIFICA_RECUPERO_ORE + ' hour.',
     testo5: 'If you did not ask to reset your password, you can ignore this message and nothing will change.'
   });
-  if (!andata) throw Error('non riesco a mandare l email: riprova fra poco');
+  if (!andata) throw Error('Could not send the email: try again in a moment.');
 
   scriviSistema(nk, chiave, {
     chi: chi, codice: codice, quando: ora, inviato: ora, tentativi: 0
@@ -1876,8 +1876,8 @@ function rpcRecuperoCambia(ctx, logger, nk, payload) {
   // La password si controlla PRIMA di toccare qualunque cosa: piu' sotto il
   // cambio passa da uno stacco e un riattacco, e l'unico modo di non trovarsi
   // a meta' e' non cominciare se non si puo' finire.
-  if (nuova.length < 8) throw Error('la password deve essere di almeno 8 caratteri');
-  if (!email) throw Error('scrivi un indirizzo email');
+  if (nuova.length < 8) throw Error('Password must be at least 8 characters.');
+  if (!email) throw Error('Enter an email address.');
 
   var chiave = _chiaveRecupero(email);
   var v = null;
@@ -1885,18 +1885,18 @@ function rpcRecuperoCambia(ctx, logger, nk, payload) {
   // Nessuna richiesta in corso: non si dice "questa email non ha chiesto
   // niente" — si dice che il codice non va bene, che e' vero e non racconta
   // niente a chi sta tirando a indovinare.
-  if (!v || !v.codice) throw Error('codice sbagliato o scaduto');
+  if (!v || !v.codice) throw Error('Wrong or expired code.');
   if (v.quando && (Date.now() - v.quando) > VERIFICA_RECUPERO_ORE * 3600 * 1000)
-    throw Error('questo codice e scaduto: chiedine uno nuovo');
+    throw Error('This code has expired: ask for a new one.');
   if ((v.tentativi || 0) >= RECUPERO_TENTATIVI)
-    throw Error('troppi tentativi: chiedi un codice nuovo');
-  if (dato.length !== 6) throw Error('servono sei cifre');
+    throw Error('Too many attempts: ask for a new code.');
+  if (dato.length !== 6) throw Error('Six digits are required.');
   if (dato !== String(v.codice)) {
     v.tentativi = (v.tentativi || 0) + 1;
     scriviSistema(nk, chiave, v);
     var restano = RECUPERO_TENTATIVI - v.tentativi;
-    throw Error(restano > 0 ? ('codice sbagliato: ti restano ' + restano + ' tentativi')
-                            : 'codice sbagliato: chiedi un codice nuovo');
+    throw Error(restano > 0 ? ('Wrong code: ' + restano + (restano === 1 ? ' attempt left.' : ' attempts left.'))
+                            : 'Wrong code: ask for a new code.');
   }
 
   // ── IL CAMBIO ────────────────────────────────────────────────────────────
@@ -1926,7 +1926,7 @@ function rpcRecuperoCambia(ctx, logger, nk, payload) {
       [v.chi, nuova]);
   } catch (e) {
     logger.error('recupero: non riesco a scrivere la password di %s: %s', v.chi, String(e));
-    throw Error('non riesco a cambiare la password: scrivici');
+    throw Error('Could not change the password: write to us.');
   }
   // E si prova. Non e' una cerimonia: e' l'unico modo di sapere che la password
   // scritta e' davvero quella con cui si entra, invece di dirlo al giocatore e
@@ -1935,7 +1935,7 @@ function rpcRecuperoCambia(ctx, logger, nk, payload) {
   try { prova = nk.authenticateEmail(email, nuova, '', false); } catch (e) { prova = null; }
   if (!prova || prova.userId !== v.chi) {
     logger.error('RECUPERO SOSPETTO: %s dice di avere la password nuova ma non entra', v.chi);
-    throw Error('non riesco a cambiare la password: scrivici');
+    throw Error('Could not change the password: write to us.');
   }
 
   // Fatto: il codice si butta. Un codice speso che resta scritto e' un codice
@@ -1968,13 +1968,13 @@ function rpcRecuperoCambia(ctx, logger, nk, payload) {
 function rpcRecaptchaConfig(ctx, logger, nk, payload) {
   if (ctx.userId) {
     var possesso = assicuraPossesso(ctx, nk, logger, ctx.userId, ctx.username);
-    if (!possesso.admin) throw Error('non sei un admin');
+    if (!possesso.admin) throw Error('Admins only.');
   }
   var d = {};
   try { d = payload ? JSON.parse(payload) : {}; } catch (e) { d = {}; }
   var attiva = !!d.attiva;
   var segreto = String(d.segreto || '');
-  if (attiva && !segreto) throw Error('serve il segreto');
+  if (attiva && !segreto) throw Error('Secret is required.');
   scriviSistema(nk, KEY_RECAPTCHA, { attiva: attiva, segreto: segreto });
   // Il segreto non si riscrive nella risposta ne' nel registro: si dice solo
   // che c'e'.
@@ -1985,7 +1985,7 @@ function rpcRecaptchaConfig(ctx, logger, nk, payload) {
 function rpcPostaConfig(ctx, logger, nk, payload) {
   if (ctx.userId) {
     var possesso = assicuraPossesso(ctx, nk, logger, ctx.userId, ctx.username);
-    if (!possesso.admin) throw Error('non sei un admin');
+    if (!possesso.admin) throw Error('Admins only.');
   }
   var d = {};
   try { d = payload ? JSON.parse(payload) : {}; } catch (e) { d = {}; }
@@ -2003,16 +2003,16 @@ function rpcPostaConfig(ctx, logger, nk, payload) {
 }
 
 function rpcSegnalazione(ctx, logger, nk, payload) {
-  if (!ctx.userId) throw Error('serve un accesso');
+  if (!ctx.userId) throw Error('You need to log in.');
   var dentro = {};
   try { dentro = payload ? JSON.parse(payload) : {}; } catch (e) { dentro = {}; }
 
   var categoria = String(dentro.categoria || '');
-  if (!_inElenco(SEGN_CATEGORIE, categoria)) throw Error('categoria non valida');
+  if (!_inElenco(SEGN_CATEGORIE, categoria)) throw Error('Invalid category.');
   var frequenza = String(dentro.frequenza || '');
-  if (!_inElenco(SEGN_FREQUENZE, frequenza)) throw Error('frequenza non valida');
+  if (!_inElenco(SEGN_FREQUENZE, frequenza)) throw Error('Invalid frequency.');
   var cosa = _testoPulito(dentro.cosa);
-  if (!cosa) throw Error('serve una descrizione');
+  if (!cosa) throw Error('A description is required.');
 
   var foto = String(dentro.schermata || '');
   var conFoto = foto.length > 0 && foto.length <= SEGN_FOTO_MAX;
@@ -2113,14 +2113,14 @@ function _altroGiocatore(nk, logger, matchId, chi) {
   } catch (e) { logger.warn('report: registro della partita %s illeggibile: %s', matchId, String(e)); return ''; }
 }
 function rpcReport(ctx, logger, nk, payload) {
-  if (!ctx.userId) throw Error('serve un accesso');
+  if (!ctx.userId) throw Error('You need to log in.');
   var dentro = {};
   try { dentro = payload ? JSON.parse(payload) : {}; } catch (e) { dentro = {}; }
 
   var motivo = String(dentro.motivo || '');
-  if (!_inElenco(REPORT_MOTIVI, motivo)) throw Error('motivo non valido');
+  if (!_inElenco(REPORT_MOTIVI, motivo)) throw Error('Invalid reason.');
   var testo = _testoPulito(dentro.testo);
-  if (!testo) throw Error('serve una descrizione');
+  if (!testo) throw Error('A description is required.');
 
   var matchId = _testoPulito(dentro.partita).slice(0, 80);
   var accusato = _altroGiocatore(nk, logger, matchId, ctx.userId);
@@ -2209,9 +2209,9 @@ function _spedisciReport(nk, logger, s, chiave) {
 // volta che vuole. La finestra di debug e' gia' chiusa ai non-admin, ma una
 // finestra si salta; una domanda al server no.
 function rpcBustinaAzzera(ctx, logger, nk, payload) {
-  if (!ctx.userId) throw Error('serve un accesso');
+  if (!ctx.userId) throw Error('You need to log in.');
   var possesso = assicuraPossesso(ctx, nk, logger, ctx.userId, ctx.username);
-  if (!possesso.admin) throw Error('non sei un admin');
+  if (!possesso.admin) throw Error('Admins only.');
   possesso.bustinaProssima = 0;
   scriviPossesso(nk, ctx.userId, possesso);
   logger.info('attesa bustina azzerata da %s', ctx.userId);
@@ -2219,19 +2219,19 @@ function rpcBustinaAzzera(ctx, logger, nk, payload) {
 }
 
 function rpcAvatar(ctx, logger, nk, payload) {
-  if (!ctx.userId) throw Error('serve un accesso');
+  if (!ctx.userId) throw Error('You need to log in.');
   var dentro = {};
   try { dentro = payload ? JSON.parse(payload) : {}; } catch (e) { dentro = {}; }
   var sigla = String(dentro.avatar || '').trim().toLowerCase();
-  if (sigla.length > 60) throw Error('sigla non valida');
-  if (sigla && !/^[a-z0-9-]+$/.test(sigla)) throw Error('sigla non valida');
+  if (sigla.length > 60) throw Error('Invalid avatar.');
+  if (sigla && !/^[a-z0-9-]+$/.test(sigla)) throw Error('Invalid avatar.');
 
   var possesso = assicuraPossesso(ctx, nk, logger, ctx.userId, ctx.username);
   if (!sigla) sigla = AVATAR_DI_PARTENZA;
 
   if (sigla !== AVATAR_DI_PARTENZA) {
     var catalogo = leggiSistema(nk, KEY_CATALOGO);
-    if (!catalogo || !catalogo.carte) throw Error('catalogo non ancora importato');
+    if (!catalogo || !catalogo.carte) throw Error('Card list not imported yet.');
     var admin = !!possesso.admin;
     var carte = [];
     for (var i = 0; i < catalogo.carte.length; i++) {
@@ -2240,7 +2240,7 @@ function rpcAvatar(ctx, logger, nk, payload) {
       carte.push(c);
     }
     var sue = _possedute(carte, possesso, admin);
-    if (!sue[sigla]) throw Error('questa carta non e tua');
+    if (!sue[sigla]) throw Error('You do not own this card.');
   }
 
   possesso.avatar = sigla;
@@ -2263,15 +2263,15 @@ function rpcAvatar(ctx, logger, nk, payload) {
 //
 // La mail torna libera: chi se ne va deve potersi riscrivere da zero.
 function rpcEliminaAccount(ctx, logger, nk, payload) {
-  if (!ctx.userId) throw Error('serve un accesso');
+  if (!ctx.userId) throw Error('You need to log in.');
   var dentro = {};
   try { dentro = payload ? JSON.parse(payload) : {}; } catch (e) { dentro = {}; }
   var password = String(dentro.password || '');
-  if (!password) throw Error('serve la password');
+  if (!password) throw Error('Password is required.');
 
   var conto = nk.accountGetId(ctx.userId);
   var email = (conto && conto.email) || '';
-  if (!email) throw Error('questo account non ha una email: scrivici');
+  if (!email) throw Error('This account has no email address: write to us.');
 
   // v0.79.13 — il terzo argomento e' il NOME UTENTE, e vuole una stringa: con
   // `null` il runtime alza "TypeError: expects string" e la cancellazione
@@ -2281,7 +2281,7 @@ function rpcEliminaAccount(ctx, logger, nk, payload) {
   // Con create=false quel nome non serve a cercare nessuno — conta che sia una
   // stringa — e il piu' onesto da passare e' il proprio.
   var chi = nk.authenticateEmail(email, password, ctx.username || '', false);
-  if (!chi || chi.userId !== ctx.userId) throw Error('password sbagliata');
+  if (!chi || chi.userId !== ctx.userId) throw Error('Wrong password.');
 
   // v0.79.34 — e KEY_VERIFICA. Era rimasta fuori quando la verifica e' nata
   // (v0.79.31): cancellando un account restava indietro il suo segno, e chi si
@@ -2303,12 +2303,12 @@ function rpcEliminaAccount(ctx, logger, nk, payload) {
 }
 
 function rpcAvvio(ctx, logger, nk, payload) {
-  if (!ctx.userId) throw Error('serve un accesso');
+  if (!ctx.userId) throw Error('You need to log in.');
   var richiesta = {};
   try { richiesta = payload ? JSON.parse(payload) : {}; } catch (e) { richiesta = {}; }
 
   var catalogo = leggiSistema(nk, KEY_CATALOGO);
-  if (!catalogo || !catalogo.carte) throw Error('catalogo non ancora importato');
+  if (!catalogo || !catalogo.carte) throw Error('Card list not imported yet.');
 
   var possesso = assicuraPossesso(ctx, nk, logger, ctx.userId, ctx.username);
   var admin = !!possesso.admin;
@@ -2414,9 +2414,9 @@ function rpcAvvio(ctx, logger, nk, payload) {
 // Si chiama da fuori con la chiave http del runtime, MAI da un client: non ha
 // ctx.userId e non deve averlo. E' il modo in cui il foglio entra nel database.
 function rpcImporta(ctx, logger, nk, payload) {
-  if (ctx.userId) throw Error('questa RPC non si chiama da un client');
+  if (ctx.userId) throw Error('This RPC cannot be called from a client.');
   var catalogo = JSON.parse(payload);
-  if (!catalogo || !catalogo.carte || !catalogo.carte.length) throw Error('catalogo vuoto');
+  if (!catalogo || !catalogo.carte || !catalogo.carte.length) throw Error('Empty card list.');
   scriviSistema(nk, KEY_CATALOGO, catalogo);
   logger.info('catalogo importato: %d carte, versione %s', catalogo.carte.length, catalogo.versione);
   return JSON.stringify({ ok: true, carte: catalogo.carte.length, versione: catalogo.versione });
@@ -2574,13 +2574,13 @@ function _riparaMazzi(nk, logger, userId, valore, possesso) {
 // Ricalcola il possesso di TUTTI gli utenti gia' esistenti. Serve una volta,
 // per chi si era registrato prima che questa logica esistesse.
 function rpcSistemaUtenti(ctx, logger, nk, payload) {
-  if (ctx.userId) throw Error('questa RPC non si chiama da un client');
+  if (ctx.userId) throw Error('This RPC cannot be called from a client.');
   // Nakama non offre "elenca tutti gli utenti" al runtime: si passa dai nomi,
   // che il chiamante conosce. Il payload e' un elenco di username.
   var esito = [];
   var nomi = [];
   try { nomi = JSON.parse(payload || '[]'); } catch (e) { nomi = []; }
-  if (!nomi.length) throw Error('serve un elenco di username');
+  if (!nomi.length) throw Error('A list of usernames is required.');
   var conti = nk.usersGetUsername(nomi);
   for (var i = 0; i < conti.length; i++) {
     var u = conti[i];
@@ -2912,9 +2912,9 @@ function _pesca(carte, escluse) {
 // Torna gli slug delle due carte, non le definizioni: il client ha gia' il
 // catalogo intero dall'avvio, e rimandarlo sarebbe peso per niente.
 function rpcBustinaApri(ctx, logger, nk, payload) {
-  if (!ctx.userId) throw Error('serve un accesso');
+  if (!ctx.userId) throw Error('You need to log in.');
   var catalogo = leggiSistema(nk, KEY_CATALOGO);
-  if (!catalogo || !catalogo.carte) throw Error('catalogo non ancora importato');
+  if (!catalogo || !catalogo.carte) throw Error('Card list not imported yet.');
 
   var possesso = assicuraPossesso(ctx, nk, logger, ctx.userId, ctx.username);
   var admin = !!possesso.admin;
@@ -2941,12 +2941,12 @@ function rpcBustinaApri(ctx, logger, nk, payload) {
   var richiesta = {};
   try { richiesta = payload ? JSON.parse(payload) : {}; } catch (e) { richiesta = {}; }
   var tipo = String(richiesta.tipo || 'daily');
-  if (PACCHETTO_TIPI.indexOf(tipo) === -1) throw Error('tipo di pacchetto sconosciuto: ' + tipo);
+  if (PACCHETTO_TIPI.indexOf(tipo) === -1) throw Error('Unknown pack type: ' + tipo);
   var addosso = pacchettiDi(possesso);
-  if (!addosso[tipo]) throw Error('non hai un pacchetto di tipo ' + tipo);
+  if (!addosso[tipo]) throw Error('You have no pack of type ' + tipo);
 
   var sorteggiabili = _sorteggiabili(catalogo, admin);
-  if (sorteggiabili.length < BUSTINA_CARTE) throw Error('non ci sono abbastanza carte sorteggiabili');
+  if (sorteggiabili.length < BUSTINA_CARTE) throw Error('Not enough cards to draw from.');
 
   // Tre pescate, ognuna escludendo cio' che e' gia' uscito: due carte uguali
   // nello stesso pacchetto sarebbero una delusione, non una rarita'.
@@ -2963,7 +2963,7 @@ function rpcBustinaApri(ctx, logger, nk, payload) {
     // due conti che si spera coincidano.
     prezzi[c.slug] = costoTenereRarita(c.rarity);
   }
-  if (slug.length !== BUSTINA_CARTE) throw Error('non ci sono abbastanza carte sorteggiabili');
+  if (slug.length !== BUSTINA_CARTE) throw Error('Not enough cards to draw from.');
 
   var bustina = {
     carte: slug,
@@ -2981,12 +2981,12 @@ function rpcBustinaApri(ctx, logger, nk, payload) {
 // davvero quelli della bustina aperta: non se ne accettano altri, ed e' il
 // punto in cui il sorteggio lato server smette di essere una formalita'.
 function rpcBustinaRaccogli(ctx, logger, nk, payload) {
-  if (!ctx.userId) throw Error('serve un accesso');
+  if (!ctx.userId) throw Error('You need to log in.');
   var richiesta = {};
   try { richiesta = payload ? JSON.parse(payload) : {}; } catch (e) { richiesta = {}; }
 
   var bustina = leggiBustina(nk, ctx.userId);
-  if (!bustina || !bustina.carte || !bustina.carte.length) throw Error('nessun pacchetto aperto');
+  if (!bustina || !bustina.carte || !bustina.carte.length) throw Error('No open pack.');
 
   // Solo slug del pacchetto, senza ripetizioni: chiedere due volte la stessa
   // carta non deve poter valere per due. E non piu' di due in tutto: la terza
@@ -2996,11 +2996,11 @@ function rpcBustinaRaccogli(ctx, logger, nk, payload) {
   var chiesti = richiesta.tieni || [];
   for (var i = 0; i < chiesti.length; i++) {
     var s = String(chiesti[i]);
-    if (bustina.carte.indexOf(s) === -1) throw Error('carta non uscita da questo pacchetto: ' + s);
+    if (bustina.carte.indexOf(s) === -1) throw Error('Card not from this pack: ' + s);
     if (tieni.indexOf(s) === -1) tieni.push(s);
   }
-  if (!tieni.length) throw Error('non hai scelto niente');
-  if (tieni.length > BUSTINA_TENIBILI) throw Error('da un pacchetto si tengono al massimo ' + BUSTINA_TENIBILI + ' carte');
+  if (!tieni.length) throw Error('You did not pick anything.');
+  if (tieni.length > BUSTINA_TENIBILI) throw Error('You can keep at most ' + BUSTINA_TENIBILI + ' cards from a pack');
 
   var possesso = assicuraPossesso(ctx, nk, logger, ctx.userId, ctx.username);
   var valute = valuteDi(possesso);
@@ -3064,7 +3064,7 @@ function rpcBustinaRaccogli(ctx, logger, nk, payload) {
       var prezzoQ = (typeof listino[pagate[q]] === 'number') ? listino[pagate[q]] : 0;
       if (q === 0 || prezzoQ < costo) costo = prezzoQ;
     }
-    if (valute.magicInk < costo) throw Error('inchiostro insufficiente');
+    if (valute.magicInk < costo) throw Error('Not enough magic ink.');
     valute.magicInk -= costo;
   }
 
@@ -3153,14 +3153,14 @@ function rpcBustinaRaccogli(ctx, logger, nk, payload) {
 // raccontare diversamente.
 // Un livello alla volta: da 1 a 3 sono due richieste, e due animazioni.
 function rpcCartaLivella(ctx, logger, nk, payload) {
-  if (!ctx.userId) throw Error('serve un accesso');
+  if (!ctx.userId) throw Error('You need to log in.');
   var richiesta = {};
   try { richiesta = payload ? JSON.parse(payload) : {}; } catch (e) { richiesta = {}; }
   var slug = String(richiesta.slug || '');
-  if (!slug) throw Error('quale carta?');
+  if (!slug) throw Error('Which card?');
 
   var catalogo = leggiSistema(nk, KEY_CATALOGO);
-  if (!catalogo || !catalogo.carte) throw Error('catalogo non ancora importato');
+  if (!catalogo || !catalogo.carte) throw Error('Card list not imported yet.');
   var possesso = assicuraPossesso(ctx, nk, logger, ctx.userId, ctx.username);
   var admin = !!possesso.admin;
   var carte = [];
@@ -3171,18 +3171,18 @@ function rpcCartaLivella(ctx, logger, nk, payload) {
     carte.push(c);
     if (c.slug === slug) carta = c;
   }
-  if (!carta) throw Error('carta sconosciuta: ' + slug);
+  if (!carta) throw Error('Unknown card: ' + slug);
 
   var possedute = _possedute(carte, possesso, admin);
   var da = possedute[slug] || 0;
-  if (!da) throw Error('non possiedi questa carta');
-  if (da >= LIVELLO_CARTA_MAX) throw Error('livello massimo gia\' raggiunto');
+  if (!da) throw Error('You do not own this card.');
+  if (da >= LIVELLO_CARTA_MAX) throw Error('Maximum level already reached.');
   var verso = da + 1;
   var copie = _copieDi(possesso, possedute)[slug] || 0;
-  if (copie < COPIE_PER_LIVELLO[verso]) throw Error('copie insufficienti');
+  if (copie < COPIE_PER_LIVELLO[verso]) throw Error('Not enough copies.');
   var costo = costoLivello(carta.rarity, verso);
   var valute = valuteDi(possesso);
-  if (valute.magicInk < costo) throw Error('inchiostro insufficiente');
+  if (valute.magicInk < costo) throw Error('Not enough magic ink.');
 
   // Pagamento e livello nella stessa scrittura, come allo sbusto: non esiste
   // l'istante in cui l'inchiostro e' andato e la carta non e' ancora salita.
@@ -3211,9 +3211,9 @@ function rpcCartaLivella(ctx, logger, nk, payload) {
 // separate perche' i tre pulsanti sono tre — chi ne preme uno non deve
 // ricevere anche il resto.
 function rpcDebugRegala(ctx, logger, nk, payload) {
-  if (!ctx.userId) throw Error('serve un accesso');
+  if (!ctx.userId) throw Error('You need to log in.');
   var possesso = assicuraPossesso(ctx, nk, logger, ctx.userId, ctx.username);
-  if (!possesso.admin) throw Error('serve un account admin');
+  if (!possesso.admin) throw Error('Admins only.');
   var richiesta = {};
   try { richiesta = payload ? JSON.parse(payload) : {}; } catch (e) { richiesta = {}; }
   // Numeri veri e positivi, e con un tetto: un debug che accetta qualunque
@@ -3247,10 +3247,10 @@ function rpcDebugRegala(ctx, logger, nk, payload) {
 // cui l'inchiostro e' gia' andato e il pacchetto non e' ancora arrivato.
 // Non c'e' un tetto a quanti se ne possono comprare: il tetto e' il saldo.
 function rpcBustinaCompra(ctx, logger, nk, payload) {
-  if (!ctx.userId) throw Error('serve un accesso');
+  if (!ctx.userId) throw Error('You need to log in.');
   var possesso = assicuraPossesso(ctx, nk, logger, ctx.userId, ctx.username);
   var valute = valuteDi(possesso);
-  if (valute.magicInk < PACCHETTO_PREZZO_INK) throw Error('inchiostro insufficiente');
+  if (valute.magicInk < PACCHETTO_PREZZO_INK) throw Error('Not enough magic ink.');
   valute.magicInk -= PACCHETTO_PREZZO_INK;
   possesso.valute = valute;
   possesso.bustineTesoro = (possesso.bustineTesoro || 0) + 1;
@@ -3666,7 +3666,7 @@ function nomeSporco(nk, nome) {
 var MAZZO_CASUALE = '__casuale';
 function _mazziPuliti(ctx, nk, dati) {
   var catalogo = leggiSistema(nk, KEY_CATALOGO);
-  if (!catalogo || !catalogo.carte) throw Error('catalogo non ancora importato');
+  if (!catalogo || !catalogo.carte) throw Error('Card list not imported yet.');
   var possesso = assicuraPossesso(ctx, nk, { info: function () {} }, ctx.userId, ctx.username);
   var admin = !!possesso.admin;
 
@@ -3681,21 +3681,21 @@ function _mazziPuliti(ctx, nk, dati) {
   }
 
   var dentro = (dati && dati.mazzi) || [];
-  if (dentro.length > MAZZI_MAX) throw Error('non si possono avere piu\' di ' + MAZZI_MAX + ' mazzi');
+  if (dentro.length > MAZZI_MAX) throw Error('You cannot have more than ' + MAZZI_MAX + ' decks');
 
   var fuori = [];
   var visti = {};
   for (var m = 0; m < dentro.length; m++) {
     var mazzo = dentro[m] || {};
     var id = String(mazzo.id || '');
-    if (!id) throw Error('un mazzo senza id');
-    if (visti[id]) throw Error('due mazzi con lo stesso id: ' + id);
+    if (!id) throw Error('A deck without an id.');
+    if (visti[id]) throw Error('Two decks with the same id: ' + id);
     visti[id] = true;
     var nome = String(mazzo.nome || 'Untitled deck').slice(0, 40);
     var carte = [];
     var punti = 0;
     var elenco = mazzo.carte || [];
-    if (elenco.length > MAZZO_CARTE) throw Error('"' + nome + '" ha piu\' di ' + MAZZO_CARTE + ' carte');
+    if (elenco.length > MAZZO_CARTE) throw Error('"' + nome + '" has more than ' + MAZZO_CARTE + ' cards');
     for (var k2 = 0; k2 < elenco.length; k2++) {
       var idCarta = String(elenco[k2]);
       var carta = perId[idCarta];
@@ -3706,7 +3706,7 @@ function _mazziPuliti(ctx, nk, dati) {
       carte.push(idCarta);
       punti += (COSTO_RARITA[String(carta.rarity || '').toLowerCase()] || 1);
     }
-    if (punti > MAZZO_PUNTI) throw Error('"' + nome + '" supera il tetto di ' + MAZZO_PUNTI + ' punti');
+    if (punti > MAZZO_PUNTI) throw Error('"' + nome + '" is over the ' + MAZZO_PUNTI + ' point cap');
     fuori.push({ id: id, nome: nome, carte: carte });
   }
 
@@ -3733,7 +3733,7 @@ function _mazziPuliti(ctx, nk, dati) {
 }
 
 function rpcMazziLeggi(ctx, logger, nk, payload) {
-  if (!ctx.userId) throw Error('serve un accesso');
+  if (!ctx.userId) throw Error('You need to log in.');
   var r = nk.storageRead([{ collection: COLL_PROFILO, key: KEY_MAZZI, userId: ctx.userId }]);
   var v = (r && r.length && r[0].value) ? r[0].value : { mazzi: [], scelto: null, modificatoIl: 0 };
   // v0.80.16 — chi e' rimasto col mazzo del sorteggio viene riparato qui.
@@ -3744,9 +3744,9 @@ function rpcMazziLeggi(ctx, logger, nk, payload) {
 }
 
 function rpcMazziScrivi(ctx, logger, nk, payload) {
-  if (!ctx.userId) throw Error('serve un accesso');
+  if (!ctx.userId) throw Error('You need to log in.');
   var dati;
-  try { dati = JSON.parse(payload || '{}'); } catch (e) { throw Error('mazzi illeggibili'); }
+  try { dati = JSON.parse(payload || '{}'); } catch (e) { throw Error('Unreadable decks.'); }
   // ── v0.80.16 — PRIMA DI SCRIVERE SI GUARDA COSA C'E' GIA' ──────────────
   // Il possesso prima della lettura: per un account nuovo e' assicuraPossesso
   // a creare il mazzo starter, e la lettura deve gia' vederlo.
@@ -4029,10 +4029,15 @@ var SEDIA_LIBERA_MS = 30 * 1000;
 
 // Legge una presenza nelle due forme, la vecchia e la nuova.
 function _presenzaLetta(v) {
-  if (typeof v === 'number') return { q: v, s: '' };
-  if (v && typeof v === 'object' && typeof v.q === 'number') return { q: v.q, s: String(v.s || '') };
+  if (typeof v === 'number') return { q: v, s: '', c: false };
+  if (v && typeof v === 'object' && typeof v.q === 'number') return { q: v.q, s: String(v.s || ''), c: !!v.c };
   return null;
 }
+// v0.80.23 — chi sta cercando una partita. Mentre cerca il client batte ogni
+// dieci secondi (non venti) col segno `cerca`, e smettendo batte subito senza:
+// un segno piu' vecchio di cosi' e' di qualcuno che ha chiuso la pagina mentre
+// cercava, e non si conta piu' anche se come presenza e' ancora viva.
+var RICERCA_VIVA_MS = 25 * 1000;
 // C'e' qualcun ALTRO seduto su questo account in questo momento?
 function _sediaOccupataDaAltri(nk, userId, sessione) {
   var visti = null;
@@ -4050,11 +4055,11 @@ function _sediaOccupataDaAltri(nk, userId, sessione) {
 // il menu si apra: e' l'unico momento in cui rifiutare costa poco, perche' non
 // si e' ancora dentro a niente.
 function rpcEntro(ctx, logger, nk, payload) {
-  if (!ctx.userId) throw Error('serve un accesso');
+  if (!ctx.userId) throw Error('You need to log in.');
   var dati = {};
   try { dati = payload ? JSON.parse(payload) : {}; } catch (e) { dati = {}; }
   var sessione = String(dati.sessione || '').slice(0, 64);
-  if (!sessione) throw Error('serve una sessione');
+  if (!sessione) throw Error('A session is required.');
   if (_sediaOccupataDaAltri(nk, ctx.userId, sessione)) {
     logger.info('accesso rifiutato a %s: gia. in gioco', ctx.userId);
     return JSON.stringify({ dentro: false, motivo: 'gia in gioco' });
@@ -4072,7 +4077,7 @@ function rpcEntro(ctx, logger, nk, payload) {
 // invece di aspettare che la sedia si liberi da sola. Solo la propria sedia:
 // una sessione non puo' far alzare un'altra.
 function rpcEsco(ctx, logger, nk, payload) {
-  if (!ctx.userId) throw Error('serve un accesso');
+  if (!ctx.userId) throw Error('You need to log in.');
   var dati = {};
   try { dati = payload ? JSON.parse(payload) : {}; } catch (e) { dati = {}; }
   var sessione = String(dati.sessione || '').slice(0, 64);
@@ -4101,20 +4106,21 @@ function rpcGiocatoriOnline(ctx, logger, nk, payload) {
   // ci scrive sopra. Non e' un caso teorico — e' quello che succede al secondo
   // client se qualcuno gli mette le mani sul codice per saltare il rifiuto.
   if (ctx.userId && !(sessione && _sediaOccupataDaAltri(nk, ctx.userId, sessione))) {
-    visti[ctx.userId] = sessione ? { q: ora, s: sessione } : ora;
+    visti[ctx.userId] = sessione ? (dati.cerca ? { q: ora, s: sessione, c: 1 } : { q: ora, s: sessione }) : ora;
   }
-  var vivi = {}, quanti = 0;
+  var vivi = {}, quanti = 0, cercano = 0;
   for (var u in visti) {
     var letta = _presenzaLetta(visti[u]);
     if (letta && (ora - letta.q) <= PRESENZA_VIVA_MS) {
       vivi[u] = visti[u]; quanti++;
+      if (letta.c && (ora - letta.q) <= RICERCA_VIVA_MS) cercano++;   // v0.80.23
     }
   }
   // La scrittura non deve poter far fallire la risposta: il numero e' gia'
   // buono, e un battito non scritto si riscrive fra trenta secondi.
   try { scriviSistema(nk, KEY_PRESENZE, vivi); }
   catch (e2) { logger.warn('battito non scritto: %s', String(e2)); }
-  return JSON.stringify({ giocatori: quanti });
+  return JSON.stringify({ giocatori: quanti, cercano: cercano });
 }
 
 // ── v0.78.16 — LE CARTE ANCORA DA GUARDARE ────────────────────────────────
@@ -4161,7 +4167,7 @@ function _visibiliDi(catalogo, admin) {
 // massimo si toglie da se' un pallino — quindi non c'e' niente da verificare
 // oltre al fatto che siano carte che possiede davvero.
 function rpcCarteViste(ctx, logger, nk, payload) {
-  if (!ctx.userId) throw Error('serve un accesso');
+  if (!ctx.userId) throw Error('You need to log in.');
   var dati = {};
   try { dati = JSON.parse(payload || '{}'); } catch (e) { dati = {}; }
   var elenco = dati.carte;
@@ -4205,7 +4211,7 @@ function rpcCarteViste(ctx, logger, nk, payload) {
 // scriverlo qui vale piu' che fingere che sia una difesa.
 var QUEST_TETTO_PER_CHIAMATA = { flip: 40, flip_timeless: 10, flip_multiplo: 10 };
 function rpcQuest(ctx, logger, nk, payload) {
-  if (!ctx.userId) throw Error('serve un accesso');
+  if (!ctx.userId) throw Error('You need to log in.');
   var dentro = {};
   try { dentro = payload ? JSON.parse(payload) : {}; } catch (e) { dentro = {}; }
   var possesso = assicuraPossesso(ctx, nk, logger, ctx.userId, ctx.username);
@@ -4226,7 +4232,7 @@ function rpcQuest(ctx, logger, nk, payload) {
   return JSON.stringify({ quest: questPerIlClient(possesso), mosse: mosse });
 }
 function rpcQuestRiscuoti(ctx, logger, nk, payload) {
-  if (!ctx.userId) throw Error('serve un accesso');
+  if (!ctx.userId) throw Error('You need to log in.');
   var dentro = {};
   try { dentro = payload ? JSON.parse(payload) : {}; } catch (e) { dentro = {}; }
   var possesso = assicuraPossesso(ctx, nk, logger, ctx.userId, ctx.username);
@@ -4262,9 +4268,9 @@ function rpcQuestRiscuoti(ctx, logger, nk, payload) {
 // La RPC resta la strada delle partite contro l'IA, dove non c'e' nessun
 // avversario che possa confermare com'e' andata.
 function rpcPartita(ctx, logger, nk, payload) {
-  if (!ctx.userId) throw Error('serve un accesso');
+  if (!ctx.userId) throw Error('You need to log in.');
   var dati;
-  try { dati = JSON.parse(payload || '{}'); } catch (e) { throw Error('esito illeggibile'); }
+  try { dati = JSON.parse(payload || '{}'); } catch (e) { throw Error('Unreadable result.'); }
   // I turni li dichiara il client, come l'esito: contro l'IA non c'e' nessun
   // avversario che possa confermare, e turniPuliti mette il tetto oltre il
   // quale la dichiarazione non e' piu' credibile.
@@ -5035,6 +5041,18 @@ function _occupateDaImpronta(state, impronta) {
   }
   state.occupate = nuove;
 }
+// v0.80.23 — le caselle bloccate dal racconto concorde: "q,r|q,r|...", solo
+// caselle che esistono, ognuna una volta.
+function _buchiDaRacconto(state, testo) {
+  var tutte = _caselle();
+  var nuove = [];
+  var pezzi = String(testo || '').split('|');
+  for (var i = 0; i < pezzi.length; i++) {
+    var k = pezzi[i];
+    if (k && tutte.indexOf(k) !== -1 && nuove.indexOf(k) === -1) nuove.push(k);
+  }
+  state.buchi = nuove;
+}
 
 // ── v0.79.90 — IL LIVELLO DI OGNI CARTA, PER CHI GIOCA CONTRO ─────────────
 // Fino a ieri viaggiava un numero solo per giocatore (info.livello, quello del
@@ -5138,13 +5156,13 @@ function partitaInit(ctx, logger, nk, params) {
 function partitaJoinAttempt(ctx, logger, nk, dispatcher, tick, state, presence, metadata) {
   // Entra solo chi e' stato accoppiato. Un match id che gira non deve essere
   // un invito per chiunque lo intercetti.
-  if (_indiceDi(state, presence.userId) === -1) return { state: state, accept: false, rejectMessage: 'non sei di questa partita' };
+  if (_indiceDi(state, presence.userId) === -1) return { state: state, accept: false, rejectMessage: 'You are not part of this match.' };
   // v0.79.32 — e la casella verificata. Qui non ci si arriva senza essere
   // passati dalla coda, che gia' controlla: questa e' la seconda mandata alla
   // stessa porta, e costa una riga. Le serrature che contano stanno sulla
   // porta, non sul cartello davanti.
-  if (!_verificato(nk, presence.userId)) return { state: state, accept: false, rejectMessage: 'verifica la tua email prima di giocare in rete' };
-  if (state.presenze[presence.userId]) return { state: state, accept: false, rejectMessage: 'sei gia\' dentro' };
+  if (!_verificato(nk, presence.userId)) return { state: state, accept: false, rejectMessage: 'Verify your email before playing online.' };
+  if (state.presenze[presence.userId]) return { state: state, accept: false, rejectMessage: 'You are already in this match.' };
   return { state: state, accept: true };
 }
 
@@ -5466,7 +5484,9 @@ function partitaLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
         impronta: String(corpo.impronta || ''),
         punteggio: corpo.punteggio || null,
         hp: corpo.hp || null,
-        finita: !!corpo.finita
+        finita: !!corpo.finita,
+        // v0.80.23 — le caselle bloccate come le vede lui (vedi _buchiDaRacconto)
+        buchi: Array.isArray(corpo.buchi) ? corpo.buchi.slice(0, 100).map(String).sort().join('|') : null
       };
       var uno = state.rapporti[t][state.giocatori[0]];
       var due = state.rapporti[t][state.giocatori[1]];
@@ -5485,6 +5505,13 @@ function partitaLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
       // v0.78.9 — e da quello stesso racconto si rifanno le caselle occupate.
       _occupateDaImpronta(state, uno.impronta);
       _yetiOccupa(state);   // v0.80.21 — lo Yeti nascosto non e' nel racconto, ma la sua casella e' presa
+      // v0.80.23 — e le caselle bloccate. Un tassello bloccato si puo' spostare
+      // o distruggere, e qui restavano quelle d'inizio partita: dove il tassello
+      // era stato, la carta veniva rifiutata ("quella casella e' bloccata"), e
+      // dove era arrivato si poteva giocare. Si prendono dal racconto quando i
+      // due lo fanno uguale; un client di prima non le manda, e restano com'erano.
+      if (uno.buchi !== null && uno.buchi === due.buchi) _buchiDaRacconto(state, uno.buchi);
+      else if (uno.buchi !== due.buchi) logger.warn('caselle bloccate diverse al turno %s: %s contro %s', t, uno.buchi, due.buchi);
       // v0.77.76 — i due client sono d'accordo: e' il momento buono per
       // chiedere al server se avrebbe detto la stessa cosa. Non decide niente:
       // se sbaglia, lo sapremo dal registro invece che da una partita persa.
@@ -5526,7 +5553,7 @@ function partitaLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
       // dentro l'altra (lo sceriffo che usa subito l'abilita' rubata), e
       // sarebbero due scelte per una sola giocata.
       if (idx !== state.ultimaGiocataDi) {
-        _aUno(dispatcher, state, chi, OP_RIFIUTO, { perche: 'non tocca a te scegliere' });
+        _aUno(dispatcher, state, chi, OP_RIFIUTO, { perche: "It's not your turn to choose." });
         continue;
       }
       var scelta = (corpo.cella === null || corpo.cella === undefined) ? null : String(corpo.cella);
@@ -5535,8 +5562,8 @@ function partitaLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
     }
 
     if (m.opCode !== OP_GIOCA) continue;
-    if (!state.iniziata) { _aUno(dispatcher, state, chi, OP_RIFIUTO, { perche: 'la partita non e\' ancora cominciata' }); continue; }
-    if (idx !== state.turno) { _aUno(dispatcher, state, chi, OP_RIFIUTO, { perche: 'non e\' il tuo turno' }); continue; }
+    if (!state.iniziata) { _aUno(dispatcher, state, chi, OP_RIFIUTO, { perche: "The match hasn't started yet." }); continue; }
+    if (idx !== state.turno) { _aUno(dispatcher, state, chi, OP_RIFIUTO, { perche: "It's not your turn." }); continue; }
 
     var carta = String(corpo.carta || '');
     var q = corpo.q, r = corpo.r;
@@ -5559,7 +5586,7 @@ function partitaLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
     }
 
     var posto = state.mano[chi].indexOf(carta);
-    if (posto === -1) { _aUno(dispatcher, state, chi, OP_RIFIUTO, { perche: 'quella carta non e\' nella tua mano' }); continue; }
+    if (posto === -1) { _aUno(dispatcher, state, chi, OP_RIFIUTO, { perche: 'That card is not in your hand.' }); continue; }
     // ── v0.79.99 — E LA FORMA IN CUI SCENDE ──────────────────────────────
     // `carta` e' l'id con cui la carta sta nella mano (quello distribuito qui),
     // `forma` cio' che e' diventata nel frattempo: uno Strigoi che si e'
@@ -5573,16 +5600,16 @@ function partitaLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
     if (corpo.forma !== undefined && corpo.forma !== null && corpo.forma !== '') {
       forma = String(corpo.forma);
       if (forma !== carta && !_formaDellaCarta(leggiSistema(nk, KEY_CATALOGO), carta, forma)) {
-        _aUno(dispatcher, state, chi, OP_RIFIUTO, { perche: 'quella carta non si trasforma in ' + forma });
+        _aUno(dispatcher, state, chi, OP_RIFIUTO, { perche: 'That card does not transform into ' + forma });
         continue;
       }
     }
-    if (_caselle().indexOf(k) === -1) { _aUno(dispatcher, state, chi, OP_RIFIUTO, { perche: 'quella casella non esiste' }); continue; }
-    if (state.buchi.indexOf(k) !== -1) { _aUno(dispatcher, state, chi, OP_RIFIUTO, { perche: 'quella casella e\' bloccata' }); continue; }
+    if (_caselle().indexOf(k) === -1) { _aUno(dispatcher, state, chi, OP_RIFIUTO, { perche: "That tile doesn't exist." }); continue; }
+    if (state.buchi.indexOf(k) !== -1) { _aUno(dispatcher, state, chi, OP_RIFIUTO, { perche: 'That tile is blocked.' }); continue; }
     // v0.80.21 — le impronte dello Yeti: stessa risposta di una casella occupata,
     // cosi' il rifiuto non dice quale delle due e' quella vera.
-    if (_yetiVieta(state, k, idx + 1)) { _aUno(dispatcher, state, chi, OP_RIFIUTO, { perche: 'quella casella e\' gia\' occupata' }); continue; }
-    if (state.occupate[k]) { _aUno(dispatcher, state, chi, OP_RIFIUTO, { perche: 'quella casella e\' gia\' occupata' }); continue; }
+    if (_yetiVieta(state, k, idx + 1)) { _aUno(dispatcher, state, chi, OP_RIFIUTO, { perche: 'That tile is already taken.' }); continue; }
+    if (state.occupate[k]) { _aUno(dispatcher, state, chi, OP_RIFIUTO, { perche: 'That tile is already taken.' }); continue; }
 
     state.mano[chi].splice(posto, 1);
     state.occupate[k] = { carta: carta, di: idx + 1 };

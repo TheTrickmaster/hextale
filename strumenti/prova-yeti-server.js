@@ -82,7 +82,7 @@ dice(r.length === 0 && st.yeti.length === 1, 'un secondo op 17 per la stessa gio
 
 // ── 2. le impronte ──────────────────────────────────────────────────────────
 r = gioca(st, 'u2', 'final-uno', '0,0');
-dice(rifiuto(r) && /occupata/.test(rifiuto(r).dati.perche), 'l-avversario non gioca sull-impronta vuota', JSON.stringify(r));
+dice(rifiuto(r) && /occupata|already taken/.test(rifiuto(r).dati.perche), 'l-avversario non gioca sull-impronta vuota', JSON.stringify(r));
 const suVera = gioca(st, 'u2', 'final-uno', '2,-1');
 dice(rifiuto(suVera) && rifiuto(suVera).dati.perche === rifiuto(r).dati.perche, 'ne- su quella con lo Yeti, con la stessa identica risposta', JSON.stringify(suVera));
 r = gioca(st, 'u2', 'final-uno', '-1,0');

@@ -2761,3 +2761,52 @@ era 1). I messaggi si smistano al giro dopo, quindi una giocata torna ai due
 client in al massimo ~50ms invece di ~1s. I tempi della partita si contano con
 Date.now e non cambiano; l'unico conto a giri, il battito OP_TEMPO, e' diventato
 `tick % (5 * TICK_RATE)`: resta ogni cinque secondi.
+
+## prova-v08023.js, prova-buchi-server.js e prova-quest-in-partita.js — sei segnalazioni (v0.80.23, anteprima)
+
+    $ELECTRON strumenti/prova-v08023.js
+    node strumenti/prova-buchi-server.js
+    $ELECTRON strumenti/prova-quest-in-partita.js
+
+Lorenzo, sei punti:
+1. "Tutti i testi che appaiono agli occhi dei giocatori devono essere in
+   inglese". Tradotti i toast (turno, carta congelata, carte avversarie,
+   pacchetti), gli errori dei codici mazzo, i titoli rimasti ("Opponent's deck",
+   "Card ability", la frase di ripiego delle carte) e TUTTI i messaggi del server
+   che arrivano a un client: i rifiuti delle giocate (OP_RIFIUTO), gli errori
+   delle RPC, i rifiuti d'ingresso in partita. Le funzioni che traducevano
+   l'italiano del server (_spiegaVerifica, _spiegaRecupero, il livello senza
+   inchiostro) riconoscono tutte e due le lingue, e "Move refused" passa da
+   rifiutoInInglese, che traduce anche il server di prima finche' non e'
+   schierato quello nuovo. prova-v08023 controlla che i vecchi testi non ci siano
+   piu'; prova-buchi-server che nessun `perche:`/`throw Error`/`rejectMessage`
+   del server sia rimasto in italiano. Restano in italiano solo gli strumenti da
+   sviluppatore (tuner del foil, dei brani) e la console.
+2. "Se sposto un tile bloccato e poi provo a mettere una carta dove prima c'era,
+   mi dice move refused, quella casella e' bloccata". Il server teneva
+   state.buchi fermo a quello d'inizio partita. Adesso il racconto del tabellone
+   (op 7) porta anche `buchi` (G.holes, in ordine), e quando i due racconti sono
+   d'accordo il server li adotta (_buchiDaRacconto: solo caselle che esistono,
+   una volta). Diversi fra loro, o mandati da un client di prima: restano quelli
+   che c'erano, e il registro lo dice. Il racconto parte 1.8s dopo ogni giocata.
+3. Gli avvisi delle daily in partita: prova-quest-in-partita gioca una partita
+   vera contro il bot con "Flip 20 cards" a 3/20, gira una carta e guarda che
+   salga la scheda 4/20, dentro allo schermo, senza niente sopra, col suono. Il
+   meccanismo funziona; il popup sale solo se una quest delle carte girate puo'
+   ancora salire, e le cinque del giorno sono sempre le stesse fino a mezzanotte
+   GMT (contro il bot se ne muovono tre). Finite o riscattate quelle, in partita
+   non c'e' niente da mostrare: la prima volta in partita la console lo dice
+   (questSpiegaSilenzio).
+4. Il pulsante della ricerca dice "Searching...(12s)" (e "Cancel" sotto al dito).
+5. Da Matchmaking a Play vs Bot (e ritorno) il blocco centrale sfuma dentro
+   (mm2VistaSfuma): i pezzi `sfuma` di PAGINE_PEZZI.mainmenu, con i loro ritardi
+   e l'attesa degli asset; non sulla stessa vista, non durante un cambio pagina.
+6. Sotto ai giocatori online, #mm2-cercano con lo stesso CSS: "N players
+   searching for a match". Il battito hx_giocatori porta `cerca`; mentre si cerca
+   batte ogni 10s (ONLINE_CERCANDO_OGNI_MS) e cominciando/smettendo batte subito.
+   Il server segna `c` sulla presenza e conta chi cerca solo se il battito e'
+   piu' giovane di RICERCA_VIVA_MS (25s): chi chiude la pagina mentre cerca esce
+   dal conto in fretta, anche se come presenza resta viva 90s. Contro il bot le
+   due righe non si vedono.
+Nota: server/nakama/prova-account.js ha un controllo rotto ("il conto sale nella
+STESSA scrittura che consegna le carte") gia' prima di questa versione.

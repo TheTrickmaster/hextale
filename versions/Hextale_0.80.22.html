@@ -983,19 +983,15 @@ body.mouse-down, body.mouse-down *{
    #9DA7A9. La regola di prima (#mm2-online, v0.78.19) lo metteva in fila dentro
    alla scatola del gioco; qui la scatola non c'e' piu', e senza questa riga
    restava in cima al riquadro. */
-#mm2-modo-normal #mm2-online,
-#mm2-modo-normal #mm2-cercano{
+#mm2-modo-normal #mm2-online{
   position:absolute; left:0; right:0; top:434px; z-index:3;
   width:auto; margin:0;
   font-family:'Marcellus SC','Marcellus',var(--font-display),serif;
   font-size:22px; line-height:normal; color:#9DA7A9;
   text-align:center; text-shadow:none;
 }
-/* v0.80.23 — chi sta cercando una partita: stessa riga, subito sotto. */
-#mm2-modo-normal #mm2-cercano{ top:462px; }
 /* v0.80.13 — contro il bot i collegati non contano: il numero non si vede. */
-#mm2-centro.vista-bot #mm2-online,
-#mm2-centro.vista-bot #mm2-cercano{ display:none; }
+#mm2-centro.vista-bot #mm2-online{ display:none; }
 /* v0.80.14 — e il riquadro Normal cambia immagine: matchmaking-container-bot.png
    al posto di matchmaking-container.png. Le due immagini sono tutte e due nel
    riquadro; la vista sceglie quale si vede. */
@@ -12198,7 +12194,7 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
    genitore, e tutte e due sono finite fuori dalla sua scatola senza che nulla
    lo dicesse. Un elemento in fila non puo' sparire: al massimo si vede vuoto,
    ed e' per questo che vuoto non resta mai (vedi aggiornaGiocatoriOnline). */
-#mm2-online, #mm2-cercano{
+#mm2-online{
   width:100%; margin:14px 0 10px;
   font-family:'Marcellus',var(--font-display),serif;
   font-size:22px; color:#9DA7A9;
@@ -12982,8 +12978,6 @@ try{
                quel che si vede dal primo disegno, e il codice lo sostituisce
                col numero vero. -->
           <div id="mm2-online">— players online</div>
-          <!-- v0.80.23 — e quanti stanno cercando una partita, subito sotto. -->
-          <div id="mm2-cercano">— players searching for a match</div>
         </div>
       </div>
       <div id="mm2-gioca">
@@ -13645,8 +13639,8 @@ try{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.23</div>
-<button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.22</div>
+<button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <!-- v0.80.19 — gli sticker: l'icona (solo per chi gioca), il menu, e due bolle
      fisse, una per lato, cosi' quelle dei due giocatori possono stare a schermo
@@ -13692,7 +13686,7 @@ try{
 <div id="prova-carta-overlay" class="hx-modal-overlay" onclick="if(event.target===this) chiudiSceltaMazzoAvversario();">
   <div id="prova-carta-modal" class="hx-modal-box">
     <button class="hx-modal-close" aria-label="Close" onclick="chiudiSceltaMazzoAvversario()"><img src="https://hextalegame.com/ui/close-icon.png" alt="" draggable="false"></button>
-    <h2>Opponent's deck</h2>
+    <h2>Il mazzo dell'avversario</h2>
     <div id="prova-carta-nome" style="text-align:center;margin-bottom:4px;opacity:0.75;font-size:15px;"></div>
     <button class="hx-btn hx-azione hx-btn-opaco" type="button" onclick="confermaSceltaMazzoAvversario(true)">
       <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span><span class="hxb-label">The same card</span>
@@ -17776,13 +17770,13 @@ function forzaDelMazzo(mazzo){
 // basta, e una cosa in piu' da rimettere in piedi ogni volta che cade.
 function mmApriSocket(){
   return new Promise((risolvi, rifiuta)=>{
-    if(!sessioneAccount || !sessioneAccount.token) return rifiuta(erroreNakama('You need to log in.', 401));
+    if(!sessioneAccount || !sessioneAccount.token) return rifiuta(erroreNakama('serve un accesso', 401));
     const s = new WebSocket(MM_SOCKET + '?token=' + encodeURIComponent(sessioneAccount.token)
       + '&format=json&status=false');
     let aperto = false;
     s.onopen = ()=>{ aperto = true; risolvi(s); };
-    s.onerror = ()=>{ if(!aperto) rifiuta(erroreNakama('could not connect to matchmaking', 0)); };
-    s.onclose = ()=>{ if(!aperto) rifiuta(erroreNakama('matchmaking closed right away', 0)); };
+    s.onerror = ()=>{ if(!aperto) rifiuta(erroreNakama('non riesco a collegarmi alla ricerca', 0)); };
+    s.onclose = ()=>{ if(!aperto) rifiuta(erroreNakama('la ricerca si e\' chiusa subito', 0)); };
     s.onmessage = ev => {
       let m = null;
       try{ m = JSON.parse(ev.data); }catch(_){ return; }
@@ -18029,33 +18023,9 @@ function reteMandaImpronta(finita){
       // v0.80.1 — i punti veri (vedi G.puntiFatti): da questi il server decide
       // chi ha vinto, e non devono dipendere da quanto e' avanti un'animazione.
       hp: { 1: (G.puntiFatti || G.hp)[1], 2: (G.puntiFatti || G.hp)[2] },
-      finita: !!finita,
-      // v0.80.23 — e le caselle bloccate come sono adesso: un tassello spostato
-      // o distrutto il server lo sa solo da qui (vedi _buchiDaRacconto).
-      buchi: Array.from(G.holes || []).sort()
+      finita: !!finita
     }))
   }});
-}
-// v0.80.23 — "Move refused" dice il perche' in inglese. Il server nuovo lo manda
-// gia' cosi'; queste righe traducono quello di prima finche' gira ancora.
-const RIFIUTI_IN_INGLESE = [
-  [/tocca a te scegliere/i,      "It's not your turn to choose."],
-  [/ancora cominciata/i,         "The match hasn't started yet."],
-  [/il tuo turno/i,              "It's not your turn."],
-  [/nella tua mano/i,            'That card is not in your hand.'],
-  [/non si trasforma in (.*)$/i, 'That card does not transform into $1'],
-  [/casella non esiste/i,        "That tile doesn't exist."],
-  [/bloccata/i,                  'That tile is blocked.'],
-  [/occupata/i,                  'That tile is already taken.'],
-];
-function rifiutoInInglese(perche){
-  const t = String(perche || '');
-  if(!t) return 'That move is not allowed.';
-  for(const [re, en] of RIFIUTI_IN_INGLESE){
-    const m = t.match(re);
-    if(m) return en.replace('$1', m[1] || '');
-  }
-  return t;
 }
 
 // ── v0.77.81 — ANCHE LA SCELTA VIAGGIA ────────────────────────────────────
@@ -18320,7 +18290,7 @@ function reteMessaggio(md){
 
   if(op === 5){
     console.warn('[rete] mossa rifiutata: ' + d.perche);
-    apriAvviso('Move refused', rifiutoInInglese(d.perche), true);
+    apriAvviso('Move refused', String(d.perche || 'That move is not allowed.'), true);
     if(G) G.turnPlayLocked = false;
     return;
   }
@@ -19507,7 +19477,7 @@ let _arteVerificataPer = null;
 
 function nakamaRpc(nome, corpo, opzioni){
   const s = sessioneAccount;
-  if(!s || !s.token) throw erroreNakama('You need to log in.', 401);
+  if(!s || !s.token) throw erroreNakama('serve un accesso', 401);
   // ── v0.80.17 — LA RISPOSTA E' DELL'ACCOUNT CHE L'HA CHIESTA ─────────────
   // Una risposta che arriva quando la sessione e' ormai di un altro account
   // (o non c'e' piu') non si consegna: chi l'aspetta la applicherebbe al
@@ -20263,13 +20233,12 @@ async function completaRegistrazione(bottone){
 // sola cosa che gli dice quando smettere di indovinare.
 function _spiegaVerifica(e){
   const m = String((e && e.message) || '');
-  if(/scaduto|expired/i.test(m)) return 'That code has expired. Ask for a new one.';
-  if(/troppi tentativi|too many attempts/i.test(m)) return 'Too many wrong tries. Ask for a new code.';
-  const restano = m.match(/restano (\d+)|(\d+) attempts? left/);
-  const quanti = restano && (restano[1] || restano[2]);
-  if(quanti) return 'Wrong code. ' + quanti + ' ' + (quanti === '1' ? 'try' : 'tries') + ' left.';
-  if(/sei cifre|six digits/i.test(m)) return 'Type all six digits.';
-  if(/serve un accesso|log in/i.test(m)) return 'Your session expired. Log in and try again.';
+  if(/scaduto/i.test(m)) return 'That code has expired. Ask for a new one.';
+  if(/troppi tentativi/i.test(m)) return 'Too many wrong tries. Ask for a new code.';
+  const restano = m.match(/restano (\d+)/);
+  if(restano) return 'Wrong code. ' + restano[1] + ' ' + (restano[1] === '1' ? 'try' : 'tries') + ' left.';
+  if(/sei cifre/i.test(m)) return 'Type all six digits.';
+  if(/serve un accesso/i.test(m)) return 'Your session expired. Log in and try again.';
   return 'Wrong code.';
 }
 
@@ -20476,17 +20445,16 @@ async function cambiaLaPassword(bottone){
 // dietro, perche' e' la sola cosa che gli dice quando smettere di indovinare.
 function _spiegaRecupero(e){
   const m = String((e && e.message) || '');
-  if(/scaduto|expired/i.test(m)) return 'That code has expired. Ask for a new one.';
-  if(/troppi tentativi|too many attempts/i.test(m)) return 'Too many wrong tries. Ask for a new code.';
-  const restano = m.match(/restano (\d+)|(\d+) attempts? left/);
-  const quanti = restano && (restano[1] || restano[2]);
-  if(quanti) return 'Wrong code. ' + quanti + ' ' + (quanti === '1' ? 'try' : 'tries') + ' left.';
-  if(/codice sbagliato o scaduto|wrong or expired/i.test(m)) return 'Wrong or expired code. Ask for a new one.';
-  if(/almeno 8 caratteri|at least 8 characters/i.test(m)) return 'Password must be at least 8 characters.';
-  if(/sei cifre|six digits/i.test(m)) return 'Type all six digits.';
-  if(/indirizzo email|enter an email address/i.test(m)) return 'Enter a valid email address.';
-  if(/mandare l email|send the email/i.test(m)) return 'We could not send the email. Try again in a moment.';
-  if(/scrivici|write to us/i.test(m)) return 'Something went wrong on our side. Write to support@hextalegame.com.';
+  if(/scaduto/i.test(m)) return 'That code has expired. Ask for a new one.';
+  if(/troppi tentativi/i.test(m)) return 'Too many wrong tries. Ask for a new code.';
+  const restano = m.match(/restano (\d+)/);
+  if(restano) return 'Wrong code. ' + restano[1] + ' ' + (restano[1] === '1' ? 'try' : 'tries') + ' left.';
+  if(/codice sbagliato o scaduto/i.test(m)) return 'Wrong or expired code. Ask for a new one.';
+  if(/almeno 8 caratteri/i.test(m)) return 'Password must be at least 8 characters.';
+  if(/sei cifre/i.test(m)) return 'Type all six digits.';
+  if(/indirizzo email/i.test(m)) return 'Enter a valid email address.';
+  if(/mandare l email/i.test(m)) return 'We could not send the email. Try again in a moment.';
+  if(/scrivici/i.test(m)) return 'Something went wrong on our side. Write to support@hextalegame.com.';
   if(/unreachable/i.test(m)) return 'Server unreachable. Check your connection.';
   return 'Something went wrong. Try again.';
 }
@@ -21963,7 +21931,6 @@ function mm2VestiBarra(){
 let _mm2Vista = 'matchmaking';
 function mm2Vista(quale){
   if(quale === 'campaign') return;      // non disponibile in questa build
-  const cambia = (_mm2Vista !== quale);   // v0.80.23
   _mm2Vista = quale;
   // ── v0.80.13 — PLAY VS BOT: LO STESSO CENTRO, ALTRI TITOLI ────────────────
   // Lorenzo: le due modalita' diventano "Draft vs Bot" e "Normal vs Bot" (v0.80.14,
@@ -21996,36 +21963,6 @@ function mm2Vista(quale){
     }
   });
   mm2AggiornaPulsanteGioca();
-  if(cambia) mm2VistaSfuma();
-}
-// ── v0.80.23 — MATCHMAKING <-> PLAY VS BOT: IL CENTRO RIENTRA IN DISSOLVENZA ──
-// Lorenzo: il blocco centrale sfuma dentro anche passando da una vista
-// all'altra, come quando si entra nel menu. Stessi pezzi e stessi ritardi della
-// pagina (i pezzi `sfuma` di PAGINE_PEZZI.mainmenu), e la stessa attesa degli
-// asset: il riquadro contro il bot ha la sua immagine, e un pezzo non sfuma
-// dentro prima di averla (vedi assetProntiDi). Durante un cambio di pagina non
-// si fa niente: quei pezzi stanno gia' entrando.
-let _mm2VistaGiro = 0, _mm2VistaAnimazioni = [];
-function mm2VistaSfuma(){
-  const centro = document.getElementById('mm2-centro');
-  if(!centro || !centro.isConnected || transizioneInCorso()) return;
-  const giro = ++_mm2VistaGiro;
-  for(const a of _mm2VistaAnimazioni){ try{ a.cancel(); }catch(_){ } }
-  _mm2VistaAnimazioni = [];
-  for(const p of PAGINE_PEZZI.mainmenu){
-    if(p.via !== 'sfuma') continue;
-    for(const el of document.querySelectorAll(p.sel)){
-      if(!el.isConnected) continue;
-      el.classList.add('pezzo-attende');
-      assetProntiDi(el).then(()=>{
-        if(giro !== _mm2VistaGiro) return;
-        el.classList.remove('pezzo-attende');
-        if(!el.isConnected) return;
-        const a = _animaUnPezzo(el, p, 'entra');
-        if(a) _mm2VistaAnimazioni.push(a);
-      });
-    }
-  }
 }
 // Il pulsante grande dice cosa si sta per fare, e cambia solo con la vista.
 function mm2EtichettaGioca(){
@@ -22247,11 +22184,7 @@ function mmAvviaCronometro(){
     // che mostra un cronometro E un comando fa leggere il cronometro come
     // parte del comando. Adesso dice l'attesa, e dice cosa fa solo quando
     // stai per premerlo.
-    // v0.80.23 — "Searching...(12s)" (Lorenzo).
-    et.textContent = _mmSottoIlDito ? 'Cancel' : 'Searching...(' + s + 's)';
-    // v0.80.23 — e mentre si cerca il battito e' piu' fitto: il server conta chi
-    // cerca solo sui battiti recenti (vedi RICERCA_VIVA_MS).
-    if(Date.now() - _onlineBattitoDa >= ONLINE_CERCANDO_OGNI_MS) aggiornaGiocatoriOnline();
+    et.textContent = _mmSottoIlDito ? 'Cancel' : '(' + s + 's)';
   };
   // Il dito. Si aggancia una volta sola e resta: il cronometro parte e si
   // ferma a ogni ricerca, e riagganciare a ogni giro lascerebbe dietro una
@@ -22265,7 +22198,6 @@ function mmAvviaCronometro(){
     bott.addEventListener('mouseenter', ()=>{ _mmSottoIlDito = true;  if(_mm2Cercando) passo(); });
     bott.addEventListener('mouseleave', ()=>{ _mmSottoIlDito = false; if(_mm2Cercando) passo(); });
   }
-  _onlineBattitoDa = 0;   // v0.80.23 — il primo battito "sto cercando" parte subito
   passo();
   _mmCrono = setInterval(passo, 1000);
 }
@@ -22296,10 +22228,8 @@ function mmFermaCronometro(){
 // piu' spesso l'attesa di chi e' rimasto fuori si accorcia insieme. Vedi
 // SEDIA_LIBERA_MS dall'altra parte: i due numeri vanno cambiati in coppia.
 const ONLINE_OGNI_MS = 20000;
-const ONLINE_CERCANDO_OGNI_MS = 10000;   // v0.80.23 — mentre si cerca una partita
 let _onlineTimer = null;
 let _onlineLamentato = false;
-let _onlineBattitoDa = 0, _onlineCercaDetto = false;
 async function aggiornaGiocatoriOnline(){
   // v0.78.21 — il battito parte anche se il riquadro non e' in pagina: serve a
   // dire "ci sono", e lo si deve dire anche da dentro una partita.
@@ -22308,15 +22238,8 @@ async function aggiornaGiocatoriOnline(){
   try{
     // v0.79.3 — e dice anche chi sta battendo: e' cosi' che il server sa
     // quando una sedia e' ancora occupata (vedi rpcEntro).
-    // v0.80.23 — e se sta cercando una partita (vedi #mm2-cercano).
-    const cerca = !!_mm2Cercando;
-    _onlineBattitoDa = Date.now();
-    _onlineCercaDetto = cerca;
-    const r = await nakamaRpc('hx_giocatori', { sessione: SESSIONE_CLIENT, cerca: cerca });
+    const r = await nakamaRpc('hx_giocatori', { sessione: SESSIONE_CLIENT });
     const n = (r && typeof r.giocatori === 'number') ? r.giocatori : null;
-    const c = (r && typeof r.cercano === 'number') ? r.cercano : null;
-    const elC = document.getElementById('mm2-cercano');
-    if(c !== null && elC) elC.textContent = c + (c === 1 ? ' player searching for a match' : ' players searching for a match');
     // Se il server non sa rispondere si lascia quel che c'era: sostituirlo con
     // uno zero direbbe "non c'e' nessuno", che e' un'altra cosa da "non lo so".
     if(n === null || !el) return;
@@ -22485,8 +22408,6 @@ function aggiornaPallinoNovita(){
 function mm2FermaRicerca(){
   mmFermaCronometro();
   _mm2Cercando = false;
-  // v0.80.23 — smesso di cercare: lo si dice subito, e non al battito dopo.
-  if(_onlineCercaDetto) aggiornaGiocatoriOnline();
   document.getElementById('mm2-find')?.classList.remove('cerca','trovato');
   document.getElementById('mm2-gioca')?.classList.remove('cerca','trovato');
   mm2AggiornaPulsanteGioca();
@@ -22926,27 +22847,7 @@ function questSegnaConquiste(player, prese, prima){
     const c = era && era.card;
     if(c && String(c.rarity||'').toLowerCase() === 'timeless') QUEST_CONTO.flip_timeless += 1;
   }
-  try{ questAvanzaInPartita(contoPrima); questSpiegaSilenzio(); }catch(_){ }
-}
-// ── v0.80.23 — QUANDO IL POPUP NON SALE, LA CONSOLE DICE PERCHE' ────────────
-// Lorenzo: "ancora non appaiono i popup degli avanzamenti delle daily in
-// partita (contro bot)". Il popup sale solo se una quest delle carte girate puo'
-// ancora salire. Le cinque del giorno restano le stesse fino a mezzanotte GMT
-// (QUEST_AL_GIORNO sul server) e contro il bot se ne muovono tre: finite o
-// riscattate quelle, in partita non c'e' niente da mostrare. E' giusto, ma a
-// schermo non si distingue da un guasto: la prima carta girata di una partita
-// in cui nessuna puo' salire lo scrive in console, con lo stato di ognuna.
-let _questSilenzioDetto = false;
-function questSpiegaSilenzio(){
-  if(_questSilenzioDetto) return;
-  const giranti = (QUEST_OGGI || []).filter(q => q && (q.conta || QUEST_CONTA_IN_PARTITA[q.id]));
-  if(giranti.some(q => !q.presa && (q.fatto || 0) < (q.quanto || 1))) return;
-  _questSilenzioDetto = true;
-  console.info('[quest] carte girate, ma nessun popup: ' + (!(QUEST_OGGI || []).length
-    ? 'l\'elenco del giorno e\' vuoto (senza accesso non ci sono quest).'
-    : 'le quest delle carte girate sono gia\' finite o riscattate ('
-      + giranti.map(q => q.id + ' ' + Math.min(q.fatto || 0, q.quanto || 1) + '/' + (q.quanto || 1) + (q.presa ? ' riscattata' : '')).join(', ')
-      + '). Le nuove arrivano a mezzanotte GMT.'));
+  try{ questAvanzaInPartita(contoPrima); }catch(_){ }
 }
 // ── v0.80.18 — L'AVANZAMENTO SI VEDE MENTRE SI GIOCA ───────────────────────
 // Lorenzo: "ancora non vedo poppare in partita l'avanzamento delle daily
@@ -23441,20 +23342,20 @@ function codiceDelMazzo(mazzo){
 // che non torna deve dire perche', non lasciare una lista monca.
 function mazzoDaCodice(codice){
   const pulito = String(codice||'').trim().replace(/\s+/g,'').toUpperCase();
-  if(!pulito) return { errore:'No code.' };
+  if(!pulito) return { errore:'Nessun codice.' };
   if(pulito.slice(0, CODICE_PREFISSO.length) !== CODICE_PREFISSO)
-    return { errore:'This does not look like a Hextale deck code (it must start with '+CODICE_PREFISSO+').' };
+    return { errore:'Non sembra un codice mazzo di Hextale (deve cominciare con '+CODICE_PREFISSO+').' };
   const byte = _base32Decifra(pulito.slice(CODICE_PREFISSO.length));
-  if(!byte || byte.length < 5) return { errore:'Incomplete or damaged code.' };
+  if(!byte || byte.length < 5) return { errore:'Codice incompleto o storpiato.' };
   const controllo = byte.pop();
   if(controllo !== _codiceControllo(byte))
-    return { errore:'Incomplete or damaged code: the final check does not match.' };
+    return { errore:'Codice incompleto o storpiato: il controllo finale non torna.' };
   const [versione, quante, lunghezzaNome] = byte;
-  if(versione !== 1) return { errore:'This code comes from a version this game does not know.' };
+  if(versione !== 1) return { errore:'Codice di una versione che questo gioco non conosce.' };
   const attesi = 3 + quante*2 + lunghezzaNome;
   // Il base32 puo' lasciare in coda qualche bit di riempimento: si accetta un
   // byte in piu', non uno in meno.
-  if(byte.length < attesi) return { errore:'Incomplete code.' };
+  if(byte.length < attesi) return { errore:'Codice incompleto.' };
   const mappa = _carteDaNumero();
   const carte = []; const perse = [];
   for(let i=0;i<quante;i++){
@@ -31577,7 +31478,7 @@ async function _bustinaChiediAlServer(tipo){
     // Il server ha risposto, ma con qualcosa che non si puo' mostrare: non e'
     // la rete, quindi il codice non e' zero.
     const slug = (r && r.carte) || [];
-    if(slug.length !== BUSTINA_CARTE) throw erroreNakama('the server reply has no cards for this pack', 200);
+    if(slug.length !== BUSTINA_CARTE) throw erroreNakama('la risposta non porta le carte del pacchetto', 200);
     // ── v0.78.3 — DA UNA BUSTINA SI ESCE SEMPRE AL PRIMO LIVELLO ─────────
     // Chi guarda la bustina puo' vedere la carta piu' alta di com'e': un admin
     // vede tutto al massimo.
@@ -31597,7 +31498,7 @@ async function _bustinaChiediAlServer(tipo){
     // e dopo un ricaricamento si riapre uguale.
     if(voci.length !== BUSTINA_CARTE){
       console.warn('[bustina] il catalogo del client non conosce le carte del pacchetto: ' + slug.join(', '));
-      throw erroreNakama('the card list does not know the cards in this pack', 200);
+      throw erroreNakama('il catalogo non conosce le carte del pacchetto', 200);
     }
     _bustinaCosti = (r && r.prezzi && typeof r.prezzi === 'object') ? r.prezzi : null;
     return voci;
@@ -31948,7 +31849,7 @@ function bustaNonSiApre(e){
 async function _bustinaRidaiPacchetto(spesa){
   try{
     const r = await nakamaRpc('hx_avvio', {});
-    if(!r || typeof r.bustineExtra !== 'number') throw erroreNakama('the server reply has no packs', 200);
+    if(!r || typeof r.bustineExtra !== 'number') throw erroreNakama('la risposta non porta i pacchetti', 200);
     if(spesa.giro !== _bustaGiro) return;
     if(typeof r.bustinaProssima === 'number') _bustinaSalvaProssima(r.bustinaProssima);
     BUSTINE_VINTE = r.bustineExtra;
@@ -33353,8 +33254,8 @@ function pkEvidenziaComprato(){
 let _pkCompraInCorso = false;
 async function compraPacchetto(){
   if(_pkCompraInCorso) return;
-  if(!sessioneAccount || !sessioneAccount.token){ toast('Log in to buy a pack.'); return; }
-  if(MENU_GIOCATORE.magicInk < PACCHETTO_PREZZO){ toast('Not enough magic ink.'); return; }
+  if(!sessioneAccount || !sessioneAccount.token){ toast('Serve un accesso per comprare un pacchetto.'); return; }
+  if(MENU_GIOCATORE.magicInk < PACCHETTO_PREZZO){ toast('Non hai abbastanza magic ink.'); return; }
   _pkCompraInCorso = true;
   const prima = MENU_GIOCATORE.magicInk;
   try{
@@ -33368,7 +33269,7 @@ async function compraPacchetto(){
     // v0.79.95 — e la casella del pacchetto appena comprato si accende.
     pkEvidenziaComprato();
   }catch(e){
-    toast('Could not buy the pack: ' + ((e && e.message) || 'error'));
+    toast('Non si e- potuto comprare: ' + ((e && e.message) || 'errore'));
   }finally{
     _pkCompraInCorso = false;
   }
@@ -33483,16 +33384,16 @@ function debugAggiungiFairyDust(){
 // guardato tutto in una volta, ed e' quello che fa questo.
 async function debugSegnaTutteViste(){
   if(!sessioneAccount || !sessioneAccount.token){
-    toast('Log in first: the server keeps the list of seen cards.');
+    toast('Serve un accesso: l-elenco delle carte viste lo tiene il server.');
     return;
   }
   try{
     const r = await nakamaRpc('hx_carte_viste', { carte: 'tutte' });
     carteNuoveDalServer(r && r.nuove);
     try{ if(typeof cardDbRenderRoster === 'function' && document.getElementById('card-db-grid')) cardDbRenderRoster(); }catch(_){ }
-    toast('All cards marked as seen.');
+    toast('Tutte le carte segnate come viste.');
   }catch(e){
-    toast('Could not do it: ' + ((e && e.message) || 'error'));
+    toast('Non si e- potuto: ' + ((e && e.message) || 'errore'));
   }
 }
 // ── v0.79.39 — REGALARSI QUALCOSA DAL MENU DI DEBUG ───────────────────────
@@ -33505,7 +33406,7 @@ async function debugSegnaTutteViste(){
 // mentire.
 async function debugRegala(cosa){
   if(!sessioneAccount || !sessioneAccount.token){
-    toast('Log in first: the server keeps ink and packs.');
+    toast('Serve un accesso: inchiostro e pacchetti li tiene il server.');
     return;
   }
   const prima = MENU_GIOCATORE.magicInk;
@@ -33519,9 +33420,9 @@ async function debugRegala(cosa){
     // riscrive da sola invece di aspettare la prossima entrata.
     try{ pkDisegnaTutto(); }catch(_){ }
     try{ mm2AggiornaBustine(); }catch(_){ }
-    toast(cosa && cosa.ink ? '100 magic ink added.' : 'Pack added.');
+    toast(cosa && cosa.ink ? 'Cento di inchiostro in piu-.' : 'Pacchetto aggiunto.');
   }catch(e){
-    toast('Could not do it: ' + ((e && e.message) || 'error'));
+    toast('Non si e- potuto: ' + ((e && e.message) || 'errore'));
   }
 }
 // ── v0.79.8 — L'ATTESA LA TIENE IL SERVER, E LA AZZERA IL SERVER ──────────
@@ -33535,14 +33436,14 @@ async function debugRegala(cosa){
 // si e' admin, la rete non c'e' — lo si dice invece di mentire.
 async function debugAzzeraTimerBustine(){
   if(!sessioneAccount || !sessioneAccount.token){
-    toast('Log in first: the server keeps the timer.');
+    toast('Serve un accesso: l-attesa la tiene il server.');
     return;
   }
   try{
     const r = await nakamaRpc('hx_bustina_azzera', {});
     if(r && typeof r.bustinaProssima === 'number') _bustinaSalvaProssima(r.bustinaProssima);
   }catch(e){
-    toast('Could not reset: ' + ((e && e.message) || 'error'));
+    toast('Non si e- potuto azzerare: ' + ((e && e.message) || 'errore'));
     return;
   }
   tornaAllaBustina();
@@ -33552,7 +33453,7 @@ async function debugAzzeraTimerBustine(){
   }
   // E il menu, che mostra l'attesa nel riquadro delle bustine.
   try{ mm2AggiornaBustine(); }catch(_){}
-  toast('Pack timer reset.');
+  toast('Timer bustine azzerato.');
 }
 
 function openCardDbOverlay(){
@@ -34648,7 +34549,7 @@ function cardDbBuildTraitFilter(){
   const chiavi = trattiDelRoster();
   box.innerHTML = '';
   if(!chiavi.length){
-    box.innerHTML = '<div class="filters-opt" style="opacity:0.55">No traits</div>';
+    box.innerHTML = '<div class="filters-opt" style="opacity:0.55">Nessun tratto nel foglio</div>';
     return;
   }
   for(const chiave of chiavi){
@@ -35453,7 +35354,7 @@ const NOTE_BASE = 'https://hextalegame.com/patch-notes.txt';
 function _leggiNote(){
   const urls = [NOTE_REL, NOTE_BASE].map(u => u + '?t=' + Date.now());
   const passo = i => {
-    if(i >= urls.length) return Promise.reject(new Error('could not load the patch notes'));
+    if(i >= urls.length) return Promise.reject(new Error('non riesco a leggere le note'));
     return fetch(urls[i], { cache:'no-store' })
       .then(r => r.ok ? r.text() : Promise.reject(new Error('risposta ' + r.status)))
       .catch(() => passo(i+1));
@@ -35864,7 +35765,7 @@ function debugBuildFoilTunerRows(){
   ['dark','light'].forEach(f=>{
     const btn=document.createElement('div');
     const attivo = FOIL_TUNER_PROFILO===f;
-    btn.textContent = f==='dark' ? 'Dark cards' : 'Light cards';
+    btn.textContent = f==='dark' ? 'Carte dark' : 'Carte light';
     btn.style.cssText='flex:1;text-align:center;padding:7px 0;border-radius:8px;cursor:var(--cursore);'+
       (attivo ? 'background:#FBF0D7;color:#1A1F1E;' : 'background:rgba(255,255,255,0.08);color:#95A7A9;');
     btn.addEventListener('click',()=>{
@@ -36312,9 +36213,9 @@ function debugPasteFoilValues(){
   debugFoilRedraw();
   if(msg){
     msg.textContent = applicate
-      ? (applicate+' values applied to profile '+FOIL_TUNER_PROFILO+
-         (ignorate.length ? ' — ignored: '+ignorate.join(', ') : ''))
-      : 'No values recognized in the pasted text.';
+      ? (applicate+' valori applicati al profilo '+FOIL_TUNER_PROFILO+
+         (ignorate.length ? ' — ignorate: '+ignorate.join(', ') : ''))
+      : 'Nessun valore riconosciuto nel testo incollato.';
   }
 }
 
@@ -36335,7 +36236,7 @@ function debugToggleMusicLoopPicker(){
           // fine": che e' poi cio' che quel brano fa davvero.
           return `<option value="${u}">${nome} — giunzione ${giunzioneLeggibile(u, null)}</option>`;
         }).join('')
-      : '<option value="">no track with a looping tail</option>';
+      : '<option value="">nessun brano con coda in loop</option>';
     const st=document.getElementById('debug-music-loop-status');
     if(st) st.textContent='';
   }
@@ -36357,7 +36258,7 @@ function debugPlayMusicLoopJoin(){
   const st=document.getElementById('debug-music-loop-status');
   const introUrl=sel && sel.value;
   const cfg=introUrl && MUSIC_INTRO_LOOPS[introUrl];
-  if(!cfg){ if(st) st.textContent='No track selected.'; return; }
+  if(!cfg){ if(st) st.textContent='Nessun brano selezionato.'; return; }
   const leadEl=document.getElementById('debug-music-loop-lead');
   const lead=Math.max(1, Math.min(60, parseFloat(leadEl && leadEl.value) || 8));
 
@@ -36457,7 +36358,7 @@ function debugFilterCardSearchList(){
   const matches = FINAL_CARDS.filter(c=>c.name.toLowerCase().includes(q))
     .sort((a,b)=>a.name.localeCompare(b.name));
   if(!matches.length){
-    list.innerHTML = '<div style="padding:8px;color:#888;font-size:14px;">No cards found</div>';
+    list.innerHTML = '<div style="padding:8px;color:#888;font-size:14px;">Nessuna carta trovata</div>';
   } else {
     list.innerHTML = matches.map(c=>
       `<div class="debug-card-search-item" data-card-id="${c.id}" onclick="debugSelectCardSearchResult('${c.id}')" style="padding:8px;font-size:15px;color:#fff;cursor:var(--cursore);border-bottom:1px solid #3a3a3a;">${c.name}</div>`
@@ -37984,7 +37885,7 @@ function initGame(vsAI){
   // v0.79.75 — il conto delle carte girate riparte da zero: e' di QUESTA
   // partita, e quello di prima e' gia' stato raccontato (o perso, se la
   // partita e' finita male).
-  try{ questAzzeraConto(); _questMostrateInPartita = {}; _questSilenzioDetto = false; }catch(_){ }
+  try{ questAzzeraConto(); _questMostrateInPartita = {}; }catch(_){ }
   // v0.80.19 — gli sticker (e il loro blocco) valgono una partita.
   try{ stickerNuovaPartita(); }catch(_){ }
   // v0.76.8 — la grafica della schermata di partita, montata alla prima partita.
@@ -40478,8 +40379,8 @@ function selectCard(card,playerIdx){
   // hasn't switched yet — see doPlace()'s own big comment for why
   // G.currentPlayer alone isn't enough here.
   if(G.turnPlayLocked)return;
-  if(playerIdx+1!==G.currentPlayer){toast("It's not your turn!");return;}
-  if(cartaCongelata(card)){toast('This card is frozen!');return;}
+  if(playerIdx+1!==G.currentPlayer){toast('Non è il tuo turno!');return;}
+  if(cartaCongelata(card)){toast('Questa carta è congelata!');return;}
   const wasSelected=G.selected&&G.selected.card.id===card.id;
   playSfx(wasSelected?'sfx-drop':'sfx-pick');
   G.selected=wasSelected?null:{card,playerIdx};
@@ -55074,7 +54975,7 @@ function armDragOrClick(e,card,playerIdx,W,H,fillColor,strokeColor,textColor,glo
   // v0.68.0 comment) — the AI's (player 2, vsAI mode) hand must NEVER be
   // draggable regardless of how this function gets invoked, since it's
   // always face-down/secret.
-  if(G.vsAI && playerIdx===1){toast("You can't see your opponent's cards!");return;}
+  if(G.vsAI && playerIdx===1){toast('Non puoi vedere le carte avversarie!');return;}
   // Time's up for this turn — the hand must lock immediately (no new drag
   // can start) even in the brief window between the countdown hitting 0 and
   // autoPlay()/the turn switch actually completing. Without this check a
@@ -55093,7 +54994,7 @@ function armDragOrClick(e,card,playerIdx,W,H,fillColor,strokeColor,textColor,glo
 function startDrag(e,card,playerIdx,W,H,fillColor,strokeColor,textColor,glowColor,R,wrap){
   // v0.77.64 — il gelo va fermato anche qui: selectCard copre il tocco, questa
   // il trascinamento, e sono due strade diverse per la stessa carta.
-  if(cartaCongelata(card)){ toast('This card is frozen!'); return; }
+  if(cartaCongelata(card)){ toast('Questa carta è congelata!'); return; }
   // v0.70.13: capture the pressed card's CURRENT rotation (used further down
   // to spawn the ghost at the right starting tilt) BEFORE collapsing the
   // expand view below — collapseAllHandExpand()'s render() rebuilds the DOM
@@ -58592,7 +58493,7 @@ function buildCardTooltipHTML(card, onBoard, bonusInfo){
     const abilityDef = testiAbilitaDi(card);
     if(abilityDef){
       html += `<div class="ct-card-ability"><div class="ct-card-ability-header">`;
-      html += `<div class="ct-card-ability-title"><span class="ct-card-ability-eyebrow">Card ability</span><span class="ct-card-ability-name">${escapeHtml(abilityDef.name)}</span></div>`;
+      html += `<div class="ct-card-ability-title"><span class="ct-card-ability-eyebrow">Abilità della carta</span><span class="ct-card-ability-name">${escapeHtml(abilityDef.name)}</span></div>`;
       html += `</div>`;
       html += `<div class="ct-card-ability-desc">${highlightAbilityNumbers(abilityDef.desc)}</div>`;
       html += `</div>`;
@@ -58634,7 +58535,7 @@ function buildCardTooltipHTML(card, onBoard, bonusInfo){
     }
   }
 
-  html += `<div class="ct-quote${card.arcobaleno?' frase-arcobaleno':''}">"${escapeHtml(card.quote || 'A tale yet to be written.')}"</div>`;
+  html += `<div class="ct-quote${card.arcobaleno?' frase-arcobaleno':''}">"${escapeHtml(card.quote || 'Un racconto ancora da scrivere.')}"</div>`;
   return html;
 }
 
@@ -58770,7 +58671,7 @@ function buildBoardCardTooltipHTML(card){
     }
   }
 
-  html += `<div class="ctb-quote${card.arcobaleno?' frase-arcobaleno':''}">"${escapeHtml(card.quote || 'A tale yet to be written.')}"</div>`;
+  html += `<div class="ctb-quote${card.arcobaleno?' frase-arcobaleno':''}">"${escapeHtml(card.quote || 'Un racconto ancora da scrivere.')}"</div>`;
 
   // v0.75.51 — E QUI I BONUS E I MALUS. Il tooltip delle carte IN CAMPO ha un
   // costruttore tutto suo (fillCardTooltip sceglie fra i due in base a
@@ -59268,7 +59169,7 @@ async function livellaCartaDallaScheda(){
   }catch(e){
     _livellaInCorso = false;
     const m = String(e && e.message || e);
-    if(/inchiostro insufficiente|not enough magic ink/i.test(m)) senzaInchiostro();
+    if(/inchiostro insufficiente/i.test(m)) senzaInchiostro();
     else apriAvviso("Can't level up", 'The card could not be leveled up. Check your connection and try again.', true);
     aggiornaStrisciaLivello(card);
     return;

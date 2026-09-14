@@ -115,7 +115,7 @@ dice(r.speso === 0 && r.rimborso === 1000 && p.valute.magicInk === 2000,
   'vendendone una e tenendone un-altra non si paga niente, e la venduta rende', 'speso ' + r.speso + ', rimborso ' + r.rimborso + ', saldo 1000 -> ' + p.valute.magicInk);
 dice(p.copie.a === copieAPrima + 1 && p.copie.d === 9, 'e l-altra prende la sua copia', 'a: ' + copieAPrima + ' -> ' + p.copie.a);
 magazzino.bustina.u1 = { carte: ['d', 'a', 'c'], prezzi: { d: 1000, a: 50, c: 500 }, tipo: 'daily' };
-dice(/al massimo 2/.test(sbaglia(() => ctx.rpcBustinaRaccogli(chi('u1'), logger, nk, JSON.stringify({ tieni: ['d', 'a', 'c'] })))),
+dice(/at most 2/.test(sbaglia(() => ctx.rpcBustinaRaccogli(chi('u1'), logger, nk, JSON.stringify({ tieni: ['d', 'a', 'c'] })))),
   'ma la venduta resta una delle due scelte: la terza non si prende');
 
 // ── 3. SALIRE DI LIVELLO ──────────────────────────────────────────────────
@@ -124,7 +124,7 @@ p = magazzino.possesso.u1;
 dice(p.copie.b === 2, 'b ha due copie', String(p.copie.b));
 const livella = (u, slug) => JSON.parse(ctx.rpcCartaLivella(chi(u), logger, nk, JSON.stringify({ slug })));
 magazzino.possesso.u1.valute.magicInk = 99;
-dice(/inchiostro insufficiente/.test(sbaglia(() => livella('u1', 'b'))),
+dice(/Not enough magic ink/.test(sbaglia(() => livella('u1', 'b'))),
   'senza inchiostro non si sale', '99 contro 100 per una rare al livello 2');
 dice(magazzino.possesso.u1.valute.magicInk === 99, 'e non si paga niente');
 magazzino.possesso.u1.valute.magicInk = 1000;
@@ -132,7 +132,7 @@ r = livella('u1', 'b');
 dice(r.da === 1 && r.livello === 2 && r.speso === 100 && magazzino.possesso.u1.valute.magicInk === 900,
   'con due copie e cento di inchiostro una rare sale al 2', JSON.stringify({ da: r.da, livello: r.livello, speso: r.speso }));
 dice(r.possedute.b === 2, 'anche se e- una carta dello starter', 'possedute.b = ' + r.possedute.b);
-dice(/copie insufficienti/.test(sbaglia(() => livella('u1', 'b'))),
+dice(/Not enough copies/.test(sbaglia(() => livella('u1', 'b'))),
   'e al 3 no: servono cinque copie', 'ne ha ' + magazzino.possesso.u1.copie.b);
 magazzino.possesso.u1.copie.b = 9;
 magazzino.possesso.u1.valute.magicInk = 5000;
@@ -140,10 +140,10 @@ r = livella('u1', 'b');
 dice(r.livello === 3 && r.speso === 300, 'un livello per volta: prima il 3', JSON.stringify({ livello: r.livello, speso: r.speso }));
 r = livella('u1', 'b');
 dice(r.livello === 4 && r.speso === 800, 'poi il 4', JSON.stringify({ livello: r.livello, speso: r.speso }));
-dice(/livello massimo/.test(sbaglia(() => livella('u1', 'b'))), 'e oltre il 4 non si va');
-dice(/non possiedi/.test(sbaglia(() => livella('u1', 'c'))), 'una carta che non si possiede non sale');
-dice(/sconosciuta/.test(sbaglia(() => livella('u1', 'x'))), 'e una carta da admin non esiste per chi admin non e-');
-dice(/quale carta/.test(sbaglia(() => ctx.rpcCartaLivella(chi('u1'), logger, nk, '{}'))), 'e senza dire quale non succede niente');
+dice(/Maximum level/.test(sbaglia(() => livella('u1', 'b'))), 'e oltre il 4 non si va');
+dice(/do not own/.test(sbaglia(() => livella('u1', 'c'))), 'una carta che non si possiede non sale');
+dice(/Unknown card/.test(sbaglia(() => livella('u1', 'x'))), 'e una carta da admin non esiste per chi admin non e-');
+dice(/Which card/.test(sbaglia(() => ctx.rpcCartaLivella(chi('u1'), logger, nk, '{}'))), 'e senza dire quale non succede niente');
 
 // ── 4. CHI C'ERA GIA' ─────────────────────────────────────────────────────
 magazzino.possesso.u2 = {
