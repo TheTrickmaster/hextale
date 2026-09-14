@@ -963,8 +963,14 @@ body.mouse-down, body.mouse-down *{
   object-fit:cover; object-position:bottom;
   pointer-events:none; user-select:none; -webkit-user-drag:none;
 }
-/* v0.80.21 — qui stava .mm2-modo-cornice, il filo oro dentro al riquadro
-   senza disegno (Draft pick): tolto su richiesta di Lorenzo. */
+/* La cornice del riquadro senza disegno: nel riquadro con l'immagine e' gia'
+   dipinta. Stesso posto (13 dai lati, 4 da sopra e sotto), 16 di angoli, il
+   filo oro; senza ornamenti, che sono un disegno e in ui/ non ce n'e' uno a se'. */
+.mm2-modo-cornice{
+  position:absolute; left:13px; top:4px; width:409px; height:499px; z-index:2;
+  box-sizing:border-box; border:1px solid #A18D63; border-radius:16px;
+  pointer-events:none;
+}
 /* v0.80.14 — 16 di margine ai lati invece dei 46 del Figma: contro il bot i
    titoli sono "Draft vs Bot" (208) e "Normal vs Bot" (244), e nei 205 lasciati
    dai 46 venivano tagliati dall'overflow dello stendardo. Il testo sta in cima,
@@ -3777,17 +3783,6 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
   animation:geloArriva var(--gelo-ms, 700ms) cubic-bezier(.2,.9,.3,1.15) both;
 }
 #board-svg .gelo-arriva{ transform-box:fill-box; transform-origin:center; }
-/* v0.80.21 — il ghiaccio del tassello se ne va: un lampo leggero e poi la
-   dissolvenza (vedi _geloDaSciogliere). */
-#board-svg .gelo-scioglie{
-  transform-box:fill-box; transform-origin:center;
-  animation:geloScioglie var(--gelo-scioglie-ms, 650ms) ease-out both;
-}
-@keyframes geloScioglie{
-  0%  { opacity:1; filter:brightness(1); }
-  22% { opacity:1; filter:brightness(1.55) drop-shadow(0 0 10px rgba(190,235,255,.8)); }
-  100%{ opacity:0; filter:brightness(1.15); transform:scale(1.04); }
-}
 /* v0.80.5 — LE BRICIOLE DI TOM THUMB.
    Arrivano cadendo appena e rimbalzando (una dopo l'altra: il ritardo lo scrive
    il gioco, vedi disegnaBriciola), e la carta alleata che ne mangia una brilla e
@@ -3803,22 +3798,6 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
   60% { opacity:1; transform:translateY(0) scale(1.15); }
   100%{ opacity:1; transform:none; }
 }
-/* v0.80.21 — YETI. Lo Yeti che sparisce agli occhi dell'avversario, quello che
-   si rivela (dissolvenza d'entrata e lampo freddo), le impronte che compaiono
-   (50ms) e che se ne vanno quando lui si mostra. L'opacita' sta sul livello
-   yeti-host, che nessun'altra animazione usa (vedi _yetiVeste). */
-#board-svg [data-role="yeti-host"].yeti-sparisce{ animation:yetiSparisce 450ms ease-in both; }
-@keyframes yetiSparisce{ 0%{ opacity:1; } 100%{ opacity:0; } }
-#board-svg [data-role="yeti-host"].yeti-rivela{ animation:yetiRivela 560ms ease-out both; }
-@keyframes yetiRivela{
-  0%  { opacity:0; filter:brightness(2.4); }
-  35% { opacity:1; filter:brightness(2.1) drop-shadow(0 0 18px rgba(220,240,255,.95)); }
-  100%{ opacity:1; filter:none; }
-}
-#board-svg .impronta-yeti-entra{ animation:improntaYetiEntra 50ms linear both; }
-@keyframes improntaYetiEntra{ from{ opacity:0; } to{ opacity:1; } }
-#board-svg .impronta-yeti-via{ animation:improntaYetiVia 300ms ease-out both; }
-@keyframes improntaYetiVia{ from{ opacity:1; } to{ opacity:0; } }
 #board-svg .briciola-mangiata{
   transform-box:fill-box; transform-origin:center;
   animation:briciolaMangiata 760ms ease-out both;
@@ -12949,6 +12928,7 @@ try{
            modalita' scelta non gli cambia niente (Lorenzo). -->
       <div id="mm2-modi">
         <div class="mm2-modo spento" id="mm2-modo-draft" data-modo="draft" aria-disabled="true">
+          <div class="mm2-modo-cornice" aria-hidden="true"></div>
           <div class="mm2-modo-testo">Coming soon</div>
           <div class="hx-topbar-titolo"><h2>Draft pick</h2></div>
         </div>
@@ -13627,7 +13607,7 @@ try{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.21</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.20</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <!-- v0.80.19 — gli sticker: l'icona (solo per chi gioca), il menu, e due bolle
@@ -18028,16 +18008,6 @@ function reteMandaImpronta(finita){
 // server, il server la rimbalza a tutti e due, e solo allora — insieme — la
 // si applica. Chi ha scelto non fa eccezione: aspetta anche lui il proprio
 // messaggio di ritorno, cosi' i due tabelloni cambiano nello stesso ordine.
-// v0.80.21 — la decisione dello Yeti: dove sta davvero e, se resta dov'e',
-// dove lascia l'impronta finta. Al server e basta: all'avversario arrivano solo
-// le due impronte (op 18).
-function reteYeti(vera, finta){
-  if(!PARTITA_RETE) return;
-  mmManda({ cid: 'y' + Date.now().toString(36), match_data_send: {
-    match_id: PARTITA_RETE.matchId, op_code: 17,
-    data: btoa(JSON.stringify({ vera: vera || null, finta: finta || null }))
-  }});
-}
 function reteScegli(cella){
   if(!PARTITA_RETE) return;
   mmManda({ cid: 's' + Date.now().toString(36), match_data_send: {
@@ -18261,14 +18231,6 @@ function reteMessaggio(md){
   if(op === 15){ if(PARTITA_RETE && d.di !== PARTITA_RETE.io) stickerMostra(d.di, d.sticker); return; }
   if(op === 16){ stickerBloccaPer(d.resta); return; }
 
-  // v0.80.21 — lo Yeti si e' nascosto. Le impronte arrivano a tutti e due; la
-  // casella vera (`vera`) solo a chi l'ha giocato.
-  if(op === 18){
-    const y = _yetiElenco().find(x => x.stato === 'sceglie' && x.di === d.di && x.da === d.da);
-    if(y) yetiNascondi(y, (typeof d.vera === 'string') ? d.vera : null, Array.isArray(d.impronte) ? d.impronte : [d.da]);
-    return;
-  }
-
   if(op === 4){
     // Il battito del tempo: la scadenza vera e' quella del server.
     if(PARTITA_RETE){ PARTITA_RETE.scadenza = d.scadenza; PARTITA_RETE.turno = d.turno; }
@@ -18284,8 +18246,6 @@ function reteMessaggio(md){
   }
 
   if(op === 6){
-    // v0.80.21 — a fine partita gli Yeti ancora nascosti si mostrano.
-    try{ yetiRivelaDaServer(d.yeti, null); }catch(_){ }
     const suo = d.chi && PARTITA_RETE && d.chi !== PARTITA_RETE.io;
     // ── v0.77.87 — NIENTE MODALE SU UNA PARTITA FINITA NORMALMENTE ────────
     // C'e' gia' la schermata di fine partita, che dice chi ha vinto e con che
@@ -18427,11 +18387,6 @@ function reteApplicaGiocata(d){
   PARTITA_RETE.scadenza = d.scadenza;
   PARTITA_RETE.numeroTurno = d.numeroTurno;
   G.turnPlayLocked = false;
-  // v0.80.21 — lo Yeti che questa giocata scopre: dov'era lo sa solo il server, e
-  // lo dice qui, prima che la carta scenda (vedi _yetiRivelaAccanto sul server).
-  if(Array.isArray(d.yeti) && d.yeti.length){
-    try{ yetiRivelaDaServer(d.yeti, key(d.q, d.r)); }catch(e){ console.error('[rete] yeti: ' + (e && e.message)); }
-  }
   try{ doPlace(carta, d.giocatore - 1, d.q, d.r, true); }
   catch(e){ console.error('[rete] non riesco ad applicare la giocata: ' + (e && e.message)); }
   // Si aspetta che le animazioni della conquista si siano posate: il racconto
@@ -22903,7 +22858,6 @@ const ICONA_SCAMBIO     = UI_BASE+'swap-icon.png';        // March Hare
 const ICONA_PICCONE     = UI_BASE+'hammer-icon.png';      // sfonda un muro
 const ICONA_MANO        = UI_BASE+'hand-icon.png';        // afferra un tassello
 const ICONA_MANO_CHIUSA = UI_BASE+'hand-closed-icon.png'; // ...e lo tiene
-const ICONA_IMPRONTA_YETI = UI_BASE+'foot-yeti-icon.png';  // v0.80.21 — dove lo Yeti lascia l'impronta finta
 function uiFileCandidati(nome){ return _candidati('../ui/' + nome, UI_BASE + nome); }   // vedi ART_REL
 
 // I fondi si montano da JS e non dal CSS per la stessa ragione dello sfondo
@@ -29794,10 +29748,6 @@ const SUONI_SFX_EXTRA = Object.values(WHOOSH_PER_RARITA)
            'score.mp3', 'scored.mp3',
            // v0.80.5 — la briciola mangiata (Tom Thumb).
            'munch.mp3',
-           // v0.80.21 — il gelo di una carta o di un tassello.
-           'freeze.mp3',
-           // v0.80.21 — i passi dello Yeti nella neve.
-           'snow-footstep-1.mp3', 'snow-footstep-2.mp3', 'snow-footstep-3.mp3',
            // v0.77.13 — bell (il "ding" del tempo scaduto) stava SOLO in
            // AUDIO_DATA_URLS. I due elenchi non sono equivalenti: quello lo
            // precarica con fetch, e il precarico si salta interamente quando
@@ -37338,8 +37288,6 @@ const TILE_ABILITIES_DEF = {
   eat_the_rich:      { carta:'Robin Hood', name:'Eat the Rich',       desc:"*Steals* 1 Power from every adjacent enemy and gives it to an ally in need." },
   // v0.80.5 — Tom Thumb, "Crumbs": vedi lasciaBriciole.
   '!tomthumb':       { carta:'Tom Thumb',  name:'Crumbs',             desc:'*Drops* 3 Crumbs on random empty tiles. An ally played on one *Gains* +2 on its HIGHEST.' },
-  // v0.80.21 — YETI, "Hide 'n' kill": vedi il blocco YETI (yetiAlPiazzamento).
-  '!yeti':           { carta:'Yeti',       name:"Hide 'n' kill",      desc:'*Hides* on the board and only attacks when an opponent is near it.' },
   // Snow White, "Hooray! She stays!": a live SYNERGY (not an on-play
   // trigger like Robin Hood above) — see activateSnowWhiteSynergy for the
   // actual mechanic. Registered here purely for the quote-box name/desc
@@ -38170,9 +38118,6 @@ function canPlace(q,r,card){
   // stesso e la carta sarebbe tornata in mano senza che nessuno dicesse
   // perche'.
   if(cellaCongelata(key(q,r))) return false;
-  // v0.80.21 — le impronte dello Yeti: l'avversario non ci gioca sopra, e il
-  // padrone non gioca sopra allo Yeti (vedi yetiBloccaCasella).
-  if(yetiBloccaCasella(key(q,r), G.currentPlayer)) return false;
   if(!isHole(q,r)) return true;
   return puoCalareSuBloccata(card);
 }
@@ -38590,9 +38535,6 @@ function autoPlay(player){
     // v0.77.81 — in rete il tempo lo fa scadere solo a CHI deve scegliere: se
     // lo facesse anche l'altro, manderebbe due scelte per la stessa finestra.
     if(PARTITA_RETE && !sceltaMia(scelta.giocatore)) return;
-    // v0.80.21 — un'attesa (lo Yeti che aspetta la risposta del server) non scade:
-    // chiuderla adesso vorrebbe dire raccontare il tabellone prima che cambi.
-    if(scelta.attesa) return;
     let ripiego = null;
     if(typeof scelta.seScade === 'function'){
       try { ripiego = scelta.seScade(); } catch(_){ ripiego = null; }
@@ -40152,14 +40094,10 @@ function ruotaCarteInMano(player, poi){
 const CHESHIRE_ATTESA_PRIMA_DEL_SALTO_MS = 260;  // il tempo di vedere i valori fermi
 function celleLibere(){
   const libere=[];
-  // v0.80.21 — le impronte dello Yeti non sono libere per nessuna abilita': una
-  // delle due ha sotto lo Yeti, e l'avversario non deve poterlo scoprire cosi'.
-  const impronte = yetiCelleImpronte();
   for(const c of boardCells()){
     const k=key(c.q,c.r);
     if(G.holes.has(k)) continue;   // tassello bloccato
     if(G.board[k]) continue;       // gia' occupato
-    if(impronte.has(k)) continue;  // un'impronta dello Yeti
     libere.push(k);
   }
   return libere;
@@ -40390,17 +40328,7 @@ function doPlace(card,playerIdx,q,r,daServer){
   if(player===1) G.p1Hand=G.p1Hand.filter(c=>c.id!==card.id);
   else           G.p2Hand=G.p2Hand.filter(c=>c.id!==card.id);
   // v0.80.5 — una briciola di Tom Thumb sotto? Se e' di chi gioca, la mangia.
-  try{ mangiaBriciola(card, player, k, eYeti(card)); }catch(e){ console.warn('[briciole] ' + (e && e.message)); }
-  // v0.80.21 — YETI. Una carta posata accanto a uno Yeti nascosto dell'avversario
-  // lo scopre, prima delle abilita' e degli scontri. In rete dov'e' lo sa solo il
-  // server, e lo scopre lui (vedi reteApplicaGiocata). Lo Yeti appena giocato non
-  // attacca: si nasconde (vedi yetiAlPiazzamento).
-  if(!PARTITA_RETE) yetiRivelaAccanto(player, k);
-  // v0.80.21 — ma uno Yeti giocato ACCANTO a una carta avversaria non si nasconde:
-  // si rivela e attacca subito, come una carta qualunque (Lorenzo). Vale anche
-  // per lo Yeti nemico che questa stessa giocata ha appena scoperto: scoprire il
-  // suo restando nascosti era un vantaggio che la regola non voleva dare.
-  if(eYeti(card) && !yetiAccantoANemici(player, k) && yetiAlPiazzamento(card, player, q, r, k, timeAlreadyExpired)) return;
+  try{ mangiaBriciola(card, player, k); }catch(e){ console.warn('[briciole] ' + (e && e.message)); }
 
   // ── Card ability pre-conquest activations ──
   // EXPERIMENTAL (v0.21.0-abilities-on-cards): the ability now lives on the
@@ -40465,14 +40393,12 @@ function doPlace(card,playerIdx,q,r,daServer){
   // e' tutto il senso di una carta che si nasconde.
   // La plancia viene dipinta subito lo stesso, cosi' la carta appena giocata
   // si vede atterrare mentre il fumo se ne va; solo la risoluzione aspetta.
-  // v0.80.21 — e lo stesso per lo Yeti scoperto: prima si vede comparire, poi si combatte.
-  const attesaYeti = yetiAgguatoDa(k) ? YETI_RIVELA_MS : 0;
-  if(fumiDiradati || attesaYeti){
+  if(fumiDiradati){
     renderBoard();
     setTimeout(()=>{
       if(!G || G.gameOver) return;
       resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, true);
-    }, Math.max(fumiDiradati ? FUMO_USCITA_MS : 0, attesaYeti));
+    }, FUMO_USCITA_MS);
     return;
   }
   // v0.75.58 — LA TRASFORMAZIONE, e lo scontro che la aspetta. "Solo dopo essere
@@ -41808,8 +41734,6 @@ function congelaTasselli(c){
   // la sua riga promette ("for one turn").
   const fino = (G.numeroTurno||1) + (c.turni || 1);
   for(let i = 0; i < quante && i < libere.length; i++) G.gelo[libere[i]] = fino;
-  // v0.80.21 — il suono del gelo, solo quando succede davvero (non nell'anteprima).
-  if(!_simulazioneInCorso){ try{ playSfxFile('freeze.mp3'); }catch(_){ } }
 }
 // v0.80.20 — il gelo di UN tassello scelto (Sherazade, vedi
 // _sceltaCongelaTassello). Un numero di turno, che scade da solo.
@@ -41822,7 +41746,6 @@ function congelaTassello(k, turni){
   if(!k || !_celleLibereOra().has(k) || cellaCongelata(k)) return false;
   if(!G.gelo) G.gelo = {};
   G.gelo[k] = (G.numeroTurno||1) + 1 + (turni || 1);
-  try{ playSfxFile('freeze.mp3'); }catch(_){ }   // v0.80.21
   try{ renderBoard(); }catch(_){ }
   return true;
 }
@@ -41852,7 +41775,6 @@ function applicaCambiamenti(elenco){
       if(c.cosa === 'tile'){ if(!c.scelta) congelaTasselli(c); continue; }
       if(!c.carta) continue;
       c.carta.congelataFinoAlTurno = (G.numeroTurno||1) + (c.turni || 1);
-      if(!_simulazioneInCorso){ try{ playSfxFile('freeze.mp3'); }catch(_){ } }   // v0.80.21
       continue;
     }
     if(!c.carta || !c.lati || !c.lati.length) continue;
@@ -42363,7 +42285,7 @@ function _latiPiuAlti(card){
 // e' un dono del piazzamento e deve contare per chi si conquista. Il suono e il
 // bagliore aspettano l'istante in cui la carta tocca il tassello.
 let _briciolaMangiata = null;   // {k, t0}
-function mangiaBriciola(card, player, k, muta){
+function mangiaBriciola(card, player, k){
   const b = G && G.briciole && G.briciole[k];
   if(!b) return false;
   delete G.briciole[k];
@@ -42373,8 +42295,7 @@ function mangiaBriciola(card, player, k, muta){
   modificaValori(card, lati, BONUS_BRICIOLA, undefined, { chiave: 'briciola:' + b.da, da: b.nome, id: b.da });
   setTimeout(()=>{
     if(!G || G.gameOver) return;
-    // v0.80.21 — lo Yeti la mangia senza farsi sentire (Lorenzo).
-    if(!muta){ try{ playSfxFile('munch.mp3'); }catch(_){ } }
+    try{ playSfxFile('munch.mp3'); }catch(_){ }
     _briciolaMangiata = { k: k, t0: performance.now() };
     _applicaBriciolaMangiata(k);
   }, (typeof CARD_LAND_IMPACT_MS === 'number') ? CARD_LAND_IMPACT_MS : 300);
@@ -42428,434 +42349,6 @@ function disegnaBriciola(svg, x, y, R, k){
   }
   return img;
 }
-// ══════════════════════════════════════════════════════════════════════════
-// v0.80.21 — YETI, "HIDE 'N' KILL"
-// ══════════════════════════════════════════════════════════════════════════
-// Le regole di Lorenzo, e le sue risposte alle domande (14/09):
-//   - giocato, lo Yeti non attacca: appena tocca il tabellone sparisce agli
-//     occhi dell'avversario (per chi l'ha giocato resta a meta' opacita');
-//   - chi l'ha giocato lo trascina dove vuole su una casella libera (lo stesso
-//     gesto di Ali Baba). Con la X resta dov'e', e allora sceglie dove lasciare
-//     l'impronta finta (icona foot-yeti-icon);
-//   - poi compaiono due impronte, sulla casella di partenza e sull'altra, una
-//     dopo l'altra a 300ms, alte 110 al tabellone in HD, ruotate a caso, una
-//     normale e una specchiata, con una dissolvenza di 50ms e un passo nella
-//     neve ciascuna. L'avversario vede solo quelle; chi l'ha giocato vede anche
-//     lo Yeti, a meta' opacita', su una delle due;
-//   - sulle impronte l'avversario non gioca; il padrone gioca su quella vuota,
-//     non su quella con lo Yeti;
-//   - nascosto non attacca e per l'avversario non esiste: niente abilita', niente
-//     anteprime, niente sinergie. Si rivela (dissolvenza e lampo) quando una carta
-//     avversaria gli viene posata accanto: prima si mostra, poi l'abilita' della
-//     carta, poi gli scontri, e fra i due chi ha il numero piu' alto attacca l'altro
-//     (a parita' niente, e valgono Excalibur, il lato incoronato e il resto);
-//   - rivelato e' una carta come le altre; le impronte svaniscono. A fine partita
-//     si rivela comunque;
-//   - le briciole di Tom Thumb: dove sta davvero la mangia (senza suono), su
-//     quella finta la briciola sparisce senza dare niente.
-// SEGRETO DAVVERO. In rete dov'e' lo Yeti non passa da op 10/11, che arrivano a
-// tutti e due: chi l'ha giocato lo manda al server (op 17), il server lo tiene e
-// rimanda le impronte a tutti e la casella vera solo a lui (op 18). Quando una
-// carta avversaria gli si posa accanto, lo dice il server dentro alla giocata
-// (op 3, `yeti`), e a fine partita dentro alla fine (op 6). Nascosto, lo Yeti
-// non sta in G.board su nessuno dei due client: l'impronta del tabellone che i
-// due si confrontano resta la stessa.
-// Lo stato vive in G.yeti, uno per ogni Yeti giocato:
-//   { card, di, da, cella, impronte:[{cella, angolo, specchio, da}], stato,
-//     briciole, briciolaPresa, rivelatoDa, impronteViaDa }
-//   stato: 'sceglie' (in campo sulla casella di partenza, si decide dove va),
-//          'nascosto', 'rivelato'. `cella` e' null per chi non la deve sapere.
-const YETI_CHIAVE = '!yeti';
-const YETI_IMPRONTA_ALTA_HD = 110;     // px al tabellone in HD (R = 126.77)
-const YETI_IMPRONTA_PASSO_MS = 300;    // fra la prima impronta e la seconda
-const YETI_IMPRONTA_ENTRA_MS = 50;     // deve combaciare con .impronta-yeti-entra
-const YETI_SPARISCE_MS = 450;          // deve combaciare con .yeti-sparisce
-const YETI_RIVELA_MS = 560;            // deve combaciare con .yeti-rivela
-const YETI_IMPRONTE_VIA_MS = 300;      // deve combaciare con .impronta-yeti-via
-const YETI_PASSI = ['snow-footstep-1.mp3', 'snow-footstep-2.mp3', 'snow-footstep-3.mp3'];
-
-function eYeti(card){ return !!card && abilitaAttivaDi(card) === YETI_CHIAVE; }
-function _yetiElenco(){ if(!G) return []; if(!G.yeti) G.yeti = []; return G.yeti; }
-function _yetiDiCarta(card){ return _yetiElenco().find(y => y.card === card) || null; }
-function yetiNascosti(){ return _yetiElenco().filter(y => y.stato === 'nascosto'); }
-// Chi guarda e' chi l'ha giocato? In rete il numero dato dal server, fuori rete
-// il primo (contro l'IA, la persona).
-function _yetiLoVedo(y){ return !!y && y.di === _goIoSono(); }
-
-// Le caselle vietate: l'avversario non gioca sulle impronte, il padrone non gioca
-// sopra allo Yeti. Chi non sa quale delle due e' quella vera (l'avversario, in
-// rete) le vieta tutte e due all'avversario e le lascia al padrone: le mosse del
-// padrone le ha gia' controllate il server.
-function yetiBloccaCasella(k, giocatore){
-  for(const y of _yetiElenco()){
-    if(y.stato !== 'nascosto') continue;
-    if(!y.impronte.some(i => i.cella === k)) continue;
-    if(giocatore !== y.di) return true;
-    if(y.cella === k) return true;
-  }
-  return false;
-}
-function yetiCelleImpronte(){
-  const s = new Set();
-  if(!G || !G.yeti) return s;
-  for(const y of G.yeti) if(y.stato === 'nascosto') for(const i of y.impronte) s.add(i.cella);
-  return s;
-}
-// v0.80.21 — accanto a `k` c'e' una carta dell'avversario? Allora lo Yeti non si
-// nasconde. Si guarda il tabellone com'e' dopo le rivelazioni di questa stessa
-// giocata (fuori rete yetiRivelaAccanto, in rete reteApplicaGiocata): e' uguale
-// sui due client, e il server non deve saperne niente (uno Yeti che non si
-// nasconde non manda op 17).
-function yetiAccantoANemici(player, k){
-  const [q, r] = String(k).split(',').map(Number);
-  return DIRS.some(d => {
-    const posto = G.board[key(q + d.dq, r + d.dr)];
-    return !!(posto && posto.card && posto.owner !== player);
-  });
-}
-// Dove puo' andare: le caselle libere (celleLibere esclude gia' muri, carte e
-// impronte), meno quelle congelate.
-function _yetiMete(){ return celleLibere().filter(k => !cellaCongelata(k)); }
-
-function yetiAlPiazzamento(card, player, q, r, k, tempoScaduto){
-  const y = { card, di: player, da: k, cella: null, impronte: [], stato: 'sceglie',
-              briciole: {}, briciolaPresa: false, rivelatoDa: null, impronteViaDa: null };
-  _yetiElenco().push(y);
-  card.yetiSparitoDa = performance.now();
-  G.selected = null; G.dragging = null; G.dragOver = null;
-  const decideLui = !PARTITA_RETE || sceltaMia(player);
-  if(!decideLui){
-    // L'avversario in rete: aspetta che il server dica dove sono le impronte.
-    G.sceltaBersaglio = _sceltaYetiAttesa(y);
-    try{ render(); }catch(_){ }
-    return true;
-  }
-  if(tempoScaduto){
-    const mete = _yetiMete();
-    yetiDecide(y, mete.length ? mete[Math.floor(Math.random() * mete.length)] : k, null);
-    try{ render(); }catch(_){ }
-    return true;
-  }
-  G.sceltaBersaglio = _sceltaYetiSposta(y);
-  try{ render(); }catch(_){ }
-  return true;
-}
-
-// La prima scelta: si prende lo Yeti e lo si porta dove si vuole. La X resta
-// nell'angolo della sua casella (vedi rinunciaInAngolo), perche' al centro c'e'
-// la mano da trascinare.
-function _sceltaYetiSposta(y){
-  const aCaso = (lista) => lista.length ? lista[Math.floor(Math.random() * lista.length)] : null;
-  const stato = {
-    chiave: 'yeti_sposta', giocatore: y.di, modo: 'trascina', icona: ICONA_MANO,
-    cellaOrigine: y.da, rinunciaSottoLaMano: true, privata: true,
-    bersagli: [y.da],
-    mete: () => _yetiMete(),
-    applicaEAspetta: (cella, poi) => {
-      const mete = _yetiMete();
-      const chiesta = stato.destinazioneScelta;
-      const dove = (chiesta && mete.indexOf(chiesta) >= 0) ? chiesta : (aCaso(mete) || y.da);
-      yetiDecide(y, dove, null);
-      poi();
-    },
-    // La X: resta dov'e', e si sceglie dove lasciare l'impronta finta.
-    rinuncia: () => {
-      const seconda = _sceltaYetiImpronta(y);
-      if(!seconda){ yetiDecide(y, y.da, null); return; }
-      G.sceltaBersaglio = seconda;
-      try{ renderBoard(); }catch(_){ }
-      if(!giocatoreUmano(y.di)) setTimeout(()=>{ if(G && G.sceltaBersaglio === seconda) aiResolvePendingAbilityIfAny(); }, 300);
-    },
-    // Tempo scaduto: una casella libera a caso (Lorenzo).
-    seScade: () => {
-      stato.destinazioneScelta = aCaso(_yetiMete());
-      return stato.destinazioneScelta ? y.da : null;
-    },
-    alTermine: () => {},
-    valuta: (sc) => {
-      const [vera] = _yetiScegliIA(y);
-      if(vera === y.da) return null;          // resta: la X, e poi l'impronta finta
-      sc.destinazioneScelta = vera;
-      return y.da;
-    },
-  };
-  return stato;
-}
-// La seconda: dove lasciare l'impronta finta, quando lo Yeti resta dov'e'.
-// Nessuna X: le impronte sono sempre due, o si capirebbe dov'e'.
-function _sceltaYetiImpronta(y){
-  const bersagli = _yetiMete();
-  if(!bersagli.length) return null;
-  const aCaso = () => bersagli[Math.floor(Math.random() * bersagli.length)];
-  return {
-    chiave: 'yeti_impronta', giocatore: y.di, icona: ICONA_IMPRONTA_YETI,
-    cellaOrigine: null, privata: true,
-    bersagli,
-    applica: (cella) => yetiDecide(y, y.da, cella),
-    rinuncia: () => yetiDecide(y, y.da, aCaso()),
-    seScade: () => aCaso(),
-    alTermine: () => {},
-    valuta: () => _yetiScegliIA(y)[1] || aCaso(),
-  };
-}
-// In rete, chi aspetta la risposta del server (anche chi l'ha giocato, dopo
-// aver deciso). Non ha comandi, non scade e non si chiude a mano: la chiude
-// yetiNascondi quando arrivano le impronte.
-function _sceltaYetiAttesa(y){
-  return { chiave: 'yeti_attesa', giocatore: y.di, bersagli: [], cellaOrigine: null,
-           privata: true, attesa: true, applica: () => {}, rinuncia: () => {}, alTermine: () => {} };
-}
-// L'IA: la casella in cui i suoi numeri guardano le caselle libere, cioe' dove
-// l'avversario verra' a posare (Lorenzo: "va bene per il bot"). Se e' quella da
-// cui parte resta li', e l'impronta finta va sulla migliore delle altre.
-function _yetiScegliIA(y){
-  const mete = _yetiMete();
-  const punti = (k) => {
-    const [cq, cr] = k.split(',').map(Number);
-    let p = 0;
-    for(const dir of DIRS){
-      const nk = key(cq + dir.dq, cr + dir.dr);
-      if(!G.cells.some(c => key(c.q, c.r) === nk)) continue;
-      if(G.holes && G.holes.has(nk)) continue;
-      if(G.board[nk] && nk !== y.da) continue;
-      p += (y.card.values[dir.mySide] || 0);
-    }
-    return p + Math.random() * 0.5;
-  };
-  const tutte = [y.da].concat(mete).map(k => ({ k, p: punti(k) })).sort((a, b) => b.p - a.p);
-  const vera = tutte.length ? tutte[0].k : y.da;
-  const altra = tutte.find(t => t.k !== y.da);
-  return [vera, (vera === y.da && altra) ? altra.k : null];
-}
-
-// Deciso: fuori rete si nasconde subito, in rete si chiede al server.
-function yetiDecide(y, vera, finta){
-  if(!y || y.stato !== 'sceglie') return;
-  if(PARTITA_RETE){
-    G.sceltaBersaglio = _sceltaYetiAttesa(y);
-    reteYeti(vera, finta);
-    try{ renderBoard(); }catch(_){ }
-    return;
-  }
-  const impronte = [y.da, (vera === y.da) ? finta : vera].filter(Boolean);
-  yetiNascondi(y, vera, impronte);
-}
-
-function _yetiMangia(y, b){
-  const lati = _latiPiuAlti(y.card);
-  if(lati.length) modificaValori(y.card, lati, BONUS_BRICIOLA, undefined, { chiave: 'briciola:' + b.da, da: b.nome, id: b.da });
-}
-
-// Lo Yeti lascia il tabellone e restano le impronte. `vera` e' null per chi non
-// deve sapere dov'e'.
-function yetiNascondi(y, vera, impronte){
-  if(!y || y.stato !== 'sceglie') return;
-  if(G.sceltaBersaglio && /^yeti_/.test(G.sceltaBersaglio.chiave || '')) G.sceltaBersaglio = null;
-  if(G.board[y.da] && G.board[y.da].card === y.card) delete G.board[y.da];
-  y.stato = 'nascosto';
-  y.cella = vera || null;
-  const ora = performance.now();
-  const primaSpecchiata = Math.random() < 0.5;
-  y.impronte = (impronte || []).map((cella, i) => ({
-    cella, angolo: Math.random() * 360, specchio: (i === 0) === primaSpecchiata,
-    da: ora + i * YETI_IMPRONTA_PASSO_MS
-  }));
-  // Le briciole sotto alle impronte se ne vanno tutte e due, cosi' non dicono
-  // niente; quella sotto allo Yeti, se e' del suo padrone, lo nutre. Chi non sa
-  // dov'e' se le ricorda, e il +2 lo da' quando lo Yeti si rivela.
-  for(const imp of y.impronte){
-    const b = G.briciole && G.briciole[imp.cella];
-    if(b){ y.briciole[imp.cella] = b; delete G.briciole[imp.cella]; }
-  }
-  if(y.cella && y.cella !== y.da){
-    const b = y.briciole[y.cella];
-    if(b && b.owner === y.di) _yetiMangia(y, b);
-    y.briciolaPresa = true;
-  }
-  y.impronte.forEach((imp, i) => setTimeout(()=>{
-    if(!G || !G.yeti || G.yeti.indexOf(y) < 0) return;
-    if(y.stato === 'nascosto'){ try{ playSfxFile(YETI_PASSI[Math.floor(Math.random() * YETI_PASSI.length)]); }catch(_){ } }
-    _firmaTabellonePrecedente = null;
-    try{ renderBoard(); }catch(_){ }
-  }, i * YETI_IMPRONTA_PASSO_MS));
-  try{ ricalcolaTabellone(); }catch(_){ }
-  _firmaTabellonePrecedente = null;
-  try{ render(); }catch(_){ }
-  const generazione = (typeof gameGeneration !== 'undefined') ? gameGeneration : 0;
-  setTimeout(()=>{
-    if(!G || G.gameOver) return;
-    if(typeof gameGeneration !== 'undefined' && gameGeneration !== generazione) return;
-    endTurn(y.di);
-  }, Math.max(0, y.impronte.length - 1) * YETI_IMPRONTA_PASSO_MS + 350);
-}
-
-// Si mostra sulla sua casella. `perCella` e' la casella della carta che l'ha
-// scoperto: e' contro di lei che contrattacca (vedi yetiContrattacco).
-function yetiRivela(y, cella, perCella){
-  if(!y || y.stato !== 'nascosto' || !cella) return false;
-  if(G.board[cella]){ console.warn('[yeti] ' + cella + ' e\' occupata: lo Yeti non si mostra li\''); return false; }
-  y.cella = cella;
-  y.stato = 'rivelato';
-  G.board[cella] = { card: y.card, owner: y.di };
-  if(!y.briciolaPresa){
-    const b = y.briciole[cella];
-    if(b && b.owner === y.di && cella !== y.da) _yetiMangia(y, b);
-    y.briciolaPresa = true;
-  }
-  y.rivelatoDa = performance.now();
-  y.impronteViaDa = performance.now();
-  y.card.yetiAgguato = perCella || null;
-  try{ ricalcolaTabellone(); }catch(_){ }
-  _firmaTabellonePrecedente = null;
-  try{ renderBoard(); }catch(_){ }
-  setTimeout(()=>{ _firmaTabellonePrecedente = null; try{ renderBoard(); }catch(_){ } },
-    Math.max(YETI_RIVELA_MS, YETI_IMPRONTE_VIA_MS) + 30);
-  return true;
-}
-// Fuori rete: la carta appena posata in `k` scopre gli Yeti avversari accanto.
-function yetiRivelaAccanto(player, k){
-  const [q, r] = String(k).split(',').map(Number);
-  const vicine = new Set(DIRS.map(d => key(q + d.dq, r + d.dr)));
-  let n = 0;
-  for(const y of _yetiElenco()){
-    if(y.stato !== 'nascosto' || y.di === player || !y.cella || !vicine.has(y.cella)) continue;
-    if(yetiRivela(y, y.cella, k)) n++;
-  }
-  return n;
-}
-// In rete: quelli che dice il server, { di, da, cella }.
-function yetiRivelaDaServer(elenco, perCella){
-  let n = 0;
-  for(const e of (Array.isArray(elenco) ? elenco : [])){
-    if(!e || typeof e.cella !== 'string') continue;
-    const y = _yetiElenco().find(x => x.stato === 'nascosto' && x.di === e.di && x.da === e.da);
-    if(y && yetiRivela(y, e.cella, perCella)) n++;
-  }
-  return n;
-}
-function yetiRivelaTutti(){
-  for(const y of _yetiElenco()) if(y.stato === 'nascosto' && y.cella) yetiRivela(y, y.cella, null);
-}
-function yetiAgguatoDa(k){
-  return !!(G && G.yeti && G.yeti.some(y => y.stato === 'rivelato' && y.card.yetiAgguato === k));
-}
-// Lo scontro alla rivelazione, dalla parte dello Yeti: se il suo lato batte
-// quello della carta che l'ha scoperto, la conquista lui. Con le stesse regole
-// di ogni scontro (chi e' intoccabile, il lato incoronato, chi puo' conquistare
-// chi). La carta posata ha gia' fatto i suoi conti: se lo Yeti l'ha preso lei,
-// qui non succede niente.
-function yetiContrattacco(card, player, q, r, k, snap, myEffective, conquered, conquestInfo){
-  if(!G.yeti || !G.yeti.length) return;
-  for(const dir of DIRS){
-    const nk = key(q + dir.dq, r + dir.dr);
-    const posto = G.board[nk];
-    if(!posto || !posto.card || posto.card.yetiAgguato !== k) continue;
-    posto.card.yetiAgguato = null;
-    if(posto.owner === player || conquered.indexOf(nk) >= 0) continue;
-    if(!G.board[k] || G.board[k].card !== card || G.board[k].owner !== player) break;
-    if(cartaIntoccabile(card) || latoInconquistabile(card, dir.mySide)) continue;
-    const [nq, nr] = nk.split(',').map(Number);
-    const suoi = getFactionBonus(posto.card, nq, nr, snap).values;
-    const attacco = getAttackValueForSide(posto.card, suoi, dir.theirSide);
-    const difesa = myEffective[dir.mySide] || 0;
-    if(!puoConquistare(posto.card, card, { differenza: Math.abs(attacco - difesa), valoreAttacco: attacco })) continue;
-    if(!vinceIlConfronto(posto.card, attacco, difesa)) continue;
-    G.board[k] = { card, owner: posto.owner };
-    conquestInfo.push({ nk: k, dir, prevOwner: player, atkVal: attacco, defVal: difesa,
-                        da: nk, vincitore: posto.owner, latoAtt: dir.theirSide, latoDif: dir.mySide });
-    segnaRinascitaFenice(card, player);
-    if(G.ultimaConquista) G.ultimaConquista[posto.owner] = { cella: k, exProprietario: player };
-  }
-}
-
-// ── il disegno ────────────────────────────────────────────────────────────
-function _yetiFirma(){
-  if(!G || !G.yeti || !G.yeti.length) return null;
-  const ora = performance.now();
-  return G.yeti.map(y => [y.da, y.stato, _yetiLoVedo(y) ? (y.cella || '') : '',
-    y.impronte.map(i => i.cella + (ora >= i.da ? '+' : '-')).join(','),
-    y.rivelatoDa ? Math.round(y.rivelatoDa) : 0].join('|')).join(';');
-}
-// Il livello yeti-host di una carta in campo: a meta' per chi l'ha giocato
-// mentre sceglie, in dissolvenza per l'altro; e l'entrata quando si rivela.
-function _yetiVeste(host, card){
-  const y = _yetiDiCarta(card);
-  if(!y) return false;
-  const ora = performance.now();
-  if(y.stato === 'sceglie'){
-    if(_yetiLoVedo(y)) host.style.opacity = '0.5';
-    else {
-      host.classList.add('yeti-sparisce');
-      host.style.animationDelay = (-(ora - (card.yetiSparitoDa || ora))).toFixed(0) + 'ms';
-    }
-    host.setAttribute('data-yeti', 'sceglie');
-    return true;
-  }
-  if(y.stato === 'rivelato' && y.rivelatoDa && ora - y.rivelatoDa < YETI_RIVELA_MS){
-    host.classList.add('yeti-rivela');
-    host.style.animationDelay = (-(ora - y.rivelatoDa)).toFixed(0) + 'ms';
-    host.setAttribute('data-yeti', 'rivela');
-    return true;
-  }
-  return false;
-}
-function disegnaYetiInCella(svgCella, radice, x, y, R, k){
-  const ora = performance.now();
-  for(const yy of _yetiElenco()){
-    const via = yy.impronteViaDa ? ora - yy.impronteViaDa : null;
-    if(yy.stato === 'nascosto' || (yy.stato === 'rivelato' && via !== null && via < YETI_IMPRONTE_VIA_MS)){
-      for(const imp of yy.impronte){
-        if(imp.cella !== k || ora < imp.da) continue;
-        disegnaImprontaYeti(svgCella, x, y, R, imp, ora, yy.stato === 'rivelato' ? via : null);
-      }
-    }
-    if(yy.stato === 'nascosto' && yy.cella === k && _yetiLoVedo(yy)) disegnaYetiFantasma(radice, x, y, R, k, yy);
-  }
-}
-function disegnaImprontaYeti(svg, x, y, R, imp, ora, via){
-  const alta = YETI_IMPRONTA_ALTA_HD * (R / 126.77);
-  const larga = alta * 126 / 230;                       // foot-yeti.png e' 126x230
-  const g = svgEl('g');
-  g.setAttribute('transform', 'translate(' + x.toFixed(2) + ',' + y.toFixed(2) + ') rotate(' + imp.angolo.toFixed(1) + ')'
-    + (imp.specchio ? ' scale(-1,1)' : ''));
-  g.style.pointerEvents = 'none';
-  g.setAttribute('data-impronta-yeti', imp.cella);
-  g.setAttribute('data-specchio', imp.specchio ? '1' : '0');
-  const img = document.createElementNS('http://www.w3.org/2000/svg', 'image');
-  img.setAttribute('href', UI_BASE + 'foot-yeti.png');
-  img.setAttribute('x', (-larga / 2).toFixed(2)); img.setAttribute('y', (-alta / 2).toFixed(2));
-  img.setAttribute('width', larga.toFixed(2)); img.setAttribute('height', alta.toFixed(2));
-  img.setAttribute('preserveAspectRatio', 'xMidYMid meet');
-  img.style.pointerEvents = 'none';
-  if(via !== null && via !== undefined){
-    img.classList.add('impronta-yeti-via');
-    img.style.animationDelay = (-via).toFixed(0) + 'ms';
-  } else {
-    const passati = ora - imp.da;
-    if(passati < YETI_IMPRONTA_ENTRA_MS){
-      img.classList.add('impronta-yeti-entra');
-      img.style.animationDelay = (-passati).toFixed(0) + 'ms';
-    }
-  }
-  g.appendChild(img);
-  svg.appendChild(g);
-  return g;
-}
-function disegnaYetiFantasma(radice, x, y, R, k, yy){
-  const g = svgEl('g');
-  g.setAttribute('data-yeti-fantasma', k);
-  g.style.opacity = '0.5';
-  g.style.pointerEvents = 'none';
-  stratoCarteDellaPlancia(radice).appendChild(g);
-  const o = yy.di;
-  const fc = o===1 ? 'var(--red-bg)' : 'var(--blue-bg)';
-  const sc = o===1 ? 'var(--red)' : 'var(--blue)';
-  const tc = o===1 ? 'var(--red-light)' : 'var(--blue-light)';
-  try{ drawHexCard(g, x, y, R, {...yy.card, owner: o}, fc, sc, tc, yy.card.name, false, null, null, true, yy.card.values, {}, false); }
-  catch(e){ console.warn('[yeti] fantasma: ' + (e && e.message)); }
-  return g;
-}
-
 const EFFETTI_PIAZZAMENTO_REALI = {
   // v0.75.77 — la trasformazione di Cenerentola NON sta piu' qui. Faceva il
   // cambio all'istante, cioe' mentre la carta stava ancora atterrando, e senza
@@ -45238,11 +44731,7 @@ function chiudiSceltaBersaglio(cella, daServer){
   // ── v0.77.81 — IN RETE NON SI SCEGLIE, SI CHIEDE ───────────────────────
   // Stessa forma di doPlace. Chi non deve scegliere non chiude niente: se il
   // suo timer scadesse, chiuderebbe la finestra dell'avversario.
-  // v0.80.21 — le scelte `privata` (lo Yeti) non passano da op 10: dove va lo
-  // Yeti non deve arrivare all'avversario. Le chiude solo chi le deve fare, e la
-  // decisione la manda lui al server (vedi yetiDecide).
-  if(PARTITA_RETE && !daServer && scelta.privata && !sceltaMia(scelta.giocatore)) return;
-  if(PARTITA_RETE && !daServer && !scelta.privata){
+  if(PARTITA_RETE && !daServer){
     if(!sceltaMia(scelta.giocatore)) return;   // non e' roba mia: non tocco
     reteScegli(cella);
     return;                                     // si applica quando torna
@@ -46605,18 +46094,14 @@ function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLa
   // flip even starts. G.board already holds the final (new-owner) state for
   // game-logic purposes, so temporarily roll conquered cells back for this
   // one render, then restore the real state immediately after.
-  // v0.80.21 — YETI: lo Yeti appena scoperto da questa carta, se ha il numero piu'
-  // alto, attacca lui (vedi yetiContrattacco). Dopo le conquiste della carta posata
-  // e fuori dal loro conto: e' una conquista dello Yeti, non sua.
-  yetiContrattacco(card, player, q, r, k, snap, myEffective, conquered, conquestInfo);
-  if(conquestInfo.length){
+  if(conquered.length){
     conquestInfo.forEach(({nk,prevOwner})=>{
       G.board[nk]={card:G.board[nk].card, owner:prevOwner};
     });
     renderBoard();
-    conquestInfo.forEach(({nk,vincitore})=>{
+    conquestInfo.forEach(({nk})=>{
       const cur=G.board[nk];
-      G.board[nk]={card:cur.card, owner:vincitore||player};
+      G.board[nk]={card:cur.card, owner:player};
     });
   } else {
     renderBoard();
@@ -46682,7 +46167,7 @@ function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLa
     const elapsed = performance.now() - _cardLand.t0;
     landDelayMs = Math.max(0, Math.round(CARD_LAND_MS - elapsed));
   }
-  if(conquestInfo.length){
+  if(conquered.length){
     const LUNGE_DUR=420;       // must match .card-lunge's CSS animation-duration
     const STRIKE_FRACTION=0.46; // keyframe % where the forward snap lands (see cardLunge)
     const STRIKE_MS=Math.round(LUNGE_DUR*STRIKE_FRACTION);
@@ -46691,23 +46176,16 @@ function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLa
     const FLIP_DUR_MS=315;      // must match .card-flip's CSS animation-duration (0.315s)
     const FLIP_HALF_MS=Math.round(FLIP_DUR_MS*0.5); // rotateY passes through 90°/edge-on here — the instant the card visually flips "through" the board plane, so the owner color must swap exactly at this point, not before/after
 
-    conquestInfo.forEach(({nk,dir,prevOwner,atkVal,defVal,da,vincitore,latoAtt,latoDif},idx)=>{
+    conquestInfo.forEach(({nk,dir,prevOwner,atkVal,defVal},idx)=>{
       const stepStart=landDelayMs+idx*STEP_MS; // v0.72.30: dopo l'atterraggio, vedi landDelayMs
-      // v0.80.21 — chi colpisce: la carta posata, oppure lo Yeti che contrattacca
-      // da `da` (vedi yetiContrattacco). Da li' partono l'affondo e i conti.
-      const cellaAtt = da || k;
-      const [aq, ar] = da ? da.split(',').map(Number) : [q, r];
-      const [dq2, dr2] = nk.split(',').map(Number);
-      const nuovoPadrone = vincitore || player;
-      const cartaAtt = da ? ((G.board[da] && G.board[da].card) || card) : card;
       // Kick off this neighbor's lunge
       setTimeout(()=>{
         const bsvg=document.getElementById('board-svg');
         if(!bsvg)return;
-        const placedEl=bsvg.querySelector(`[data-conquered="${cellaAtt}"]`);
+        const placedEl=bsvg.querySelector(`[data-conquered="${k}"]`);
         if(!placedEl)return;
-        const from=axialToPixel(aq,ar,0,0,1);
-        const to=axialToPixel(dq2,dr2,0,0,1);
+        const from=axialToPixel(q,r,0,0,1);
+        const to=axialToPixel(q+dir.dq,r+dir.dr,0,0,1);
         const dx=to.x-from.x, dy=to.y-from.y;
         const len=Math.hypot(dx,dy)||1;
         const LUNGE_PX=26; // accentuated reach, per user feedback
@@ -46765,7 +46243,7 @@ function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLa
       setTimeout(()=>{
         const bsvg=document.getElementById('board-svg');
         if(!bsvg)return;
-        const placedEl=bsvg.querySelector(`[data-conquered="${cellaAtt}"]`);
+        const placedEl=bsvg.querySelector(`[data-conquered="${k}"]`);
         const defEl=bsvg.querySelector(`[data-conquered="${nk}"]`);
         giraCarta(defEl);
         // v0.72.34: il difensore incassa e la plancia trema, esattamente
@@ -46774,8 +46252,8 @@ function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLa
         // Direzione del colpo, condivisa da contraccolpo e scuotimento.
         let _shakeUx=1, _shakeUy=0;
         if(defEl){
-          const fromP=axialToPixel(aq,ar,0,0,1);
-          const toP=axialToPixel(dq2,dr2,0,0,1);
+          const fromP=axialToPixel(q,r,0,0,1);
+          const toP=axialToPixel(q+dir.dq,r+dir.dr,0,0,1);
           const rdx=toP.x-fromP.x, rdy=toP.y-fromP.y;
           const rlen=Math.hypot(rdx,rdy)||1;
           _shakeUx=rdx/rlen; _shakeUy=rdy/rlen;
@@ -46783,8 +46261,8 @@ function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLa
         }
         shakeBoard(idx, _shakeUx, _shakeUy);
         flashScreenOnHit(idx); // v0.72.35
-        const winEl=placedEl && placedEl.querySelector(`[data-value-side-${latoAtt || dir.mySide}]`);
-        const loseEl=defEl && defEl.querySelector(`[data-value-side-${latoDif || dir.theirSide}]`);
+        const winEl=placedEl && placedEl.querySelector(`[data-value-side-${dir.mySide}]`);
+        const loseEl=defEl && defEl.querySelector(`[data-value-side-${dir.theirSide}]`);
         [winEl,loseEl].forEach(el=>{
           if(!el)return;
           // v0.77.2 — `void el.offsetWidth` qui non forzava niente (e' un SVG):
@@ -46817,7 +46295,7 @@ function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLa
         if(!bsvg)return;
         const defEl=bsvg.querySelector(`[data-conquered="${nk}"]`);
         if(!defEl)return;
-        swapCardOwnerVariant(defEl, nuovoPadrone, G.board[nk]&&G.board[nk].card);
+        swapCardOwnerVariant(defEl, player, G.board[nk]&&G.board[nk].card);
       },stepStart+STRIKE_MS+FLIP_HALF_MS);
 
       // v0.73.77 — E QUI IL HATTER IMPAZZISCE: a giro FINITO, non prima.
@@ -46837,9 +46315,6 @@ function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLa
       // due orologi da tenere d'accordo.
       setTimeout(()=>{
         let daRidisegnare = false;
-        // v0.80.21 — "quando conquisto" e le vendette guardano chi ha colpito
-        // davvero: la carta posata, o lo Yeti che ha contrattaccato.
-        const card = cartaAtt;
         const posata = G.board[nk];
         if(posata && posata.card){
           // ── v0.77.62 — QUEL CHE IL MOTORE SA FARE, LO FA LUI ──────────────
@@ -47060,17 +46535,9 @@ function endTurn(player, animationsSettled, dannoFatto){
   // Le mani si riempiono dal mazzo da sole, quindi una mano vuota vuol dire
   // gia' che anche il mazzo lo e': non serve chiederlo due volte.
   const playable=G.cells.filter(c=>!isHole(c.q,c.r)).length;
-  // v0.80.21 — uno Yeti nascosto occupa la sua casella anche se non sta sul tabellone.
-  const placed=Object.keys(G.board).length + yetiNascosti().length;
+  const placed=Object.keys(G.board).length;
   const senzaCarte = G.p1Hand.length===0 || G.p2Hand.length===0;
-  // E se le sole caselle rimaste sono impronte dello Yeti avversario, chi viene
-  // dopo non ha dove giocare: la partita finisce li'.
-  const prossimo = player===1 ? 2 : 1;
-  const bloccatoDalloYeti = yetiNascosti().length > 0 && !G.cells.some(c=>{
-    const kk = key(c.q,c.r);
-    return !isHole(c.q,c.r) && !G.board[kk] && !yetiBloccaCasella(kk, prossimo);
-  });
-  if(placed>=playable||senzaCarte||bloccatoDalloYeti){endGame();return;}
+  if(placed>=playable||senzaCarte){endGame();return;}
   // v0.72.72 — qui si contavano i turni delle carte con Rinascita e le si
   // riportava in vita dal proprietario originale, con +2 su ogni lato e 2 PV
   // di cura. Rinascita non esiste piu': G.rebirthPending resta dichiarato e
@@ -49433,8 +48900,6 @@ function placeCard(q,r){
 function calcScores(){
   let s1=0,s2=0;
   for(const k in G.board) G.board[k].owner===1?s1++:s2++;
-  // v0.80.21 — lo Yeti nascosto e' in campo anche se non sta in G.board.
-  for(const y of ((G && G.yeti) || [])) if(y.stato === 'nascosto') y.di===1?s1++:s2++;
   G.scores={1:s1,2:s2};
 }
 
@@ -49839,9 +49304,6 @@ function endGame(){
   // hand-expand dim.
   collapseAllHandExpand();
   G.gameOver=true; calcScores(); render();
-  // v0.80.21 — gli Yeti ancora nascosti si mostrano. In rete no: la casella
-  // dell'avversario non la sappiamo, e la dice il server con la fine (op 6).
-  if(!PARTITA_RETE){ try{ yetiRivelaTutti(); }catch(_){ } }
   // Duck the background music at game-over instead of hard-setting it: the old
   // code set a fixed 0.2 here, which ignored the volume sliders entirely — if
   // the player had muted (either channel at 0), the music would audibly come
@@ -50299,15 +49761,6 @@ function carteCheFruttano(){
     // e quindi non ha niente da consegnare.
     if(punti <= 0) continue;
     (celle[c.owner] || (celle[c.owner]=[])).push({ k:k, punti:punti });
-  }
-  // v0.80.21 — lo Yeti nascosto da' punti anche se non sta in G.board (Lorenzo).
-  // Per chi l'ha giocato l'onda illumina la sua casella; per l'avversario la voce
-  // non ha casella (`k` null): i punti arrivano, ma nessun lampo dice dov'e'.
-  for(const y of (G.yeti || [])){
-    if(y.stato !== 'nascosto') continue;
-    const punti = puntiDiCarta(y.card);
-    if(punti <= 0) continue;
-    (celle[y.di] || (celle[y.di]=[])).push({ k: _yetiLoVedo(y) ? y.cella : null, punti:punti });
   }
   return celle;
 }
@@ -56397,28 +55850,7 @@ function _geloAnima(el, chiave){
   el.style.animationDelay = (-passati) + 'ms';
 }
 function _geloFinito(chiave){ _geloDa.delete(chiave); }
-// ── v0.80.21 — E SI SCIOGLIE, invece di sparire ──────────────────────────────
-// Lorenzo: "i tile ghiacciati ad ora spariscono senza transizione, aggiungi un
-// flash leggero e poi fadeout". Un tassello disegnato gelato (la sua voce in
-// _geloDa) che al disegno dopo non lo e' piu' comincia a sciogliersi: da quel
-// momento, per GELO_SCIOGLIE_MS, la lastra si ridisegna con l'animazione di
-// uscita, rimessa al punto giusto a ogni ridisegno come quella d'arrivo.
-// G.gelo[k] deve esserci ancora (scaduto): una partita nuova, con G.gelo vuoto,
-// non scioglie i ghiacci della partita prima.
-const GELO_SCIOGLIE_MS = 650;
-const _geloSciolto = new Map();
-function _geloDaSciogliere(k){
-  const chiave = 't:' + k + 'f';
-  if(_geloDa.has(chiave)){
-    _geloDa.delete(chiave);
-    if(G && G.gelo && G.gelo[k]) _geloSciolto.set(chiave, performance.now());
-  }
-  const da = _geloSciolto.get(chiave);
-  if(da === undefined) return false;
-  if(performance.now() - da >= GELO_SCIOGLIE_MS || !(G && G.gelo && G.gelo[k])){ _geloSciolto.delete(chiave); return false; }
-  return true;
-}
-function disegnaGeloCella(svg, x, y, R, uid, sciogli){
+function disegnaGeloCella(svg, x, y, R, uid){
   const ri = R - BOARD_GAP;
   const corners = hexCorners(x, y, ri);
   const pts = corners.map(p=>`${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ');
@@ -56455,13 +55887,7 @@ function disegnaGeloCella(svg, x, y, R, uid, sciogli){
   taglio.style.mixBlendMode = 'hard-light';
   taglio.appendChild(img);
   svg.appendChild(taglio);
-  if(sciogli){
-    const passati = performance.now() - (_geloSciolto.get('t:' + uid) || performance.now());
-    img.classList.add('gelo-scioglie');
-    img.style.setProperty('--gelo-scioglie-ms', GELO_SCIOGLIE_MS + 'ms');
-    img.style.animationDelay = (-passati) + 'ms';
-    img.setAttribute('data-gelo-scioglie', uid);
-  } else _geloAnima(img, 't:' + uid);
+  _geloAnima(img, 't:' + uid);
   return img;
 }
 function drawTileCell(svg, x, y, R, imgSrc, uid, placeable){
@@ -57048,7 +56474,6 @@ function firmaTabellone(){
     // La carta che sta girando viene dipinta col proprietario di prima.
     girata: G.girataInCorso ? _statoSerializzabile(G.girataInCorso) : null,
     // L'atterraggio in corso sposta la cella in cima alla pila.
-    yeti: (typeof _yetiFirma === 'function') ? _yetiFirma() : null,   // v0.80.21
     atterraggio: (typeof _cardLand!=='undefined' && _cardLand) ? _cardLand.k : null,
     // Le impostazioni della lamina cambiano come ogni carta viene disegnata.
     lamina: (typeof cardDbHoloEnabled!=='undefined' ? !!cardDbHoloEnabled : null),
@@ -57544,15 +56969,7 @@ function renderBoard(){
       flipGroup.appendChild(recoilGroup);
       const wobbleGroup=document.createElementNS('http://www.w3.org/2000/svg','g');
       wobbleGroup.setAttribute('data-role','wobble-host');
-      // v0.80.21 — lo Yeti che sparisce (o che si vede a meta', per chi l'ha
-      // giocato) e quello che si rivela hanno un livello in piu' per l'opacita':
-      // gli altri tre sono gia' di altre animazioni (vedi _yetiVeste).
-      const yetiHost = (G.yeti && G.yeti.length) ? svgEl('g') : null;
-      if(yetiHost && _yetiVeste(yetiHost, placed.card)){
-        yetiHost.setAttribute('data-role','yeti-host');
-        recoilGroup.appendChild(yetiHost);
-        yetiHost.appendChild(wobbleGroup);
-      } else recoilGroup.appendChild(wobbleGroup);
+      recoilGroup.appendChild(wobbleGroup);
       // Merge placed.owner into card so border-top reflects current owner after conquest
       const cardWithOwner = {...placed.card, owner: ownerDisegnato};
       drawHexCard(wobbleGroup,x,y,R,cardWithOwner,fc,sc,tc,placed.card.name,false,null,null,true,displayValuesForCell,factionDeltas,aSorteInCampo);
@@ -57618,16 +57035,9 @@ function renderBoard(){
       if(cellaCongelata(k)){
         cellGroup.style.isolation = 'isolate';
         disegnaGeloCella(svg,x,y,R,k+'f');
-      } else if(_geloDaSciogliere(k)){
-        // v0.80.21 — il ghiaccio non sparisce piu' di colpo: un lampo leggero e
-        // una dissolvenza (Lorenzo). Vedi _geloDaSciogliere.
-        cellGroup.style.isolation = 'isolate';
-        disegnaGeloCella(svg,x,y,R,k+'f', true);
-      }
+      } else _geloFinito('t:' + k + 'f');
       // v0.80.5 — e la briciola di Tom Thumb, sopra al tassello e al ghiaccio.
       if(G.briciole && G.briciole[k]) disegnaBriciola(svg, x, y, R, k);
-      // v0.80.21 — le impronte dello Yeti, e lo Yeti nascosto per chi l'ha giocato.
-      if(G.yeti && G.yeti.length) disegnaYetiInCella(svg, boardSvgRoot, x, y, R, k);
       // Tagged so the Distruggere attack sequence (see doDistruggi) can find
       // THIS cell's overlay polygon right after the wall comes down — by the
       // time doDistruggi's strike-instant renderBoard() runs, G.holes.delete
@@ -57950,10 +57360,7 @@ function renderBoard(){
     const orig = G.cells.find(x=>key(x.q,x.r)===scelta.cellaOrigine);
     if(orig){
       const {x:ox,y:oy} = axialToPixel(orig.q,orig.r,cx,cy,R);
-      // v0.80.21 — lo Yeti si trascina dalla sua casella: li' al centro c'e' la
-      // mano, e la X va sotto di lei, sulla stessa verticale (Lorenzo).
-      const sottoLaMano = !!scelta.rinunciaSottoLaMano;
-      buildSvgIconBtn(ICONA_RINUNCIA, ox, oy + (sottoLaMano ? R*0.42 : 0), R*0.42, ()=>rinunciaSceltaBersaglio());
+      buildSvgIconBtn(ICONA_RINUNCIA, ox, oy, R*0.42, ()=>rinunciaSceltaBersaglio());
     }
   }
   // ── v0.76.10 — GLI STRATI SI RIMETTONO IN ORDINE ALLA FINE ──────────────

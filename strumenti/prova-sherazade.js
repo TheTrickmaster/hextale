@@ -137,6 +137,43 @@ const CORPO = `(async function(){
     simulaPiazzamento(shA, 0, 0);
     simulaPiazzamento(shA, 1, 0);
     dice(JSON.stringify(G.gelo) === primaA && !G.sceltaBersaglio, 'l-anteprima non gela niente e non apre finestre');
+
+    // ── 7. v0.80.21: il suono del gelo e il ghiaccio che si scioglie ──
+    var suoni = [], sfxVero = playSfxFile;
+    playSfxFile = function(f){ suoni.push(f); };
+    prepara(1);
+    congelaTassello(key(1, 1), 1);
+    dice(suoni.indexOf('freeze.mp3') >= 0, 'gelando un tassello suona freeze.mp3', suoni.join(','));
+    suoni = [];
+    var cartaGelo = fai(UNO, 2);
+    applicaCambiamenti([{ azione:'freeze', cosa:'card', carta: cartaGelo, turni: 2 }]);
+    dice(suoni.indexOf('freeze.mp3') >= 0 && cartaCongelata(cartaGelo), 'e anche gelando una carta', suoni.join(','));
+    suoni = [];
+    _simulazioneInCorso = true;
+    try{ applicaCambiamenti([{ azione:'freeze', cosa:'card', carta: fai(UNO, 2), turni: 2 }]); congelaTasselli({ quanto:{ numero:1 } }); } finally { _simulazioneInCorso = false; }
+    dice(suoni.indexOf('freeze.mp3') < 0, 'ma non nell-anteprima', suoni.join(','));
+    playSfxFile = sfxVero;
+    // lo scioglimento: gelato e disegnato, poi scade
+    G.gelo = {}; congelaTassello(key(1, 1), 1);
+    renderBoard();
+    var lastra = function(){ return document.querySelector('#board-svg image[href$="frozen-tile.png"]'); };
+    dice(!!lastra() && !document.querySelector('[data-gelo-scioglie]'), 'gelato, la lastra c-e- e non si sta sciogliendo');
+    G.numeroTurno = G.gelo[key(1, 1)];
+    renderBoard();
+    var sciolta = document.querySelector('[data-gelo-scioglie]');
+    var anim = sciolta && getComputedStyle(sciolta).animationName;
+    dice(sciolta && anim === 'geloScioglie' && !cellaCongelata(key(1, 1)), 'scaduto il gelo, la lastra resta a sciogliersi (lampo e dissolvenza)', anim);
+    // renderBoard non ridisegna se la firma del tabellone non e- cambiata: per
+    // provare un ridisegno a meta- scioglimento lo si forza.
+    await respira(120);
+    _firmaTabellonePrecedente = null; renderBoard();
+    var ancora = document.querySelector('[data-gelo-scioglie]');
+    dice(ancora && parseFloat(ancora.style.animationDelay) <= -100, 'un ridisegno a meta- la riprende dal punto in cui era', ancora && ancora.style.animationDelay);
+    await respira(700);
+    _firmaTabellonePrecedente = null; renderBoard();
+    dice(!document.querySelector('[data-gelo-scioglie]') && !lastra(), 'finito lo scioglimento non resta niente');
+    G.gelo = {}; _firmaTabellonePrecedente = null; renderBoard();
+    dice(!document.querySelector('[data-gelo-scioglie]'), 'e una partita nuova non scioglie ghiacci che non ci sono');
   } catch(err){ dice(false, 'il banco e- arrivato in fondo', err.message + ' ' + String(err.stack || '').split('\\n')[1]); }
   return d.join('\\n');
 })()`;

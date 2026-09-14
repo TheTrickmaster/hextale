@@ -4338,7 +4338,14 @@ var OP_NON_ACCETTATO = 13;
 // `state`, e con la partita se ne va.
 var OP_STICKER        = 14;  // client -> server: { sticker }
 var OP_STICKER_MOSTRA = 15;  // server -> client, a tutti: { di, sticker }
-var OP_STICKER_BLOCCO = 16;  // server -> client, personale: { resta } in ms (niente orologi da confrontare)
+var OP_STICKER_BLOCCO = 16;
+// v0.80.21 — lo Yeti. Dove si nasconde lo sa solo il server: chi l'ha giocato lo
+// manda qui (17), e il server rimanda le impronte a tutti e la casella vera solo
+// a lui (18). Si rivela dentro alla giocata che gli si posa accanto (op 3,
+// `yeti`) e dentro alla fine (op 6, `yeti`).
+var OP_YETI          = 17;  // client -> server: { vera, finta }
+var OP_YETI_IMPRONTE = 18;  // server -> client: { di, da, impronte, vera? }
+var YETI_CHIAVE      = '!yeti';  // server -> client, personale: { resta } in ms (niente orologi da confrontare)
 var STICKER_NOMI = ['carabosse-menacing', 'frog-prince-okay', 'merlin-perfect', 'queen-of-hearts-angry', 'bagheera-scared'];
 var STICKER_MAX = 5;
 var STICKER_FINESTRA_MS = 10000;
@@ -5086,6 +5093,10 @@ function partitaInit(ctx, logger, nk, params) {
     // punto il turno e' gia' passato all'altro (vedi _passaTurno). Chiedere
     // "tocca a te?" a chi deve scegliere darebbe sempre no.
     ultimaGiocataDi: -1,
+    // v0.80.21 — l'ultima giocata (per sapere se la decisione dello Yeti e'
+    // lecita) e gli Yeti: { di, da, vera, impronte, rivelato }.
+    ultimaGiocata: null,
+    yeti: [],
     concordato: null,          // l'ultimo tabellone su cui i due erano d'accordo
     // ── v0.77.76 — IL TABELLONE IN OMBRA ──────────────────────────────────
     // Il server ricalcola la partita per conto suo e confronta il risultato
@@ -5196,7 +5207,7 @@ function _resa(state, dispatcher, logger, nk, chi) {
       logger.error('esito non scritto per %s dopo una resa: %s', u, String(e));
     }
   }
-  _aTutti(dispatcher, OP_FINE, { motivo: 'resa', chi: perdente + 1, vincitore: vincitore });
+  _aTutti(dispatcher, OP_FINE, { motivo: 'resa', chi: perdente + 1, vincitore: vincitore, yeti: _yetiTutti(state) });
   if (vuoto) logger.info('resa di %s a zero a zero: pareggio, nessun vincitore', chi);
   else logger.info('partita finita per resa di %s: vince il giocatore %d', chi, vincitore);
 }
@@ -5268,7 +5279,7 @@ function partitaLeave(ctx, logger, nk, dispatcher, tick, state, presences) {
       // parlano la stessa lingua.
       var haMollato = _indiceDi(state, u);
       var restaInPiedi = (haMollato === 0) ? 2 : 1;
-      _aTutti(dispatcher, OP_FINE, { motivo: 'abbandono', chi: haMollato + 1,
+      _aTutti(dispatcher, OP_FINE, { motivo: 'abbandono', yeti: _yetiTutti(state), chi: haMollato + 1,
                                      vincitore: restaInPiedi });
       logger.info('partita finita per abbandono di %s: vince il giocatore %d', u, restaInPiedi);
     }
@@ -5279,6 +5290,103 @@ function partitaLeave(ctx, logger, nk, dispatcher, tick, state, presences) {
 // v0.80.19 — uno sticker: si controlla il nome, il limite, e si gira a tutti.
 // Il sesto in dieci secondi non passa e fa scattare il blocco; durante il blocco
 // chi prova si sente dire quanto manca.
+// ── v0.80.21 — LO YETI ─────────────────────────────────────────────────────
+// E' carta del catalogo che si chiama '!yeti'?
+function _eYetiServer(nk, id) {
+  if (!id) return false;
+  var catalogo = null;
+  try { catalogo = leggiSistema(nk, KEY_CATALOGO); } catch (e) { catalogo = null; }
+  var carte = (catalogo && catalogo.carte) || [];
+  for (var i = 0; i < carte.length; i++) {
+    if (carte[i] && String(carte[i].id) === String(id)) return carte[i].cardAbility === YETI_CHIAVE;
+  }
+  return false;
+}
+function _yetiVicine(k) {
+  var qr = String(k).split(','), q = Number(qr[0]), r = Number(qr[1]), fuori = [];
+  for (var i = 0; i < OMBRA_DIR.length; i++) fuori.push((q + OMBRA_DIR[i].dq) + ',' + (r + OMBRA_DIR[i].dr));
+  return fuori;
+}
+function _yetiImpronta(state, k) {
+  var el = state.yeti || [];
+  for (var i = 0; i < el.length; i++) if (!el[i].rivelato && el[i].impronte.indexOf(k) !== -1) return true;
+  return false;
+}
+// L'avversario non gioca sulle impronte; il padrone non gioca sopra allo Yeti
+// (quella casella e' gia' in `occupate`, ma lo si dice anche qui).
+function _yetiVieta(state, k, giocatore) {
+  var el = state.yeti || [];
+  for (var i = 0; i < el.length; i++) {
+    var y = el[i];
+    if (y.rivelato || y.impronte.indexOf(k) === -1) continue;
+    if (giocatore !== y.di) return true;
+    if (k === y.vera) return true;
+  }
+  return false;
+}
+function _yetiLibera(state, k) {
+  return _caselle().indexOf(k) !== -1 && state.buchi.indexOf(k) === -1 && !state.occupate[k] && !_yetiImpronta(state, k);
+}
+// La decisione di chi ha appena giocato lo Yeti. Una decisione che non torna
+// (casella inventata, occupata) non si rifiuta — chi l'ha mandata resterebbe ad
+// aspettare — ma si ripiega: lo Yeti resta dov'e' e l'impronta finta va sulla
+// prima casella libera.
+function _yetiNascondi(nk, state, dispatcher, chi, idx, corpo) {
+  if (!state.iniziata || state.finita) return;
+  var ug = state.ultimaGiocata;
+  if (!ug || idx !== state.ultimaGiocataDi || ug.di !== idx + 1) return;
+  var i;
+  for (i = 0; i < state.yeti.length; i++) if (state.yeti[i].da === ug.k) return;
+  if (!_eYetiServer(nk, ug.forma) && !_eYetiServer(nk, ug.carta)) return;
+  var da = ug.k;
+  var vera = (corpo && typeof corpo.vera === 'string') ? corpo.vera : da;
+  if (vera !== da && !_yetiLibera(state, vera)) vera = da;
+  var finta = null;
+  if (vera === da) {
+    finta = (corpo && typeof corpo.finta === 'string') ? corpo.finta : null;
+    if (finta !== null && (finta === da || !_yetiLibera(state, finta))) finta = null;
+    if (finta === null) {
+      var tutte = _caselle();
+      for (var c = 0; c < tutte.length; c++) if (tutte[c] !== da && _yetiLibera(state, tutte[c])) { finta = tutte[c]; break; }
+    }
+  }
+  var impronte = [da];
+  if (vera !== da) impronte.push(vera); else if (finta) impronte.push(finta);
+  if (vera !== da) {
+    state.occupate[vera] = state.occupate[da] || { carta: ug.carta, di: idx + 1 };
+    delete state.occupate[da];
+  }
+  state.yeti.push({ di: idx + 1, da: da, vera: vera, impronte: impronte, rivelato: false });
+  for (var g = 0; g < state.giocatori.length; g++) {
+    var u = state.giocatori[g];
+    if (u === chi) _aUno(dispatcher, state, u, OP_YETI_IMPRONTE, { di: idx + 1, da: da, impronte: impronte, vera: vera });
+    else _aUno(dispatcher, state, u, OP_YETI_IMPRONTE, { di: idx + 1, da: da, impronte: impronte });
+  }
+}
+// Una carta posata in `k` da `giocatore` scopre gli Yeti avversari accanto.
+function _yetiRivelaAccanto(state, k, giocatore) {
+  var fuori = [], vicine = _yetiVicine(k), el = state.yeti || [];
+  for (var i = 0; i < el.length; i++) {
+    var y = el[i];
+    if (y.rivelato || y.di === giocatore || vicine.indexOf(y.vera) === -1) continue;
+    y.rivelato = true;
+    fuori.push({ di: y.di, da: y.da, cella: y.vera });
+  }
+  return fuori;
+}
+function _yetiOccupa(state) {
+  var el = state.yeti || [];
+  for (var i = 0; i < el.length; i++) {
+    if (!el[i].rivelato && !state.occupate[el[i].vera]) state.occupate[el[i].vera] = { carta: 'yeti', di: el[i].di };
+  }
+}
+// Quelli ancora nascosti, per la fine: li si mostra a tutti e due.
+function _yetiTutti(state) {
+  var fuori = [], el = state.yeti || [];
+  for (var i = 0; i < el.length; i++) if (!el[i].rivelato) fuori.push({ di: el[i].di, da: el[i].da, cella: el[i].vera });
+  return fuori;
+}
+
 function _sticker(state, dispatcher, chi, idx, corpo) {
   if (!state.iniziata || state.finita) return;
   var nome = String((corpo && corpo.sticker) || '');
@@ -5370,6 +5478,7 @@ function partitaLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
       state.concordato = { turno: t, impronta: uno.impronta, punteggio: uno.punteggio, hp: uno.hp };
       // v0.78.9 — e da quello stesso racconto si rifanno le caselle occupate.
       _occupateDaImpronta(state, uno.impronta);
+      _yetiOccupa(state);   // v0.80.21 — lo Yeti nascosto non e' nel racconto, ma la sua casella e' presa
       // v0.77.76 — i due client sono d'accordo: e' il momento buono per
       // chiedere al server se avrebbe detto la stessa cosa. Non decide niente:
       // se sbaglia, lo sapremo dal registro invece che da una partita persa.
@@ -5385,6 +5494,12 @@ function partitaLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
 
     if (m.opCode === OP_STICKER) {
       _sticker(state, dispatcher, chi, idx, corpo);
+      continue;
+    }
+
+    // v0.80.21 — dove si e' nascosto lo Yeti (vedi _yetiNascondi)
+    if (m.opCode === OP_YETI) {
+      _yetiNascondi(nk, state, dispatcher, chi, idx, corpo);
       continue;
     }
 
@@ -5458,10 +5573,15 @@ function partitaLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
     }
     if (_caselle().indexOf(k) === -1) { _aUno(dispatcher, state, chi, OP_RIFIUTO, { perche: 'quella casella non esiste' }); continue; }
     if (state.buchi.indexOf(k) !== -1) { _aUno(dispatcher, state, chi, OP_RIFIUTO, { perche: 'quella casella e\' bloccata' }); continue; }
+    // v0.80.21 — le impronte dello Yeti: stessa risposta di una casella occupata,
+    // cosi' il rifiuto non dice quale delle due e' quella vera.
+    if (_yetiVieta(state, k, idx + 1)) { _aUno(dispatcher, state, chi, OP_RIFIUTO, { perche: 'quella casella e\' gia\' occupata' }); continue; }
     if (state.occupate[k]) { _aUno(dispatcher, state, chi, OP_RIFIUTO, { perche: 'quella casella e\' gia\' occupata' }); continue; }
 
     state.mano[chi].splice(posto, 1);
     state.occupate[k] = { carta: carta, di: idx + 1 };
+    state.ultimaGiocata = { k: k, carta: carta, forma: forma, di: idx + 1 };   // v0.80.21
+    var yetiScoperti = _yetiRivelaAccanto(state, k, idx + 1);
     state.turniGiocati[chi] = (state.turniGiocati[chi] || 0) + 1;
     // v0.77.86 — da adesso, se quella carta chiede un bersaglio, a rispondere
     // puo' essere solo lui (vedi OP_SCELGO).
@@ -5475,7 +5595,8 @@ function partitaLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
     _aTutti(dispatcher, OP_GIOCATA, {
       giocatore: idx + 1, carta: carta, forma: forma, q: q, r: r, valori: valori,
       turno: state.turno + 1, scadenza: state.scadenza,
-      numeroTurno: state.numeroTurno, pubblico: _pubblico(state)
+      numeroTurno: state.numeroTurno, pubblico: _pubblico(state),
+      yeti: yetiScoperti.length ? yetiScoperti : undefined
     });
     // La carta pescata la sa solo chi l'ha pescata.
     if (pescata) _aUno(dispatcher, state, chi, OP_AVVIO, { pescata: pescata, mano: state.mano[chi] });
@@ -5492,16 +5613,18 @@ function partitaLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
     var libera = null;
     var tutte = _caselle();
     for (var c = 0; c < tutte.length; c++) {
-      if (state.buchi.indexOf(tutte[c]) === -1 && !state.occupate[tutte[c]]) { libera = tutte[c]; break; }
+      if (state.buchi.indexOf(tutte[c]) === -1 && !state.occupate[tutte[c]] && !_yetiVieta(state, tutte[c], state.turno + 1)) { libera = tutte[c]; break; }
     }
     if (!mano.length || !libera) {
       state.finita = true;
-      _aTutti(dispatcher, OP_FINE, { motivo: 'tabellone pieno' });
+      _aTutti(dispatcher, OP_FINE, { motivo: 'tabellone pieno', yeti: _yetiTutti(state) });
       return { state: state };
     }
     var scelta = mano.shift();
     var pezzi = libera.split(',');
     state.occupate[libera] = { carta: scelta, di: state.turno + 1 };
+    state.ultimaGiocata = { k: libera, carta: scelta, forma: null, di: state.turno + 1 };   // v0.80.21
+    var yetiUfficio = _yetiRivelaAccanto(state, libera, state.turno + 1);
     // Anche un turno giocato d'ufficio e' un turno passato in partita: chi era
     // al tavolo c'e' stato. Non contarlo penalizzerebbe una connessione lenta.
     state.turniGiocati[tocca] = (state.turniGiocati[tocca] || 0) + 1;
@@ -5515,7 +5638,8 @@ function partitaLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
       q: parseInt(pezzi[0], 10), r: parseInt(pezzi[1], 10),
       turno: state.turno + 1, scadenza: state.scadenza,
       numeroTurno: state.numeroTurno, pubblico: _pubblico(state),
-      dOfficio: true
+      dOfficio: true,
+      yeti: yetiUfficio.length ? yetiUfficio : undefined
     });
     if (pescata2) _aUno(dispatcher, state, chiEra, OP_AVVIO, { pescata: pescata2, mano: state.mano[chiEra] });
     return { state: state };
@@ -5668,7 +5792,7 @@ function _chiudiPartita(state, dispatcher, logger, nk, rapporto) {
     esito.punteggio = rapporto.punteggio || null;
     _aUno(dispatcher, state, u, OP_ESITO, esito);
   }
-  _aTutti(dispatcher, OP_FINE, { motivo: 'finita', vincitore: vincitore, pari: pari });
+  _aTutti(dispatcher, OP_FINE, { motivo: 'finita', vincitore: vincitore, pari: pari, yeti: _yetiTutti(state) });
   logger.info('partita finita: punti %d contro %d, vincitore %d', d1, d2, vincitore);
 }
 

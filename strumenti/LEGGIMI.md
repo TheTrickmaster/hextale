@@ -2671,3 +2671,51 @@ tocca di nuovo a chi l'ha gelato. Snow Queen (for_turns 4 = due turni
 dell'avversario) segue gia' lo stesso metro e non e' stata toccata.
 Il banco: finestra e bersagli, niente gelo automatico, scelta, durata, rinuncia,
 IA, rete (op 10 poi op 11), anteprima senza gelo, niente NO_SCRIPT.
+
+## prova-yeti.js e prova-yeti-server.js — lo Yeti si nasconde (v0.80.21, anteprima)
+
+    desktop/node_modules/electron/dist/electron.exe strumenti/prova-yeti.js
+    node strumenti/prova-yeti-server.js
+
+Le regole di Lorenzo e le sue risposte alle domande stanno in testa al blocco
+YETI di play/index.html. In breve: giocato non attacca e sparisce per
+l'avversario (a meta' per chi l'ha giocato); si trascina dove si vuole (il gesto
+di Ali Baba, la X nell'angolo); con la X resta e si sceglie l'impronta finta
+(foot-yeti-icon, niente X). Poi due impronte (foot-yeti, alte 110 in HD, ruotate
+a caso, una normale e una specchiata, 300ms l'una dall'altra, 50ms di
+dissolvenza, snow-footstep-* a caso). L'avversario non gioca sulle impronte, il
+padrone su quella vuota. Nascosto non sta in G.board (niente abilita', anteprime,
+sinergie, impronta di rete); una carta avversaria posata accanto lo scopre
+(yeti-rivela) prima delle abilita', e dopo le conquiste della carta
+yetiContrattacco lo fa attaccare se il suo lato e' piu' alto (conquestInfo con
+`da`/`vincitore`: affondo e girata partono dallo Yeti). Briciole: dove sta la
+mangia senza suono, sulla finta sparisce. Tempo scaduto: casella a caso. Bot:
+_yetiScegliIA. Fine partita: si mostra.
+In rete e' segreto davvero: la decisione va al server (op 17, reteYeti), il
+server tiene { di, da, vera, impronte } e rimanda op 18 a tutti con le impronte e
+la casella vera solo a chi l'ha giocato. Una giocata avversaria accanto (anche
+d'ufficio) porta `yeti` dentro op 3; la fine porta `yeti` dentro op 6. Il server
+vieta le impronte all'avversario con la stessa risposta di una casella occupata,
+tiene la casella dello Yeti anche quando rifa' le occupate dall'impronta
+concordata (_yetiOccupa), e la giocata d'ufficio salta le impronte.
+Le scelte dello Yeti sono `privata` (chiudiSceltaBersaglio non le manda con op
+10) e l'attesa della risposta e' `attesa` (autoPlay non la chiude).
+Il banco del client prova tutto questo con la carta vera (catalogo) e due carte
+finte, compresi i tre esiti dello scontro, la X, le briciole, il bot e i due
+lati della rete (op 17/18/3 finti). Quello del server fa girare partitaLoop con
+un catalogo finto.
+
+Nella stessa versione: freeze.mp3 quando si gela una carta o un tassello (mai
+nell'anteprima), e il ghiaccio del tassello che si scioglie con un lampo leggero
+e una dissolvenza (_geloDaSciogliere, .gelo-scioglie; vedi prova-sherazade, parte
+7: renderBoard non ridisegna a firma invariata, il banco forza il ridisegno); via
+.mm2-modo-cornice dal riquadro Draft pick.
+Poi (Lorenzo, sull'anteprima): la X del trascinamento sta SOTTO alla mano, sulla
+stessa verticale (rinunciaSottoLaMano). Uno Yeti giocato ACCANTO a una carta
+avversaria non si nasconde: si rivela e attacca subito (yetiAccantoANemici, sul
+tabellone dopo le rivelazioni della stessa giocata: anche lo Yeti nemico appena
+scoperto conta, cosi' non si scopre il suo restando nascosti). E lo Yeti nascosto
+da' i suoi punti sul tabellone: calcScores e carteCheFruttano lo contano; per
+l'avversario la voce dell'onda non ha casella (k null), cosi' non lampeggia dove
+sta. aiEvaluateConquests non esclude piu' lo Yeti: senza nemici accanto non ha
+comunque niente da conquistare.
