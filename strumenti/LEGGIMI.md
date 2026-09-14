@@ -2596,3 +2596,78 @@ setTimeout perdono il tratto finale), suoni, lampo e pulsazione (le animazioni
 premioArrivato / premioArrivatoPulsante), scia sulla tela, tre premi con saldo
 100 > 150 > 180, riga del pulsante ferma e poi aggiornata, arrivo immediato
 senza scheda.
+
+## prova-segnalazioni-v08020.js — Scarecrow, la resa e i banner, buff e debuff (v0.80.20, anteprima)
+
+    desktop/node_modules/electron/dist/electron.exe strumenti/prova-segnalazioni-v08020.js
+
+Carte vere dal catalogo (server/importazione/.lavoro/catalogo.json, passato a
+_applicaCatalogo come fa prova-caso-tutte-le-carte).
+1. Scarecrow ("next card you play gains +2 on its highest"): il premio della
+   prossima giocata si riscuoteva in resolveConquestAndEndTurn DOPO lo scontro,
+   quindi la carta combatteva col 7 e mostrava il 9. Adesso i premi che non
+   dipendono dall'esito si riscuotono prima di ricalcolaTabellone; quelli
+   "solo se non conquista" (il Grillo) restano dopo. Il banco gioca Scarecrow,
+   poi un 7 contro un 7 nemico: deve conquistare; e prova il Grillo nei due versi.
+2. La resa: spegniBannerPartita toglie turn-banner, timesup e il velo, sblocca
+   il tavolo e alza G.bannerSpenti (showTurnBanner e mostraTempoScaduto non
+   mostrano e non suonano piu'); G si rifa' con la partita nuova. La chiama
+   surrenderGame (anche in rete, prima della risposta del server) e l'op 6 con
+   motivo resa/abbandono per chi la riceve.
+3. Buff e debuff: sommaModificatore tiene buff e debuff della stessa fonte in due
+   voci (chiave#buff / chiave#debuff), cosi' un +1 dopo un -1 non li azzera e non
+   cancella la riga; stesso segno si somma (due furti = -2). E il totale "Self"
+   di bloccoModificatoriHTML si guarda su valoriBase contro i valori stampati
+   (solo i colpi una tantum) e contro il solo registro: la riga "+1 ALL from
+   Little John" non zittisce piu' il "-1 Self" del Cowardly Lion.
+Nella stessa versione: reimporta.js non segnala piu' come "non programmate" le
+abilita' scritte a mano nel gioco (chiavi di TILE_ABILITIES_DEF lette da
+play/index.html): Tom Thumb sparisce dalla NOTA, resta Yeti.
+
+## prova-transizioni.js — le pagine entrano ed escono, la stanza resta (v0.80.20, anteprima)
+
+    desktop/node_modules/electron/dist/electron.exe strumenti/prova-transizioni.js
+
+showPage monta subito la pagina nuova (i chiamanti la trovano) ma la tiene
+invisibile e senza clic (.pagina-attende) mentre la vecchia (.pagina-esce)
+porta via i suoi pezzi con el.animate su `translate`/`opacity` (PAGINE_PEZZI:
+lato e ritardi per pezzo, 200ms); finita l'uscita la vecchia si smonta e nello
+stesso istante partono le entrate (riempimento all'indietro). Da/verso partita e
+accesso niente uscita; dalla partita solo l'entrata. Cambi a raffica: la
+transizione a meta' si chiude subito (_chiudiTransizione). .show di Library e
+Card packs lo toglie unmountPage, non piu' close*Overlay.
+La stanza (#stanza: main-menu-bg, lanterna, polvere del menu su tele proprie) e'
+fuori dalle pagine: accesa per menu, library e packs, spenta per partita e
+accesso (stanzaAccendi). I fondali di pagina (#mm2-bg, #pack-bg, #card-db-bg)
+sono spenti e #main-menu e' trasparente. prova-pacchetti guarda la stanza.
+Il banco controlla lati e ritardi delle animazioni (getAnimations), clic
+bloccati durante l'uscita, stanza e lanterna mai rifatte, cambi a raffica e la
+partita. Fuori schermo i fotogrammi non corrono: si guardano le animazioni, non
+le posizioni a meta'.
+Nota (v0.80.20): dal reimport del 14/09 Sherazade nel foglio e' "freeze CHOSEN
+tile" (scelta: true). prova-segnalazioni-v08018 prova la fuga del gelo dalla
+simulazione su una copia con scelta false, perche' con la scelta la simulazione
+apre la finestra e non congela; prova-pacchetti legge la fiamma dalla regola di
+#stanza-lit (il banco spegne le animation su *).
+
+## prova-sherazade.js — Sherazade congela il tassello che scegli (v0.80.20)
+
+    desktop/node_modules/electron/dist/electron.exe strumenti/prova-sherazade.js
+
+Lorenzo: "sherazade non funziona. insegna ad interpretare la stringa al gioco".
+La riga (reimport del 14/09): "on play, once per game, freeze chosen any board
+tile free 1 n_turns". sceltaDalFoglio non sapeva costruire "freeze tile" con la
+scelta: la finestra non si apriva e non succedeva niente. Adesso
+_sceltaCongelaTassello apre la finestra sui tasselli liberi (candidatiDalFoglio,
+senza muri, senza quelli gia' gelati), congelaTassello gela quello scelto;
+applicaCambiamenti non gela piu' da solo un tassello che il foglio vuole scelto.
+L'IA sceglie con `valuta` (la casella con aiVicinatoUtile piu' alto); in rete la
+cella passa da op 10/11 come ogni scelta.
+Quanto dura: G.numeroTurno sale a ogni cambio di giocatore, e "fino al turno +
+1" (il conto di congelaTasselli) scioglieva il ghiaccio all'inizio del turno
+dell'avversario. congelaTassello gela per i `turni` turni DOPO questo (turno +
+1 + turni): con "1" e' gelato nel turno dell'avversario e si scioglie quando
+tocca di nuovo a chi l'ha gelato. Snow Queen (for_turns 4 = due turni
+dell'avversario) segue gia' lo stesso metro e non e' stata toccata.
+Il banco: finestra e bersagli, niente gelo automatico, scelta, durata, rinuncia,
+IA, rete (op 10 poi op 11), anteprima senza gelo, niente NO_SCRIPT.

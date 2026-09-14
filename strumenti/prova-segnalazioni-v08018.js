@@ -127,6 +127,11 @@ app.whenReady().then(async () => {
     // 2. Sherazade
     var sh = carta('sherazade', 2);
     dice(!!sh, 'c-e- Sherazade nel catalogo');
+    // v0.80.20 — dal reimport del 14/09 il foglio dice "freeze CHOSEN tile":
+    // con la scelta la simulazione apre la finestra invece di congelare, e il
+    // gelo che qui si vuole vedere non trapelare non arriva mai. Si prova la
+    // riga di prima (tassello libero senza scelta) su una copia.
+    if(sh && sh.abilita && sh.abilita.effetto){ sh.abilita = JSON.parse(JSON.stringify(sh.abilita)); sh.abilita.effetto.scelta = false; }
     if(sh){
       var originale = congelaTasselli, chiamate = 0;
       congelaTasselli = function(c){ chiamate++; return originale(c); };

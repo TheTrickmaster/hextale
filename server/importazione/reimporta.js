@@ -95,6 +95,25 @@ function trovaGioco() {
     '  ' + RADICE + '\\Hextale_*.html');
 }
 
+// ── v0.80.20 — LE ABILITA' SCRITTE A MANO NEL GIOCO ───────────────────────
+// Le chiavi di TILE_ABILITIES_DEF in play/index.html: e' l'elenco che il gioco
+// consulta per decidere se un'abilita' "a mano" e' programmata (vedi
+// abilitaEseguibile). Letto dal file e non ricopiato qui, o il giorno dopo
+// sarebbe gia' diverso.
+function chiaviScritteNelGioco() {
+  const chiavi = new Set();
+  let testo = '';
+  try { testo = fs.readFileSync(trovaGioco(), 'utf8'); } catch (e) { return chiavi; }
+  const inizio = testo.indexOf('const TILE_ABILITIES_DEF = {');
+  if (inizio < 0) return chiavi;
+  const fine = testo.indexOf('\n};', inizio);
+  const blocco = testo.slice(inizio, fine < 0 ? undefined : fine);
+  const re = /^\s*'([^']+)'\s*:/gm;
+  let m;
+  while ((m = re.exec(blocco))) chiavi.add(m[1]);
+  return chiavi;
+}
+
 // ── un parser CSV INDIPENDENTE, per il controllo del passaggio 3 ──────────
 // Deve essere indipendente da quello del gioco: se usasse lo stesso codice
 // confronterebbe un risultato con se stesso, e un errore comune a entrambi
@@ -257,8 +276,14 @@ function leggiCsv(testo) {
   // senza codice, se le colonne del foglio la descrivono: quelle NON vanno
   // piu' contate fra le mancanti, o l'avviso direbbe il falso proprio sulle
   // carte appena sistemate.
+  // v0.80.20 — e nemmeno quelle scritte a mano nel gioco. Tom Thumb ("!tomthumb")
+  // funziona da v0.80.5, ma qui risultava "non programmata": il controllo
+  // guardava solo il foglio. La domanda e' la stessa che si fa il gioco per il
+  // marchio NO_SCRIPT (abilitaEseguibile): c'e' una voce in TILE_ABILITIES_DEF?
+  const aManoNelGioco = chiaviScritteNelGioco();
   const senzaAbilita = catalogo.carte.filter(c =>
-    String(c.cardAbility || '').charAt(0) === '!' && !(c.abilita && !c.abilita.unica));
+    String(c.cardAbility || '').charAt(0) === '!' && !(c.abilita && !c.abilita.unica)
+    && !aManoNelGioco.has(c.cardAbility));
   const abilitaDalFoglio = catalogo.carte.filter(c => c.abilita && !c.abilita.unica).length;
   const abilitaAMano = catalogo.carte.filter(c => c.abilita && c.abilita.unica).length;
   console.log('        abilita\' dal foglio: ' + abilitaDalFoglio

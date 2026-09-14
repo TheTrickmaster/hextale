@@ -430,30 +430,6 @@ body.mouse-down, body.mouse-down *{
   z-index:2; pointer-events:none; user-select:none;
   mix-blend-mode:plus-lighter;
 }
-/* ══ v0.80.20 — LA STANZA ════════════════════════════════════════════════════
-   Lorenzo: "lo sfondo di ciascuna pagina rimane sempre lo stesso [...] quello
-   non deve cambiare mai, ne' sparire e apparire", e la Library prende quello
-   del menu. Menu, Library & decks e Card packs avevano ognuno il suo fondale
-   DENTRO la pagina: cambiando pagina veniva smontato e rimontato con lei, la
-   lanterna ripartiva da capo e la polvere spariva. Adesso il fondale e' uno
-   solo e sta fuori dalle pagine: la taverna, la sua lanterna e la polvere del
-   menu. Si accende entrando in una delle tre e si spegne solo per la partita e
-   per la schermata d'accesso (vedi stanzaAccendi). */
-#stanza{ display:none; position:absolute; inset:0; z-index:0; overflow:hidden; pointer-events:none; user-select:none; }
-#stanza.accesa{ display:block; }
-#stanza-bg, #stanza-lit{ position:absolute; inset:0; background-size:cover; background-position:center; background-repeat:no-repeat; }
-#stanza-bg{ background-image:url('https://hextalegame.com/ui/main-menu-bg.jpg'); }
-#stanza-lit{ background-image:url('https://hextalegame.com/ui/main-menu-bg-lit.jpg'); opacity:0.5; animation:mm2Fiaccola 2.2s linear infinite; }
-.stanza-particelle{ position:absolute; inset:0; width:100%; height:100%; pointer-events:none; mix-blend-mode:plus-lighter; }
-#stanza-particles-far{ filter:blur(1px); }
-#stanza-particles-near{ filter:blur(3.5px); }
-/* I fondali che le tre pagine avevano per conto loro: la stanza e' una. */
-#mm2-bg, #mm2-bg-lit, #mm2 .mm2-particelle, #pack-bg, #card-db-bg{ display:none !important; }
-/* v0.80.20 — il cambio di pagina (vedi showPage): la pagina che esce non
-   risponde piu' ai clic, quella che entra aspetta invisibile e senza clic che
-   l'altra se ne sia andata. */
-.pagina-esce, .pagina-esce *, .pagina-attende, .pagina-attende *{ pointer-events:none !important; }
-.pagina-attende{ opacity:0 !important; }
 /* v0.79.34 — le tre righe che stavano qui adesso stanno con quelle
    dell'accesso, in una regola sola: vedi #start-particles-far. */
 
@@ -11843,9 +11819,7 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
 
   position:fixed; inset:0; z-index:290;
   overflow:hidden;
-  /* v0.80.20 — trasparente: sotto c'e' la stanza (vedi #stanza). Il #1a1108
-     di prima copriva il fondale comune, e il menu restava marrone. */
-  background:transparent;
+  background:#1a1108;
   cursor:var(--cursore);
   user-select:none;
 }
@@ -12776,16 +12750,6 @@ try{
      nella cartella accanto al file e poi sul repository (menuFileCandidati).
      Scriverlo qui vorrebbe dire non vedere mai un disegno appena fatto finche'
      non e' pubblicato — errore gia' commesso, vedi il fascio del libro. -->
-<!-- v0.80.20 — LA STANZA: il fondale comune a menu, Library & decks e Card
-     packs. Sta fuori dalle pagine, cosi' cambiando pagina non si smonta: vedi
-     #stanza nel CSS e stanzaAccendi. -->
-<div id="stanza" aria-hidden="true">
-  <div id="stanza-bg"></div>
-  <div id="stanza-lit"></div>
-  <canvas id="stanza-particles-far"  class="stanza-particelle"></canvas>
-  <canvas id="stanza-particles-mid"  class="stanza-particelle"></canvas>
-  <canvas id="stanza-particles-near" class="stanza-particelle"></canvas>
-</div>
 <div id="main-menu">
   <!-- ═══════════════════════════════════════════════════════════════════════
        v0.77.38 — MENU PRINCIPALE
@@ -13607,7 +13571,7 @@ try{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.20</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.19</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Impostazioni"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <!-- v0.80.19 — gli sticker: l'icona (solo per chi gioca), il menu, e due bolle
@@ -16549,14 +16513,9 @@ function unmountPage(name){
   // in corso tornerebbe a proporre "Match found!" su una pagina che nessuno
   // sta guardando.
   if(name==='mainmenu'){
-    // v0.80.20 — la polvere no: e' della stanza, e la spegne stanzaAccendi.
+    if(typeof PolvereFerma==='function') PolvereFerma(_scenaMenu);
     if(typeof mm2FermaRicerca==='function') mm2FermaRicerca();
   }
-  // v0.80.20 — le due pagine a comparsa si nascondono qui, uscendo, e non piu'
-  // in closeCardDbOverlay/closePackOverlay: nascoste prima, la loro uscita
-  // animata (vedi showPage) sarebbe avvenuta su una pagina gia' sparita.
-  if(name==='collection') document.getElementById('card-db-overlay')?.classList.remove('show');
-  if(name==='packs') document.getElementById('pack-overlay')?.classList.remove('show');
   for(const id of ids){
     const el = document.getElementById(id);
     if(!el || !el.parentNode) continue;
@@ -18263,7 +18222,6 @@ function reteMessaggio(md){
     // resta quello vero fino a quell'istante — non si inventa un risultato:
     // per una resa il vincitore lo ha deciso il server, e glielo si fa vedere.
     if(d.motivo === 'abbandono' || d.motivo === 'resa'){
-      try{ spegniBannerPartita(); }catch(_){ }   // v0.80.20
       // v0.78.14 — col NOME di chi se n'e' andato, non con "il tuo avversario".
       // Il server dice chi e' stato (`d.chi`, il suo numero) e il nome ce l'ha
       // gia' il pannello di partita: e' la stessa domanda del titolo, fatta
@@ -20826,142 +20784,7 @@ function PolvereBustineFerma(){
   _polvereBustineStrati = null;
 }
 
-// ══════════════════════════════════════════════════════════════════════════
-// v0.80.20 — LE PAGINE ENTRANO ED ESCONO
-// ══════════════════════════════════════════════════════════════════════════
-// Lorenzo: passando da una pagina all'altra gli elementi non devono sparire di
-// colpo: escono dallo schermo o svaniscono in 200ms, e quelli della pagina
-// nuova entrano o compaiono in 200ms. Il fondale no: e' la stanza, e resta.
-//   - main menu: la top bar sale/scende, le colonne ai lati escono/entrano, il
-//     centro svanisce e ricompare prima la barra mazzo e ranking, 50ms dopo il
-//     riquadro delle modalita', e poco dopo le carte la barra in basso;
-//   - library & decks: top bar, colonna dei mazzi a destra, le carte in
-//     dissolvenza, la barra di ricerca e filtri che scende/sale;
-//   - card packs: top bar, i due riquadri ai lati (valuta e acquisto), la barra
-//     in basso; il resto della scena (la busta) in dissolvenza.
-// `via` e' da che parte si esce (su, giu, sinistra, destra: fuori dallo schermo
-// da quel lato; sfuma: dissolvenza), `esce` ed `entra` i ritardi in ms.
-//
-// COME. La pagina nuova si monta SUBITO, com'e' sempre stato: chi chiama
-// showPage e poi cerca i suoi elementi li trova (openCardDbOverlay aggiunge
-// .show, disegna le carte...). Aspetta pero' invisibile e senza clic
-// (.pagina-attende) mentre la vecchia, ancora montata ma senza clic
-// (.pagina-esce), porta via i suoi pezzi. Finita l'uscita la vecchia si smonta
-// e nello stesso istante partono le entrate. Due pagine montate insieme ci
-// sono, ma per 250ms e con una sola che si vede e nessuna che risponde.
-// Entrando da una pagina che non ha transizioni (la partita, l'accesso) c'e'
-// solo l'entrata; uscendo verso una di quelle, il cambio resta secco.
-const TRANSIZIONE_MS = 200;
-const PAGINE_DELLA_STANZA = new Set(['mainmenu', 'collection', 'packs']);
-const PAGINE_PEZZI = {
-  mainmenu: [
-    { sel:'#mm2-topbar',   via:'su' },
-    { sel:'#mm2-sx',       via:'sinistra' },
-    { sel:'#mm2-dx',       via:'destra' },
-    { sel:'#mm2-testata',  via:'sfuma' },
-    { sel:'#mm2-modi',     via:'sfuma', entra:50 },
-    { sel:'#mm2-gioca',    via:'sfuma', esce:50, entra:100 },
-    { sel:'#mm2-basso',    via:'sfuma', esce:50, entra:100 },
-  ],
-  collection: [
-    { sel:'#card-db-header',        via:'su' },
-    { sel:'#card-db-right',         via:'destra' },
-    { sel:'#card-db-grid-viewport', via:'sfuma' },
-    { sel:'#card-db-barra-cerca',   via:'giu' },
-  ],
-  packs: [
-    { sel:'#pack-header',     via:'su' },
-    { sel:'#pack-ink-fisso',  via:'sinistra' },
-    { sel:'#pack-compra-box', via:'destra' },
-    { sel:'#pack-basso',      via:'giu' },
-    { sel:'#pack-stage, #pack-actions, #pack-drop, .pack-radial, .pack-particelle', via:'sfuma' },
-  ],
-};
-let _transizione = null;   // { vecchia, nuova, uscite, entrate, timer }
-function transizioneInCorso(){ return !!_transizione; }
-function _radiciPagina(nome){
-  return (PAGE_ELEMENT_IDS[nome] || []).map(id => document.getElementById(id)).filter(Boolean);
-}
-function _segnaPagina(nome, classe, si){
-  for(const el of _radiciPagina(nome)) el.classList.toggle(classe, !!si);
-}
-// Di quanto spostare un pezzo perche' esca tutto dallo schermo dal suo lato, in
-// pixel della tela da 1920x1080 (i pezzi stanno tutti dentro #game-root).
-function _pezzoFuori(el, via){
-  const radice = document.getElementById('game-root');
-  if(!radice) return null;
-  const R = radice.getBoundingClientRect(), k = (R.width / 1920) || 1;
-  const b = el.getBoundingClientRect();
-  if(!b.width && !b.height) return null;
-  const x = (b.left - R.left) / k, y = (b.top - R.top) / k, w = b.width / k, h = b.height / k;
-  const aria = 24;   // e un filo oltre, per le ombre
-  if(via === 'su')       return '0px ' + Math.round(-(y + h) - aria) + 'px';
-  if(via === 'giu')      return '0px ' + Math.round(1080 - y + aria) + 'px';
-  if(via === 'sinistra') return Math.round(-(x + w) - aria) + 'px 0px';
-  if(via === 'destra')   return Math.round(1920 - x + aria) + 'px 0px';
-  return null;
-}
-// `translate` e non `transform`: molti di questi pezzi hanno gia' un transform
-// loro, e le due proprieta' si sommano invece di sostituirsi.
-function _animaPezzi(nome, verso){
-  const fuori = [];
-  const esce = (verso === 'esce');
-  for(const p of (PAGINE_PEZZI[nome] || [])){
-    for(const el of document.querySelectorAll(p.sel)){
-      if(!el.isConnected) continue;
-      let lontano, vicino;
-      if(p.via === 'sfuma'){
-        const base = getComputedStyle(el).opacity;
-        lontano = { opacity: 0 }; vicino = { opacity: base };
-      } else {
-        const t = _pezzoFuori(el, p.via);
-        if(!t) continue;
-        lontano = { translate: t }; vicino = { translate: '0px 0px' };
-      }
-      try{
-        fuori.push(el.animate(esce ? [vicino, lontano] : [lontano, vicino], {
-          duration: TRANSIZIONE_MS,
-          delay: (esce ? p.esce : p.entra) || 0,
-          easing: esce ? 'cubic-bezier(.4,0,1,1)' : 'cubic-bezier(0,0,.2,1)',
-          fill: esce ? 'forwards' : 'backwards'
-        }));
-      }catch(_){ }
-    }
-  }
-  return fuori;
-}
-function _fineAnimazione(a){
-  try{ return a.effect.getComputedTiming().endTime || 0; }catch(_){ return TRANSIZIONE_MS; }
-}
-// Una transizione a meta' si chiude subito: chi cambia pagina di nuovo non
-// deve aspettare, e non devono restare pezzi fermi a meta' strada.
-function _chiudiTransizione(){
-  const t = _transizione;
-  if(!t) return;
-  _transizione = null;
-  clearTimeout(t.timer);
-  if(t.vecchia){
-    _segnaPagina(t.vecchia, 'pagina-esce', false);
-    unmountPage(t.vecchia);
-    for(const a of t.uscite) try{ a.cancel(); }catch(_){ }
-  }
-  _segnaPagina(t.nuova, 'pagina-attende', false);
-  for(const a of t.entrate) try{ a.cancel(); }catch(_){ }
-}
-// La stanza e la sua polvere: accese per le tre pagine, spente altrove.
-function stanzaAccendi(si){
-  const st = document.getElementById('stanza');
-  if(!st) return;
-  st.classList.toggle('accesa', !!si);
-  if(si){ if(!_scenaMenu.strati) PolvereAvvia(MM2_PIANI, _scenaMenu); }
-  else PolvereFerma(_scenaMenu);
-}
-
 function showPage(name){
-  _chiudiTransizione();
-  const vecchia = _activePage;
-  const entra = (vecchia !== name) && PAGINE_DELLA_STANZA.has(name);
-  const esce = entra && PAGINE_DELLA_STANZA.has(vecchia) && _radiciPagina(vecchia).length > 0;
   if(name !== 'start' && typeof fermaLoopParticelle === 'function') fermaLoopParticelle();
   // v0.75.12 — stessa regola per la polvere delle bustine: lasciarla girare
   // sotto una pagina che non si vede terrebbe vivo un rAF per niente.
@@ -20969,46 +20792,12 @@ function showPage(name){
   // v0.75.14 — e per il conto alla rovescia del segnalibro: fuori dal menu
   // non c'e' nessun segnalibro da aggiornare.
   if(name !== 'mainmenu' && typeof fermaOrologioSegnalibroBustine === 'function') fermaOrologioSegnalibroBustine();
-  for(const other in PAGE_ELEMENT_IDS){ if(other!==name && !(esce && other===vecchia)) unmountPage(other); }
+  for(const other in PAGE_ELEMENT_IDS){ if(other!==name) unmountPage(other); }
   mountPage(name);
   _activePage = name;
-  stanzaAccendi(PAGINE_DELLA_STANZA.has(name));
-  let uscite = [];
-  if(esce){
-    _segnaPagina(vecchia, 'pagina-esce', true);
-    uscite = _animaPezzi(vecchia, 'esce');
-    _segnaPagina(name, 'pagina-attende', true);
-  }
   const hook = PAGE_ENTER_HOOKS[name];
   // Dopo il montaggio: l'hook deve trovare gli elementi gia' nel documento.
   if(typeof hook === 'function') hook();
-  if(!entra) return;
-  const t = { vecchia: esce ? vecchia : null, nuova: name, uscite, entrate: [], timer: null };
-  _transizione = t;
-  const scambia = ()=>{
-    if(_transizione !== t) return;
-    if(t.vecchia){
-      _segnaPagina(t.vecchia, 'pagina-esce', false);
-      unmountPage(t.vecchia);
-      for(const a of t.uscite) try{ a.cancel(); }catch(_){ }
-      t.vecchia = null;
-    }
-    // Le entrate partono PRIMA di togliere il velo, nello stesso istante: col
-    // riempimento all'indietro ogni pezzo e' gia' fuori quando la pagina appare.
-    t.entrate = _animaPezzi(name, 'entra');
-    _segnaPagina(name, 'pagina-attende', false);
-    const fine = t.entrate.reduce((m, a) => Math.max(m, _fineAnimazione(a)), 0);
-    // A entrata finita le animazioni si tolgono: finite non fanno piu' niente,
-    // ma lasciate li' si sommerebbero a quelle dell'uscita successiva.
-    t.timer = setTimeout(()=>{
-      for(const a of t.entrate) try{ a.cancel(); }catch(_){ }
-      if(_transizione === t) _transizione = null;
-    }, fine + 30);
-  };
-  // Senza uscita si entra appena chi ha chiamato ha finito (openCardDbOverlay
-  // aggiunge .show DOPO showPage: prima la pagina non ha ancora una misura).
-  if(esce) t.timer = setTimeout(scambia, uscite.reduce((m, a) => Math.max(m, _fineAnimazione(a)), TRANSIZIONE_MS));
-  else queueMicrotask(scambia);
 }
 
 // ── v0.72.30 — ISOLAMENTO AUDIO (complementare al gestore di pagine) ───────
@@ -21585,8 +21374,7 @@ const MENU_QUICK_SLOT = 6;
 // La polvere del menu usa gli stessi piani della schermata d'accesso: non un
 // secondo effetto somigliante, proprio le stesse misure, cosi' passando da una
 // schermata all'altra la scena non cambia aria.
-// v0.80.20 — sulle tele della stanza, non piu' su quelle del menu (vedi #stanza).
-const MM2_PIANI = PARTICELLE_PIANI.map(pi=>({ ...pi, id: pi.id.replace('start-', 'stanza-') }));
+const MM2_PIANI = PARTICELLE_PIANI.map(pi=>({ ...pi, id: pi.id.replace('start-', 'mm2-') }));
 // Le scintille del pulsante selezionato: stessa polvere, ma piccola, fitta e
 // con una vita breve. `quante` e' basso perche' la tela e' un pulsante, non
 // uno schermo: la stessa densita' a quella misura sarebbe una nebbia.
@@ -21721,8 +21509,7 @@ function montaMenuPrincipale(){
   mm2AggiornaMazzo();
   mm2AggiornaBustine();
   try{ aggiornaValuteAVideo(); }catch(_){}
-  // v0.80.20 — la polvere e' della stanza: se gira gia' non si ricomincia.
-  if(!_scenaMenu.strati) PolvereAvvia(MM2_PIANI, _scenaMenu);
+  PolvereAvvia(MM2_PIANI, _scenaMenu);
 }
 // La barra in alto: due serie di tre pezzi, una per lo stato normale e una per
 // il selezionato. I tappi vanno scalati all'altezza della barra e non alla
@@ -33168,7 +32955,7 @@ function openPackOverlay(){
 }
 function closePackOverlay(){
   if(_bustinaTimerUI){ clearInterval(_bustinaTimerUI); _bustinaTimerUI=null; }
-  // v0.80.20 — la pagina la nasconde unmountPage, a uscita finita (vedi showPage).
+  document.getElementById('pack-overlay').classList.remove('show');
   setGameAudioMuted(false);
   tornaAllaPaginaChiamante();
   // v0.73.60 — la musica NON si ferma qui: se si torna al menu deve
@@ -33323,8 +33110,7 @@ function openCardDbOverlay(){
   musicaMenuAvvia();
 }
 function closeCardDbOverlay(){
-  // v0.80.20 — la pagina non si nasconde piu' qui: esce animata, e la nasconde
-  // unmountPage quando e' uscita (vedi showPage).
+  document.getElementById('card-db-overlay').classList.remove('show');
   // v0.72.31: si esce dalla Collezione verso la schermata iniziale — la
   // partita da cui si era arrivati non esiste piu' (vedi openCardDbOverlay).
   setGameAudioMuted(false);
@@ -38673,16 +38459,9 @@ function sommaModificatore(card, chiave, da, delta, ambito, id){
   if(_simulazioneInCorso) return;
   if(!card || !chiave || !delta) return;
   if(!card.modificatori) card.modificatori = {};
-  // ── v0.80.20 — UN BUFF NUOVO NON CANCELLA UN DEBUFF VECCHIO ───────────────
-  // Lorenzo: "buff e debuff devono risultare tutti, sempre. Un nuovo buff/debuff
-  // non ne deve sovrascrivere uno vecchio". Qui la stessa fonte aveva UNA voce:
-  // un +1 arrivato dopo un -1 li sommava a zero e cancellava la riga, come se
-  // non fosse successo niente. Adesso buff e debuff della stessa fonte sono due
-  // voci: si sommano solo colpi dello stesso segno (due furti di Robin Hood
-  // restano un -2), e una voce non torna mai a zero.
-  chiave = chiave + (delta > 0 ? '#buff' : '#debuff');
   const gia = card.modificatori[chiave];
   const totale = (gia ? gia.delta : 0) + delta;
+  if(!totale){ delete card.modificatori[chiave]; return; }
   // L'ambito si allarga: chi ha ricevuto prima un colpo su un gruppo e poi uno
   // su tutti, dalla stessa fonte, ha subito qualcosa che riguarda tutti i lati.
   const ambitoNuovo = (gia && gia.ambito === 'ALL') ? 'ALL' : (ambito||'');
@@ -41735,20 +41514,6 @@ function congelaTasselli(c){
   const fino = (G.numeroTurno||1) + (c.turni || 1);
   for(let i = 0; i < quante && i < libere.length; i++) G.gelo[libere[i]] = fino;
 }
-// v0.80.20 — il gelo di UN tassello scelto (Sherazade, vedi
-// _sceltaCongelaTassello). Un numero di turno, che scade da solo.
-// G.numeroTurno sale a OGNI cambio di giocatore (vedi endTurn). Col conto di
-// congelaTasselli — "fino al turno + 1" — il ghiaccio si scioglieva proprio
-// all'inizio del turno dell'avversario, cioe' non fermava mai nessuno. "Per un
-// turno" vuol dire il turno che viene: il tassello resta gelato per i `turni`
-// turni dopo questo, e si scioglie quando tocca di nuovo a chi l'ha gelato.
-function congelaTassello(k, turni){
-  if(!k || !_celleLibereOra().has(k) || cellaCongelata(k)) return false;
-  if(!G.gelo) G.gelo = {};
-  G.gelo[k] = (G.numeroTurno||1) + 1 + (turni || 1);
-  try{ renderBoard(); }catch(_){ }
-  return true;
-}
 function applicaCambiamenti(elenco){
   for(const c of (elenco || [])){
     if(!c) continue;
@@ -41770,9 +41535,7 @@ function applicaCambiamenti(elenco){
       // abilita-motore.js), quindi dice cosa fare e la cella la trova chi
       // esegue. Prima questo ramo usciva su `!c.carta` e il cambiamento
       // finiva nel nulla.
-      // v0.80.20 — se il foglio dice che il tassello lo SCEGLIE il giocatore,
-      // qui non si congela niente: lo fa la finestra (_sceltaCongelaTassello).
-      if(c.cosa === 'tile'){ if(!c.scelta) congelaTasselli(c); continue; }
+      if(c.cosa === 'tile'){ congelaTasselli(c); continue; }
       if(!c.carta) continue;
       c.carta.congelataFinoAlTurno = (G.numeroTurno||1) + (c.turni || 1);
       continue;
@@ -44031,7 +43794,6 @@ function sceltaDalFoglio(card, q, r, giocatore){
     if(eff.azione === 'copy' && eff.cosa === 'trait')     return _sceltaCopiaTratti(card, q, r, giocatore, a, eff);
     if(eff.azione === 'move' && eff.dove === 'board' && _muoveQualcuno(eff))
       return _sceltaSpostaOvunque(card, q, r, giocatore, a, eff);
-    if(eff.azione === 'freeze' && eff.cosa === 'tile') return _sceltaCongelaTassello(card, q, r, giocatore, a, eff);   // v0.80.20
   }
   return null;
 }
@@ -44260,47 +44022,6 @@ function _sceltaScambioPosizioni(card, q, r, giocatore, a, eff){
       return scambiaPosizioniInCampo(elenco[0], elenco[1]);
     },
     rinuncia: () => {},
-  };
-}
-
-// ── v0.80.20 — SHERAZADE, "CLIFFHANGER": IL TASSELLO LO SCEGLIE CHI GIOCA ────
-// Lorenzo: "sherazade non funziona. insegna ad interpretare la stringa al
-// gioco". Dal reimport del 14/09 la riga e' "on play, once per game, freeze
-// chosen any board tile free 1 n_turns": congela un tassello libero SCELTO dal
-// giocatore, per un turno. sceltaDalFoglio non sapeva costruire il gelo di un
-// tassello, la finestra non si apriva e l'abilita' non succedeva.
-// I bersagli li trova candidatiDalFoglio (tasselli liberi, fuori dai muri); si
-// tolgono quelli gia' congelati, dove un secondo gelo non farebbe niente.
-// Quanto dura: la finestra `for_turns` se il foglio la scrive, se no il numero
-// della riga quando la durata e' `n_turns`, se no uno.
-// In rete la cella passa dal server come ogni scelta (op 10/11) e il gelo lo
-// mettono i due client nello stesso istante. L'IA congela la casella che rende
-// di piu' (aiVicinatoUtile): e' quella che l'avversario vorrebbe usare.
-function _turniDelGelo(a, eff){
-  if(a && a.finestra && a.finestra.tipo === 'for_turns' && typeof a.finestra.valore === 'number') return a.finestra.valore;
-  if(eff && eff.durata === 'n_turns' && eff.quanto && eff.quanto.numero > 0) return eff.quanto.numero;
-  return 1;
-}
-function _sceltaCongelaTassello(card, q, r, giocatore, a, eff){
-  const bersagli = candidatiDalFoglio(card, q, r, giocatore, a, eff).filter(k => !cellaCongelata(k));
-  if(!bersagli.length) return null;
-  const turni = _turniDelGelo(a, eff);
-  return {
-    chiave: 'congela_tassello',
-    giocatore,
-    cellaOrigine: key(q, r),
-    bersagli,
-    applica: (cella) => congelaTassello(cella, turni),
-    rinuncia: () => {},
-    valuta: (scelta) => {
-      let migliore = null, punti = -Infinity;
-      for(const k of scelta.bersagli){
-        const [bq, br] = k.split(',').map(Number);
-        const p = (typeof aiVicinatoUtile === 'function') ? aiVicinatoUtile(bq, br) : 0;
-        if(p > punti){ punti = p; migliore = k; }
-      }
-      return migliore;
-    },
   };
 }
 
@@ -46003,16 +45724,6 @@ function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLa
   // un istante fa (vedi ricalcolaValoriVivi per il difetto che questo chiude).
   // Si rifa' TUTTO il tabellone e non solo l'attaccante: la carta appena
   // calata puo' aver cambiato i numeri anche a chi sta per difendersi.
-  // ── v0.80.20 — IL PREMIO CHE NON DIPENDE DALL'ESITO SI PRENDE PRIMA ───────
-  // Lorenzo: "le carte buffate da Scarecrow non hanno conquistato, come se il
-  // potere di attacco venisse calcolato prima del buff (7 vs 7, con buff 9 vs
-  // 7)". Era cosi': il premio della prossima giocata si riscuoteva solo DOPO lo
-  // scontro, perche' quello del Grillo Parlante dipende da come e' andato. Ma
-  // Scarecrow e Tin Woodman promettono il +2 e basta: l'anteprima lo mostrava,
-  // la carta lo aveva addosso, e combatteva senza. Adesso quelli si riscuotono
-  // qui, prima dei conti; il Grillo (soloSeNonConquista) resta dopo.
-  const premioInAttesa = G.premioProssimaGiocata && G.premioProssimaGiocata[player];
-  if(premioInAttesa && !premioInAttesa.soloSeNonConquista) riscuotiPremioProssimaGiocata(card, player, 0);
   ricalcolaTabellone();
   // 3) Conquest check happens AFTER any power-up is applied.
   const snap={...G.board};
@@ -46669,7 +46380,6 @@ function endTurn(player, animationsSettled, dannoFatto){
 // turnBannerActive/turn-locked out from under it.
 let _turnBannerHideTimeout=null;
 function showTurnBanner(player){
-  if(G && G.bannerSpenti) return;   // v0.80.20 — qualcuno si e' arreso (vedi spegniBannerPartita)
   const banner=document.getElementById('turn-banner');
   const gameArea=document.getElementById('game-area');
   if(!banner) return;
@@ -46754,22 +46464,7 @@ function showTurnBanner(player){
 // the turn banner that follows it are one continuous locked beat, not two
 // separately-interruptible moments.
 const TIMESUP_BANNER_DUR_MS=1250; // must match #timesup-banner.show's CSS animation-duration
-// ── v0.80.20 — CHI SI ARRENDE SPEGNE TUTTI I BANNER ─────────────────────────
-// Lorenzo: quando qualcuno in partita si arrende, i banner in gioco (tempo
-// scaduto, cambio turno) spariscono subito e non tornano fino alla prossima
-// partita. La bandierina sta su G, che initGame rifa' da capo: la partita dopo
-// li rivede. Vale per chi preme "Surrender" (anche in rete, prima che il server
-// risponda) e per chi riceve la resa o l'abbandono dell'altro.
-function spegniBannerPartita(){
-  if(typeof G !== 'undefined' && G){ G.bannerSpenti = true; G.turnBannerActive = false; }
-  if(_turnBannerHideTimeout !== null){ clearTimeout(_turnBannerHideTimeout); _turnBannerHideTimeout = null; }
-  document.getElementById('game-area')?.classList.remove('turn-locked');
-  for(const id of ['turn-banner', 'turn-banner-text', 'timesup-banner', 'timesup-content', 'banner-dim-overlay']){
-    document.getElementById(id)?.classList.remove('show');
-  }
-}
 function mostraTempoScaduto(){
-  if(G && G.bannerSpenti) return;   // v0.80.20 — niente banner e niente campanella dopo una resa
   // v0.72.0: bell.mp3 e' il "ding" del tempo scaduto.
   // v0.77.13 — e suona PRIMA di ogni controllo sul disegno. Stava sotto a
   // `if(!banner) return`, cioe' subordinato all'esistenza di un elemento: ma
@@ -49240,7 +48935,6 @@ function punteggioAZero(){
 function surrenderGame(){
   if(!G.currentPlayer || G.gameOver) return; // no game in progress, nothing to surrender
   closeSettingsModal();
-  spegniBannerPartita();   // v0.80.20 — subito, anche in rete prima della risposta
   // ── v0.78.6 — IN RETE CI SI ARRENDE AL SERVER, NON A SE STESSI ─────────
   // Qui la resa chiudeva la propria partita e finiva li'. L'altro giocatore
   // non veniva avvisato da nessuno: restava davanti a un tavolo fermo finche'
@@ -57563,12 +57257,9 @@ function _modificatoriDalMotore(card){
 // Cosi' una carta nuova, con un'abilita' che oggi non esiste ancora, sara'
 // raccontata correttamente il giorno in cui verra' scritta, senza toccare
 // questa funzione.
-function _scartiDaiValoriStampati(card, soloUnaTantum){
+function _scartiDaiValoriStampati(card){
   const nati = card && card.valoriNascita;
-  // v0.80.20 — `soloUnaTantum`: i colpi che restano (un furto, un dono, "Scaredy
-  // cat") spostano anche valoriBase; le sinergie vive no. Guardando valoriBase
-  // si misura solo quel che e' successo, senza cio' che i vicini danno adesso.
-  const ora = card && ((soloUnaTantum && card.valoriBase) ? card.valoriBase : card.values);
+  const ora = card && card.values;
   if(!nati || !ora) return [];
   const gruppi = (typeof gruppiDiCarta === 'function') ? gruppiDiCarta(card) : [];
   const fuori = [];
@@ -57634,24 +57325,11 @@ function bloccoModificatoriHTML(card){
   // Adesso il totale si scrive solo quando ha un nome: quando nessun altro
   // spiega il cambiamento e la riga del foglio dice che la carta agisce su se
   // stessa ("Self"). Negli altri casi le righe sono quelle coi nomi, e basta.
-  // ── v0.80.20 — E UN'ALTRA RIGA COL NOME NON LO ZITTISCE ─────────────────
-  // Lorenzo: il Cowardly Lion col +1 di Little John perdeva il suo "-1" dal
-  // riquadro. "Buff e debuff devono risultare tutti, sempre." Il totale "Self"
-  // si mostrava solo se NESSUNA riga aveva un nome: bastava la sinergia di un
-  // vicino perche' il colpo che la carta si era data da sola sparisse. Adesso
-  // si guarda solo quel che e' successo (valoriBase contro i valori stampati,
-  // senza le sinergie vive) e solo contro il registro dei colpi una tantum:
-  // se lui non lo racconta e la carta agisce su se stessa, e' lei.
-  // Se valoriBase non dice niente (un colpo arrivato senza passare da
-  // modificaValori) e nessun'altra riga ha un nome, resta la misura di prima,
-  // sui valori di adesso.
-  const unaTantum = _scartiDaiValoriStampati(card, true);
-  const perSe = unaTantum.length ? unaTantum : (!nomi.length ? scarti : []);
-  const daSe = perSe.length > 0 && !elencoModificatori(card).length && _abilitaSuDiSe(card);
+  const daSe = (!nomi.length) && _abilitaSuDiSe(card);
   const quantiGruppi = ((typeof gruppiDiCarta === 'function') ? gruppiDiCarta(card) : []).length;
-  const tutta = quantiGruppi > 0 && perSe.length >= quantiGruppi
-             && perSe.every(s => s.delta === perSe[0].delta);
-  const quantita = tutta ? [perSe[0].delta] : [...new Set(perSe.map(s => s.delta))];
+  const tutta = quantiGruppi > 0 && scarti.length >= quantiGruppi
+             && scarti.every(s => s.delta === scarti[0].delta);
+  const quantita = tutta ? [scarti[0].delta] : [...new Set(scarti.map(s => s.delta))];
   for(const d of (daSe ? quantita : [])){
     righe.push({
       testo: (d > 0 ? '+' : '\u2212') + Math.abs(d) + (tutta ? ' ALL' : '') + (daSe ? ' Self' : ''),

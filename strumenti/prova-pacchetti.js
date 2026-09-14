@@ -120,12 +120,15 @@ app.whenReady().then(async () => {
 
     // ── la fila in basso ──────────────────────────────────────────────────
     "  var basso = q('#pack-basso');",
-    // il fondale e- quello del menu, lanterna compresa
-    "  var sBg = st(q('#pack-bg'));",
-    "  dice(sBg.backgroundImage.indexOf('main-menu-bg.jpg') !== -1, 'il fondale e- quello del menu', sBg.backgroundImage.slice(0,80));",
-    "  var sLuce = getComputedStyle(q('#pack-bg'), '::after');",
+    // il fondale e- quello del menu, lanterna compresa. v0.80.20 — ed e- la
+    // stanza comune alle tre pagine, non piu- #pack-bg (vedi #stanza).
+    "  var sBg = st(q('#stanza-bg'));",
+    "  dice(sBg.backgroundImage.indexOf('main-menu-bg.jpg') !== -1 && st(q('#stanza')).display !== 'none', 'il fondale e- quello del menu (la stanza, accesa)', sBg.backgroundImage.slice(0,80));",
+    "  var sLuce = st(q('#stanza-lit'));",
     "  dice(sLuce.backgroundImage.indexOf('main-menu-bg-lit.jpg') !== -1, 'con sopra la stanza accesa', sLuce.backgroundImage.slice(0,80));",
-    "  dice(sLuce.animationName === 'mm2Fiaccola', 'e la lanterna fa la stessa fiamma del menu', sLuce.animationName);",
+    // il banco spegne ogni animation su * (vedi sopra): la fiamma si legge dalla regola, non dall'elemento
+    "  var regolaLuce = [].slice.call(document.styleSheets).some(function(s){ try{ return [].slice.call(s.cssRules).some(function(r){ return r.selectorText === '#stanza-lit' && /mm2Fiaccola/.test(r.cssText); }); }catch(_){ return false; } });",
+    "  dice(regolaLuce, 'e la lanterna fa la stessa fiamma del menu', sLuce.backgroundImage.slice(0,40));",
     "  dice(!!basso, 'la fila in basso esiste');",
     "  dice(basso && basso.offsetLeft === 26, 'la fila parte a 26 dal bordo', basso && basso.offsetLeft);",
     "  dice(basso && vicino(basso.offsetLeft + basso.offsetWidth, 1894), 'e finisce a 26 dall-altro', basso && (basso.offsetLeft+basso.offsetWidth));",
