@@ -7,6 +7,7 @@
 // Nessuna delle tre da' errore quando si rompe — si vede soltanto, e solo se
 // si sta guardando quel pezzo di schermo.
 const { app, BrowserWindow } = require('electron');
+require('./dal-disco');   // v0.80.22 — gli asset di hextalegame.com dal disco, non dal sito
 const path = require('path');
 const fs = require('fs');
 

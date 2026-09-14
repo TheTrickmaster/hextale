@@ -14,6 +14,7 @@
 // Per la prima parte serve la pagina sotto un percorso /anteprima/: il banco ne
 // fa una copia in una cartella temporanea e la apre da li'.
 const { app, BrowserWindow } = require('electron');
+require('./dal-disco');   // v0.80.22 — gli asset di hextalegame.com dal disco, non dal sito
 const path = require('path');
 const fs = require('fs');
 const os = require('os');

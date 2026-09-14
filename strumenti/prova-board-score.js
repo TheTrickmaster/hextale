@@ -18,6 +18,7 @@
 //   4. la punta del tabellone resta sotto al pannello;
 //   5. fuori dalla partita il pannello non c'e'.
 const { app, BrowserWindow } = require('electron');
+require('./dal-disco');   // v0.80.22 — gli asset di hextalegame.com dal disco, non dal sito
 const path = require('path');
 app.commandLine.appendSwitch('disable-gpu');
 app.disableHardwareAcceleration();

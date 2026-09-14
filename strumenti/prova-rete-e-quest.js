@@ -15,6 +15,7 @@
 //   4. Carabosse non colpisce i lati protetti: la scena del gioco dice al
 //      motore quali lati sono sotto uno scudo (Pinocchio, la corona).
 const { app, BrowserWindow } = require('electron');
+require('./dal-disco');   // v0.80.22 — gli asset di hextalegame.com dal disco, non dal sito
 const path = require('path');
 app.commandLine.appendSwitch('disable-gpu');
 app.disableHardwareAcceleration();

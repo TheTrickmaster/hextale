@@ -20,6 +20,7 @@
 //     pixel, il livello a destra, e la tacca che si riempie tenendo la carta.
 //   IN RETE. Le carte dell'avversario al LORO livello, carta per carta.
 const { app, BrowserWindow } = require('electron');
+require('./dal-disco');   // v0.80.22 — gli asset di hextalegame.com dal disco, non dal sito
 const path = require('path');
 const fs = require('fs');
 

@@ -18,6 +18,7 @@
 // chiede per ogni abilita' del catalogo — e' l'unico modo di sapere che non c'e'
 // una seconda carta con lo stesso difetto e nessuno che ci abbia guardato.
 const { app, BrowserWindow } = require('electron');
+require('./dal-disco');   // v0.80.22 — gli asset di hextalegame.com dal disco, non dal sito
 const path = require('path');
 const fs = require('fs');
 

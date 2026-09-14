@@ -18,6 +18,7 @@
 //      e la briciola sparisce;
 //   5. un nemico giocato sopra: la briciola sparisce e non da' niente.
 const { app, BrowserWindow } = require('electron');
+require('./dal-disco');   // v0.80.22 — gli asset di hextalegame.com dal disco, non dal sito
 const path = require('path');
 app.commandLine.appendSwitch('disable-gpu');
 app.disableHardwareAcceleration();

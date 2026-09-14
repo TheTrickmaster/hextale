@@ -2719,3 +2719,45 @@ da' i suoi punti sul tabellone: calcScores e carteCheFruttano lo contano; per
 l'avversario la voce dell'onda non ha casella (k null), cosi' non lampeggia dove
 sta. aiEvaluateConquests non esclude piu' lo Yeti: senza nemici accanto non ha
 comunque niente da conquistare.
+
+## dal-disco.js — i banchi non toccano il sito; gli asset prima di entrare (v0.80.22, anteprima)
+
+    HEXTALE_CONTA_SITO=1 desktop/node_modules/electron/dist/electron.exe strumenti/prova-transizioni.js
+
+GitHub Pages ha rallentato hextalegame.com per l'IP di Lorenzo ("Rate limit
+exceeded"). Le chiamate all'API di GitHub non c'entrano (tolte in v0.79.62): era
+il sito. Misurato con una sonda che blocca o serve dal disco ogni richiesta:
+- un'apertura del gioco fa ~200-450 richieste al sito (card-parts, tile-parts,
+  suoni, ui...), anche aperto dal disco, perche' molti indirizzi sono assoluti;
+  una giornata di banchi dallo stesso IP ne fa decine di migliaia;
+- quando una richiesta fallisce (429), il cursore CSS (ui/cursor.png) viene
+  richiesto a ogni ridisegno: 1303 volte in 15 secondi di partita. Una scheda
+  aperta teneva vivo il blocco;
+- un suono non ancora nel buffer rifaceva la richiesta a ogni colpo (bump.mp3
+  19 volte in 15 secondi).
+Quindi: i tre cursori (--cursore, --cursore-premuto, --cursore-trascina) sono
+dentro al file come data URI; il ripiego dei suoni riusa un <audio> per indirizzo
+(_audioDiRipiego); e ogni banco Electron fa `require('./dal-disco')` subito dopo
+electron: le richieste a hextalegame.com si servono dalla copia di lavoro
+(protocol.handle su https), stessi file e zero richieste. Con HEXTALE_CONTA_SITO=1
+stampa quante ne ha servite. Per sapere se una pubblicazione e' online si guarda
+patch-notes.txt (piccolo) e di rado, non la pagina intera a raffica.
+
+Gli asset prima di entrare (Lorenzo: "finche' tutti gli asset che compongono un
+determinato pezzo delle schermate di gioco non sono caricati, non farlo apparire
+in fadein"): impostaImgDaCandidati e impostaSfondoDaCandidati lasciano
+sull'elemento la promessa __assetPronto; assetProntiDi(el) aspetta quelle, le
+<img>, le <image> SVG e gli sfondi CSS del pezzo (scaricati e decodificati), con
+un tetto di ASSET_ATTESA_MAX_MS (4s). Le pagine con transizioni entrano pezzo per
+pezzo quando ciascuno e' pronto (_entraQuandoPronti, .pezzo-attende), e la caduta
+dei tasselli d'inizio partita aspetta i tasselli e la plancia (_assetDellaCaduta
+in renderBoard). prova-transizioni prova un pezzo con un asset lento (entra
+quando arriva) e uno con un asset che non arriva mai (entra al tetto).
+Nella stessa versione: l'ombra dell'icona della Library anche sulla busta di Card
+packs (su .mm2-scorciatoia-ombra, perche' la busta ha una maschera) e l'icona
+della Library il 10% piu' piccola (203.14).
+Tick rate del server (Lorenzo): partitaLoop gira 20 volte al secondo (TICK_RATE,
+era 1). I messaggi si smistano al giro dopo, quindi una giocata torna ai due
+client in al massimo ~50ms invece di ~1s. I tempi della partita si contano con
+Date.now e non cambiano; l'unico conto a giri, il battito OP_TEMPO, e' diventato
+`tick % (5 * TICK_RATE)`: resta ogni cinque secondi.

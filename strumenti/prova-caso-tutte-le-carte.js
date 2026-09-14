@@ -17,6 +17,7 @@
 // (gelo, premio per la prossima giocata, briciole, muri).
 // E il premio "sulla prossima carta" a lato RAND (Tin Woodman) si prova a parte.
 const { app, BrowserWindow } = require('electron');
+require('./dal-disco');   // v0.80.22 — gli asset di hextalegame.com dal disco, non dal sito
 const path = require('path');
 const fs = require('fs');
 

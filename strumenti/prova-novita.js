@@ -17,6 +17,7 @@
 // riproduce guardando il codice di una funzione sola: si vede solo mettendo le
 // due una accanto all'altra.
 const { app, BrowserWindow } = require('electron');
+require('./dal-disco');   // v0.80.22 — gli asset di hextalegame.com dal disco, non dal sito
 const path = require('path');
 
 const RADICE = 'file:///' + path.resolve(__dirname, '..').split(path.sep).join('/');

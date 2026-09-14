@@ -14,6 +14,7 @@
 //     (op 15) e si mostra dal suo lato, il blocco del server arriva (op 16);
 //   - il menu si chiude con Esc e cliccando fuori; a fine partita l'icona sparisce.
 const { app, BrowserWindow } = require('electron');
+require('./dal-disco');   // v0.80.22 — gli asset di hextalegame.com dal disco, non dal sito
 const path = require('path');
 
 const RADICE = path.resolve(__dirname, '..');

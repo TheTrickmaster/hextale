@@ -13,6 +13,7 @@
 // punterebbero al disco. Servendola si vede anche l'altra meta' della cosa:
 // QUALI file chiede davvero, e se qualcuno di quelli non c'e'.
 const { app, BrowserWindow } = require('electron');
+require('./dal-disco');   // v0.80.22 — gli asset di hextalegame.com dal disco, non dal sito
 const http = require('http');
 const path = require('path');
 const fs = require('fs');

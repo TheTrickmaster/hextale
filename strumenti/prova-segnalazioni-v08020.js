@@ -13,6 +13,7 @@
 //      non ne deve sovrascrivere uno vecchio".
 // Le carte sono quelle vere del catalogo (server/importazione/.lavoro/catalogo.json).
 const { app, BrowserWindow } = require('electron');
+require('./dal-disco');   // v0.80.22 — gli asset di hextalegame.com dal disco, non dal sito
 const fs = require('fs');
 const path = require('path');
 app.commandLine.appendSwitch('disable-gpu');

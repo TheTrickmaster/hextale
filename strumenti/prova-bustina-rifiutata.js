@@ -17,6 +17,7 @@
 // Gli errori passano dalla strada vera (nakamaRpc -> nakamaChiedi): un 500 col
 // messaggio del server porta un codice, una fetch che non parte porta zero.
 const { app, BrowserWindow } = require('electron');
+require('./dal-disco');   // v0.80.22 — gli asset di hextalegame.com dal disco, non dal sito
 const path = require('path');
 const { pathToFileURL } = require('url');
 app.commandLine.appendSwitch('disable-gpu');

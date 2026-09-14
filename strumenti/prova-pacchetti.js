@@ -17,6 +17,7 @@
 //     risponde con il PRIMO fotogramma di quella in corso invece che col
 //     valore d'arrivo.
 const { app, BrowserWindow } = require('electron');
+require('./dal-disco');   // v0.80.22 — gli asset di hextalegame.com dal disco, non dal sito
 const path = require('path');
 const fs = require('fs');
 

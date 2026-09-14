@@ -12,6 +12,7 @@
 // campiona il volo: partenza dalla scheda, curva, accelerazione, scia sulla
 // tela, numero fermo finche' non arriva, arrivo sul bersaglio, lampo e suono.
 const { app, BrowserWindow } = require('electron');
+require('./dal-disco');   // v0.80.22 — gli asset di hextalegame.com dal disco, non dal sito
 const path = require('path');
 
 const RADICE = path.resolve(__dirname, '..');

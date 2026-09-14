@@ -25,6 +25,7 @@
 // Con un nome di file come argomento fa anche le fotografie: la scena intera,
 // la carta da vicino e il tassello da vicino.
 const { app, BrowserWindow } = require('electron');
+require('./dal-disco');   // v0.80.22 — gli asset di hextalegame.com dal disco, non dal sito
 const path = require('path');
 const fs = require('fs');
 

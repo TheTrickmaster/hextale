@@ -15,6 +15,7 @@
 //   4. importando un codice restino solo le carte tue, e si dica quante no;
 //   5. il Match error non dia la colpa a chi legge e rilegga i mazzi.
 const { app, BrowserWindow } = require('electron');
+require('./dal-disco');   // v0.80.22 — gli asset di hextalegame.com dal disco, non dal sito
 const path = require('path');
 const { pathToFileURL } = require('url');
 app.commandLine.appendSwitch('disable-gpu');

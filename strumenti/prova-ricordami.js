@@ -19,6 +19,7 @@
 // funzioni dichiarate, ed e' il motivo per cui l'interruttore si accende
 // passando dalla porta vera — accediConPassword — invece che a mano.
 const { app, BrowserWindow } = require('electron');
+require('./dal-disco');   // v0.80.22 — gli asset di hextalegame.com dal disco, non dal sito
 app.commandLine.appendSwitch('disable-gpu');
 app.disableHardwareAcceleration();
 

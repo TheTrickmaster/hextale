@@ -26,6 +26,7 @@
 // Poi che il controllo di versione, quello che blocca un client rimasto
 // indietro, regga sulle note lette cosi'.
 const { app, BrowserWindow } = require('electron');
+require('./dal-disco');   // v0.80.22 — gli asset di hextalegame.com dal disco, non dal sito
 const http = require('http');
 const path = require('path');
 const fs = require('fs');

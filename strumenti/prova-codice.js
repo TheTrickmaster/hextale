@@ -14,6 +14,7 @@
 // una riga di codice che si puo' perdere in un rimaneggiamento, e nessuna di
 // loro fa rumore quando sparisce.
 const { app, BrowserWindow } = require('electron');
+require('./dal-disco');   // v0.80.22 — gli asset di hextalegame.com dal disco, non dal sito
 const path = require('path');
 const fs = require('fs');
 

@@ -7,6 +7,7 @@
 //
 //   $ELECTRON strumenti/prova-jack.js
 const { app, BrowserWindow } = require('electron');
+require('./dal-disco');   // v0.80.22 — gli asset di hextalegame.com dal disco, non dal sito
 const path = require('path');
 const fs = require('fs');
 

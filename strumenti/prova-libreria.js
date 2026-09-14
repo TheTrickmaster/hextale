@@ -14,6 +14,7 @@
 //      niente si schiacci o esca di sotto.
 // Offline il foglio ha quattro carte: il banco le clona fino a quaranta.
 const { app, BrowserWindow } = require('electron');
+require('./dal-disco');   // v0.80.22 — gli asset di hextalegame.com dal disco, non dal sito
 const path = require('path');
 const { pathToFileURL } = require('url');
 app.commandLine.appendSwitch('disable-gpu');

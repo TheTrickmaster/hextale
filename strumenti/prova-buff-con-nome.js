@@ -17,6 +17,7 @@
 // spiega e la carta agisce su se stessa); una voce del registro senza nome non
 // si scrive.
 const { app, BrowserWindow } = require('electron');
+require('./dal-disco');   // v0.80.22 — gli asset di hextalegame.com dal disco, non dal sito
 const path = require('path');
 app.commandLine.appendSwitch('disable-gpu');
 app.disableHardwareAcceleration();

@@ -22,6 +22,7 @@
 //    diventavano un primo fotogramma in cui la carta afferrata arretrava.
 //    Adesso lo scostamento si misura carta contro carta.
 const { app, BrowserWindow } = require('electron');
+require('./dal-disco');   // v0.80.22 — gli asset di hextalegame.com dal disco, non dal sito
 const path = require('path');
 app.commandLine.appendSwitch('disable-gpu');
 app.disableHardwareAcceleration();

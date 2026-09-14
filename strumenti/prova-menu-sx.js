@@ -13,6 +13,7 @@
 // due riquadri affiancati di altezza diversa non sono un errore, sono solo
 // brutti, e nessuno se ne accorge finche' non li mette in fila.
 const { app, BrowserWindow } = require('electron');
+require('./dal-disco');   // v0.80.22 — gli asset di hextalegame.com dal disco, non dal sito
 const path = require('path');
 const fs = require('fs');
 
@@ -132,12 +133,17 @@ app.whenReady().then(async () => {
 
       // ── 2b. MISURE DI LORENZO (v0.80.15) ──────────────────────────────────
       // La scatola dei mazzi: 163.56 del Figma, +15% e poi +20% = 225.71, e
-      // 15 piu- in basso. E i testi delle schede delle quest a 16 nel pannello
-      // del menu; l-avviso in basso resta a 14.
+      // 15 piu- in basso. v0.80.22 — e poi il 10% in meno: 203.14 (Lorenzo).
+      // E i testi delle schede delle quest a 16 nel pannello del menu; l-avviso
+      // in basso resta a 14.
       const scatola = document.querySelector('#mm2-sc-library .mm2-scorciatoia-icona');
       const cs = scatola && getComputedStyle(scatola);
-      dice(cs && Math.abs(parseFloat(cs.height) - 225.71) < 0.05 && Math.abs(scatola.offsetHeight - 225.71) < 1,
-        'la scatola dei mazzi e- alta 225.71', cs && cs.height);
+      dice(cs && Math.abs(parseFloat(cs.height) - 203.14) < 0.05 && Math.abs(scatola.offsetHeight - 203.14) < 1,
+        'la scatola dei mazzi e- alta 203.14', cs && cs.height);
+      // v0.80.22 — la busta ha la stessa ombra, sul livello attorno a lei.
+      const ombraBusta = document.querySelector('#mm2-sc-packs .mm2-scorciatoia-ombra');
+      dice(ombraBusta && ombraBusta.querySelector('.mm2-scorciatoia-icona') && getComputedStyle(ombraBusta).filter === getComputedStyle(scatola).filter && /drop-shadow/.test(getComputedStyle(ombraBusta).filter),
+        'la busta di Card packs ha la stessa ombra della scatola dei mazzi', ombraBusta && getComputedStyle(ombraBusta).filter);
       const regolaScatola = [].concat.apply([], [].map.call(document.styleSheets, f => { try{ return [].slice.call(f.cssRules); }catch(e){ return []; } }))
         .filter(r => r.selectorText === '#mm2-sc-library .mm2-scorciatoia-icona').map(r => r.style.transform).join(' | ');
       dice(/-50% - 9\\.85px/.test(regolaScatola), 'e 15 piu- in basso di prima (da -24.85 a -9.85)', regolaScatola);

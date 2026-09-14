@@ -16,6 +16,7 @@
 // cancello resterebbe chiuso comunque — che e- il verso giusto in cui
 // sbagliare, ma non permette di provare l apertura.
 const { app, BrowserWindow } = require('electron');
+require('./dal-disco');   // v0.80.22 — gli asset di hextalegame.com dal disco, non dal sito
 const http = require('http'); const path = require('path'); const fs = require('fs');
 const RADICE = 'C:/Users/masil/Desktop/Hextale/game-assets';
 const PAROLA = process.argv[2];

@@ -34,6 +34,7 @@
 //      reteApplicaGiocata): sull'altro schermo la carta e' ricostruita dal
 //      catalogo, e senza questo cio' che le era successo in mano si perdeva.
 const { app, BrowserWindow } = require('electron');
+require('./dal-disco');   // v0.80.22 — gli asset di hextalegame.com dal disco, non dal sito
 app.commandLine.appendSwitch('disable-gpu');
 app.disableHardwareAcceleration();
 

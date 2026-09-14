@@ -15,6 +15,7 @@
 // vecchio `display:none`, apparira' di colpo e nessuno se ne accorgera' finche'
 // non la si guarda aprire.
 const { app, BrowserWindow } = require('electron');
+require('./dal-disco');   // v0.80.22 — gli asset di hextalegame.com dal disco, non dal sito
 const path = require('path');
 const fs = require('fs');
 

@@ -18,6 +18,7 @@
 // niente. Qui si carica il catalogo vero (107 carte, tutte e quattro le
 // rarita'), che e' lo stesso da cui il server importa.
 const { app, BrowserWindow } = require('electron');
+require('./dal-disco');   // v0.80.22 — gli asset di hextalegame.com dal disco, non dal sito
 const path = require('path');
 const fs = require('fs');
 

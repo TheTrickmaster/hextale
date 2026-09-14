@@ -19,6 +19,7 @@
 //   4. rinunciando si attacca da dove si e';
 //   5. l'IA scambia solo se dalla casella nuova rende di piu'.
 const { app, BrowserWindow } = require('electron');
+require('./dal-disco');   // v0.80.22 — gli asset di hextalegame.com dal disco, non dal sito
 const path = require('path');
 app.commandLine.appendSwitch('disable-gpu');
 app.disableHardwareAcceleration();

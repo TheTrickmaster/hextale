@@ -18,6 +18,7 @@
 // cui si confronta qualcosa, e cinque secondi e mezzo di cascata li' dentro
 // sarebbero un'attesa.
 const { app, BrowserWindow } = require('electron');
+require('./dal-disco');   // v0.80.22 — gli asset di hextalegame.com dal disco, non dal sito
 app.commandLine.appendSwitch('disable-gpu');
 app.disableHardwareAcceleration();
 

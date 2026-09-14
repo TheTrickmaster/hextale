@@ -14,6 +14,7 @@
 // che colpisce SOLO chi si registra, cioe' nessuno di quelli che provano il
 // gioco tutti i giorni.
 const { app, BrowserWindow } = require('electron');
+require('./dal-disco');   // v0.80.22 — gli asset di hextalegame.com dal disco, non dal sito
 const path = require('path');
 const fs = require('fs');
 

@@ -7,6 +7,7 @@
 // quelli che si registreranno, e accorgersene per caso mesi dopo guardando un
 // account nuovo. Qui si apre a comando, si sceglie, e si guarda cosa succede.
 const { app, BrowserWindow } = require('electron');
+require('./dal-disco');   // v0.80.22 — gli asset di hextalegame.com dal disco, non dal sito
 const path = require('path');
 const fs = require('fs');
 

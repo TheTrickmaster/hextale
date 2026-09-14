@@ -23,6 +23,7 @@
 //     ritroso: piena all'inizio, vuota alla scadenza.
 //   IL PULSANTE DELLA RICERCA che dice il cronometro e il comando insieme.
 const { app, BrowserWindow } = require('electron');
+require('./dal-disco');   // v0.80.22 — gli asset di hextalegame.com dal disco, non dal sito
 const path = require('path');
 const fs = require('fs');
 

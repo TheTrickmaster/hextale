@@ -15,6 +15,7 @@
 // sito e la si chiede da /play/roba/che/non/esiste, cioe' com'e' fatta la
 // giornata storta di chi ci finisce davvero.
 const { app, BrowserWindow } = require('electron');
+require('./dal-disco');   // v0.80.22 — gli asset di hextalegame.com dal disco, non dal sito
 const http = require('http');
 const path = require('path');
 const fs = require('fs');

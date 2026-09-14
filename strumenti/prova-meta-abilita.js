@@ -19,6 +19,7 @@
 // funzione sola e la usano tutte e due, quindi questo banco le guarda insieme:
 // separarle vorrebbe dire poter aggiustare una e rompere l'altra.
 const { app, BrowserWindow } = require('electron');
+require('./dal-disco');   // v0.80.22 — gli asset di hextalegame.com dal disco, non dal sito
 const path = require('path');
 const fs = require('fs');
 

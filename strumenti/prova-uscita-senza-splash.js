@@ -15,6 +15,7 @@
 //   3. il modulo d'accesso arriva molto prima che in un avvio normale;
 //   4. un aggiornamento fatto a mano dopo rigioca lo splash come sempre.
 const { app, BrowserWindow } = require('electron');
+require('./dal-disco');   // v0.80.22 — gli asset di hextalegame.com dal disco, non dal sito
 const path = require('path');
 app.commandLine.appendSwitch('disable-gpu');
 app.disableHardwareAcceleration();

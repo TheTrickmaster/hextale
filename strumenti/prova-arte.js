@@ -23,6 +23,7 @@
 // l'assegnazione crea una seconda proprieta' che il gioco non legge, e le
 // richieste continuano ad andare al sito vero. Ci si e' persi mezz'ora.
 const { app, BrowserWindow } = require('electron');
+require('./dal-disco');   // v0.80.22 — gli asset di hextalegame.com dal disco, non dal sito
 const path = require('path');
 const fs = require('fs');
 

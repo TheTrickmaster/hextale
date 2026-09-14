@@ -17,6 +17,7 @@
 //
 // Il banco apre ogni finestra per davvero e preme Esc per davvero.
 const { app, BrowserWindow } = require('electron');
+require('./dal-disco');   // v0.80.22 — gli asset di hextalegame.com dal disco, non dal sito
 const path = require('path');
 
 const RADICE = path.resolve(__dirname, '..');

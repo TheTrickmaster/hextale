@@ -5,6 +5,7 @@
 // al livello che si inclina) — stanno fianco a fianco: il confronto e' la
 // prova.
 const { app, BrowserWindow } = require('electron');
+require('./dal-disco');   // v0.80.22 — gli asset di hextalegame.com dal disco, non dal sito
 
 const path = require('path');
 const RADICE = 'file:///' + path.resolve(__dirname, '..').split(path.sep).join('/');

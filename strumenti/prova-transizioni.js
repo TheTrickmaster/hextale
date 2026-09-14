@@ -15,6 +15,7 @@
 // Qui si guardano le animazioni vere (getAnimations), da che parte vanno, con
 // che ritardi, e che il fondale sia sempre lo stesso elemento acceso.
 const { app, BrowserWindow } = require('electron');
+require('./dal-disco');   // v0.80.22 — gli asset di hextalegame.com dal disco, non dal sito
 const path = require('path');
 app.commandLine.appendSwitch('disable-gpu');
 app.disableHardwareAcceleration();
@@ -40,9 +41,13 @@ const CORPO = `(async function(){
     var stanza = q('#stanza');
     var accesa = function(){ return !!(stanza && stanza.isConnected && stanza.classList.contains('accesa') && getComputedStyle(stanza).display !== 'none'); };
     var montato = function(id){ return !!document.getElementById(id); };
-    var controllaPezzi = function(nome, attesi, esce){
+    // v0.80.22 — un pezzo che entra parte quando i suoi asset sono pronti (vedi
+    // _entraQuandoPronti): la sua animazione si aspetta, fino a un secondo e mezzo.
+    var controllaPezzi = async function(nome, attesi, esce){
       for(var i = 0; i < attesi.length; i++){
         var a = anim(attesi[i][0]);
+        var da = performance.now();
+        while(!esce && !a && performance.now() - da < 1500){ await respira(30); a = anim(attesi[i][0]); }
         dice(a && lato(a, esce) === attesi[i][1] && ritardo(a) === (attesi[i][2] || 0) && Math.round(a.effect.getTiming().duration) === 200,
           nome + ': ' + attesi[i][0] + ' ' + (esce ? 'esce' : 'entra') + ' ' + attesi[i][1] + (attesi[i][2] ? ' dopo ' + attesi[i][2] + 'ms' : '') + ' in 200ms', descrivi(a));
       }
@@ -61,7 +66,7 @@ const CORPO = `(async function(){
     openCardDbOverlay();
     dice(montato('main-menu') && q('#main-menu').classList.contains('pagina-esce'), 'aprendo la library il menu resta a uscire, senza clic');
     dice(montato('card-db-overlay') && q('#card-db-overlay').classList.contains('pagina-attende') && getComputedStyle(q('#card-db-overlay')).opacity === '0', 'e la library e- gia- montata ma aspetta invisibile');
-    controllaPezzi('menu', [['#mm2-topbar','su'],['#mm2-sx','sinistra'],['#mm2-dx','destra'],['#mm2-testata','sfuma'],['#mm2-modi','sfuma'],['#mm2-gioca','sfuma',50],['#mm2-basso','sfuma',50]], true);
+    await controllaPezzi('menu', [['#mm2-topbar','su'],['#mm2-sx','sinistra'],['#mm2-dx','destra'],['#mm2-testata','sfuma'],['#mm2-modi','sfuma'],['#mm2-gioca','sfuma',50],['#mm2-basso','sfuma',50]], true);
     var fuoriTop = xy(kf(anim('#mm2-topbar')).slice(-1)[0].translate).y;
     dice(fuoriTop <= -(102 + 20), 'la top bar sale di tutta la sua altezza (esce dallo schermo)', fuoriTop);
     var centroFind = q('#mm2-find').getBoundingClientRect();
@@ -75,10 +80,12 @@ const CORPO = `(async function(){
     await respira(200);
     dice(!montato('main-menu'), 'finita l-uscita il menu si smonta');
     dice(!q('#card-db-overlay').classList.contains('pagina-attende') && q('#card-db-overlay').classList.contains('show'), 'e la library appare');
-    controllaPezzi('library', [['#card-db-header','su'],['#card-db-right','destra'],['#card-db-grid-viewport','sfuma'],['#card-db-barra-cerca','giu']], false);
+    await controllaPezzi('library', [['#card-db-header','su'],['#card-db-right','destra'],['#card-db-grid-viewport','sfuma'],['#card-db-barra-cerca','giu']], false);
     dice(getComputedStyle(q('#card-db-bg')).display === 'none', 'la library non ha piu- il suo fondale: sotto c-e- la stanza');
     dice(accesa() && q('#stanza-lit').getAnimations()[0] === luce && _scenaMenu.strati === strati, 'la stanza e- sempre la stessa: lanterna e polvere non ripartono');
-    await respira(400);
+    var finoA = performance.now();
+    while(transizioneInCorso() && performance.now() - finoA < 3000) await respira(50);
+    await respira(60);
     dice(!transizioneInCorso() && getComputedStyle(q('#card-db-header')).translate === 'none' && getComputedStyle(q('#card-db-grid-viewport')).opacity === '1', 'finita l-entrata tutto e- al suo posto', getComputedStyle(q('#card-db-header')).translate);
     var menuStaccato = _pageDetached.get('main-menu');
     dice(menuStaccato && !menuStaccato.classList.contains('pagina-esce'), 'il menu smontato non si porta dietro il segno dell-uscita');
@@ -86,10 +93,10 @@ const CORPO = `(async function(){
     // ── LIBRARY -> MENU ─────────────────────────────────────────────────────
     closeCardDbOverlay();
     dice(montato('card-db-overlay') && q('#card-db-overlay').classList.contains('pagina-esce') && q('#card-db-overlay').classList.contains('show'), 'chiudendo la library esce animata (resta visibile mentre esce)');
-    controllaPezzi('library', [['#card-db-header','su'],['#card-db-right','destra'],['#card-db-grid-viewport','sfuma'],['#card-db-barra-cerca','giu']], true);
+    await controllaPezzi('library', [['#card-db-header','su'],['#card-db-right','destra'],['#card-db-grid-viewport','sfuma'],['#card-db-barra-cerca','giu']], true);
     await respira(320);
     dice(!montato('card-db-overlay') && montato('main-menu') && !q('#main-menu').classList.contains('pagina-attende'), 'poi si smonta e il menu appare');
-    controllaPezzi('menu', [['#mm2-topbar','su'],['#mm2-sx','sinistra'],['#mm2-dx','destra'],['#mm2-testata','sfuma'],['#mm2-modi','sfuma',50],['#mm2-gioca','sfuma',100],['#mm2-basso','sfuma',100]], false);
+    await controllaPezzi('menu', [['#mm2-topbar','su'],['#mm2-sx','sinistra'],['#mm2-dx','destra'],['#mm2-testata','sfuma'],['#mm2-modi','sfuma',50],['#mm2-gioca','sfuma',100],['#mm2-basso','sfuma',100]], false);
     dice(getComputedStyle(q('#mm2-modi')).opacity === '0' && getComputedStyle(q('#mm2-gioca')).opacity === '0', 'le modalita- e la barra in basso aspettano il loro turno (ancora invisibili)');
     await respira(500);
     dice(!transizioneInCorso() && getComputedStyle(q('#mm2-gioca')).opacity === '1' && Math.abs(q('#mm2-topbar').getBoundingClientRect().top - misuraPrima.topbar) < 1, 'finita l-entrata il menu e- com-era', getComputedStyle(q('#mm2-gioca')).opacity);
@@ -99,13 +106,44 @@ const CORPO = `(async function(){
     openPackOverlay();
     await respira(260);
     dice(!montato('main-menu') && montato('pack-overlay'), 'card packs entra dopo l-uscita del menu');
-    controllaPezzi('card packs', [['#pack-header','su'],['#pack-ink-fisso','sinistra'],['#pack-compra-box','destra'],['#pack-basso','giu'],['#pack-stage','sfuma']], false);
+    await controllaPezzi('card packs', [['#pack-header','su'],['#pack-ink-fisso','sinistra'],['#pack-compra-box','destra'],['#pack-basso','giu'],['#pack-stage','sfuma']], false);
     dice(getComputedStyle(q('#pack-bg')).display === 'none' && accesa() && _scenaMenu.strati === strati, 'anche card packs sta nella stessa stanza');
     await respira(500);
     closePackOverlay();
-    controllaPezzi('card packs', [['#pack-header','su'],['#pack-ink-fisso','sinistra'],['#pack-compra-box','destra'],['#pack-basso','giu']], true);
+    await controllaPezzi('card packs', [['#pack-header','su'],['#pack-ink-fisso','sinistra'],['#pack-compra-box','destra'],['#pack-basso','giu']], true);
     await respira(700);
     dice(montato('main-menu') && !montato('pack-overlay') && !transizioneInCorso(), 'e si torna al menu');
+
+    // ── v0.80.22: UN PEZZO ENTRA SOLO CON I SUOI ASSET PRONTI ────────────────
+    var testata = _pageDetached.get('card-db-overlay') && _pageDetached.get('card-db-overlay').querySelector('#card-db-header');
+    var sblocca = null;
+    var lento = document.createElement('span');
+    lento.__assetPronto = new Promise(function(r){ sblocca = r; });
+    if(testata) testata.appendChild(lento);
+    openCardDbOverlay();
+    await respira(480);
+    dice(montato('card-db-overlay') && q('#card-db-header').classList.contains('pezzo-attende') && getComputedStyle(q('#card-db-header')).opacity === '0', 'la top bar della library aspetta un suo asset: resta nascosta');
+    dice(!q('#card-db-right').classList.contains('pezzo-attende'), 'mentre i pezzi con gli asset pronti entrano');
+    sblocca();
+    await respira(80);
+    var entrataTop = anim('#card-db-header');
+    dice(!q('#card-db-header').classList.contains('pezzo-attende') && entrataTop && lato(entrataTop, false) === 'su', 'arrivato l-asset, la top bar entra', descrivi(entrataTop));
+    lento.remove();
+    await respira(700);
+    closeCardDbOverlay();
+    await respira(900);
+    var testata2 = _pageDetached.get('card-db-overlay').querySelector('#card-db-header');
+    var mai = document.createElement('span');
+    mai.__assetPronto = new Promise(function(){});
+    testata2.appendChild(mai);
+    openCardDbOverlay();
+    await respira(2500);
+    dice(q('#card-db-header').classList.contains('pezzo-attende'), 'un asset che non arriva la tiene nascosta...');
+    await respira(2200);
+    dice(!q('#card-db-header').classList.contains('pezzo-attende') && getComputedStyle(q('#card-db-header')).opacity !== '0', '...ma solo fino al tetto di ' + ASSET_ATTESA_MAX_MS + 'ms: poi entra lo stesso');
+    mai.remove();
+    closeCardDbOverlay();
+    await respira(900);
 
     // ── CAMBI DI PAGINA A RAFFICA ───────────────────────────────────────────
     showPage('collection');

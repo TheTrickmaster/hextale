@@ -15,6 +15,7 @@
 // finisca sotto il bordo — e nessuno se ne accorge, perche' una lista che
 // scorre di poco sembra una lista che sta dentro.
 const { app, BrowserWindow } = require('electron');
+require('./dal-disco');   // v0.80.22 — gli asset di hextalegame.com dal disco, non dal sito
 const path = require('path');
 const fs = require('fs');
 

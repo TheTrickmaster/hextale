@@ -19,6 +19,7 @@
 //   8. in rete: la decisione va al server (op 17) e si nasconde con op 18; per
 //      l'avversario sparisce, niente casella vera, e lo scopre la giocata (op 3).
 const { app, BrowserWindow } = require('electron');
+require('./dal-disco');   // v0.80.22 — gli asset di hextalegame.com dal disco, non dal sito
 const fs = require('fs');
 const path = require('path');
 app.commandLine.appendSwitch('disable-gpu');

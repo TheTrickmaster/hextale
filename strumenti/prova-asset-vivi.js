@@ -11,6 +11,7 @@
 // _candidati) e quel primo tentativo fallisce sempre. Sono 404 attesi e
 // vengono messi da parte: quelli che contano sono quelli su hextalegame.com.
 const { app, BrowserWindow, session } = require('electron');
+require('./dal-disco');   // v0.80.22 — gli asset di hextalegame.com dal disco, non dal sito
 const path = require('path');
 
 const RADICE = path.resolve(__dirname, '..');

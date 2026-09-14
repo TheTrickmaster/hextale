@@ -16,6 +16,7 @@
 // Chi sviluppa e' admin, quindi la strada che prova ogni giorno e' l'unica
 // delle due che non si rompe in silenzio.
 const { app, BrowserWindow } = require('electron');
+require('./dal-disco');   // v0.80.22 — gli asset di hextalegame.com dal disco, non dal sito
 const path = require('path');
 
 const RADICE = path.resolve(__dirname, '..');

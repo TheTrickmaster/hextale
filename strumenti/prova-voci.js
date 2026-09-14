@@ -18,6 +18,7 @@
 // comunque REGISTRARE gli indirizzi: sapere dove sta un file non basta a
 // poterlo suonare (vedi registraVociSfx e AUDIO_DATA_URLS).
 const { app, BrowserWindow } = require('electron');
+require('./dal-disco');   // v0.80.22 — gli asset di hextalegame.com dal disco, non dal sito
 app.commandLine.appendSwitch('disable-gpu');
 app.disableHardwareAcceleration();
 

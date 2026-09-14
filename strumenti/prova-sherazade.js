@@ -15,6 +15,7 @@
 //   5. in rete la scelta parte al server (op 10) e il gelo arriva con l'op 11;
 //   6. l'anteprima non gela niente, e la carta non e' NO_SCRIPT.
 const { app, BrowserWindow } = require('electron');
+require('./dal-disco');   // v0.80.22 — gli asset di hextalegame.com dal disco, non dal sito
 const fs = require('fs');
 const path = require('path');
 app.commandLine.appendSwitch('disable-gpu');

@@ -15,6 +15,7 @@
 // veda giocando — la casella resta semplicemente vuota, e il tabellone sembra
 // disegnato male invece che rotto.
 const { app, BrowserWindow, net } = require('electron');
+require('./dal-disco');   // v0.80.22 — gli asset di hextalegame.com dal disco, non dal sito
 const path = require('path');
 
 const RADICE = path.resolve(__dirname, '..');

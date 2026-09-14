@@ -4345,7 +4345,13 @@ var OP_STICKER_BLOCCO = 16;
 // `yeti`) e dentro alla fine (op 6, `yeti`).
 var OP_YETI          = 17;  // client -> server: { vera, finta }
 var OP_YETI_IMPRONTE = 18;  // server -> client: { di, da, impronte, vera? }
-var YETI_CHIAVE      = '!yeti';  // server -> client, personale: { resta } in ms (niente orologi da confrontare)
+var YETI_CHIAVE      = '!yeti';
+// v0.80.22 — quante volte al secondo gira partitaLoop (Lorenzo: 20). I messaggi
+// dei giocatori si smistano al giro successivo, quindi da qui dipende quanto
+// aspetta una giocata prima di tornare a tutti e due: con 1 fino a un secondo,
+// con 20 al massimo cinquanta millisecondi. I tempi della partita (scadenze,
+// grazia, sticker) si contano con l'orologio e non coi giri: non cambiano.
+var TICK_RATE = 20;  // server -> client, personale: { resta } in ms (niente orologi da confrontare)
 var STICKER_NOMI = ['carabosse-menacing', 'frog-prince-okay', 'merlin-perfect', 'queen-of-hearts-angry', 'bagheera-scared'];
 var STICKER_MAX = 5;
 var STICKER_FINESTRA_MS = 10000;
@@ -5126,7 +5132,7 @@ function partitaInit(ctx, logger, nk, params) {
   try { _livelliPerLaPartita(nk, logger, stato); }
   catch (el) { logger.warn('livelli delle carte non calcolati: %s', String(el)); }
   // Un tick al secondo basta: qui non si anima niente, si guarda un orologio.
-  return { state: stato, tickRate: 1, label: JSON.stringify({ gioco: 'hextale' }) };
+  return { state: stato, tickRate: TICK_RATE, label: JSON.stringify({ gioco: 'hextale' }) };
 }
 
 function partitaJoinAttempt(ctx, logger, nk, dispatcher, tick, state, presence, metadata) {
@@ -5648,7 +5654,8 @@ function partitaLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
   // Un battito ogni cinque secondi: il client corregge la sua barra invece
   // di lasciarla scivolare. Una scheda in secondo piano rallenta i timer del
   // browser, e senza questo il conto alla rovescia mentirebbe.
-  if (state.iniziata && tick % 5 === 0) {
+  // v0.80.22 — ogni cinque secondi anche a 20 giri al secondo: si contano i giri.
+  if (state.iniziata && tick % (5 * TICK_RATE) === 0) {
     _aTutti(dispatcher, OP_TEMPO, { scadenza: state.scadenza, turno: state.turno + 1, numeroTurno: state.numeroTurno });
   }
 

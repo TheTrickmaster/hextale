@@ -13,6 +13,7 @@
 //   3. uscendo, una risposta in volo non si applichi e lo stato si azzeri;
 //   4. la verifica del codice usi la sessione appena nata, non quella vecchia.
 const { app, BrowserWindow } = require('electron');
+require('./dal-disco');   // v0.80.22 — gli asset di hextalegame.com dal disco, non dal sito
 const path = require('path');
 const { pathToFileURL } = require('url');
 app.commandLine.appendSwitch('disable-gpu');

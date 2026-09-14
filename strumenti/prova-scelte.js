@@ -17,6 +17,7 @@
 // Non prova COSA succede scegliendo — quello lo fanno i banchi delle singole
 // carte. Prova che la domanda venga fatta.
 const { app, BrowserWindow } = require('electron');
+require('./dal-disco');   // v0.80.22 — gli asset di hextalegame.com dal disco, non dal sito
 const path = require('path');
 const fs = require('fs');
 

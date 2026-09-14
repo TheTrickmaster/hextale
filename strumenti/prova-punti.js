@@ -26,6 +26,7 @@
 // Si contano gli INCREMENTI davvero chiesti e il totale con cui la bolla si
 // chiude: sono le due cose che il giocatore vede.
 const { app, BrowserWindow } = require('electron');
+require('./dal-disco');   // v0.80.22 — gli asset di hextalegame.com dal disco, non dal sito
 const path = require('path');
 
 const RADICE = path.resolve(__dirname, '..');

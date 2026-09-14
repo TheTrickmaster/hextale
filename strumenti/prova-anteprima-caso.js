@@ -17,6 +17,7 @@
 //   - e un +2 ALL fermo, che invece si mostra come sempre.
 // Poi il disegno: il "?" ha il bordo scuro sulla carta scura e bianco sulla chiara.
 const { app, BrowserWindow } = require('electron');
+require('./dal-disco');   // v0.80.22 — gli asset di hextalegame.com dal disco, non dal sito
 const path = require('path');
 app.commandLine.appendSwitch('disable-gpu');
 app.disableHardwareAcceleration();

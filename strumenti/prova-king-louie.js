@@ -5,6 +5,7 @@
 // vicini si possono indicare, e cosa succede quando se ne indica uno — non
 // dipendono da nient'altro che dal tabellone e dalla riga del foglio.
 const { app, BrowserWindow } = require('electron');
+require('./dal-disco');   // v0.80.22 — gli asset di hextalegame.com dal disco, non dal sito
 const path = require('path');
 const fs = require('fs');
 

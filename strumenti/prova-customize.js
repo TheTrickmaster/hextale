@@ -34,6 +34,7 @@
 // due le parti: un toggle che legge sempre la prima casella del documento
 // passerebbe meta' della prova.
 const { app, BrowserWindow } = require('electron');
+require('./dal-disco');   // v0.80.22 — gli asset di hextalegame.com dal disco, non dal sito
 const path = require('path');
 
 const RADICE = path.resolve(__dirname, '..');

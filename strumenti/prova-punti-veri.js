@@ -13,6 +13,7 @@
 // assegnati, i contatori del ritratto girano in fila, e la fine partita legge
 // i punti veri.
 const { app, BrowserWindow } = require('electron');
+require('./dal-disco');   // v0.80.22 — gli asset di hextalegame.com dal disco, non dal sito
 const path = require('path');
 app.commandLine.appendSwitch('disable-gpu');
 app.disableHardwareAcceleration();
