@@ -40396,7 +40396,11 @@ function doPlace(card,playerIdx,q,r,daServer){
   // server, e lo scopre lui (vedi reteApplicaGiocata). Lo Yeti appena giocato non
   // attacca: si nasconde (vedi yetiAlPiazzamento).
   if(!PARTITA_RETE) yetiRivelaAccanto(player, k);
-  if(eYeti(card) && yetiAlPiazzamento(card, player, q, r, k, timeAlreadyExpired)) return;
+  // v0.80.21 — ma uno Yeti giocato ACCANTO a una carta avversaria non si nasconde:
+  // si rivela e attacca subito, come una carta qualunque (Lorenzo). Vale anche
+  // per lo Yeti nemico che questa stessa giocata ha appena scoperto: scoprire il
+  // suo restando nascosti era un vantaggio che la regola non voleva dare.
+  if(eYeti(card) && !yetiAccantoANemici(player, k) && yetiAlPiazzamento(card, player, q, r, k, timeAlreadyExpired)) return;
 
   // ── Card ability pre-conquest activations ──
   // EXPERIMENTAL (v0.21.0-abilities-on-cards): the ability now lives on the
@@ -42497,6 +42501,18 @@ function yetiCelleImpronte(){
   for(const y of G.yeti) if(y.stato === 'nascosto') for(const i of y.impronte) s.add(i.cella);
   return s;
 }
+// v0.80.21 — accanto a `k` c'e' una carta dell'avversario? Allora lo Yeti non si
+// nasconde. Si guarda il tabellone com'e' dopo le rivelazioni di questa stessa
+// giocata (fuori rete yetiRivelaAccanto, in rete reteApplicaGiocata): e' uguale
+// sui due client, e il server non deve saperne niente (uno Yeti che non si
+// nasconde non manda op 17).
+function yetiAccantoANemici(player, k){
+  const [q, r] = String(k).split(',').map(Number);
+  return DIRS.some(d => {
+    const posto = G.board[key(q + d.dq, r + d.dr)];
+    return !!(posto && posto.card && posto.owner !== player);
+  });
+}
 // Dove puo' andare: le caselle libere (celleLibere esclude gia' muri, carte e
 // impronte), meno quelle congelate.
 function _yetiMete(){ return celleLibere().filter(k => !cellaCongelata(k)); }
@@ -42532,7 +42548,7 @@ function _sceltaYetiSposta(y){
   const aCaso = (lista) => lista.length ? lista[Math.floor(Math.random() * lista.length)] : null;
   const stato = {
     chiave: 'yeti_sposta', giocatore: y.di, modo: 'trascina', icona: ICONA_MANO,
-    cellaOrigine: y.da, rinunciaInAngolo: true, privata: true,
+    cellaOrigine: y.da, rinunciaSottoLaMano: true, privata: true,
     bersagli: [y.da],
     mete: () => _yetiMete(),
     applicaEAspetta: (cella, poi) => {
@@ -48083,8 +48099,6 @@ function costoHexPerIA(differenza){
 }
 function aiEvaluateConquests(card, q, r){
   let count=0, damage=0, autolesione=0;
-  // v0.80.21 — lo Yeti giocato non attacca: si nasconde.
-  if(eYeti(card)) return {count, damage, autolesione};
   const effValues=aiEffectiveValuesAt(card, q, r);
   // v0.73.5 — i DIFENSORI vanno letti dal tabellone simulato, non da quello
   // vero. Un'abilita' che indebolisce chi sta intorno (Robin Hood, oggi)
@@ -49419,6 +49433,8 @@ function placeCard(q,r){
 function calcScores(){
   let s1=0,s2=0;
   for(const k in G.board) G.board[k].owner===1?s1++:s2++;
+  // v0.80.21 — lo Yeti nascosto e' in campo anche se non sta in G.board.
+  for(const y of ((G && G.yeti) || [])) if(y.stato === 'nascosto') y.di===1?s1++:s2++;
   G.scores={1:s1,2:s2};
 }
 
@@ -50283,6 +50299,15 @@ function carteCheFruttano(){
     // e quindi non ha niente da consegnare.
     if(punti <= 0) continue;
     (celle[c.owner] || (celle[c.owner]=[])).push({ k:k, punti:punti });
+  }
+  // v0.80.21 — lo Yeti nascosto da' punti anche se non sta in G.board (Lorenzo).
+  // Per chi l'ha giocato l'onda illumina la sua casella; per l'avversario la voce
+  // non ha casella (`k` null): i punti arrivano, ma nessun lampo dice dov'e'.
+  for(const y of (G.yeti || [])){
+    if(y.stato !== 'nascosto') continue;
+    const punti = puntiDiCarta(y.card);
+    if(punti <= 0) continue;
+    (celle[y.di] || (celle[y.di]=[])).push({ k: _yetiLoVedo(y) ? y.cella : null, punti:punti });
   }
   return celle;
 }
@@ -57926,9 +57951,9 @@ function renderBoard(){
     if(orig){
       const {x:ox,y:oy} = axialToPixel(orig.q,orig.r,cx,cy,R);
       // v0.80.21 — lo Yeti si trascina dalla sua casella: li' al centro c'e' la
-      // mano, e la X va nell'angolo in alto a destra per non coprirla.
-      const inAngolo = !!scelta.rinunciaInAngolo;
-      buildSvgIconBtn(ICONA_RINUNCIA, ox + (inAngolo ? R*0.5 : 0), oy - (inAngolo ? R*0.5 : 0), R*0.42, ()=>rinunciaSceltaBersaglio());
+      // mano, e la X va sotto di lei, sulla stessa verticale (Lorenzo).
+      const sottoLaMano = !!scelta.rinunciaSottoLaMano;
+      buildSvgIconBtn(ICONA_RINUNCIA, ox, oy + (sottoLaMano ? R*0.42 : 0), R*0.42, ()=>rinunciaSceltaBersaglio());
     }
   }
   // ── v0.76.10 — GLI STRATI SI RIMETTONO IN ORDINE ALLA FINE ──────────────
