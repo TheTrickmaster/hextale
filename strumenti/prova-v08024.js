@@ -37,8 +37,9 @@ const CORPO = `(async function(){
     mm2Vista('matchmaking');
     await respira(600);
     var top = function(s){ return getComputedStyle(q(s)).top; };
-    dice(top('#mm2-online') === '400px', '#mm2-online a top 400px', top('#mm2-online'));
-    dice(top('#mm2-cercano') === '430px', '#mm2-cercano a top 430px', top('#mm2-cercano'));
+    // v0.80.25 — tre righe: 370, 400, 430 (vedi prova-v08025)
+    dice(top('#mm2-online') === '370px', '#mm2-online a top 370px (v0.80.25)', top('#mm2-online'));
+    dice(top('#mm2-cercano') === '400px', '#mm2-cercano a top 400px (v0.80.25)', top('#mm2-cercano'));
     // offsetTop e non il rettangolo a schermo: #game-root e' scalato alla finestra
     dice(q('#mm2-cercano').offsetTop - q('#mm2-online').offsetTop === 30, 'trenta pixel l-una dall-altra', q('#mm2-cercano').offsetTop - q('#mm2-online').offsetTop);
 
@@ -113,11 +114,12 @@ const CORPO = `(async function(){
     try{ stopAiThinkingHover(); }catch(_){}
     var mandati = [], mmVero = mmManda;
     mmManda = function(m){ mandati.push(m); };
-    var op19 = function(){ return mandati.filter(function(m){ return m.match_data_send && m.match_data_send.op_code === 19; }).map(function(m){ return JSON.parse(atob(m.match_data_send.data)).carta; }); };
+    var op19 = function(){ return mandati.filter(function(m){ return m.match_data_send && m.match_data_send.op_code === 19; }).map(function(m){ return JSON.parse(atob(m.match_data_send.data)).indice; }); };
     PARTITA_RETE = { matchId:'prova', io:1, numeroTurno:3, turno:1, scadenza: Date.now() + 60000 };
     G.gameOver = false; G.currentPlayer = 1; G.turnPlayLocked = false; G.turnBannerActive = false; G.sceltaBersaglio = null;
     G.p1Hand = [fai(1, 'final-mia-a'), fai(1, 'final-mia-b'), fai(1, 'final-mia-c')];
-    G.p2Hand = [fai(2, 'final-sua-a'), fai(2, 'final-sua-b'), fai(2, 'final-sua-c'), fai(2, 'final-sua-d')];
+    // v0.80.25 — come in rete: le carte dell'avversario sono finte, tutte uguali
+    G.p2Hand = [fai(2, 'coperta'), fai(2, 'coperta'), fai(2, 'coperta'), fai(2, 'coperta')];
     _firmaManoPrecedente['p1-hand-fan'] = null; _firmaManoPrecedente['p2-hand-fan'] = null;
     renderHand('p1-hand-fan', G.p1Hand, 0); renderHand('p2-hand-fan', G.p2Hand, 1);
     await respira(300);
@@ -129,7 +131,7 @@ const CORPO = `(async function(){
     await respira(120);
     zone[0].dispatchEvent(new MouseEvent('mouseenter'));
     var primo = op19();
-    dice(primo.length === 1 && /^final-mia-/.test(primo[0]), 'passando sopra a una mia carta parte op 19 con il suo id', JSON.stringify(primo));
+    dice(primo.length === 1 && primo[0] === 0, 'passando sopra a una mia carta parte op 19 col suo posto nella mano (v0.80.25: non la carta)', JSON.stringify(primo));
     zone[0].dispatchEvent(new MouseEvent('mouseleave'));
     zone[1].dispatchEvent(new MouseEvent('mouseenter'));
     zone[1].dispatchEvent(new MouseEvent('mouseleave'));
@@ -137,7 +139,7 @@ const CORPO = `(async function(){
     dice(op19().length === 1, 'tre carte di fila subito dopo: per ora niente');
     await respira(150);
     var dopo = op19();
-    dice(dopo.length === 2 && /^final-mia-/.test(dopo[1]) && dopo[1] !== primo[0], 'e poi parte solo l-ultima', JSON.stringify(dopo));
+    dice(dopo.length === 2 && typeof dopo[1] === 'number' && dopo[1] !== primo[0], 'e poi parte solo l-ultima', JSON.stringify(dopo));
     await respira(120);
     zone[2].setPointerCapture = function(){};   // un pointerdown finto non ha un puntatore da catturare
     zone[2].dispatchEvent(new MouseEvent('pointerdown', { bubbles:true }));
@@ -155,28 +157,28 @@ const CORPO = `(async function(){
     PARTITA_RETE = reteVera;
 
     // dall'altra
-    var wrapSua = function(mazzo){ var c = G.p2Hand.filter(function(x){ return x.idDelMazzo === mazzo; })[0]; return q('#p2-hand-fan .hand-card-wrap[data-carta="' + c.id + '"]'); };
+    var wrapSua = function(i){ var c = G.p2Hand[i]; return q('#p2-hand-fan .hand-card-wrap[data-carta="' + c.id + '"]'); };
     var alzata = function(w){ return !!w && w.classList.contains('hover-lift') && /translateY\\(-\\d+px\\)/.test(w.style.transform); };
-    var b = wrapSua('final-sua-b');
+    var b = wrapSua(1);
     var zPrima = b.style.zIndex, tPrima = b.style.transform;
-    reteMessaggio({ op_code:20, data: btoa(JSON.stringify({ di:2, carta:'final-sua-b' })) });
+    reteMessaggio({ op_code:20, data: btoa(JSON.stringify({ di:2, indice:1, quante:4 })) });
     dice(alzata(b), 'op 20: il dorso di quella carta si alza', b.style.transform);
     dice(b.style.zIndex === zPrima, 'senza passare davanti alle vicine (come il bot)', zPrima + ' -> ' + b.style.zIndex);
-    dice(!alzata(wrapSua('final-sua-a')) && !alzata(wrapSua('final-sua-c')), 'le altre restano giu-');
-    var c = wrapSua('final-sua-c');
-    reteMessaggio({ op_code:20, data: btoa(JSON.stringify({ di:2, carta:'final-sua-c' })) });
+    dice(!alzata(wrapSua(0)) && !alzata(wrapSua(2)), 'le altre restano giu-');
+    var c = wrapSua(2);
+    reteMessaggio({ op_code:20, data: btoa(JSON.stringify({ di:2, indice:2, quante:4 })) });
     dice(alzata(c) && !alzata(b) && b.style.transform === tPrima, 'la carta dopo rimette giu- quella di prima, com-era', b.style.transform);
     _firmaManoPrecedente['p2-hand-fan'] = null;
     renderHand('p2-hand-fan', G.p2Hand, 1);
-    var c2 = wrapSua('final-sua-c');
+    var c2 = wrapSua(2);
     dice(c2 !== c && alzata(c2), 'un ventaglio rifatto da capo la rialza');
-    reteMessaggio({ op_code:20, data: btoa(JSON.stringify({ di:2, carta:null })) });
+    reteMessaggio({ op_code:20, data: btoa(JSON.stringify({ di:2, indice:null, quante:4 })) });
     dice(!Array.from(document.querySelectorAll('#p2-hand-fan .hand-card-wrap')).some(alzata), 'null le rimette giu- tutte');
-    reteMessaggio({ op_code:20, data: btoa(JSON.stringify({ di:1, carta:'final-mia-a' })) });
+    reteMessaggio({ op_code:20, data: btoa(JSON.stringify({ di:1, indice:0, quante:3 })) });
     dice(!Array.from(document.querySelectorAll('#p1-hand-fan .hand-card-wrap')).some(alzata), 'un op 20 che parla della mia mano non tocca niente');
-    reteMessaggio({ op_code:20, data: btoa(JSON.stringify({ di:2, carta:'final-che-non-ce' })) });
+    reteMessaggio({ op_code:20, data: btoa(JSON.stringify({ di:2, indice:9, quante:4 })) });
     dice(!Array.from(document.querySelectorAll('#p2-hand-fan .hand-card-wrap')).some(alzata), 'una carta che non ha in mano non alza niente');
-    reteMessaggio({ op_code:20, data: btoa(JSON.stringify({ di:2, carta:'final-sua-d' })) });
+    reteMessaggio({ op_code:20, data: btoa(JSON.stringify({ di:2, indice:3, quante:4 })) });
     dice(_manoSopraAvversario !== null, '(prima della partita nuova ce n-e- una)');
     mmManda = mmVero; PARTITA_RETE = null;
     startGame(true); await respira(2500);

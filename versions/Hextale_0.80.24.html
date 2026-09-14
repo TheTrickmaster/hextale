@@ -984,8 +984,7 @@ body.mouse-down, body.mouse-down *{
    alla scatola del gioco; qui la scatola non c'e' piu', e senza questa riga
    restava in cima al riquadro. */
 #mm2-modo-normal #mm2-online,
-#mm2-modo-normal #mm2-cercano,
-#mm2-modo-normal #mm2-in-partita{
+#mm2-modo-normal #mm2-cercano{
   position:absolute; left:0; right:0; top:434px; z-index:3;
   width:auto; margin:0;
   font-family:'Marcellus SC','Marcellus',var(--font-display),serif;
@@ -994,15 +993,11 @@ body.mouse-down, body.mouse-down *{
 }
 /* v0.80.23 — chi sta cercando una partita: stessa riga, subito sotto.
    v0.80.24 — le due righe piu' in alto (Lorenzo): 400 e 430. */
-/* v0.80.25 — tre righe (Lorenzo): la nuova, chi e' in partita, dove stava
-   quella del matchmaking; le altre due salgono di una. */
-#mm2-modo-normal #mm2-online{ top:370px; }
-#mm2-modo-normal #mm2-cercano{ top:400px; }
-#mm2-modo-normal #mm2-in-partita{ top:430px; }
+#mm2-modo-normal #mm2-online{ top:400px; }
+#mm2-modo-normal #mm2-cercano{ top:430px; }
 /* v0.80.13 — contro il bot i collegati non contano: il numero non si vede. */
 #mm2-centro.vista-bot #mm2-online,
-#mm2-centro.vista-bot #mm2-cercano,
-#mm2-centro.vista-bot #mm2-in-partita{ display:none; }
+#mm2-centro.vista-bot #mm2-cercano{ display:none; }
 /* v0.80.14 — e il riquadro Normal cambia immagine: matchmaking-container-bot.png
    al posto di matchmaking-container.png. Le due immagini sono tutte e due nel
    riquadro; la vista sceglie quale si vede. */
@@ -12210,7 +12205,7 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
    genitore, e tutte e due sono finite fuori dalla sua scatola senza che nulla
    lo dicesse. Un elemento in fila non puo' sparire: al massimo si vede vuoto,
    ed e' per questo che vuoto non resta mai (vedi aggiornaGiocatoriOnline). */
-#mm2-online, #mm2-cercano, #mm2-in-partita{
+#mm2-online, #mm2-cercano{
   width:100%; margin:14px 0 10px;
   font-family:'Marcellus',var(--font-display),serif;
   font-size:22px; color:#9DA7A9;
@@ -12995,9 +12990,7 @@ try{
                col numero vero. -->
           <div id="mm2-online">— players online</div>
           <!-- v0.80.23 — e quanti stanno cercando una partita, subito sotto. -->
-          <div id="mm2-cercano">— players in matchmaking</div>
-          <!-- v0.80.25 — e quanti stanno giocando una partita (in rete o col bot). -->
-          <div id="mm2-in-partita">— players in a match</div>
+          <div id="mm2-cercano">— players searching for a match</div>
         </div>
       </div>
       <div id="mm2-gioca">
@@ -13674,7 +13667,7 @@ try{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.25</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.24</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <!-- v0.80.19 — gli sticker: l'icona (solo per chi gioca), il menu, e due bolle
@@ -17173,8 +17166,6 @@ function nakamaIntestazioneChiave(){
 function erroreNakama(messaggio, codice){
   const e = new Error(messaggio);
   e.codice = codice;
-  // v0.80.25 — codice 0: la richiesta non e' arrivata (rete, server, tempo)
-  if(codice === 0){ try{ TELEMETRIA_STATO.erroriRete++; }catch(_){ } }
   return e;
 }
 // Una sola porta d'ingresso per tutte le chiamate, cosi' il tempo massimo, la
@@ -18117,12 +18108,7 @@ const MANO_SOPRA_OGNI_MS = 80;
 let _manoSopraDetta = null, _manoSopraInCoda = null, _manoSopraDa = 0, _manoSopraTimer = null;
 function reteManoSopra(card){
   if(!PARTITA_RETE) return;
-  // v0.80.25 — il POSTO della carta nella mano, non la carta: dall'altra parte
-  // le carte sono finte e devono restarlo (Lorenzo). Il server gira solo il posto
-  // e quante carte ho in mano (vedi _manoSopra).
-  const mano = (PARTITA_RETE.io === 2) ? G.p2Hand : G.p1Hand;
-  const posto = card ? (mano || []).indexOf(card) : -1;
-  _manoSopraInCoda = (posto >= 0) ? posto : null;
+  _manoSopraInCoda = card ? (_idDelMazzo(card) || null) : null;
   if(_manoSopraTimer) return;
   const manda = ()=>{
     _manoSopraTimer = null;
@@ -18131,7 +18117,7 @@ function reteManoSopra(card){
     _manoSopraDa = Date.now();
     mmManda({ cid: 'h' + Date.now().toString(36), match_data_send: {
       match_id: PARTITA_RETE.matchId, op_code: 19,
-      data: btoa(JSON.stringify({ indice: _manoSopraDetta }))
+      data: btoa(JSON.stringify({ carta: _manoSopraDetta }))
     }});
   };
   const aspetta = MANO_SOPRA_OGNI_MS - (Date.now() - _manoSopraDa);
@@ -18139,8 +18125,8 @@ function reteManoSopra(card){
 }
 let _manoSopraAvversario = null;   // { di, carta } come l'ha detto il server
 let _manoSopraAlzata = null;       // il wrap alzato adesso
-function manoSopraAvversario(di, indice, quante){
-  _manoSopraAvversario = (typeof indice === 'number') ? { di: di, indice: indice, quante: quante } : null;
+function manoSopraAvversario(di, carta){
+  _manoSopraAvversario = carta ? { di: di, carta: String(carta) } : null;
   manoSopraAvversarioDisegna();
 }
 function manoSopraAvversarioDisegna(){
@@ -18154,7 +18140,7 @@ function manoSopraAvversarioDisegna(){
   const s = _manoSopraAvversario;
   if(!s || !PARTITA_RETE || s.di === PARTITA_RETE.io || !G) return;
   const mano = (s.di === 1) ? G.p1Hand : G.p2Hand;
-  const card = (mano || [])[s.indice];   // v0.80.25 — la carta finta a quel posto
+  const card = (mano || []).find(c => c && _idDelMazzo(c) === s.carta);
   if(!card) return;
   const wrap = Array.from(document.querySelectorAll('#p' + s.di + '-hand-fan .hand-card-wrap'))
     .find(w => w.dataset.carta === String(card.id || ''));
@@ -18171,17 +18157,11 @@ function reteYeti(vera, finta){
     data: btoa(JSON.stringify({ vera: vera || null, finta: finta || null }))
   }});
 }
-// v0.80.25 — e DOVE si e' lasciata la carta o il tassello trascinato (`dest`).
-// Prima viaggiava solo cosa si era preso: dall'altra parte la meta la
-// indovinava miglioreCasellaPerTassello, e un tassello bloccato spostato da Open
-// Celery finiva in due caselle diverse sui due schermi. Da li' le due partite
-// divergevano (OminoBianco, 14/09: "server problem" al turno 15).
-function reteScegli(cella, dest){
+function reteScegli(cella){
   if(!PARTITA_RETE) return;
   mmManda({ cid: 's' + Date.now().toString(36), match_data_send: {
     match_id: PARTITA_RETE.matchId, op_code: 10,
-    data: btoa(JSON.stringify({ cella: (cella === null || cella === undefined) ? null : String(cella),
-                                dest: (typeof dest === 'string') ? dest : null }))
+    data: btoa(JSON.stringify({ cella: (cella === null || cella === undefined) ? null : String(cella) }))
   }});
 }
 
@@ -18390,8 +18370,6 @@ function reteMessaggio(md){
     // La scelta di uno dei due, rimbalzata dal server: la si applica QUI, su
     // tutti e due i client, nello stesso momento. `daServer` dice a
     // chiudiSceltaBersaglio di eseguire invece di rimandare.
-    // v0.80.25 — e la meta di chi ha trascinato vale per tutti e due (vedi reteScegli)
-    if(G && G.sceltaBersaglio && typeof d.dest === 'string') G.sceltaBersaglio.destinazioneScelta = d.dest;
     chiudiSceltaBersaglio(d.cella === null ? null : String(d.cella), true);
     return;
   }
@@ -18399,7 +18377,7 @@ function reteMessaggio(md){
   // v0.80.19 — gli sticker. Il 15 e' uno sticker mandato da uno dei due: il mio
   // l'ho gia' mostrato quando l'ho cliccato, quello dell'altro va dal suo lato.
   // Il 16 e' il server che dice che sono bloccato, e per quanto.
-  if(op === 20){ try{ manoSopraAvversario(d.di, d.indice, d.quante); }catch(_){ } return; }   // v0.80.24 (v0.80.25: il posto, non la carta)
+  if(op === 20){ try{ manoSopraAvversario(d.di, d.carta); }catch(_){ } return; }   // v0.80.24
   if(op === 15){ if(PARTITA_RETE && d.di !== PARTITA_RETE.io) stickerMostra(d.di, d.sticker); return; }
   if(op === 16){ stickerBloccaPer(d.resta); return; }
 
@@ -18500,7 +18478,7 @@ function reteMessaggio(md){
       etichetta: 'Back to main menu',
       azione: () => { try{ backToMainMenu(); }catch(_){ } },
       secondi: 10,
-      testoConConto: (n) => 'The two boards went out of sync, so the match was stopped. '
+      testoConConto: (n) => 'The two players board lost sync because of a server problem. '
         + 'Returning to main menu... ' + n
     });
     PARTITA_RETE = null;
@@ -20773,7 +20751,6 @@ async function accessoSalutaSeSessioneSalvata(){
 // password e il vestiario della colonna.
 const MODULO_DISSOLVENZA_MS = 300;   // deve combaciare con .hx-modulo nel CSS
 function mostraModuloAccesso(quale){
-  try{ teleUsabile(); }catch(_){ }   // v0.80.25 — il gioco e' usabile
   const dentro = document.getElementById('start-accesso');
   if(!dentro) return;
   const nuovoEl = document.getElementById('modulo-'+quale);
@@ -21251,8 +21228,6 @@ function showPage(name){
   for(const other in PAGE_ELEMENT_IDS){ if(other!==name && !(esce && other===vecchia)) unmountPage(other); }
   mountPage(name);
   _activePage = name;
-  try{ onlineSeCambiato(); }catch(_){ }   // v0.80.25
-  try{ teleCambioPagina(name); }catch(_){ }   // v0.80.25 — il tempo su ogni pagina
   stanzaAccendi(PAGINE_DELLA_STANZA.has(name));
   let uscite = [];
   if(esce){
@@ -22074,8 +22049,12 @@ function mm2Vista(quale){
   // .mm2-modo-fondo-bot) e il numero dei giocatori collegati non si vede —
   // contro il bot non c'entra niente. L'etichetta del pulsante la cambia gia'
   // mm2AggiornaPulsanteGioca, qui sotto, e quel che il pulsante FA non cambia.
-  // v0.80.25 — titoli, immagine e pulsante li cambia mm2VistaApplica: subito se
-  // la vista e' la stessa, a pezzi invisibili se cambia (vedi mm2VistaCambia).
+  const controBot = (quale === 'ai');
+  const titoloModo = (id, testo)=>{ const h = document.querySelector('#' + id + ' h2'); if(h) h.textContent = testo; };
+  titoloModo('mm2-modo-draft',  controBot ? 'Draft vs Bot'  : 'Draft pick');
+  titoloModo('mm2-modo-normal', controBot ? 'Normal vs Bot' : 'Normal');
+  const centro = document.getElementById('mm2-centro');
+  if(centro) centro.classList.toggle('vista-bot', controBot);
   document.querySelectorAll('#mm2-nav .mm2-nav-btn').forEach(btn=>{
     const attivo = btn.dataset.vista === quale;
     btn.classList.toggle('attivo', attivo);
@@ -22094,73 +22073,37 @@ function mm2Vista(quale){
       if(c) c.clearRect(0,0,tela.width,tela.height);
     }
   });
-  if(cambia) mm2VistaCambia(quale); else mm2VistaApplica(quale);
-}
-function mm2VistaApplica(quale){
-  const controBot = (quale === 'ai');
-  const titoloModo = (id, testo)=>{ const h = document.querySelector('#' + id + ' h2'); if(h) h.textContent = testo; };
-  titoloModo('mm2-modo-draft',  controBot ? 'Draft vs Bot'  : 'Draft pick');
-  titoloModo('mm2-modo-normal', controBot ? 'Normal vs Bot' : 'Normal');
-  const centro = document.getElementById('mm2-centro');
-  if(centro) centro.classList.toggle('vista-bot', controBot);
   mm2AggiornaPulsanteGioca();
+  if(cambia) mm2VistaSfuma();
 }
-// ── v0.80.23 / v0.80.25 — MATCHMAKING <-> PLAY VS BOT ─────────────────────────
-// v0.80.23: il centro rientrava sfumando. v0.80.25 (Lorenzo): il riquadro del
-// rank e del mazzo sfuma anche lui; dei due riquadri delle modalita' quello di
-// sinistra esce verso sinistra sfumando e rientra verso destra, quello di destra
-// al contrario; il pulsante sfuma. Prima si esce (TRANSIZIONE_MS), poi, a pezzi
-// invisibili, si cambiano titoli, immagine e pulsante (mm2VistaApplica), poi si
-// entra — ogni pezzo quando i suoi asset sono pronti (assetProntiDi). Un cambio
-// a meta' annulla quello di prima e riparte da com'e' lo schermo; durante un
-// cambio di pagina si cambia e basta, perche' quei pezzi stanno gia' entrando.
-const MM2_VISTA_PEZZI = [
-  { sel:'#mm2-testata',     dx:0 },
-  { sel:'#mm2-modo-draft',  dx:-1 },
-  { sel:'#mm2-modo-normal', dx:1 },
-  { sel:'#mm2-gioca',       dx:0 },
-];
-const MM2_VISTA_SPOSTA_PX = 40;
-let _mm2VistaGiro = 0, _mm2VistaAnimazioni = [], _mm2VistaTimer = null;
-function _mm2VistaFerma(){
-  if(_mm2VistaTimer){ clearTimeout(_mm2VistaTimer); _mm2VistaTimer = null; }
+// ── v0.80.23 — MATCHMAKING <-> PLAY VS BOT: IL CENTRO RIENTRA IN DISSOLVENZA ──
+// Lorenzo: il blocco centrale sfuma dentro anche passando da una vista
+// all'altra, come quando si entra nel menu. Stessi pezzi e stessi ritardi della
+// pagina (i pezzi `sfuma` di PAGINE_PEZZI.mainmenu), e la stessa attesa degli
+// asset: il riquadro contro il bot ha la sua immagine, e un pezzo non sfuma
+// dentro prima di averla (vedi assetProntiDi). Durante un cambio di pagina non
+// si fa niente: quei pezzi stanno gia' entrando.
+let _mm2VistaGiro = 0, _mm2VistaAnimazioni = [];
+function mm2VistaSfuma(){
+  const centro = document.getElementById('mm2-centro');
+  if(!centro || !centro.isConnected || transizioneInCorso()) return;
+  const giro = ++_mm2VistaGiro;
   for(const a of _mm2VistaAnimazioni){ try{ a.cancel(); }catch(_){ } }
   _mm2VistaAnimazioni = [];
-  for(const p of MM2_VISTA_PEZZI){ const el = document.querySelector(p.sel); if(el) el.classList.remove('pezzo-attende'); }
-}
-function mm2VistaCambia(quale){
-  _mm2VistaFerma();
-  const giro = ++_mm2VistaGiro;
-  const centro = document.getElementById('mm2-centro');
-  if(!centro || !centro.isConnected || transizioneInCorso()){ mm2VistaApplica(quale); return; }
-  const pezzi = MM2_VISTA_PEZZI.map(p => ({ p, el: document.querySelector(p.sel) })).filter(x => x.el && x.el.isConnected);
-  const lontano = (x) => ({ opacity: 0, translate: (x.p.dx * MM2_VISTA_SPOSTA_PX) + 'px 0px' });
-  const vicino  = (x) => ({ opacity: x.base, translate: '0px 0px' });
-  for(const x of pezzi){
-    x.base = getComputedStyle(x.el).opacity;
-    try{
-      _mm2VistaAnimazioni.push(x.el.animate([vicino(x), lontano(x)],
-        { duration: TRANSIZIONE_MS, easing: 'cubic-bezier(.4,0,1,1)', fill: 'forwards' }));
-    }catch(_){ }
-  }
-  _mm2VistaTimer = setTimeout(()=>{
-    _mm2VistaTimer = null;
-    if(giro !== _mm2VistaGiro) return;
-    for(const x of pezzi) x.el.classList.add('pezzo-attende');
-    for(const a of _mm2VistaAnimazioni){ try{ a.cancel(); }catch(_){ } }
-    _mm2VistaAnimazioni = [];
-    mm2VistaApplica(quale);
-    for(const x of pezzi){
-      assetProntiDi(x.el).then(()=>{
-        if(giro !== _mm2VistaGiro || !x.el.isConnected) return;
-        x.el.classList.remove('pezzo-attende');
-        try{
-          _mm2VistaAnimazioni.push(x.el.animate([lontano(x), vicino(x)],
-            { duration: TRANSIZIONE_MS, easing: 'cubic-bezier(0,0,.2,1)', fill: 'backwards' }));
-        }catch(_){ }
+  for(const p of PAGINE_PEZZI.mainmenu){
+    if(p.via !== 'sfuma') continue;
+    for(const el of document.querySelectorAll(p.sel)){
+      if(!el.isConnected) continue;
+      el.classList.add('pezzo-attende');
+      assetProntiDi(el).then(()=>{
+        if(giro !== _mm2VistaGiro) return;
+        el.classList.remove('pezzo-attende');
+        if(!el.isConnected) return;
+        const a = _animaUnPezzo(el, p, 'entra');
+        if(a) _mm2VistaAnimazioni.push(a);
       });
     }
-  }, TRANSIZIONE_MS);
+  }
 }
 // Il pulsante grande dice cosa si sta per fare, e cambia solo con la vista.
 function mm2EtichettaGioca(){
@@ -22434,16 +22377,7 @@ const ONLINE_OGNI_MS = 20000;
 const ONLINE_CERCANDO_OGNI_MS = 10000;   // v0.80.23 — mentre si cerca una partita
 let _onlineTimer = null;
 let _onlineLamentato = false;
-let _onlineBattitoDa = 0, _onlineCercaDetto = false, _onlineGiocaDetto = false;
-// v0.80.25 — una partita in corso su questo schermo, in rete o contro il bot.
-function _giocoInCorso(){
-  return _activePage === 'game' && typeof G === 'object' && !!G && !!G.board && !G.gameOver;
-}
-// Il battito parte subito quando cambia cio' che dice (cerca, gioca), non al
-// giro dopo: chiamata all'ingresso in una pagina, a inizio e a fine partita.
-function onlineSeCambiato(){
-  if(!!_mm2Cercando !== _onlineCercaDetto || _giocoInCorso() !== _onlineGiocaDetto) aggiornaGiocatoriOnline();
-}
+let _onlineBattitoDa = 0, _onlineCercaDetto = false;
 async function aggiornaGiocatoriOnline(){
   // v0.78.21 — il battito parte anche se il riquadro non e' in pagina: serve a
   // dire "ci sono", e lo si deve dire anche da dentro una partita.
@@ -22453,22 +22387,16 @@ async function aggiornaGiocatoriOnline(){
     // v0.79.3 — e dice anche chi sta battendo: e' cosi' che il server sa
     // quando una sedia e' ancora occupata (vedi rpcEntro).
     // v0.80.23 — e se sta cercando una partita (vedi #mm2-cercano).
-    // v0.80.25 — e se sta giocando una partita (vedi #mm2-in-partita).
     const cerca = !!_mm2Cercando;
-    const gioca = _giocoInCorso();
     _onlineBattitoDa = Date.now();
     _onlineCercaDetto = cerca;
-    _onlineGiocaDetto = gioca;
-    const r = await nakamaRpc('hx_giocatori', { sessione: SESSIONE_CLIENT, cerca: cerca, gioca: gioca });
+    const r = await nakamaRpc('hx_giocatori', { sessione: SESSIONE_CLIENT, cerca: cerca });
     // v0.80.24 — un riavvio annunciato (un server di prima il campo non lo manda)
     try{ if(r && ('riavvio' in r)) riavvioDalServer(r.riavvio); }catch(_){ }
     const n = (r && typeof r.giocatori === 'number') ? r.giocatori : null;
     const c = (r && typeof r.cercano === 'number') ? r.cercano : null;
     const elC = document.getElementById('mm2-cercano');
-    if(c !== null && elC) elC.textContent = c + (c === 1 ? ' player in matchmaking' : ' players in matchmaking');   // v0.80.25
-    const g = (r && typeof r.inPartita === 'number') ? r.inPartita : null;
-    const elG = document.getElementById('mm2-in-partita');
-    if(g !== null && elG) elG.textContent = g + (g === 1 ? ' player in a match' : ' players in a match');
+    if(c !== null && elC) elC.textContent = c + (c === 1 ? ' player searching for a match' : ' players searching for a match');
     // Se il server non sa rispondere si lascia quel che c'era: sostituirlo con
     // uno zero direbbe "non c'e' nessuno", che e' un'altra cosa da "non lo so".
     if(n === null || !el) return;
@@ -22545,146 +22473,6 @@ function riavvioAnnulla(){
   _riavvio = null;
   riavvioChiudi();
 }
-// ══════════════════════════════════════════════════════════════════════════
-// v0.80.25 — LA TELEMETRIA (vedi rpcTelemetria sul server e la pagina /stats/)
-// ══════════════════════════════════════════════════════════════════════════
-// Lorenzo ha chiesto una pagina di statistiche ("Telemetria Hextale.txt"). Quel
-// che sa solo il client lo racconta al server: la sessione (quanto dura, su cosa
-// gira, quanto ci mette il gioco a diventare usabile, il tempo su ogni pagina,
-// gli errori JS e di rete) e il registro di ogni partita (mazzi, pescate,
-// giocate col tempo del turno, conquiste, punti turno per turno). Niente nel
-// browser: vive in memoria e parte ogni TELEMETRIA_OGNI_MS, a fine partita e
-// quando la pagina viene nascosta. Senza accesso non parte niente.
-const TELEMETRIA_OGNI_MS = 60000;
-const TELEMETRIA_STATO = {
-  apertoIl: Date.now() - Math.round((typeof performance !== 'undefined' && performance.now) ? performance.now() : 0),
-  piattaforma: /Electron\//.test(navigator.userAgent || '') ? 'electron' : 'browser',
-  caricamentoMs: 0,
-  pagine: {}, paginaOra: null, paginaDa: 0,
-  errori: 0, erroriTesti: [], erroriRete: 0,
-  partite: 0,
-  partita: null,       // il registro della partita in corso
-  daMandare: [],       // i registri finiti, in coda
-  inViaggio: false
-};
-// Il gioco e' usabile: il modulo d'accesso o il menu sono a schermo.
-function teleUsabile(){
-  const t = TELEMETRIA_STATO;
-  if(!t.caricamentoMs) t.caricamentoMs = Math.max(1, Date.now() - t.apertoIl);
-}
-function teleCambioPagina(nome){
-  const t = TELEMETRIA_STATO, ora = Date.now();
-  if(t.paginaOra) t.pagine[t.paginaOra] = (t.pagine[t.paginaOra] || 0) + (ora - t.paginaDa);
-  t.paginaOra = nome || null;
-  t.paginaDa = ora;
-  if(nome === 'mainmenu') teleUsabile();
-}
-function teleErrore(testo){
-  const t = TELEMETRIA_STATO;
-  t.errori++;
-  const s = String(testo || 'Unknown error').slice(0, 160);
-  if(t.erroriTesti.length < 5 && t.erroriTesti.indexOf(s) < 0) t.erroriTesti.push(s);
-}
-function _teleIdCarta(card){ return card ? String(card.baseId || _idDelMazzo(card) || '') : ''; }
-function teleInizioPartita(){
-  if(typeof G !== 'object' || !G || !G.board) return;
-  const io = (PARTITA_RETE && PARTITA_RETE.io) || G.ioSonoIlNumero || 1;
-  const ids = (elenco) => (elenco || []).map(_teleIdCarta).filter(Boolean);
-  const mazzoDi = (g) => ids(g === 1 ? G.p1Deck : G.p2Deck).concat(ids(g === 1 ? G.p1Hand : G.p2Hand));
-  const mazzi = {};
-  if(PARTITA_RETE) mazzi[io] = mazzoDi(io);          // quello dell'avversario lo sa il server
-  else { mazzi[1] = mazzoDi(1); mazzi[2] = mazzoDi(2); }
-  TELEMETRIA_STATO.partita = {
-    pvp: !!PARTITA_RETE, id: PARTITA_RETE ? String(PARTITA_RETE.matchId || '') : '', io: io,
-    inizio: Date.now(), turnoDa: Date.now(),
-    mazzi, pescate: { 1: {}, 2: {} }, mosse: [], conquiste: [], punti: [],
-    g: G
-  };
-}
-// Il registro vale per la partita in cui e' nato (una nuova ha un altro G).
-function _telePartita(){
-  const p = TELEMETRIA_STATO.partita;
-  return (p && p.g === G) ? p : null;
-}
-function teleInizioTurno(){ const p = _telePartita(); if(p) p.turnoDa = Date.now(); }
-function teleSegnaPescata(player, card){
-  const p = _telePartita();
-  const id = _teleIdCarta(card);
-  if(!p || !id) return;
-  const m = p.pescate[player] || (p.pescate[player] = {});
-  m[id] = (m[id] || 0) + 1;
-}
-function teleSegnaGiocata(card, player, k){
-  const p = _telePartita();
-  if(!p || p.mosse.length >= 80) return;
-  p.mosse.push([G.numeroTurno || 1, player, _teleIdCarta(card), String(k), Math.max(0, Date.now() - (p.turnoDa || p.inizio))]);
-}
-function teleSegnaConquiste(card, player, prese, prima){
-  const p = _telePartita();
-  if(!p || !prese || !prese.length) return;
-  const da = _teleIdCarta(card);
-  for(const k of prese){
-    if(p.conquiste.length >= 120) break;
-    const su = prima && prima[k] && prima[k].card;
-    if(su) p.conquiste.push([G.numeroTurno || 1, da, _teleIdCarta(su)]);
-  }
-}
-function teleSegnaPunti(){
-  const p = _telePartita();
-  if(!p || p.punti.length >= 80) return;
-  const pf = G.puntiFatti || G.hp || {};
-  p.punti.push([G.numeroTurno || 1, pf[1] || 0, pf[2] || 0]);
-}
-function teleFinePartita(vincitore){
-  const p = _telePartita();
-  if(!p) return;
-  teleSegnaPunti();
-  TELEMETRIA_STATO.partita = null;
-  TELEMETRIA_STATO.partite++;
-  const registro = {
-    pvp: p.pvp, id: p.id, io: p.io, durataMs: Date.now() - p.inizio, vincitore: vincitore || 0,
-    mazzi: p.mazzi, pescate: p.pescate, mosse: p.mosse, conquiste: p.conquiste, punti: p.punti, tentativi: 0
-  };
-  TELEMETRIA_STATO.daMandare.push(registro);
-  teleManda();
-}
-async function teleManda(){
-  const t = TELEMETRIA_STATO;
-  if(t.inViaggio) return;
-  if(typeof sessioneAccount === 'undefined' || !sessioneAccount || !sessioneAccount.token) return;
-  const ora = Date.now();
-  const pagine = Object.assign({}, t.pagine);
-  if(t.paginaOra) pagine[t.paginaOra] = (pagine[t.paginaOra] || 0) + (ora - t.paginaDa);
-  const registro = t.daMandare[0] || null;
-  t.inViaggio = true;
-  let andata = false;
-  try{
-    await nakamaRpc('hx_telemetria', {
-      sessione: SESSIONE_CLIENT, dalMs: ora - t.apertoIl, piattaforma: t.piattaforma,
-      caricamentoMs: t.caricamentoMs, pagine: pagine, errori: t.errori, erroriTesti: t.erroriTesti,
-      erroriRete: t.erroriRete, partite: t.partite, partita: registro
-    });
-    andata = true;
-  }catch(_){
-    // si riprova al giro dopo; un registro rifiutato tre volte si lascia andare
-    if(registro && ++registro.tentativi >= 3 && t.daMandare[0] === registro) t.daMandare.shift();
-  }finally{
-    t.inViaggio = false;
-  }
-  if(andata && registro && t.daMandare[0] === registro){
-    t.daMandare.shift();
-    if(t.daMandare.length) setTimeout(()=>{ try{ teleManda(); }catch(_){ } }, 2000);
-  }
-}
-window.addEventListener('error', (e)=>{ try{ teleErrore((e && e.message) || 'Script error'); }catch(_){ } });
-window.addEventListener('unhandledrejection', (e)=>{
-  try{ const r = e && e.reason; teleErrore('Unhandled rejection: ' + ((r && r.message) || String(r))); }catch(_){ }
-});
-document.addEventListener('visibilitychange', ()=>{
-  if(document.visibilityState === 'hidden'){ try{ teleManda(); }catch(_){ } }
-});
-setInterval(()=>{ try{ teleManda(); }catch(_){ } }, TELEMETRIA_OGNI_MS);
-
 function avviaContatoreOnline(){
   if(_onlineTimer) return;
   // v0.78.21 — niente condizioni su quale pagina si stia guardando: il battito
@@ -38343,7 +38131,6 @@ function initGame(vsAI){
   try{ questAzzeraConto(); _questMostrateInPartita = {}; _questSilenzioDetto = false; }catch(_){ }
   // v0.80.24 — e la carta alzata dall'avversario e' della partita di prima
   try{ _manoSopraAvversario = null; _manoSopraAlzata = null; _manoSopraDetta = null; _manoSopraInCoda = null; }catch(_){ }
-  setTimeout(()=>{ try{ onlineSeCambiato(); }catch(_){ } try{ teleInizioPartita(); }catch(_){ } }, 0);   // v0.80.25 — si comincia a giocare
   // v0.80.19 — gli sticker (e il loro blocco) valgono una partita.
   try{ stickerNuovaPartita(); }catch(_){ }
   // v0.76.8 — la grafica della schermata di partita, montata alla prima partita.
@@ -40919,7 +40706,6 @@ function doPlace(card,playerIdx,q,r,daServer){
   playSfx('sfx-drop');
   const player=playerIdx+1;
   const k=key(q,r);
-  try{ teleSegnaGiocata(card, player, k); }catch(_){ }   // v0.80.25
 
   // 1) Check whether this cell is a magic tile — binary, no color at all
   //    (formerly "1 or 2 socket colors, up to a dual-infusion gradient tile").
@@ -45837,7 +45623,7 @@ function chiudiSceltaBersaglio(cella, daServer){
   if(PARTITA_RETE && !daServer && scelta.privata && !sceltaMia(scelta.giocatore)) return;
   if(PARTITA_RETE && !daServer && !scelta.privata){
     if(!sceltaMia(scelta.giocatore)) return;   // non e' roba mia: non tocco
-    reteScegli(cella, scelta.destinazioneScelta || null);   // v0.80.25 — con la meta
+    reteScegli(cella);
     return;                                     // si applica quando torna
   }
   // ── v0.77.69 — LE SCELTE CHE VOGLIONO PIU' DI UN BERSAGLIO ──────────────
@@ -47184,7 +46970,6 @@ function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLa
   // proprio il numero che serve a "Flip 2 cards with 1": contarle a fine
   // partita direbbe quante in tutto, che e' un'altra domanda.
   try{ questSegnaConquiste(player, conquered, snap); }catch(_){ }
-  try{ teleSegnaConquiste(card, player, conquered, snap); }catch(_){ }   // v0.80.25
 
   // Neither placeCard() nor the drag-drop mouseup handler render the board
   // after calling doPlace() — the board only used to get painted by
@@ -47688,7 +47473,6 @@ function endTurn(player, animationsSettled, dannoFatto){
   // cambio di giocatore, perche' e' esattamente lo stesso evento: chi conta i
   // turni e chi li annuncia devono essere d'accordo, o un'abilita' che scatta
   // "dall'ottavo turno" scatterebbe mezza giocata prima o dopo del banner.
-  try{ teleSegnaPunti(); }catch(_){ }   // v0.80.25 — i punti a fine turno
   G.numeroTurno = (G.numeroTurno||1) + 1;
   // ── v0.77.80 — IL TABELLONE SI RIFA' ANCHE QUANDO CAMBIA IL TURNO ────────
   // `ricalcolaTabellone` veniva chiamata SOLO quando si calava una carta. Ma
@@ -47989,7 +47773,6 @@ function drawNCards(player, n, fast, callback){
 }
 
 function startTurn(){
-  try{ teleInizioTurno(); }catch(_){ }   // v0.80.25 — da qui si conta il tempo del turno
   // ── v0.77.55 — IN RETE IL TURNO NON LO DECIDE IL MOTORE ─────────────────
   // Questo e' il momento in cui il turno nuovo comincia davvero, ed e' quindi
   // l'unico posto onesto in cui dire di CHI e'. Il motore ci arriva col numero
@@ -49833,7 +49616,6 @@ function drawAndAnimate(player,fast,callback){
 
   if(player===1) G.p1Hand.push(newCard);
   else           G.p2Hand.push(newCard);
-  try{ teleSegnaPescata(player, newCard); }catch(_){ }   // v0.80.25
   renderHand(fanId, player===1?G.p1Hand:G.p2Hand, player-1);
 
   // Look the new wrap up by its stable data-card-id (renderHand tags every
@@ -50436,7 +50218,6 @@ function endGame(){
   // hand-expand dim.
   collapseAllHandExpand();
   G.gameOver=true; calcScores(); render();
-  try{ onlineSeCambiato(); }catch(_){ }   // v0.80.25 — non si gioca piu'
   // v0.80.21 — gli Yeti ancora nascosti si mostrano. In rete no: la casella
   // dell'avversario non la sappiamo, e la dice il server con la fine (op 6).
   if(!PARTITA_RETE){ try{ yetiRivelaTutti(); }catch(_){ } }
@@ -50560,7 +50341,6 @@ function finishGameWithResult(){
   // E' la stessa regola di sempre, tirata fuori dal titolo perche' adesso la
   // guarda anche il suono della fine.
   const vincitore = dichiarato || ((hp1 === hp2) ? 0 : (hp1 > hp2 ? 1 : 2));
-  try{ teleFinePartita(vincitore); }catch(_){ }   // v0.80.25
   const titleSpan=document.getElementById('gameover-title-text');
   // v0.77.5 — la schermata e' UNA. Qui si sceglieva fra tre varianti (fondo
   // scuro, chiaro o neutro, bandiera del vincitore, name-wrapper diverso, e

@@ -182,7 +182,7 @@ app.whenReady().then(async () => {
       const sottoMm = document.elementFromPoint(mb.left + mb.width * 0.85, mb.top + mb.height / 2);
       dice(sottoMm && mmBtn.contains(sottoMm), 'e nemmeno su Matchmaking', sottoMm ? (sottoMm.id || sottoMm.className) : 'niente');
       if(sotto) sotto.click();
-      await new Promise(r=>setTimeout(r, 200));
+      await new Promise(r=>setTimeout(r, 700));   // v0.80.25 — la vista cambia a meta' animazione
       const h2 = id => (document.querySelector('#' + id + ' h2') || {}).textContent;
       const online = document.getElementById('mm2-online');
       const etichetta = () => (document.querySelector('#mm2-find .hxb-label') || {}).textContent;
@@ -198,7 +198,7 @@ app.whenReady().then(async () => {
       dice(document.getElementById('mm2-modo-normal').classList.contains('scelto') && document.getElementById('mm2-modo-draft').classList.contains('spento'),
         'e il resto del centro e- identico: Normal scelta, Draft spenta');
       mmBtn.click();
-      await new Promise(r=>setTimeout(r, 200));
+      await new Promise(r=>setTimeout(r, 700));   // v0.80.25 — la vista cambia a meta' animazione
       dice(h2('mm2-modo-draft') === 'Draft pick' && h2('mm2-modo-normal') === 'Normal' && etichetta() === 'Find opponent'
         && getComputedStyle(online).display !== 'none', 'e tornando a Matchmaking torna tutto com-era',
         h2('mm2-modo-draft') + ' / ' + h2('mm2-modo-normal') + ' / ' + etichetta());

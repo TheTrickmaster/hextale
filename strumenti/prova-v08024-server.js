@@ -100,25 +100,25 @@ const manda = (st, chi, corpo) => {
 };
 dice(mondo.OP_MANO_SOPRA === 19 && mondo.OP_MANO_SOPRA_ALTRO === 20, 'i codici sono 19 e 20');
 let st = stato();
-let r = manda(st, 'u1', { carta: 'final-b' });
-dice(r.length === 1 && r[0].op === 20 && r[0].a.join() === 'u2' && r[0].dati.di === 1 && r[0].dati.carta === 'final-b', 'una carta della mano va solo all-altro, con chi l-ha detta', JSON.stringify(r));
-r = manda(st, 'u2', { carta: 'final-c' });
+let r = manda(st, 'u1', { indice: 1 });
+dice(r.length === 1 && r[0].op === 20 && r[0].a.join() === 'u2' && r[0].dati.di === 1 && r[0].dati.indice === 1 && r[0].dati.quante === 2 && !('carta' in r[0].dati), 'v0.80.25: all-altro va solo il posto nella mano e quante carte ci sono (mai la carta)', JSON.stringify(r));
+r = manda(st, 'u2', { indice: 0 });
 dice(r.length === 1 && r[0].a.join() === 'u1' && r[0].dati.di === 2, 'e dall-altra parte al primo');
-r = manda(st, 'u1', { carta: 'final-c' });
-dice(r.length === 0, 'una carta che non e- nella propria mano non passa');
-r = manda(st, 'u1', { carta: null });
-dice(r.length === 1 && r[0].dati.carta === null, 'null (la carta torna giu-) passa');
+r = manda(st, 'u1', { indice: 2 });
+dice(r.length === 0 && manda(st, 'u1', { indice: -1 }).length === 0, 'un posto fuori dalla mano non passa');
+r = manda(st, 'u1', { indice: null });
+dice(r.length === 1 && r[0].dati.indice === null && r[0].dati.quante === 2, 'null (la carta torna giu-) passa, con quante carte ci sono');
 st = stato();
 let passati = 0;
-for (let i = 0; i < 30; i++) passati += manda(st, 'u1', { carta: 'final-a' }).length;
+for (let i = 0; i < 30; i++) passati += manda(st, 'u1', { indice: 0 }).length;
 dice(passati === mondo.MANO_SOPRA_MAX, 'oltre il tetto al secondo si scarta', passati);
-dice(manda(st, 'u1', { carta: null }).length === 1, 'ma il null passa anche oltre il tetto');
+dice(manda(st, 'u1', { indice: null }).length === 1, 'ma il null passa anche oltre il tetto');
 st = stato(); st.finita = true;
-dice(manda(st, 'u1', { carta: 'final-a' }).length === 0, 'a partita finita niente');
+dice(manda(st, 'u1', { indice: 0 }).length === 0, 'a partita finita niente');
 st = stato(); st.iniziata = false;
-dice(manda(st, 'u1', { carta: 'final-a' }).length === 0, 'e prima che cominci neanche');
+dice(manda(st, 'u1', { indice: 0 }).length === 0, 'e prima che cominci neanche');
 st = stato();
-dice(manda(st, 'estraneo', { carta: 'final-a' }).length === 0, 'chi non e- della partita non manda niente');
+dice(manda(st, 'estraneo', { indice: 0 }).length === 0, 'chi non e- della partita non manda niente');
 
 // ── 4. il riavvio annunciato ──────────────────────────────────────────────
 let sistema = {};

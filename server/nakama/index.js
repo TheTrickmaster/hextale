@@ -197,6 +197,7 @@ function _pagaQuest(possesso, def) {
   if (!def) return null;
   if (def.premio === 'pack') {
     possesso.bustineExtra = (possesso.bustineExtra || 0) + 1;
+    _statConta(possesso, 'bustineOttenute', 1);   // v0.80.25
     return { premio: 'pack', quanto: 1 };
   }
   var v = valuteDi(possesso);
@@ -228,6 +229,7 @@ function assicuraQuestDelGiorno(logger, possesso, userId) {
     }
   }
   possesso.quest = { giorno: oggi, lista: _cinqueDelGiorno(oggi) };
+  _statConta(possesso, 'questAssegnate', possesso.quest.lista.length);   // v0.80.25
   return true;
 }
 // L'avanzamento. `conta` e' il verbo ('vittoria', 'flip', ...), `quanto` di
@@ -247,6 +249,7 @@ function avanzaQuest(possesso, conta, quanto, pvp) {
     var prima = voce.fatto || 0;
     if (prima >= def.quanto) continue;          // gia' finita: non si conta oltre
     voce.fatto = Math.min(def.quanto, prima + quanto);
+    if (voce.fatto >= def.quanto) _statConta(possesso, 'questCompletate', 1);   // v0.80.25
     mosse.push({ id: def.id, fatto: voce.fatto, quanto: def.quanto,
                  finita: voce.fatto >= def.quanto });
   }
@@ -3137,6 +3140,11 @@ function rpcBustinaRaccogli(ctx, logger, nk, payload) {
   else if (tipoAperto === 'daily') possesso.bustinaProssima = Date.now() + BUSTINA_ATTESA_MS;
   else if ((possesso.bustineExtra || 0) > 0) possesso.bustineExtra -= 1;
   else possesso.bustinaProssima = Date.now() + BUSTINA_ATTESA_MS;
+  // v0.80.25 — i contatori: la giornaliera si "ottiene" aprendola, le altre
+  // quando arrivano (quest, acquisto)
+  _statConta(possesso, 'bustineAperte', 1);
+  if (tipoAperto !== 'treasure' && tipoAperto !== 'reward') _statConta(possesso, 'bustineOttenute', 1);
+  _statConta(possesso, 'carteOttenute', tieni.length - rimborsate.length);
   scriviPossesso(nk, ctx.userId, possesso);
   cancellaBustina(nk, ctx.userId);
 
@@ -3205,6 +3213,7 @@ function rpcCartaLivella(ctx, logger, nk, payload) {
   possesso.valute = valute;
   if (!possesso.carte) possesso.carte = {};
   possesso.carte[slug] = verso;
+  _statConta(possesso, 'livellamenti', 1);   // v0.80.25
   scriviPossesso(nk, ctx.userId, possesso);
 
   possedute = _possedute(carte, possesso, admin);
@@ -3269,6 +3278,7 @@ function rpcBustinaCompra(ctx, logger, nk, payload) {
   valute.magicInk -= PACCHETTO_PREZZO_INK;
   possesso.valute = valute;
   possesso.bustineTesoro = (possesso.bustineTesoro || 0) + 1;
+  _statConta(possesso, 'bustineOttenute', 1);   // v0.80.25
   scriviPossesso(nk, ctx.userId, possesso);
   logger.info('treasure pack comprato da %s: -%d ink, ne ha %d', ctx.userId, PACCHETTO_PREZZO_INK, possesso.bustineTesoro);
   return JSON.stringify({
@@ -4054,8 +4064,8 @@ var SEDIA_LIBERA_MS = 30 * 1000;
 
 // Legge una presenza nelle due forme, la vecchia e la nuova.
 function _presenzaLetta(v) {
-  if (typeof v === 'number') return { q: v, s: '', c: false };
-  if (v && typeof v === 'object' && typeof v.q === 'number') return { q: v.q, s: String(v.s || ''), c: !!v.c };
+  if (typeof v === 'number') return { q: v, s: '', c: false, g: false };
+  if (v && typeof v === 'object' && typeof v.q === 'number') return { q: v.q, s: String(v.s || ''), c: !!v.c, g: !!v.g };
   return null;
 }
 // v0.80.23 — chi sta cercando una partita. Mentre cerca il client batte ogni
@@ -4171,14 +4181,24 @@ function rpcGiocatoriOnline(ctx, logger, nk, payload) {
   // ci scrive sopra. Non e' un caso teorico — e' quello che succede al secondo
   // client se qualcuno gli mette le mani sul codice per saltare il rifiuto.
   if (ctx.userId && !(sessione && _sediaOccupataDaAltri(nk, ctx.userId, sessione))) {
-    visti[ctx.userId] = sessione ? (dati.cerca ? { q: ora, s: sessione, c: 1 } : { q: ora, s: sessione }) : ora;
+    if (sessione) {
+      var segno = { q: ora, s: sessione };
+      if (dati.cerca) segno.c = 1;
+      if (dati.gioca) segno.g = 1;   // v0.80.25 — sta giocando una partita
+      visti[ctx.userId] = segno;
+    } else {
+      visti[ctx.userId] = ora;
+    }
   }
-  var vivi = {}, quanti = 0, cercano = 0;
+  var vivi = {}, quanti = 0, cercano = 0, inPartita = 0;
   for (var u in visti) {
     var letta = _presenzaLetta(visti[u]);
     if (letta && (ora - letta.q) <= PRESENZA_VIVA_MS) {
       vivi[u] = visti[u]; quanti++;
       if (letta.c && (ora - letta.q) <= RICERCA_VIVA_MS) cercano++;   // v0.80.23
+      // v0.80.25 — in partita: il segno si toglie col battito che parte a fine
+      // partita, quindi vale quanto la presenza (in partita il battito resta a 20s).
+      if (letta.g) inPartita++;
     }
   }
   // La scrittura non deve poter far fallire la risposta: il numero e' gia'
@@ -4187,7 +4207,7 @@ function rpcGiocatoriOnline(ctx, logger, nk, payload) {
   catch (e2) { logger.warn('battito non scritto: %s', String(e2)); }
   // v0.80.24 — e se un riavvio e' annunciato, quando (vedi rpcRiavvioAnnuncia)
   var alle = _riavvioAnnunciato(nk);
-  return JSON.stringify({ giocatori: quanti, cercano: cercano, riavvio: alle ? { alle: alle, ora: ora } : null });
+  return JSON.stringify({ giocatori: quanti, cercano: cercano, inPartita: inPartita, riavvio: alle ? { alle: alle, ora: ora } : null });
 }
 
 // ── v0.78.16 — LE CARTE ANCORA DA GUARDARE ────────────────────────────────
@@ -4334,6 +4354,643 @@ function rpcQuestRiscuoti(ctx, logger, nk, payload) {
 
 // La RPC resta la strada delle partite contro l'IA, dove non c'e' nessun
 // avversario che possa confermare com'e' andata.
+// ══════════════════════════════════════════════════════════════════════════
+// v0.80.25 — LA TELEMETRIA E LE STATISTICHE (la pagina /stats/)
+// ══════════════════════════════════════════════════════════════════════════
+// Lorenzo ("Telemetria Hextale.txt"): una pagina con le statistiche di gioco,
+// aperta dalla stessa password del sito. Da dove arrivano i numeri:
+//   s:<utente>:<sessione>   la sessione come la racconta il client (hx_telemetria):
+//                           inizio/fine, piattaforma, caricamento, tempo per pagina,
+//                           errori JS, errori di rete, partite giocate;
+//   m:<partita>             il riassunto di ogni partita in rete, scritto QUI alla
+//                           fine: esito, modo, ranghi, mazzi, giocate col tempo del
+//                           turno (_teleFinePartita);
+//   p:<partita>:<utente>    il registro della partita in rete come l'ha vista un
+//                           client: pescate, conquiste, punti turno per turno;
+//   b:<utente>:<ms>         il registro di una partita contro il bot (tutto dal client);
+//   possesso.stat           i contatori di progressione (bustine, carte, livelli, quest).
+// Tutto in una collezione del server (permessi a zero). hx_stats legge e somma
+// al momento: niente contatori da tenere allineati. I numeri valgono da quando
+// la telemetria c'e' (v0.80.25): la pagina lo dice.
+var COLL_TELE = 'telemetria';
+var UTENTE_SISTEMA = '00000000-0000-0000-0000-000000000000';
+var TELE_MAX_MOSSE = 80, TELE_MAX_CONQUISTE = 120, TELE_MAX_PUNTI = 80, TELE_MAX_MAZZO = 40, TELE_MAX_PAGINE = 12;
+// La password e' quella del cancello del sito (index.html, CANCELLO_SALE e
+// CANCELLO_IMPRONTA): stessa sale, stessa impronta SHA-256.
+var STATS_SALE = 'hextale-cancello-v1:';
+var STATS_IMPRONTA = 'a9c66f0e2645d6ff8ccf9869c4603c1e96cb3e462c7580863062af0ed2c7a8e5';
+var STATS_TENTATIVI_MAX = 10;
+var STATS_FINESTRA_MS = 10 * 60 * 1000;
+var KEY_STATS_TENTATIVI = 'stats-tentativi';
+
+// SHA-256 in ES5, per non dipendere da come il runtime espone l'hash. Il testo
+// si codifica in UTF-8 come fa TextEncoder nel cancello del sito.
+var _SHA_K = [
+  0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+  0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+  0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+  0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+  0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+  0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+  0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+  0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
+];
+function _sha256Hex(testo) {
+  var b = [], i, c;
+  testo = String(testo);
+  for (i = 0; i < testo.length; i++) {
+    c = testo.charCodeAt(i);
+    if (c >= 0xd800 && c <= 0xdbff && i + 1 < testo.length) {
+      var c2 = testo.charCodeAt(i + 1);
+      if (c2 >= 0xdc00 && c2 <= 0xdfff) { c = 0x10000 + ((c - 0xd800) << 10) + (c2 - 0xdc00); i++; }
+    }
+    if (c < 0x80) b.push(c);
+    else if (c < 0x800) b.push(0xc0 | (c >> 6), 0x80 | (c & 63));
+    else if (c < 0x10000) b.push(0xe0 | (c >> 12), 0x80 | ((c >> 6) & 63), 0x80 | (c & 63));
+    else b.push(0xf0 | (c >> 18), 0x80 | ((c >> 12) & 63), 0x80 | ((c >> 6) & 63), 0x80 | (c & 63));
+  }
+  var bit = b.length * 8;
+  b.push(0x80);
+  while ((b.length % 64) !== 56) b.push(0);
+  var alti = Math.floor(bit / 4294967296), bassi = bit >>> 0;
+  b.push((alti >>> 24) & 255, (alti >>> 16) & 255, (alti >>> 8) & 255, alti & 255,
+         (bassi >>> 24) & 255, (bassi >>> 16) & 255, (bassi >>> 8) & 255, bassi & 255);
+  var H = [0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19];
+  var w = new Array(64);
+  for (var j = 0; j < b.length; j += 64) {
+    var t;
+    for (t = 0; t < 16; t++) w[t] = (b[j + 4 * t] << 24) | (b[j + 4 * t + 1] << 16) | (b[j + 4 * t + 2] << 8) | b[j + 4 * t + 3];
+    for (t = 16; t < 64; t++) {
+      var x2 = w[t - 2], x15 = w[t - 15];
+      var s1 = ((x2 >>> 17) | (x2 << 15)) ^ ((x2 >>> 19) | (x2 << 13)) ^ (x2 >>> 10);
+      var s0 = ((x15 >>> 7) | (x15 << 25)) ^ ((x15 >>> 18) | (x15 << 14)) ^ (x15 >>> 3);
+      w[t] = (w[t - 16] + s0 + w[t - 7] + s1) | 0;
+    }
+    var a = H[0], bb = H[1], cc = H[2], d = H[3], e = H[4], f = H[5], g = H[6], h = H[7];
+    for (t = 0; t < 64; t++) {
+      var se = ((e >>> 6) | (e << 26)) ^ ((e >>> 11) | (e << 21)) ^ ((e >>> 25) | (e << 7));
+      var t1 = (h + se + ((e & f) ^ (~e & g)) + _SHA_K[t] + w[t]) | 0;
+      var sa = ((a >>> 2) | (a << 30)) ^ ((a >>> 13) | (a << 19)) ^ ((a >>> 22) | (a << 10));
+      var t2 = (sa + ((a & bb) ^ (a & cc) ^ (bb & cc))) | 0;
+      h = g; g = f; f = e; e = (d + t1) | 0; d = cc; cc = bb; bb = a; a = (t1 + t2) | 0;
+    }
+    H[0] = (H[0] + a) | 0; H[1] = (H[1] + bb) | 0; H[2] = (H[2] + cc) | 0; H[3] = (H[3] + d) | 0;
+    H[4] = (H[4] + e) | 0; H[5] = (H[5] + f) | 0; H[6] = (H[6] + g) | 0; H[7] = (H[7] + h) | 0;
+  }
+  var fuori = '';
+  for (i = 0; i < 8; i++) {
+    var esa = (H[i] >>> 0).toString(16);
+    while (esa.length < 8) esa = '0' + esa;
+    fuori += esa;
+  }
+  return fuori;
+}
+
+function _teleScrivi(nk, chiave, valore) {
+  nk.storageWrite([{ collection: COLL_TELE, key: chiave, userId: UTENTE_SISTEMA, value: valore,
+                     permissionRead: 0, permissionWrite: 0 }]);
+}
+function _teleLeggi(nk, chiave) {
+  var r = nk.storageRead([{ collection: COLL_TELE, key: chiave, userId: UTENTE_SISTEMA }]);
+  return (r && r.length && r[0].value) ? r[0].value : null;
+}
+function _teleIdCarta(x) {
+  var s = String(x === null || x === undefined ? '' : x);
+  return /^[a-z0-9][a-z0-9-]{0,63}$/.test(s) ? s : null;
+}
+function _teleCella(x) {
+  var s = String(x === null || x === undefined ? '' : x);
+  return /^-?\d{1,2},-?\d{1,2}$/.test(s) ? s : null;
+}
+function _teleNum(x, massimo) {
+  var n = Number(x);
+  if (!isFinite(n) || n < 0) return 0;
+  return Math.min(Math.floor(n), massimo);
+}
+// I contatori di progressione nel possesso (li scrive chi scrive gia' il possesso).
+function _statConta(possesso, nome, quanto) {
+  if (!possesso) return;
+  if (!possesso.stat || typeof possesso.stat !== 'object') possesso.stat = {};
+  possesso.stat[nome] = (possesso.stat[nome] || 0) + (quanto === undefined ? 1 : quanto);
+}
+
+// Il registro di una partita come lo manda il client, ripulito: carte e caselle
+// col loro formato, numeri con un tetto, elenchi corti.
+function _telePartitaPulita(p, u, ora) {
+  if (!p || typeof p !== 'object') return null;
+  var pvp = !!p.pvp;
+  var id = String(p.id || '').replace(/[^A-Za-z0-9._-]/g, '').slice(0, 64);
+  if (pvp && !id) return null;
+  var io = (Number(p.io) === 2) ? 2 : 1;
+  var mazzi = {}, pescate = {}, g, i, k;
+  for (g = 1; g <= 2; g++) {
+    var m = (p.mazzi && p.mazzi[g]) || null;
+    if (Object.prototype.toString.call(m) === '[object Array]') {
+      mazzi[g] = [];
+      for (i = 0; i < m.length && mazzi[g].length < TELE_MAX_MAZZO; i++) { var c = _teleIdCarta(m[i]); if (c) mazzi[g].push(c); }
+    }
+    var pe = (p.pescate && p.pescate[g]) || null;
+    pescate[g] = {};
+    if (pe && typeof pe === 'object') {
+      var quante = 0;
+      for (k in pe) {
+        if (quante >= TELE_MAX_MAZZO) break;
+        var ck = _teleIdCarta(k);
+        if (ck) { pescate[g][ck] = _teleNum(pe[k], TELE_MAX_MAZZO); quante++; }
+      }
+    }
+  }
+  var lista = function (x) { return Object.prototype.toString.call(x) === '[object Array]' ? x : []; };
+  var mosse = [], conquiste = [], punti = [];
+  var mm = lista(p.mosse);
+  for (i = 0; i < mm.length && mosse.length < TELE_MAX_MOSSE; i++) {
+    var r = lista(mm[i]);
+    var carta = _teleIdCarta(r[2]), cella = _teleCella(r[3]);
+    if (!carta || !cella) continue;
+    mosse.push([_teleNum(r[0], 500), Number(r[1]) === 2 ? 2 : 1, carta, cella, _teleNum(r[4], 600000)]);
+  }
+  var cc2 = lista(p.conquiste);
+  for (i = 0; i < cc2.length && conquiste.length < TELE_MAX_CONQUISTE; i++) {
+    var q = lista(cc2[i]);
+    var da = _teleIdCarta(q[1]), su = _teleIdCarta(q[2]);
+    if (da && su) conquiste.push([_teleNum(q[0], 500), da, su]);
+  }
+  var pp = lista(p.punti);
+  for (i = 0; i < pp.length && punti.length < TELE_MAX_PUNTI; i++) {
+    var s = lista(pp[i]);
+    punti.push([_teleNum(s[0], 500), _teleNum(s[1], 99999), _teleNum(s[2], 99999)]);
+  }
+  var durata = _teleNum(p.durataMs, 3 * 3600 * 1000);
+  var vincitore = Number(p.vincitore);
+  var valore = {
+    pvp: pvp, id: id, u: u, io: io, fine: ora, inizio: ora - durata, durataMs: durata,
+    vincitore: (vincitore === 1 || vincitore === 2) ? vincitore : 0,
+    mazzi: mazzi, pescate: pescate, mosse: mosse, conquiste: conquiste, punti: punti
+  };
+  return { chiave: pvp ? ('p:' + id + ':' + u) : ('b:' + u + ':' + ora), valore: valore };
+}
+
+function rpcTelemetria(ctx, logger, nk, payload) {
+  if (!ctx.userId) throw Error('You need to log in.');
+  var d = {};
+  try { d = payload ? JSON.parse(payload) : {}; } catch (e) { d = {}; }
+  var ora = Date.now();
+  var sessione = String(d.sessione || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64);
+  if (sessione) {
+    var chiave = 's:' + ctx.userId + ':' + sessione;
+    var prima = null;
+    try { prima = _teleLeggi(nk, chiave); } catch (e1) { prima = null; }
+    var dal = _teleNum(d.dalMs, 7 * 24 * 3600 * 1000);
+    var pagine = {};
+    if (d.pagine && typeof d.pagine === 'object') {
+      var n = 0;
+      for (var nome in d.pagine) {
+        if (n >= TELE_MAX_PAGINE) break;
+        var pulito = String(nome).replace(/[^a-z]/g, '').slice(0, 16);
+        if (pulito) { pagine[pulito] = _teleNum(d.pagine[nome], 7 * 24 * 3600 * 1000); n++; }
+      }
+    }
+    var testi = [];
+    if (Object.prototype.toString.call(d.erroriTesti) === '[object Array]') {
+      for (var i = 0; i < d.erroriTesti.length && testi.length < 5; i++) testi.push(String(d.erroriTesti[i]).slice(0, 160));
+    }
+    _teleScrivi(nk, chiave, {
+      u: ctx.userId, s: sessione,
+      inizio: (prima && prima.inizio) || (ora - dal),
+      fine: ora,
+      piattaforma: d.piattaforma === 'electron' ? 'electron' : 'browser',
+      caricamentoMs: (prima && prima.caricamentoMs) || _teleNum(d.caricamentoMs, 10 * 60 * 1000),
+      pagine: pagine,
+      errori: _teleNum(d.errori, 100000), erroriTesti: testi,
+      erroriRete: _teleNum(d.erroriRete, 100000),
+      partite: _teleNum(d.partite, 1000)
+    });
+  }
+  if (d.partita) {
+    var log = _telePartitaPulita(d.partita, ctx.userId, ora);
+    if (log) _teleScrivi(nk, log.chiave, log.valore);
+  }
+  return JSON.stringify({ ok: true });
+}
+
+// Dentro alla partita in rete: la giocata col tempo che si e' preso il turno.
+function _teleMossa(state, k, carta, di) {
+  if (!state.teleMosse) state.teleMosse = [];
+  if (state.teleMosse.length >= TELE_MAX_MOSSE) return;
+  var inizioTurno = (state.scadenza || Date.now()) - TURNO_MS;
+  state.teleMosse.push([state.numeroTurno || 0, di, String(carta), String(k), Math.max(0, Date.now() - inizioTurno)]);
+}
+// E alla fine, una volta sola, il riassunto. `modo`: finita, resa, abbandono, fermata.
+function _teleFinePartita(nk, logger, state, modo, vincitore) {
+  if (state.teleScritta) return;
+  state.teleScritta = true;
+  try {
+    var ora = Date.now();
+    var inizio = state.inizioIl || state.natoIl || ora;
+    var giocatori = [];
+    for (var i = 0; i < state.giocatori.length; i++) {
+      var u = state.giocatori[i];
+      var inf = (state.info && state.info[u]) || {};
+      giocatori.push({
+        u: u,
+        rank: (typeof inf.rank === 'number') ? inf.rank : null,
+        livello: (typeof inf.livello === 'number') ? inf.livello : null,
+        mazzo: ((state.mazzoIniziale && state.mazzoIniziale[u]) || []).slice(0, TELE_MAX_MAZZO)
+      });
+    }
+    _teleScrivi(nk, 'm:' + (state.idPartita || String(ora)), {
+      pvp: true, id: state.idPartita || '', inizio: inizio, fine: ora, durataMs: ora - inizio,
+      modo: modo, vincitore: vincitore || 0, turni: state.numeroTurno || 0,
+      giocatori: giocatori, mosse: state.teleMosse || []
+    });
+  } catch (e) { if (logger) logger.warn('telemetria della partita non scritta: %s', String(e)); }
+}
+
+// ── le statistiche ─────────────────────────────────────────────────────────
+function _stConta(mappa, chiave, quanto) {
+  mappa[chiave] = (mappa[chiave] || 0) + (quanto === undefined ? 1 : quanto);
+}
+function _stMedia(somma, n) { return n ? Math.round(somma / n) : null; }
+function _stMedia1(somma, n) { return n ? Math.round(10 * somma / n) / 10 : null; }
+function _stPerc(parte, n) { return n ? Math.round(1000 * parte / n) / 10 : null; }
+function _stClassifica(mappa, quante, crescente) {
+  var righe = [];
+  for (var k in mappa) if (Object.prototype.hasOwnProperty.call(mappa, k)) righe.push({ id: k, n: mappa[k] });
+  righe.sort(function (a, b) {
+    var d = crescente ? (a.n - b.n) : (b.n - a.n);
+    return d || (a.id < b.id ? -1 : (a.id > b.id ? 1 : 0));
+  });
+  return righe.slice(0, quante);
+}
+function _stGiorno(ms) { return Math.floor(ms / 86400000); }
+function _stUnici(elenco) {
+  var visti = {}, fuori = [];
+  for (var i = 0; i < (elenco || []).length; i++) if (!visti[elenco[i]]) { visti[elenco[i]] = true; fuori.push(elenco[i]); }
+  return fuori;
+}
+function _stScheda(carte, id) {
+  if (!carte[id]) carte[id] = { mazzi: 0, presenze: 0, conLog: 0, pescata: 0, giocataInPartite: 0, giocate: 0,
+    vinteGiocata: 0, giocateConEsito: 0, turni: 0, celle: {}, giocateTutte: 0, conquiste: 0, conquistata: 0, vincenti: 0 };
+  return carte[id];
+}
+
+// Tutti i numeri della pagina da quel che c'e' nello storage. Pura: la prova la
+// fa girare con dati inventati (strumenti/prova-v08025-server.js).
+function calcolaStatistiche(dati, ora) {
+  var i, j, k;
+  var esclusi = {};
+  for (i = 0; i < (dati.esclusi || []).length; i++) esclusi[dati.esclusi[i]] = true;
+  var sessioni = [], partiteServer = dati.partiteServer || [], log = [];
+  for (i = 0; i < (dati.sessioni || []).length; i++) if (dati.sessioni[i] && !esclusi[dati.sessioni[i].u]) sessioni.push(dati.sessioni[i]);
+  for (i = 0; i < (dati.logPartite || []).length; i++) if (dati.logPartite[i] && !esclusi[dati.logPartite[i].u]) log.push(dati.logPartite[i]);
+  var nomi = {}, visibili = [];
+  for (i = 0; i < (dati.catalogo || []).length; i++) {
+    var cat = dati.catalogo[i];
+    if (!cat || !cat.id) continue;
+    nomi[cat.id] = cat.name || cat.id;
+    if (!cat.soloAdmin) visibili.push(cat.id);
+  }
+  var dal = null;
+  var vediDal = function (ms) { if (typeof ms === 'number' && ms > 0 && (dal === null || ms < dal)) dal = ms; };
+
+  // ── tecniche ──────────────────────────────────────────────────────────
+  var durSomma = 0, errori = 0, erroriRete = 0, testi = {}, caric = 0, caricN = 0;
+  var browser = {}, electron = {}, pagineSomma = {}, pagineN = 0;
+  var perUtente = {};
+  for (i = 0; i < sessioni.length; i++) {
+    var s = sessioni[i];
+    vediDal(s.inizio);
+    durSomma += Math.max(0, Math.min(12 * 3600000, (s.fine || 0) - (s.inizio || 0)));
+    errori += s.errori || 0;
+    erroriRete += s.erroriRete || 0;
+    for (j = 0; j < (s.erroriTesti || []).length; j++) _stConta(testi, s.erroriTesti[j]);
+    if (s.caricamentoMs > 0) { caric += s.caricamentoMs; caricN++; }
+    if (s.piattaforma === 'electron') electron[s.u] = true; else browser[s.u] = true;
+    if (s.pagine) { pagineN++; for (k in s.pagine) _stConta(pagineSomma, k, s.pagine[k]); }
+    if (!perUtente[s.u]) perUtente[s.u] = [];
+    perUtente[s.u].push(s);
+  }
+  var pagineMedie = {};
+  for (k in pagineSomma) pagineMedie[k] = _stMedia(pagineSomma[k], pagineN);
+
+  // ── le partite, in una forma sola ─────────────────────────────────────
+  // partite: una per partita (per durata, tempo del turno, rimonte, prime mosse);
+  // gm: una per giocatore umano in una partita (mazzo, giocate, esito).
+  var logPerId = {}, partite = [], gm = [];
+  for (i = 0; i < log.length; i++) {
+    if (log[i].pvp) { if (!logPerId[log[i].id]) logPerId[log[i].id] = []; logPerId[log[i].id].push(log[i]); }
+  }
+  var abbandonate = 0, arrese = 0, fermate = 0;
+  for (i = 0; i < partiteServer.length; i++) {
+    var m = partiteServer[i];
+    if (!m) continue;
+    vediDal(m.inizio);
+    if (m.modo === 'abbandono') abbandonate++;
+    else if (m.modo === 'resa') arrese++;
+    else if (m.modo === 'fermata') fermate++;
+    var suoi = logPerId[m.id] || [];
+    var primo = suoi[0] || null;
+    partite.push({ pvp: true, durataMs: m.durataMs || 0, mosse: m.mosse || [], punti: primo ? primo.punti : [],
+                   conquiste: primo ? primo.conquiste : [], umani: { 1: true, 2: true }, fine: m.fine });
+    var g0 = (m.giocatori || [])[0] || {}, g1 = (m.giocatori || [])[1] || {};
+    for (j = 0; j < (m.giocatori || []).length; j++) {
+      var gg = m.giocatori[j], di = j + 1;
+      if (!gg || esclusi[gg.u]) continue;
+      var suo = null;
+      for (k = 0; k < suoi.length; k++) if (suoi[k].u === gg.u) suo = suoi[k];
+      gm.push({ u: gg.u, di: di, pvp: true, fine: m.fine, mazzo: gg.mazzo || [],
+                esitoNoto: m.modo !== 'fermata', vinta: m.vincitore === di,
+                mosse: (m.mosse || []).filter(function (x) { return x[1] === di; }),
+                pescate: suo ? ((suo.pescate || {})[di] || null) : null,
+                rank: gg.rank, rankAvversario: (di === 1 ? g1 : g0).rank });
+    }
+  }
+  var partiteBot = 0;
+  for (i = 0; i < log.length; i++) {
+    var l = log[i];
+    if (l.pvp) continue;
+    partiteBot++;
+    vediDal(l.inizio);
+    var umani = {}; umani[l.io] = true;
+    partite.push({ pvp: false, durataMs: l.durataMs || 0, mosse: l.mosse || [], punti: l.punti || [],
+                   conquiste: l.conquiste || [], umani: umani, fine: l.fine });
+    gm.push({ u: l.u, di: l.io, pvp: false, fine: l.fine, mazzo: (l.mazzi || {})[l.io] || [],
+              esitoNoto: true, vinta: l.vincitore === l.io,
+              mosse: (l.mosse || []).filter(function (x) { return x[1] === l.io; }),
+              pescate: (l.pescate || {})[l.io] || null, rank: null, rankAvversario: null });
+  }
+
+  // ── design ─────────────────────────────────────────────────────────────
+  var durataSomma = 0, durataN = 0, turnoSomma = 0, turnoN = 0;
+  var prime = {}, rimonteSomma = 0, rimonteConPunti = 0, conRimonta = 0;
+  var carte = {};
+  for (i = 0; i < partite.length; i++) {
+    var pa = partite[i];
+    if (pa.durataMs > 0) { durataSomma += pa.durataMs; durataN++; }
+    var primaUmana = null;
+    for (j = 0; j < pa.mosse.length; j++) {
+      var mo = pa.mosse[j];
+      var sc = _stScheda(carte, mo[2]);
+      sc.giocateTutte++;
+      if (pa.umani[mo[1]]) {
+        if (mo[4] > 0) { turnoSomma += mo[4]; turnoN++; }
+      }
+      if (j === 0 && pa.umani[mo[1]]) primaUmana = mo;
+    }
+    if (primaUmana) _stConta(prime, primaUmana[2] + '@' + primaUmana[3]);
+    for (j = 0; j < pa.conquiste.length; j++) {
+      _stScheda(carte, pa.conquiste[j][1]).conquiste++;
+      _stScheda(carte, pa.conquiste[j][2]).conquistata++;
+    }
+    if (pa.punti && pa.punti.length >= 2) {
+      var segno = 0, cambi = 0;
+      for (j = 0; j < pa.punti.length; j++) {
+        var diff = (pa.punti[j][1] || 0) - (pa.punti[j][2] || 0);
+        var sg = diff > 0 ? 1 : (diff < 0 ? -1 : 0);
+        if (sg !== 0) { if (segno !== 0 && sg !== segno) cambi++; segno = sg; }
+      }
+      rimonteConPunti++;
+      rimonteSomma += cambi;
+      if (cambi > 0) conRimonta++;
+    }
+  }
+  var usate = {}, aperture = {}, celleIniziali = {}, coppie = {}, vincenti = {};
+  var mazziTotali = 0, rankN = 0, rankBassoVince = 0, giornate = {};
+  for (i = 0; i < gm.length; i++) {
+    var x = gm[i];
+    giornate[x.u + ':' + _stGiorno(x.fine || 0)] = true;
+    var nelMazzo = _stUnici(x.mazzo);
+    if (nelMazzo.length) mazziTotali++;
+    var giocateQui = {};
+    for (j = 0; j < x.mosse.length; j++) {
+      var mv = x.mosse[j];
+      var scheda = _stScheda(carte, mv[2]);
+      scheda.giocate++;
+      scheda.turni += mv[0] || 0;
+      _stConta(scheda.celle, mv[3]);
+      _stConta(usate, mv[2]);
+      giocateQui[mv[2]] = true;
+      if (j === 0) { _stConta(aperture, mv[2]); _stConta(celleIniziali, mv[3]); }
+      if (j > 0) _stConta(coppie, x.mosse[j - 1][2] + '>' + mv[2]);
+    }
+    for (j = 0; j < nelMazzo.length; j++) {
+      var sm = _stScheda(carte, nelMazzo[j]);
+      sm.mazzi++;
+      sm.presenze++;
+      if (giocateQui[nelMazzo[j]]) sm.giocataInPartite++;
+      if (x.pescate) { sm.conLog++; if ((x.pescate[nelMazzo[j]] || 0) > 0) sm.pescata++; }
+      if (x.vinta) { sm.vincenti++; _stConta(vincenti, nelMazzo[j]); }
+    }
+    if (x.esitoNoto) {
+      for (k in giocateQui) {
+        var sv = _stScheda(carte, k);
+        sv.giocateConEsito++;
+        if (x.vinta) sv.vinteGiocata++;
+      }
+    }
+  }
+  for (i = 0; i < partiteServer.length; i++) {
+    var ps = partiteServer[i], ga = (ps.giocatori || [])[0], gb = (ps.giocatori || [])[1];
+    if (!ga || !gb || typeof ga.rank !== 'number' || typeof gb.rank !== 'number' || ga.rank === gb.rank) continue;
+    if (!ps.vincitore || ps.modo === 'fermata') continue;
+    rankN++;
+    var basso = ga.rank < gb.rank ? 1 : 2;
+    if (ps.vincitore === basso) rankBassoVince++;
+  }
+  for (i = 0; i < sessioni.length; i++) giornate[sessioni[i].u + ':' + _stGiorno(sessioni[i].inizio || 0)] = true;
+  var quanteGiornate = 0;
+  for (k in giornate) quanteGiornate++;
+
+  var schede = {};
+  var tutteLeCarte = _stUnici(visibili.concat(Object.keys(carte)));
+  for (i = 0; i < tutteLeCarte.length; i++) {
+    var id = tutteLeCarte[i], c0 = carte[id] || _stScheda({}, id);
+    var cellaTop = _stClassifica(c0.celle, 1)[0];
+    schede[id] = {
+      nome: nomi[id] || id,
+      mazziPerc: _stPerc(c0.mazzi, mazziTotali),
+      pescataPerc: _stPerc(c0.pescata, c0.conLog),
+      giocataPerc: _stPerc(c0.giocataInPartite, c0.presenze),
+      giocate: c0.giocate,
+      winRateGiocata: _stPerc(c0.vinteGiocata, c0.giocateConEsito),
+      turnoMedio: _stMedia1(c0.turni, c0.giocate),
+      cellaPreferita: cellaTop ? cellaTop.id : null,
+      conquistePerGiocata: _stMedia1(c0.conquiste, c0.giocateTutte),
+      conquistataPerGiocata: _stMedia1(c0.conquistata, c0.giocateTutte)
+    };
+  }
+  var usateTutte = {};
+  for (i = 0; i < visibili.length; i++) usateTutte[visibili[i]] = usate[visibili[i]] || 0;
+  var mazziClassifica = {};
+  for (k in carte) if (carte[k].mazzi) mazziClassifica[k] = carte[k].mazzi;
+
+  // ── progressione ───────────────────────────────────────────────────────
+  var creati = dati.creati || {};
+  var primaDurSomma = 0, primaN = 0, primaPartite = 0, ritorni = { 1: [0, 0], 3: [0, 0], 7: [0, 0] };
+  var utentiConSessioni = 0;
+  for (var uu in perUtente) {
+    utentiConSessioni++;
+    var lista = perUtente[uu].slice().sort(function (a, b) { return (a.inizio || 0) - (b.inizio || 0); });
+    var prima = lista[0];
+    // Solo chi e' nato dopo che la telemetria c'era: per gli altri la prima
+    // sessione registrata non e' la prima.
+    if (!(typeof creati[uu] === 'number' && dal !== null && creati[uu] >= dal - 3600000)) continue;
+    primaN++;
+    primaDurSomma += Math.max(0, (prima.fine || 0) - (prima.inizio || 0));
+    for (j = 0; j < gm.length; j++) {
+      if (gm[j].u === uu && gm[j].fine >= prima.inizio && gm[j].fine <= (prima.fine || 0) + 120000) primaPartite++;
+    }
+    var giorno0 = _stGiorno(prima.inizio || 0);
+    var n2 = [1, 3, 7];
+    for (j = 0; j < n2.length; j++) {
+      if (ora - (prima.inizio || 0) < n2[j] * 86400000) continue;
+      ritorni[n2[j]][1]++;
+      for (k = 0; k < lista.length; k++) if (_stGiorno(lista[k].inizio || 0) - giorno0 === n2[j]) { ritorni[n2[j]][0]++; break; }
+    }
+  }
+  var livSomma = 0, rankSomma = 0, profN = 0;
+  for (i = 0; i < (dati.stagioni || []).length; i++) {
+    var st = dati.stagioni[i];
+    if (!st || esclusi[st.u] || !st.v) continue;
+    if (dati.stagioneCorrente && st.v.stagione !== dati.stagioneCorrente) continue;
+    livSomma += st.v.livello || 0; rankSomma += st.v.rank || 0; profN++;
+  }
+  var cont = { bustineOttenute: 0, bustineAperte: 0, carteOttenute: 0, livellamenti: 0, questAssegnate: 0, questCompletate: 0 }, contN = 0;
+  for (i = 0; i < (dati.possessi || []).length; i++) {
+    var po = dati.possessi[i];
+    if (!po || esclusi[po.u] || !po.v || !po.v.stat) continue;
+    contN++;
+    for (k in cont) cont[k] += po.v.stat[k] || 0;
+  }
+  var rankMedio = profN ? Math.round(rankSomma / profN) : null;
+
+  return {
+    generatoIl: ora, dal: dal,
+    tecniche: {
+      sessioni: sessioni.length,
+      durataMediaSessioneMs: _stMedia(durSomma, sessioni.length),
+      partiteAbbandonate: abbandonate, partiteArrese: arrese, partiteFermate: fermate,
+      erroriJs: errori, erroriPiuFrequenti: _stClassifica(testi, 5),
+      utentiBrowser: Object.keys(browser).length, utentiElectron: Object.keys(electron).length,
+      erroriRete: erroriRete,
+      caricamentoMedioMs: _stMedia(caric, caricN)
+    },
+    design: {
+      partiteTotali: partite.length, partitePvp: partiteServer.length, partiteBot: partiteBot,
+      partitePerGiornoGiocatore: _stMedia1(gm.length, quanteGiornate),
+      durataMediaPartitaMs: _stMedia(durataSomma, durataN),
+      tempoMedioTurnoMs: _stMedia(turnoSomma, turnoN),
+      mazzi: _stClassifica(mazziClassifica, 20).map(function (r) { return { id: r.id, perc: _stPerc(r.n, mazziTotali) }; }),
+      mazziContati: mazziTotali,
+      winRateRankBasso: _stPerc(rankBassoVince, rankN),
+      winRateRankAlto: _stPerc(rankN - rankBassoVince, rankN),
+      partiteConRankDiversi: rankN,
+      tempoPerPaginaMs: pagineMedie
+    },
+    strategia: {
+      piuUsate: _stClassifica(usate, 20),
+      menoUsate: _stClassifica(usateTutte, 20, true),
+      nelleVincenti: _stClassifica(vincenti, 10),
+      aperture: _stClassifica(aperture, 3),
+      primeMosse: _stClassifica(prime, 5).map(function (r) { var p2 = r.id.split('@'); return { id: p2[0], cella: p2[1], n: r.n }; }),
+      combinazioni: _stClassifica(coppie, 5).map(function (r) { var p3 = r.id.split('>'); return { a: p3[0], b: p3[1], n: r.n }; })
+    },
+    carte: schede,
+    tabellone: {
+      celleIniziali: _stClassifica(celleIniziali, 5),
+      rimontePerc: _stPerc(conRimonta, rimonteConPunti),
+      rimonteMedie: _stMedia1(rimonteSomma, rimonteConPunti),
+      partiteConPunti: rimonteConPunti
+    },
+    progressione: {
+      nuoviGiocatori: primaN,
+      durataPrimaSessioneMs: _stMedia(primaDurSomma, primaN),
+      partitePrimaSessione: _stMedia1(primaPartite, primaN),
+      sessioniMediePerGiocatore: _stMedia1(sessioni.length, utentiConSessioni),
+      ritorno1: _stPerc(ritorni[1][0], ritorni[1][1]), ritorno1Su: ritorni[1][1],
+      ritorno3: _stPerc(ritorni[3][0], ritorni[3][1]), ritorno3Su: ritorni[3][1],
+      ritorno7: _stPerc(ritorni[7][0], ritorni[7][1]), ritorno7Su: ritorni[7][1],
+      livelloMedio: _stMedia1(livSomma, profN),
+      rankMedio: rankMedio, rankMedioNome: (rankMedio !== null && RANGHI[rankMedio]) ? RANGHI[rankMedio] : null,
+      profili: profN,
+      bustineOttenuteMedie: _stMedia1(cont.bustineOttenute, contN),
+      bustineAperteMedie: _stMedia1(cont.bustineAperte, contN),
+      carteOttenuteMedie: _stMedia1(cont.carteOttenute, contN),
+      livellamentiMedi: _stMedia1(cont.livellamenti, contN),
+      questCompletatePerc: _stPerc(cont.questCompletate, cont.questAssegnate),
+      giocatoriConContatori: contN
+    },
+    nomi: nomi
+  };
+}
+
+// Tutto quello che sta in una collezione, pagina per pagina.
+function _elencaTutto(nk, userId, collezione, pagineMax) {
+  var fuori = [], cursore = '', giri = 0;
+  do {
+    var r = nk.storageList(userId, collezione, 100, cursore);
+    var oggetti = (r && r.objects) || [];
+    for (var i = 0; i < oggetti.length; i++) fuori.push(oggetti[i]);
+    cursore = (r && r.cursor) || '';
+    giri++;
+  } while (cursore && giri < pagineMax);
+  return fuori;
+}
+function raccogliDatiStatistiche(nk, logger, esclusi) {
+  var dati = { sessioni: [], partiteServer: [], logPartite: [], possessi: [], stagioni: [], creati: {},
+               catalogo: [], esclusi: esclusi || [], stagioneCorrente: stagioneCorrente() };
+  var tele = _elencaTutto(nk, UTENTE_SISTEMA, COLL_TELE, 300);
+  for (var i = 0; i < tele.length; i++) {
+    var k = String(tele[i].key || ''), v = tele[i].value;
+    if (!v) continue;
+    if (k.indexOf('s:') === 0) dati.sessioni.push(v);
+    else if (k.indexOf('m:') === 0) dati.partiteServer.push(v);
+    else if (k.indexOf('p:') === 0 || k.indexOf('b:') === 0) dati.logPartite.push(v);
+  }
+  var profili = [];
+  try { profili = _elencaTutto(nk, '', COLL_PROFILO, 300); }
+  catch (e) { if (logger) logger.warn('statistiche: profili non letti: %s', String(e)); }
+  for (i = 0; i < profili.length; i++) {
+    var o = profili[i];
+    if (o.key === KEY_POSSESSO) dati.possessi.push({ u: o.userId, v: o.value });
+    else if (o.key === KEY_STAGIONE) dati.stagioni.push({ u: o.userId, v: o.value });
+  }
+  try { var cat = leggiSistema(nk, KEY_CATALOGO); dati.catalogo = (cat && cat.carte) || []; } catch (e2) { dati.catalogo = []; }
+  var ids = [], visti = {};
+  for (i = 0; i < dati.sessioni.length; i++) if (!visti[dati.sessioni[i].u]) { visti[dati.sessioni[i].u] = true; ids.push(dati.sessioni[i].u); }
+  for (i = 0; i < ids.length; i += 100) {
+    try {
+      var utenti = nk.usersGetId(ids.slice(i, i + 100)) || [];
+      for (var j = 0; j < utenti.length; j++) {
+        var ut = utenti[j], quando = ut.createTime;
+        if (typeof quando === 'string') quando = Date.parse(quando);
+        else if (typeof quando === 'number' && quando < 1e12) quando = quando * 1000;
+        if (typeof quando === 'number' && isFinite(quando)) dati.creati[ut.userId || ut.id] = quando;
+      }
+    } catch (e3) { if (logger) logger.warn('statistiche: account non letti: %s', String(e3)); }
+  }
+  return dati;
+}
+
+function rpcStats(ctx, logger, nk, payload) {
+  if (!ctx.userId) throw Error('You need to log in.');
+  var d = {};
+  try { d = payload ? JSON.parse(payload) : {}; } catch (e) { d = {}; }
+  var ora = Date.now();
+  var t = null;
+  try { t = leggiSistema(nk, KEY_STATS_TENTATIVI); } catch (e1) { t = null; }
+  if (!t || typeof t.da !== 'number' || ora - t.da > STATS_FINESTRA_MS) t = { da: ora, n: 0 };
+  if (t.n >= STATS_TENTATIVI_MAX) throw Error('Too many wrong passwords. Try again in a few minutes.');
+  if (_sha256Hex(STATS_SALE + String(d.parola || '')) !== STATS_IMPRONTA) {
+    t.n++;
+    try { scriviSistema(nk, KEY_STATS_TENTATIVI, t); } catch (e2) { }
+    logger.warn('statistiche: password sbagliata (%d nella finestra)', t.n);
+    throw Error('That is not the password.');
+  }
+  // chi apre la pagina ha un account suo (vedi /stats/): non entra nei numeri
+  return JSON.stringify(calcolaStatistiche(raccogliDatiStatistiche(nk, logger, [ctx.userId]), ora));
+}
+
 function rpcPartita(ctx, logger, nk, payload) {
   if (!ctx.userId) throw Error('You need to log in.');
   var dati;
@@ -4422,8 +5079,12 @@ var OP_YETI_IMPRONTE = 18;  // server -> client: { di, da, impronte, vera? }
 // giocatore avversario fa hover su una carta, quella carta dovrebbe alzarsi
 // anche al giocatore in locale"). Il server la gira solo all'altro, e solo se e'
 // davvero una carta della mano di chi la manda; null la rimette giu'.
-var OP_MANO_SOPRA       = 19;  // client -> server: { carta } (id della mano, o null)
-var OP_MANO_SOPRA_ALTRO = 20;  // server -> l'altro: { di, carta }
+// v0.80.25 — non la carta: il POSTO nella mano. Le carte dell'avversario sul
+// client sono finte, e devono restarlo (Lorenzo: "non ci deve essere modo di
+// scoprire la carta che sta giocando un avversario"); all'altro arrivano solo
+// quante carte ha in mano e su quale sta il puntatore.
+var OP_MANO_SOPRA       = 19;  // client -> server: { indice } (posto nella mano, o null)
+var OP_MANO_SOPRA_ALTRO = 20;  // server -> l'altro: { di, indice, quante }
 var MANO_SOPRA_MAX = 20;       // al secondo per giocatore; il null passa sempre
 var YETI_CHIAVE      = '!yeti';
 // v0.80.22 — quante volte al secondo gira partitaLoop (Lorenzo: 20). I messaggi
@@ -4682,6 +5343,7 @@ function _aTutti(dispatcher, op, dati) {
 // ── l'avvio ───────────────────────────────────────────────────────────────
 function _comincia(stato, dispatcher, logger, nk) {
   stato.iniziata = true;
+  stato.inizioIl = Date.now();   // v0.80.25 — la durata della partita parte da qui
   stato.buchi = _buchi();
   // Chi comincia si tira a sorte. Il primo turno vale, e non deve dipendere
   // da chi ha premuto prima o da chi ha la connessione piu' svelta.
@@ -5170,6 +5832,7 @@ function partitaInit(ctx, logger, nk, params) {
   var giocatori = JSON.parse(params.giocatori || '[]');
   var info = JSON.parse(params.info || '{}');
   var stato = {
+    idPartita: (ctx && ctx.matchId) || '',   // v0.80.25 — per la telemetria
     giocatori: giocatori,       // [userId, userId] — l'ordine E' il numero di giocatore
     info: info,                 // nome, rank, avatar, per l'altro
     presenze: {},
@@ -5286,6 +5949,7 @@ function _resa(state, dispatcher, logger, nk, chi) {
   // A zero a zero non c'e' un vincitore: zero, cioe' nessuno.
   var vuoto = _punteggioAZero(state);
   var vincitore = vuoto ? 0 : ((perdente === 0) ? 2 : 1);
+  _teleFinePartita(nk, logger, state, 'resa', vincitore);   // v0.80.25
   for (var i = 0; i < state.giocatori.length; i++) {
     var u = state.giocatori[i];
     var suo = (i + 1) === vincitore;
@@ -5342,6 +6006,8 @@ function _resa(state, dispatcher, logger, nk, chi) {
 // ha perso la corrente sarebbe peggio del problema che risolve. E' l'unica
 // parte della vecchia lettura che resta in piedi, ed e' una decisione a se'.
 function _uscita(state, dispatcher, logger, nk, chiEUscito) {
+  // v0.80.25 — vince chi resta
+  _teleFinePartita(nk, logger, state, 'abbandono', state.giocatori.indexOf(chiEUscito) === 0 ? 2 : 1);
   for (var i = 0; i < state.giocatori.length; i++) {
     var u = state.giocatori[i];
     var uscito = (u === chiEUscito);
@@ -5515,16 +6181,17 @@ function _sticker(state, dispatcher, chi, idx, corpo) {
 // muovendo un mouse.
 function _manoSopra(state, dispatcher, chi, idx, corpo) {
   if (!state.iniziata || state.finita || idx < 0) return;
-  var carta = (corpo && corpo.carta !== null && corpo.carta !== undefined) ? String(corpo.carta) : null;
-  if (carta !== null && (!state.mano[chi] || state.mano[chi].indexOf(carta) === -1)) return;
+  var mano = state.mano[chi] || [];
+  var indice = (corpo && typeof corpo.indice === 'number' && isFinite(corpo.indice)) ? Math.floor(corpo.indice) : null;
+  if (indice !== null && (indice < 0 || indice >= mano.length)) return;
   if (!state.manoSopra) state.manoSopra = {};
   var ora = Date.now();
   var mio = state.manoSopra[chi];
   if (!mio || ora - mio.da >= 1000) { mio = { da: ora, n: 0 }; state.manoSopra[chi] = mio; }
-  if (carta !== null && mio.n >= MANO_SOPRA_MAX) return;
+  if (indice !== null && mio.n >= MANO_SOPRA_MAX) return;
   mio.n++;
   var altro = state.giocatori[idx === 0 ? 1 : 0];
-  _aUno(dispatcher, state, altro, OP_MANO_SOPRA_ALTRO, { di: idx + 1, carta: carta });
+  _aUno(dispatcher, state, altro, OP_MANO_SOPRA_ALTRO, { di: idx + 1, indice: indice, quante: mano.length });
 }
 
 function partitaLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
@@ -5587,6 +6254,7 @@ function partitaLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
         // Non si sa CHI ha torto — solo che i due non stanno giocando alla
         // stessa partita. Fermarla e' l'unica cosa onesta.
         state.finita = true;
+        _teleFinePartita(nk, logger, state, 'fermata', 0);   // v0.80.25
         _aTutti(dispatcher, OP_DISACCORDO, { turno: corpo.turno });
         logger.warn('racconti diversi al turno %s: %s contro %s', t, uno.impronta, due.impronta);
         return { state: state };
@@ -5654,7 +6322,9 @@ function partitaLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
         continue;
       }
       var scelta = (corpo.cella === null || corpo.cella === undefined) ? null : String(corpo.cella);
-      _aTutti(dispatcher, OP_SCELTA, { cella: scelta, di: idx + 1 });
+      // v0.80.25 — e la meta del trascinamento, uguale per tutti e due (vedi reteScegli)
+      var dest = (typeof corpo.dest === 'string' && /^-?\d+,-?\d+$/.test(corpo.dest)) ? corpo.dest : null;
+      _aTutti(dispatcher, OP_SCELTA, { cella: scelta, di: idx + 1, dest: dest });
       continue;
     }
 
@@ -5711,6 +6381,7 @@ function partitaLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
     state.mano[chi].splice(posto, 1);
     state.occupate[k] = { carta: carta, di: idx + 1 };
     state.ultimaGiocata = { k: k, carta: carta, forma: forma, di: idx + 1 };   // v0.80.21
+    _teleMossa(state, k, forma || carta, idx + 1);   // v0.80.25
     var yetiScoperti = _yetiRivelaAccanto(state, k, idx + 1);
     state.turniGiocati[chi] = (state.turniGiocati[chi] || 0) + 1;
     // v0.77.86 — da adesso, se quella carta chiede un bersaglio, a rispondere
@@ -5856,7 +6527,12 @@ function partitaSignal(ctx, logger, nk, dispatcher, tick, state, data) {
       // regola deve stare dalla parte di chi non ha accettato in tempo.
       var scaduto = !!d.perTempo || (Date.now() - state.natoIl >= PRONTI_MS);
       _avvisaGliAltri(nk, logger, state, String(d.rifiuta), (ctx && ctx.matchId) || '', scaduto);
-      return null;   // il tavolo si chiude qui
+      // v0.80.25 — il tavolo si chiude al giro dopo (partitaLoop, state.finita).
+      // matchSignal deve tornare { state, data }: col null di prima Nakama lo
+      // registrava come errore ("matchSignal is expected to return an object
+      // with 'state' property") e fermava il match da se'.
+      state.finita = true;
+      return { state: state, data: '' };
     }
   }
   return { state: state, data: data };
@@ -5906,6 +6582,7 @@ function _chiudiPartita(state, dispatcher, logger, nk, rapporto) {
   // dalla v0.77.0 sono i PUNTI FATTI e il verso e' rovesciato. Scritto al
   // contrario, il server avrebbe premiato il perdente a ogni partita.
   var vincitore = pari ? 0 : (d1 > d2 ? 1 : 2);
+  _teleFinePartita(nk, logger, state, 'finita', vincitore);   // v0.80.25
 
   for (var i = 0; i < state.giocatori.length; i++) {
     var u = state.giocatori[i];
@@ -6968,6 +7645,8 @@ function InitModule(ctx, logger, nk, initializer) {
   initializer.registerRpc('hx_elimina_account', rpcEliminaAccount);
   initializer.registerRpc('hx_giocatori', rpcGiocatoriOnline);
   initializer.registerRpc('hx_riavvio_annuncia', rpcRiavvioAnnuncia);   // v0.80.24
+  initializer.registerRpc('hx_telemetria', rpcTelemetria);              // v0.80.25
+  initializer.registerRpc('hx_stats', rpcStats);                        // v0.80.25
   initializer.registerRpc('hx_entro', rpcEntro);
   initializer.registerRpc('hx_esco', rpcEsco);
   initializer.registerRpc('hx_carte_viste', rpcCarteViste);

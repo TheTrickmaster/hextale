@@ -2855,3 +2855,71 @@ STESSA scrittura che consegna le carte") gia' prima di questa versione.
    non parte — il modulo in esecuzione e' di prima della v0.80.24 — schiera.sh si
    ferma come prima: riavviare vorrebbe dire buttare fuori senza avviso.
    HEXTALE_FORZA=1 riavvia subito, senza annuncio.
+   (v0.80.25: il punto 3 e' cambiato. L'op 19 portava l'id della carta, e sul
+   client dell'avversario le carte della mia mano sono finte: non si alzava
+   niente, e in piu' l'id viaggiava fino all'altro. Adesso viaggia il POSTO:
+   vedi la sezione v0.80.25.)
+
+## prova-v08025.js, prova-v08025-server.js e prova-stats.js — statistiche, menu, OminoBianco (v0.80.25)
+
+    $ELECTRON strumenti/prova-v08025.js
+    node strumenti/prova-v08025-server.js
+    $ELECTRON strumenti/prova-stats.js
+
+1. Da Matchmaking a Play vs Bot (Lorenzo): il riquadro del rank e del mazzo
+   sfuma; il riquadro Draft esce verso sinistra sfumando e rientra verso destra,
+   quello Normal al contrario (MM2_VISTA_SPOSTA_PX = 40); il pulsante sfuma.
+   mm2VistaCambia: uscita (TRANSIZIONE_MS), poi a pezzi invisibili
+   mm2VistaApplica (titoli, immagine, pulsante), poi entrata quando gli asset
+   sono pronti. Un cambio a meta' annulla quello di prima.
+2. Tre righe nel riquadro Normal: "N players online" (top 370), "N players in
+   matchmaking" (400), "N players in a match" (430, #mm2-in-partita). Il battito
+   porta `gioca` (_giocoInCorso: pagina game e partita non finita, anche contro
+   il bot); onlineSeCambiato batte subito entrando in una pagina, a inizio e a fine
+   partita. Il server conta `g` sulle presenze vive (inPartita).
+3. La partita di OminoBianco del 14/09 ("server problem", tornati al menu): dal
+   turno 9 i due client avevano le caselle bloccate in posti diversi (il registro:
+   "caselle bloccate diverse ... 1,1|2,-2 contro -1,1|2,-2"), e al turno 15 una
+   carta giocata su una casella bloccata solo da una parte ha diviso i tabelloni.
+   La causa: le scelte a trascinamento (Open Celery che sposta un tassello
+   bloccato, e le altre con modo 'trascina') mandavano solo cosa si prendeva, e
+   dall'altra parte la meta la indovinava miglioreCasellaPerTassello. Adesso
+   reteScegli manda anche `dest` (destinazioneScelta), il server la gira in op 11
+   e l'altro client la usa. Il messaggio non dice piu' "server problem": "The two
+   boards went out of sync, so the match was stopped."
+4. matchSignal (il rifiuto di una partita trovata) tornava null, e Nakama lo
+   registrava come errore: adesso segna state.finita e torna { state, data }; il
+   loop chiude al giro dopo.
+5. La carta sotto al puntatore dell'avversario (Lorenzo: le carte avversarie sono
+   finte e devono restarlo). Op 19 porta `indice`, il posto della carta nella mano
+   di chi passa sopra; il server controlla che stia dentro la mano e gira
+   all'altro solo { di, indice, quante }. Dall'altra parte si alza la carta finta
+   a quel posto.
+6. Bug report di OminoBianco "gli inchiostri non mi vanno oltre i 100": nessun
+   tetto nel codice. Era il bug della v0.80.24 (applicaEsito senza logger: le
+   partite PvP non scrivevano ne' quest ne' inchiostro), gia' corretto.
+7. LA TELEMETRIA E /stats/ (Lorenzo, "Telemetria Hextale.txt"):
+   - client (TELEMETRIA_STATO): tempo per pagina (teleCambioPagina in showPage),
+     caricamento (primo modulo d'accesso o menu), errori JS (window error e
+     unhandledrejection), errori di rete (erroreNakama con codice 0), e il
+     registro di ogni partita: mazzi (teleInizioPartita), pescate
+     (drawAndAnimate), giocate col tempo del turno (doPlace, startTurn), conquiste
+     (accanto a questSegnaConquiste), punti a fine turno (endTurn), vincitore
+     (finishGameWithResult). Parte con hx_telemetria ogni minuto, a fine partita e
+     a pagina nascosta; un registro rifiutato tre volte si lascia andare.
+   - server: hx_telemetria scrive nella collezione `telemetria` (utente di
+     sistema) s:<utente>:<sessione>, p:<partita>:<utente>, b:<utente>:<ms>,
+     ripuliti (_telePartitaPulita); la partita in rete scrive da se' m:<partita>
+     alla fine (_teleFinePartita: finita, resa, abbandono, fermata) con ranghi,
+     mazzi e giocate (_teleMossa); i contatori di progressione stanno in
+     possesso.stat (_statConta: bustine ottenute e aperte, carte, livelli, quest).
+   - hx_stats: controlla la password col SHA-256 del cancello del sito
+     (STATS_SALE/STATS_IMPRONTA = CANCELLO_SALE/CANCELLO_IMPRONTA, _sha256Hex in
+     ES5), massimo 10 sbagliate ogni 10 minuti, legge tutto e calcola al momento
+     (calcolaStatistiche, pura). L'account di chi chiede non entra nei numeri.
+   - /stats/index.html: il cancello (stessa password), la sessione con
+     l'autenticazione custom "hextale-stats-page" (nome hxstats) e la chiave del
+     server, poi hx_stats. Sei sezioni come nel file, la tendina delle carte,
+     Refresh. Niente nel browser.
+   I numeri partono dalla v0.80.25: prima non si raccoglieva niente. "Prima
+   sessione" e "login dopo N giorni" contano solo i giocatori nati dopo.

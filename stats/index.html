@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Hextale Stats</title>
+<link rel="icon" href="/favicon.png">
+<!--
+  v0.80.25 — LE STATISTICHE DI GIOCO (Lorenzo, "Telemetria Hextale.txt").
+
+  Si apre con la stessa password del sito (index.html: CANCELLO_SALE e
+  CANCELLO_IMPRONTA). La password qui si controlla solo per rispondere subito;
+  a decidere e' il server: hx_stats rifa' l'impronta e, se non torna, non manda
+  niente (con un tetto ai tentativi). Per chiamare il server serve una sessione:
+  la pagina la apre con un account suo (autenticazione custom "hextale-stats-page",
+  nome hxstats), che hx_stats tiene fuori dai numeri.
+  Niente nel browser: password e sessione vivono in memoria, e si chiedono di
+  nuovo a ogni apertura.
+-->
+<style>
+:root{
+  --oro:#EDE0C6; --oro-caldo:#FBEAC4; --grigio:#9FB1B3; --grigio-scuro:#6F8183;
+  --fondo:#1B2325; --pannello:#222C2E; --riga:#2A3538; --bordo:#3C4749;
+  --verde:#9ED6A6; --rosso:#E3947F;
+  color-scheme: dark;
+}
+*{ box-sizing:border-box; }
+html,body{ margin:0; background:var(--fondo); color:var(--oro); }
+body{ font-family:'Rosarivo','Georgia',serif; font-size:15px; line-height:1.4; padding-inline:16px; padding-block:0 48px; }
+h1,h2,h3{ font-family:'Marcellus SC','Marcellus','Georgia',serif; font-weight:normal; margin:0; color:var(--oro-caldo); }
+button, select, input{ font:inherit; }
+
+/* ── il cancello ── */
+#cancello{ min-height:100vh; display:flex; align-items:center; justify-content:center; }
+#cancello form{ width:100%; max-width:380px; background:var(--pannello); border:1px solid var(--bordo); border-radius:16px; padding:28px; display:flex; flex-direction:column; gap:14px; }
+#cancello h1{ font-size:28px; }
+#cancello p{ margin:0; color:var(--grigio); }
+.campo{ width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--bordo); background:#172022; color:var(--oro); }
+.bottone{ padding:10px 16px; border-radius:10px; border:1px solid #6d6143; background:linear-gradient(#3d3727,#2b271c); color:var(--oro-caldo); cursor:pointer; }
+.bottone:disabled{ opacity:.55; cursor:default; }
+#cancello-esito{ min-height:20px; color:var(--rosso); }
+
+/* ── la pagina ── */
+#pagina{ max-width:1280px; margin:0 auto; }
+#testata{ display:flex; flex-wrap:wrap; align-items:flex-end; justify-content:space-between; gap:12px; padding-block:28px 18px; border-bottom:1px solid var(--bordo); margin-bottom:22px; }
+#testata h1{ font-size:32px; }
+#testata .sotto{ color:var(--grigio); font-size:14px; }
+#griglia{ display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap:18px; align-items:start; }
+.sezione{ background:var(--pannello); border:1px solid var(--bordo); border-radius:14px; padding:18px; min-width:0; }
+.sezione h2{ font-size:22px; margin-bottom:10px; }
+.riga{ display:flex; justify-content:space-between; gap:14px; padding:9px 0; border-top:1px solid var(--riga); }
+.riga:first-of-type{ border-top:none; }
+.nome{ color:var(--oro); }
+.nota{ color:var(--grigio-scuro); font-size:13px; }
+.valore{ font-family:'Marcellus SC','Georgia',serif; font-size:18px; color:var(--oro-caldo); text-align:right; white-space:nowrap; }
+.valore small{ display:block; font-family:'Rosarivo','Georgia',serif; font-size:12px; color:var(--grigio); white-space:normal; }
+ol.classifica{ margin:6px 0 0; padding-left:22px; color:var(--grigio); }
+ol.classifica li{ padding:2px 0; }
+ol.classifica b{ color:var(--oro); font-weight:normal; }
+ol.classifica span{ float:right; color:var(--oro-caldo); }
+.vuoto{ color:var(--grigio-scuro); font-style:italic; }
+#carta-scelta{ width:100%; margin:4px 0 10px; }
+.gruppo{ margin-top:8px; color:var(--grigio); font-family:'Marcellus SC','Georgia',serif; letter-spacing:.04em; }
+#errore-dati{ color:var(--rosso); margin:12px 0; }
+[hidden]{ display:none !important; }
+</style>
+</head>
+<body>
+
+<div id="cancello">
+  <form id="modulo">
+    <h1>Hextale Stats</h1>
+    <p>Game statistics. Use the same password as the website.</p>
+    <input class="campo" type="password" id="parola" autocomplete="current-password" aria-label="Password" required>
+    <button class="bottone" type="submit" id="apri">Open</button>
+    <div id="cancello-esito" role="alert"></div>
+  </form>
+</div>
+
+<div id="pagina" hidden>
+  <div id="testata">
+    <div>
+      <h1>Hextale Stats</h1>
+      <div class="sotto" id="da-quando"></div>
+    </div>
+    <button class="bottone" type="button" id="aggiorna">Refresh</button>
+  </div>
+  <div id="errore-dati" role="alert"></div>
+  <div id="griglia"></div>
+</div>
+
+<script>
+'use strict';
+var STATS_API = 'https://api.hextalegame.com';
+// La chiave del server non e' una password: e' la stessa che viaggia dentro al
+// gioco (play/index.html, NAKAMA.chiaveServer).
+var STATS_CHIAVE_SERVER = '8db52c53b62e208eebb8cb59dfbf159c85855683';
+var STATS_SALE = 'hextale-cancello-v1:';
+var STATS_IMPRONTA = 'a9c66f0e2645d6ff8ccf9869c4603c1e96cb3e462c7580863062af0ed2c7a8e5';
+var STATS_ID = 'hextale-stats-page';
+var STATS_NOME = 'hxstats';
+
+var stato = { parola: null, token: null, dati: null };
+
+function $(id){ return document.getElementById(id); }
+function impronta(testo){
+  return crypto.subtle.digest('SHA-256', new TextEncoder().encode(STATS_SALE + testo)).then(function(b){
+    var v = new Uint8Array(b), fuori = '';
+    for(var i = 0; i < v.length; i++) fuori += v[i].toString(16).padStart(2, '0');
+    return fuori;
+  });
+}
+function leggiErrore(risposta){
+  return risposta.text().then(function(testo){
+    var msg = testo;
+    try{ var j = JSON.parse(testo); msg = j.message || j.error || testo; }catch(_){ }
+    var e = new Error(msg || ('HTTP ' + risposta.status));
+    e.status = risposta.status;
+    throw e;
+  });
+}
+function apriSessione(conNome){
+  if(stato.token) return Promise.resolve(stato.token);
+  var url = STATS_API + '/v2/account/authenticate/custom?create=true' + (conNome ? '&username=' + STATS_NOME : '');
+  return fetch(url, {
+    method: 'POST',
+    headers: { 'Authorization': 'Basic ' + btoa(STATS_CHIAVE_SERVER + ':'), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: STATS_ID })
+  }).then(function(r){
+    if(!r.ok){
+      // il nome puo' essere gia' preso: si riprova senza
+      if(conNome && (r.status === 409 || r.status === 400)) return apriSessione(false);
+      return leggiErrore(r);
+    }
+    return r.json().then(function(j){ stato.token = j.token; return j.token; });
+  });
+}
+function chiediStatistiche(){
+  return apriSessione(true).then(function(token){
+    return fetch(STATS_API + '/v2/rpc/hx_stats?unwrap', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ parola: stato.parola })
+    });
+  }).then(function(r){
+    if(!r.ok){ if(r.status === 401) stato.token = null; return leggiErrore(r); }
+    return r.json();
+  });
+}
+
+// ── formati ─────────────────────────────────────────────────────────────
+function vuoto(x){ return x === null || x === undefined; }
+function durata(ms){
+  if(vuoto(ms)) return '—';
+  if(ms < 1000) return Math.round(ms) + ' ms';
+  if(ms < 60000) return (ms / 1000).toFixed(1) + ' s';
+  var s = Math.round(ms / 1000);
+  if(s < 3600) return Math.floor(s / 60) + 'm ' + String(s % 60).padStart(2, '0') + 's';
+  return Math.floor(s / 3600) + 'h ' + String(Math.floor(s / 60) % 60).padStart(2, '0') + 'm';
+}
+function perc(p){ return vuoto(p) ? '—' : (p + '%'); }
+function numero(n){ return vuoto(n) ? '—' : Number(n).toLocaleString('en-US'); }
+function nomeCarta(id){
+  var n = stato.dati && stato.dati.nomi && stato.dati.nomi[id];
+  return n || String(id || '').replace(/^final-/, '').replace(/-/g, ' ');
+}
+var ROMANI = { '1':'I', '2':'II', '3':'III', 'top':'Top' };
+function nomeRank(r){
+  if(!r) return '—';
+  var p = String(r).split('-');
+  return p[0].charAt(0).toUpperCase() + p[0].slice(1) + (p[1] ? ' ' + (ROMANI[p[1]] || p[1]) : '');
+}
+var PAGINE = { start:'Login', mainmenu:'Main menu', collection:'Library', packs:'Card packs', game:'Match' };
+function esc(t){ return String(t).replace(/[&<>"]/g, function(c){ return ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' })[c]; }); }
+
+// ── i pezzi della pagina ────────────────────────────────────────────────
+function riga(nome, nota, valore, sotto){
+  return '<div class="riga"><div><div class="nome">' + esc(nome) + '</div>'
+    + (nota ? '<div class="nota">' + esc(nota) + '</div>' : '') + '</div>'
+    + '<div class="valore">' + esc(valore) + (sotto ? '<small>' + esc(sotto) + '</small>' : '') + '</div></div>';
+}
+function classifica(nome, nota, righe, come){
+  var corpo = (righe && righe.length)
+    ? '<ol class="classifica">' + righe.map(function(r){ var c = come(r); return '<li><b>' + esc(c[0]) + '</b><span>' + esc(c[1]) + '</span></li>'; }).join('') + '</ol>'
+    : '<div class="vuoto">Not enough data yet</div>';
+  return '<div class="riga" style="display:block"><div class="nome">' + esc(nome) + '</div>'
+    + (nota ? '<div class="nota">' + esc(nota) + '</div>' : '') + corpo + '</div>';
+}
+function sezione(id, titolo, html){
+  return '<section class="sezione" id="' + id + '"><h2>' + esc(titolo) + '</h2>' + html + '</section>';
+}
+
+function disegna(d){
+  stato.dati = d;
+  var t = d.tecniche || {}, g = d.design || {}, s = d.strategia || {}, b = d.tabellone || {}, p = d.progressione || {};
+  $('da-quando').textContent = (d.dal ? 'Collecting since ' + new Date(d.dal).toLocaleString('en-GB') : 'No data collected yet')
+    + ' · updated ' + new Date(d.generatoIl || Date.now()).toLocaleTimeString('en-GB');
+
+  var tempoPagine = '';
+  var chiavi = Object.keys(g.tempoPerPaginaMs || {});
+  if(chiavi.length){
+    tempoPagine = chiavi.map(function(k){ return riga(PAGINE[k] || k, '', durata(g.tempoPerPaginaMs[k])); }).join('');
+  } else tempoPagine = '<div class="vuoto">Not enough data yet</div>';
+
+  var html = '';
+  html += sezione('tecniche', 'Technicals',
+      riga('Sessions', 'Session start / end: how many sessions are actually played', numero(t.sessioni))
+    + riga('Average session duration', 'How long players stay in the game', durata(t.durataMediaSessioneMs))
+    + riga('Abandoned matches', 'Crashes, rage quits or UX problems', numero(t.partiteAbbandonate),
+        'surrendered ' + numero(t.partiteArrese) + ' · stopped (boards out of sync) ' + numero(t.partiteFermate))
+    + riga('Crashes / JS errors', 'Technical problems', numero(t.erroriJs))
+    + classifica('Most frequent errors', '', t.erroriPiuFrequenti, function(r){ return [r.id, r.n + '×']; })
+    + riga('Users on browser', 'Total players on browser', numero(t.utentiBrowser))
+    + riga('Users on Electron', 'Total players on Electron', numero(t.utentiElectron))
+    + riga('Total connection errors', 'Network problems', numero(t.erroriRete))
+    + riga('Average loading time', 'How long the game takes to become usable', durata(t.caricamentoMedioMs)));
+
+  html += sezione('design', 'Game design',
+      riga('Total matches played', 'Real engagement', numero(g.partiteTotali), 'PvP ' + numero(g.partitePvp) + ' · vs Bot ' + numero(g.partiteBot))
+    + riga('Average matches played in a day', 'Matches per player per active day', vuoto(g.partitePerGiornoGiocatore) ? '—' : String(g.partitePerGiornoGiocatore))
+    + riga('Average match duration', 'Game pace', durata(g.durataMediaPartitaMs))
+    + riga('Average time per turn', 'Decision complexity', durata(g.tempoMedioTurnoMs))
+    + classifica('Deck composition', 'Which cards are considered the best: % of decks containing them (' + numero(g.mazziContati) + ' decks)',
+        g.mazzi, function(r){ return [nomeCarta(r.id), perc(r.perc)]; })
+    + riga('Win rate of players with lower ranking', 'Playing against stronger opponents', perc(g.winRateRankBasso), numero(g.partiteConRankDiversi) + ' matches')
+    + riga('Win rate of players with higher ranking', 'Playing against weaker opponents', perc(g.winRateRankAlto), numero(g.partiteConRankDiversi) + ' matches')
+    + '<div class="gruppo">Time spent on each page (average per session)</div>' + tempoPagine);
+
+  html += sezione('strategia', 'Strategy',
+      classifica('20 most used cards', 'Times played', s.piuUsate, function(r){ return [nomeCarta(r.id), numero(r.n)]; })
+    + classifica('20 least used cards', 'Times played', s.menoUsate, function(r){ return [nomeCarta(r.id), numero(r.n)]; })
+    + classifica('Top 10 cards in winning decks', 'Winning decks containing the card', s.nelleVincenti, function(r){ return [nomeCarta(r.id), numero(r.n)]; })
+    + classifica('3 top opener cards', 'The cards played most often as a player\'s first card', s.aperture, function(r){ return [nomeCarta(r.id), numero(r.n)]; })
+    + classifica('Top 5 first moves', 'Which openings emerge (card and tile)', s.primeMosse, function(r){ return [nomeCarta(r.id) + ' on ' + r.cella, numero(r.n)]; })
+    + classifica('Top 5 combinations', 'Cards played one after the other by the same player', s.combinazioni, function(r){ return [nomeCarta(r.a) + ' → ' + nomeCarta(r.b), numero(r.n)]; }));
+
+  var ids = Object.keys(d.carte || {}).sort(function(a, b){ return nomeCarta(a).localeCompare(nomeCarta(b)); });
+  html += sezione('carte', 'Cards',
+      '<select class="campo" id="carta-scelta" aria-label="Card">'
+    + ids.map(function(id){ return '<option value="' + esc(id) + '">' + esc(nomeCarta(id)) + '</option>'; }).join('')
+    + '</select><div id="carta-dettaglio"></div>');
+
+  html += sezione('tabellone', 'Board analytics',
+      classifica('Favorite starting tiles', 'Tile of each player\'s first card', b.celleIniziali, function(r){ return [r.id, numero(r.n)]; })
+    + riga('Comeback frequency', 'Matches where the lead changed hands at least once', perc(b.rimontePerc), numero(b.partiteConPunti) + ' matches')
+    + riga('Avg number of comebacks during a single match', 'Lead changes per match', vuoto(b.rimonteMedie) ? '—' : String(b.rimonteMedie)));
+
+  html += sezione('progressione', 'Progression and retention',
+      riga('Avg duration of first session', 'New players since telemetry started (' + numero(p.nuoviGiocatori) + ')', durata(p.durataPrimaSessioneMs))
+    + riga('N° of matches during first session', '', vuoto(p.partitePrimaSessione) ? '—' : String(p.partitePrimaSessione))
+    + riga('Average sessions total', 'Sessions per player', vuoto(p.sessioniMediePerGiocatore) ? '—' : String(p.sessioniMediePerGiocatore))
+    + riga('Login after 1 day', 'New players back the day after', perc(p.ritorno1), 'of ' + numero(p.ritorno1Su))
+    + riga('Login after 3 days', 'New players back on day 3', perc(p.ritorno3), 'of ' + numero(p.ritorno3Su))
+    + riga('Login after 7 days', 'New players back on day 7', perc(p.ritorno7), 'of ' + numero(p.ritorno7Su))
+    + riga('Average level reached', 'This season (' + numero(p.profili) + ' players)', vuoto(p.livelloMedio) ? '—' : String(p.livelloMedio))
+    + riga('Average rank reached', 'This season', nomeRank(p.rankMedioNome))
+    + riga('Average number of packs obtained', 'Per player, since telemetry started (' + numero(p.giocatoriConContatori) + ')', vuoto(p.bustineOttenuteMedie) ? '—' : String(p.bustineOttenuteMedie))
+    + riga('Average number of packs opened', '', vuoto(p.bustineAperteMedie) ? '—' : String(p.bustineAperteMedie))
+    + riga('Average number of cards obtained', '', vuoto(p.carteOttenuteMedie) ? '—' : String(p.carteOttenuteMedie))
+    + riga('Average number of upgrades done', '', vuoto(p.livellamentiMedi) ? '—' : String(p.livellamentiMedi))
+    + riga('Daily quests completion', 'Completed out of assigned', perc(p.questCompletatePerc)));
+
+  $('griglia').innerHTML = html;
+  var scelta = $('carta-scelta');
+  if(scelta){
+    scelta.addEventListener('change', function(){ disegnaCarta(scelta.value); });
+    if(ids.length) disegnaCarta(ids[0]);
+  }
+}
+function disegnaCarta(id){
+  var c = (stato.dati && stato.dati.carte && stato.dati.carte[id]) || {};
+  $('carta-dettaglio').innerHTML =
+      '<div class="gruppo">Usage</div>'
+    + riga('% of decks with this card in it', '', perc(c.mazziPerc))
+    + riga('Avg times drew %', 'Matches with the card in the deck where it was drawn', perc(c.pescataPerc))
+    + riga('Avg times played %', 'Matches with the card in the deck where it was played', perc(c.giocataPerc), numero(c.giocate) + ' plays')
+    + '<div class="gruppo">Performance</div>'
+    + riga('Win rate when played', '', perc(c.winRateGiocata))
+    + riga('Average turn when it\'s played', '', vuoto(c.turnoMedio) ? '—' : String(c.turnoMedio))
+    + riga('Most used position', '', c.cellaPreferita || '—')
+    + riga('Avg times conquering', 'Cards conquered per play', vuoto(c.conquistePerGiocata) ? '—' : String(c.conquistePerGiocata))
+    + riga('Avg times conquered', 'Times conquered per play', vuoto(c.conquistataPerGiocata) ? '—' : String(c.conquistataPerGiocata));
+}
+
+function carica(){
+  $('errore-dati').textContent = '';
+  $('aggiorna').disabled = true;
+  return chiediStatistiche().then(function(d){
+    disegna(d);
+  }).catch(function(e){
+    $('errore-dati').textContent = 'Could not load the stats: ' + ((e && e.message) || 'unknown error');
+  }).then(function(){ $('aggiorna').disabled = false; });
+}
+
+$('modulo').addEventListener('submit', function(ev){
+  ev.preventDefault();
+  var parola = $('parola').value || '';
+  var esito = $('cancello-esito');
+  esito.textContent = '';
+  if(!(window.crypto && crypto.subtle)){ esito.textContent = 'This page needs to be opened over https.'; return; }
+  $('apri').disabled = true;
+  impronta(parola).then(function(sua){
+    if(sua !== STATS_IMPRONTA){ esito.textContent = 'That is not the password.'; return; }
+    stato.parola = parola;
+    return chiediStatistiche().then(function(d){
+      $('cancello').hidden = true;
+      $('pagina').hidden = false;
+      disegna(d);
+    }).catch(function(e){
+      stato.parola = null;
+      esito.textContent = 'Could not load the stats: ' + ((e && e.message) || 'unknown error');
+    });
+  }).catch(function(){ esito.textContent = 'That is not the password.'; })
+    .then(function(){ $('apri').disabled = false; });
+});
+$('aggiorna').addEventListener('click', carica);
+</script>
+</body>
+</html>

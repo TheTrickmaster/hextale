@@ -85,13 +85,13 @@ const CORPO = `(async function(){
     sessioneAccount = { token: 'prova' };
     await aggiornaGiocatoriOnline();
     dice(chiamate[0] && chiamate[0].nome === 'hx_giocatori' && chiamate[0].corpo.cerca === false, 'il battito dice che non si sta cercando', chiamate[0] && JSON.stringify(chiamate[0].corpo));
-    dice(online.textContent === '7 players online' && cercano.textContent === '3 players searching for a match', 'e scrive tutti e due i numeri', online.textContent + ' / ' + cercano.textContent);
+    dice(online.textContent === '7 players online' && cercano.textContent === '3 players in matchmaking', 'e scrive tutti e due i numeri', online.textContent + ' / ' + cercano.textContent);
     risposta = { giocatori: 1, cercano: 1 };
     await aggiornaGiocatoriOnline();
-    dice(cercano.textContent === '1 player searching for a match', 'al singolare con uno', cercano.textContent);
+    dice(cercano.textContent === '1 player in matchmaking', 'al singolare con uno', cercano.textContent);
     risposta = { giocatori: 2 };
     await aggiornaGiocatoriOnline();
-    dice(cercano.textContent === '1 player searching for a match' && online.textContent === '2 players online', 'un server di prima (senza cercano) lascia il numero che c-era');
+    dice(cercano.textContent === '1 player in matchmaking' && online.textContent === '2 players online', 'un server di prima (senza cercano) lascia il numero che c-era');
     risposta = { giocatori: 4, cercano: 2 };
 
     var n0 = chiamate.length;
@@ -124,31 +124,27 @@ const CORPO = `(async function(){
     var entrano = function(){ return PEZZI.map(function(s){
       var a = q(s).getAnimations().filter(function(x){ var k = x.effect && x.effect.getKeyframes(); return k && k.length && String(k[0].opacity) === '0'; })[0];
       return a ? (s + ':' + (a.effect.getTiming().delay || 0)) : null; }); };
+    // v0.80.25 — l'animazione del cambio vista e' cambiata (esce e rientra, i due
+    // riquadri di lato): i dettagli li guarda prova-v08025. Qui resta che a vista
+    // cambiata tutto sia al suo posto.
     dice(!transizioneInCorso(), 'nessun cambio di pagina in corso');
     mm2Vista('ai');
-    var attendeSubito = PEZZI.some(function(s){ return q(s).classList.contains('pezzo-attende'); }) || entrano().some(Boolean);
-    await respira(40);
-    var e1 = entrano();
-    dice(attendeSubito, 'passando a Play vs Bot il centro sparisce subito (aspetta gli asset)');
-    dice(e1.every(Boolean), 'e tutti e quattro i pezzi sfumano dentro', e1.join(' '));
-    dice(e1.join(' ') === '#mm2-testata:0 #mm2-modi:50 #mm2-gioca:100 #mm2-basso:100', 'con gli stessi ritardi dell-ingresso nel menu', e1.join(' '));
-    dice(getComputedStyle(cercano).display === 'none' && getComputedStyle(online).display === 'none', 'e contro il bot le due righe non si vedono');
-    await respira(700);
+    await respira(900);
+    dice(getComputedStyle(cercano).display === 'none' && getComputedStyle(online).display === 'none', 'contro il bot le righe non si vedono');
     dice(PEZZI.every(function(s){ return !q(s).classList.contains('pezzo-attende') && getComputedStyle(q(s)).opacity === '1'; }), 'finita, tutto e- a piena opacita-', PEZZI.map(function(s){ return getComputedStyle(q(s)).opacity; }).join(' '));
     mm2Vista('ai');
     await respira(40);
-    dice(!entrano().some(Boolean), 'restando sulla stessa vista non sfuma');
+    dice(!entrano().some(Boolean), 'restando sulla stessa vista non si anima');
     mm2Vista('matchmaking');
-    await respira(40);
-    dice(entrano().every(Boolean), 'e tornando a Matchmaking sfuma di nuovo');
-    await respira(700);
+    await respira(900);
     showPage('collection');
     await respira(100);
     showPage('mainmenu');
     await respira(30);
-    var giro = _mm2VistaGiro, durante = transizioneInCorso();
+    var durante = transizioneInCorso();
     mm2Vista('ai');
-    dice(durante && _mm2VistaGiro === giro, 'durante un cambio di pagina la vista non aggiunge la sua dissolvenza', 'in corso ' + durante);
+    // v0.80.25 — durante un cambio di pagina la vista cambia subito, senza la sua animazione
+    dice(durante && _mm2VistaTimer === null && q('#mm2-modo-draft h2').textContent === 'Draft vs Bot', 'durante un cambio di pagina la vista cambia subito, senza la sua animazione', 'in corso ' + durante);
     finoA = performance.now();
     while(transizioneInCorso() && performance.now() - finoA < 4000) await respira(50);
     await respira(500);
