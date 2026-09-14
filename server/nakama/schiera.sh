@@ -28,8 +28,22 @@ else
   echo "giocatori online adesso: $ONLINE"
 fi
 if [ "${ONLINE:-0}" != "0" ] && [ "${HEXTALE_FORZA:-}" != "1" ]; then
-  echo "FERMO: il riavvio li butterebbe fuori. Rilancia con HEXTALE_FORZA=1 per riavviare lo stesso."
-  exit 2
+  # ── v0.80.24 — SI ANNUNCIA, SI ASPETTA, SI RIAVVIA LO STESSO ─────────────────
+  # Lorenzo: invece di aspettare che escano, a chi e' online arriva la modale
+  # "Servers will restart in 5 minutes" (e a un minuto il conto alla rovescia),
+  # e a zero si riavvia comunque. L'annuncio lo fa il modulo che gira ADESSO
+  # (hx_riavvio_annuncia, stessa strada di hx_giocatori): se non risponde — un
+  # modulo di prima della v0.80.24 — nessuno sarebbe avvisato, e ci si ferma.
+  ANNUNCIO=$($S $SRV "cd /opt/nakama && docker compose exec -T caddy sh -c 'wget -qO- --header=\"Content-Type: application/json\" --post-data=\"{}\" \"http://nakama:7350/v2/rpc/hx_riavvio_annuncia?unwrap&http_key=\$NAKAMA_HTTP_KEY\"'" 2>/dev/null | grep -oE '"alle": *[0-9]+')
+  if [ -z "$ANNUNCIO" ]; then
+    echo "FERMO: l'annuncio non e' partito (il modulo in esecuzione non ha hx_riavvio_annuncia?)."
+    echo "Il riavvio li butterebbe fuori senza avviso. Rilancia con HEXTALE_FORZA=1 per riavviare lo stesso."
+    exit 2
+  fi
+  echo "annunciato: riavvio fra 5 minuti per $ONLINE giocatori online"
+  for M in 4 3 2 1; do sleep 60; echo "  ... $M minut$([ $M = 1 ] && echo o || echo i)"; done
+  sleep 60
+  echo "  ... riavvio"
 fi
 
 $S $SRV "cp $REMOTO $REMOTO.rete-precedente"

@@ -2810,3 +2810,48 @@ Lorenzo, sei punti:
    due righe non si vedono.
 Nota: server/nakama/prova-account.js ha un controllo rotto ("il conto sale nella
 STESSA scrittura che consegna le carte") gia' prima di questa versione.
+
+## prova-v08024.js e prova-v08024-server.js — hover dell'avversario, Mythic, quest PvP (v0.80.24)
+
+    $ELECTRON strumenti/prova-v08024.js
+    node strumenti/prova-v08024-server.js
+
+1. Segnalazione di Vladimiro: "non progredisce il contatore delle partite
+   giocate in PvP nelle Daily". applicaEsito usava `logger` senza riceverlo, e su
+   Nakama un logger globale non c'e': il blocco delle quest lanciava un
+   ReferenceError, il suo `catch` lo rileggeva e rilanciava, e il `catch`
+   esterno inghiottiva tutto. A ogni partita fra persone (dalla v0.79.75) non si
+   scrivevano ne' le quest ne' l'inchiostro. Adesso `logger` e' l'ultimo
+   parametro (le quattro chiamate lo passano) e un premio non scritto finisce nel
+   registro. Il banco gira senza logger globale, come il server vero: prima di
+   questa versione la prova dava "possesso scritto: false".
+2. "Flip a Timeless card" diventa "Flip a Mythic card" (id flipmythic, verbo
+   flip_mythic, il client conta le carte `rarity === 'mythic'`). La quest di oggi
+   di chi l'aveva gia' si rinomina al volo con quel che aveva fatto e riscosso
+   (QUEST_RINOMINATE in assicuraQuestDelGiorno), anche quella di ieri da pagare.
+   flip_timeless dal client non conta piu'.
+3. La carta sotto al puntatore dell'avversario. Passando sopra a una carta della
+   propria mano (mouseenter) il client manda op 19 con l'id della carta; uscendo
+   o premendola, null; al massimo uno ogni MANO_SOPRA_OGNI_MS (80ms), l'ultimo
+   vince. Il server (_manoSopra) lo gira solo all'altro con op 20, se la carta e'
+   davvero nella mano di chi la manda, con un tetto di MANO_SOPRA_MAX al secondo
+   (il null passa sempre). Dall'altra parte manoSopraAvversario alza il dorso di
+   quella carta come il bot quando pensa (liftHandCardIntoView con keepZIndex),
+   la rimette giu' alla carta dopo o al null, e renderHand la rialza se rifa' il
+   ventaglio. In anteprima le partite in rete sono spente: si prova col banco.
+4. #mm2-online a top 400px e #mm2-cercano a 430px (Lorenzo).
+5. Il riavvio si annuncia (Lorenzo: "invece di aspettare che non ci sia piu'
+   nessuno online, manda un messaggio con una modale 'Servers will restart in 5
+   minutes' ... a zero il server restarta a prescindere"). schiera.sh, se c'e'
+   qualcuno online, chiama hx_riavvio_annuncia (dal contenitore di Caddy con la
+   chiave del runtime, come hx_giocatori: un client non puo'), aspetta cinque
+   minuti e riavvia comunque. Il server scrive QUANDO (KEY_RIAVVIO); il battito
+   hx_giocatori, che ogni client collegato fa ogni 20s anche in partita, porta
+   `riavvio: { alle, ora }`, e il client conta da solo togliendo lo scarto fra i
+   due orologi. #riavvio-overlay: "Servers will restart in 5 minutes" con
+   "Understood"; a un minuto si riapre (anche se chiusa) col conto in secondi; a
+   zero "Servers are restarting now" e resta aperta finche' il primo battito del
+   server ripartito (InitModule cancella l'annuncio) non la chiude. Se l'annuncio
+   non parte — il modulo in esecuzione e' di prima della v0.80.24 — schiera.sh si
+   ferma come prima: riavviare vorrebbe dire buttare fuori senza avviso.
+   HEXTALE_FORZA=1 riavvia subito, senza annuncio.

@@ -42,7 +42,7 @@ dice(pool.length >= 5, 'il pool ha almeno le cinque di oggi', pool.length + ' vo
 const ids = pool.map(q => q.id);
 dice(new Set(ids).size === ids.length, 'e nessun id si ripete', ids.join(' '));
 const verbi = new Set(pool.map(q => q.conta));
-dice([...verbi].every(v => ['partita','vittoria','flip','flip_timeless','flip_multiplo'].indexOf(v) >= 0),
+dice([...verbi].every(v => ['partita','vittoria','flip','flip_mythic','flip_multiplo'].indexOf(v) >= 0),
   'e ogni quest si aggancia a un verbo che qualcuno conta', [...verbi].join(' '));
 // La regola di Lorenzo: se nel testo c'e' PvP vale solo online, se c'e' PvIA
 // solo contro la macchina. Il campo `dove` e il TESTO devono dire la stessa

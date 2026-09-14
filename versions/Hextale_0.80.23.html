@@ -991,10 +991,8 @@ body.mouse-down, body.mouse-down *{
   font-size:22px; line-height:normal; color:#9DA7A9;
   text-align:center; text-shadow:none;
 }
-/* v0.80.23 — chi sta cercando una partita: stessa riga, subito sotto.
-   v0.80.24 — le due righe piu' in alto (Lorenzo): 400 e 430. */
-#mm2-modo-normal #mm2-online{ top:400px; }
-#mm2-modo-normal #mm2-cercano{ top:430px; }
+/* v0.80.23 — chi sta cercando una partita: stessa riga, subito sotto. */
+#mm2-modo-normal #mm2-cercano{ top:462px; }
 /* v0.80.13 — contro il bot i collegati non contano: il numero non si vede. */
 #mm2-centro.vista-bot #mm2-online,
 #mm2-centro.vista-bot #mm2-cercano{ display:none; }
@@ -6661,11 +6659,6 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
 #aggiorna-testo{ font-family:var(--font-body); font-size:15px; color:#EDE0C6; line-height:1.5; }
 #aggiorna-testo b{ color:#E8C36A; }
 #aggiorna-conto{ font-family:var(--font-body); font-size:14px; color:#95A7A9; min-height:20px; }
-/* v0.80.24 — il riavvio annunciato: stesso aspetto dell'aggiornamento, sopra a
-   ogni altra finestra (anche in partita). */
-#riavvio-overlay{ z-index:4590; }
-#riavvio-box{ width:520px; display:flex; flex-direction:column; gap:16px; }
-#riavvio-testo{ font-family:var(--font-body); font-size:18px; color:#EDE0C6; line-height:1.5; text-align:center; }
 #debug-box{ width:1040px; max-width:calc(100vw - 40px); display:flex; flex-direction:column; gap:16px; }
 #debug-pannello{ max-height:calc(100vh - 160px); overflow-y:auto; }
 /* I pannelli a tendina di ogni strumento: stanno sotto al loro pulsante e non
@@ -13347,21 +13340,6 @@ try{
     </div>
   </div>
 </div>
-<!-- v0.80.24 — il riavvio annunciato dal server (vedi riavvioDalServer). -->
-<div id="riavvio-overlay" class="hx-overlay">
-  <div id="riavvio-box" class="hx-box">
-    <div class="hx-pannello">
-      <div class="hx-titolo-riga">
-        <div class="hx-titolo" id="riavvio-barra"><h2>Server restart</h2></div>
-      </div>
-      <div id="riavvio-testo"></div>
-      <button id="riavvio-ok" class="hx-btn hx-azione hx-btn-opaco" type="button" onclick="riavvioChiudi()">
-        <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
-        <span class="hxb-label">Understood</span>
-      </button>
-    </div>
-  </div>
-</div>
 <div id="rank-overlay" class="hx-overlay">
   <div id="rank-box" class="hx-box">
     <div class="hx-pannello">
@@ -13667,7 +13645,7 @@ try{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.24</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.23</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <!-- v0.80.19 — gli sticker: l'icona (solo per chi gioca), il menu, e due bolle
@@ -18095,61 +18073,6 @@ function rifiutoInInglese(perche){
 // v0.80.21 — la decisione dello Yeti: dove sta davvero e, se resta dov'e',
 // dove lascia l'impronta finta. Al server e basta: all'avversario arrivano solo
 // le due impronte (op 18).
-// ── v0.80.24 — LA CARTA SU CUI L'AVVERSARIO TIENE IL PUNTATORE ─────────────
-// Lorenzo: "se un giocatore avversario fa hover su una carta quando si gioca
-// online, quella carta dovrebbe alzarsi anche al giocatore in locale". Chi
-// passa sopra a una carta della sua mano lo dice al server (op 19, l'id della
-// carta o null), al massimo una volta ogni MANO_SOPRA_OGNI_MS: passando sopra a
-// tre carte di fila parte l'ultima, non tre. Il server lo gira solo all'altro
-// (op 20), che alza il dorso di quella carta come fa il bot quando "pensa"
-// (liftHandCardIntoView con keepZIndex: si alza, ma non passa davanti alle
-// vicine).
-const MANO_SOPRA_OGNI_MS = 80;
-let _manoSopraDetta = null, _manoSopraInCoda = null, _manoSopraDa = 0, _manoSopraTimer = null;
-function reteManoSopra(card){
-  if(!PARTITA_RETE) return;
-  _manoSopraInCoda = card ? (_idDelMazzo(card) || null) : null;
-  if(_manoSopraTimer) return;
-  const manda = ()=>{
-    _manoSopraTimer = null;
-    if(!PARTITA_RETE || _manoSopraInCoda === _manoSopraDetta) return;
-    _manoSopraDetta = _manoSopraInCoda;
-    _manoSopraDa = Date.now();
-    mmManda({ cid: 'h' + Date.now().toString(36), match_data_send: {
-      match_id: PARTITA_RETE.matchId, op_code: 19,
-      data: btoa(JSON.stringify({ carta: _manoSopraDetta }))
-    }});
-  };
-  const aspetta = MANO_SOPRA_OGNI_MS - (Date.now() - _manoSopraDa);
-  if(aspetta <= 0) manda(); else _manoSopraTimer = setTimeout(manda, aspetta);
-}
-let _manoSopraAvversario = null;   // { di, carta } come l'ha detto il server
-let _manoSopraAlzata = null;       // il wrap alzato adesso
-function manoSopraAvversario(di, carta){
-  _manoSopraAvversario = carta ? { di: di, carta: String(carta) } : null;
-  manoSopraAvversarioDisegna();
-}
-function manoSopraAvversarioDisegna(){
-  const prima = _manoSopraAlzata;
-  _manoSopraAlzata = null;
-  if(prima){
-    prima.classList.remove('hover-lift');
-    if(prima.dataset.restTransform != null) prima.style.transform = prima.dataset.restTransform;
-    if(prima.dataset.zIndexRank != null) prima.style.zIndex = prima.dataset.zIndexRank;
-  }
-  const s = _manoSopraAvversario;
-  if(!s || !PARTITA_RETE || s.di === PARTITA_RETE.io || !G) return;
-  const mano = (s.di === 1) ? G.p1Hand : G.p2Hand;
-  const card = (mano || []).find(c => c && _idDelMazzo(c) === s.carta);
-  if(!card) return;
-  const wrap = Array.from(document.querySelectorAll('#p' + s.di + '-hand-fan .hand-card-wrap'))
-    .find(w => w.dataset.carta === String(card.id || ''));
-  if(!wrap || wrap.classList.contains('dragging')) return;
-  wrap.dataset.restTransform = wrap.style.transform;
-  wrap.dataset.zIndexRank = wrap.style.zIndex;
-  liftHandCardIntoView(wrap, wrap.style.transform, true);
-  _manoSopraAlzata = wrap;
-}
 function reteYeti(vera, finta){
   if(!PARTITA_RETE) return;
   mmManda({ cid: 'y' + Date.now().toString(36), match_data_send: {
@@ -18377,7 +18300,6 @@ function reteMessaggio(md){
   // v0.80.19 — gli sticker. Il 15 e' uno sticker mandato da uno dei due: il mio
   // l'ho gia' mostrato quando l'ho cliccato, quello dell'altro va dal suo lato.
   // Il 16 e' il server che dice che sono bloccato, e per quanto.
-  if(op === 20){ try{ manoSopraAvversario(d.di, d.carta); }catch(_){ } return; }   // v0.80.24
   if(op === 15){ if(PARTITA_RETE && d.di !== PARTITA_RETE.io) stickerMostra(d.di, d.sticker); return; }
   if(op === 16){ stickerBloccaPer(d.resta); return; }
 
@@ -22391,8 +22313,6 @@ async function aggiornaGiocatoriOnline(){
     _onlineBattitoDa = Date.now();
     _onlineCercaDetto = cerca;
     const r = await nakamaRpc('hx_giocatori', { sessione: SESSIONE_CLIENT, cerca: cerca });
-    // v0.80.24 — un riavvio annunciato (un server di prima il campo non lo manda)
-    try{ if(r && ('riavvio' in r)) riavvioDalServer(r.riavvio); }catch(_){ }
     const n = (r && typeof r.giocatori === 'number') ? r.giocatori : null;
     const c = (r && typeof r.cercano === 'number') ? r.cercano : null;
     const elC = document.getElementById('mm2-cercano');
@@ -22408,70 +22328,6 @@ async function aggiornaGiocatoriOnline(){
     if(!_onlineLamentato){ _onlineLamentato = true;
       console.warn('[online] non riesco a sapere quanti stanno giocando: ' + (e && e.message)); }
   }
-}
-// ── v0.80.24 — IL RIAVVIO ANNUNCIATO ───────────────────────────────────────
-// Lorenzo: a tutti i giocatori una modale "Servers will restart in 5 minutes"
-// con "Understood"; a un minuto, se l'hanno chiusa, si riapre col conto alla
-// rovescia fino a zero; a zero il server riparte comunque. Il momento arriva
-// col battito (vedi rpcRiavvioAnnuncia), con l'ora del server: lo scarto fra
-// i due orologi si toglie qui, e poi si conta da soli. Il conto non si chiude a
-// zero: dice che si sta riavviando, e la chiude il primo battito del server
-// ripartito (che non annuncia piu' niente).
-const RIAVVIO_CONTO_MS = 60 * 1000;
-let _riavvio = null;   // { alle (orologio locale), timer, intervallo, conto }
-function riavvioDalServer(r){
-  if(!r || typeof r.alle !== 'number'){ riavvioAnnulla(); return; }
-  const alle = r.alle + (Date.now() - (typeof r.ora === 'number' ? r.ora : Date.now()));
-  // Due battiti dello stesso annuncio danno ore che differiscono di qualche
-  // millisecondo di rete: non e' un annuncio nuovo.
-  if(_riavvio && Math.abs(_riavvio.alle - alle) < 5000) return;
-  riavvioAnnulla();
-  _riavvio = { alle: alle, timer: null, intervallo: null, conto: false };
-  const resta = alle - Date.now();
-  if(resta <= RIAVVIO_CONTO_MS){ riavvioApriConto(); return; }
-  const minuti = Math.max(1, Math.round(resta / 60000));
-  riavvioApri('Servers will restart in ' + minuti + (minuti === 1 ? ' minute' : ' minutes'));
-  _riavvio.timer = setTimeout(riavvioApriConto, resta - RIAVVIO_CONTO_MS);
-}
-function riavvioApri(testo){
-  const ov = document.getElementById('riavvio-overlay');
-  const p = document.getElementById('riavvio-testo');
-  if(p) p.textContent = testo;
-  if(!ov) return;
-  if(!ov.classList.contains('show')){
-    ov.classList.add('show');
-    try{ vestiTitoli(); }catch(_){ }
-    try{ vestiPulsante(document.getElementById('riavvio-ok')); }catch(_){ }
-  }
-}
-function riavvioApriConto(){
-  if(!_riavvio) return;
-  _riavvio.conto = true;
-  const scrivi = () => {
-    if(!_riavvio) return;
-    const s = Math.max(0, Math.ceil((_riavvio.alle - Date.now()) / 1000));
-    const p = document.getElementById('riavvio-testo');
-    const testo = s > 0
-      ? 'Servers will restart in ' + s + (s === 1 ? ' second' : ' seconds')
-      : 'Servers are restarting now';
-    if(p) p.textContent = testo;
-    if(s <= 0 && _riavvio.intervallo){ clearInterval(_riavvio.intervallo); _riavvio.intervallo = null; }
-  };
-  riavvioApri('');
-  scrivi();
-  if(!_riavvio.intervallo) _riavvio.intervallo = setInterval(scrivi, 250);
-}
-function riavvioChiudi(){
-  const ov = document.getElementById('riavvio-overlay');
-  if(ov) ov.classList.remove('show');
-}
-function riavvioAnnulla(){
-  if(_riavvio){
-    if(_riavvio.timer) clearTimeout(_riavvio.timer);
-    if(_riavvio.intervallo) clearInterval(_riavvio.intervallo);
-  }
-  _riavvio = null;
-  riavvioChiudi();
 }
 function avviaContatoreOnline(){
   if(_onlineTimer) return;
@@ -23050,8 +22906,8 @@ function _questPulsa(el){
 // durante la partita e si mandano in fondo, in un colpo solo — non a ogni
 // giocata: una chiamata per carta girata sarebbe una chiamata ogni due
 // secondi, e il conto sarebbe comunque quello.
-let QUEST_CONTO = { flip:0, flip_mythic:0, flip_multiplo:0 };
-function questAzzeraConto(){ QUEST_CONTO = { flip:0, flip_mythic:0, flip_multiplo:0 }; }
+let QUEST_CONTO = { flip:0, flip_timeless:0, flip_multiplo:0 };
+function questAzzeraConto(){ QUEST_CONTO = { flip:0, flip_timeless:0, flip_multiplo:0 }; }
 // Quante carte in una giocata sola bastano a valere per "Flip N cards with 1".
 // Il numero vero e' quello del server (la `soglia` nel pool); questo e' il
 // filtro che evita di mandare ogni singola giocata.
@@ -23068,7 +22924,7 @@ function questSegnaConquiste(player, prese, prima){
   for(const k of prese){
     const era = prima && prima[k];
     const c = era && era.card;
-    if(c && String(c.rarity||'').toLowerCase() === 'mythic') QUEST_CONTO.flip_mythic += 1;   // v0.80.24 — era Timeless
+    if(c && String(c.rarity||'').toLowerCase() === 'timeless') QUEST_CONTO.flip_timeless += 1;
   }
   try{ questAvanzaInPartita(contoPrima); questSpiegaSilenzio(); }catch(_){ }
 }
@@ -23103,7 +22959,7 @@ function questSpiegaSilenzio(){
 // Quale conto muove quale quest: l'elenco del server non lo dice (vedi
 // questPerIlClient), quindi si legge da qui. Sono le quest di QUEST_POOL che
 // avanzano girando carte; una nuova di quel tipo va aggiunta anche qui.
-const QUEST_CONTA_IN_PARTITA = { flip20:'flip', flipmythic:'flip_mythic', flip2con1:'flip_multiplo' };
+const QUEST_CONTA_IN_PARTITA = { flip20:'flip', fliptimeless:'flip_timeless', flip2con1:'flip_multiplo' };
 let _questMostrateInPartita = {};
 function questAvanzaInPartita(contoPrima){
   let t = 0;
@@ -23132,7 +22988,7 @@ async function questRaccontaFinePartita(pvp, contoGiaPreso){
   const conto = contoGiaPreso || QUEST_CONTO;
   if(!contoGiaPreso) questAzzeraConto();
   if(!sessioneAccount || !sessioneAccount.token) return;
-  if(!conto.flip && !conto.flip_mythic && !conto.flip_multiplo) return;
+  if(!conto.flip && !conto.flip_timeless && !conto.flip_multiplo) return;
   try{
     const r = await nakamaRpc('hx_quest', { eventi: conto, pvp: !!pvp });
     if(r && r.quest) mm2DisegnaQuest(r.quest);
@@ -38129,8 +37985,6 @@ function initGame(vsAI){
   // partita, e quello di prima e' gia' stato raccontato (o perso, se la
   // partita e' finita male).
   try{ questAzzeraConto(); _questMostrateInPartita = {}; _questSilenzioDetto = false; }catch(_){ }
-  // v0.80.24 — e la carta alzata dall'avversario e' della partita di prima
-  try{ _manoSopraAvversario = null; _manoSopraAlzata = null; _manoSopraDetta = null; _manoSopraInCoda = null; }catch(_){ }
   // v0.80.19 — gli sticker (e il loro blocco) valgono una partita.
   try{ stickerNuovaPartita(); }catch(_){ }
   // v0.76.8 — la grafica della schermata di partita, montata alla prima partita.
@@ -55044,8 +54898,6 @@ function renderHand(containerId,hand,playerIdx){
         } else {
           liftHandCardIntoView(wrap, restTransform);
         }
-        // v0.80.24 — in rete la stessa carta si alza anche dall'altra parte
-        try{ if(PARTITA_RETE && player === PARTITA_RETE.io) reteManoSopra(card); }catch(_){ }
         // Il foil si attiva in entrambi gli stati: cambia cosa fa la carta
         // (salire o ingrandirsi), non se reagisce alla luce.
         wrap.setAttribute('data-foil-active','1');
@@ -55072,7 +54924,6 @@ function renderHand(containerId,hand,playerIdx){
         cardFoilApply(wrap, rx, ry, px, py);
       });
       hitzone.addEventListener('mouseleave',()=>{
-        try{ if(PARTITA_RETE && player === PARTITA_RETE.io) reteManoSopra(null); }catch(_){ }   // v0.80.24
         cardFoilReset(wrap);
         wrap.classList.remove('hover-lift');
         wrap.classList.remove('group-sep-hover');
@@ -55091,11 +54942,6 @@ function renderHand(containerId,hand,playerIdx){
         // not the raw visualIndex — otherwise player 2's stacking order would
         // revert to the old (backwards) order the instant the mouse leaves.
         wrap.style.zIndex = String(zIndexRank);
-      });
-      // v0.80.24 — premuta (si trascina, o si apre la finestra): dall'altra
-      // parte la carta torna giu'. Il mouseleave, a carta presa, non arriva.
-      hitzone.addEventListener('pointerdown',()=>{
-        try{ if(PARTITA_RETE && player === PARTITA_RETE.io) reteManoSopra(null); }catch(_){ }
       });
     }
     // v0.68.0 FIX ("si possono draggare le carte dell'avversario IA anche
@@ -55183,11 +55029,6 @@ function renderHand(containerId,hand,playerIdx){
   // illuminare non esistono).
   accendiLampiValori();
   accendiLampiNotte(); // v0.73.78 — il lampo bianco del tramonto, stessa ragione
-  // v0.80.24 — il ventaglio dell'avversario rifatto da capo ha perso la carta
-  // che lui teneva sotto al puntatore: si rialza (vedi manoSopraAvversario).
-  if(_manoSopraAvversario && containerId === 'p' + _manoSopraAvversario.di + '-hand-fan'){
-    try{ manoSopraAvversarioDisegna(); }catch(_){ }
-  }
 }
 
 const CLICK_MOVE_THRESHOLD=6; // px of movement before a mousedown is treated as a drag instead of a click

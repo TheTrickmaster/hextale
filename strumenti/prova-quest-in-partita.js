@@ -91,7 +91,7 @@ const CORPO = `(async function(){
     var detti = [], infoVera = console.info;
     console.info = function(m){ detti.push(String(m)); };
     mm2DisegnaQuest([{ id:'flip20', nome:'Flip 20 cards', quanto:20, premio:'ink', fatto:20, presa:false },
-                     { id:'fliptimeless', nome:'Flip a Timeless card', quanto:1, premio:'pack', fatto:1, presa:true },
+                     { id:'flipmythic', nome:'Flip a Mythic card', quanto:1, premio:'pack', fatto:1, presa:true },
                      { id:'win3pvp', nome:'Win 3 PvP matches', quanto:3, premio:'pack', fatto:0, presa:false }]);
     var gia = arrivate.length;
     var gira = async function(){
@@ -107,7 +107,7 @@ const CORPO = `(async function(){
     await gira();
     var spiegate = detti.filter(function(m){ return /\\[quest\\] carte girate, ma nessun popup/.test(m); });
     dice(G.board[E] && G.board[E].owner === 1 && arrivate.length === gia, 'con le quest gia- finite la carta si gira e non sale niente', arrivate.length - gia);
-    dice(spiegate.length === 1 && /flip20 20\\/20/.test(spiegate[0]) && /fliptimeless 1\\/1 riscattata/.test(spiegate[0]) && !/win3pvp/.test(spiegate[0]), 'e la console dice perche-, con lo stato delle quest delle carte girate', spiegate[0]);
+    dice(spiegate.length === 1 && /flip20 20\\/20/.test(spiegate[0]) && /flipmythic 1\\/1 riscattata/.test(spiegate[0]) && !/win3pvp/.test(spiegate[0]), 'e la console dice perche-, con lo stato delle quest delle carte girate', spiegate[0]);
     await respira(4500);
     await gira();
     spiegate = detti.filter(function(m){ return /\\[quest\\] carte girate, ma nessun popup/.test(m); });

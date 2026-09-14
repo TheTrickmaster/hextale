@@ -140,13 +140,27 @@ var QUEST_AL_GIORNO = 5;
 var QUEST_POOL = [
   { id:'win3pvp',      testo:'Win 3 PvP matches',    quanto:3,  premio:'pack', conta:'vittoria',      dove:'pvp' },
   { id:'flip20',       testo:'Flip 20 cards',        quanto:20, premio:'ink',  conta:'flip',          dove:'ovunque' },
-  { id:'fliptimeless', testo:'Flip a Timeless card', quanto:1,  premio:'pack', conta:'flip_timeless', dove:'ovunque' },
+  { id:'flipmythic',   testo:'Flip a Mythic card',   quanto:1,  premio:'pack', conta:'flip_mythic',   dove:'ovunque' },
   { id:'play5pvp',     testo:'Play 5 PvP matches',   quanto:5,  premio:'ink',  conta:'partita',       dove:'pvp' },
   { id:'flip2con1',    testo:'Flip 2 cards with 1',  quanto:3,  premio:'ink',  conta:'flip_multiplo', dove:'ovunque', soglia:2 }
 ];
 function questDefinizione(id) {
   for (var i = 0; i < QUEST_POOL.length; i++) if (QUEST_POOL[i].id === id) return QUEST_POOL[i];
   return null;
+}
+// v0.80.24 — "Flip a Timeless card" diventa "Flip a Mythic card" (Lorenzo).
+// L'id e' scritto nello stato di chi la sta giocando oggi, e un id che non c'e'
+// piu' fa sparire la quest fino a mezzanotte: la voce si rinomina al volo,
+// con quel che aveva gia' fatto e riscosso (vedi assicuraQuestDelGiorno).
+var QUEST_RINOMINATE = { fliptimeless: 'flipmythic' };
+function _questRinomina(q) {
+  if (!q || !q.lista) return false;
+  var cambiato = false;
+  for (var i = 0; i < q.lista.length; i++) {
+    var nuovo = q.lista[i] && QUEST_RINOMINATE[q.lista[i].id];
+    if (nuovo) { q.lista[i].id = nuovo; cambiato = true; }
+  }
+  return cambiato;
 }
 // Il giorno, contato a MEZZANOTTE GMT. Date.now() e' gia' in tempo universale
 // e un giorno e' sempre 86.400.000 millisecondi: dividere e troncare da' un
@@ -201,7 +215,8 @@ function _pagaQuest(possesso, def) {
 function assicuraQuestDelGiorno(logger, possesso, userId) {
   var oggi = _giornoGmt();
   var q = possesso.quest;
-  if (q && q.giorno === oggi && q.lista && q.lista.length) return false;
+  var rinominate = _questRinomina(q);   // v0.80.24
+  if (q && q.giorno === oggi && q.lista && q.lista.length) return rinominate;
   if (q && q.lista && q.lista.length) {
     for (var i = 0; i < q.lista.length; i++) {
       var voce = q.lista[i];
@@ -3804,7 +3819,14 @@ function rpcMazziScrivi(ctx, logger, nk, payload) {
 // ma lo decide il server quando i due si sono trovati d'accordo su com'e'
 // finito il tabellone. Una regola sola, in un posto solo: se un domani cambia
 // quanto vale una vittoria, cambia per tutti e due i modi di giocare.
-function applicaEsito(nk, userId, vinta, pari, controIA, turni, modo) {
+// v0.80.24 — `logger` e' un parametro. Qui dentro si usava senza che esistesse
+// (non c'e' un logger globale: arriva a ogni funzione di Nakama come argomento),
+// e il primo `logger` del blocco delle quest lanciava un ReferenceError. Il
+// `catch` lo leggeva di nuovo e rilanciava, e il `catch` esterno lo inghiottiva:
+// a ogni partita fra persone ne' le quest ne' l'inchiostro venivano scritti
+// (segnalazione di Vladimiro: "non progredisce il contatore delle partite
+// giocate in PvP").
+function applicaEsito(nk, userId, vinta, pari, controIA, turni, modo, logger) {
   var letto = leggiStagione(nk, userId);
   var p = letto.profilo;
   var prima = {
@@ -3924,7 +3946,10 @@ function applicaEsito(nk, userId, vinta, pari, controIA, turni, modo) {
         scriviPossesso(nk, userId, possesso);
         valute = v;
       }
-    } catch (ep) { /* i premi non devono poter rompere l'esito */ }
+    } catch (ep) {
+      // i premi non devono poter rompere l'esito — ma non in silenzio (v0.80.24)
+      if (logger) logger.error('premi di fine partita non scritti per %s: %s', userId, String(ep));
+    }
   }
 
   p.partite = (p.partite || 0) + 1;
@@ -4038,6 +4063,46 @@ function _presenzaLetta(v) {
 // un segno piu' vecchio di cosi' e' di qualcuno che ha chiuso la pagina mentre
 // cercava, e non si conta piu' anche se come presenza e' ancora viva.
 var RICERCA_VIVA_MS = 25 * 1000;
+
+// ── v0.80.24 — IL RIAVVIO SI ANNUNCIA ─────────────────────────────────────
+// Lorenzo: "invece di aspettare che non ci sia piu' nessuno online, manda un
+// messaggio con una modale 'Servers will restart in 5 minutes' a tutti i
+// giocatori ... a zero il server restarta a prescindere dai giocatori online".
+// schiera.sh chiama hx_riavvio_annuncia dal server stesso (con la chiave del
+// runtime: un client non puo'), che scrive QUANDO. Il momento viaggia col
+// battito (hx_giocatori, ogni 20s da ogni client collegato, anche in partita)
+// insieme all'ora del server, e il client conta da solo: niente orologi da
+// confrontare. Al riavvio InitModule lo cancella — il riavvio annunciato e'
+// avvenuto — e il battito dopo dice ai client di chiudere la modale.
+var KEY_RIAVVIO = 'riavvio';
+var RIAVVIO_PREAVVISO_MS = 5 * 60 * 1000;
+function rpcRiavvioAnnuncia(ctx, logger, nk, payload) {
+  if (ctx.userId) throw Error('This RPC cannot be called from a client.');
+  var dati = {};
+  try { dati = payload ? JSON.parse(payload) : {}; } catch (e) { dati = {}; }
+  var ora = Date.now();
+  if (dati.annulla) {
+    scriviSistema(nk, KEY_RIAVVIO, {});
+    logger.info('riavvio annunciato: annullato');
+    return JSON.stringify({ annullato: true, ora: ora });
+  }
+  var fra = parseInt(dati.fraMs, 10);
+  if (!isFinite(fra)) fra = RIAVVIO_PREAVVISO_MS;
+  fra = Math.max(60 * 1000, Math.min(30 * 60 * 1000, fra));
+  var alle = ora + fra;
+  scriviSistema(nk, KEY_RIAVVIO, { alle: alle, annunciato: ora });
+  logger.info('riavvio annunciato fra %d secondi', Math.round(fra / 1000));
+  return JSON.stringify({ alle: alle, ora: ora });
+}
+// Quando riparte il server, se e' stato annunciato. Un annuncio passato da piu'
+// di dieci minuti senza riavvio (lo schieramento si e' fermato) non vale piu'.
+function _riavvioAnnunciato(nk) {
+  var r = null;
+  try { r = leggiSistema(nk, KEY_RIAVVIO); } catch (e) { r = null; }
+  if (!r || typeof r.alle !== 'number') return null;
+  if (Date.now() - r.alle > 10 * 60 * 1000) return null;
+  return r.alle;
+}
 // C'e' qualcun ALTRO seduto su questo account in questo momento?
 function _sediaOccupataDaAltri(nk, userId, sessione) {
   var visti = null;
@@ -4120,7 +4185,9 @@ function rpcGiocatoriOnline(ctx, logger, nk, payload) {
   // buono, e un battito non scritto si riscrive fra trenta secondi.
   try { scriviSistema(nk, KEY_PRESENZE, vivi); }
   catch (e2) { logger.warn('battito non scritto: %s', String(e2)); }
-  return JSON.stringify({ giocatori: quanti, cercano: cercano });
+  // v0.80.24 — e se un riavvio e' annunciato, quando (vedi rpcRiavvioAnnuncia)
+  var alle = _riavvioAnnunciato(nk);
+  return JSON.stringify({ giocatori: quanti, cercano: cercano, riavvio: alle ? { alle: alle, ora: ora } : null });
 }
 
 // ── v0.78.16 — LE CARTE ANCORA DA GUARDARE ────────────────────────────────
@@ -4209,7 +4276,7 @@ function rpcCarteViste(ctx, logger, nk, payload) {
 // in una partita da diciannove caselle), e i premi in gioco sono venticinque
 // di inchiostro o una bustina. Non e' una difesa, e' un limite di danno — e
 // scriverlo qui vale piu' che fingere che sia una difesa.
-var QUEST_TETTO_PER_CHIAMATA = { flip: 40, flip_timeless: 10, flip_multiplo: 10 };
+var QUEST_TETTO_PER_CHIAMATA = { flip: 40, flip_mythic: 10, flip_multiplo: 10 };
 function rpcQuest(ctx, logger, nk, payload) {
   if (!ctx.userId) throw Error('You need to log in.');
   var dentro = {};
@@ -4275,7 +4342,7 @@ function rpcPartita(ctx, logger, nk, payload) {
   // avversario che possa confermare, e turniPuliti mette il tetto oltre il
   // quale la dichiarazione non e' piu' credibile.
   return JSON.stringify(applicaEsito(nk, ctx.userId, !!dati.vinta, !!dati.pari,
-    !!dati.controIA, dati.turni, 'finita'));
+    !!dati.controIA, dati.turni, 'finita', logger));
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -4351,6 +4418,13 @@ var OP_STICKER_BLOCCO = 16;
 // `yeti`) e dentro alla fine (op 6, `yeti`).
 var OP_YETI          = 17;  // client -> server: { vera, finta }
 var OP_YETI_IMPRONTE = 18;  // server -> client: { di, da, impronte, vera? }
+// v0.80.24 — la carta su cui un giocatore tiene il puntatore (Lorenzo: "se un
+// giocatore avversario fa hover su una carta, quella carta dovrebbe alzarsi
+// anche al giocatore in locale"). Il server la gira solo all'altro, e solo se e'
+// davvero una carta della mano di chi la manda; null la rimette giu'.
+var OP_MANO_SOPRA       = 19;  // client -> server: { carta } (id della mano, o null)
+var OP_MANO_SOPRA_ALTRO = 20;  // server -> l'altro: { di, carta }
+var MANO_SOPRA_MAX = 20;       // al secondo per giocatore; il null passa sempre
 var YETI_CHIAVE      = '!yeti';
 // v0.80.22 — quante volte al secondo gira partitaLoop (Lorenzo: 20). I messaggi
 // dei giocatori si smistano al giro successivo, quindi da qui dipende quanto
@@ -5222,7 +5296,7 @@ function _resa(state, dispatcher, logger, nk, chi) {
       // v0.78.14 — a zero a zero e' un pareggio per tutti e due, e un pareggio
       // paga quanto una sconfitta: nessuno dei due ha `vinta`.
       var esito = applicaEsito(nk, u, vuoto ? false : suo, vuoto, false,
-        state.turniGiocati[u], (vuoto || suo) ? 'finita' : 'resa');
+        state.turniGiocati[u], (vuoto || suo) ? 'finita' : 'resa', logger);
       esito.vinta = vuoto ? false : suo;
       esito.pari = vuoto;
       esito.perResa = true;
@@ -5273,7 +5347,7 @@ function _uscita(state, dispatcher, logger, nk, chiEUscito) {
     var uscito = (u === chiEUscito);
     try {
       var esito = applicaEsito(nk, u, !uscito, false, false,
-        state.turniGiocati[u], uscito ? 'uscito' : 'resta');
+        state.turniGiocati[u], uscito ? 'uscito' : 'resta', logger);
       esito.vinta = !uscito;
       esito.pari = false;
       esito.perAbbandono = true;
@@ -5436,6 +5510,23 @@ function _sticker(state, dispatcher, chi, idx, corpo) {
   _aTutti(dispatcher, OP_STICKER_MOSTRA, { di: idx + 1, sticker: nome });
 }
 
+// v0.80.24 — vedi OP_MANO_SOPRA. Oltre MANO_SOPRA_MAX al secondo si scarta: il
+// client ne manda al massimo uno ogni 80ms, e chi ne manda di piu' non sta
+// muovendo un mouse.
+function _manoSopra(state, dispatcher, chi, idx, corpo) {
+  if (!state.iniziata || state.finita || idx < 0) return;
+  var carta = (corpo && corpo.carta !== null && corpo.carta !== undefined) ? String(corpo.carta) : null;
+  if (carta !== null && (!state.mano[chi] || state.mano[chi].indexOf(carta) === -1)) return;
+  if (!state.manoSopra) state.manoSopra = {};
+  var ora = Date.now();
+  var mio = state.manoSopra[chi];
+  if (!mio || ora - mio.da >= 1000) { mio = { da: ora, n: 0 }; state.manoSopra[chi] = mio; }
+  if (carta !== null && mio.n >= MANO_SOPRA_MAX) return;
+  mio.n++;
+  var altro = state.giocatori[idx === 0 ? 1 : 0];
+  _aUno(dispatcher, state, altro, OP_MANO_SOPRA_ALTRO, { di: idx + 1, carta: carta });
+}
+
 function partitaLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
   // Nessuno e' entrato entro il tempo: la partita non c'e' mai stata.
   if (!state.iniziata && Date.now() - state.natoIl > ATTESA_INGRESSO_MS) {
@@ -5527,6 +5618,12 @@ function partitaLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
 
     if (m.opCode === OP_STICKER) {
       _sticker(state, dispatcher, chi, idx, corpo);
+      continue;
+    }
+
+    // v0.80.24 — la carta sotto al puntatore, all'altro
+    if (m.opCode === OP_MANO_SOPRA) {
+      _manoSopra(state, dispatcher, chi, idx, corpo);
       continue;
     }
 
@@ -5816,7 +5913,7 @@ function _chiudiPartita(state, dispatcher, logger, nk, rapporto) {
     var esito;
     try {
       // controIA = false: questa e' una partita fra persone, e muove il rank.
-      esito = applicaEsito(nk, u, suo, pari, false, state.turniGiocati[u], 'finita');
+      esito = applicaEsito(nk, u, suo, pari, false, state.turniGiocati[u], 'finita', logger);
     } catch (e) {
       logger.error('esito non scritto per %s: %s', u, String(e));
       continue;
@@ -6832,6 +6929,10 @@ var ABILITA_MOTORE = (function () {
 // ─── fine del motore delle abilita ──────────────────────────────────────
 
 function InitModule(ctx, logger, nk, initializer) {
+  // v0.80.24 — se c'era un riavvio annunciato, e' questo: da adesso non c'e' piu'
+  // (vedi rpcRiavvioAnnuncia).
+  try { scriviSistema(nk, KEY_RIAVVIO, {}); }
+  catch (eR) { logger.warn('annuncio di riavvio non cancellato: %s', String(eR)); }
   initializer.registerRpc('hx_avvio', rpcAvvio);
   initializer.registerRpc('hx_importa', rpcImporta);
   initializer.registerRpc('hx_sistema_utenti', rpcSistemaUtenti);
@@ -6866,6 +6967,7 @@ function InitModule(ctx, logger, nk, initializer) {
   initializer.registerRpc('hx_google_config', rpcGoogleConfig);
   initializer.registerRpc('hx_elimina_account', rpcEliminaAccount);
   initializer.registerRpc('hx_giocatori', rpcGiocatoriOnline);
+  initializer.registerRpc('hx_riavvio_annuncia', rpcRiavvioAnnuncia);   // v0.80.24
   initializer.registerRpc('hx_entro', rpcEntro);
   initializer.registerRpc('hx_esco', rpcEsco);
   initializer.registerRpc('hx_carte_viste', rpcCarteViste);

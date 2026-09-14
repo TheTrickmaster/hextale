@@ -179,22 +179,22 @@ app.whenReady().then(async () => {
     questPopup = function(q, finita){ popup.push(q.id + ':' + q.fatto + (finita ? ':finita' : '')); };
     QUEST_OGGI = [
       { id:'flip20', nome:'Flip 20 cards', fatto:5, quanto:20, premio:'ink', presa:false },
-      { id:'fliptimeless', nome:'Flip a Timeless card', fatto:0, quanto:1, premio:'pack', presa:false },
+      { id:'flipmythic', nome:'Flip a Mythic card', fatto:0, quanto:1, premio:'pack', presa:false },
       { id:'flip2con1', nome:'Flip 2 cards with 1', fatto:2, quanto:3, premio:'ink', presa:false },
       { id:'win3pvp', nome:'Win 3 PvP matches', fatto:0, quanto:3, premio:'pack', presa:false }
     ];
     questAzzeraConto(); _questMostrateInPartita = {};
-    questSegnaConquiste(1, ['0,0', '1,0'], { '0,0': { card: { rarity:'timeless' } } });
+    questSegnaConquiste(1, ['0,0', '1,0'], { '0,0': { card: { rarity:'mythic' } } });
     await respira(1000);
     dice(popup.indexOf('flip20:7') >= 0, 'due carte girate: il popup di "Flip 20 cards" sale in partita a 7', popup.join(' '));
-    dice(popup.indexOf('fliptimeless:1:finita') >= 0, 'e quello della Timeless, finita', popup.join(' '));
+    dice(popup.indexOf('flipmythic:1:finita') >= 0, 'e quello della Mythic, finita', popup.join(' '));
     dice(popup.indexOf('flip2con1:3:finita') >= 0, 'e quello di "Flip 2 cards with 1", finita', popup.join(' '));
     dice(!popup.some(function(p){ return p.indexOf('win3pvp') === 0; }), 'la quest delle vittorie non si muove girando carte');
     popup.length = 0;
     questSegnaConquiste(2, ['2,0'], {});
     await respira(200);
     dice(popup.length === 0, 'le carte girate dall-avversario non muovono le mie quest', popup.join(' '));
-    await questMostraMosse([{ id:'flip20', fatto:7 }, { id:'fliptimeless', fatto:1, finita:true }]);
+    await questMostraMosse([{ id:'flip20', fatto:7 }, { id:'flipmythic', fatto:1, finita:true }]);
     await respira(500);
     dice(popup.length === 0, 'a fine partita lo stesso avanzamento non si ripete', popup.join(' '));
     await questMostraMosse([{ id:'flip20', fatto:9 }]);
@@ -206,7 +206,7 @@ app.whenReady().then(async () => {
     sessioneAccount = { token:'finto' };
     nakamaRpc = async function(nome, dati){ if(nome === 'hx_quest') mandati = dati; return {}; };
     QUEST_CONTO.flip = 99;
-    await questRaccontaFinePartita(false, { flip:4, flip_timeless:0, flip_multiplo:1 });
+    await questRaccontaFinePartita(false, { flip:4, flip_mythic:0, flip_multiplo:1 });
     dice(mandati && mandati.eventi && mandati.eventi.flip === 4 && mandati.eventi.flip_multiplo === 1, 'il conto preso prima di aspettare il server e- quello che parte', JSON.stringify(mandati));
     dice(QUEST_CONTO.flip === 99, 'e il conto della partita nuova non viene azzerato', QUEST_CONTO.flip);
     nakamaRpc = rpcVera; sessioneAccount = sessioneVera; questAzzeraConto();
