@@ -41735,6 +41735,20 @@ function congelaTasselli(c){
   const fino = (G.numeroTurno||1) + (c.turni || 1);
   for(let i = 0; i < quante && i < libere.length; i++) G.gelo[libere[i]] = fino;
 }
+// v0.80.20 — il gelo di UN tassello scelto (Sherazade, vedi
+// _sceltaCongelaTassello). Un numero di turno, che scade da solo.
+// G.numeroTurno sale a OGNI cambio di giocatore (vedi endTurn). Col conto di
+// congelaTasselli — "fino al turno + 1" — il ghiaccio si scioglieva proprio
+// all'inizio del turno dell'avversario, cioe' non fermava mai nessuno. "Per un
+// turno" vuol dire il turno che viene: il tassello resta gelato per i `turni`
+// turni dopo questo, e si scioglie quando tocca di nuovo a chi l'ha gelato.
+function congelaTassello(k, turni){
+  if(!k || !_celleLibereOra().has(k) || cellaCongelata(k)) return false;
+  if(!G.gelo) G.gelo = {};
+  G.gelo[k] = (G.numeroTurno||1) + 1 + (turni || 1);
+  try{ renderBoard(); }catch(_){ }
+  return true;
+}
 function applicaCambiamenti(elenco){
   for(const c of (elenco || [])){
     if(!c) continue;
@@ -41756,7 +41770,9 @@ function applicaCambiamenti(elenco){
       // abilita-motore.js), quindi dice cosa fare e la cella la trova chi
       // esegue. Prima questo ramo usciva su `!c.carta` e il cambiamento
       // finiva nel nulla.
-      if(c.cosa === 'tile'){ congelaTasselli(c); continue; }
+      // v0.80.20 — se il foglio dice che il tassello lo SCEGLIE il giocatore,
+      // qui non si congela niente: lo fa la finestra (_sceltaCongelaTassello).
+      if(c.cosa === 'tile'){ if(!c.scelta) congelaTasselli(c); continue; }
       if(!c.carta) continue;
       c.carta.congelataFinoAlTurno = (G.numeroTurno||1) + (c.turni || 1);
       continue;
@@ -44015,6 +44031,7 @@ function sceltaDalFoglio(card, q, r, giocatore){
     if(eff.azione === 'copy' && eff.cosa === 'trait')     return _sceltaCopiaTratti(card, q, r, giocatore, a, eff);
     if(eff.azione === 'move' && eff.dove === 'board' && _muoveQualcuno(eff))
       return _sceltaSpostaOvunque(card, q, r, giocatore, a, eff);
+    if(eff.azione === 'freeze' && eff.cosa === 'tile') return _sceltaCongelaTassello(card, q, r, giocatore, a, eff);   // v0.80.20
   }
   return null;
 }
@@ -44243,6 +44260,47 @@ function _sceltaScambioPosizioni(card, q, r, giocatore, a, eff){
       return scambiaPosizioniInCampo(elenco[0], elenco[1]);
     },
     rinuncia: () => {},
+  };
+}
+
+// ── v0.80.20 — SHERAZADE, "CLIFFHANGER": IL TASSELLO LO SCEGLIE CHI GIOCA ────
+// Lorenzo: "sherazade non funziona. insegna ad interpretare la stringa al
+// gioco". Dal reimport del 14/09 la riga e' "on play, once per game, freeze
+// chosen any board tile free 1 n_turns": congela un tassello libero SCELTO dal
+// giocatore, per un turno. sceltaDalFoglio non sapeva costruire il gelo di un
+// tassello, la finestra non si apriva e l'abilita' non succedeva.
+// I bersagli li trova candidatiDalFoglio (tasselli liberi, fuori dai muri); si
+// tolgono quelli gia' congelati, dove un secondo gelo non farebbe niente.
+// Quanto dura: la finestra `for_turns` se il foglio la scrive, se no il numero
+// della riga quando la durata e' `n_turns`, se no uno.
+// In rete la cella passa dal server come ogni scelta (op 10/11) e il gelo lo
+// mettono i due client nello stesso istante. L'IA congela la casella che rende
+// di piu' (aiVicinatoUtile): e' quella che l'avversario vorrebbe usare.
+function _turniDelGelo(a, eff){
+  if(a && a.finestra && a.finestra.tipo === 'for_turns' && typeof a.finestra.valore === 'number') return a.finestra.valore;
+  if(eff && eff.durata === 'n_turns' && eff.quanto && eff.quanto.numero > 0) return eff.quanto.numero;
+  return 1;
+}
+function _sceltaCongelaTassello(card, q, r, giocatore, a, eff){
+  const bersagli = candidatiDalFoglio(card, q, r, giocatore, a, eff).filter(k => !cellaCongelata(k));
+  if(!bersagli.length) return null;
+  const turni = _turniDelGelo(a, eff);
+  return {
+    chiave: 'congela_tassello',
+    giocatore,
+    cellaOrigine: key(q, r),
+    bersagli,
+    applica: (cella) => congelaTassello(cella, turni),
+    rinuncia: () => {},
+    valuta: (scelta) => {
+      let migliore = null, punti = -Infinity;
+      for(const k of scelta.bersagli){
+        const [bq, br] = k.split(',').map(Number);
+        const p = (typeof aiVicinatoUtile === 'function') ? aiVicinatoUtile(bq, br) : 0;
+        if(p > punti){ punti = p; migliore = k; }
+      }
+      return migliore;
+    },
   };
 }
 
