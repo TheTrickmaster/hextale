@@ -2310,11 +2310,12 @@ function rpcEliminaAccount(ctx, logger, nk, payload) {
     try { nk.storageDelete([{ collection: COLL_PROFILO, key: chiavi[i], userId: ctx.userId }]); }
     catch (e) { logger.warn('cancellando %s di %s: %s', chiavi[i], ctx.userId, String(e)); }
   }
-  // Il battito che dice "sono online" non si tocca: e' un'ora scritta in un
-  // registro condiviso, e smette di contare da sola dopo un minuto e mezzo
-  // (vedi PRESENZA_VIVA_MS). Andare a riscrivere quel registro qui vorrebbe
-  // dire prendersi il rischio di una scrittura in mezzo alla cancellazione per
-  // guadagnare novanta secondi.
+  // v0.80.30 — il battito che dice "sono online" e' un record di questo giocatore
+  // (presenza/battito): se ne va con lui, e dal conto esce al conto dopo, entro
+  // quindici secondi. (Fino alla v0.80.29 stava in un registro condiviso, e
+  // riscriverlo qui voleva dire rischiare una scrittura a meta' cancellazione.)
+  try { nk.storageDelete([{ collection: COLL_PRESENZA, key: KEY_BATTITO, userId: ctx.userId }]); }
+  catch (eP) { logger.warn('cancellando la presenza di %s: %s', ctx.userId, String(eP)); }
   nk.accountDeleteId(ctx.userId, true);
   logger.info('account cancellato: %s', ctx.userId);
   return JSON.stringify({ fatto: true });
@@ -4022,11 +4023,9 @@ function applicaEsito(nk, userId, vinta, pari, controIA, turni, modo, logger) {
 // La finestra e' piu' larga del passo del battito, cosi' un battito perso per
 // strada non fa lampeggiare il numero.
 //
-// Due client che battono nello stesso istante si sovrascrivono a vicenda e uno
-// dei due battiti va perso: torna trenta secondi dopo, e nel frattempo il
-// numero e' piu' basso di uno. E' il prezzo di tenere tutto in un record solo,
-// ed e' accettabile finche' i giocatori sono decine; diventando centinaia,
-// questo record va spezzato.
+// v0.80.30 — il record e' stato spezzato: un record per giocatore piu' un conto
+// piccolo (vedi "IL BATTITO, UN RECORD PER GIOCATORE", piu' sotto). Due battiti
+// nello stesso istante non si cancellano piu' a vicenda.
 var PRESENZA_VIVA_MS = 90 * 1000;
 var KEY_PRESENZE = 'presenze';
 // ══════════════════════════════════════════════════════════════════════════
@@ -4113,17 +4112,178 @@ function _riavvioAnnunciato(nk) {
   if (Date.now() - r.alle > 10 * 60 * 1000) return null;
   return r.alle;
 }
+// ══════════════════════════════════════════════════════════════════════════
+// v0.80.30 — IL BATTITO, UN RECORD PER GIOCATORE
+// ══════════════════════════════════════════════════════════════════════════
+// Lorenzo: "Rifai il battito online come hai proposto". Fino alla v0.80.29
+// tutte le presenze stavano in UN record (sistema/presenze), e ogni battito lo
+// leggeva e lo riscriveva intero: con N giocatori, N/20 battiti al secondo su
+// un record grande N — un costo che cresce col quadrato — e due battiti nello
+// stesso istante che si cancellavano a vicenda. Misurato in V8: 0,14 ms a
+// battito con 100 online, 1,8 ms con 1000; sul server il JavaScript e' molto
+// piu' lento, e con un core solo il muro era fra i 300 e i 500 giocatori.
+//
+// Adesso due cose diverse, e nessuna delle due cresce col numero dei giocatori:
+//   presenza/battito     un record PER GIOCATORE (userId = il giocatore):
+//                        { q: quando, s: sessione, c: cerca, g: gioca }.
+//                        Il battito scrive solo il proprio. E' anche la sedia
+//                        (v0.79.3): la si guarda leggendo un record solo.
+//   sistema/conto-presenze
+//                        { R, quanti, cercano, inPartita, picco, piccoIl }: i
+//                        numeri del menu, grandi uguali con 10 o 10000 giocatori.
+//                        Ogni battito ci aggiunge la PROPRIA differenza (com'era
+//                        contato -> com'e' adesso); ogni CONTO_PRESENZE_OGNI_MS il
+//                        primo battito che lo trova vecchio lo rifa' da capo
+//                        leggendo tutti i record, e intanto butta quelli di chi non
+//                        batte da PRESENZA_SCARTO_MS.
+// Il conto rifatto e' cio' che tiene semplice il resto: due battiti nello stesso
+// istante possono ancora perdere una differenza, e chi sparisce senza dire
+// niente resta contato — ma solo fino al conto dopo. I numeri possono sbagliare
+// di poco per pochi secondi; la sedia, che deve essere giusta, sta nel record di
+// ognuno e non si perde.
+var COLL_PRESENZA = 'presenza';
+var KEY_BATTITO = 'battito';
+var KEY_CONTO_PRESENZE = 'conto-presenze';
+var CONTO_PRESENZE_OGNI_MS = 15 * 1000;
+var PRESENZA_SCARTO_MS = 10 * 60 * 1000;
+
+function _leggiPresenza(nk, userId) {
+  var r = nk.storageRead([{ collection: COLL_PRESENZA, key: KEY_BATTITO, userId: userId }]);
+  return (r && r.length && r[0].value) ? r[0].value : null;
+}
+
 // C'e' qualcun ALTRO seduto su questo account in questo momento?
-function _sediaOccupataDaAltri(nk, userId, sessione) {
-  var visti = null;
-  try { visti = leggiSistema(nk, KEY_PRESENZE); } catch (e) { visti = null; }
-  if (!visti || typeof visti !== 'object') return false;
-  var p = _presenzaLetta(visti[userId]);
+function _sediaOccupataDaAltri(presenza, sessione, ora) {
+  var p = _presenzaLetta(presenza);
   if (!p) return false;
-  if ((Date.now() - p.q) > SEDIA_LIBERA_MS) return false;   // se n'e' andato
-  // Nessuna sessione scritta: e' una presenza di prima di questa versione.
+  if ((ora - p.q) > SEDIA_LIBERA_MS) return false;   // se n'e' andato
+  // Nessuna sessione scritta: e' una presenza di prima della v0.79.3.
   // Vale come occupata — e' comunque qualcuno che stava battendo.
   return p.s !== sessione;
+}
+
+// Quanto pesa una presenza nel conto fatto all'istante R: [online, cerca, gioca].
+// Una presenza scritta DOPO R nel conto c'e' gia' entrata come differenza, coi
+// suoi segni; una di prima conta se a R era viva.
+function _pesoPresenza(v, R) {
+  var p = _presenzaLetta(v);
+  if (!p) return [0, 0, 0];
+  if (p.q > R) return [1, p.c ? 1 : 0, p.g ? 1 : 0];
+  if (R - p.q > PRESENZA_VIVA_MS) return [0, 0, 0];
+  return [1, (p.c && R - p.q <= RICERCA_VIVA_MS) ? 1 : 0, p.g ? 1 : 0];
+}
+
+// Il conto con la differenza di un giocatore (vecchia -> nuova; null = nessuna).
+function _contoConDifferenza(conto, vecchia, nuova) {
+  var prima = _pesoPresenza(vecchia, conto.R), dopo = _pesoPresenza(nuova, conto.R);
+  return {
+    R: conto.R,
+    quanti: Math.max(0, (conto.quanti || 0) + dopo[0] - prima[0]),
+    cercano: Math.max(0, (conto.cercano || 0) + dopo[1] - prima[1]),
+    inPartita: Math.max(0, (conto.inPartita || 0) + dopo[2] - prima[2]),
+    picco: conto.picco || 0, piccoIl: conto.piccoIl || null
+  };
+}
+
+// Tutti i record di presenza, utente -> valore. Con `pulisci` si buttano quelli
+// di chi non batte da PRESENZA_SCARTO_MS, con la versione letta: se nel frattempo
+// quel giocatore e' tornato, il suo record e' cambiato e non si cancella.
+function _leggiTuttePresenze(nk, logger, ora, pulisci) {
+  var tutte = {}, via = [], i;
+  var oggetti = _elencaTutto(nk, '', COLL_PRESENZA, 100);
+  for (i = 0; i < oggetti.length; i++) {
+    var o = oggetti[i], p = _presenzaLetta(o.value);
+    if (pulisci && (!p || ora - p.q > PRESENZA_SCARTO_MS)) {
+      var d = { collection: COLL_PRESENZA, key: KEY_BATTITO, userId: o.userId };
+      if (o.version) d.version = o.version;
+      via.push(d);
+      continue;
+    }
+    if (o.userId) tutte[o.userId] = o.value;
+  }
+  for (i = 0; i < via.length; i += 100) {
+    try { nk.storageDelete(via.slice(i, i + 100)); }
+    catch (e) { if (logger) logger.warn('presenze vecchie non tolte: %s', String(e)); }
+  }
+  return tutte;
+}
+
+// Il conto rifatto da capo. Senza un conto di prima (la prima volta con questa
+// versione) si porta dentro quello che c'era nel record unico.
+function _ricontaPresenze(nk, logger, ora, contoVecchio) {
+  var tutte = {};
+  try { tutte = _leggiTuttePresenze(nk, logger, ora, true); }
+  catch (e) { if (logger) logger.warn('presenze non lette: %s', String(e)); }
+  var picco = (contoVecchio && contoVecchio.picco) || 0;
+  var piccoIl = (contoVecchio && contoVecchio.piccoIl) || null;
+  if (!contoVecchio) {
+    var m = _migraPresenzeVecchie(nk, logger, ora, tutte);
+    if (m.picco > picco) { picco = m.picco; piccoIl = m.piccoIl; }
+  }
+  var c = _contaPresenze(tutte, ora);
+  return { R: ora, quanti: c.quanti, cercano: c.cercano, inPartita: c.inPartita, picco: picco, piccoIl: piccoIl };
+}
+
+// Dal record unico ai record per giocatore, una volta sola: le presenze ancora
+// vive (chi era collegato durante lo schieramento deve restare seduto) e il
+// picco della v0.80.29. Poi il record vecchio si svuota.
+function _migraPresenzeVecchie(nk, logger, ora, tutte) {
+  var fuori = { picco: 0, piccoIl: null };
+  try {
+    var vp = leggiSistema(nk, KEY_PICCO_ONLINE);
+    if (vp && typeof vp.n === 'number') { fuori.picco = vp.n; fuori.piccoIl = vp.quando || null; }
+  } catch (e0) { }
+  var vecchie = null;
+  try { vecchie = leggiSistema(nk, KEY_PRESENZE); } catch (e1) { vecchie = null; }
+  if (!vecchie || typeof vecchie !== 'object') return fuori;
+  var scritture = [], portate = 0, i;
+  for (var u in vecchie) {
+    var p = _presenzaLetta(vecchie[u]);
+    if (!p || tutte[u] || ora - p.q > PRESENZA_VIVA_MS) continue;
+    var v = { q: p.q, s: p.s };
+    if (p.c) v.c = 1;
+    if (p.g) v.g = 1;
+    tutte[u] = v;
+    scritture.push({ collection: COLL_PRESENZA, key: KEY_BATTITO, userId: u, value: v, permissionRead: 0, permissionWrite: 0 });
+  }
+  for (i = 0; i < scritture.length; i += 100) {
+    var pezzo = scritture.slice(i, i + 100);
+    try { nk.storageWrite(pezzo); portate += pezzo.length; }
+    catch (e2) { if (logger) logger.warn('presenze non portate nei record nuovi: %s', String(e2)); }
+  }
+  try { scriviSistema(nk, KEY_PRESENZE, {}); } catch (e3) { }
+  if (logger && portate) logger.info('presenze: %d portate dal record unico ai record per giocatore', portate);
+  return fuori;
+}
+
+// La porta comune di hx_entro, hx_esco e hx_giocatori. Legge la propria presenza
+// e il conto; `cambia(presenzaAttuale)` torna la presenza nuova, null per
+// toglierla, undefined per non toccare niente (la sedia e' di un altro). Il conto
+// si rifa' se e' vecchio, prende la differenza e il picco. Nessun guasto dello
+// storage deve far fallire la risposta: al peggio i numeri restano quelli di
+// prima per un battito.
+function _presenzaEConto(nk, logger, userId, ora, cambia) {
+  var mia = null, lettaMia = false;
+  if (userId) {
+    try { mia = _leggiPresenza(nk, userId); lettaMia = true; }
+    catch (e) { if (logger) logger.warn('presenza non letta: %s', String(e)); }
+  }
+  var nuova = lettaMia ? cambia(mia) : undefined;
+  var conto = null;
+  try { conto = leggiSistema(nk, KEY_CONTO_PRESENZE); } catch (e1) { conto = null; }
+  var buono = conto && typeof conto.R === 'number';
+  if (!buono || (ora - conto.R) > CONTO_PRESENZE_OGNI_MS || conto.R > ora + CONTO_PRESENZE_OGNI_MS) {
+    conto = _ricontaPresenze(nk, logger, ora, buono ? conto : null);
+  }
+  if (nuova !== undefined) conto = _contoConDifferenza(conto, mia, nuova);
+  if (conto.quanti > (conto.picco || 0)) { conto.picco = conto.quanti; conto.piccoIl = ora; }
+  try {
+    if (nuova) nk.storageWrite([{ collection: COLL_PRESENZA, key: KEY_BATTITO, userId: userId, value: nuova, permissionRead: 0, permissionWrite: 0 }]);
+    else if (nuova === null && mia) nk.storageDelete([{ collection: COLL_PRESENZA, key: KEY_BATTITO, userId: userId }]);
+  } catch (e2) { if (logger) logger.warn('presenza non scritta: %s', String(e2)); }
+  try { scriviSistema(nk, KEY_CONTO_PRESENZE, conto); }
+  catch (e3) { if (logger) logger.warn('conto delle presenze non scritto: %s', String(e3)); }
+  return { mia: mia, nuova: nuova, conto: conto };
 }
 
 // Ci si siede. Si chiama UNA VOLTA, appena l'accesso e' riuscito e prima che
@@ -4135,16 +4295,15 @@ function rpcEntro(ctx, logger, nk, payload) {
   try { dati = payload ? JSON.parse(payload) : {}; } catch (e) { dati = {}; }
   var sessione = String(dati.sessione || '').slice(0, 64);
   if (!sessione) throw Error('A session is required.');
-  if (_sediaOccupataDaAltri(nk, ctx.userId, sessione)) {
+  var ora = Date.now(), rifiutato = false;
+  _presenzaEConto(nk, logger, ctx.userId, ora, function (mia) {
+    if (_sediaOccupataDaAltri(mia, sessione, ora)) { rifiutato = true; return undefined; }
+    return { q: ora, s: sessione };
+  });
+  if (rifiutato) {
     logger.info('accesso rifiutato a %s: gia. in gioco', ctx.userId);
     return JSON.stringify({ dentro: false, motivo: 'gia in gioco' });
   }
-  var visti = null;
-  try { visti = leggiSistema(nk, KEY_PRESENZE); } catch (e) { visti = null; }
-  if (!visti || typeof visti !== 'object') visti = {};
-  visti[ctx.userId] = { q: Date.now(), s: sessione };
-  try { scriviSistema(nk, KEY_PRESENZE, visti); }
-  catch (e2) { logger.warn('presenza non scritta: %s', String(e2)); }
   return JSON.stringify({ dentro: true });
 }
 
@@ -4156,15 +4315,10 @@ function rpcEsco(ctx, logger, nk, payload) {
   var dati = {};
   try { dati = payload ? JSON.parse(payload) : {}; } catch (e) { dati = {}; }
   var sessione = String(dati.sessione || '').slice(0, 64);
-  var visti = null;
-  try { visti = leggiSistema(nk, KEY_PRESENZE); } catch (e) { visti = null; }
-  if (!visti || typeof visti !== 'object') return JSON.stringify({ fuori: true });
-  var p = _presenzaLetta(visti[ctx.userId]);
-  if (p && (!sessione || p.s === sessione || !p.s)) {
-    delete visti[ctx.userId];
-    try { scriviSistema(nk, KEY_PRESENZE, visti); }
-    catch (e2) { logger.warn('presenza non tolta: %s', String(e2)); }
-  }
+  _presenzaEConto(nk, logger, ctx.userId, Date.now(), function (mia) {
+    var p = _presenzaLetta(mia);
+    return (p && (!sessione || p.s === sessione || !p.s)) ? null : undefined;
+  });
   return JSON.stringify({ fuori: true });
 }
 
@@ -4173,39 +4327,28 @@ function rpcGiocatoriOnline(ctx, logger, nk, payload) {
   var dati = {};
   try { dati = payload ? JSON.parse(payload) : {}; } catch (eP) { dati = {}; }
   var sessione = String(dati.sessione || '').slice(0, 64);
-  var visti = null;
-  try { visti = leggiSistema(nk, KEY_PRESENZE); } catch (e) { visti = null; }
-  if (!visti || typeof visti !== 'object') visti = {};
   // v0.79.3 — il battito dice anche CHI sta battendo, e non ruba la sedia a
   // nessuno: se il posto risulta di un'altra sessione viva, questo client non
   // ci scrive sopra. Non e' un caso teorico — e' quello che succede al secondo
   // client se qualcuno gli mette le mani sul codice per saltare il rifiuto.
-  if (ctx.userId && !(sessione && _sediaOccupataDaAltri(nk, ctx.userId, sessione))) {
-    if (sessione) {
-      var segno = { q: ora, s: sessione };
-      if (dati.cerca) segno.c = 1;
-      if (dati.gioca) segno.g = 1;   // v0.80.25 — sta giocando una partita
-      visti[ctx.userId] = segno;
-    } else {
-      visti[ctx.userId] = ora;
-    }
-  }
-  var conto = _contaPresenze(visti, ora);
-  // La scrittura non deve poter far fallire la risposta: il numero e' gia'
-  // buono, e un battito non scritto si riscrive fra trenta secondi.
-  try { scriviSistema(nk, KEY_PRESENZE, conto.vivi); }
-  catch (e2) { logger.warn('battito non scritto: %s', String(e2)); }
-  _segnaPiccoOnline(nk, logger, conto.quanti, ora);   // v0.80.29
+  var esito = _presenzaEConto(nk, logger, ctx.userId, ora, function (mia) {
+    if (sessione && _sediaOccupataDaAltri(mia, sessione, ora)) return undefined;
+    var segno = { q: ora, s: sessione };
+    if (dati.cerca) segno.c = 1;
+    if (dati.gioca) segno.g = 1;   // v0.80.25 — sta giocando una partita
+    return segno;
+  });
   // v0.80.24 — e se un riavvio e' annunciato, quando (vedi rpcRiavvioAnnuncia)
   var alle = _riavvioAnnunciato(nk);
-  return JSON.stringify({ giocatori: conto.quanti, cercano: conto.cercano, inPartita: conto.inPartita, riavvio: alle ? { alle: alle, ora: ora } : null });
+  var c = esito.conto;
+  return JSON.stringify({ giocatori: c.quanti, cercano: c.cercano, inPartita: c.inPartita, riavvio: alle ? { alle: alle, ora: ora } : null });
 }
 
 // ── v0.80.29 — CHI C'E', CONTATO IN UN POSTO SOLO ─────────────────────────
 // Lo stesso conto serve al battito (hx_giocatori, i numeri del menu) e a /stats/
 // (hx_stats, hx_stats_live): scritto una volta sola, la pagina non puo' dire un
 // numero diverso da quello che leggono i giocatori.
-//   vivi       le presenze ancora valide, quelle che il battito riscrive;
+//   vivi       le presenze ancora valide;
 //   quanti     online;
 //   cercano    in matchmaking (v0.80.23): il segno vale RICERCA_VIVA_MS;
 //   inPartita  in partita (v0.80.25): il segno si toglie col battito di fine
@@ -4229,21 +4372,13 @@ function _contaPresenze(visti, ora, esclusi) {
 }
 
 // ── v0.80.29 — IL PICCO DI GIOCATORI ONLINE ──────────────────────────────
-// Lorenzo: "Picco massimo giocatori online". Il battito e' il momento in cui il
-// numero si conosce: se supera il record, lo si riscrive con l'ora. Sta in un
-// record suo e non dentro alle presenze, che sono un elenco per utente e che
-// chi le legge scorre chiave per chiave. Si legge a ogni battito; si scrive solo
-// quando il picco sale. Per il tempo prima di questa versione hx_stats lo
-// ricava dalle sessioni della telemetria (vedi calcolaStatistiche).
+// Lorenzo: "Picco massimo giocatori online". Nella v0.80.29 stava in un record
+// suo, sistema/picco-online { n, quando }, riletto a ogni battito. Dalla v0.80.30
+// sta nel conto delle presenze (picco, piccoIl), che il battito legge comunque:
+// questo record si legge solo per portarlo nel conto la prima volta
+// (_migraPresenzeVecchie) e, finche' il conto non c'e', da /stats/. Per il tempo
+// prima della v0.80.29 hx_stats lo ricava dalle sessioni della telemetria.
 var KEY_PICCO_ONLINE = 'picco-online';
-function _segnaPiccoOnline(nk, logger, quanti, ora) {
-  if (!(quanti > 0)) return;
-  try {
-    var p = leggiSistema(nk, KEY_PICCO_ONLINE);
-    if (p && typeof p.n === 'number' && p.n >= quanti) return;
-    scriviSistema(nk, KEY_PICCO_ONLINE, { n: quanti, quando: ora });
-  } catch (e) { if (logger) logger.warn('picco online non scritto: %s', String(e)); }
-}
 
 // ── v0.78.16 — LE CARTE ANCORA DA GUARDARE ────────────────────────────────
 // Una carta appena sbustata resta "nuova" finche' non la si e' vista nella
@@ -5040,8 +5175,13 @@ function raccogliDatiStatistiche(nk, logger, esclusi) {
   }
   try { var cat = leggiSistema(nk, KEY_CATALOGO); dati.catalogo = (cat && cat.carte) || []; } catch (e2) { dati.catalogo = []; }
   // v0.80.29 — chi c'e' adesso e il picco salvato dal battito
-  try { dati.presenze = leggiSistema(nk, KEY_PRESENZE) || {}; } catch (e4) { dati.presenze = {}; }
-  try { dati.piccoOnline = leggiSistema(nk, KEY_PICCO_ONLINE); } catch (e5) { dati.piccoOnline = null; }
+  // v0.80.30 — dai record per giocatore; il picco dal conto delle presenze, o da
+  // quello della v0.80.29 finche' il conto non c'e' ancora
+  try { dati.presenze = _leggiTuttePresenze(nk, logger, Date.now(), false); } catch (e4) { dati.presenze = {}; }
+  try {
+    var contoP = leggiSistema(nk, KEY_CONTO_PRESENZE);
+    dati.piccoOnline = (contoP && typeof contoP.picco === 'number') ? { n: contoP.picco, quando: contoP.piccoIl || null } : leggiSistema(nk, KEY_PICCO_ONLINE);
+  } catch (e5) { dati.piccoOnline = null; }
   var ids = [], visti = {};
   for (i = 0; i < dati.sessioni.length; i++) if (!visti[dati.sessioni[i].u]) { visti[dati.sessioni[i].u] = true; ids.push(dati.sessioni[i].u); }
   for (i = 0; i < ids.length; i += 100) {
@@ -5098,7 +5238,7 @@ function rpcStatsLive(ctx, logger, nk, payload) {
   _statsControllaParola(nk, logger, d);
   var ora = Date.now();
   var visti = null;
-  try { visti = leggiSistema(nk, KEY_PRESENZE); } catch (e1) { visti = null; }
+  try { visti = _leggiTuttePresenze(nk, logger, ora, false); } catch (e1) { visti = null; }   // v0.80.30
   var conto = _contaPresenze(visti || {}, ora, [ctx.userId]);
   var nomi = [], i, j;
   for (i = 0; i < conto.chiGioca.length; i += 100) {

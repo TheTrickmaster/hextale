@@ -124,7 +124,16 @@ dice(manda(st, 'estraneo', { indice: 0 }).length === 0, 'chi non e- della partit
 let sistema = {};
 mondo.leggiSistema = (n, k) => (k in sistema ? JSON.parse(JSON.stringify(sistema[k])) : null);
 mondo.scriviSistema = (n, k, v) => { sistema[k] = JSON.parse(JSON.stringify(v)); };
-const battito = () => JSON.parse(mondo.rpcGiocatoriOnline({ userId: 'u1' }, logger, {}, JSON.stringify({ sessione: 's1' })));
+// v0.80.30 — la presenza e' un record per giocatore (presenza/battito): il battito
+// vuole uno storage, anche piccolo; il conto passa da leggiSistema/scriviSistema.
+const presenzeFinte = {};
+const nkBattito = {
+  storageRead: (req) => req.map(r => presenzeFinte[r.userId]).filter(Boolean).map(v => ({ value: JSON.parse(JSON.stringify(v)) })),
+  storageWrite: (req) => { req.forEach(r => { presenzeFinte[r.userId] = JSON.parse(JSON.stringify(r.value)); }); },
+  storageDelete: (req) => { req.forEach(r => { delete presenzeFinte[r.userId]; }); },
+  storageList: () => ({ objects: Object.keys(presenzeFinte).map(u => ({ userId: u, collection: 'presenza', key: 'battito', value: presenzeFinte[u] })), cursor: '' })
+};
+const battito = () => JSON.parse(mondo.rpcGiocatoriOnline({ userId: 'u1' }, logger, nkBattito, JSON.stringify({ sessione: 's1' })));
 let rifiutato = false;
 try { mondo.rpcRiavvioAnnuncia({ userId: 'u1' }, logger, {}, '{}'); } catch (err) { rifiutato = /client/.test(err.message); }
 dice(rifiutato && !sistema[mondo.KEY_RIAVVIO], 'un client non puo- annunciare un riavvio');

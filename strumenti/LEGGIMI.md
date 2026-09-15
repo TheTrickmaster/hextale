@@ -3085,3 +3085,33 @@ elencava e il server l'avrebbe scartato.
    presenze e torna quanti sono in partita e i loro username (usersGetId), in
    ordine alfabetico. Leggero apposta: si puo' premere di continuo senza rifare
    i conti della telemetria. I nomi arrivano nella pagina escapati.
+
+## prova-v08030-server.js — il battito online, un record per giocatore (v0.80.30)
+
+    node strumenti/prova-v08030-server.js
+
+Lorenzo: "Rifai il battito online come hai proposto". Fino alla v0.80.29 tutte le
+presenze stavano in sistema/presenze, riletto e riscritto intero da ogni battito:
+costo che cresce col quadrato dei giocatori (misurato in V8: 0,14 ms a battito con
+100 online, 1,8 con 1000, 4,3 con 2000) e battiti simultanei che si cancellano.
+Solo server: le RPC (hx_giocatori, hx_entro, hx_esco) rispondono come prima.
+- presenza/battito, un record per giocatore { q, s, c, g }: il battito scrive solo
+  il suo. E' anche la sedia (_sediaOccupataDaAltri legge un record solo).
+- sistema/conto-presenze { R, quanti, cercano, inPartita, picco, piccoIl }: ogni
+  battito, entrata e uscita ci somma la propria differenza (_pesoPresenza,
+  _contoConDifferenza, tutto dentro _presenzaEConto); il primo battito che lo
+  trova piu' vecchio di CONTO_PRESENZE_OGNI_MS (15 s) lo rifa' da capo
+  (_ricontaPresenze) e butta i record fermi da PRESENZA_SCARTO_MS (10 minuti),
+  con la versione letta, cosi' chi e' tornato nel frattempo resta.
+- Il conto puo' sbagliare di poco per al massimo 15 s (una differenza persa fra
+  due battiti simultanei, chi sparisce senza hx_esco); la sedia no.
+- La prima volta (nessun conto) _migraPresenzeVecchie porta le presenze vive e il
+  picco della v0.80.29 (sistema/picco-online) nei record nuovi e svuota il
+  record unico: chi era collegato durante lo schieramento resta seduto.
+- /stats/: _leggiTuttePresenze per online e in partita, il picco dal conto.
+- Il picco adesso sta nel conto: _segnaPiccoOnline non c'e' piu'.
+- Banchi cambiati di conseguenza: prova-buchi-server.js (sezione 4 su uno storage
+  finto, il conto invecchiato a mano), prova-v08024-server.js (uno storage per il
+  battito), prova-v08029-server.js (picco nel conto, presenze per giocatore).
+- prova-v08030-server.js misura anche il costo: un battito con 2000 online costa
+  come con 100.

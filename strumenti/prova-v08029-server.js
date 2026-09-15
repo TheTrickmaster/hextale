@@ -64,19 +64,21 @@ const TELE = '00000000-0000-0000-0000-000000000000|telemetria|';
 const batte = (u, corpo) => JSON.parse(mondo.rpcGiocatoriOnline({ userId: u }, logger, nk, JSON.stringify(Object.assign({ sessione: 's-' + u }, corpo || {}))));
 
 // ── 1. il battito e il picco ──────────────────────────────────────────────
+// v0.80.30 — il picco sta nel conto delle presenze (sistema/conto-presenze)
+const conto = () => archivio[SIS + mondo.KEY_CONTO_PRESENZE] || {};
 batte('u1', { gioca: true });
 batte('u2', { cerca: true });
 let b = batte('u3', {});
 dice(b.giocatori === 3 && b.cercano === 1 && b.inPartita === 1 && 'riavvio' in b, 'il battito risponde come prima: tre online, uno cerca, uno gioca', JSON.stringify(b));
-dice(archivio[SIS + 'picco-online'] && archivio[SIS + 'picco-online'].n === 3 && archivio[SIS + 'picco-online'].quando === adesso, 'il picco si scrive col suo momento', JSON.stringify(archivio[SIS + 'picco-online']));
+dice(conto().picco === 3 && conto().piccoIl === adesso, 'il picco si scrive col suo momento', JSON.stringify(conto()));
 const primoPicco = adesso;
 adesso += 1000;
 batte('u4', { gioca: true });
-dice(archivio[SIS + 'picco-online'].n === 4 && archivio[SIS + 'picco-online'].quando === adesso, 'arriva il quarto: il picco sale', JSON.stringify(archivio[SIS + 'picco-online']));
+dice(conto().picco === 4 && conto().piccoIl === adesso, 'arriva il quarto: il picco sale', JSON.stringify(conto()));
 const quandoQuattro = adesso;
 adesso += mondo.PRESENZA_VIVA_MS + 1000;
 b = batte('u1', { gioca: true });
-dice(b.giocatori === 1 && archivio[SIS + 'picco-online'].n === 4 && archivio[SIS + 'picco-online'].quando === quandoQuattro, 'se ne vanno: online uno, il picco resta quattro (e il suo momento)', JSON.stringify([b, archivio[SIS + 'picco-online']]));
+dice(b.giocatori === 1 && conto().picco === 4 && conto().piccoIl === quandoQuattro, 'se ne vanno: online uno, il picco resta quattro (e il suo momento)', JSON.stringify([b, conto()]));
 dice(primoPicco < quandoQuattro, '(ordine dei momenti)');
 
 // ── 2. _contaPresenze ─────────────────────────────────────────────────────
@@ -127,9 +129,12 @@ archivio[TELE + 'm:M1'] = dati.partiteServer[0];
 archivio[TELE + 'b:u3:1'] = dati.logPartite[0];
 archivio[TELE + 'b:stats:1'] = dati.logPartite[1];
 archivio['u7|profilo|stagione'] = { stagione: 'VECCHIA', partite: 3 };
-archivio[SIS + 'presenze'] = { u1: { q: adesso - 1000, s: 's1', g: 1 }, u2: { q: adesso - 2000, s: 's2', g: 1 }, u3: { q: adesso - 3000, s: 's3' },
+// v0.80.30 — le presenze sono un record per giocatore; senza conto delle presenze
+// il picco si legge ancora da sistema/picco-online (quello della v0.80.29)
+const presenzeProva = { u1: { q: adesso - 1000, s: 's1', g: 1 }, u2: { q: adesso - 2000, s: 's2', g: 1 }, u3: { q: adesso - 3000, s: 's3' },
   u4: { q: adesso - 1000, s: 's4', g: 1 }, fantasma: { q: adesso - 1000, s: 's5', g: 1 }, stats: { q: adesso - 1000, s: 's6', g: 1 },
   vecchio: { q: adesso - mondo.PRESENZA_VIVA_MS - 1000, s: 's7', g: 1 } };
+Object.keys(presenzeProva).forEach(u => { archivio[u + '|' + mondo.COLL_PRESENZA + '|' + mondo.KEY_BATTITO] = presenzeProva[u]; });
 archivio[SIS + 'picco-online'] = { n: 7, quando: adesso - 5000 };
 const vera = mondo.STATS_IMPRONTA;
 mondo.STATS_IMPRONTA = impronta(mondo.STATS_SALE + 'prova');

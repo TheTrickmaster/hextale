@@ -100,10 +100,28 @@ const rimasti = (sorgente.match(/perche: '[^']*'|throw Error\('[^']*'|rejectMess
 dice(rimasti.length === 0, 'nessun messaggio per il giocatore resta in italiano', rimasti.join(' | '));
 
 // ── 4. chi cerca una partita ────────────────────────────────────────────────
-let presenze = {};
-mondo.leggiSistema = (n, chiave) => (chiave === mondo.KEY_PRESENZE ? JSON.parse(JSON.stringify(presenze)) : null);
-mondo.scriviSistema = (n, chiave, valore) => { if (chiave === mondo.KEY_PRESENZE) presenze = JSON.parse(JSON.stringify(valore)); };
-const batte = (u, s, cerca) => JSON.parse(mondo.rpcGiocatoriOnline({ userId: u }, logger, nk, JSON.stringify(cerca === undefined ? { sessione: s } : { sessione: s, cerca: cerca })));
+// v0.80.30 — le presenze sono un record per giocatore (presenza/battito) e i
+// numeri un conto che si rifa' da capo ogni CONTO_PRESENZE_OGNI_MS: un segno
+// invecchiato smette di contare al conto dopo. Qui uno storage finto ma vero, e
+// il conto lo si fa invecchiare a mano.
+const archivio = {};
+const copiaJ = (x) => JSON.parse(JSON.stringify(x));
+const nkPresenze = {
+  binaryToString: (x) => x,
+  storageRead: (req) => req.map(r => archivio[r.userId + '|' + r.collection + '|' + r.key]).filter(Boolean).map(v => ({ value: copiaJ(v) })),
+  storageWrite: (req) => { req.forEach(r => { archivio[r.userId + '|' + r.collection + '|' + r.key] = copiaJ(r.value); }); },
+  storageDelete: (req) => { req.forEach(r => { delete archivio[r.userId + '|' + r.collection + '|' + r.key]; }); },
+  storageList: (userId, coll, limit, cursor) => {
+    const tutti = Object.keys(archivio).filter(k => k.split('|')[1] === coll).sort();
+    const da = cursor ? Number(cursor) : 0;
+    return { objects: tutti.slice(da, da + limit).map(k => { const p = k.split('|'); return { userId: p[0], collection: p[1], key: p[2], value: copiaJ(archivio[k]) }; }),
+      cursor: (da + limit < tutti.length) ? String(da + limit) : '' };
+  }
+};
+const CONTO = '00000000-0000-0000-0000-000000000000|sistema|' + mondo.KEY_CONTO_PRESENZE;
+const DI_U1 = 'u1|' + mondo.COLL_PRESENZA + '|' + mondo.KEY_BATTITO;
+const invecchiaConto = () => { archivio[CONTO].R -= mondo.CONTO_PRESENZE_OGNI_MS + 1; };
+const batte = (u, s, cerca) => JSON.parse(mondo.rpcGiocatoriOnline({ userId: u }, logger, nkPresenze, JSON.stringify(cerca === undefined ? { sessione: s } : { sessione: s, cerca: cerca })));
 let x = batte('u1', 's1', true);
 dice(x.giocatori === 1 && x.cercano === 1, 'uno che cerca: 1 online, 1 in cerca', JSON.stringify(x));
 x = batte('u2', 's2');
@@ -113,12 +131,18 @@ dice(x.giocatori === 3 && x.cercano === 1, 'uno che dice di non cercare: non si 
 x = batte('u1', 's1', false);
 dice(x.giocatori === 3 && x.cercano === 0, 'smette di cercare: 0 in cerca, ma resta online', JSON.stringify(x));
 batte('u1', 's1', true);
-presenze.u1.q = Date.now() - (mondo.RICERCA_VIVA_MS + 5000);
+archivio[DI_U1].q = Date.now() - (mondo.RICERCA_VIVA_MS + 5000);
+invecchiaConto();
 x = batte('u2', 's2');
-dice(x.giocatori === 3 && x.cercano === 0, 'un segno di ricerca vecchio non conta piu- (la presenza si-)', JSON.stringify(x));
-presenze.u1.q = Date.now() - (mondo.PRESENZA_VIVA_MS + 5000);
+dice(x.giocatori === 3 && x.cercano === 0, 'un segno di ricerca vecchio non conta piu- dal conto dopo (la presenza si-)', JSON.stringify(x));
+archivio[DI_U1].q = Date.now() - (mondo.PRESENZA_VIVA_MS + 5000);
+invecchiaConto();
 x = batte('u2', 's2');
-dice(x.giocatori === 2 && x.cercano === 0 && !presenze.u1, 'e oltre la presenza sparisce del tutto', JSON.stringify(x));
+dice(x.giocatori === 2 && x.cercano === 0 && !!archivio[DI_U1], 'oltre la presenza non si conta piu- (il record resta, per ora)', JSON.stringify(x));
+archivio[DI_U1].q = Date.now() - (mondo.PRESENZA_SCARTO_MS + 5000);
+invecchiaConto();
+x = batte('u2', 's2');
+dice(x.giocatori === 2 && !archivio[DI_U1], 'e dopo dieci minuti senza battere il suo record si butta', JSON.stringify(x));
 dice(mondo.RICERCA_VIVA_MS > 10000 * 2 && mondo.RICERCA_VIVA_MS < mondo.PRESENZA_VIVA_MS, 'il segno vale piu- di due battiti da dieci secondi, e meno della presenza');
 
 console.log(String.fromCharCode(10) + (male ? male + ' NO' : 'tutto a posto'));

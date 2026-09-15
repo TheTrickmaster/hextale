@@ -68,7 +68,10 @@ dice(aB(g1).length === 1 && aB(g1)[0].contenuto.torna === false,
   'nessuno accetta: il primo a scadere avvisa l-altro, e l-altro NON torna in cerca',
   'B riceve torna = ' + (aB(g1)[0] && aB(g1)[0].contenuto.torna) + '. Era il caso rotto.');
 dice(g1.notifiche.every(n => n.u !== 'A'), 'e chi ha rifiutato non avvisa se stesso');
-dice(g1.esito === null, 'e il tavolo si chiude');
+// v0.80.25 — matchSignal non torna piu' null (Nakama lo registrava come errore):
+// torna { state } col tavolo segnato finito, e il loop lo chiude al giro dopo.
+dice(g1.esito && g1.esito.state && g1.esito.state.finita === true, 'e il tavolo si chiude (segnato finito: il loop lo chiude al giro dopo)',
+  'esito = ' + JSON.stringify(g1.esito && Object.keys(g1.esito)) + ', finita = ' + (g1.esito && g1.esito.state && g1.esito.state.finita));
 
 // Lo stesso, ma chi rifiuta NON dice che era per tempo: vale l'orologio del
 // server, che segna gia' oltre la scadenza.
@@ -101,10 +104,10 @@ dice(n.codice === 101 && n.mittente === null && n.persistente === false && n.con
 
 // ── 5. CHI NON C-ENTRA NON CHIUDE NIENTE ──────────────────────────────────
 const g5 = giro(tavolo(3000, []), { rifiuta: 'Z' });
-dice(g5.esito !== null && g5.notifiche.length === 0,
+dice(g5.esito && g5.esito.state && !g5.esito.state.finita && g5.notifiche.length === 0,
   'un rifiuto da chi non e- fra i due accoppiati non chiude il tavolo');
 const g6 = giro(tavolo(3000, ['A', 'B'], { iniziata: true }), { rifiuta: 'A' });
-dice(g6.esito !== null && g6.notifiche.length === 0,
+dice(g6.esito && g6.esito.state && !g6.esito.state.finita && g6.notifiche.length === 0,
   'e a partita cominciata un rifiuto non conta piu-');
 
 console.log(male ? String.fromCharCode(10) + male + ' cose non tornano' : String.fromCharCode(10) + 'tutto a posto');
