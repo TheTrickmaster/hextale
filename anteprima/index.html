@@ -13702,7 +13702,7 @@ try{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.28</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.29</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <!-- v0.80.19 — gli sticker: l'icona (solo per chi gioca), il menu, e due bolle
@@ -24920,6 +24920,15 @@ var ABILITA_MOTORE = (function () {
       // Passa dalla stessa porta delle altre azioni descritte.
       if (!condizioneVera(cond, fonte, scena)) return;
       var daCui = candidati(fonte, eff, scena);
+      // v0.80.30 — Tinker Bell: rubare un buff a chi non ne ha non e' un furto.
+      // I buff delle carte il motore non li conosce (stanno nei `modificatori`
+      // del gioco): glielo dice la scena con haBuffRubabile. Senza la domanda —
+      // il server — l'elenco resta com'e'.
+      if (eff.cosa === 'buff' && scena && typeof scena.haBuffRubabile === 'function') {
+        var conBuff = [];
+        for (var cb = 0; cb < daCui.length; cb++) if (scena.haBuffRubabile(daCui[cb])) conBuff.push(daCui[cb]);
+        daCui = conBuff;
+      }
       if (!daCui.length) return;
       if (eff.scelta) {
         fuori.push({ azione: 'steal', cosa: eff.cosa, fonte: fonte, candidati: daCui, quale: eff.quale, dove: eff.dove });
@@ -39478,7 +39487,7 @@ function annotaModificatore(card, chiave, da, delta, ambito){
 // Le sinergie continue questa distinzione ce l'hanno da v0.78.15 (vedi
 // _modificatoriDalMotore, che confronta gli id): qui si allinea l'altro elenco,
 // cosi' le due meta' del riquadro parlano la stessa lingua.
-function sommaModificatore(card, chiave, da, delta, ambito, id){
+function sommaModificatore(card, chiave, da, delta, ambito, id, perLato){
   if(_simulazioneInCorso) return;
   if(!card || !chiave || !delta) return;
   if(!card.modificatori) card.modificatori = {};
@@ -39495,8 +39504,13 @@ function sommaModificatore(card, chiave, da, delta, ambito, id){
   // L'ambito si allarga: chi ha ricevuto prima un colpo su un gruppo e poi uno
   // su tutti, dalla stessa fonte, ha subito qualcosa che riguarda tutti i lati.
   const ambitoNuovo = (gia && gia.ambito === 'ALL') ? 'ALL' : (ambito||'');
+  // v0.80.30 — e lato per lato quanto e' arrivato davvero: Tinker Bell ruba un
+  // buff, e deve sapere da quali lati toglierlo e su quali metterlo.
+  let lati = (gia && gia.perLato) ? Object.assign({}, gia.perLato) : null;
+  if(perLato){ lati = lati || {}; for(const l in perLato) if(perLato[l]) lati[l] = (lati[l] || 0) + perLato[l]; }
   card.modificatori[chiave] = { da: da || (gia && gia.da) || '', delta: totale,
-                                ambito: ambitoNuovo, id: id || (gia && gia.id) || null };
+                                ambito: ambitoNuovo, id: id || (gia && gia.id) || null,
+                                perLato: lati };
 }
 // L'elenco pronto da mostrare: una riga per fonte, il segno gia' scritto.
 // Ordinate come sono arrivate: e' l'ordine in cui le cose sono successe, che e'
@@ -39632,7 +39646,9 @@ function modificaValori(card, lati, delta, pavimento, fonte){
   if(fonte && fonte.chiave){
     let applicatoDavvero = 0;
     for(const s of lati) applicatoDavvero = Math.max(applicatoDavvero, Math.abs((card.values[s]||0) - (prima[s]||0)));
-    if(applicatoDavvero) sommaModificatore(card, fonte.chiave, fonte.da, Math.sign(delta)*applicatoDavvero, _ambitoDiLati(lati), fonte.id);
+    const perLato = {};   // v0.80.30 — quanto e' cambiato ogni lato (vedi sommaModificatore)
+    for(const s of lati){ const d = (card.values[s]||0) - (prima[s]||0); if(d) perLato[s] = d; }
+    if(applicatoDavvero) sommaModificatore(card, fonte.chiave, fonte.da, Math.sign(delta)*applicatoDavvero, _ambitoDiLati(lati), fonte.id, perLato);
   }
   lampeggiaDifferenzaValori(card, prima);
 }
@@ -40220,6 +40236,7 @@ function _scenaTabellone(){
     // un altro oggetto.
     cellaDi: (carta)=> dove.get(carta)
       || ((carta && carta.id && perId.get(carta.id)) || null),
+    haBuffRubabile: (carta)=> haBuffRubabile(carta),   // v0.80.30 — Tinker Bell
     vicini: (carta)=>{
       const k = dove.get(carta);
       if(!k) return [];
@@ -42607,6 +42624,12 @@ function applicaCambiamenti(elenco){
       if(!_simulazioneInCorso){ try{ playSfxFile('freeze.mp3'); }catch(_){ } }   // v0.80.21
       continue;
     }
+    // v0.80.30 — Tinker Bell senza scelta del giocatore: il motore ha gia' tolto
+    // chi non ha buff da prendere (haBuffRubabile nella scena).
+    if(c.azione === 'steal' && c.cosa === 'buff'){
+      if(c.carta && c.fonte) rubaUnBuff(c.fonte, c.carta);
+      continue;
+    }
     if(!c.carta || !c.lati || !c.lati.length) continue;
     const fonte = _fonteDelFoglio(c);
     if(c.azione === 'set'){
@@ -42621,6 +42644,7 @@ function applicaCambiamenti(elenco){
       // chiamata sola.
       let piuGrande = 0;
       const toccati = [];
+      const fattiPerLato = {};   // v0.80.30
       for(const l of c.lati){
         const prima = c.carta.values[l] || 0;
         const d = c.valore - prima;
@@ -42629,10 +42653,15 @@ function applicaCambiamenti(elenco){
         const fatto = (c.carta.values[l] || 0) - prima;
         if(!fatto) continue;
         toccati.push(l);
+        fattiPerLato[l] = fatto;
         if(Math.abs(fatto) > Math.abs(piuGrande)) piuGrande = fatto;
       }
-      if(fonte && piuGrande)
-        sommaModificatore(c.carta, fonte.chiave, fonte.da, piuGrande, _ambitoDiLati(toccati), fonte.id);
+      if(fonte && piuGrande){
+        // la voce e' un buff o un debuff: dentro ci vanno solo i lati andati in quel verso
+        const stessoVerso = {};
+        for(const l in fattiPerLato) if(Math.sign(fattiPerLato[l]) === Math.sign(piuGrande)) stessoVerso[l] = fattiPerLato[l];
+        sommaModificatore(c.carta, fonte.chiave, fonte.da, piuGrande, _ambitoDiLati(toccati), fonte.id, stessoVerso);
+      }
     } else if(c.delta){
       modificaValori(c.carta, c.lati, c.delta, 0, fonte);
     }
@@ -45288,6 +45317,7 @@ function sceltaDalFoglio(card, q, r, giocatore){
     if(eff.azione === 'swap' && eff.cosa === 'position') return _sceltaScambioPosizioni(card, q, r, giocatore, a, eff);
     if(eff.azione === 'swap' && eff.cosa === 'card')     return _sceltaScambiaCarta(card, q, r, giocatore, a, eff);
     if(eff.azione === 'copy' && eff.cosa === 'trait')     return _sceltaCopiaTratti(card, q, r, giocatore, a, eff);
+    if(eff.azione === 'steal' && eff.cosa === 'buff')     return _sceltaRubaBuff(card, q, r, giocatore, a, eff);   // v0.80.30
     if(eff.azione === 'move' && eff.dove === 'board' && _muoveQualcuno(eff))
       return _sceltaSpostaOvunque(card, q, r, giocatore, a, eff);
     if(eff.azione === 'freeze' && eff.cosa === 'tile') return _sceltaCongelaTassello(card, q, r, giocatore, a, eff);   // v0.80.20
@@ -45443,6 +45473,7 @@ function _condizioneSulBersaglio(cond, bersaglio){
 // Ogni riga qui sotto e' la definizione dell'azione, non una regola in piu'.
 function _effettoHaSensoSu(eff, fonte, bersaglio){
   if(cartaIntoccabile(bersaglio)) return false;      // Excalibur: non si tocca
+  if(eff.cosa === 'buff') return haBuffRubabile(bersaglio);   // v0.80.30 — Tinker Bell
   if(eff.cosa === 'trait'){
     return ((bersaglio.traits || bersaglio.traitNames || []).length > 0);
   }
@@ -45624,6 +45655,101 @@ function _sceltaScambiaCarta(card, q, r, giocatore, a, eff){
         let p = -Infinity;
         try{ p = misura(cq, cr); } finally { G.board[da] = A; G.board[cella] = B; }
         if(p > punteggio){ punteggio = p; migliore = cella; }
+      }
+      return migliore;
+    },
+  };
+}
+// ══════════════════════════════════════════════════════════════════════════
+// v0.80.30 — TINKER BELL, "Jealous Spark": RUBA UN BUFF
+// ══════════════════════════════════════════════════════════════════════════
+// Lorenzo: nella colonna What c'e' "buff", e Tinker Bell ruba un buff (sul
+// foglio: steal, Who opponent, Which single, Where board, What buff, scelta del
+// giocatore). Cosa vuol dire, preciso:
+//   - un BUFF e' un bonus una tantum rimasto sulla carta: una voce di
+//     `modificatori` che finisce in "#buff" (un dono, un furto, un set in su).
+//     Le sinergie vive (Baloo, Lancelot, Smol Friends...) non si rubano: si
+//     ricalcolano da chi le da', e tornerebbero al disegno dopo.
+//   - se ce n'e' piu' d'uno si prende il PIU' GRANDE; a parita' il primo
+//     arrivato. Una regola sola, uguale sui due client.
+//   - si toglie dai lati da cui era arrivato (perLato) e si mette sugli stessi
+//     lati di chi ruba. Sul derubato la riga del buff sparisce; su chi ruba
+//     compare "+N from <derubato>".
+//   - chi e' protetto da Bagheera (un furto indebolisce) o intoccabile non si
+//     puo' derubare.
+// I buff arrivati prima della v0.80.30 non sanno da quali lati venivano: non si
+// rubano (contano solo le partite in corso al momento del rilascio).
+function buffRubabiliDi(card){
+  const reg = card && card.modificatori;
+  const out = [];
+  if(!reg) return out;
+  for(const chiave in reg){
+    const m = reg[chiave];
+    if(!m || !(m.delta > 0) || chiave.slice(-5) !== '#buff' || !m.perLato) continue;
+    let quanto = 0;
+    for(const l in m.perLato) if(m.perLato[l] > 0) quanto += m.perLato[l];
+    if(quanto > 0) out.push({ chiave: chiave, voce: m, quanto: quanto });
+  }
+  return out;
+}
+function buffDaRubare(card){
+  let meglio = null;
+  for(const b of buffRubabiliDi(card)) if(!meglio || b.voce.delta > meglio.voce.delta) meglio = b;
+  return meglio;
+}
+function haBuffRubabile(card){
+  if(!card || cartaIntoccabile(card)) return false;
+  if(protettoDaBagheera(card)) return false;
+  return !!buffDaRubare(card);
+}
+// Torna i lati presi { lato: quanto }: vuoto se non c'era niente da prendere.
+function rubaUnBuff(ladra, vittima){
+  if(!ladra || !vittima || ladra === vittima || !haBuffRubabile(vittima)) return {};
+  const b = buffDaRubare(vittima);
+  const presi = {};
+  for(const l in b.voce.perLato){
+    const quanto = b.voce.perLato[l];
+    if(!(quanto > 0)) continue;
+    const prima = vittima.values[l] || 0;
+    modificaValori(vittima, [l], -quanto, 0, null);
+    const tolto = prima - (vittima.values[l] || 0);
+    if(tolto > 0) presi[l] = tolto;
+  }
+  // l'anteprima non scrive nel registro (vedi annotaModificatore)
+  if(!_simulazioneInCorso && vittima.modificatori) delete vittima.modificatori[b.chiave];
+  const lati = Object.keys(presi);
+  if(!lati.length) return presi;
+  let piuGrande = 0;
+  for(const l of lati){
+    modificaValori(ladra, [l], presi[l], null, null);
+    piuGrande = Math.max(piuGrande, presi[l]);
+  }
+  sommaModificatore(ladra, 'buff_rubato:' + (vittima.id || vittima.name || '?'), vittima.name || '',
+    piuGrande, _ambitoDiLati(lati), vittima.id || null, presi);
+  return presi;
+}
+function _sceltaRubaBuff(card, q, r, giocatore, a, eff){
+  const bersagli = candidatiDalFoglio(card, q, r, giocatore, a, eff);
+  if(!bersagli.length) return null;   // nessuno ha un buff da prendere: nessuna pausa
+  return {
+    chiave: 'ruba_buff',
+    giocatore,
+    cellaOrigine: key(q, r),
+    bersagli,
+    applica: (cella) => {
+      const posto = G.board[cella];
+      if(posto && posto.card) rubaUnBuff(card, posto.card);
+      try{ renderBoard(); }catch(_){}
+    },
+    rinuncia: () => {},
+    // Nessun `seScade`: se il tempo finisce non si ruba niente.
+    // L'IA prende il buff piu' grande che trova: e' la sola cosa che l'abilita' fa.
+    valuta: (sc) => {
+      let migliore = null, quanto = 0;
+      for(const cella of sc.bersagli){
+        const posto = G.board[cella];
+        const b = (posto && posto.card) ? buffDaRubare(posto.card) : null;
+        if(b && b.voce.delta > quanto){ quanto = b.voce.delta; migliore = cella; }
       }
       return migliore;
     },
