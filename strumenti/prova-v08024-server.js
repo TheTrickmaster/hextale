@@ -127,11 +127,13 @@ mondo.scriviSistema = (n, k, v) => { sistema[k] = JSON.parse(JSON.stringify(v));
 // v0.80.30 — la presenza e' un record per giocatore (presenza/battito): il battito
 // vuole uno storage, anche piccolo; il conto passa da leggiSistema/scriviSistema.
 const presenzeFinte = {};
+const chiaveFinta = (r) => r.userId + '|' + r.collection + '|' + r.key;
 const nkBattito = {
-  storageRead: (req) => req.map(r => presenzeFinte[r.userId]).filter(Boolean).map(v => ({ value: JSON.parse(JSON.stringify(v)) })),
-  storageWrite: (req) => { req.forEach(r => { presenzeFinte[r.userId] = JSON.parse(JSON.stringify(r.value)); }); },
-  storageDelete: (req) => { req.forEach(r => { delete presenzeFinte[r.userId]; }); },
-  storageList: () => ({ objects: Object.keys(presenzeFinte).map(u => ({ userId: u, collection: 'presenza', key: 'battito', value: presenzeFinte[u] })), cursor: '' })
+  storageRead: (req) => req.map(r => presenzeFinte[chiaveFinta(r)]).filter(Boolean).map(v => ({ value: JSON.parse(JSON.stringify(v)) })),
+  storageWrite: (req) => { req.forEach(r => { presenzeFinte[chiaveFinta(r)] = JSON.parse(JSON.stringify(r.value)); }); },
+  storageDelete: (req) => { req.forEach(r => { delete presenzeFinte[chiaveFinta(r)]; }); },
+  storageList: (userId, coll) => ({ objects: Object.keys(presenzeFinte).filter(k => k.split('|')[1] === coll)
+    .map(k => ({ userId: k.split('|')[0], collection: coll, key: k.split('|')[2], value: presenzeFinte[k] })), cursor: '' })
 };
 const battito = () => JSON.parse(mondo.rpcGiocatoriOnline({ userId: 'u1' }, logger, nkBattito, JSON.stringify({ sessione: 's1' })));
 let rifiutato = false;

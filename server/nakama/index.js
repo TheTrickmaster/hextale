@@ -4352,11 +4352,34 @@ function _presenzaEConto(nk, logger, userId, ora, cambia) {
     catch (e) { if (logger) logger.warn('presenza non letta: %s', String(e)); }
   }
   var nuova = lettaMia ? cambia(mia) : undefined;
-  var conto = null;
-  try { conto = leggiSistema(nk, KEY_CONTO_PRESENZE); } catch (e1) { conto = null; }
+  var conto = null, versione = null, scriviConto = true;
+  try {
+    var letto = nk.storageRead([{ collection: COLL_SISTEMA, key: KEY_CONTO_PRESENZE, userId: UTENTE_SISTEMA }]);
+    if (letto && letto.length && letto[0].value) { conto = letto[0].value; versione = letto[0].version || null; }
+  } catch (e1) { conto = null; }
   var buono = conto && typeof conto.R === 'number';
   if (!buono || (ora - conto.R) > CONTO_PRESENZE_OGNI_MS || conto.R > ora + CONTO_PRESENZE_OGNI_MS) {
-    conto = _ricontaPresenze(nk, logger, ora, buono ? conto : null);
+    // ── UN CONTO ALLA VOLTA (trovato col test di carico) ─────────────────
+    // A 200 giocatori ogni battito arrivato nell'istante in cui il conto
+    // scadeva lo trovava vecchio e rifaceva la lista di tutti: decine di
+    // letture intere in parallelo, e Postgres cedeva ("presenze non lette ...
+    // context canceled"). Adesso chi lo trova vecchio prima lo PRENOTA:
+    // scrive R = ora con la versione appena letta ("*" se non c'e'). Se un
+    // altro l'ha gia' prenotato la scrittura fallisce, e questo battito usa il
+    // conto com'e' — vecchio di pochi secondi — senza lista e senza riscriverlo
+    // sopra a quello nuovo. La sua differenza si perde: la ritrova il conto dopo.
+    var prenotato = true;
+    var prenota = _contoConDifferenza(buono ? conto : { R: ora }, null, null);
+    prenota.R = ora;   // chi legge dopo la prenotazione lo trova fresco, e non rifa' la lista
+    try {
+      nk.storageWrite([{ collection: COLL_SISTEMA, key: KEY_CONTO_PRESENZE, userId: UTENTE_SISTEMA,
+        value: prenota, version: versione || '*', permissionRead: 0, permissionWrite: 0 }]);
+    } catch (eP) { prenotato = false; }
+    if (prenotato) conto = _ricontaPresenze(nk, logger, ora, buono ? conto : null);
+    else {
+      scriviConto = false;
+      if (!buono) conto = { R: ora, quanti: 0, cercano: 0, inPartita: 0, picco: 0, piccoIl: null };
+    }
   }
   if (nuova !== undefined) conto = _contoConDifferenza(conto, mia, nuova);
   // Una differenza persa fra due richieste simultanee (un battito e un'uscita
@@ -4369,8 +4392,11 @@ function _presenzaEConto(nk, logger, userId, ora, cambia) {
     if (nuova) nk.storageWrite([{ collection: COLL_PRESENZA, key: KEY_BATTITO, userId: userId, value: nuova, permissionRead: 0, permissionWrite: 0 }]);
     else if (nuova === null && mia) nk.storageDelete([{ collection: COLL_PRESENZA, key: KEY_BATTITO, userId: userId }]);
   } catch (e2) { if (logger) logger.warn('presenza non scritta: %s', String(e2)); }
-  try { scriviSistema(nk, KEY_CONTO_PRESENZE, conto); }
-  catch (e3) { if (logger) logger.warn('conto delle presenze non scritto: %s', String(e3)); }
+  if (scriviConto) {
+    // dalla stessa porta da cui lo si e' letto e prenotato
+    try { nk.storageWrite([{ collection: COLL_SISTEMA, key: KEY_CONTO_PRESENZE, userId: UTENTE_SISTEMA, value: conto, permissionRead: 0, permissionWrite: 0 }]); }
+    catch (e3) { if (logger) logger.warn('conto delle presenze non scritto: %s', String(e3)); }
+  }
   return { mia: mia, nuova: nuova, conto: conto };
 }
 

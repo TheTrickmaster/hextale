@@ -313,6 +313,19 @@ function cede(r) {
   return motivi;
 }
 
+// Si aspetta guardando la macchina ogni 5 s: con giocatori veri online non si
+// aspetta la fine del passo per fermarsi se la memoria finisce o gli errori salgono.
+async function attendiSorvegliando(ms) {
+  const fine = Date.now() + ms;
+  while (Date.now() < fine) {
+    await aspetta(Math.min(5000, Math.max(0, fine - Date.now())));
+    const ultimo = M.macchina[M.macchina.length - 1];
+    if (ultimo && ultimo.liberaMB < SOGLIE.memoriaLiberaMinMB) return 'RAM libera ' + Math.round(ultimo.liberaMB) + ' MB';
+    if (M.richieste > 200 && 100 * M.errori / M.richieste > 20) return 'errori ' + Math.round(100 * M.errori / M.richieste) + '%';
+  }
+  return null;
+}
+
 // ── il test ────────────────────────────────────────────────────────────────
 (async () => {
   if (!process.env.HEXTALE_SRV) { console.log('manca HEXTALE_SRV'); process.exit(1); }
@@ -342,22 +355,30 @@ function cede(r) {
     process.exit(0);
   };
   process.on('SIGINT', () => chiudi('interrotto'));
+  // --ingressi-al-secondo N: gli ingressi del passo arrivano a quel ritmo, e poi si
+  // misura per --durata intera: la capacita' a regime separata dalla raffica di
+  // accessi. Senza, entrano tutti in 30 s come la prima volta.
+  const RITMO = Number(arg('ingressi-al-secondo', 0)) || 0;
   for (const obiettivo of PASSI) {
     M = nuoveMisure(); PASSO = {};
-    const nuovi = obiettivo - giocatori.length, rampa = Math.min(30000, DURATA_MS / 3);
+    const nuovi = obiettivo - giocatori.length;
+    const rampa = RITMO > 0 ? Math.max(5000, 1000 * nuovi / RITMO) : Math.min(30000, DURATA_MS / 3);
     console.log(`\n>> passo ${obiettivo}: entrano ${nuovi} giocatori in ${Math.round(rampa / 1000)} s`);
     for (let i = 0; i < nuovi; i++) {
       const g = new Giocatore(giocatori.length, PVP >= 1 || Math.random() < PVP);
       giocatori.push(g);
       setTimeout(() => { g.entra().catch(() => { segnaErr('ingresso'); }); }, caso(0, rampa));
     }
-    await aspetta(rampa + 5000);
-    M = nuoveMisure();   // da qui si misura il regime
-    await aspetta(Math.max(10000, DURATA_MS - rampa - 5000));
+    let allarme = await attendiSorvegliando(rampa + 5000);
+    // da qui si misura il regime — ma se l'allarme e' scattato mentre entravano,
+    // il resoconto deve raccontare proprio quel momento (macchina ed errori)
+    const regime = RITMO > 0 ? DURATA_MS : Math.max(10000, DURATA_MS - rampa - 5000);
+    if (!allarme) { M = nuoveMisure(); allarme = await attendiSorvegliando(regime); }
     const r = resoconto(giocatori);
     r.obiettivo = obiettivo;
     esiti.push(r);
     const motivi = cede(r);
+    if (allarme) motivi.unshift('allarme durante il passo: ' + allarme);
     if (motivi.length) { fermato = { passo: obiettivo, motivi }; console.log('\n!! il server cede: ' + motivi.join(', ')); break; }
   }
   await chiudi(fermato ? 'fermato' : 'passi finiti');

@@ -3166,3 +3166,28 @@ hx_carico (server, solo con la chiave del runtime, come hx_riavvio_annuncia):
   registro delle loro partite (partite/<match>), la presenza e l'account (i record
   del profilo se ne vanno con lui); rimette nel conto il picco di prima con R = 0,
   cosi' il primo battito lo rifa' da capo, e toglie carico-prima.
+
+Primo esito (15 set 2026, VPS 1 core / 1 GB, --pvp 0.7, 3 giocatori veri online):
+
+    giocatori  in partita  CPU   Nakama  battito p95  giocata p95  partite/min
+       25         14       21%    94 MB     329 ms       112 ms          9
+       50         28       34%   104 MB     209 ms       103 ms         18
+      100         44       55%   176 MB     575 ms       169 ms         36
+      200     (cede entrando: 100 accessi in 30 s)
+
+A 200 gli accessi sono saliti a 7-18 s e il 23% delle richieste e' fallito:
+Postgres in affanno (scritture e liste annullate, connessioni rifiutate). Nakama
+non e' caduto, nessun disaccordo, nessun esito di partita dei giocatori veri perso.
+Una parte della causa era nostra, ed e' corretta:
+- ogni battito arrivato quando il conto scadeva rifaceva la lista di tutti i
+  record (478 "presenze non lette" in quei due minuti). Adesso UN CONTO ALLA
+  VOLTA: chi lo trova vecchio lo prenota scrivendo R = ora con la versione letta
+  ("*" se non c'e'); se la scrittura fallisce un altro lo sta rifacendo, e questo
+  battito usa il conto com'e' senza lista e senza riscriverlo. Lettura,
+  prenotazione e scrittura del conto passano tutte da nk.storage* (non da
+  leggiSistema/scriviSistema), cosi' la versione e' quella giusta. Banco:
+  prova-v08030-server.js, due battiti col conto vecchio nello stesso istante.
+- carico.js: una sentinella guarda la macchina ogni 5 s durante il passo (RAM
+  libera < 40 MB o errori > 20% -> ci si ferma subito); se scatta mentre entrano,
+  il resoconto tiene le misure di quel momento; la fine di una partita si conta
+  una volta sola.

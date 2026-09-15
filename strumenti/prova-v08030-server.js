@@ -48,18 +48,27 @@ const copia = (x) => JSON.parse(JSON.stringify(x));
 // ── lo storage finto, con le versioni come Nakama ─────────────────────────
 let archivio = {}, versioni = {}, giro = 0;
 let scritti = [];                 // [utente|collezione|chiave] di ogni storageWrite
-let dopoLista = null;             // per far cambiare un record fra la lista e la cancellazione
+let dopoLista = null, vecchiaLettura = null, liste = 0;             // per far cambiare un record fra la lista e la cancellazione
 const NOMI = { a1: 'zed', a2: 'Bob', a3: 'alice' };
 const nk = {
   binaryToString: (x) => x,
-  storageRead: (req) => req.map(r => archivio[r.userId + '|' + r.collection + '|' + r.key]).filter(Boolean).map(v => ({ value: copia(v) })),
-  storageWrite: (req) => { req.forEach(r => { const k = r.userId + '|' + r.collection + '|' + r.key; archivio[k] = copia(r.value); versioni[k] = 'v' + (++giro); scritti.push(k); }); },
+  storageRead: (req) => req.map(r => {
+    const k = r.userId + '|' + r.collection + '|' + r.key;
+    if (vecchiaLettura && vecchiaLettura.k === k) { const v = vecchiaLettura.oggetto; vecchiaLettura = null; return v; }   // una lettura fatta "prima"
+    return archivio[k] ? { value: copia(archivio[k]), version: versioni[k] } : null;
+  }).filter(Boolean),
+  storageWrite: (req) => {
+    // come Nakama: la versione "*" vuol dire "solo se non c'e'", una versione "solo se e' ancora quella"
+    req.forEach(r => { const k = r.userId + '|' + r.collection + '|' + r.key; if (r.version === '*' ? (k in archivio) : (r.version && versioni[k] !== r.version)) throw Error('Storage write rejected - version check failed.'); });
+    req.forEach(r => { const k = r.userId + '|' + r.collection + '|' + r.key; archivio[k] = copia(r.value); versioni[k] = 'v' + (++giro); scritti.push(k); });
+  },
   storageDelete: (req) => {
     // come Nakama: tutto o niente, e una versione che non torna ferma il lotto
     req.forEach(r => { const k = r.userId + '|' + r.collection + '|' + r.key; if (r.version && versioni[k] !== r.version) throw Error('Storage delete rejected - version check failed.'); });
     req.forEach(r => { const k = r.userId + '|' + r.collection + '|' + r.key; delete archivio[k]; delete versioni[k]; });
   },
   storageList: (userId, coll, limit, cursor) => {
+    if (coll === 'presenza') liste++;
     if (userId === '') throw new TypeError('expects empty or valid user id');   // come Nakama 3.40: "tutti" si chiede con null
     const tutti = Object.keys(archivio).filter(k => { const p = k.split('|'); return p[1] === coll && (userId === null || userId === undefined || p[0] === userId); }).sort();
     const da = cursor ? Number(cursor) : 0;
@@ -115,6 +124,18 @@ dice(b.giocatori === 0 && b.cercano === 0 && b.inPartita === 0, 'un conto storto
 avanti(mondo.CONTO_PRESENZE_OGNI_MS + 1);
 b = batte('u1', {});
 dice(b.giocatori === 2, 'e al conto dopo torna giusto', JSON.stringify(b));
+// un conto alla volta: due battiti che trovano il conto vecchio nello stesso istante
+avanti(mondo.CONTO_PRESENZE_OGNI_MS + 1);
+const chiaveConto = SIS + mondo.KEY_CONTO_PRESENZE;
+const primaDiA = { value: copia(archivio[chiaveConto]), version: versioni[chiaveConto] };
+liste = 0;
+batte('u1', {});                                                  // A lo trova vecchio, lo prenota e rifa' la lista
+const dopoA = copia(conto());
+vecchiaLettura = { k: chiaveConto, oggetto: primaDiA };           // B l'aveva letto prima della prenotazione di A
+scritti = [];
+batte('u2', {});
+dice(liste === 1, 'due battiti col conto vecchio nello stesso istante: la lista la rifa- uno solo', 'liste: ' + liste);
+dice(dopoA.R === adesso && JSON.stringify(conto()) === JSON.stringify(dopoA) && scritti.indexOf(chiaveConto) < 0, 'e l-altro non riscrive il conto vecchio sopra a quello nuovo', JSON.stringify([conto(), dopoA, scritti]));
 avanti(mondo.PRESENZA_VIVA_MS + 1000);   // u2 sparisce senza dire niente
 b = batte('u1', {});
 dice(b.giocatori === 1 && !!archivio[REC('u2')], 'chi smette di battere non si conta piu- (al conto dopo), il record resta per ora', JSON.stringify(b));
@@ -163,6 +184,7 @@ const misura = (n) => {
   const ora0 = adesso;
   for (let i = 0; i < n; i++) archivio[REC('c' + i)] = { q: ora0, s: 's' + i };
   archivio[SIS + mondo.KEY_CONTO_PRESENZE] = { R: ora0, quanti: n, cercano: 0, inPartita: 0, picco: n, piccoIl: ora0 };
+  versioni[SIS + mondo.KEY_CONTO_PRESENZE] = 'm';
   const K = 3000, t0 = process.hrtime.bigint();
   for (let k = 0; k < K; k++) mondo.rpcGiocatoriOnline({ userId: 'c' + (k % n) }, logger, nk, JSON.stringify({ sessione: 's' + (k % n) }));
   return Number(process.hrtime.bigint() - t0) / 1e6 / K;
