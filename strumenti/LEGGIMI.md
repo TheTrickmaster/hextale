@@ -828,6 +828,16 @@ si riempie toccando un pezzo della carta — con **lo stesso testo dei
 cartellini**, preso da li'. Il banco tocca davvero, e guarda che compaia quello
 giusto.
 
+**Il disclaimer** (15/09/2026, Figma 1032:18053 e 1035:18182) sta fra le
+domande e il piede. Il banco guarda che sia li', che lo stendardo sia
+`title-bar.png` a 297x90 appeso al bordo del vetro e col titolo dentro, le due
+icone di `web-assets/sito/` a 105, i caratteri e i colori, e la disposizione:
+affiancati e uguali sul largo, uno sopra l'altro sul telefono con sedici di
+margine. Lo stendardo **non** e' una `.titolo`: le targhe restano quattro.
+Guarda anche che `#faq` tagli Geppetto solo ai lati — sotto alle domande non
+c'e' piu' il piede opaco, e un taglio sul fondo si vedeva come una riga dritta
+sul suo braccio.
+
 ---
 
 ## estrai-carta.js — la carta del gioco, presa dal gioco

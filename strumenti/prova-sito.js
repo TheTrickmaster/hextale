@@ -567,6 +567,10 @@ app.whenReady().then(async () => {
     if(!STRETTO) dice(gep && Math.abs(gep.offsetWidth - 907) <= 1, 'grande 907', gep && gep.offsetWidth);
     dice(!q('footer .geppetto') && !q('footer img[src*="geppetto"]'), 'e nel piede non c-e- piu-');
     dice(gep && gep.hasAttribute('data-parallasse'), 'e si muove in parallasse');
+    // Sotto alle domande adesso c'e' il disclaimer, trasparente: se la sezione
+    // lo taglia sul fondo, il braccio finisce con una riga dritta a mezz'aria.
+    dice(st('#faq','overflowY') === 'visible' && st('#faq','overflowX') !== 'visible',
+      'Geppetto si taglia ai lati ma non sul fondo', st('#faq','overflowX') + ' ' + st('#faq','overflowY'));
 
     // ── LA PARALLASSE ───────────────────────────────────────────────────────
     dice(tutti('[data-parallasse]').length >= 2, 'i fondali che restano si muovono',
@@ -596,6 +600,76 @@ app.whenReady().then(async () => {
         return i.naturalWidth > 0 &&
           Math.abs(i.offsetWidth/i.offsetHeight - i.naturalWidth/i.naturalHeight) < 0.05; }),
         'e nessuna schiacciata', img.map(function(i){ return i.offsetWidth+'x'+i.offsetHeight; }).join(' '));
+    })();
+
+    // ── IL DISCLAIMER ───────────────────────────────────────────────────────
+    // Le due promesse del gioco, fra le domande e il piede. Lo stendardo NON e'
+    // una .titolo — e' quello delle finestre del gioco — e le quattro targhe
+    // contate sopra devono restare quattro.
+    (function(){
+      const d = q('#disclaimer');
+      dice(!!d, 'il disclaimer c-e-');
+      if(!d) return;
+      dice(d.parentNode.tagName === 'MAIN' && d.previousElementSibling && d.previousElementSibling.id === 'faq' &&
+           !d.nextElementSibling && d.parentNode.nextElementSibling.tagName === 'FOOTER',
+        'e sta fra le domande e il piede', d.previousElementSibling && d.previousElementSibling.id);
+      const s = q('#disclaimer .stendardo'), h2 = q('#disclaimer .stendardo h2');
+      dice(st(s,'backgroundImage').indexOf('/web-assets/sito/title-bar.png') > 0,
+        'lo stendardo e- title-bar.png', st(s,'backgroundImage').slice(0, 60));
+      dice(s.offsetWidth === 297 && s.offsetHeight === 90, 'largo 297 e alto 90', s.offsetWidth + 'x' + s.offsetHeight);
+      // Appeso al bordo: la sua cima tocca l'interno del bordo del vetro, e sta
+      // in mezzo. Si misura sullo schermo e in RELATIVO al vetro, che entrando
+      // in vista sale: la sua traslazione vale per tutti e due.
+      const v = rt('#disclaimer .vetro'), rs = rt(s);
+      dice(Math.abs(rs.top - v.top - 1.5) <= 1, 'appeso al bordo superiore del vetro', Math.round(rs.top - v.top));
+      dice(Math.abs((rs.left + rs.right)/2 - (v.left + v.right)/2) <= 1, 'e in mezzo',
+        Math.round((rs.left + rs.right)/2) + ' su ' + Math.round((v.left + v.right)/2));
+      dice(h2.textContent === 'Disclaimer' && /^["']?Marcellus/.test(st(h2,'fontFamily')) &&
+           st(h2,'fontSize') === '36px' && st(h2,'color') === 'rgb(237, 224, 198)',
+        'il titolo Marcellus 36 EDE0C6', st(h2,'fontFamily').slice(0, 16) + ' ' + st(h2,'fontSize') + ' ' + st(h2,'color'));
+      dice(/8px/.test(st(h2,'textShadow')), 'con l-ombra di 8', st(h2,'textShadow'));
+      const rh = rt(h2);
+      dice(rh.left >= rs.left && rh.right <= rs.right, 'e ci sta dentro, senza uscire di lato',
+        Math.round(rh.width) + ' su ' + Math.round(rs.width));
+      dice(getComputedStyle(q('#disclaimer .vetro'), '::before').backgroundImage.indexOf('trama-pannello.png') > 0 &&
+           getComputedStyle(q('#disclaimer .vetro'), '::before').mixBlendMode === 'overlay',
+        'il vetro ha la trama del disegno in overlay');
+      dice(/^blur/.test(st('#disclaimer .alone','filter')), 'e l-alone dietro', st('#disclaimer .alone','filter'));
+
+      const pol = tutti('#disclaimer .politica');
+      dice(pol.length === 2, 'due riquadri', pol.length);
+      dice(tutti('#disclaimer .politica h3').map(h => h.textContent).join('|') === 'No AI policy|No Pay-to-win policy',
+        'No AI e No Pay-to-win, in quest-ordine', tutti('#disclaimer .politica h3').map(h => h.textContent).join('|'));
+      dice(pol.map(p => p.querySelectorAll('p').length).join(' ') === '3 4', 'con tre e quattro capoversi',
+        pol.map(p => p.querySelectorAll('p').length).join(' '));
+      const ic = tutti('#disclaimer .politica img');
+      dice(ic.map(i => i.getAttribute('src')).join(' ') === '/web-assets/sito/no-ai-icon.png /web-assets/sito/no-p2w-icon.png',
+        'le icone sono quelle del sito', ic.map(i => i.getAttribute('src')).join(' '));
+      dice(ic.every(i => i.naturalWidth > 0), 'e sono arrivate', ic.map(i => i.naturalWidth).join(' '));
+      dice(ic.every(i => i.offsetWidth === 105 && i.offsetHeight === 105), 'larghe e alte 105',
+        ic.map(i => i.offsetWidth + 'x' + i.offsetHeight).join(' '));
+      dice(/^["']?Marcellus/.test(st('#disclaimer .politica h3','fontFamily')) &&
+           st('#disclaimer .politica h3','fontSize') === '24px' && st('#disclaimer .politica h3','color') === 'rgb(221, 202, 161)',
+        'i titoli Marcellus 24 DDCAA1', st('#disclaimer .politica h3','fontSize') + ' ' + st('#disclaimer .politica h3','color'));
+      dice(/^["']?Rosarivo/.test(st('#disclaimer .politica p','fontFamily')) &&
+           st('#disclaimer .politica p','fontSize') === '16px' && st('#disclaimer .politica p','color') === 'rgb(176, 188, 190)',
+        'il testo Rosarivo 16 B0BCBE', st('#disclaimer .politica p','fontSize') + ' ' + st('#disclaimer .politica p','color'));
+
+      const a = pol[0].getBoundingClientRect(), b = pol[1].getBoundingClientRect();
+      // clientWidth e non innerWidth: innerWidth conta anche la barra di
+      // scorrimento, che la pagina non ha a disposizione.
+      const largo = document.documentElement.clientWidth;
+      if(!STRETTO){
+        dice(Math.abs(v.width - 1208) <= 1, 'il vetro largo 1208', Math.round(v.width));
+        dice(Math.abs(a.top - b.top) <= 1 && Math.abs(a.height - b.height) <= 1 && Math.abs(a.width - b.width) <= 1,
+          'i due riquadri affiancati, uguali', Math.round(a.width) + 'x' + Math.round(a.height) + ' e ' + Math.round(b.width) + 'x' + Math.round(b.height));
+        dice(Math.abs(b.left - a.right - 30) <= 1, 'con trenta fra loro', Math.round(b.left - a.right));
+      } else {
+        dice(Math.abs(a.left - b.left) <= 1 && Math.abs(b.top - a.bottom - 30) <= 1,
+          'sul telefono uno sopra l-altro, con trenta fra loro', Math.round(b.top - a.bottom));
+        dice(Math.abs(v.left - 16) <= 1 && Math.abs(largo - v.right - 16) <= 1,
+          'e il vetro lascia sedici per parte', Math.round(v.left) + ' e ' + Math.round(largo - v.right));
+      }
     })();
 
     // ── IL PIEDE ────────────────────────────────────────────────────────────
