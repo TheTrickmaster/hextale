@@ -3191,3 +3191,20 @@ Una parte della causa era nostra, ed e' corretta:
   libera < 40 MB o errori > 20% -> ci si ferma subito); se scatta mentre entrano,
   il resoconto tiene le misure di quel momento; la fine di una partita si conta
   una volta sola.
+
+Secondo esito (15 set 2026, dopo "un conto alla volta", --ingressi-al-secondo 1):
+
+    giocatori  in partita  CPU (max)   Nakama  RAM libera  battito p95  giocata p95  partite/min
+      100         54       50% (60%)   162 MB    281 MB       239 ms       141 ms         33
+      150         64       68% (86%)   225 MB    205 MB       669 ms       229 ms         49
+     ~180         86       75% (98%)   292 MB    123 MB        16 s        7,8 s      crollo
+
+Il limite e' la MEMORIA, non la CPU. Nakama non e' caduto (0 riavvii, non ucciso
+per memoria, steal 0%): finita la RAM (961 MB) il sistema ha cominciato a usare lo
+swap (663 MB a fine test) e Nakama si e' fermato ad aspettare il disco — CPU di
+Nakama al 17% mentre il carico della macchina saliva a 3,8, Caddy senza risposta
+(332 "EOF", 74 "dial tcp :7350: i/o timeout", 408 risposte 502). Ogni giocatore in
+piu' costa a Nakama circa 1,3 MB; a fine test Nakama teneva ancora 346 MB.
+"presenze non lette" da 478 a 2: la prenotazione del conto funziona.
+Oggi: comodo fino a ~100 giocatori contemporanei, al limite a ~150, crollo verso
+170-180. La CPU cederebbe poco dopo, verso 200.
