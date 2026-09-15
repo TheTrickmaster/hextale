@@ -3269,3 +3269,29 @@ carta alleata messa in campo, prima di congelarsi attacca".
   sia l'IA.
 - Server: l'ombra non tiene il gelo, quindi si spegne quando si cala una carta
   che congela la prossima (_ombraNonSegue guarda la riga della carta calata).
+
+## desktop/ — il gioco dentro all'app desktop (v0.80.31)
+
+L'app e i suoi banchi hanno un LEGGIMI loro: `desktop/LEGGIMI.md`. Qui solo cio'
+che e' cambiato nel gioco per l'app, e dove si prova.
+- Controllo della versione: tolti i due `if(window.hextaleDesktop) return` in
+  sorvegliaLaVersione e controllaVersioneDaNote. Nell'app le note arrivano dal
+  disco, e quando il guscio ha gia' scaricato una versione nuova serve quelle
+  nuove: il gioco avvisa e ricarica come nel browser (desktop/prova-guscio.js, 7).
+- Exit game: il pulsante dell'accesso non faceva niente; adesso chiama
+  esciDalGioco (window.close: nell'app chiude l'app, nel browser non fa niente).
+  Lorenzo: "Aggiungine un altro in fondo a destra della pagina del menu
+  settings" — #settings-esci accanto a Disconnect, solo dal menu; la riga
+  #settings-uscita.mostra va in orizzontale, pulsanti da 257px
+  (desktop/prova-guscio.js, 10; strumenti/prova-uscita-senza-splash.js ripassato).
+- Login with Google: Google rifiuta l'accesso dentro alle app. Con
+  window.hextaleDesktop.accediConGoogle, accessoConGoogle apre il browser vero su
+  /app-login/ (pagina nel sito) e riceve il codice dal guscio; da li'
+  accessoGoogleCodice come prima. montaAccessoGoogle nell'app non carica la
+  libreria di Google (desktop/prova-guscio.js, 9).
+- Il cursore: Lorenzo vedeva la mano di sistema sui bordi della finestra. Le
+  facce del cursore erano 35x35, e Chromium non disegna un cursore oltre 32x32
+  che esca anche di poco dalla finestra: passava al ripiego `pointer`. Le tre
+  variabili --cursore* hanno adesso immagini 32x32 (le stesse, rimpicciolite
+  con interpolazione bicubica); ui/cursor.png e ui/cursor-click.png restano a 35.
+  La pagina 404.html usa ancora ui/cursor.png a 35, e sui bordi ha lo stesso effetto.
