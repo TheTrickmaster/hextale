@@ -6446,7 +6446,7 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
   display:flex; opacity:0; visibility:hidden; pointer-events:none;
   transition:opacity .2s ease, visibility 0s linear .2s;
   position:fixed; left:351px; top:99.74px; z-index:950;   /* #sticker-btn - 20 */
-  width:776px; box-sizing:border-box; padding:20px;
+  width:928px; box-sizing:border-box; padding:20px;   /* v0.80.28 — sei colonne: 20 + 6x128 + 5x24 + 20 */
   flex-direction:column; align-items:stretch; gap:16px;
   border-radius:28px; isolation:isolate;
   background:linear-gradient(-24.41deg, rgba(0,0,0,0.2) 0%, rgba(255,255,255,0.2) 100%), rgba(24,36,38,0.5);
@@ -6472,7 +6472,19 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
   font-size:30px; font-weight:400; line-height:normal;
   color:#DDCAA1; white-space:nowrap;
 }
-.sticker-set{ display:flex; flex-wrap:wrap; align-items:center; gap:24px; }
+/* v0.80.28 — sei colonne, e fino a tre righe a vista; oltre, il set scorre in
+   verticale (Lorenzo). I 10 di imbottitura sono il respiro della luce al
+   passaggio, che un contenitore che scorre taglierebbe; il margine negativo li
+   restituisce, e gli sticker restano dov'erano. */
+.sticker-set{
+  display:grid; grid-template-columns:repeat(6, 128px); gap:24px; align-items:center;
+  box-sizing:border-box; padding:10px; margin:-10px;
+}
+/* Piu' di diciotto (vedi stickerAdattaSet): tre righe a vista, 3x128 + 2x24 +
+   20 di respiro, e la barra del gioco (hx-scorre, 8). Il menu si allarga della
+   barra e di un filo, cosi' la sesta colonna non le finisce sotto. */
+#sticker-menu.scorre{ width:948px; }
+#sticker-menu.scorre .sticker-set{ max-height:452px; overflow-y:auto; overflow-x:hidden; overscroll-behavior:contain; }
 /* Si illumina seguendo la sagoma (Figma: ombra 0 0 10 #FAEED2). */
 .sticker-voce{
   width:128px; height:128px; padding:0; margin:0; border:0; background:none;
@@ -13690,7 +13702,7 @@ try{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.25</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.27</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <!-- v0.80.19 — gli sticker: l'icona (solo per chi gioca), il menu, e due bolle
@@ -18247,7 +18259,7 @@ function reteScegli(cella, dest){
 // v0.80.19 — GLI STICKER
 // ══════════════════════════════════════════════════════════════════════════
 // Lorenzo: funzionano come il fumetto del bot, ma li lanciano i giocatori.
-// Si clicca l'icona sotto alle impostazioni, si sceglie uno dei cinque, il menu
+// Si clicca l'icona sotto alle impostazioni, si sceglie uno sticker, il menu
 // si chiude, e lo sticker compare dentro sticker-bubble — per tutti e due, dal
 // lato di chi l'ha mandato secondo lo schermo di ognuno — per tre secondi.
 // Piu' di cinque in dieci secondi e per due minuti non se ne mandano: accanto a
@@ -18255,7 +18267,7 @@ function reteScegli(cella, dest){
 // Il limite lo tiene il server (vedi _sticker in server/nakama/index.js); qui si
 // tiene lo stesso conto per mostrarlo subito, e contro il bot e' l'unico.
 // Tutto dura una partita: initGame riparte da zero (stickerNuovaPartita).
-const STICKER_NOMI = ['carabosse-menacing', 'frog-prince-okay', 'merlin-perfect', 'queen-of-hearts-angry', 'bagheera-scared'];
+const STICKER_NOMI = ['bagheera-scared', 'captain-hook-facepalm', 'carabosse-menacing', 'frog-prince-okay', 'merlin-perfect', 'queen-of-hearts-angry'];
 const STICKER_A_SCHERMO_MS = 3000;
 const STICKER_USCITA_MS = 250;        // deve combaciare con stickerEsce nel CSS
 const STICKER_MAX = 5, STICKER_FINESTRA_MS = 10000, STICKER_BLOCCO_MS = 120000;
@@ -18281,6 +18293,19 @@ function stickerCostruisciSet(){
     b.onclick = ()=> stickerManda(nome);
     set.appendChild(b);
   }
+  stickerAdattaSet();
+}
+// v0.80.28 — sei colonne per tre righe a vista; oltre, il set scorre (vedi
+// #sticker-menu.scorre). Si contano i bottoni nel set, non la lista, cosi' la
+// regola vale per quello che c'e' davvero a schermo.
+const STICKER_COLONNE = 6, STICKER_RIGHE = 3;
+function stickerAdattaSet(){
+  const m = document.getElementById('sticker-menu');
+  const set = document.getElementById('sticker-set');
+  if(!m || !set) return;
+  const scorre = set.children.length > STICKER_COLONNE * STICKER_RIGHE;
+  m.classList.toggle('scorre', scorre);
+  set.classList.toggle('hx-scorre', scorre);
 }
 function stickerMenuAperto(){
   const m = document.getElementById('sticker-menu');
@@ -24450,8 +24475,22 @@ var ABILITA_MOTORE = (function () {
   // anche un solo lato escluso: e' cosi' che un debuff a caso salta i lati
   // protetti (vedi _latoDifeso). Il sorteggio si fa fra quelli che restano, e
   // se non ne resta nessuno non si colpisce niente.
+  // v0.80.27 — "SE-SW" -> ['SE', 'SW']; null se non e' un elenco di lati.
+  function latiNominati(ambito) {
+    if (typeof ambito !== 'string' || !ambito) return null;
+    var pezzi = ambito.split('-'), out = [], i;
+    for (i = 0; i < pezzi.length; i++) {
+      if (SEI_LATI.indexOf(pezzi[i]) === -1) return null;
+      if (out.indexOf(pezzi[i]) === -1) out.push(pezzi[i]);
+    }
+    return out;
+  }
   function latiColpiti(ambito, valori, carta, seme, escludi) {
     if (ambito === 'ALL' || !ambito) return SEI_LATI.slice();
+    // v0.80.27 — i lati scritti per nome ("SE-SW", Tin Woodman): quelli e basta,
+    // qualunque numero portino. Sono i lati della carta com'e' in quel momento.
+    var nominati = latiNominati(ambito);
+    if (nominati) return nominati;
     var gruppi = _gruppiDi(valori || {}, carta), i;
     if (!gruppi.length) return [];
     if (ambito === 'HIGHEST' || ambito === 'LOWEST') {
@@ -24556,7 +24595,12 @@ var ABILITA_MOTORE = (function () {
     else if (eff.quanto && typeof eff.quanto.da === 'number') base = eff.quanto.da;
     if (!eff.per) return base;
 
-    var tratti = (cond && cond.valore && cond.valore.tratti) || [];
+    // v0.80.27 — il tratto da contare puo' avere la sua colonna (`Per value`, Lorenzo):
+    // Mowgli da' +1 ai Small (If value) per ogni Explorer (Per value). Senza, si
+    // conta il tratto della condizione, come Snow White.
+    var tratti = (eff.perValore && eff.perValore.tratti && eff.perValore.tratti.length)
+      ? eff.perValore.tratti
+      : ((cond && cond.valore && cond.valore.tratti) || []);
     var quanti = 0, i;
     if (eff.per === 'board_trait') {
       var tutte = scena.inCampo || [];
@@ -24567,6 +24611,9 @@ var ABILITA_MOTORE = (function () {
     } else if (eff.per === 'adjacent_trait') {
       var vic = (scena.vicini && scena.vicini(fonte)) || [];
       for (i = 0; i < vic.length; i++) if (haTratto(vic[i], tratti)) quanti++;
+    } else if (eff.per === 'adjacent_card') {
+      // v0.80.27 — ogni carta accanto, sua o dell'avversario (Tin Woodman)
+      quanti = ((scena.vicini && scena.vicini(fonte)) || []).length;
     } else if (eff.per === 'hand_trait') {
       var mano = scena.inMano || [];
       for (i = 0; i < mano.length; i++) if (haTratto(mano[i], tratti)) quanti++;
