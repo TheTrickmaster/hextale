@@ -45,8 +45,8 @@ app.whenReady().then(async () => {
       mm2DisegnaQuest([]);
       dice(corpo.classList.contains('vuoto') && /Coming soon/.test(corpo.textContent),
         'senza quest il riquadro dice "Coming soon"', corpo.textContent.trim());
-      dice(document.getElementById('mm2-quest-conta').textContent === '0/5',
-        'e il contatore in cima dice zero su cinque',
+      dice(/^\\d+h \\d+m left$|^\\d+m \\d{2}s left$/.test(document.getElementById('mm2-quest-conta').textContent),
+        'v0.80.26: in cima quanto manca al cambio delle quest',
         document.getElementById('mm2-quest-conta').textContent);
 
       // ── 2. LE CINQUE DEL DISEGNO ──────────────────────────────────────────
@@ -184,8 +184,8 @@ app.whenReady().then(async () => {
         { nome:'b', fatto:3, quanto:3, premio:'ink',  presa:false },
         { nome:'c', fatto:0, quanto:3, premio:'ink',  presa:false }
       ]);
-      dice(document.getElementById('mm2-quest-conta').textContent === '1/3',
-        'in cima si contano le riscosse, non le completate',
+      dice(/^\\d+h \\d+m left$|^\\d+m \\d{2}s left$/.test(document.getElementById('mm2-quest-conta').textContent),
+        'v0.80.26: in cima resta il conto alla rovescia, con le quest disegnate',
         document.getElementById('mm2-quest-conta').textContent +
         ' con una riscossa, una completata che aspetta e una da fare');
       return { d };

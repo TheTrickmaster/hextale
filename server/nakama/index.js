@@ -5777,6 +5777,36 @@ function _occupateDaImpronta(state, impronta) {
   }
   state.occupate = nuove;
 }
+// ── v0.80.26 — PUNTI E VALORI CHE NON TORNANO ────────────────────────────────
+// Lorenzo: "c'e' un'incongruenza tra i punteggi a fine partita" — 199 da una
+// parte, 203 dall'altra, sullo stesso tabellone. L'impronta confronta chi possiede
+// ogni casella, non i numeri: due tabelloni coincidono anche se una carta ha un
+// lato diverso da una parte, e da li' i margini delle conquiste — cioe' i punti —
+// prendono strade diverse. Qui si confrontano anche i punti e i valori delle carte
+// che i due raccontano, e la PRIMA volta che non tornano lo si scrive nel registro
+// col turno, le caselle e le carte. La partita non si ferma: il risultato lo decide
+// comunque il racconto del primo giocatore, e tutti e due lo vedono (op 6 `punti`).
+function _diagnosiPuntiEValori(state, logger, t, uno, due) {
+  if (!logger || !uno || !due) return;
+  var hp1 = JSON.stringify(uno.hp || null), hp2 = JSON.stringify(due.hp || null);
+  if (!state.puntiDiversi && uno.hp && due.hp && hp1 !== hp2) {
+    state.puntiDiversi = t;
+    logger.warn('punti diversi al turno %s: %s contro %s', t, hp1, hp2);
+  }
+  if (!state.valoriDiversi && uno.valori && due.valori && uno.valori !== due.valori) {
+    state.valoriDiversi = t;
+    var carte = {}, a = {}, b = {}, diverse = [], i, p, k;
+    var pezzi = String(uno.impronta || '').split('|');
+    for (i = 0; i < pezzi.length; i++) { p = pezzi[i].split(':'); if (p.length >= 2) carte[p[0]] = p[1]; }
+    var pa = uno.valori.split('|'), pb = due.valori.split('|');
+    for (i = 0; i < pa.length; i++) { p = pa[i].split(':'); a[p[0]] = p[1]; }
+    for (i = 0; i < pb.length; i++) { p = pb[i].split(':'); b[p[0]] = p[1]; }
+    for (k in a) if (a[k] !== b[k]) diverse.push(k + ' (' + (carte[k] || '?') + ') ' + a[k] + ' / ' + (b[k] === undefined ? '-' : b[k]));
+    for (k in b) if (!(k in a)) diverse.push(k + ' (' + (carte[k] || '?') + ') - / ' + b[k]);
+    logger.warn('valori diversi al turno %s: %s', t, diverse.slice(0, 6).join(', '));
+  }
+}
+
 // v0.80.23 — le caselle bloccate dal racconto concorde: "q,r|q,r|...", solo
 // caselle che esistono, ognuna una volta.
 function _buchiDaRacconto(state, testo) {
@@ -6088,6 +6118,24 @@ function _yetiVieta(state, k, giocatore) {
   }
   return false;
 }
+// ── v0.80.26 — CHI RESTA SENZA CARTE PERDE ────────────────────────────────────
+// Lorenzo: "chi rimane senza carte perde automaticamente anche se ha il punteggio
+// piu' alto". Le mani e i mazzi veri li tiene il server: mano vuota e mazzo vuoto
+// vuol dire rimasto senza carte (le mani si riempiono dal mazzo da sole). Vale se
+// sul tabellone c'era ancora posto — pieno, si decide ai punti come sempre — e se
+// ne e' rimasto senza UNO solo: tutti e due senza carte, decidono i punti.
+// Torna il numero del giocatore rimasto senza carte (1 o 2), o 0.
+function _chiSenzaCarte(state) {
+  var fuori = [];
+  for (var i = 0; i < state.giocatori.length; i++) {
+    var u = state.giocatori[i];
+    if (!((state.mano && state.mano[u]) || []).length && !((state.mazzo && state.mazzo[u]) || []).length) fuori.push(i + 1);
+  }
+  if (fuori.length !== 1) return 0;
+  var tutte = _caselle();
+  for (var c = 0; c < tutte.length; c++) if (_yetiLibera(state, tutte[c])) return fuori[0];
+  return 0;
+}
 function _yetiLibera(state, k) {
   return _caselle().indexOf(k) !== -1 && state.buchi.indexOf(k) === -1 && !state.occupate[k] && !_yetiImpronta(state, k);
 }
@@ -6244,7 +6292,9 @@ function partitaLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
         hp: corpo.hp || null,
         finita: !!corpo.finita,
         // v0.80.23 — le caselle bloccate come le vede lui (vedi _buchiDaRacconto)
-        buchi: Array.isArray(corpo.buchi) ? corpo.buchi.slice(0, 100).map(String).sort().join('|') : null
+        buchi: Array.isArray(corpo.buchi) ? corpo.buchi.slice(0, 100).map(String).sort().join('|') : null,
+        // v0.80.26 — i valori delle carte in tavola (vedi _diagnosiPuntiEValori)
+        valori: (typeof corpo.valori === 'string') ? corpo.valori.slice(0, 4000) : null
       };
       var uno = state.rapporti[t][state.giocatori[0]];
       var due = state.rapporti[t][state.giocatori[1]];
@@ -6271,6 +6321,7 @@ function partitaLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
       // due lo fanno uguale; un client di prima non le manda, e restano com'erano.
       if (uno.buchi !== null && uno.buchi === due.buchi) _buchiDaRacconto(state, uno.buchi);
       else if (uno.buchi !== due.buchi) logger.warn('caselle bloccate diverse al turno %s: %s contro %s', t, uno.buchi, due.buchi);
+      _diagnosiPuntiEValori(state, logger, t, uno, due);   // v0.80.26
       // v0.77.76 — i due client sono d'accordo: e' il momento buono per
       // chiedere al server se avrebbe detto la stessa cosa. Non decide niente:
       // se sbaglia, lo sapremo dal registro invece che da una partita persa.
@@ -6582,6 +6633,13 @@ function _chiudiPartita(state, dispatcher, logger, nk, rapporto) {
   // dalla v0.77.0 sono i PUNTI FATTI e il verso e' rovesciato. Scritto al
   // contrario, il server avrebbe premiato il perdente a ogni partita.
   var vincitore = pari ? 0 : (d1 > d2 ? 1 : 2);
+  // v0.80.26 — chi resta senza carte perde, qualunque sia il punteggio (vedi _chiSenzaCarte)
+  var senzaCarte = _chiSenzaCarte(state);
+  if (senzaCarte) {
+    vincitore = (senzaCarte === 1) ? 2 : 1;
+    pari = false;
+    logger.info('partita finita: il giocatore %d e\' rimasto senza carte e perde (punti %d contro %d)', senzaCarte, d1, d2);
+  }
   _teleFinePartita(nk, logger, state, 'finita', vincitore);   // v0.80.25
 
   for (var i = 0; i < state.giocatori.length; i++) {
@@ -6598,9 +6656,13 @@ function _chiudiPartita(state, dispatcher, logger, nk, rapporto) {
     esito.vinta = suo;
     esito.pari = pari;
     esito.punteggio = rapporto.punteggio || null;
+    esito.punti = { 1: d1, 2: d2 };   // v0.80.26 — i punti che hanno deciso
+    esito.senzaCarte = senzaCarte;    // v0.80.26 — 1 o 2 se ha deciso quello, 0 altrimenti
     _aUno(dispatcher, state, u, OP_ESITO, esito);
   }
-  _aTutti(dispatcher, OP_FINE, { motivo: 'finita', vincitore: vincitore, pari: pari, yeti: _yetiTutti(state) });
+  // v0.80.26 — e i punti con cui si e' deciso, perche' la schermata di fine partita
+  // mostri gli stessi numeri a tutti e due (vedi fineAllineaAlServer)
+  _aTutti(dispatcher, OP_FINE, { motivo: 'finita', vincitore: vincitore, pari: pari, punti: { 1: d1, 2: d2 }, senzaCarte: senzaCarte, yeti: _yetiTutti(state) });
   logger.info('partita finita: punti %d contro %d, vincitore %d', d1, d2, vincitore);
 }
 

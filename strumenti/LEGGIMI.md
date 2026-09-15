@@ -2923,3 +2923,73 @@ STESSA scrittura che consegna le carte") gia' prima di questa versione.
      Refresh. Niente nel browser.
    I numeri partono dalla v0.80.25: prima non si raccoglieva niente. "Prima
    sessione" e "login dopo N giorni" contano solo i giocatori nati dopo.
+
+## prova-v08026.js e prova-v08026-server.js — punti di fine partita, quest, menu (v0.80.26)
+
+    $ELECTRON strumenti/prova-v08026.js
+    node strumenti/prova-v08026-server.js
+
+1. Da Matchmaking a Play vs Bot #mm2-testata (rank e mazzo) resta fermo: tolto da
+   MM2_VISTA_PEZZI. I riquadri delle modalita' e il pulsante si animano come prima.
+2. Il pannello delle daily non dice piu' "prese/5" ma quanto manca al cambio delle
+   quest, a mezzanotte GMT come _giornoGmt sul server (questTempoAlCambio: "7h 32m left",
+   sotto l'ora "32m 05s left"; "left" l'ha chiesto Lorenzo). Un orologio da un secondo lo riscrive finche' il pannello
+   c'e', e passata la mezzanotte chiede le quest nuove (questChiediAlServer).
+3. Gli avvisi dell'avanzamento delle quest in #quest-avvisi sono il 30% piu' grandi:
+   `zoom:1.3` sulla scheda (scala misure, testo, barra e icona, e non tocca il
+   transform delle animazioni), il contenitore largo 355.
+4. I punti di fine partita (Lorenzo: 199 da una parte, 203 dall'altra, stesso
+   tabellone; il server aveva deciso 118-203, cioe' col racconto del giocatore 1).
+   L'impronta confronta chi possiede ogni casella, non i numeri: una carta con un
+   lato diverso da una parte non ferma la partita, ma cambia i margini delle
+   conquiste e quindi i punti. La causa di quella partita non si ricostruisce senza
+   i dati; da adesso:
+   - il racconto (op 7) porta anche `valori` (reteImprontaValori: casella e sei
+     lati), e il server, quando i due tabelloni coincidono, confronta punti e valori
+     e scrive nel registro la PRIMA volta che non tornano ("punti diversi al turno
+     N", "valori diversi al turno N: casella (carta) lati / lati");
+   - op 6 "finita" e l'esito portano i punti con cui il server ha deciso, e
+     fineAllineaAlServer li mette nella schermata di fine partita (numeri e
+     vincitore) su tutti e due gli schermi.
+5. Il caso uguale sui due schermi (Lorenzo: "la board e' andata fuori sync per
+   colpa della randomness del brucaliffo"). Il Brucaliffo ruotava i gruppi di un
+   numero di passi tirato con Math.random su ciascun client; lo stesso facevano
+   Smoke and Mirrors (il 50%), Scaredy Cat, Hunger Bites, il Cappellaio, Cheshire
+   e True Story. casoCondiviso(etichetta): in rete il numero esce da
+   _semeDaNome(id del match | turno | etichetta), con un'etichetta che dice
+   abilita', casella, carta e indice del tiro; fuori rete Math.random. prova-v08026
+   controlla che le sette non chiamino piu' Math.random e che il Brucaliffo, sulla
+   stessa carta nello stesso turno, ruoti degli stessi passi su due "schermi".
+6. Premuto Collect nella pagina dello spacchettamento, il cartellino sopra alle
+   carte (.pack-etichetta: Owned/New, livello, copie) sparisce prima che la carta
+   voli via. La classe .senza-etichetta c'era gia' (v0.79.40, la mette
+   _preparaUscita), ma la sua regola stava PRIMA di .mostra-etichetta e pesava
+   uguale: vinceva quella che la accende. Adesso sta dopo, con !important, sfuma
+   in .25s e poi `visibility:hidden`. prova-pacchetti accende i cartellini prima
+   dell'uscita (a banco il doppio requestAnimationFrame non arriva, ed e' per
+   questo che il difetto non si vedeva).
+7. Il saldo di un premio delle quest: prova-v08026 riscuote un premio d'inchiostro
+   e campiona il numero a video ogni 20ms: resta quello di prima finche' l'icona
+   non arriva (questVoloArriva) e cambia solo dopo. Il difetto segnalato non si
+   riproduce con l'inchiostro dal menu.
+8. Chi resta senza carte perde (Lorenzo: "anche se ha il punteggio piu' alto").
+   La partita finiva gia' quando uno dei due restava a mani vuote; adesso:
+   - client: endTurn chiama segnaSenzaCarte, che con chiRestaSenzaCarte dichiara
+     vincitore l'altro (G.vincitoreDichiarato) e scrive il motivo "<nome> ran out of
+     cards."; finishGameWithResult riferisce al server l'esito del vincitore, non
+     dei punti (contro il bot);
+   - server: _chiudiPartita chiede _chiSenzaCarte (mano E mazzo vuoti, veri, del
+     server) e rovescia il vincitore; op 6 e l'esito portano `senzaCarte`, e
+     fineAllineaAlServer lo mette nella schermata (o lo lascia a finishGameWithResult
+     se la schermata non c'e' ancora).
+   Scelte mie, da confermare con Lorenzo: vale solo se il tabellone aveva ancora
+   posto (pieno, o chiuso dalle impronte dello Yeti, decidono i punti) e solo se ne
+   e' rimasto senza uno solo (tutti e due senza carte: decidono i punti).
+9. La X delle carte da scartare (.scarta-croce, abilita' che scartano una carta in
+   mano): in alto a sinistra (left/top 14px) invece che al centro, e DENTRO
+   .hand-card-hitzone invece che accanto. L'hover durante lo scarto era spento dalla
+   v0.75.38 per un rimbalzo: la croce stava fuori dalla zona sensibile, passarci sopra
+   faceva uscire dalla carta, la carta scendeva e la croce con lei. Dentro la zona
+   mouseleave non scatta, quindi la guardia `!sceltaScarto` sull'hover e' tolta: le
+   carte si alzano e vengono davanti anche con la X. Il trascinamento resta chiuso
+   durante lo scarto, e il pointerdown della croce non risale alla zona.

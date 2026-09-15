@@ -649,13 +649,18 @@ app.whenReady().then(async () => {
     // chiamata _carteTenute() risponde "nessuna".
     "  var primaTenute = _carteTenute();",
     "  var primaScartate = uscite.filter(function(c){ return primaTenute.indexOf(c) === -1; });",
+    // v0.80.26 — i cartellini accesi come in partita vera (a banco il doppio
+    // requestAnimationFrame che li accende non arriva): e' contro .mostra-etichetta
+    // che .senza-etichetta deve vincere.
+    "  primaTenute.concat(primaScartate).forEach(function(c){ c.classList.add('mostra-etichetta'); });",
     "  uscitaDopoLaScelta(primaTenute, primaScartate);",
     "  dice(primaScartate[0] && primaScartate[0].classList.contains('svanisce'), 'la scartata si dissolve');",
     "  dice(primaTenute[0].style.getPropertyValue('--fin-x') === '-165.0px', 'e le due tenute si dispongono al centro', primaTenute.map(function(c){ return c.style.getPropertyValue('--fin-x'); }).join(' | '));",
     // Il cartellino se ne va da TUTTE le carte appena si preme Collect.
     "  dice(primaTenute[0].classList.contains('senza-etichetta'), 'e i cartellini se ne vanno dalle tenute');",
     "  dice(primaScartate[0].classList.contains('senza-etichetta'), 'e anche dalle scartate');",
-    "  dice(st(primaTenute[0].querySelector('.pack-etichetta')).opacity === '0', 'in dissolvenza', st(primaTenute[0].querySelector('.pack-etichetta')).opacity);",
+    "  dice(st(primaTenute[0].querySelector('.pack-etichetta')).opacity === '0', 'in dissolvenza (anche se era accesa)', st(primaTenute[0].querySelector('.pack-etichetta')).opacity);",
+    "  dice(st(primaScartate[0].querySelector('.pack-etichetta')).opacity === '0', 'e sulla scartata, sopra al suo 0.4', st(primaScartate[0].querySelector('.pack-etichetta')).opacity);",
     // L'uscita: il doppio piu' svelta, e prima scende.
     "  var rVola = regole.filter(function(r){ return r.selectorText === '.pack-card.vola-su'; })[0];",
     "  dice(rVola && rVola.style.animationDuration === '0.32s', 'e il volo dura 320', rVola && rVola.style.animationDuration);",

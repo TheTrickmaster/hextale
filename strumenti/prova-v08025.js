@@ -60,7 +60,7 @@ const CORPO = `(async function(){
     mm2Vista('ai');
     var t = ultimo('#mm2-testata'), dr = ultimo('#mm2-modo-draft'), nr = ultimo('#mm2-modo-normal'), gi = ultimo('#mm2-gioca');
     dice(titolo('mm2-modo-draft') === 'Draft pick' && titolo('mm2-modo-normal') === 'Normal', 'appena cliccato i titoli sono ancora quelli di prima (si cambia a pezzi invisibili)');
-    dice(t && String(t.a.opacity) === '0' && fermo(t.a.translate), 'il rank e il mazzo sfumano fuori, fermi', t && JSON.stringify(t.a));
+    dice(!t, 'v0.80.26: il rank e il mazzo restano fermi (niente animazione)', t && JSON.stringify(t));
     dice(dr && String(dr.a.opacity) === '0' && /^-40px/.test(String(dr.a.translate)), 'il riquadro di sinistra esce verso sinistra sfumando', dr && JSON.stringify(dr.a));
     dice(nr && String(nr.a.opacity) === '0' && /^40px/.test(String(nr.a.translate)), 'quello di destra esce verso destra', nr && JSON.stringify(nr.a));
     dice(gi && String(gi.a.opacity) === '0', 'il pulsante sfuma');
@@ -69,7 +69,7 @@ const CORPO = `(async function(){
     dice(titolo('mm2-modo-draft') === 'Draft vs Bot' && titolo('mm2-modo-normal') === 'Normal vs Bot' && q('#mm2-centro').classList.contains('vista-bot'), 'a meta- cambiano titoli e immagine', titolo('mm2-modo-draft'));
     dice(dr && String(dr.da.opacity) === '0' && /^-40px/.test(String(dr.da.translate)) && fermo(dr.a.translate) && String(dr.a.opacity) === basi['#mm2-modo-draft'], 'quello di sinistra rientra verso destra', dr && JSON.stringify(dr));
     dice(nr && /^40px/.test(String(nr.da.translate)) && fermo(nr.a.translate) && String(nr.a.opacity) === basi['#mm2-modo-normal'], 'quello di destra rientra verso sinistra', nr && JSON.stringify(nr));
-    dice(t && String(t.da.opacity) === '0' && String(t.a.opacity) === '1', 'il rank e il mazzo sfumano dentro');
+    dice(!t && getComputedStyle(q('#mm2-testata')).opacity === '1', 'e a meta- restano fermi, a piena opacita-');
     await respira(600);
     var PEZZI = ['#mm2-testata', '#mm2-modo-draft', '#mm2-modo-normal', '#mm2-gioca'];
     dice(PEZZI.every(function(s){ return getComputedStyle(q(s)).opacity === basi[s] && getComputedStyle(q(s)).translate === 'none' && !q(s).classList.contains('pezzo-attende'); }), 'finita, tutto e- al suo posto', PEZZI.map(function(s){ return getComputedStyle(q(s)).opacity + '/' + getComputedStyle(q(s)).translate; }).join(' '));
