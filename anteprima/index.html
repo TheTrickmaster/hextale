@@ -9872,6 +9872,11 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
 /* E le tre voci si leggono a destra, incolonnate sotto al valore scelto. */
 #fazione-dropdown-voci .hx-dropdown-voce{ text-align:right; }
 #settings-uscita .hx-btn{ width:290px; }
+/* v0.80.31 — accanto a Disconnect, a destra, Exit game (Lorenzo): i due
+   pulsanti rossi dividono la riga in fondo, uscire dall'account a sinistra e
+   uscire dal gioco a destra. */
+#settings-uscita.mostra{ flex-direction:row; justify-content:space-between; }
+#settings-uscita.mostra .hx-btn{ width:257px; }
 
 /* ── Customize ─────────────────────────────────────────────────────────────
    Entra da destra e se ne va da destra. La finestra sotto (le impostazioni) si
@@ -12833,7 +12838,7 @@ try{
         <span class="hxb-label">Create new account</span>
       </button>
       <div class="filters-riga hx-riga-corta"></div>
-      <button class="hx-btn hx-azione hx-btn-warning" type="button">
+      <button class="hx-btn hx-azione hx-btn-warning" type="button" onclick="esciDalGioco()">
         <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
         <span class="hxb-label">Exit game</span>
       </button>
@@ -13702,7 +13707,7 @@ try{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.29</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.30</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <!-- v0.80.19 — gli sticker: l'icona (solo per chi gioca), il menu, e due bolle
@@ -13954,6 +13959,13 @@ try{
     <button class="hx-btn hx-btn-warning settings-azione" type="button" onclick="disconnetti()">
       <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
       <span class="hxb-label">Disconnect</span>
+    </button>
+    <!-- v0.80.31 — Exit game anche qui, in fondo a destra (Lorenzo): prima si
+         usciva dal gioco solo dalla pagina d'accesso. Solo dal menu, come
+         Disconnect: in partita la via d'uscita resta arrendersi. -->
+    <button class="hx-btn hx-btn-warning settings-azione" type="button" id="settings-esci" onclick="esciDalGioco()">
+      <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
+      <span class="hxb-label">Exit game</span>
     </button>
   </div>
  </div>
@@ -20154,6 +20166,13 @@ async function accessoGoogleCodice(risposta){
     accessoSpiegaGuasto('login', e, false);
   }
 }
+// v0.80.31 — ESCI DAL GIOCO (i pulsanti Exit game dell'accesso e delle
+// impostazioni). Nell'app desktop chiude la finestra, e con lei l'app (vedi
+// desktop/main.js). Nel browser una scheda aperta a mano non si lascia
+// chiudere da uno script, e il pulsante non fa niente: e' l'anteprima.
+function esciDalGioco(){
+  try{ window.close(); }catch(_){}
+}
 function accessoGoogleNonPronto(){
   accessoMessaggio('login', GOOGLE_CLIENT_ID
     ? 'Google sign-in works in the web version of the game.'
@@ -24876,6 +24895,12 @@ var ABILITA_MOTORE = (function () {
     // un filtro: cosi' non si poteva dire "un tassello BLOCCATO, e lo sceglie
     // il giocatore" — le due cose litigavano per la stessa cella.)
     if (AZIONI_DESCRITTE[az]) {
+      // v0.80.30 — "la prossima carta" (Basilisk: freeze ally board card next)
+      // non c'e' ancora: niente da descrivere adesso. Senza questa riga `scelti`
+      // non conosce "next" e restituisce tutti i candidati, e il gelo cadeva
+      // subito su ogni alleata gia' in campo. La promessa la tiene il gioco
+      // (preparaGeloProssimaGiocata).
+      if (eff.quale === 'next' || eff.quale === 'last') return;
       if (!condizioneVera(cond, fonte, scena)) return;
       // Un TASSELLO non e' una carta: chi lo cerca sono le caselle, e quelle
       // il motore non le ha. Per queste (e per l'evocazione, che di bersagli
@@ -36018,9 +36043,10 @@ const PATCH_NOTES_MAX = 10;
 // La versione di QUESTO client e' quella scritta sulla targhetta in basso a
 // destra, che e' l'unico numero che il file porta addosso.
 //
-// Nel guscio desktop non si controlla: li' l'aggiornamento e' automatico e il
-// guscio ha gia' aperto l'ultima versione (vedi desktop/main.js). La
-// bandierina la espone il guscio stesso: window.hextaleDesktop.
+// Nel guscio desktop si controlla allo stesso modo, e le note arrivano dal
+// disco: quando il guscio ha gia' scaricato una versione nuova serve le note di
+// quella, e ricaricando posa i file nuovi prima di servire il gioco (vedi
+// desktop/main.js). Qui non c'e' niente di diverso da fare.
 function versioneDiQuestoClient(){
   const targhetta = document.getElementById('build-version-badge');
   return targhetta ? String(targhetta.textContent||'').trim() : '';
@@ -36105,7 +36131,6 @@ let _aggiornamentoInAttesa = false;
 function sorvegliaLaVersione(){
   _giocatoreDentro = true;
   if(_sorveglianzaVersione) return;
-  if(typeof window !== 'undefined' && window.hextaleDesktop) return;
   const guarda = ()=>{ try{ caricaPatchNotes({soloVersione:true}); }catch(_){ } };
   guarda();
   _sorveglianzaVersione = setInterval(guarda, VERSIONE_OGNI_MS);
@@ -36113,7 +36138,6 @@ function sorvegliaLaVersione(){
 // Chiamata quando le note di rilascio sono state lette: e' li' che si scopre
 // qual e' l'ultima versione pubblicata.
 function controllaVersioneDaNote(versioni){
-  if(typeof window !== 'undefined' && window.hextaleDesktop) return;
   // Fuori non si blocca niente: la finestra ha senso solo per chi e' dentro.
   // Non si perde nulla — chi entra viene guardato subito (vedi
   // sorvegliaLaVersione, chiamata da apriMenuPrincipale).
@@ -38710,6 +38734,7 @@ function initGame(vsAI){
     // ricordarsi anche a che condizione vale e da chi viene: la carta premiata
     // dev'essere in grado di dire chi l'ha premiata.
     premioProssimaGiocata:{1:null,2:null},
+    geloProssimaGiocata:{1:null,2:null},   // v0.80.30 — Basilisk
     // v0.78.10 — le caselle da svuotare a scontro finito (vedi
     // rimuoviDopoLaConquista). Nasce vuota a ogni partita come tutto il resto.
     rimozioniInAttesa:[],
@@ -42294,6 +42319,8 @@ const PREDE_DI_CAPPUCCETTO = ['cruel','wild','trickster'];
 const BONUS_FEARLESS = 2;
 function puoConquistare(attaccante, difensore, scena){
   if(!difensore) return true;
+  // v0.80.30 — Basilisk: una carta congelata in campo non si conquista finche' il gelo dura
+  if(cartaCongelata(difensore)) return false;
   if(_haAbilitaNuova(difensore)){
     const m = _motore();
     if(m.regolaDi(difensore,'conquerable_only_if') || m.regolaDi(difensore,'not_conquerable_if'))
@@ -42406,6 +42433,9 @@ function _effettoSemplice(e){
   // cio' che qualcuno esegue davvero.
   // v0.77.67 — chi sceglie lo dice "Player selection", non piu' "Which".
   if(e.scelta) return false;                             // la sceglie il giocatore: non e' roba da motore
+  // v0.80.30 — "la prossima carta" (Basilisk: freeze ... next) non c'e' ancora:
+  // non e' roba da motore. La lascia come promessa eseguiDalFoglio.
+  if(e.quale === 'next' || e.quale === 'last') return false;
   if(e.azione === 'freeze' && (e.cosa === 'card' || e.cosa === 'tile')) return true;
   if(['buff','debuff','set'].indexOf(e.azione) < 0) return false;
   if(e.cosa && e.cosa !== 'power') return false;
@@ -42961,6 +42991,12 @@ function eseguiDalFoglio(card, evento, dove){
       preparaPremioProssimaGiocata(card, a, eff);
       fatto = true;
     }
+    // v0.80.30 — BASILISK: la prossima carta che giochi resta congelata per un
+    // turno, dopo aver attaccato. Anche questa e' una promessa.
+    if(eff.azione === 'freeze' && eff.quale === 'next' && eff.dove === 'board'){
+      preparaGeloProssimaGiocata(card, a, eff);
+      fatto = true;
+    }
     // ── v0.78.5 — E "LA PROSSIMA CARTA CHE PESCHI" ──────────────────────
     // La Regina di Cuori dice `buff ally drawn power next ALL 2`: stessa idea
     // della riga qui sopra, ma il segno lo riscuote la pescata invece della
@@ -42982,6 +43018,39 @@ function eseguiDalFoglio(card, evento, dove){
   return fatto;
 }
 
+// ══════════════════════════════════════════════════════════════════════════
+// v0.80.30 — BASILISK, "Rocky": LA PROSSIMA CARTA CHE GIOCHI SI CONGELA
+// ══════════════════════════════════════════════════════════════════════════
+// Foglio: on_play, once_per_game, freeze ally board card next 1 n_turns.
+// Lorenzo: "congela per 1 turno, ma la carta alleata messa in campo, prima di
+// congelarsi attacca". Quindi:
+//   - il Basilisco lascia una promessa su chi l'ha giocato: non su se stesso, e
+//     non sulle carte gia' in campo;
+//   - la prossima carta che quel giocatore cala attacca come sempre, e SOLO DOPO
+//     lo scontro si congela (si riscuote accanto al Grillo Parlante, in
+//     resolveConquestAndEndTurn);
+//   - congelata in campo vuol dire che non si conquista (puoConquistare);
+//   - G.numeroTurno sale in endTurn, cioe' dopo lo scontro: calata al turno N,
+//     resta congelata per N e per il turno dell'avversario, e al turno
+//     N + 1 + turni torna conquistabile;
+//   - quanti turni: la finestra for_turns se c'e', altrimenti Amount, altrimenti uno.
+// L'anteprima non promette niente, come preparaPremioProssimaGiocata.
+function preparaGeloProssimaGiocata(card, a, eff){
+  if(_simulazioneInCorso) return;
+  if(!G.geloProssimaGiocata) G.geloProssimaGiocata = {1:null, 2:null};
+  const chi = card.owner || G.currentPlayer;
+  const turni = (a && a.finestra && a.finestra.tipo === 'for_turns' && a.finestra.valore)
+    || (eff.quanto && eff.quanto.numero) || 1;
+  G.geloProssimaGiocata[chi] = { da: card.name || 'Basilisk', postoDa: card.id, turni: turni };
+}
+function riscuotiGeloProssimaGiocata(card, giocatore){
+  const g = G.geloProssimaGiocata && G.geloProssimaGiocata[giocatore];
+  if(!g || !card || g.postoDa === card.id) return false;
+  G.geloProssimaGiocata[giocatore] = null;
+  card.congelataFinoAlTurno = (G.numeroTurno || 1) + 1 + (g.turni || 1);
+  if(!_simulazioneInCorso){ try{ playSfxFile('freeze.mp3'); }catch(_){ } }
+  return true;
+}
 // Il segno lasciato sulla prossima carta giocata da questo giocatore.
 function preparaPremioProssimaGiocata(card, a, eff){
   // v0.78.7 — L'ANTEPRIMA NON PROMETTE NIENTE. Vedi il commento in
@@ -43688,6 +43757,7 @@ function _foglioFaLEvento(card, evento){
     if(eff.azione === 'transform') return true;
     if((eff.azione === 'buff' || eff.azione === 'debuff') && eff.quale === 'next'
        && (eff.dove === 'board' || eff.dove === 'drawn')) return true;
+    if(eff.azione === 'freeze' && eff.quale === 'next' && eff.dove === 'board') return true;   // v0.80.30 — Basilisk
   }
   return false;
 }
@@ -47464,6 +47534,8 @@ function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLa
   // Grillo ha lasciato. Sta prima del disegno qui sotto, cosi' il +2 si vede
   // sulla carta appena atterra invece di comparire un istante dopo.
   riscuotiPremioProssimaGiocata(card, player, conquered.length);
+  // v0.80.30 — Basilisk: ha attaccato, adesso si congela (riscuotiGeloProssimaGiocata)
+  riscuotiGeloProssimaGiocata(card, player);
   // v0.79.75 — e si segnano le carte girate, per le quest del giorno. Questo
   // e' l'unico punto del gioco che sa quante ne ha girate UNA giocata, ed e'
   // proprio il numero che serve a "Flip 2 cards with 1": contarle a fine
