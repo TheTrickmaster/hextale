@@ -4190,24 +4190,59 @@ function rpcGiocatoriOnline(ctx, logger, nk, payload) {
       visti[ctx.userId] = ora;
     }
   }
-  var vivi = {}, quanti = 0, cercano = 0, inPartita = 0;
-  for (var u in visti) {
-    var letta = _presenzaLetta(visti[u]);
-    if (letta && (ora - letta.q) <= PRESENZA_VIVA_MS) {
-      vivi[u] = visti[u]; quanti++;
-      if (letta.c && (ora - letta.q) <= RICERCA_VIVA_MS) cercano++;   // v0.80.23
-      // v0.80.25 — in partita: il segno si toglie col battito che parte a fine
-      // partita, quindi vale quanto la presenza (in partita il battito resta a 20s).
-      if (letta.g) inPartita++;
-    }
-  }
+  var conto = _contaPresenze(visti, ora);
   // La scrittura non deve poter far fallire la risposta: il numero e' gia'
   // buono, e un battito non scritto si riscrive fra trenta secondi.
-  try { scriviSistema(nk, KEY_PRESENZE, vivi); }
+  try { scriviSistema(nk, KEY_PRESENZE, conto.vivi); }
   catch (e2) { logger.warn('battito non scritto: %s', String(e2)); }
+  _segnaPiccoOnline(nk, logger, conto.quanti, ora);   // v0.80.29
   // v0.80.24 — e se un riavvio e' annunciato, quando (vedi rpcRiavvioAnnuncia)
   var alle = _riavvioAnnunciato(nk);
-  return JSON.stringify({ giocatori: quanti, cercano: cercano, inPartita: inPartita, riavvio: alle ? { alle: alle, ora: ora } : null });
+  return JSON.stringify({ giocatori: conto.quanti, cercano: conto.cercano, inPartita: conto.inPartita, riavvio: alle ? { alle: alle, ora: ora } : null });
+}
+
+// ── v0.80.29 — CHI C'E', CONTATO IN UN POSTO SOLO ─────────────────────────
+// Lo stesso conto serve al battito (hx_giocatori, i numeri del menu) e a /stats/
+// (hx_stats, hx_stats_live): scritto una volta sola, la pagina non puo' dire un
+// numero diverso da quello che leggono i giocatori.
+//   vivi       le presenze ancora valide, quelle che il battito riscrive;
+//   quanti     online;
+//   cercano    in matchmaking (v0.80.23): il segno vale RICERCA_VIVA_MS;
+//   inPartita  in partita (v0.80.25): il segno si toglie col battito di fine
+//              partita, quindi vale quanto la presenza (in partita si batte a 20s);
+//   chiGioca   gli utenti in partita, per i nomi di hx_stats_live.
+// `esclusi` (l'account della pagina) non entra nei numeri, ma la presenza resta.
+function _contaPresenze(visti, ora, esclusi) {
+  var c = { vivi: {}, quanti: 0, cercano: 0, inPartita: 0, chiGioca: [] };
+  var fuori = {}, i;
+  for (i = 0; i < (esclusi || []).length; i++) fuori[esclusi[i]] = true;
+  for (var u in (visti || {})) {
+    var letta = _presenzaLetta(visti[u]);
+    if (!letta || (ora - letta.q) > PRESENZA_VIVA_MS) continue;
+    c.vivi[u] = visti[u];
+    if (fuori[u]) continue;
+    c.quanti++;
+    if (letta.c && (ora - letta.q) <= RICERCA_VIVA_MS) c.cercano++;
+    if (letta.g) { c.inPartita++; c.chiGioca.push(u); }
+  }
+  return c;
+}
+
+// ── v0.80.29 — IL PICCO DI GIOCATORI ONLINE ──────────────────────────────
+// Lorenzo: "Picco massimo giocatori online". Il battito e' il momento in cui il
+// numero si conosce: se supera il record, lo si riscrive con l'ora. Sta in un
+// record suo e non dentro alle presenze, che sono un elenco per utente e che
+// chi le legge scorre chiave per chiave. Si legge a ogni battito; si scrive solo
+// quando il picco sale. Per il tempo prima di questa versione hx_stats lo
+// ricava dalle sessioni della telemetria (vedi calcolaStatistiche).
+var KEY_PICCO_ONLINE = 'picco-online';
+function _segnaPiccoOnline(nk, logger, quanti, ora) {
+  if (!(quanti > 0)) return;
+  try {
+    var p = leggiSistema(nk, KEY_PICCO_ONLINE);
+    if (p && typeof p.n === 'number' && p.n >= quanti) return;
+    scriviSistema(nk, KEY_PICCO_ONLINE, { n: quanti, quando: ora });
+  } catch (e) { if (logger) logger.warn('picco online non scritto: %s', String(e)); }
 }
 
 // ── v0.78.16 — LE CARTE ANCORA DA GUARDARE ────────────────────────────────
@@ -4864,8 +4899,56 @@ function calcolaStatistiche(dati, ora) {
   }
   var rankMedio = profN ? Math.round(rankSomma / profN) : null;
 
+  // ── v0.80.29 — i giocatori (Lorenzo: online, picco, unici) ───────────────
+  // Online adesso: lo stesso conto del menu (_contaPresenze).
+  var adesso = _contaPresenze(dati.presenze || {}, ora, dati.esclusi);
+  // Il picco: quello che il battito salva da questa versione, e per il tempo
+  // prima il massimo di utenti DIVERSI con una sessione aperta nello stesso
+  // istante (la telemetria c'e' dalla v0.80.25). Si tiene il piu' alto, col suo
+  // momento.
+  var picco = { n: 0, quando: null };
+  if (dati.piccoOnline && typeof dati.piccoOnline.n === 'number') picco = { n: dati.piccoOnline.n, quando: dati.piccoOnline.quando || null };
+  var eventi = [];
+  for (i = 0; i < sessioni.length; i++) {
+    var sp = sessioni[i];
+    if (!sp.u || typeof sp.inizio !== 'number' || typeof sp.fine !== 'number' || sp.fine <= sp.inizio) continue;
+    eventi.push([sp.inizio, 1, sp.u], [Math.min(sp.fine, sp.inizio + 12 * 3600000), -1, sp.u]);
+  }
+  // A parita' di istante prima chi esce: due sessioni che si toccano non sono
+  // due persone insieme.
+  eventi.sort(function (a, b) { return (a[0] - b[0]) || (a[1] - b[1]); });
+  var aperte = {}, dentro = 0;
+  for (i = 0; i < eventi.length; i++) {
+    var ev = eventi[i];
+    if (ev[1] > 0) {
+      if (!aperte[ev[2]]) dentro++;
+      aperte[ev[2]] = (aperte[ev[2]] || 0) + 1;
+      if (dentro > picco.n) picco = { n: dentro, quando: ev[0] };
+    } else if (aperte[ev[2]]) {
+      aperte[ev[2]]--;
+      if (!aperte[ev[2]]) { delete aperte[ev[2]]; dentro--; }
+    }
+  }
+  if (adesso.quanti > picco.n) picco = { n: adesso.quanti, quando: ora };
+  // Unici: chi ha giocato almeno una partita, in rete (m:) o col suo registro
+  // (p:, b: contro il bot), oppure ha un profilo di stagione con partite > 0
+  // (anche di prima della telemetria).
+  var hanno = {}, unici = 0;
+  var haGiocato = function (u) { if (u && !esclusi[u] && !hanno[u]) { hanno[u] = true; unici++; } };
+  for (i = 0; i < partiteServer.length; i++) {
+    var gp = (partiteServer[i] && partiteServer[i].giocatori) || [];
+    for (j = 0; j < gp.length; j++) haGiocato(gp[j] && gp[j].u);
+  }
+  for (i = 0; i < log.length; i++) haGiocato(log[i].u);
+  for (i = 0; i < (dati.stagioni || []).length; i++) {
+    var sg2 = dati.stagioni[i];
+    if (sg2 && sg2.v && sg2.v.partite > 0) haGiocato(sg2.u);
+  }
+
   return {
     generatoIl: ora, dal: dal,
+    giocatori: { online: adesso.quanti, inPartita: adesso.inPartita, cercano: adesso.cercano,
+                 picco: picco.n, piccoIl: picco.quando, unici: unici },
     tecniche: {
       sessioni: sessioni.length,
       durataMediaSessioneMs: _stMedia(durSomma, sessioni.length),
@@ -4956,6 +5039,9 @@ function raccogliDatiStatistiche(nk, logger, esclusi) {
     else if (o.key === KEY_STAGIONE) dati.stagioni.push({ u: o.userId, v: o.value });
   }
   try { var cat = leggiSistema(nk, KEY_CATALOGO); dati.catalogo = (cat && cat.carte) || []; } catch (e2) { dati.catalogo = []; }
+  // v0.80.29 — chi c'e' adesso e il picco salvato dal battito
+  try { dati.presenze = leggiSistema(nk, KEY_PRESENZE) || {}; } catch (e4) { dati.presenze = {}; }
+  try { dati.piccoOnline = leggiSistema(nk, KEY_PICCO_ONLINE); } catch (e5) { dati.piccoOnline = null; }
   var ids = [], visti = {};
   for (i = 0; i < dati.sessioni.length; i++) if (!visti[dati.sessioni[i].u]) { visti[dati.sessioni[i].u] = true; ids.push(dati.sessioni[i].u); }
   for (i = 0; i < ids.length; i += 100) {
@@ -4972,23 +5058,57 @@ function raccogliDatiStatistiche(nk, logger, esclusi) {
   return dati;
 }
 
-function rpcStats(ctx, logger, nk, payload) {
-  if (!ctx.userId) throw Error('You need to log in.');
-  var d = {};
-  try { d = payload ? JSON.parse(payload) : {}; } catch (e) { d = {}; }
+// v0.80.29 — la password di /stats/, controllata in un posto solo per le due
+// RPC della pagina: stessa impronta e stesso tetto ai tentativi, cosi' il
+// pulsante "Players in a match" non diventa una seconda porta da cui provare.
+function _statsControllaParola(nk, logger, d) {
   var ora = Date.now();
   var t = null;
   try { t = leggiSistema(nk, KEY_STATS_TENTATIVI); } catch (e1) { t = null; }
   if (!t || typeof t.da !== 'number' || ora - t.da > STATS_FINESTRA_MS) t = { da: ora, n: 0 };
   if (t.n >= STATS_TENTATIVI_MAX) throw Error('Too many wrong passwords. Try again in a few minutes.');
-  if (_sha256Hex(STATS_SALE + String(d.parola || '')) !== STATS_IMPRONTA) {
+  if (_sha256Hex(STATS_SALE + String((d && d.parola) || '')) !== STATS_IMPRONTA) {
     t.n++;
     try { scriviSistema(nk, KEY_STATS_TENTATIVI, t); } catch (e2) { }
     logger.warn('statistiche: password sbagliata (%d nella finestra)', t.n);
     throw Error('That is not the password.');
   }
+}
+
+function rpcStats(ctx, logger, nk, payload) {
+  if (!ctx.userId) throw Error('You need to log in.');
+  var d = {};
+  try { d = payload ? JSON.parse(payload) : {}; } catch (e) { d = {}; }
+  _statsControllaParola(nk, logger, d);
   // chi apre la pagina ha un account suo (vedi /stats/): non entra nei numeri
-  return JSON.stringify(calcolaStatistiche(raccogliDatiStatistiche(nk, logger, [ctx.userId]), ora));
+  return JSON.stringify(calcolaStatistiche(raccogliDatiStatistiche(nk, logger, [ctx.userId]), Date.now()));
+}
+
+// ── v0.80.29 — CHI E' IN PARTITA ADESSO, COI NOMI ─────────────────────────
+// Lorenzo: "un pulsante nella pagina stats che mi fa vedere quanti giocatori
+// sono in partita con tutti i vari username". Legge solo le presenze (lo stesso
+// conto del menu, _contaPresenze) e i nomi degli account: niente telemetria,
+// cosi' si puo' premere quante volte si vuole. I nomi sono gli username, quelli
+// che il gioco mostra (nomeGiocatore). Chi non torna dagli account resta
+// contato ma senza nome.
+function rpcStatsLive(ctx, logger, nk, payload) {
+  if (!ctx.userId) throw Error('You need to log in.');
+  var d = {};
+  try { d = payload ? JSON.parse(payload) : {}; } catch (e) { d = {}; }
+  _statsControllaParola(nk, logger, d);
+  var ora = Date.now();
+  var visti = null;
+  try { visti = leggiSistema(nk, KEY_PRESENZE); } catch (e1) { visti = null; }
+  var conto = _contaPresenze(visti || {}, ora, [ctx.userId]);
+  var nomi = [], i, j;
+  for (i = 0; i < conto.chiGioca.length; i += 100) {
+    try {
+      var utenti = nk.usersGetId(conto.chiGioca.slice(i, i + 100)) || [];
+      for (j = 0; j < utenti.length; j++) if (utenti[j] && utenti[j].username) nomi.push(String(utenti[j].username));
+    } catch (e2) { logger.warn('statistiche: nomi dei giocatori in partita non letti: %s', String(e2)); }
+  }
+  nomi.sort(function (a, b) { var x = a.toLowerCase(), y = b.toLowerCase(); return x < y ? -1 : (x > y ? 1 : 0); });
+  return JSON.stringify({ generatoIl: ora, online: conto.quanti, cercano: conto.cercano, inPartita: conto.inPartita, nomi: nomi });
 }
 
 function rpcPartita(ctx, logger, nk, payload) {
@@ -7731,6 +7851,7 @@ function InitModule(ctx, logger, nk, initializer) {
   initializer.registerRpc('hx_riavvio_annuncia', rpcRiavvioAnnuncia);   // v0.80.24
   initializer.registerRpc('hx_telemetria', rpcTelemetria);              // v0.80.25
   initializer.registerRpc('hx_stats', rpcStats);                        // v0.80.25
+  initializer.registerRpc('hx_stats_live', rpcStatsLive);               // v0.80.29
   initializer.registerRpc('hx_entro', rpcEntro);
   initializer.registerRpc('hx_esco', rpcEsco);
   initializer.registerRpc('hx_carte_viste', rpcCarteViste);

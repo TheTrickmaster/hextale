@@ -63,6 +63,14 @@ ol.classifica span{ float:right; color:var(--oro-caldo); }
 #carta-scelta{ width:100%; margin:4px 0 10px; }
 .gruppo{ margin-top:8px; color:var(--grigio); font-family:'Marcellus SC','Georgia',serif; letter-spacing:.04em; }
 #errore-dati{ color:var(--rosso); margin:12px 0; }
+/* v0.80.29 — i giocatori in partita, coi nomi */
+#testata .azioni{ display:flex; flex-wrap:wrap; gap:10px; }
+#in-partita{ margin-bottom:18px; }
+#in-partita .testa{ display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; }
+#in-partita h2{ margin-bottom:0; }
+#in-partita-testo{ color:var(--grigio); margin-top:4px; }
+ul.nomi{ list-style:none; margin:10px 0 0; padding:0; columns:4 170px; column-gap:18px; }
+ul.nomi li{ padding:3px 0; color:var(--oro); break-inside:avoid; overflow-wrap:anywhere; }
 [hidden]{ display:none !important; }
 </style>
 </head>
@@ -84,9 +92,22 @@ ol.classifica span{ float:right; color:var(--oro-caldo); }
       <h1>Hextale Stats</h1>
       <div class="sotto" id="da-quando"></div>
     </div>
-    <button class="bottone" type="button" id="aggiorna">Refresh</button>
+    <div class="azioni">
+      <button class="bottone" type="button" id="in-partita-btn">Players in a match</button>
+      <button class="bottone" type="button" id="aggiorna">Refresh</button>
+    </div>
   </div>
   <div id="errore-dati" role="alert"></div>
+  <!-- v0.80.29 — chi e' in partita adesso, coi nomi (hx_stats_live) -->
+  <section class="sezione" id="in-partita" hidden>
+    <div class="testa">
+      <h2>Players in a match</h2>
+      <button class="bottone" type="button" id="in-partita-chiudi">Close</button>
+    </div>
+    <div id="in-partita-testo"></div>
+    <ul class="nomi" id="in-partita-nomi"></ul>
+    <div class="vuoto" id="in-partita-vuoto" hidden>Nobody is in a match right now</div>
+  </section>
   <div id="griglia"></div>
 </div>
 
@@ -136,9 +157,11 @@ function apriSessione(conNome){
     return r.json().then(function(j){ stato.token = j.token; return j.token; });
   });
 }
-function chiediStatistiche(){
+function chiediStatistiche(){ return chiediRpc('hx_stats'); }
+// v0.80.29 — le RPC della pagina vogliono tutte la sessione e la password
+function chiediRpc(nome){
   return apriSessione(true).then(function(token){
-    return fetch(STATS_API + '/v2/rpc/hx_stats?unwrap', {
+    return fetch(STATS_API + '/v2/rpc/' + nome + '?unwrap', {
       method: 'POST',
       headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
       body: JSON.stringify({ parola: stato.parola })
@@ -204,6 +227,12 @@ function disegna(d){
   } else tempoPagine = '<div class="vuoto">Not enough data yet</div>';
 
   var html = '';
+  // v0.80.29 — i giocatori (Lorenzo)
+  var gi = d.giocatori || {};
+  html += sezione('giocatori', 'Players',
+      riga('Players online', 'Connected right now', numero(gi.online), 'in a match ' + numero(gi.inPartita) + ' · in matchmaking ' + numero(gi.cercano))
+    + riga('Peak online players', 'Most players connected at the same time', numero(gi.picco), gi.piccoIl ? 'on ' + new Date(gi.piccoIl).toLocaleString('en-GB') : '')
+    + riga('Unique players', 'Logged in and played at least one match', numero(gi.unici)));
   html += sezione('tecniche', 'Technicals',
       riga('Sessions', 'Session start / end: how many sessions are actually played', numero(t.sessioni))
     + riga('Average session duration', 'How long players stay in the game', durata(t.durataMediaSessioneMs))
@@ -315,6 +344,26 @@ $('modulo').addEventListener('submit', function(ev){
     .then(function(){ $('apri').disabled = false; });
 });
 $('aggiorna').addEventListener('click', carica);
+
+// v0.80.29 — "Players in a match": chiede ogni volta (hx_stats_live e' leggera),
+// cosi' il riquadro dice chi c'e' adesso e non chi c'era all'ultimo Refresh.
+function mostraInPartita(){
+  var btn = $('in-partita-btn');
+  btn.disabled = true;
+  $('errore-dati').textContent = '';
+  return chiediRpc('hx_stats_live').then(function(v){
+    var n = v.inPartita || 0, nomi = v.nomi || [];
+    $('in-partita-testo').textContent = numero(n) + (n === 1 ? ' player' : ' players') + ' in a match · '
+      + numero(v.online) + ' online · updated ' + new Date(v.generatoIl || Date.now()).toLocaleTimeString('en-GB');
+    $('in-partita-nomi').innerHTML = nomi.map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('');
+    $('in-partita-vuoto').hidden = n > 0;
+    $('in-partita').hidden = false;
+  }).catch(function(e){
+    $('errore-dati').textContent = 'Could not load the players in a match: ' + ((e && e.message) || 'unknown error');
+  }).then(function(){ btn.disabled = false; });
+}
+$('in-partita-btn').addEventListener('click', mostraInPartita);
+$('in-partita-chiudi').addEventListener('click', function(){ $('in-partita').hidden = true; });
 </script>
 </body>
 </html>

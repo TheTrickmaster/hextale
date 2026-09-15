@@ -3054,3 +3054,34 @@ elencava e il server l'avrebbe scartato.
   10 di imbottitura e -10 di margine: la luce al passaggio non viene tagliata.
 - prova-sticker.js confronta gli sticker con la cartella e prova la griglia con
   venti sticker finti; prova-sticker-server.js confronta la lista del server.
+
+## prova-v08029.js, prova-v08029-server.js e prova-stats.js — barra dell'esperienza, giocatori in /stats/ (v0.80.29)
+
+    $ELECTRON strumenti/prova-v08029.js
+    node strumenti/prova-v08029-server.js
+    $ELECTRON strumenti/prova-stats.js
+
+1. La barra dell'esperienza al cambio di livello (Lorenzo: "per svuotarsi torna
+   indietro ... dovrebbe ripartire istantaneamente da zero"). mm2MostraGuadagno
+   la riempiva, aspettava 700ms (la salita ne dura 1100) e la rimetteva a zero
+   con la stessa transizione: si vedeva scorrere all'indietro. Adesso aspetta
+   MM2_XP_SALE_MS (= la transizione di #mm2-xp-mask) e mm2XpDaCapo azzera senza
+   transizione (transition none, zero, offsetWidth, transizione di nuovo).
+   Il banco osserva la maschera e guarda le transizioni create: salita in
+   avanti, zero senza transizione, risalita in avanti.
+2. /stats/, sezione "Players" (Lorenzo: giocatori online, picco massimo, giocatori
+   unici che hanno fatto almeno una partita):
+   - _contaPresenze e' il conto delle presenze, uno solo per il battito
+     (hx_giocatori) e per /stats/: online, in matchmaking, in partita, chiGioca;
+   - il picco: il battito lo scrive in sistema/picco-online { n, quando } quando
+     sale (_segnaPiccoOnline). Per il tempo prima, calcolaStatistiche lo ricava
+     dalle sessioni della telemetria (utenti diversi con una sessione aperta
+     nello stesso istante) e tiene il piu' alto;
+   - unici: chi ha una partita in rete (m:), un registro di partita (p:, b:,
+     anche contro il bot) o un profilo di stagione con partite > 0. L'account
+     della pagina e' escluso.
+3. Il pulsante "Players in a match": hx_stats_live (stessa password, stesso
+   tetto ai tentativi di hx_stats: _statsControllaParola) legge solo le
+   presenze e torna quanti sono in partita e i loro username (usersGetId), in
+   ordine alfabetico. Leggero apposta: si puo' premere di continuo senza rifare
+   i conti della telemetria. I nomi arrivano nella pagina escapati.
