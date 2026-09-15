@@ -6034,6 +6034,55 @@ function ombraGiocata(state, logger, k, id, di) {
   catch (e2) { ombraRinuncia(state, logger, 'conquiste: ' + e2.message); }
 }
 
+// ── v0.80.32 — UNA CARTA IN CIMA AL MAZZO (The Evil Queen) ──────────────────
+// Foglio: on_play, summon opponent deck card next #175 — la prossima carta che
+// l'avversario pesca e' una Poisoned Apple. In rete il mazzo vero lo tiene il
+// server, ed e' lui a pescare (vedi _passaTurno): se la carta la mettessero solo
+// i client, il server pescherebbe un'altra carta e poi rifiuterebbe la mela
+// giocata ("That card is not in your hand"). Quindi la mette anche lui, nello
+// stesso istante in cui la mettono i client: la giocata (evocaNelMazzoDalFoglio
+// nel gioco). Solo senza condizioni: un "se" il server non lo sa valutare, e
+// nemmeno i client la fanno.
+// Il catalogo si legge UNA volta per partita: da li' si ricava solo quali carte
+// evocano cosa nel mazzo, che sono poche.
+function _evocazioniNelMazzo(nk) {
+  var catalogo = leggiSistema(nk, KEY_CATALOGO);
+  var carte = (catalogo && catalogo.carte) || [];
+  var perNumero = {}, perNome = {}, out = {}, i, j;
+  for (i = 0; i < carte.length; i++) {
+    if (!carte[i]) continue;
+    if (carte[i].numero !== null && carte[i].numero !== undefined) perNumero[String(Number(carte[i].numero))] = carte[i];
+    perNome[String(carte[i].name || '').toLowerCase()] = carte[i];
+  }
+  for (i = 0; i < carte.length; i++) {
+    var a = carte[i] && carte[i].abilita;
+    if (!a || a.unica || a.trigger !== 'on_play') continue;
+    var coppie = [[a.effetto, a.se], [a.effetto2, a.se2]];
+    for (j = 0; j < coppie.length; j++) {
+      var eff = coppie[j][0];
+      if (!eff || eff.azione !== 'summon' || eff.dove !== 'deck' || coppie[j][1]) continue;
+      var sigla = String((eff.quanto && eff.quanto.carta) || '');
+      var evocata = sigla.charAt(0) === '#' ? perNumero[String(parseInt(sigla.slice(1), 10))] : perNome[sigla.toLowerCase()];
+      if (!evocata) continue;
+      if (!out[carte[i].id]) out[carte[i].id] = [];
+      out[carte[i].id].push({ avversario: eff.chi === 'opponent', id: String(evocata.id), nome: evocata.name, da: carte[i].name });
+    }
+  }
+  return out;
+}
+
+function _evocaNelMazzo(nk, logger, state, id, idx) {
+  if (!state.evocazioniNelMazzo) state.evocazioniNelMazzo = _evocazioniNelMazzo(nk);
+  var lista = state.evocazioniNelMazzo[String(id)] || [];
+  for (var i = 0; i < lista.length; i++) {
+    var uid = state.giocatori[lista[i].avversario ? 1 - idx : idx];
+    if (!uid || !state.mazzo[uid]) continue;
+    state.mazzo[uid].unshift(lista[i].id);
+    logger.info('evocazione: %s mette %s in cima al mazzo di %s', lista[i].da, lista[i].nome, uid);
+  }
+  return lista.length;
+}
+
 // v0.80.30 — cio' che l'ombra non sa seguire nemmeno in parte:
 //   - un buff rubato (Tinker Bell): i buff stanno nei `modificatori` dei client;
 //   - il gelo sulla prossima carta giocata (Basilisk): una carta congelata non si
@@ -6845,6 +6894,9 @@ function partitaLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
     // `try` attorno a tutto: l'ombra non deve poter rovinare una partita vera.
     try { ombraPrepara(ctx, nk, logger, state); ombraGiocata(state, logger, k, carta, idx + 1); }
     catch (eo) { ombraRinuncia(state, logger, 'giocata: ' + eo.message); }
+    // v0.80.32 — una carta che ne mette un'altra in cima a un mazzo (The Evil Queen)
+    try { _evocaNelMazzo(nk, logger, state, forma || carta, idx); }
+    catch (ev) { logger.warn('evocazione nel mazzo non riuscita: %s', String(ev)); }
     var pescata = _passaTurno(state, dispatcher, chi);
 
     _aTutti(dispatcher, OP_GIOCATA, {
@@ -6887,6 +6939,9 @@ function partitaLoop(ctx, logger, nk, dispatcher, tick, state, messages) {
     // bersaglio, la rinuncia deve poter arrivare da chi l'ha "giocata".
     state.ultimaGiocataDi = state.turno;
     var chiEra = tocca;
+    // v0.80.32 — anche d'ufficio la carta scende con la sua abilita': i client la evocano
+    try { _evocaNelMazzo(nk, logger, state, scelta, state.turno); }
+    catch (ev2) { logger.warn('evocazione nel mazzo non riuscita: %s', String(ev2)); }
     var pescata2 = _passaTurno(state, dispatcher, chiEra);
     _aTutti(dispatcher, OP_GIOCATA, {
       giocatore: _indiceDi(state, chiEra) + 1, carta: scelta,
