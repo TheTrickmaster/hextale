@@ -1479,10 +1479,14 @@ body.mouse-down, body.mouse-down *{
    le tre icone del menu. */
 #quest-avvisi{
   position:fixed; right:24px; bottom:24px; z-index:1200;
-  display:flex; flex-direction:column-reverse; gap:8px;
-  width:273px; pointer-events:none;
+  display:flex; flex-direction:column-reverse; gap:10px;
+  width:355px; pointer-events:none;   /* v0.80.26 — 273 * 1.3 */
 }
 #quest-avvisi .quest-scheda{
+  /* v0.80.26 — il 30% piu' grandi (Lorenzo), e con loro tutto quel che hanno
+     dentro: `zoom` scala misure, testo, barra e icona del premio insieme, e non
+     tocca il transform delle animazioni d'entrata e d'uscita. */
+  zoom:1.3;
   /* Le schede del pannello sono larghe quanto il loro riquadro; queste hanno
      la loro misura, che e' quella del riquadro meno i suoi bordi. */
   width:249px;
@@ -3689,9 +3693,12 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
   100% { transform:translateY(var(--giu,700px)); }
 }
 .scarta-croce{
-  position:absolute; left:50%; top:50%;
+  /* v0.80.26 — in alto a sinistra, sopra all'angolo del nome (Lorenzo); prima al
+     centro della carta. Sta dentro .hand-card-hitzone, che parte dall'angolo della
+     carta: i 14px sono dall'angolo della carta. */
+  position:absolute; left:14px; top:14px;
   /* v0.80.6 — meta' di prima (erano 74): vedi SCALA_ICONE_SCELTA. */
-  width:37px; height:37px; margin:-18.5px 0 0 -18.5px;
+  width:37px; height:37px; margin:0;
   z-index:60;
   pointer-events:auto;
   cursor:var(--cursore);
@@ -7934,6 +7941,15 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
 /* La carta lasciata sbiadisce, e la sua etichetta con lei: appartiene a quella
    carta, non alla pagina. */
 .pack-card.scartata .pack-etichetta{ opacity:0.4; }
+/* v0.80.26 — Lorenzo: premuto Collect il cartellino deve sparire PRIMA che la
+   carta esca dallo schermo. La regola della v0.79.40 (.senza-etichetta, sopra)
+   stava prima di quella che li accende e pesava uguale: vinceva .mostra-etichetta
+   e il cartellino volava via con la carta. Qui, dopo tutte e con !important:
+   sfuma in .25s, poi `visibility` lo toglie davvero. */
+.pack-card.senza-etichetta .pack-etichetta{
+  opacity:0 !important; visibility:hidden;
+  transition:opacity .25s ease, visibility 0s linear .25s;
+}
 /* L'icona della polvere dentro all'etichetta "Keep for 200". */
 .pack-scelta-btn .hxb-label img,
 #pack-collect .hxb-label img{
@@ -13674,7 +13690,7 @@ try{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.24</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.25</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <!-- v0.80.19 — gli sticker: l'icona (solo per chi gioca), il menu, e due bolle
@@ -18063,9 +18079,50 @@ function reteMandaImpronta(finita){
       finita: !!finita,
       // v0.80.23 — e le caselle bloccate come sono adesso: un tassello spostato
       // o distrutto il server lo sa solo da qui (vedi _buchiDaRacconto).
-      buchi: Array.from(G.holes || []).sort()
+      buchi: Array.from(G.holes || []).sort(),
+      // v0.80.26 — e i valori delle carte in tavola: l'impronta dice chi possiede
+      // cosa, non i numeri, e il server li confronta per trovare il turno in cui i
+      // due schermi hanno cominciato a contare punti diversi (_diagnosiPuntiEValori)
+      valori: reteImprontaValori()
     }))
   }});
+}
+function reteImprontaValori(){
+  if(!G || !G.board) return '';
+  return Object.keys(G.board).sort().map(k => {
+    const v = (G.board[k] && G.board[k].card && G.board[k].card.values) || {};
+    return k + ':' + SIDES.map(s => (v[s] | 0)).join('.');
+  }).join('|');
+}
+// ── v0.80.26 — A FINE PARTITA I NUMERI DEL SERVER ───────────────────────────
+// Lorenzo: stessa partita, due punteggi finali diversi (199 da una parte, 203
+// dall'altra). Il risultato che vale e' quello del server (vedi _chiudiPartita), e
+// op 6 adesso porta i suoi punti: la schermata di fine partita li mostra a tutti e
+// due, insieme a chi ha vinto. Se i punti di questo schermo erano diversi lo dice
+// la console; il perche' lo cerca il server (_diagnosiPuntiEValori).
+function fineAllineaAlServer(d){
+  if(!d || d.motivo !== 'finita' || !d.punti || !G) return;
+  const p1 = Number(d.punti[1]), p2 = Number(d.punti[2]);
+  if(!isFinite(p1) || !isFinite(p2)) return;
+  const miei = G.puntiFatti || G.hp || {};
+  if((miei[1] | 0) !== p1 || (miei[2] | 0) !== p2){
+    console.warn('[fine partita] punti di questo schermo ' + (miei[1] | 0) + '-' + (miei[2] | 0)
+      + ', del server ' + p1 + '-' + p2 + ': valgono quelli del server');
+  }
+  G.puntiFatti = { 1: p1, 2: p2 };
+  const vincitore = d.pari ? 0 : ((d.vincitore === 1 || d.vincitore === 2) ? d.vincitore : (p1 === p2 ? 0 : (p1 > p2 ? 1 : 2)));
+  // v0.80.26 — e se ha deciso chi e' rimasto senza carte, lo dice (vedi _chiSenzaCarte)
+  const motivoCarte = (d.senzaCarte === 1 || d.senzaCarte === 2) ? (_goNomeDi(d.senzaCarte) + ' ran out of cards.') : '';
+  if(!G.gameOver){
+    // la schermata non c'e' ancora: la scrivera' con questi
+    if(vincitore) G.vincitoreDichiarato = vincitore;
+    if(motivoCarte) _motivoFinePartita = motivoCarte;
+    return;
+  }
+  const titolo = document.getElementById('gameover-title-text');
+  if(titolo) titolo.textContent = vincitore ? (_goNomeDi(vincitore) + ' wins!') : 'Draw';
+  if(motivoCarte){ const m = document.getElementById('gameover-motivo'); if(m) m.textContent = motivoCarte; }
+  try{ goRiempiPunteggi(p1, p2); }catch(_){ }
 }
 // v0.80.23 — "Move refused" dice il perche' in inglese. Il server nuovo lo manda
 // gia' cosi'; queste righe traducono quello di prima finche' gira ancora.
@@ -18428,6 +18485,7 @@ function reteMessaggio(md){
   if(op === 6){
     // v0.80.21 — a fine partita gli Yeti ancora nascosti si mostrano.
     try{ yetiRivelaDaServer(d.yeti, null); }catch(_){ }
+    try{ fineAllineaAlServer(d); }catch(_){ }   // v0.80.26 — i punti del server
     const suo = d.chi && PARTITA_RETE && d.chi !== PARTITA_RETE.io;
     // ── v0.77.87 — NIENTE MODALE SU UNA PARTITA FINITA NORMALMENTE ────────
     // C'e' gia' la schermata di fine partita, che dice chi ha vinto e con che
@@ -22114,8 +22172,9 @@ function mm2VistaApplica(quale){
 // entra — ogni pezzo quando i suoi asset sono pronti (assetProntiDi). Un cambio
 // a meta' annulla quello di prima e riparte da com'e' lo schermo; durante un
 // cambio di pagina si cambia e basta, perche' quei pezzi stanno gia' entrando.
+// v0.80.26 — il riquadro del rank e del mazzo resta fermo (Lorenzo): non cambia
+// fra una vista e l'altra, e non ha niente da sfumare.
 const MM2_VISTA_PEZZI = [
-  { sel:'#mm2-testata',     dx:0 },
   { sel:'#mm2-modo-draft',  dx:-1 },
   { sel:'#mm2-modo-normal', dx:1 },
   { sel:'#mm2-gioca',       dx:0 },
@@ -23001,8 +23060,8 @@ function questScheda(q){
 function mm2AggiornaContaQuest(){
   const el = document.getElementById('mm2-quest-conta');
   if(!el) return;
-  const prese = QUEST_OGGI.filter(q=>q && q.presa).length;
-  el.textContent = prese + '/' + (QUEST_OGGI.length || 5);
+  // v0.80.26 — non piu' "prese/5": quanto manca al cambio delle quest (Lorenzo).
+  el.textContent = questTempoAlCambio();
   // E il pulsante si accende solo se c'e' davvero qualcosa da riscuotere.
   const b = document.getElementById('mm2-quest-btn');
   if(b){
@@ -23011,6 +23070,27 @@ function mm2AggiornaContaQuest(){
     b.style.pointerEvents = daPrendere ? '' : 'none';
   }
 }
+// ── v0.80.26 — QUANTO MANCA AL CAMBIO DELLE QUEST ──────────────────────────
+// Le quest cambiano a mezzanotte GMT (_giornoGmt sul server: Date.now() diviso
+// un giorno). "7h 32m" finche' manca almeno un'ora, poi "32m 05s". L'orologio
+// qui sotto la riscrive ogni secondo finche' il pannello e' in pagina, e passata
+// la mezzanotte chiede al server l'elenco nuovo.
+function questTempoAlCambio(ora){
+  const adesso = (typeof ora === 'number') ? ora : Date.now();
+  const resta = Math.max(0, (Math.floor(adesso / 86400000) + 1) * 86400000 - adesso);
+  const s = Math.floor(resta / 1000), h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60;
+  // "left" (Lorenzo): "7h 32m left"
+  return (h > 0 ? (h + 'h ' + m + 'm') : (m + 'm ' + String(s % 60).padStart(2, '0') + 's')) + ' left';
+}
+let _questGiornoVisto = Math.floor(Date.now() / 86400000);
+setInterval(()=>{
+  try{
+    const el = document.getElementById('mm2-quest-conta');
+    if(el && el.isConnected) el.textContent = questTempoAlCambio();
+    const oggi = Math.floor(Date.now() / 86400000);
+    if(oggi !== _questGiornoVisto){ _questGiornoVisto = oggi; questChiediAlServer(); }
+  }catch(_){ }
+}, 1000);
 // v0.79.74 — due strade, una funzione: il pulsante le prende tutte, una
 // scheda premuta prende la sua. `quale` e' l'indice nell'elenco, o null per
 // dire "tutte quelle finite". Una porta sola perche' e' lo stesso gesto, e
@@ -37845,6 +37925,22 @@ function _semeDaNome(nome){
     return h / 4294967296;
   };
 }
+// ── v0.80.26 — IL CASO UGUALE SUI DUE SCHERMI ─────────────────────────────────
+// Lorenzo: "la board e' andata fuori sync per colpa della randomness del
+// Brucaliffo". In rete ogni effetto gira su tutti e due i client, e un
+// Math.random da una parte e uno dall'altra fanno due partite diverse: il
+// Brucaliffo ruotava di passi diversi, e con lui Smoke and Mirrors, Scaredy Cat,
+// Hunger Bites, il Cappellaio, Cheshire e True Story. In rete il numero esce dal
+// seme della partita (l'id del match), dal turno e da un'etichetta che dice chi
+// tira e cosa (abilita', casella, carta, indice del tiro): stessa etichetta, stesso
+// numero di qua e di la'. L'etichetta cambia a ogni attivazione, quindi resta un
+// caso vero (vedi la regola "il caso e' sempre caso"). Fuori rete, Math.random.
+function casoCondiviso(etichetta){
+  if(typeof PARTITA_RETE === 'undefined' || !PARTITA_RETE || !PARTITA_RETE.matchId) return Math.random();
+  const tira = _semeDaNome(PARTITA_RETE.matchId + '|' + ((G && G.numeroTurno) || 0) + '|' + String(etichetta));
+  tira();            // il primo numero dopo l'hash si somiglia fra etichette vicine: si scarta
+  return tira();
+}
 
 // Vero se dei valori rispettano la regola. Unico punto in cui la regola viene
 // letta, cosi' vale identica per i valori generati e per quelli del foglio.
@@ -40803,7 +40899,7 @@ function spostaUnaCartaCheshire(k, poi){
     // Nessuna casella dove andare: i valori hanno comunque ruotato. Un
     // tabellone pieno non deve trasformare l'abilita' in un blocco.
     if(!libere.length){ finito(); return; }
-    const destinazione=libere[Math.floor(Math.random()*libere.length)];
+    const destinazione=libere[Math.floor(casoCondiviso('cheshire|' + k) * libere.length)];   // v0.80.26
     setTimeout(()=>{
       // v0.73.66 — il salto vero e proprio (uscire dallo schermo, aggiornare
       // G.board a meta' strada, ricadere) e' condiviso con Dancing Around:
@@ -41857,7 +41953,7 @@ function attivaScaredyCat(card){
   // la stessa carta perdeva sempre sullo stesso gruppo, per tutta la partita.
   // Adesso l'anteprima non promette piu' un gruppo — mostra un "?" — e il
   // sorteggio puo' tornare a essere quello che dice di essere.
-  const scelto = gruppi[Math.floor(Math.random()*gruppi.length)];
+  const scelto = gruppi[Math.floor(casoCondiviso('scaredy_cat|' + (_cellaDellaCarta(card) || '') + '|' + (card.baseId || card.id)) * gruppi.length)];   // v0.80.26
   if(scelto) modificaValori(card, scelto.sides, -1, 0, {chiave:'scaredy_cat', da:card.name||'Scaredy cat'});
 }
 // ── v0.73.99 — CHI TIRA UN DADO AL PIAZZAMENTO ────────────────────────────
@@ -42140,7 +42236,7 @@ const SCUDO_LAMPO_MS = 760;
 function giraScudoTrueStory(card){
   const gruppi = gruppiDiCarta(card);
   if(!gruppi.length){ card.latiInvulnerabili = []; return null; }
-  const scelto = gruppi[Math.floor(Math.random()*gruppi.length)];
+  const scelto = gruppi[Math.floor(casoCondiviso('true_story|' + (_cellaDellaCarta(card) || '') + '|' + (card.baseId || card.id)) * gruppi.length)];   // v0.80.26
   card.latiInvulnerabili = [...(scelto.sides||[])];
   // v0.75.42 — IL LAMPO NON SI APPICCICA ALL'ELEMENTO, SI SCRIVE SULLA CARTA.
   // Il tabellone viene ridisegnato di continuo — un passaggio del mouse, una
@@ -43525,7 +43621,7 @@ function attivaSmokeAndMirrors(card){
   if(!ultima) return;
   const cella = G.board[ultima.cella];
   if(!cella || cella.owner !== avversario) return;
-  if(Math.random() >= 0.5) return;
+  if(casoCondiviso('smoke_and_mirrors|' + ultima.cella + '|' + (card.baseId || card.id)) >= 0.5) return;   // v0.80.26
   G.board[ultima.cella] = { card: cella.card, owner: ultima.exProprietario };
   G.ultimaConquista[avversario] = null;
   // Quando lo specchio risponde, la carta torna indietro girandosi e con un
@@ -46031,7 +46127,7 @@ function nascondiNelFumo(card, q, r){
   card.fumoDaAvviare = false;
   // Da 1 a 5 posti: lo zero e' escluso perche' "cambia i valori" non puo'
   // voler dire "a volte non cambia niente".
-  const passi = 1 + Math.floor(Math.random()*(SIDES.length-1));
+  const passi = 1 + Math.floor(casoCondiviso('exaketededly|' + key(q,r) + '|' + (card.baseId || card.id)) * (SIDES.length-1));   // v0.80.26
   for(let n=0;n<passi;n++) ruotaGruppiDiUnPosto(card);
   card.fumo = true;
   card.fumoPassi = passi;
@@ -46385,7 +46481,7 @@ function impazzisciSeConquistato(card){
   if(abilitaAttivaDi(card) !== 'have_i_gone_mad') return false;
   if(!card.tileAbilityBaseValues) card.tileAbilityBaseValues={...card.values};
   for(const gruppo of gruppiDiCarta(card)){
-    const tirato = 1 + Math.floor(Math.random()*3);
+    const tirato = 1 + Math.floor(casoCondiviso('have_i_gone_mad|' + (_cellaDellaCarta(card) || '') + '|' + gruppo.sides.join('')) * 3);   // v0.80.26
     for(const s of gruppo.sides) card.values[s] = tirato;
   }
   // v0.73.9 — il nome NON cambia piu'. La carta impazzisce nei valori e
@@ -46441,7 +46537,7 @@ function attivaHungerBites(lupo, atkVal, defVal){
   const gruppi = gruppiDiCarta(lupo);
   if(!gruppi.length) return false;
   for(let n=0; n<differenza; n++){
-    const scelto = gruppi[Math.floor(Math.random()*gruppi.length)];
+    const scelto = gruppi[Math.floor(casoCondiviso('hunger_bites|' + (_cellaDellaCarta(lupo) || '') + '|' + n) * gruppi.length)];   // v0.80.26
     modificaValori(lupo, scelto.sides, 1, undefined, {chiave:'hunger_bites', da:lupo.name||'Hunger Bites'});
   }
   return true;
@@ -47556,6 +47652,27 @@ function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLa
 // stato inflitto. endTurn rientra in se' stessa piu' volte (aspettando le
 // animazioni, aspettando la pausa, aspettando l'ondata) e senza questo flag
 // il tabellone verrebbe contato una volta per rientro.
+// ── v0.80.26 — CHI RESTA SENZA CARTE PERDE ────────────────────────────────────
+// Lorenzo: "chi rimane senza carte perde automaticamente anche se ha il punteggio
+// piu' alto". La partita finiva gia' quando uno dei due restava a mani vuote (vedi
+// endTurn); adesso chi e' rimasto senza carte perde. Solo se ne e' rimasto senza
+// UNO — tutti e due, decidono i punti — e solo se il tabellone aveva ancora posto:
+// pieno, o chiuso dalle impronte dello Yeti, si decide ai punti come sempre. In rete
+// la stessa regola la applica il server (_chiSenzaCarte), e vale la sua.
+function chiRestaSenzaCarte(placed, playable, bloccatoDalloYeti){
+  if(!G || !G.p1Hand || !G.p2Hand) return 0;
+  const vuota1 = G.p1Hand.length === 0, vuota2 = G.p2Hand.length === 0;
+  if(vuota1 === vuota2) return 0;
+  if(placed >= playable || bloccatoDalloYeti) return 0;
+  return vuota1 ? 1 : 2;
+}
+function segnaSenzaCarte(placed, playable, bloccatoDalloYeti){
+  const chi = chiRestaSenzaCarte(placed, playable, bloccatoDalloYeti);
+  if(!chi) return 0;
+  G.vincitoreDichiarato = (chi === 1) ? 2 : 1;
+  _motivoFinePartita = _goNomeDi(chi) + ' ran out of cards.';
+  return chi;
+}
 function endTurn(player, animationsSettled, dannoFatto){
   // v0.79.99 — IL CAMBIO TURNO COMINCIA QUI, e la barra si ferma (vedi
   // BARRA_TEMPO, stato 2). Il conto non si ferma mai "dentro" al turno, ed e'
@@ -47664,6 +47781,8 @@ function endTurn(player, animationsSettled, dannoFatto){
     const kk = key(c.q,c.r);
     return !isHole(c.q,c.r) && !G.board[kk] && !yetiBloccaCasella(kk, prossimo);
   });
+  // v0.80.26 — chi resta senza carte perde (vedi segnaSenzaCarte)
+  if(senzaCarte) segnaSenzaCarte(placed, playable, bloccatoDalloYeti);
   if(placed>=playable||senzaCarte||bloccatoDalloYeti){endGame();return;}
   // v0.72.72 — qui si contavano i turni delle carte con Rinascita e le si
   // riportava in vita dal proprietario originale, con +2 su ogni lato e 2 PV
@@ -50590,7 +50709,9 @@ function finishGameWithResult(){
   // Finche' i premi non si vedevano era una stranezza; adesso sarebbe un modo
   // di guadagnarli premendo un pulsante.
   if(!_finePartitaDalServer && !_fineDiProva){
-    try{ riferisciPartita(hp1 > hp2, hp1 === hp2, !!G.vsAI); }catch(_){}
+    // v0.80.26 — l'esito e' quello del vincitore, non dei punti: chi resta senza
+    // carte perde anche con piu' punti (vedi segnaSenzaCarte)
+    try{ riferisciPartita(vincitore === (G.ioSonoIlNumero || 1), vincitore === 0, !!G.vsAI); }catch(_){}
   }
   _finePartitaDalServer = false;
   _motivoFinePartita = '';
@@ -55245,7 +55366,12 @@ function renderHand(containerId,hand,playerIdx){
     // sarebbe rimasta una rincorsa fra due elementi che si spostano a vicenda.
     // Ferma la carta, il problema non esiste: e mentre si sceglie cosa buttare
     // il ventaglio deve stare fermo comunque.
-    if(!isCovered && !isBeingDragged && !isTouchDevice && !sceltaScarto){
+    // v0.80.26 — l'hover vale anche mentre si sceglie cosa scartare (Lorenzo:
+    // "quando appare la X l'hover sulle carte si rompe"). Il rimbalzo della
+    // v0.75.38 veniva dalla croce FUORI dalla zona sensibile: passandoci sopra si
+    // usciva dalla carta. Adesso la croce sta dentro la zona (vedi sotto), e
+    // mouseleave non scatta passando dalla zona alla croce.
+    if(!isCovered && !isBeingDragged && !isTouchDevice){
       hitzone.addEventListener('mouseenter',()=>{
         // v0.72.17: nella mano ESPANSA la carta non si alza piu' (richiesta
         // esplicita) ma si comporta come in Collezione — si ingrandisce e si
@@ -55368,9 +55494,11 @@ function renderHand(containerId,hand,playerIdx){
     // Stessa icona e stesso mestiere della X che sulla plancia chiude una
     // scelta (close-icon-red.png): qui pero' non e' una rinuncia, e' il
     // bersaglio — "questa e' la carta che butto". Una per carta, al centro.
-    // Sta sopra alla zona sensibile e non dentro di essa: quella e' la porta
-    // del trascinamento, che durante lo scarto e' chiusa (vedi la guardia qui
-    // sopra), e appenderci un click vorrebbe dire riaprirla per meta'.
+    // v0.80.26 — in alto a sinistra (Lorenzo), e DENTRO la zona sensibile: cosi'
+    // passarci sopra non fa uscire dalla carta, e l'hover (che alza la carta e la
+    // porta davanti) resta acceso anche durante lo scarto. La zona e' anche la porta
+    // del trascinamento, ma durante lo scarto quel listener non c'e' (vedi la
+    // guardia qui sotto) e il pointerdown della croce non risale comunque.
     if(sceltaScarto && !isCovered && sceltaScarto.bersagli.indexOf(card.id) >= 0){
       const croce = document.createElement('div');
       croce.className = 'scarta-croce';
@@ -55386,7 +55514,7 @@ function renderHand(containerId,hand,playerIdx){
         // uscita, e da li' il turno riprende da solo.
         scegliBersaglio(card.id);
       });
-      wrap.appendChild(croce);
+      hitzone.appendChild(croce);   // v0.80.26 — dentro la zona sensibile
     }
     container.appendChild(wrap);
     // v0.75.1 — il livello speculare si costruisce SUBITO e non piu' alla
