@@ -43,6 +43,23 @@ a ogni avvio; se e' occupata, l'app riparte con un'altra.
 Il servitore risponde 404 per cio' che il gioco non ha, serve audio e video a
 pezzi (Range), e con l'ETag un file aggiornato non si rilegge mai dalla copia vecchia.
 
+## L'accesso con Google
+
+Dalla **1.0.2** si fa nel browser vero del giocatore. Dentro all'app Google lo
+rifiuta ("Questo browser o questa app potrebbero non essere sicuri"): e' una sua
+regola per le app desktop, e aggirarla travestendo la finestra sarebbe fragile.
+
+1. Nel gioco, "Login with Google" chiede al guscio `accediConGoogle` (preload.js).
+2. Il guscio apre un indirizzo locale (`http://127.0.0.1:<porta>`, porta del
+   sistema) e apre nel browser `https://hextalegame.com/app-login/?porta=…&stato=…`
+   (la pagina e' in `app-login/index.html`, nel sito).
+3. La pagina chiede il codice a Google col solito flusso del gioco (stesso
+   client, stessa origine) e lo riporta all'indirizzo locale.
+4. L'indirizzo locale accetta **una sola** richiesta, con lo stato giusto, entro
+   cinque minuti; il codice torna al gioco, che fa lo scambio col server come prima.
+
+Niente da configurare su Google Cloud ne' sul server.
+
 ## Niente da browser
 
 - Il menu (tasto Alt) ha solo **File** (Exit) e **Window** (Minimize, Close):
@@ -50,9 +67,9 @@ pezzi (Range), e con l'ETag un file aggiornato non si rilegge mai dalla copia ve
   tastiera.
 - Gli strumenti da sviluppatore sono spenti in ogni finestra.
 - La finestra del gioco non va altrove: un link trascinato dentro non la porta via.
-- I link verso fuori si aprono nel browser vero; dentro all'app si aprono solo
-  le finestre di `accounts.google.com`. Un modulo che si apre fuori (il Donate
-  di PayPal) ci arriva coi suoi campi nell'indirizzo.
+- Nessuna finestra si apre dentro all'app: ogni link va al browser vero. Un
+  modulo che si apre fuori (il Donate di PayPal) ci arriva coi suoi campi
+  nell'indirizzo.
 - Il nome del browser non contiene "Electron": Google rifiuta l'accesso dai
   browser incorporati.
 - Si apre un'app sola alla volta.

@@ -32,6 +32,13 @@
 // installatore si scarica in silenzio (non durante una partita), si verifica, e
 // parte muto quando si chiude il gioco. Al giro dopo si apre l'app nuova.
 //
+// L'ACCESSO CON GOOGLE (1.0.2) si fa nel browser vero: Google rifiuta quello
+// dentro alle app ("Questo browser o questa app potrebbero non essere sicuri").
+// Il gioco lo chiede al guscio (preload.js); il guscio apre
+// hextalegame.com/app-login/ nel browser e aspetta il codice su un indirizzo
+// locale che vale una volta sola; il codice torna al gioco, che fa il resto
+// come sempre (lo scambio col server, poi Nakama).
+//
 // NIENTE DA BROWSER (Lorenzo: disabilitare gli strumenti da sviluppatore e i
 // menu "Edit" e "View"). Il menu ha solo File e Window; gli strumenti da
 // sviluppatore sono spenti in ogni finestra; la finestra del gioco non naviga
@@ -47,9 +54,10 @@
 // (HEXTALE_PROVA_FIDATO), e i link esterni e l'installatore scritti su un file
 // invece che aperti davvero.
 'use strict';
-const { app, BrowserWindow, Menu, shell, session, dialog } = require('electron');
+const { app, BrowserWindow, Menu, shell, session, dialog, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const http = require('http');
 const crypto = require('crypto');
 const { spawn } = require('child_process');
 const A = require('./aggiornatore');
@@ -66,9 +74,8 @@ const CONTROLLO_OGNI_MS = (PROVA && Number(process.env.HEXTALE_CONTROLLO_MS)) ||
 const GUSCIO_PRIMO_MS = (PROVA && Number(process.env.HEXTALE_GUSCIO_MS)) || 60 * 1000;
 const GUSCIO_OGNI_MS = 6 * 60 * 60 * 1000;
 const GUSCIO_IN_PARTITA_MS = (PROVA && Number(process.env.HEXTALE_GUSCIO_MS)) || 2 * 60 * 1000;
-// Le finestre che il gioco puo' aprire DENTRO all'app (l'accesso con Google usa
-// un popup su accounts.google.com): ogni altro link si apre nel browser vero.
-const FINESTRE_AMMESSE = new Set(['accounts.google.com']);
+const PAGINA_GOOGLE = 'https://hextalegame.com/app-login/';
+const ATTESA_GOOGLE_MS = (PROVA && Number(process.env.HEXTALE_GOOGLE_MS)) || 5 * 60 * 1000;
 
 // La porta del servitore locale: a caso a ogni avvio. La regola di rete va
 // scritta prima che Electron sia pronto, e il sistema la porta la dice solo
@@ -203,6 +210,64 @@ app.on('will-quit', () => {
 });
 
 // ── le finestre ──────────────────────────────────────────────────────────────
+// ── l'accesso con Google, nel browser vero ───────────────────────────────────
+// Un indirizzo locale (127.0.0.1, porta del sistema) che accetta UNA richiesta
+// con lo stato giusto: /google?stato=<stato>&code=<codice> (o &errore=...). La
+// pagina hextalegame.com/app-login/ ci torna dopo aver parlato con Google. Un
+// secondo clic annulla il primo; dopo cinque minuti senza risposta si lascia stare.
+let googleInCorso = null;
+
+function paginaDiRitorno(riuscito) {
+  const titolo = riuscito ? 'You are signed in' : 'Sign-in did not complete';
+  const testo = riuscito ? 'You can close this tab and go back to Hextale.' : 'Go back to Hextale and try again.';
+  return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="referrer" content="no-referrer"><title>Hextale</title></head>'
+    + '<body style="margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#101617;color:#EDE0C6;font:18px Georgia,serif;text-align:center">'
+    + '<div><h1 style="font-weight:400;font-size:30px;margin:0 0 12px">' + titolo + '</h1><p>' + testo + '</p></div></body></html>';
+}
+
+function accessoGoogle() {
+  if (googleInCorso) googleInCorso.chiudi({ errore: 'annullato' });
+  return new Promise((risolvi) => {
+    const stato = crypto.randomBytes(16).toString('hex');
+    let finito = false;
+    let tempo = null;
+    const server = http.createServer((req, res) => {
+      let u = null;
+      try { u = new URL(req.url, 'http://127.0.0.1'); } catch (_) { u = null; }
+      if (!u || req.method !== 'GET' || u.pathname !== '/google' || u.searchParams.get('stato') !== stato || finito) {
+        res.writeHead(404, { 'Content-Type': 'text/plain' });
+        return res.end('Not found');
+      }
+      const codice = u.searchParams.get('code') || '';
+      const riuscito = /^[A-Za-z0-9\/_\-.~]{10,2048}$/.test(codice);
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' });
+      res.end(paginaDiRitorno(riuscito));
+      chiudi(riuscito ? { code: codice } : { errore: String(u.searchParams.get('errore') || 'nessun codice').slice(0, 80) });
+    });
+    const chiudi = (esito) => {
+      if (finito) return;
+      finito = true;
+      clearTimeout(tempo);
+      if (googleInCorso && googleInCorso.chiudi === chiudi) googleInCorso = null;
+      setTimeout(() => { try { server.close(); server.closeAllConnections(); } catch (_) { } }, 1000);
+      if (esito.code && finestra && !finestra.isDestroyed()) { if (finestra.isMinimized()) finestra.restore(); finestra.focus(); }
+      risolvi(esito);
+    };
+    googleInCorso = { chiudi };
+    server.on('error', (e) => chiudi({ errore: 'indirizzo locale: ' + e.code }));
+    server.listen(0, '127.0.0.1', () => {
+      apriFuori(PAGINA_GOOGLE + '?porta=' + server.address().port + '&stato=' + stato);
+      tempo = setTimeout(() => chiudi({ errore: 'scaduto' }), ATTESA_GOOGLE_MS);
+    });
+  });
+}
+
+// Solo la finestra del gioco puo' chiederlo.
+ipcMain.handle('hextale:google', (evento) => {
+  if (!finestra || finestra.isDestroyed() || evento.sender !== finestra.webContents) return { errore: 'non ammesso' };
+  return accessoGoogle();
+});
+
 function preparaMenu() {
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     { label: 'File', submenu: [{ role: 'quit', label: 'Exit' }] },
@@ -261,16 +326,11 @@ function creaFinestra() {
   });
   finestra.once('ready-to-show', () => { if (!PROVA) finestra.show(); });
   const wc = finestra.webContents;
+  // Nessuna finestra dentro all'app: ogni link si apre nel browser vero.
   wc.setWindowOpenHandler((dettagli) => {
-    let host = '';
-    try { host = new URL(dettagli.url).host; } catch (_) { host = ''; }
-    if (FINESTRE_AMMESSE.has(host)) {
-      return { action: 'allow', overrideBrowserWindowOptions: { autoHideMenuBar: true, webPreferences: { devTools: false } } };
-    }
     apriFuori(indirizzoColModulo(dettagli.url, dettagli.postBody));
     return { action: 'deny' };
   });
-  wc.on('did-create-window', (w) => { try { w.removeMenu(); } catch (_) { } });
   // La finestra del gioco resta sul gioco: ricaricarlo si puo' (?v=... dopo un
   // aggiornamento), andare altrove no.
   wc.on('will-navigate', (e, url) => { if (String(url).split(/[?#]/)[0] !== INIZIO) e.preventDefault(); });

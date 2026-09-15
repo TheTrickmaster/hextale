@@ -21,8 +21,11 @@
 //   6. Donate: il modulo di PayPal va al browser vero coi suoi campi nell'indirizzo;
 //   7. a gioco aperto esce una versione nuova: scaricata in silenzio, il gioco
 //      avvisa, ricaricando si apre la nuova;
-//   8. esce un'app nuova: il suo installatore si scarica e si verifica; Exit game
-//      chiude l'app, e alla chiusura l'installatore parte muto (--updated /S).
+//   8. esce un'app nuova: il suo installatore si scarica e si verifica;
+//   9. Login with Google apre il browser vero su hextalegame.com/app-login/; la
+//      pagina (quella vera del sito, con un Google finto) riporta il codice al
+//      gioco dall'indirizzo locale, che non accetta stati sbagliati e vale una volta;
+//  10. Exit game chiude l'app, e alla chiusura l'installatore parte muto (--updated /S).
 'use strict';
 const { app, BrowserWindow, Menu } = require('electron');
 const path = require('path');
@@ -131,7 +134,7 @@ process.env.HEXTALE_PROVA_DATI = DATI;
 process.env.HEXTALE_AGGIORNAMENTI = 'http://127.0.0.1:' + PORTA + '/';
 process.env.HEXTALE_CONTROLLO_MS = '1000';
 process.env.HEXTALE_GUSCIO_MS = '1500';
-process.env.HEXTALE_PROVA_REGOLE = 'MAP api.hextalegame.com ~NOTFOUND';
+process.env.HEXTALE_PROVA_REGOLE = 'MAP api.hextalegame.com ~NOTFOUND, MAP accounts.google.com ~NOTFOUND';
 process.env.HEXTALE_PROVA_FIDATO = '127.0.0.1';
 require('./main.js');
 const leggiJson = (nome) => { try { return JSON.parse(fs.readFileSync(path.join(DATI, nome), 'utf8')); } catch (_) { return null; } };
@@ -230,6 +233,30 @@ app.whenReady().then(async () => {
     const exeFile = path.join(DATI, 'installatore', 'Hextale-Setup-9.9.9.exe');
     const scaricato = await aspetta(() => fs.existsSync(exeFile) && fs.readFileSync(exeFile).equals(EXE), 20000, 300);
     dice(scaricato, 'esce un-app nuova: il suo installatore si scarica e si verifica, in silenzio');
+    // ── 9. Google, nel browser vero ──
+    const esterniPrima = (leggiJson('esterni.json') || []).length;
+    await js('window.__codiceGoogle = null; window.accessoGoogleCodice = function(r){ window.__codiceGoogle = r && r.code; }; accessoConGoogle(); true', true);
+    const aperta = await aspetta(() => (leggiJson('esterni.json') || []).slice(esterniPrima).find((x) => x.indexOf('https://hextalegame.com/app-login/?') === 0), 5000, 200);
+    let qg = null;
+    try { qg = new URL(aperta).searchParams; } catch (_) { qg = null; }
+    dice(qg && /^\d+$/.test(qg.get('porta')) && /^[0-9a-f]{32}$/.test(qg.get('stato')), 'Login with Google apre nel browser vero la pagina di accesso, con porta e stato', aperta);
+    if (qg) {
+      const sbagliato = await new Promise((ok) => http.get('http://127.0.0.1:' + qg.get('porta') + '/google?stato=' + '0'.repeat(32) + '&code=4/codice-falso-123',
+        (res) => { res.resume(); ok(res.statusCode); }).on('error', (e) => ok(e.message)));
+      dice(sbagliato === 404 && !(await js('window.__codiceGoogle')), 'un codice con lo stato sbagliato non arriva al gioco', sbagliato);
+      // La pagina vera del sito (dal disco) in un "browser" a parte, con un Google finto.
+      const browser = new BrowserWindow({ show: false, webPreferences: { partition: 'browser-finto' } });
+      await browser.loadFile(path.join(__dirname, '..', 'app-login', 'index.html'), { search: 'porta=' + qg.get('porta') + '&stato=' + qg.get('stato') });
+      await browser.webContents.executeJavaScript("window.google = { accounts: { oauth2: { initCodeClient: (o) => ({ requestCode: () => o.callback({ code: '4/0Codice-di-prova_123' }) }) } } }; document.getElementById('google').click(); true", true);
+      const codiceG = await aspetta(() => js('window.__codiceGoogle'), 8000, 200);
+      const finale = await aspetta(async () => /signed in/i.test(await browser.webContents.executeJavaScript('document.body.innerText')), 5000, 200);
+      dice(codiceG === '4/0Codice-di-prova_123' && finale, 'dalla pagina il codice torna al gioco, e nel browser si legge che si puo- tornare al gioco', codiceG + ' / ' + finale);
+      const ancora = await new Promise((ok) => http.get('http://127.0.0.1:' + qg.get('porta') + '/google?stato=' + qg.get('stato') + '&code=4/0Di-nuovo_12345',
+        (res) => { res.resume(); ok(res.statusCode); }).on('error', () => ok('chiuso')));
+      dice(ancora !== 200, 'l-indirizzo locale vale una volta sola', ancora);
+      browser.destroy();
+    }
+
     app.once('will-quit', () => {
       const lanciato = leggiJson('installatore-lanciato.json');
       dice(lanciato && lanciato.length === 1 && lanciato[0].file === exeFile && JSON.stringify(lanciato[0].argomenti) === '["--updated","/S"]',
