@@ -7063,8 +7063,22 @@ var ABILITA_MOTORE = (function () {
   // anche un solo lato escluso: e' cosi' che un debuff a caso salta i lati
   // protetti (vedi _latoDifeso). Il sorteggio si fa fra quelli che restano, e
   // se non ne resta nessuno non si colpisce niente.
+  // v0.80.27 — "SE-SW" -> ['SE', 'SW']; null se non e' un elenco di lati.
+  function latiNominati(ambito) {
+    if (typeof ambito !== 'string' || !ambito) return null;
+    var pezzi = ambito.split('-'), out = [], i;
+    for (i = 0; i < pezzi.length; i++) {
+      if (SEI_LATI.indexOf(pezzi[i]) === -1) return null;
+      if (out.indexOf(pezzi[i]) === -1) out.push(pezzi[i]);
+    }
+    return out;
+  }
   function latiColpiti(ambito, valori, carta, seme, escludi) {
     if (ambito === 'ALL' || !ambito) return SEI_LATI.slice();
+    // v0.80.27 — i lati scritti per nome ("SE-SW", Tin Woodman): quelli e basta,
+    // qualunque numero portino. Sono i lati della carta com'e' in quel momento.
+    var nominati = latiNominati(ambito);
+    if (nominati) return nominati;
     var gruppi = _gruppiDi(valori || {}, carta), i;
     if (!gruppi.length) return [];
     if (ambito === 'HIGHEST' || ambito === 'LOWEST') {
@@ -7169,7 +7183,12 @@ var ABILITA_MOTORE = (function () {
     else if (eff.quanto && typeof eff.quanto.da === 'number') base = eff.quanto.da;
     if (!eff.per) return base;
 
-    var tratti = (cond && cond.valore && cond.valore.tratti) || [];
+    // v0.80.27 — il tratto da contare puo' avere la sua colonna (`Per value`, Lorenzo):
+    // Mowgli da' +1 ai Small (If value) per ogni Explorer (Per value). Senza, si
+    // conta il tratto della condizione, come Snow White.
+    var tratti = (eff.perValore && eff.perValore.tratti && eff.perValore.tratti.length)
+      ? eff.perValore.tratti
+      : ((cond && cond.valore && cond.valore.tratti) || []);
     var quanti = 0, i;
     if (eff.per === 'board_trait') {
       var tutte = scena.inCampo || [];
@@ -7180,6 +7199,9 @@ var ABILITA_MOTORE = (function () {
     } else if (eff.per === 'adjacent_trait') {
       var vic = (scena.vicini && scena.vicini(fonte)) || [];
       for (i = 0; i < vic.length; i++) if (haTratto(vic[i], tratti)) quanti++;
+    } else if (eff.per === 'adjacent_card') {
+      // v0.80.27 — ogni carta accanto, sua o dell'avversario (Tin Woodman)
+      quanti = ((scena.vicini && scena.vicini(fonte)) || []).length;
     } else if (eff.per === 'hand_trait') {
       var mano = scena.inMano || [];
       for (i = 0; i < mano.length; i++) if (haTratto(mano[i], tratti)) quanti++;

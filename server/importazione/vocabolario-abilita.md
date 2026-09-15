@@ -152,7 +152,10 @@ condizioni si avverano.
 > Da lì la colonna a parte: `Which = blocked`, `Player selection = yes`.
 
 **`Scope`** — quanta parte della carta tocca: `ALL` · `RAND` · `HIGHEST` ·
-`LOWEST` · `ONE`
+`LOWEST` · `ONE`, oppure i lati per nome separati da un trattino (`SE-SW`,
+`NW-NE-E`; lati: `NW` · `NE` · `E` · `SE` · `SW` · `W`). I lati per nome sono
+fissi: si tocca quello che in quel momento sta in quella posizione, qualunque
+numero porti (Tin Woodman, `Scope = SE-SW`). Dalla v0.80.27.
 
 > **`Which` e `Scope` sono due cose diverse, e prima erano la stessa.**
 > `Which` sceglie *quali carte*, `Scope` sceglie *quali lati di quella carta*.
@@ -166,11 +169,23 @@ condizioni si avverano.
 Gli operatori di paragone NON stanno qui: stanno in `Rule value`.
 
 **`Per`** — il moltiplicatore, quando l'effetto scala:
-`none` · `adjacent_trait` · `board_trait` · `hand_trait` · `free_side` ·
-`power_diff`
+`none` · `adjacent_trait` · `adjacent_card` · `board_trait` · `hand_trait` ·
+`free_side` · `power_diff`
+
+> `adjacent_card` conta tutte le carte accanto, alleate o nemiche, senza
+> guardare i tratti (Tin Woodman: `Amount 2` + `Per = adjacent_card` = "+2 per
+> ogni carta adiacente"). Dalla v0.80.27.
 
 > Il tratto su cui contare sta in `If value`. Snow White: `Amount 1` +
 > `Per = board_trait` + `If value = Small` = "+1 per ogni Small in campo".
+
+**`Per value`** (e `Per value 2`) — il tratto da contare, quando non e' quello
+della condizione. Serve quando `If value` e' gia' occupato dal filtro sui
+bersagli: Mowgli da' +1 RAND **ai Small** (`If subject = target`, `If test =
+has_trait`, `If value = Small`) **per ogni Explorer** in campo (`Per =
+board_trait`, `Per value = Explorer`). Vale solo con i `Per` che contano un
+tratto (`adjacent_trait`, `board_trait`, `hand_trait`); vuoto (`-`), si conta il
+tratto di `If value` come prima. La colonna c'e' dalla v0.80.27.
 
 **`Duration`** — `permanent` · `end_of_turn` · `n_turns` · `while_true`
 

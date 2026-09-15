@@ -2993,3 +2993,38 @@ STESSA scrittura che consegna le carte") gia' prima di questa versione.
    mouseleave non scatta, quindi la guardia `!sceltaScarto` sull'hover e' tolta: le
    carte si alzano e vengono davanti anche con la X. Il trascinamento resta chiuso
    durante lo scarto, e il pointerdown della croce non risale alla zona.
+
+## prova-per-value.js — la colonna "Per value" (v0.80.27)
+
+    node strumenti/prova-per-value.js
+    node server/importazione/reimporta.js --senza-importare
+
+Lorenzo ha aggiunto nel foglio la colonna "Per value" (dopo "Per"), per Mowgli:
+"Gives +1 RAND to Small characters for each Explorer on the board". If value e'
+gia' il filtro sui bersagli (Small), e il tratto da contare (Explorer) non aveva un
+posto. Adesso:
+- abilita-parser.js (quello che usano converti.js e rigenera-riepiloghi.js, cioe'
+  la reimportazione): "Per value" fra le COLONNE obbligatorie, "Per value 2" fra le
+  COLONNE_FACOLTATIVE (nel foglio non c'e'); _perValore la legge come { tratti } e
+  si ferma se e' scritta senza Per o con un Per che non conta tratti
+  (adjacent_trait, board_trait, hand_trait);
+- abilita-motore.js: quantita conta eff.perValore.tratti se ci sono, altrimenti il
+  tratto della condizione come prima; iniettato nel gioco e nel server con
+  inietta-motore.js;
+- rigenera-riepiloghi.js: "per board_trait Explorer";
+- reimporta.js: --senza-importare fa i primi quattro passi e si ferma prima del
+  database. Tolto anche l'indirizzo del server dai messaggi (ssh $HEXTALE_SRV):
+  questo file e' pubblico. (Resta nella storia di git.)
+
+Poi Tin Woodman: "sul valore zero prende +2 per ogni carta adiacente alleata o
+nemica", scritto con `Per = adjacent_card` e `Scope = SE-SW`. Due termini nuovi:
+- `adjacent_card` (VOCE Per): quantita conta scena.vicini(fonte), tutte, di
+  chiunque siano — i vicini del gioco (scena in index.html) e del server
+  (ombraVicini) non guardano il padrone;
+- Scope per lati: _ambito nel parser accetta le parole di prima oppure lati per
+  nome col trattino, e si ferma su un lato inesistente, in minuscolo o ripetuto;
+  nel motore latiNominati("SE-SW") da' ['SE','SW'] e latiColpiti li restituisce
+  cosi' come sono, prima dei gruppi. I lati sono fissi: si tocca cio' che in
+  quel momento sta in SE e SW, qualunque numero porti.
+Il banco (sezione 4b) prova parser, errori, quantita e lo scatto on_play vero
+(cambiamentiAllEvento: +4 su SE e SW con due vicini).

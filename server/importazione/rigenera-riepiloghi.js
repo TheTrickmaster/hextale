@@ -102,7 +102,8 @@ function frase(a, gia) {
     if (e.scelta) s.push('chosen');
     ['chi', 'dove', 'cosa', 'quale', 'ambito'].forEach(k => { if (q(e[k])) s.push(e[k]); });
     const n = quanto(e.quanto); if (n) s.push(n);
-    if (q(e.per)) s.push('per ' + e.per);
+    // v0.80.27 — col tratto di Per value, quando c'e' ("per board_trait Explorer")
+    if (q(e.per)) s.push('per ' + e.per + ((e.perValore && e.perValore.tratti && e.perValore.tratti.length) ? ' ' + e.perValore.tratti.join(',') : ''));
     if (q(e.durata) && e.durata !== 'permanent') s.push(e.durata);
     return s.join(' ');
   };

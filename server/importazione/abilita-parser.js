@@ -51,7 +51,7 @@ var VOCE = {
             'blocked', 'next', 'last'],
   'Player selection': ['yes', 'no'],
   'Scope': ['ALL', 'RAND', 'HIGHEST', 'LOWEST', 'ONE'],
-  'Per': ['adjacent_trait', 'board_trait', 'hand_trait', 'free_side', 'power_diff'],
+  'Per': ['adjacent_trait', 'adjacent_card', 'board_trait', 'hand_trait', 'free_side', 'power_diff'],
   'Duration': ['permanent', 'end_of_turn', 'n_turns', 'while_true'],
   'Link': ['and', 'or', 'instead', 'if']
 };
@@ -68,7 +68,7 @@ var COLONNE = [
   'If subject', 'If test', 'If value',
   'Rule', 'Rule target', 'Rule value',
   'Player selection',
-  'Action', 'Who', 'Which', 'Where', 'What', 'Scope', 'Amount', 'Per', 'Duration',
+  'Action', 'Who', 'Which', 'Where', 'What', 'Scope', 'Amount', 'Per', 'Per value', 'Duration',
   'Link',
   'If subject 2', 'If test 2', 'If value 2',
   'Rule 2', 'Rule target 2', 'Rule value 2',
@@ -76,6 +76,9 @@ var COLONNE = [
   'Action 2', 'Who 2', 'Where 2', 'What 2', 'Which 2', 'Scope 2', 'Amount 2', 'Per 2', 'Duration 2',
   'Complete script'
 ];
+// v0.80.27 — colonne che il foglio PUO' avere: se ci sono si leggono, se mancano
+// si legge vuoto. "Per value" (v0.80.27) nel foglio c'e' solo per il primo effetto.
+var COLONNE_FACOLTATIVE = ['Per value 2'];
 
 // ── DOVE STA OGNI COLONNA, CHIESTO ALL'INTESTAZIONE ──────────────────────
 // Prima le posizioni si contavano a partire da "Is unique" seguendo l'ordine
@@ -97,6 +100,11 @@ function posizioni(intestazione) {
     if (trovata < 0) mancanti.push(COLONNE[i]); else posto[COLONNE[i]] = trovata;
   }
   if (mancanti.length) throw new Error('nel foglio mancano le colonne: ' + mancanti.join(', '));
+  for (i = 0; i < COLONNE_FACOLTATIVE.length; i++) {
+    for (j = inizio; j < intestazione.length; j++) {
+      if (String(intestazione[j] || '').trim() === COLONNE_FACOLTATIVE[i]) { posto[COLONNE_FACOLTATIVE[i]] = j; break; }
+    }
+  }
   return posto;
 }
 
@@ -212,6 +220,46 @@ function _quanto(carta, colonna, valore) {
 }
 
 // ── un effetto ───────────────────────────────────────────────────────────
+// ── v0.80.27 — PER VALUE: IL TRATTO DA CONTARE ───────────────────────────
+// Lorenzo ha aggiunto la colonna "Per value". Serve quando "If value" e' gia'
+// occupato dal filtro sui bersagli: Mowgli da' +1 RAND AI SMALL (If value) per ogni
+// EXPLORER (Per value). Vale solo coi Per che contano un tratto; vuota, si conta il
+// tratto della condizione come prima (Snow White). Scritta con un Per che non conta
+// tratti, o senza Per, e' un errore: fermarsi e' meglio che importare una riga che
+// non fa quello che dice.
+var PER_A_TRATTO = ['adjacent_trait', 'board_trait', 'hand_trait'];
+function _perValore(carta, colonna, per, valore) {
+  if (_vuoto(valore)) return null;
+  if (!per) throw Guasto(carta, colonna, 'c\'e\' un tratto da contare ma non c\'e\' nessun "Per"');
+  if (PER_A_TRATTO.indexOf(per) === -1) {
+    throw Guasto(carta, colonna, '"Per = ' + per + '" non conta un tratto: lascia "-"');
+  }
+  return { tratti: _tratti(carta, colonna, _pulito(valore)) };
+}
+
+// v0.80.27 — Scope: una parola del vocabolario, oppure i lati per nome separati
+// da un trattino ("SE-SW", Tin Woodman). Un lato che non esiste, o ripetuto, si
+// ferma.
+var LATI = ['NW', 'NE', 'E', 'SE', 'SW', 'W'];
+function _ambito(carta, colonna, valore) {
+  if (_vuoto(valore)) return null;
+  var v = _pulito(valore);
+  if (VOCE['Scope'].indexOf(v) !== -1 || v.indexOf('-') === -1 && LATI.indexOf(v) === -1) {
+    return _termine(carta, colonna, valore, 'Scope', false);
+  }
+  var pezzi = v.split('-'), visti = [], i, p;
+  for (i = 0; i < pezzi.length; i++) {
+    p = pezzi[i].trim();
+    if (LATI.indexOf(p) === -1) {
+      throw Guasto(carta, colonna, '"' + p + '" non e\' un lato'
+        + (LATI.indexOf(p.toUpperCase()) !== -1 ? ' — forse "' + p.toUpperCase() + '"?' : '. Lati: ' + LATI.join(', ')));
+    }
+    if (visti.indexOf(p) !== -1) throw Guasto(carta, colonna, 'il lato "' + p + '" e\' scritto due volte');
+    visti.push(p);
+  }
+  return visti.join('-');
+}
+
 function _effetto(carta, g, suff) {
   var s = suff ? ' ' + suff : '';
   var azione = _termine(carta, 'Action' + s, g('Action' + s), 'Action', false);
@@ -219,7 +267,7 @@ function _effetto(carta, g, suff) {
     // Nessuna azione: le altre colonne devono tacere, altrimenti c'e' un
     // effetto scritto a meta' che nessuno eseguirebbe.
     var sporche = [];
-    ['Who', 'Where', 'What', 'Which', 'Scope', 'Amount', 'Per'].forEach(function (c) {
+    ['Who', 'Where', 'What', 'Which', 'Scope', 'Amount', 'Per', 'Per value'].forEach(function (c) {
       // (Player selection resta fuori: "no" e' il suo valore di riposo, e una
       // riga senza azione ce l'ha legittimamente scritto.)
       if (!_vuoto(g(c + s))) sporche.push(c + s);
@@ -232,6 +280,8 @@ function _effetto(carta, g, suff) {
   // possibili": un tassello BLOCCATO scelto dal giocatore ha bisogno di dire
   // tutte e due le cose, e una colonna sola non ci stava.
   var sceglie = _termine(carta, 'Player selection' + s, g('Player selection' + s), 'Player selection', false);
+  var per = _termine(carta, 'Per' + s, g('Per' + s), 'Per', false);
+  var perValore = _perValore(carta, 'Per value' + s, per, g('Per value' + s));   // v0.80.27
   return {
     azione: azione,
     scelta: sceglie === 'yes',
@@ -239,9 +289,10 @@ function _effetto(carta, g, suff) {
     dove: _termine(carta, 'Where' + s, g('Where' + s), 'Where', false),
     cosa: _termine(carta, 'What' + s, g('What' + s), 'What', false),
     quale: _termine(carta, 'Which' + s, g('Which' + s), 'Which', false),
-    ambito: _termine(carta, 'Scope' + s, g('Scope' + s), 'Scope', false),
+    ambito: _ambito(carta, 'Scope' + s, g('Scope' + s)),
     quanto: _quanto(carta, 'Amount' + s, g('Amount' + s)),
-    per: _termine(carta, 'Per' + s, g('Per' + s), 'Per', false),
+    per: per,
+    perValore: perValore,
     durata: _termine(carta, 'Duration' + s, g('Duration' + s), 'Duration', false) || 'permanent'
   };
 }

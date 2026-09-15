@@ -48,13 +48,13 @@ if (!fs.existsSync(CONFIG)) {
   muori('manca la configurazione: ne ho creata una da riempire.',
     'Apri configurazione.json e incolla la chiave al posto di "INCOLLA QUI LA CHIAVE".\n' +
     'La chiave si legge dal server con:\n' +
-    '  ssh root@45.59.124.211 "grep NAKAMA_HTTP_KEY /opt/nakama/.env"\n' +
+    '  ssh $HEXTALE_SRV "grep NAKAMA_HTTP_KEY /opt/nakama/.env"\n' +
     'Quel file NON va messo su GitHub: e\' gia\' escluso dal .gitignore.');
 }
 const conf = JSON.parse(fs.readFileSync(CONFIG, 'utf8'));
 if (!conf.chiaveHttp || conf.chiaveHttp.indexOf('INCOLLA') === 0) {
   muori('la chiave in configurazione.json non e\' ancora stata messa.',
-    'Leggila dal server con:\n  ssh root@45.59.124.211 "grep NAKAMA_HTTP_KEY /opt/nakama/.env"');
+    'Leggila dal server con:\n  ssh $HEXTALE_SRV "grep NAKAMA_HTTP_KEY /opt/nakama/.env"');
 }
 
 // ── il file del gioco ─────────────────────────────────────────────────────
@@ -296,6 +296,14 @@ function leggiCsv(testo) {
   }
 
   // ── 5. importa ──────────────────────────────────────────────────────────
+  // v0.80.27 — con --senza-importare si fanno i primi quattro passi e ci si ferma:
+  // il catalogo resta in .lavoro/catalogo.json da guardare, e il database non si
+  // tocca. Serve a provare il foglio (una colonna nuova, una riga nuova) prima.
+  if (process.argv.indexOf('--senza-importare') >= 0) {
+    console.log('\n  --senza-importare: mi fermo qui, il catalogo e\' in .lavoro/catalogo.json.');
+    console.log('\n  Il database NON e\' stato toccato.\n');
+    process.exit(0);
+  }
   passo(5, 'importo nel database...');
   delete catalogo.indiciLati; delete catalogo.scartate;
   let esito;
@@ -307,7 +315,7 @@ function leggiCsv(testo) {
     const t = await r.text();
     if (!r.ok) muori('il server ha rifiutato l\'importazione (HTTP ' + r.status + ').',
       t.indexOf('HTTP key') >= 0
-        ? 'La chiave in configurazione.json non e\' quella del server.\n  ssh root@45.59.124.211 "grep NAKAMA_HTTP_KEY /opt/nakama/.env"'
+        ? 'La chiave in configurazione.json non e\' quella del server.\n  ssh $HEXTALE_SRV "grep NAKAMA_HTTP_KEY /opt/nakama/.env"'
         : t.slice(0, 400));
     esito = JSON.parse(t);
   } catch (e) {
