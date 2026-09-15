@@ -24,6 +24,9 @@ COPIA="anteprima/index.html"
 grep -q "const ANTEPRIMA = " "$ORIGINE" || { echo "FERMO: $ORIGINE non ha la bandierina ANTEPRIMA"; exit 1; }
 if grep -q $'\r' "$ORIGINE"; then echo "FERMO: $ORIGINE ha dei CRLF"; exit 1; fi
 
+# v0.80.28 — gli sticker sono quelli di ui/sticker (vedi strumenti/aggiorna-sticker.js).
+node strumenti/aggiorna-sticker.js
+
 mkdir -p anteprima
 cp "$ORIGINE" "$COPIA"
 VERSIONE=$(grep -oE 'id="build-version-badge"[^>]*>v[0-9.]+' "$COPIA" | grep -oE 'v[0-9.]+$')

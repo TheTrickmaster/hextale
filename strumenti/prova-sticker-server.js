@@ -50,7 +50,9 @@ const mostrati = (r) => r.filter(m => m.op === mondo.OP_STICKER_MOSTRA);
 const blocchi = (r) => r.filter(m => m.op === mondo.OP_STICKER_BLOCCO);
 
 dice(mondo.OP_STICKER === 14 && mondo.OP_STICKER_MOSTRA === 15 && mondo.OP_STICKER_BLOCCO === 16, 'i tre codici sono 14, 15 e 16 (li usa anche il client)');
-dice(Array.isArray(mondo.STICKER_NOMI) && mondo.STICKER_NOMI.length === 5, 'cinque sticker, per tutti', String(mondo.STICKER_NOMI));
+// v0.80.28 — non piu' "cinque": quelli di ui/sticker (strumenti/aggiorna-sticker.js).
+const cartella = fs.readdirSync(path.join(__dirname, '..', 'ui', 'sticker')).filter(f => /^[a-z0-9]+(-[a-z0-9]+)*\.png$/.test(f)).map(f => f.slice(0, -4)).sort();
+dice(Array.isArray(mondo.STICKER_NOMI) && cartella.length > 0 && mondo.STICKER_NOMI.join() === cartella.join(), 'gli sticker del server sono i file di ui/sticker, in ordine alfabetico', String(mondo.STICKER_NOMI) + ' / cartella: ' + cartella);
 
 let st = stato();
 let r = manda(st, 'u1', 'merlin-perfect');

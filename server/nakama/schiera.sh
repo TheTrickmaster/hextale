@@ -13,6 +13,12 @@ S="ssh -i $CHIAVE -o StrictHostKeyChecking=no -o BatchMode=yes"
 LOCALE="C:/Users/masil/Desktop/Hextale/game-assets/server/nakama/index.js"
 REMOTO=/opt/nakama/data/modules/index.js
 
+# ── v0.80.28 — LA LISTA DEGLI STICKER DALLA CARTELLA ─────────────────────────
+# Il server scarta gli sticker che non conosce: prima di caricare il modulo la
+# sua lista si riallinea ai file di ui/sticker (strumenti/aggiorna-sticker.js),
+# cosi' uno sticker aggiunto non resta muto in rete.
+node "$(dirname "$0")/../../strumenti/aggiorna-sticker.js" || { echo "FERMO: la lista degli sticker non si aggiorna"; exit 1; }
+
 # ── v0.80.15 — PRIMA DI RIAVVIARE: C'E' QUALCUNO IN GIOCO? ─────────────────────
 # Il riavvio di Nakama chiude ogni collegamento e ogni partita in corso (Lorenzo:
 # "ci sono dei giocatori online e non voglio che vengano disconnessi"). Si chiede

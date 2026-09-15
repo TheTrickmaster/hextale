@@ -5093,7 +5093,7 @@ var YETI_CHIAVE      = '!yeti';
 // con 20 al massimo cinquanta millisecondi. I tempi della partita (scadenze,
 // grazia, sticker) si contano con l'orologio e non coi giri: non cambiano.
 var TICK_RATE = 20;  // server -> client, personale: { resta } in ms (niente orologi da confrontare)
-var STICKER_NOMI = ['carabosse-menacing', 'frog-prince-okay', 'merlin-perfect', 'queen-of-hearts-angry', 'bagheera-scared'];
+var STICKER_NOMI = ['bagheera-scared', 'captain-hook-facepalm', 'carabosse-menacing', 'frog-prince-okay', 'merlin-perfect', 'queen-of-hearts-angry'];
 var STICKER_MAX = 5;
 var STICKER_FINESTRA_MS = 10000;
 var STICKER_BLOCCO_MS = 120000;

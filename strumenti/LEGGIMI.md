@@ -3028,3 +3028,29 @@ nemica", scritto con `Per = adjacent_card` e `Scope = SE-SW`. Due termini nuovi:
   quel momento sta in SE e SW, qualunque numero porti.
 Il banco (sezione 4b) prova parser, errori, quantita e lo scatto on_play vero
 (cambiamentiAllEvento: +4 su SE e SW con due vicini).
+
+## aggiorna-sticker.js — gli sticker sono i file di ui/sticker (v0.80.28)
+
+    node strumenti/aggiorna-sticker.js              riscrive le liste
+    node strumenti/aggiorna-sticker.js --controlla  dice solo se sono allineate
+    desktop/node_modules/electron/dist/electron.exe strumenti/prova-sticker.js
+    node strumenti/prova-sticker-server.js
+
+Lorenzo: "fai in modo che gli stickers si aggiornino automaticamente in base a
+quelli installati nella cartella sticker/". STICKER_NOMI era scritta a mano due
+volte (play/index.html e server/nakama/index.js) con cinque nomi, e
+captain-hook-facepalm.png, messo nella cartella, non compariva: il client non lo
+elencava e il server l'avrebbe scartato.
+- aggiorna-sticker.js legge i .png di ui/sticker, in ordine alfabetico, e
+  riscrive le due righe STICKER_NOMI. Si ferma senza scrivere se trova
+  un'immagine con un nome che non puo' diventare uno sticker (maiuscole, spazi,
+  non .png) o se la cartella e' vuota.
+- Lo lanciano da soli pubblica-anteprima.sh (prima di copiare) e schiera.sh
+  (prima di caricare il modulo). Al rilascio va lanciato PRIMA del commit, se
+  no schiera.sh lascia play/index.html modificato dopo il commit.
+- Il menu: sei colonne da 128 (largo 928 = 20 + 6x128 + 5x24 + 20) e fino a tre
+  righe. Oltre diciotto stickerAdattaSet mette .scorre sul menu (largo 948, la
+  barra hx-scorre del gioco) e il set scorre in verticale, alto 452. Il set ha
+  10 di imbottitura e -10 di margine: la luce al passaggio non viene tagliata.
+- prova-sticker.js confronta gli sticker con la cartella e prova la griglia con
+  venti sticker finti; prova-sticker-server.js confronta la lista del server.

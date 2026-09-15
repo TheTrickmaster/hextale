@@ -4,7 +4,8 @@
 //
 // Figma "Battle Screen - Stickers" e le regole di Lorenzo (13 set 2026):
 //   - l'icona sotto alle impostazioni, solo per chi gioca; cliccandola si apre
-//     il menu "Send a sticker" con i cinque sticker, che si illuminano al passaggio;
+//     il menu "Send a sticker" con gli sticker di ui/sticker, che si illuminano al passaggio;
+//   - v0.80.28: sei colonne e tre righe a vista, oltre una barra verticale;
 //   - cliccando uno sticker il menu si chiude e compare sticker-bubble con lo
 //     sticker in mezzo, per tre secondi, dal lato di chi l'ha mandato; la punta
 //     sul centro dell'avatar, specchiata per il giocatore di sinistra; col suono;
@@ -16,8 +17,11 @@
 const { app, BrowserWindow } = require('electron');
 require('./dal-disco');   // v0.80.22 — gli asset di hextalegame.com dal disco, non dal sito
 const path = require('path');
+const fs = require('fs');
 
 const RADICE = path.resolve(__dirname, '..');
+// v0.80.28 — gli sticker che il gioco deve mostrare: i file della cartella.
+const CARTELLA = fs.readdirSync(path.join(RADICE, 'ui', 'sticker')).filter(f => /^[a-z0-9]+(-[a-z0-9]+)*\.png$/.test(f)).map(f => f.slice(0, -4)).sort();
 const PAGINA = 'file:///' + RADICE.split(path.sep).join('/') + '/play/index.html';
 app.commandLine.appendSwitch('disable-gpu');
 app.disableHardwareAcceleration();
@@ -34,6 +38,7 @@ app.whenReady().then(async () => {
   await new Promise(r => setTimeout(r, 16000));
 
   const esito = await win.webContents.executeJavaScript(`(async function(){
+    var CARTELLA = ${JSON.stringify(CARTELLA)};
     var d = [];
     var dice = function(ok, n, x){ d.push((ok ? '  ok  ' : '  NO  ') + n + (x !== undefined ? '   [' + x + ']' : '')); };
     var respira = function(ms){ return new Promise(function(r){ setTimeout(r, ms); }); };
@@ -61,7 +66,7 @@ app.whenReady().then(async () => {
       var menu = document.getElementById('sticker-menu');
       dice(menu.classList.contains('show'), 'cliccandola si apre il menu');
       var rm = r(menu);
-      dice(vicino(rm.x, 351) && vicino(rm.y, 99.74) && vicino(rm.w, 776), 'il menu tiene l-icona dov-era: 776 di larghezza con 20 di margine', tondo(rm.x) + ',' + tondo(rm.y) + ' ' + tondo(rm.w));
+      dice(vicino(rm.x, 351) && vicino(rm.y, 99.74) && vicino(rm.w, 928), 'il menu tiene l-icona dov-era: 928 di larghezza (sei colonne) con 20 di margine', tondo(rm.x) + ',' + tondo(rm.y) + ' ' + tondo(rm.w));
       var ri = r(menu.querySelector('.sticker-testa-icona'));
       dice(vicino(ri.x, rb.x) && vicino(ri.y, rb.y), 'l-icona del menu cade sopra all-icona');
       var titolo = document.getElementById('sticker-titolo');
@@ -69,15 +74,41 @@ app.whenReady().then(async () => {
       var rt = r(titolo);
       dice(vicino(rt.x, ri.x + ri.w + 16) && rt.x + rt.w < rm.x + rm.w / 2, 'titolo allineato a sinistra, 16 dopo l-icona', tondo(rt.x) + ' (icona finisce a ' + tondo(ri.x + ri.w) + ')');
       var voci = [].slice.call(menu.querySelectorAll('.sticker-voce'));
-      dice(voci.length === 5 && voci.map(function(v){ return v.dataset.sticker; }).join() === 'carabosse-menacing,frog-prince-okay,merlin-perfect,queen-of-hearts-angry,bagheera-scared', 'i cinque sticker, nell-ordine del Figma');
+      // v0.80.28 — gli sticker sono i file di ui/sticker, in ordine alfabetico
+      // (strumenti/aggiorna-sticker.js), non piu- i cinque scritti a mano.
+      dice(voci.length === CARTELLA.length && voci.map(function(v){ return v.dataset.sticker; }).join() === CARTELLA.join(), 'gli sticker sono quelli di ui/sticker (' + CARTELLA.length + '), in ordine alfabetico', voci.map(function(v){ return v.dataset.sticker; }).join());
       await respira(600);
       dice(voci.every(function(v){ var q = r(v); return vicino(q.w, 128) && vicino(q.h, 128) && v.querySelector('img').naturalWidth > 0; }), 'da 128, con le immagini di ui/sticker');
       dice(vicino(r(voci[1]).x - r(voci[0]).x - 128, 24), '24 fra uno e l-altro');
       var regolaHover = [].slice.call(document.styleSheets).some(function(s){ try{ return [].slice.call(s.cssRules).some(function(cr){ return cr.selectorText === '.sticker-voce:hover' && /drop-shadow/.test(cr.cssText) && /(250, 238, 210|#faeed2)/i.test(cr.cssText); }); }catch(_){ return false; } });
       dice(regolaHover, 'al passaggio si illumina (drop-shadow 0 0 10 #FAEED2)');
 
+      // ── v0.80.28 — sei colonne, tre righe a vista, poi la barra (Lorenzo) ──
+      var set = document.getElementById('sticker-set');
+      dice(getComputedStyle(set).gridTemplateColumns.split(' ').length === 6, 'sei colonne da 128', getComputedStyle(set).gridTemplateColumns);
+      dice(voci.length > 18 || !menu.classList.contains('scorre'), 'fino a diciotto sticker niente barra');
+      var finte = [];
+      for(var f = voci.length; f < 20; f++){ var cl = voci[0].cloneNode(true); cl.dataset.sticker = 'finto-' + f; set.appendChild(cl); finte.push(cl); }
+      stickerAdattaSet();
+      await respira(150);
+      var tutte = [].slice.call(set.children), rset = r(set);
+      dice(menu.classList.contains('scorre') && getComputedStyle(set).overflowY === 'auto', 'con venti sticker il set scorre in verticale');
+      dice(vicino(r(tutte[6]).x, r(tutte[0]).x) && vicino(r(tutte[6]).y - r(tutte[0]).y, 152), 'il settimo va a capo, sotto al primo', tondo(r(tutte[6]).x) + ',' + tondo(r(tutte[6]).y - r(tutte[0]).y));
+      dice(vicino(set.clientHeight, 452) && set.scrollHeight > set.clientHeight + 100, 'a vista tre righe (452 col respiro della luce), il resto sotto', set.clientHeight + ' / ' + set.scrollHeight);
+      dice(set.scrollWidth <= set.clientWidth, 'niente scorrimento di lato: la sesta colonna non finisce sotto alla barra', set.scrollWidth + ' / ' + set.clientWidth);
+      dice(set.offsetWidth - set.clientWidth >= 8 && set.classList.contains('hx-scorre'), 'la barra si vede, ed e- quella del gioco (hx-scorre)', set.offsetWidth - set.clientWidth);
+      dice(vicino(r(menu).w, 948), 'il menu si allarga della barra', tondo(r(menu).w));
+      set.scrollTop = 1000;
+      await respira(80);
+      dice(set.scrollTop > 0 && r(tutte[19]).y + r(tutte[19]).h <= rset.y + rset.h + 1, 'scorrendo si arriva all-ultimo', set.scrollTop);
+      finte.forEach(function(x){ x.remove(); });
+      set.scrollTop = 0;
+      stickerAdattaSet();
+      await respira(80);
+      dice(!menu.classList.contains('scorre') && vicino(r(menu).w, 928), 'tolti, il menu torna senza barra e largo 928', tondo(r(menu).w));
+
       // ── mandare ──
-      voci[2].click();
+      voci.filter(function(v){ return v.dataset.sticker === 'merlin-perfect'; })[0].click();
       await respira(250);
       dice(!menu.classList.contains('show'), 'cliccando uno sticker il menu si chiude');
       await respira(300);   // che la dissolvenza sia finita davvero, anche su una macchina carica
