@@ -13702,7 +13702,7 @@ try{
      startGame(true) when #app isn't already showing a live game (checked
      via #app's own display style) so an accidental click mid-game can't
      silently blow away the current match. -->
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.27</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.28</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <!-- v0.80.19 — gli sticker: l'icona (solo per chi gioca), il menu, e due bolle
@@ -19548,11 +19548,11 @@ async function mm2MostraGuadagno(){
 
   if(d.profilo.livello > d.prima.livello){
     mm2AggiornaXp(d.prima.xpPerSalire, d.prima.xpPerSalire);   // fino in fondo
-    await attesa(700);
+    await attesa(MM2_XP_SALE_MS);                              // v0.80.29 — piena davvero
     if(orb){ orb.classList.add('sale'); setTimeout(()=>orb.classList.remove('sale'), 1200); }
     const liv = document.getElementById('mm2-livello');
     if(liv) liv.textContent = String(d.profilo.livello);
-    mm2AggiornaXp(0, xpPerSalire(d.profilo.livello));          // ricomincia
+    mm2XpDaCapo(xpPerSalire(d.profilo.livello));               // ricomincia, di colpo
     await attesa(120);
   }
   mm2AggiornaProfilo();
@@ -22272,6 +22272,22 @@ function mm2AggiornaXp(fatti, servono){
   const q = servono > 0 ? Math.max(0, Math.min(1, fatti/servono)) : 0;
   if(mask) mask.style.width = (q*100).toFixed(1)+'%';
   if(testo) testo.textContent = fatti + '/' + servono + ' XP';
+}
+// ── v0.80.29 — A LIVELLO NUOVO LA BARRA RIPARTE DA ZERO, DI COLPO ─────────
+// Lorenzo: "la barra di livello, quando si fa lvl up, per svuotarsi torna
+// indietro. Sembra un errore. quando si riempie dovrebbe ripartire
+// istantaneamente da zero". Il ritorno a zero passava dalla stessa transizione
+// della salita, e si vedeva la barra scorrere all'indietro; in piu' si azzerava
+// dopo 700ms, prima che la salita (1,1 s) fosse arrivata in fondo.
+// Qui la transizione si spegne, la larghezza va a zero, si forza il calcolo
+// della pagina (cosi' lo zero viene registrato senza animarlo) e la transizione
+// si riaccende per la salita che segue.
+const MM2_XP_SALE_MS = 1100;   // deve combaciare con la transizione di #mm2-xp-mask
+function mm2XpDaCapo(servono){
+  const mask = document.getElementById('mm2-xp-mask');
+  if(mask) mask.style.transition = 'none';
+  mm2AggiornaXp(0, servono);
+  if(mask){ void mask.offsetWidth; mask.style.transition = ''; }
 }
 // Sotto a "Card packs": quante bustine aspettano. Spento quando non ce n'e'
 // nessuna — la riga resta, cosi' il pulsante non si sposta su e giu'.
