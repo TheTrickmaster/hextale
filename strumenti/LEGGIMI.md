@@ -3208,3 +3208,64 @@ piu' costa a Nakama circa 1,3 MB; a fine test Nakama teneva ancora 346 MB.
 "presenze non lette" da 478 a 2: la prenotazione del conto funziona.
 Oggi: comodo fino a ~100 giocatori contemporanei, al limite a ~150, crollo verso
 170-180. La CPU cederebbe poco dopo, verso 200.
+
+## prova-tinkerbell.js e prova-tinkerbell-server.js — rubare un buff (v0.80.30)
+
+    $ELECTRON strumenti/prova-tinkerbell.js
+    node strumenti/prova-tinkerbell-server.js
+
+Lorenzo: "Nella colonna del foglio What ho aggiunto l'opzione buff. Leggi
+l'abilita' di Tinkerbell. Lei ruba buff alleati o avversari." Sul foglio: on_play,
+once_per_game, steal, Who opponent, Which single, Where board, What buff, scelta del
+giocatore ("Steals an enemy Buff"; per alleati e avversari va Who = any).
+- Cos'e' un buff: una voce di card.modificatori che finisce in "#buff", cioe' un
+  bonus una tantum scritto da sommaModificatore (un dono, un furto, un set in su).
+  Le sinergie vive (annotaModificatore: Baloo, Lancelot, Smol Friends...) non si
+  rubano, tornano da sole finche' c'e' chi le da'.
+- perLato: modificaValori e il ramo "set" passano a sommaModificatore quanto e'
+  cambiato ogni lato, e la voce lo accumula. Senza non si saprebbe da quali lati
+  togliere un buff di gruppo. I buff scritti prima non hanno perLato e non si
+  rubano (solo le partite in corso al rilascio).
+- buffRubabiliDi / buffDaRubare (il piu' grande, a parita' il primo arrivato) /
+  haBuffRubabile (non intoccabile, non protetta da Bagheera — un furto
+  indebolisce) / rubaUnBuff(ladra, vittima): toglie dai lati di perLato con
+  modificaValori (pavimento 0), cancella la voce dal derubato (non in anteprima),
+  da' a chi ruba quanto e' stato tolto davvero, riga "buff_rubato:<id>" -> "+N from
+  <derubato>". Un buff rubato ha perLato: si puo' rubare di nuovo.
+- La scelta: sceltaDalFoglio -> _sceltaRubaBuff (bersagli da candidatiDalFoglio,
+  che con _effettoHaSensoSu tiene solo chi ha un buff; l'IA prende il piu' grande).
+  In rete passa da op 10/11 come le altre scelte.
+- Senza scelta: il motore, nel ramo steal, tiene solo i candidati per cui la scena
+  risponde haBuffRubabile (_scenaTabellone la da'); il gioco lo esegue nel giro dei
+  cambiamenti (c.azione steal, c.cosa buff -> rubaUnBuff).
+- Parser: What accetta "buff", e si ferma se l'azione non e' steal. Vocabolario
+  aggiornato.
+- Server: l'ombra non conosce i modificatori, quindi con un buff rubato si spegne
+  per la partita (_ombraNonSegue in ombraGiocata) invece di dare divergenze finte.
+
+## prova-basilisk.js e prova-basilisk-server.js — il gelo sulla prossima carta (v0.80.30)
+
+    $ELECTRON strumenti/prova-basilisk.js
+    node strumenti/prova-basilisk-server.js
+
+Il Basilisco era "Is unique" senza codice (catalogo: "!basilisk"): non faceva
+niente. Lorenzo l'ha scritto sul foglio come proposto — on_play, once_per_game,
+freeze ally board card next 1 n_turns — e ha deciso: "congela per 1 turno, ma la
+carta alleata messa in campo, prima di congelarsi attacca".
+- Il motore non sa "next" (scelti restituisce tutti i candidati): il gelo cadeva
+  subito su ogni alleata gia' in campo. Adesso nel ramo delle azioni descritte
+  next/last non producono niente, e nel gioco _effettoSemplice li esclude, cosi'
+  la riga passa a eseguiDalFoglio (e _foglioFaLEvento la dichiara presa in carico).
+- La promessa: preparaGeloProssimaGiocata scrive G.geloProssimaGiocata[giocatore]
+  (non in anteprima; ogni partita riparte da {1:null,2:null}); la riscuote
+  riscuotiGeloProssimaGiocata in resolveConquestAndEndTurn, subito dopo il premio
+  del Grillo, cioe' DOPO le conquiste: la carta attacca, poi si congela. Non la
+  riscuote il Basilisco stesso ne' una carta dell'altro giocatore.
+- Quanto: G.numeroTurno sale in endTurn, dopo lo scontro, quindi calata al turno N
+  la carta ha congelataFinoAlTurno = N + 1 + turni (turni: for_turns, altrimenti
+  Amount, altrimenti 1): congelata al turno N e a quello dell'avversario, libera
+  al suo turno dopo. Il ghiaccio a schermo c'era gia' (cartaCongelata).
+- Congelata in campo non si conquista: puoConquistare, che usano sia lo scontro
+  sia l'IA.
+- Server: l'ombra non tiene il gelo, quindi si spegne quando si cala una carta
+  che congela la prossima (_ombraNonSegue guarda la riga della carta calata).

@@ -134,7 +134,17 @@ regola non ne ha bisogno.
 
 **`Where`** — `adjacent` · `board` · `in_hand` · `edge` · `drawn` · `deck`
 
-**`What`** — `card` · `side` · `power` · `trait` · `ability` · `position` · `tile`
+**`What`** — `card` · `side` · `power` · `trait` · `ability` · `position` · `tile` · `buff`
+
+> **`buff`** (dalla v0.80.30, per ora solo con `Action = steal`) — un bonus una
+> tantum rimasto su una carta: un dono, un furto, un set in su. Tinker Bell:
+> `steal` · `Who = opponent` · `Which = single` · `Where = board` · `What = buff`
+> · scelta del giocatore. Si prende il buff **piu' grande** della carta indicata
+> (a parita' il primo arrivato), si toglie dai lati da cui era arrivato e si
+> mette sugli stessi lati di chi ruba. Le sinergie vive (Baloo, Lancelot, Smol
+> Friends) non sono buff da rubare: tornano da sole finche' c'e' chi le da'. Chi
+> e' protetto da Bagheera o intoccabile non si puo' derubare, e chi non ha buff
+> non si puo' indicare. Con `Who = any` si ruba ad alleati e avversari.
 
 **`Which`** — il filtro: **quali** fra i candidati.
 `all` · `single` · `random` · `highest` · `lowest` · `free` · `blocked` ·

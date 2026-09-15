@@ -6023,11 +6023,35 @@ function ombraGiocata(state, logger, k, id, di) {
   var scena = ombraScena(state);
   try {
     var cambi = ABILITA_MOTORE.cambiamentiAllEvento(carta, 'on_play', scena);
+    // v0.80.30 — un buff rubato (Tinker Bell) sposta numeri che il server non
+    // conosce: i buff stanno nei `modificatori` dei client. Seguirlo a meta'
+    // darebbe divergenze finte, quindi l'ombra si spegne per questa partita.
+    if (_ombraNonSegue(cambi, carta)) { ombraRinuncia(state, logger, 'un effetto che il server non tiene (buff rubato, gelo sulla prossima carta)'); return; }
     ombraApplica(cambi);
   } catch (e) { ombraRinuncia(state, logger, 'on_play: ' + e.message); return; }
 
   try { ombraConquiste(state, k, carta, di); }
   catch (e2) { ombraRinuncia(state, logger, 'conquiste: ' + e2.message); }
+}
+
+// v0.80.30 — cio' che l'ombra non sa seguire nemmeno in parte:
+//   - un buff rubato (Tinker Bell): i buff stanno nei `modificatori` dei client;
+//   - il gelo sulla prossima carta giocata (Basilisk): una carta congelata non si
+//     conquista, e l'ombra il gelo non lo tiene. Qui si guarda la RIGA della carta
+//     calata, perche' il motore la promessa non la descrive (vedi `next`).
+function _ombraNonSegue(cambi, carta) {
+  var i;
+  for (i = 0; i < (cambi || []).length; i++) {
+    var c = cambi[i];
+    if (c && c.azione === 'steal' && c.cosa === 'buff') return true;
+  }
+  var a = null;
+  try { a = carta ? ABILITA_MOTORE.abilitaDi(carta) : null; } catch (e) { a = null; }
+  var effetti = a ? [a.effetto, a.effetto2] : [];
+  for (i = 0; i < effetti.length; i++) {
+    if (effetti[i] && effetti[i].azione === 'freeze' && effetti[i].quale === 'next') return true;
+  }
+  return false;
 }
 
 // Solo i cambiamenti fatti di numeri: gli altri il server non li sa ancora
@@ -7827,6 +7851,12 @@ var ABILITA_MOTORE = (function () {
     // un filtro: cosi' non si poteva dire "un tassello BLOCCATO, e lo sceglie
     // il giocatore" — le due cose litigavano per la stessa cella.)
     if (AZIONI_DESCRITTE[az]) {
+      // v0.80.30 — "la prossima carta" (Basilisk: freeze ally board card next)
+      // non c'e' ancora: niente da descrivere adesso. Senza questa riga `scelti`
+      // non conosce "next" e restituisce tutti i candidati, e il gelo cadeva
+      // subito su ogni alleata gia' in campo. La promessa la tiene il gioco
+      // (preparaGeloProssimaGiocata).
+      if (eff.quale === 'next' || eff.quale === 'last') return;
       if (!condizioneVera(cond, fonte, scena)) return;
       // Un TASSELLO non e' una carta: chi lo cerca sono le caselle, e quelle
       // il motore non le ha. Per queste (e per l'evocazione, che di bersagli
@@ -7871,6 +7901,15 @@ var ABILITA_MOTORE = (function () {
       // Passa dalla stessa porta delle altre azioni descritte.
       if (!condizioneVera(cond, fonte, scena)) return;
       var daCui = candidati(fonte, eff, scena);
+      // v0.80.30 — Tinker Bell: rubare un buff a chi non ne ha non e' un furto.
+      // I buff delle carte il motore non li conosce (stanno nei `modificatori`
+      // del gioco): glielo dice la scena con haBuffRubabile. Senza la domanda —
+      // il server — l'elenco resta com'e'.
+      if (eff.cosa === 'buff' && scena && typeof scena.haBuffRubabile === 'function') {
+        var conBuff = [];
+        for (var cb = 0; cb < daCui.length; cb++) if (scena.haBuffRubabile(daCui[cb])) conBuff.push(daCui[cb]);
+        daCui = conBuff;
+      }
       if (!daCui.length) return;
       if (eff.scelta) {
         fuori.push({ azione: 'steal', cosa: eff.cosa, fonte: fonte, candidati: daCui, quale: eff.quale, dove: eff.dove });

@@ -718,6 +718,12 @@ var ABILITA_MOTORE = (function () {
     // un filtro: cosi' non si poteva dire "un tassello BLOCCATO, e lo sceglie
     // il giocatore" — le due cose litigavano per la stessa cella.)
     if (AZIONI_DESCRITTE[az]) {
+      // v0.80.30 — "la prossima carta" (Basilisk: freeze ally board card next)
+      // non c'e' ancora: niente da descrivere adesso. Senza questa riga `scelti`
+      // non conosce "next" e restituisce tutti i candidati, e il gelo cadeva
+      // subito su ogni alleata gia' in campo. La promessa la tiene il gioco
+      // (preparaGeloProssimaGiocata).
+      if (eff.quale === 'next' || eff.quale === 'last') return;
       if (!condizioneVera(cond, fonte, scena)) return;
       // Un TASSELLO non e' una carta: chi lo cerca sono le caselle, e quelle
       // il motore non le ha. Per queste (e per l'evocazione, che di bersagli
@@ -762,6 +768,15 @@ var ABILITA_MOTORE = (function () {
       // Passa dalla stessa porta delle altre azioni descritte.
       if (!condizioneVera(cond, fonte, scena)) return;
       var daCui = candidati(fonte, eff, scena);
+      // v0.80.30 — Tinker Bell: rubare un buff a chi non ne ha non e' un furto.
+      // I buff delle carte il motore non li conosce (stanno nei `modificatori`
+      // del gioco): glielo dice la scena con haBuffRubabile. Senza la domanda —
+      // il server — l'elenco resta com'e'.
+      if (eff.cosa === 'buff' && scena && typeof scena.haBuffRubabile === 'function') {
+        var conBuff = [];
+        for (var cb = 0; cb < daCui.length; cb++) if (scena.haBuffRubabile(daCui[cb])) conBuff.push(daCui[cb]);
+        daCui = conBuff;
+      }
       if (!daCui.length) return;
       if (eff.scelta) {
         fuori.push({ azione: 'steal', cosa: eff.cosa, fonte: fonte, candidati: daCui, quale: eff.quale, dove: eff.dove });

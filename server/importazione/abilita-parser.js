@@ -41,7 +41,7 @@ var VOCE = {
              'freeze', 'protect', 'flip', 'cancel'],
   'Who': ['self', 'ally', 'opponent', 'any', 'attacker', 'attacked'],
   'Where': ['adjacent', 'board', 'in_hand', 'edge', 'drawn', 'deck'],
-  'What': ['card', 'side', 'power', 'trait', 'ability', 'position', 'tile'],
+  'What': ['card', 'side', 'power', 'trait', 'ability', 'position', 'tile', 'buff'],
   // "Which" e' un FILTRO: quali fra i possibili. Non dice piu' chi sceglie —
   // quello lo dice "Player selection", che e' una colonna sua. Prima le due
   // cose stavano insieme ("selected") e non si poteva scrivere "un tassello
@@ -280,6 +280,9 @@ function _effetto(carta, g, suff) {
   // possibili": un tassello BLOCCATO scelto dal giocatore ha bisogno di dire
   // tutte e due le cose, e una colonna sola non ci stava.
   var sceglie = _termine(carta, 'Player selection' + s, g('Player selection' + s), 'Player selection', false);
+  // v0.80.30 — "buff" come cosa per ora si sa solo rubare (Tinker Bell): con
+  // un'altra azione la riga non farebbe niente, e in silenzio.
+  if (_pulito(g('What' + s)) === 'buff' && azione !== 'steal') throw Guasto(carta, 'What' + s, '"buff" per ora vale solo con Action = steal');
   var per = _termine(carta, 'Per' + s, g('Per' + s), 'Per', false);
   var perValore = _perValore(carta, 'Per value' + s, per, g('Per value' + s));   // v0.80.27
   return {
