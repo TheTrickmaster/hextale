@@ -43,7 +43,8 @@ const nk = {
   storageWrite: (req) => { req.forEach(r => { archivio[r.userId + '|' + r.collection + '|' + r.key] = copia(r.value); }); },
   storageDelete: () => {},
   storageList: (userId, coll, limit, cursor) => {
-    const tutti = Object.keys(archivio).filter(k => { const p = k.split('|'); return p[1] === coll && (userId === '' || p[0] === userId); }).sort();
+    if (userId === '') throw new TypeError('expects empty or valid user id');   // come Nakama 3.40: "tutti" si chiede con null
+    const tutti = Object.keys(archivio).filter(k => { const p = k.split('|'); return p[1] === coll && (userId === null || userId === undefined || p[0] === userId); }).sort();
     const da = cursor ? Number(cursor) : 0;
     const pagina = tutti.slice(da, da + limit).map(k => { const p = k.split('|'); return { userId: p[0], collection: p[1], key: p.slice(2).join('|'), value: copia(archivio[k]) }; });
     return { objects: pagina, cursor: (da + limit < tutti.length) ? String(da + limit) : '' };

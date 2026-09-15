@@ -60,7 +60,8 @@ const nk = {
     req.forEach(r => { const k = r.userId + '|' + r.collection + '|' + r.key; delete archivio[k]; delete versioni[k]; });
   },
   storageList: (userId, coll, limit, cursor) => {
-    const tutti = Object.keys(archivio).filter(k => { const p = k.split('|'); return p[1] === coll && (userId === '' || p[0] === userId); }).sort();
+    if (userId === '') throw new TypeError('expects empty or valid user id');   // come Nakama 3.40: "tutti" si chiede con null
+    const tutti = Object.keys(archivio).filter(k => { const p = k.split('|'); return p[1] === coll && (userId === null || userId === undefined || p[0] === userId); }).sort();
     const da = cursor ? Number(cursor) : 0;
     const pagina = tutti.slice(da, da + limit).map(k => { const p = k.split('|'); return { userId: p[0], collection: p[1], key: p.slice(2).join('|'), value: copia(archivio[k]), version: versioni[k] }; });
     if (dopoLista) { const f = dopoLista; dopoLista = null; f(); }
@@ -108,6 +109,12 @@ dice(b.giocatori === 7, 'una differenza sbagliata (due battiti nello stesso ista
 avanti(mondo.CONTO_PRESENZE_OGNI_MS + 1);
 b = batte('u1', {});
 dice(b.giocatori === 2, '...e il conto rifatto la corregge', JSON.stringify(b));
+const storto = copia(conto()); storto.quanti = 0; storto.cercano = 2; storto.inPartita = 3; storto.R = adesso; archivio[SIS + mondo.KEY_CONTO_PRESENZE] = storto;
+b = JSON.parse(mondo.rpcGiocatoriOnline({}, logger, nk, '{}'));
+dice(b.giocatori === 0 && b.cercano === 0 && b.inPartita === 0, 'un conto storto (2 in coda, 0 online) non si legge mai cosi-: chi cerca o gioca e- online', JSON.stringify(b));
+avanti(mondo.CONTO_PRESENZE_OGNI_MS + 1);
+b = batte('u1', {});
+dice(b.giocatori === 2, 'e al conto dopo torna giusto', JSON.stringify(b));
 avanti(mondo.PRESENZA_VIVA_MS + 1000);   // u2 sparisce senza dire niente
 b = batte('u1', {});
 dice(b.giocatori === 1 && !!archivio[REC('u2')], 'chi smette di battere non si conta piu- (al conto dopo), il record resta per ora', JSON.stringify(b));

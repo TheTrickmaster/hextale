@@ -3115,3 +3115,54 @@ Solo server: le RPC (hx_giocatori, hx_entro, hx_esco) rispondono come prima.
   battito), prova-v08029-server.js (picco nel conto, presenze per giocatore).
 - prova-v08030-server.js misura anche il costo: un battito con 2000 online costa
   come con 100.
+- TROVATO COL TEST DI CARICO: nk.storageList('', ...) in Nakama 3.40 lancia
+  "expects empty or valid user id" — "tutti gli utenti" si chiede con null. Il
+  conto rifatto trovava sempre zero record, e nel menu si leggeva 0 online con
+  giocatori in partita; lo stesso errore dalla v0.80.25 lasciava vuote in /stats/
+  le medie che leggono i profili (livello, rank, bustine). _elencaTutto adesso
+  passa null; i banchi finti (v08025, v08029, v08030, carico) lanciano lo stesso
+  errore sulla stringa vuota, cosi' non ripassa.
+- Il conto non dice mai piu' giocatori in coda o in partita che online: una
+  differenza persa (battito e uscita simultanei) poteva lasciare "2 in
+  matchmaking, 0 online" fino al conto dopo.
+
+## carico/carico.js e prova-carico-server.js — il test di carico sul server vero (v0.80.30)
+
+    HEXTALE_SRV=... node strumenti/carico/carico.js --prova
+    HEXTALE_SRV=... node strumenti/carico/carico.js --passi 25,50,100,200,400 --durata 150 --pvp 0.7
+    node strumenti/prova-carico-server.js
+
+Lorenzo: "passiamo al test di carico effettivo ... Nessuno e' online. fallo adesso
+sul server vero". Giocatori finti ma veri per il server:
+- account custom hxcarico0000, hxcarico0001, ... (id hextale-carico-NNNN): senza
+  email, quindi verificati; all'accesso ricevono il mazzo starter come chiunque;
+- all'ingresso hx_avvio e hx_entro; il battito ogni 20 s (10 s in cerca); la
+  telemetria ogni 60 s; su un 401 (sessione scaduta) si rientra e si riprova;
+- con --pvp una parte apre il socket e cerca: il biglietto porta gioco:hxcarico
+  (senza trattino: nel matchmaker un trattino spezza il valore), quindi si
+  accoppiano solo fra loro e mai con un giocatore vero; match_join dopo 0,8-2,5 s;
+  giocata su una casella libera a caso dopo 1,5-4 s, il puntatore sulla mano
+  (op 19) mentre pensano, uno sticker ogni tanto; l'impronta (op 7) e' fatta dalle
+  sole giocate, uguale dai due lati; finita quando le caselle sono piene o chi
+  tocca non ha carte; poi match_leave e di nuovo in coda.
+- Le caselle vengono da _caselle() del server stesso (vm).
+- Via SSH (HEXTALE_SRV, mai stampato) ogni ~5 s: CPU occupata da /proc/stat,
+  load1, MemAvailable, CPU e memoria di nakama e nakama-postgres (docker stats).
+- Ogni passo: ingressi sparsi su 30 s, poi si misura; resoconto con latenze
+  p50/p95/p99 (accesso, hx_avvio, battito, telemetria, apertura del socket),
+  matchmaking, ingresso->avvio, giocata->eco, errori per tipo, partite al minuto,
+  disaccordi, rifiuti, e la macchina. SOGLIE: RPC p95 > 3 s, giocata p95 > 3 s,
+  errori > 5%, RAM libera < 40 MB -> ci si ferma.
+- Prima si controlla che non ci siano giocatori veri online (hx_giocatori; --forza
+  per andare avanti lo stesso) e si chiama hx_carico 'inizia'; alla fine (anche
+  con Ctrl+C) escono tutti (hx_esco) e hx_carico 'pulisci' (--senza-pulizia per
+  saltarla). L'esito va in strumenti/carico/esiti/<data>.json.
+
+hx_carico (server, solo con la chiave del runtime, come hx_riavvio_annuncia):
+- 'inizia' segna in sistema/carico-prima il picco del conto delle presenze; se c'e'
+  gia' (test lasciato a meta') non lo riscrive.
+- 'pulisci' { quanti }: trova gli account hxcarico0000..quanti-1 (usersGetUsername,
+  e solo nomi /^hxcarico\d{4}$/), cancella la loro telemetria (s:, b:, p:, m:), il
+  registro delle loro partite (partite/<match>), la presenza e l'account (i record
+  del profilo se ne vanno con lui); rimette nel conto il picco di prima con R = 0,
+  cosi' il primo battito lo rifa' da capo, e toglie carico-prima.

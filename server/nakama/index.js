@@ -4103,6 +4103,89 @@ function rpcRiavvioAnnuncia(ctx, logger, nk, payload) {
   logger.info('riavvio annunciato fra %d secondi', Math.round(fra / 1000));
   return JSON.stringify({ alle: alle, ora: ora });
 }
+// ══════════════════════════════════════════════════════════════════════════
+// v0.80.30 — IL TEST DI CARICO SUL SERVER VERO, E LA SUA PULIZIA
+// ══════════════════════════════════════════════════════════════════════════
+// Lorenzo: "passiamo al test di carico effettivo ... fallo adesso sul server
+// vero". I giocatori finti (strumenti/carico/carico.js) sono account veri, con
+// autenticazione custom e nome hxcarico0000, hxcarico0001, ...: giocano,
+// battono, scrivono telemetria e partite come chiunque. Prima del test si segna
+// il picco (azione 'inizia'); dopo, 'pulisci' toglie quello che hanno lasciato —
+// gli account (e con loro i loro record), la telemetria, il registro delle
+// partite — e rimette il picco com'era, cosi' /stats/ non racconta giocatori che
+// non esistono. Solo dal server (chiave del runtime), come hx_riavvio_annuncia.
+var CARICO_PREFISSO = 'hxcarico';
+var KEY_CARICO_PRIMA = 'carico-prima';
+function _nomeDaCarico(nome) { return /^hxcarico\d{4}$/.test(String(nome || '')); }
+function _cancellaAPezzi(nk, logger, lista) {
+  var fatti = 0;
+  for (var i = 0; i < lista.length; i += 100) {
+    var pezzo = lista.slice(i, i + 100);
+    try { nk.storageDelete(pezzo); fatti += pezzo.length; }
+    catch (e) { if (logger) logger.warn('carico: cancellazione non riuscita: %s', String(e)); }
+  }
+  return fatti;
+}
+function rpcCarico(ctx, logger, nk, payload) {
+  if (ctx.userId) throw Error('This RPC cannot be called from a client.');
+  var d = {};
+  try { d = payload ? JSON.parse(payload) : {}; } catch (e) { d = {}; }
+  var i, j;
+  if (d.azione === 'inizia') {
+    var c = null, gia = null;
+    try { c = leggiSistema(nk, KEY_CONTO_PRESENZE); } catch (e1) { c = null; }
+    try { gia = leggiSistema(nk, KEY_CARICO_PRIMA); } catch (e2) { gia = null; }
+    // Un test lasciato a meta' ha gia' segnato il picco vero: non lo si
+    // riscrive con quello gonfiato dai giocatori finti.
+    if (!gia) scriviSistema(nk, KEY_CARICO_PRIMA, { picco: (c && c.picco) || 0, piccoIl: (c && c.piccoIl) || null, quando: Date.now() });
+    return JSON.stringify({ ok: true, picco: gia ? (gia.picco || 0) : ((c && c.picco) || 0), gia: !!gia });
+  }
+  if (d.azione !== 'pulisci') throw Error('Unknown action.');
+  var quanti = Math.max(0, Math.min(10000, Math.floor(Number(d.quanti) || 0)));
+  var nomi = [], ids = {}, elenco = [];
+  for (i = 0; i < quanti; i++) nomi.push(CARICO_PREFISSO + ('000' + i).slice(-4));
+  for (i = 0; i < nomi.length; i += 100) {
+    var conti = nk.usersGetUsername(nomi.slice(i, i + 100)) || [];
+    for (j = 0; j < conti.length; j++) {
+      if (conti[j] && _nomeDaCarico(conti[j].username) && !ids[conti[j].userId]) { ids[conti[j].userId] = true; elenco.push(conti[j].userId); }
+    }
+  }
+  var suoi = function (v) {
+    var g = (v && v.giocatori) || [];
+    for (var k = 0; k < g.length; k++) { var u = (g[k] && typeof g[k] === 'object') ? g[k].u : g[k]; if (ids[u]) return true; }
+    return false;
+  };
+  // telemetria: s:<utente>:<sessione>, b:<utente>:<ms>, p:<partita>:<utente>, m:<partita> con loro dentro
+  var tele = _elencaTutto(nk, UTENTE_SISTEMA, COLL_TELE, 1000), via = [];
+  for (i = 0; i < tele.length; i++) {
+    var chiave = String(tele[i].key || ''), pz = chiave.split(':');
+    var loro = (pz[0] === 's' || pz[0] === 'b') ? !!ids[pz[1]] : (pz[0] === 'p') ? !!ids[pz[2]] : (pz[0] === 'm') ? suoi(tele[i].value) : false;
+    if (loro) via.push({ collection: COLL_TELE, key: chiave, userId: UTENTE_SISTEMA });
+  }
+  var telemetria = _cancellaAPezzi(nk, logger, via);
+  var registro = _elencaTutto(nk, UTENTE_SISTEMA, COLL_PARTITE, 1000);
+  via = [];
+  for (i = 0; i < registro.length; i++) if (suoi(registro[i].value)) via.push({ collection: COLL_PARTITE, key: registro[i].key, userId: UTENTE_SISTEMA });
+  var partite = _cancellaAPezzi(nk, logger, via);
+  var account = 0;
+  for (i = 0; i < elenco.length; i++) {
+    try { nk.storageDelete([{ collection: COLL_PRESENZA, key: KEY_BATTITO, userId: elenco[i] }]); } catch (e3) { }
+    try { nk.accountDeleteId(elenco[i], false); account++; }
+    catch (e4) { logger.warn('carico: account %s non cancellato: %s', elenco[i], String(e4)); }
+  }
+  // Il picco com'era prima del test, e il conto da rifare al primo battito.
+  var prima = null, conto = null;
+  try { prima = leggiSistema(nk, KEY_CARICO_PRIMA); } catch (e5) { prima = null; }
+  try { conto = leggiSistema(nk, KEY_CONTO_PRESENZE); } catch (e6) { conto = null; }
+  var nuovo = { R: 0, quanti: 0, cercano: 0, inPartita: 0,
+    picco: prima ? (prima.picco || 0) : ((conto && conto.picco) || 0),
+    piccoIl: prima ? (prima.piccoIl || null) : ((conto && conto.piccoIl) || null) };
+  scriviSistema(nk, KEY_CONTO_PRESENZE, nuovo);
+  if (prima) { try { nk.storageDelete([{ collection: COLL_SISTEMA, key: KEY_CARICO_PRIMA, userId: UTENTE_SISTEMA }]); } catch (e7) { } }
+  logger.info('carico: puliti %d account, %d telemetria, %d partite; picco rimesso a %d', account, telemetria, partite, nuovo.picco);
+  return JSON.stringify({ ok: true, account: account, telemetria: telemetria, partite: partite, picco: nuovo.picco });
+}
+
 // Quando riparte il server, se e' stato annunciato. Un annuncio passato da piu'
 // di dieci minuti senza riavvio (lo schieramento si e' fermato) non vale piu'.
 function _riavvioAnnunciato(nk) {
@@ -4276,6 +4359,11 @@ function _presenzaEConto(nk, logger, userId, ora, cambia) {
     conto = _ricontaPresenze(nk, logger, ora, buono ? conto : null);
   }
   if (nuova !== undefined) conto = _contoConDifferenza(conto, mia, nuova);
+  // Una differenza persa fra due richieste simultanee (un battito e un'uscita
+  // alla chiusura della scheda) puo' lasciare "2 in matchmaking, 0 online" fino
+  // al conto dopo: nel menu si leggerebbe cosi'. Chi cerca o gioca e' online.
+  if (conto.cercano > conto.quanti) conto.cercano = conto.quanti;
+  if (conto.inPartita > conto.quanti) conto.inPartita = conto.quanti;
   if (conto.quanti > (conto.picco || 0)) { conto.picco = conto.quanti; conto.piccoIl = ora; }
   try {
     if (nuova) nk.storageWrite([{ collection: COLL_PRESENZA, key: KEY_BATTITO, userId: userId, value: nuova, permissionRead: 0, permissionWrite: 0 }]);
@@ -5145,8 +5233,13 @@ function calcolaStatistiche(dati, ora) {
 // Tutto quello che sta in una collezione, pagina per pagina.
 function _elencaTutto(nk, userId, collezione, pagineMax) {
   var fuori = [], cursore = '', giri = 0;
+  // v0.80.30 — "tutti gli utenti" si chiede con null. Una stringa vuota fa
+  // lanciare al runtime "expects empty or valid user id": cosi' dalla v0.80.25
+  // /stats/ non leggeva i profili, e dalla v0.80.30 il conto delle presenze
+  // tornava sempre zero. I banchi finti adesso lanciano lo stesso errore.
+  var chi = userId ? userId : null;
   do {
-    var r = nk.storageList(userId, collezione, 100, cursore);
+    var r = nk.storageList(chi, collezione, 100, cursore);
     var oggetti = (r && r.objects) || [];
     for (var i = 0; i < oggetti.length; i++) fuori.push(oggetti[i]);
     cursore = (r && r.cursor) || '';
@@ -7988,7 +8081,8 @@ function InitModule(ctx, logger, nk, initializer) {
   initializer.registerRpc('hx_google_config', rpcGoogleConfig);
   initializer.registerRpc('hx_elimina_account', rpcEliminaAccount);
   initializer.registerRpc('hx_giocatori', rpcGiocatoriOnline);
-  initializer.registerRpc('hx_riavvio_annuncia', rpcRiavvioAnnuncia);   // v0.80.24
+  initializer.registerRpc('hx_riavvio_annuncia', rpcRiavvioAnnuncia);
+  initializer.registerRpc('hx_carico', rpcCarico);                      // v0.80.30   // v0.80.24
   initializer.registerRpc('hx_telemetria', rpcTelemetria);              // v0.80.25
   initializer.registerRpc('hx_stats', rpcStats);                        // v0.80.25
   initializer.registerRpc('hx_stats_live', rpcStatsLive);               // v0.80.29
