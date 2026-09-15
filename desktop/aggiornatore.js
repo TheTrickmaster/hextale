@@ -34,6 +34,7 @@ const fs = require('fs');
 const fsp = require('fs/promises');
 const path = require('path');
 const crypto = require('crypto');
+const { Readable } = require('stream');
 
 const NOME_MANIFESTO = 'manifesto.json';
 const IMPRONTA = /^[0-9a-f]{64}$/;
@@ -177,4 +178,66 @@ async function applica(base, cartellaViva, piano, opzioni) {
   return piano.remoto;
 }
 
-module.exports = { NOME_MANIFESTO, percorsoSicuro, improntaDi, leggiManifesto, confronta, manifestoEfficace, trovaFile, controlla, prescarica, fileInCantiere, applica };
+// ═══════════════════════════════════════════════════════════════════════════
+// L'APP STESSA (il guscio), dalla 1.0.1
+// ═══════════════════════════════════════════════════════════════════════════
+// Sul deposito: installatore/ultimo.json { versione, file, sha256, dimensione }
+// (lo scrive pubblica-r2.js --installatore). Se la versione e' piu' nuova di
+// quella dell'app, l'installatore si scarica in silenzio in
+// %APPDATA%\Hextale\installatore, si verifica l'impronta, e parte muto quando
+// si chiude il gioco (vedi main.js). Niente librerie: e' un file e un'impronta.
+const VERSIONE_GUSCIO = /^\d+\.\d+\.\d+$/;
+const NOME_INSTALLATORE = /^Hextale-Setup-(\d+\.\d+\.\d+)\.exe(\.parziale)?$/;
+
+// L'ultimo installatore, se e' piu' nuovo di `versioneAttuale`; null altrimenti.
+async function controllaGuscio(base, versioneAttuale, opzioni) {
+  const o = opzioni || {};
+  const r = await chiedi(base + 'installatore/ultimo.json?t=' + Date.now(), o.timeoutMs || 6000);
+  const u = await r.json();
+  if (!u || !VERSIONE_GUSCIO.test(String(u.versione)) || u.file !== 'installatore/Hextale-Setup-' + u.versione + '.exe'
+    || !IMPRONTA.test(String(u.sha256)) || !(Number(u.dimensione) > 0)) throw new Error('ultimo.json non valido');
+  return confronta({ versione: u.versione }, { versione: versioneAttuale }) > 0 ? u : null;
+}
+
+// Scarica (a pezzi, senza tenerlo tutto in memoria) e verifica. Se c'e' gia' ed
+// e' buono non si riscarica. Restituisce il percorso del file.
+async function scaricaGuscio(base, cartella, ultimo, opzioni) {
+  const o = opzioni || {};
+  await fsp.mkdir(cartella, { recursive: true });
+  const nome = path.basename(ultimo.file);
+  const dest = path.join(cartella, nome);
+  if (fs.existsSync(dest) && (await improntaDi(dest)) === ultimo.sha256) return dest;
+  const r = await chiedi(base + ultimo.file, o.timeoutMs || 3 * 60 * 60 * 1000);
+  const parziale = dest + '.parziale';
+  const h = crypto.createHash('sha256');
+  await new Promise((ok, ko) => {
+    const leggi = Readable.fromWeb(r.body);
+    const scrivi = fs.createWriteStream(parziale);
+    leggi.on('data', (d) => h.update(d));
+    leggi.on('error', ko);
+    scrivi.on('error', ko);
+    scrivi.on('finish', ok);
+    leggi.pipe(scrivi);
+  });
+  if (h.digest('hex') !== ultimo.sha256) {
+    await fsp.rm(parziale, { force: true });
+    throw new Error('impronta sbagliata per ' + nome);
+  }
+  await fsp.rename(parziale, dest);
+  return dest;
+}
+
+// Via gli installatori gia' usati (versione uguale o piu' vecchia dell'app) e
+// quelli rimasti a meta'.
+async function pulisciGuscio(cartella, versioneAttuale) {
+  let nomi = [];
+  try { nomi = await fsp.readdir(cartella); } catch (_) { return; }
+  for (const n of nomi) {
+    const m = NOME_INSTALLATORE.exec(n);
+    if (!m) continue;
+    if (m[2] || confronta({ versione: m[1] }, { versione: versioneAttuale }) <= 0) await fsp.rm(path.join(cartella, n), { force: true });
+  }
+}
+
+module.exports = { NOME_MANIFESTO, percorsoSicuro, improntaDi, leggiManifesto, confronta, manifestoEfficace, trovaFile, controlla, prescarica, fileInCantiere, applica,
+  controllaGuscio, scaricaGuscio, pulisciGuscio };

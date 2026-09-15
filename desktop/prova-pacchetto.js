@@ -5,9 +5,10 @@
 //
 // Apre desktop/dist/win-unpacked/Hextale.exe — lo stesso programma che
 // l'installatore mette sul disco — e ci guarda dentro dalla porta di debug di
-// Chromium, senza installare niente. hextalegame.com e api.hextalegame.com non
-// si risolvono e il deposito degli aggiornamenti non risponde: tutto deve
-// arrivare dalla copia del gioco inclusa nel pacchetto. Dati in una cartella
+// Chromium, senza installare niente. hextalegame.com va al servitore locale
+// del programma (e' lui a deciderlo), api.hextalegame.com non si risolve e il
+// deposito degli aggiornamenti non risponde: tutto deve arrivare dalla copia
+// del gioco inclusa nel pacchetto. Dati in una cartella
 // temporanea (HEXTALE_PROVA_DATI), finestra nascosta (HEXTALE_PROVA).
 //   1. nel pacchetto c'e' la copia del gioco, dall'ultimo commit, col suo manifesto;
 //   2. c'e' l'installatore;
@@ -53,14 +54,18 @@ const INSTALLATORE = path.join(__dirname, 'dist', 'Hextale-Setup-' + GUSCIO.vers
     dice(incluso && incluso.versione === versioneHead && incluso.origine === 'commit ' + commit && Object.keys(incluso.file).length > 500
       && fs.existsSync(path.join(PACCHETTO, 'resources', 'gioco', 'play', 'index.html')),
       'nel pacchetto c-e- il gioco dell-ultimo commit, col suo manifesto', incluso ? incluso.versione + ' / ' + incluso.origine + ' / ' + Object.keys(incluso.file).length + ' file' : 'manca');
+    let dentro = [];
+    try { dentro = require('@electron/asar').listPackage(path.join(PACCHETTO, 'resources', 'app.asar')).map((x) => x.replace(/\\/g, '/')); } catch (_) { dentro = []; }
+    dice(['/main.js', '/servitore.js', '/aggiornatore.js', '/preload.js', '/certificato/chiave.pem', '/certificato/certificato.pem'].every((f) => dentro.indexOf(f) >= 0),
+      'nel programma ci sono il guscio, il servitore locale e il suo certificato', dentro.join(', '));
     dice(fs.existsSync(INSTALLATORE), 'c-e- l-installatore ' + path.basename(INSTALLATORE)
       + (fs.existsSync(INSTALLATORE) ? ' (' + (fs.statSync(INSTALLATORE).size / 1048576).toFixed(0) + ' MB)' : ''));
 
     // ── 3-6. il programma ──
-    app = spawn(EXE, [
-      '--remote-debugging-port=' + PORTA,
-      '--host-resolver-rules=MAP hextalegame.com ~NOTFOUND, MAP www.hextalegame.com ~NOTFOUND, MAP api.hextalegame.com ~NOTFOUND',
-    ], { env: Object.assign({}, process.env, { HEXTALE_PROVA: '1', HEXTALE_PROVA_DATI: DATI, HEXTALE_AGGIORNAMENTI: 'http://127.0.0.1:9/' }), stdio: 'ignore' });
+    app = spawn(EXE, ['--remote-debugging-port=' + PORTA], {
+      env: Object.assign({}, process.env, { HEXTALE_PROVA: '1', HEXTALE_PROVA_DATI: DATI, HEXTALE_AGGIORNAMENTI: 'http://127.0.0.1:9/', HEXTALE_PROVA_REGOLE: 'MAP api.hextalegame.com ~NOTFOUND' }),
+      stdio: 'ignore',
+    });
     let pagina = null;
     const inizio = Date.now();
     while (!pagina && Date.now() - inizio < 60000) {

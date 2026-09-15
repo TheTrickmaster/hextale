@@ -14,7 +14,9 @@
 //   6. senza rete: errore in fretta (l'app parte con quello che ha);
 //   7. un installatore piu' nuovo della viva: la viva si butta;
 //   8. le versioni si confrontano pezzo per pezzo;
-//   9. a gioco aperto: si prescarica nel cantiere senza posare, e posando non si riscarica.
+//   9. a gioco aperto: si prescarica nel cantiere senza posare, e posando non si riscarica;
+//  10-12. l'app stessa (dalla 1.0.1): quando c'e' un installatore nuovo, ultimo.json
+//      sbagliati rifiutati, download verificato e riusato, pulizia dei vecchi.
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -48,6 +50,8 @@ let richiesteFile = 0;
 const server = http.createServer((req, res) => {
   const u = req.url.split('?')[0];
   if (u === '/gioco/manifesto.json') { res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify(deposito.manifesto)); }
+  if (u === '/installatore/ultimo.json' && deposito.ultimo) { res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify(deposito.ultimo)); }
+  if (deposito.installatori && deposito.installatori[u] !== undefined) { richiesteFile++; res.writeHead(200); return res.end(deposito.installatori[u]); }
   const m = u.match(/^\/gioco\/file\/([0-9a-f]{64})$/);
   if (m && deposito.file[m[1]] !== undefined) {
     richiesteFile++;
@@ -148,6 +152,41 @@ server.listen(0, '127.0.0.1', async () => {
     efficace = await A.applica(BASE, VIVA, piano);
     dice(efficace.versione === 'v0.80.41' && richiesteFile === 0 && A.trovaFile(efficace, INCLUSA, VIVA, 'patch-notes.txt') === path.join(VIVA, 'patch-notes.txt')
       && !fs.existsSync(path.join(VIVA, '.cantiere')), 'posandolo non si riscarica niente, e dopo vale la versione nuova', 'richieste: ' + richiesteFile);
+
+    // ── 10. l'app stessa: c'e' una versione nuova? ────────────────────────
+    const EXE = 'installatore finto 1.0.2';
+    const ultimo = { versione: '1.0.2', file: 'installatore/Hextale-Setup-1.0.2.exe', sha256: sha(EXE), dimensione: EXE.length };
+    deposito.ultimo = ultimo;
+    deposito.installatori = { '/installatore/Hextale-Setup-1.0.2.exe': EXE };
+    dice((await A.controllaGuscio(BASE, '1.0.1')).versione === '1.0.2' && (await A.controllaGuscio(BASE, '1.0.2')) === null && (await A.controllaGuscio(BASE, '1.0.10')) === null,
+      'app: la 1.0.2 e- nuova per la 1.0.1, non per la 1.0.2 ne- per la 1.0.10');
+    let rifiutato = 0;
+    for (const guasto of [{ file: 'installatore/Hextale-Setup-9.9.9.exe' }, { file: '../../x.exe' }, { versione: '1.0' }, { sha256: 'abc' }, { dimensione: 0 }]) {
+      deposito.ultimo = Object.assign({}, ultimo, guasto);
+      try { await A.controllaGuscio(BASE, '1.0.1'); } catch (e) { if (/non valido/.test(e.message)) rifiutato++; }
+    }
+    deposito.ultimo = ultimo;
+    dice(rifiutato === 5, 'app: un ultimo.json col nome sbagliato, fuori cartella, o senza impronta o dimensione si rifiuta', rifiutato + ' su 5');
+
+    // ── 11. l'app stessa: si scarica e si verifica ────────────────────────
+    const INST = path.join(radice, 'installatore');
+    richiesteFile = 0;
+    const scaricato = await A.scaricaGuscio(BASE, INST, ultimo);
+    dice(scaricato === path.join(INST, 'Hextale-Setup-1.0.2.exe') && fs.readFileSync(scaricato, 'utf8') === EXE && !fs.existsSync(scaricato + '.parziale') && richiesteFile === 1,
+      'app: l-installatore si scarica intero, verificato, senza resti');
+    richiesteFile = 0;
+    await A.scaricaGuscio(BASE, INST, ultimo);
+    dice(richiesteFile === 0, 'app: se c-e- gia- ed e- buono non si riscarica', 'richieste: ' + richiesteFile);
+    fs.rmSync(INST, { recursive: true, force: true });
+    deposito.installatori['/installatore/Hextale-Setup-1.0.2.exe'] = 'installatore manomesso';
+    errore = '';
+    try { await A.scaricaGuscio(BASE, INST, ultimo); } catch (e) { errore = e.message; }
+    dice(/impronta sbagliata/.test(errore) && fs.readdirSync(INST).length === 0, 'app: un installatore diverso da quello annunciato si butta', errore + ' / ' + fs.readdirSync(INST).join(','));
+
+    // ── 12. l'app stessa: pulizia ─────────────────────────────────────────
+    for (const n of ['Hextale-Setup-1.0.0.exe', 'Hextale-Setup-1.0.1.exe', 'Hextale-Setup-1.0.2.exe', 'Hextale-Setup-1.0.3.exe.parziale', 'altro.txt']) fs.writeFileSync(path.join(INST, n), 'x');
+    await A.pulisciGuscio(INST, '1.0.1');
+    dice(fs.readdirSync(INST).sort().join(',') === 'Hextale-Setup-1.0.2.exe,altro.txt', 'app: via gli installatori gia- usati e quelli a meta-, resta solo il piu- nuovo', fs.readdirSync(INST).join(','));
   } catch (e) {
     dice(false, 'il banco e- arrivato in fondo', e.stack);
   } finally {
