@@ -7130,7 +7130,7 @@ try{
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.46</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.47</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -8937,17 +8937,24 @@ function _pNuovoGranello(piano, w, h, sparso){
   };
 }
 
+function _pMisura(strato){
+  const rif = strato.misura || strato.tela;
+  if(!rif || !rif.isConnected) return null;
+  const w = rif.offsetWidth, h = rif.offsetHeight;
+  if(!w || !h) return null;
+  return { w, h };
+}
 function _pDimensiona(strato){
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  const rif = strato.misura || strato.tela;
-  const r = rif ? rif.getBoundingClientRect() : null;
-  const scala = (typeof _fit === 'object' && _fit && _fit.scale) ? _fit.scale : 1;
-  const w = (r && r.width)  ? r.width/scala  : window.innerWidth;
-  const h = (r && r.height) ? r.height/scala : window.innerHeight;
+  const m = _pMisura(strato);
+  if(!m){ strato.inAttesa = true; return false; }
+  strato.inAttesa = false;
+  const w = m.w, h = m.h;
   strato.w = w; strato.h = h; strato.dpr = dpr;
   strato.tela.width  = Math.max(1, Math.round(w*dpr));
   strato.tela.height = Math.max(1, Math.round(h*dpr));
   strato.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return true;
 }
 
 function PolvereAvvia(piani, scena, misura){
@@ -8959,8 +8966,9 @@ function PolvereAvvia(piani, scena, misura){
     const ctx = tela.getContext('2d');
     if(!ctx) continue;
     const strato = { piano, tela, ctx, granelli:[], w:0, h:0, dpr:1, misura: misura || null };
-    _pDimensiona(strato);
-    for(let i=0;i<piano.quante;i++) strato.granelli.push(_pNuovoGranello(piano, strato.w, strato.h, true));
+    if(_pDimensiona(strato)){
+      for(let i=0;i<piano.quante;i++) strato.granelli.push(_pNuovoGranello(piano, strato.w, strato.h, true));
+    }
     strati.push(strato);
   }
   if(!strati.length) return;
@@ -8975,6 +8983,13 @@ function PolvereAvvia(piani, scena, misura){
     scena.ultimo = ora;
     const t = ora/1000;
     for(const s of scena.strati){
+      const m = _pMisura(s);
+      if(!m) continue;
+      if(s.inAttesa || Math.abs(m.w - s.w) > 0.5 || Math.abs(m.h - s.h) > 0.5 || Math.min(window.devicePixelRatio || 1, 2) !== s.dpr){
+        if(!_pDimensiona(s)) continue;
+        s.granelli = [];
+        for(let i=0;i<s.piano.quante;i++) s.granelli.push(_pNuovoGranello(s.piano, s.w, s.h, true));
+      }
       const {ctx, w, h} = s;
       ctx.clearRect(0, 0, w, h);
       ctx.fillStyle = PARTICELLE_COLORE;
@@ -16483,7 +16498,7 @@ function guidaDisegna(){
         if(v.tratto){
           const ico = document.createElement('img');
           ico.className = 'guida-icona'; ico.alt = ''; ico.draggable = false;
-          glossarioIconaTratto(ico, v.tratto);
+          glossarioIconaTratto(ico, v.tratto, 'ui');
           b.appendChild(ico);
         }
         b.appendChild(document.createTextNode(v.nome));
@@ -16503,7 +16518,7 @@ function guidaScegli(id){
   const testo = document.getElementById('guida-voce-testo');
   if(nome) nome.textContent = v.nome;
   if(testo) testo.textContent = v.testo;
-  glossarioIconaTratto(document.getElementById('guida-voce-icona'), v.tratto || null);
+  glossarioIconaTratto(document.getElementById('guida-voce-icona'), v.tratto || null, 'ui');
 }
 function guidaFiltra(){
   const campo = document.getElementById('guida-cerca');
@@ -16638,7 +16653,10 @@ function glossarioAccendi(parola){
   if(!v && !nomeTratto){ tip.classList.remove('visibile'); return; }
   if(!icona) parola.classList.add('gl-accesa');
   tip.querySelector('.gt-titolo').textContent = icona ? nomeTratto : String(parola.textContent || '').trim();
-  tip.querySelector('.gt-testo').textContent = v ? v.testo : ('Characters with the ' + nomeTratto + ' trait.');
+  const eTratto = icona || !!(v && v.tratto);
+  const testo = tip.querySelector('.gt-testo');
+  testo.textContent = eTratto ? '' : (v ? v.testo : '');
+  testo.hidden = eTratto;
   glossarioIconaTratto(tip.querySelector('.gt-icona'), icona ? chiave : ((v && v.tratto) || null), 'ui');
   tip.classList.add('visibile');
   tooltipSegui(tip);
