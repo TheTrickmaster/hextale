@@ -9404,6 +9404,27 @@ async function ricordoDecide(){
   _ricordoVestiIlModulo();
   return false;
 }
+function emailRicordaNellApp(email){
+  try{
+    const d = window.hextaleDesktop;
+    if(d && typeof d.ricordaEmail === 'function' && email) d.ricordaEmail(String(email)).catch(()=>{});
+  }catch(_){ }
+}
+function emailDallApp(){
+  try{
+    const d = window.hextaleDesktop;
+    if(!d || typeof d.ultimaEmail !== 'function') return;
+    d.ultimaEmail().then(email => {
+      if(!email) return;
+      const campo = document.getElementById('login-user');
+      if(campo && !campo.value) campo.value = email;
+    }).catch(()=>{});
+  }catch(_){ }
+}
+if(typeof window !== 'undefined'){
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', emailDallApp);
+  else emailDallApp();
+}
 function _ricordoVestiIlModulo(){
   if(!_ricordoEmailUltima) return;
   const campo = document.getElementById('login-user');
@@ -11187,6 +11208,7 @@ async function accediConPassword(bottone){
     const risposta = await nakamaAutenticaEmail(email, password, false);
     if(ricordoRichiesto()) _ricordoAttivo = true; else ricordoDimentica();
     const s = nakamaSalvaSessione(risposta, email);
+    emailRicordaNellApp(email);
     await nakamaCompletaProfilo(s);
     accessoOccupato(bottone, false);
     accessoEntra(s);
@@ -11207,6 +11229,7 @@ async function registraAccount(bottone){
   accessoMessaggio('registrazione', 'Creating your account...', 'attesa');
   try{
     const s = nakamaSalvaSessione(await nakamaAutenticaEmail(email, p1, true), email);
+    emailRicordaNellApp(email);
     await nakamaCompletaProfilo(s);
     let partita = true;
     try{ await nakamaRpc('hx_verifica_invia', {}); }
