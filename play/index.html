@@ -7130,7 +7130,7 @@ try{
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.47</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.48</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -7514,7 +7514,7 @@ try{
         <p>You can delete your account at any time from the game settings. For any other request, write to support@hextalegame.com. We may need to verify your identity first.</p>
         <div class="nca-titolo">13. &ldquo;Remember me&rdquo;</div>
         <p>The &ldquo;Remember me&rdquo; option on the login screen is off by default. If you turn it on, the game saves one entry on your device, in the local storage of the app or browser: hextale.ricordami.</p>
-        <p>It contains only your email address and a renewal token that keeps you logged in. It is deleted when you select &ldquo;Disconnect&rdquo; or delete your account. The game uses no other cookies or local storage.</p>
+        <p>It contains only your email address and a renewal token that keeps you logged in. It is deleted when you select &ldquo;Disconnect&rdquo; or delete your account. The desktop app also keeps the email address you last used to log in, so the login form is pre-filled. The game uses no other cookies or local storage.</p>
         <div class="nca-titolo">14. Availability and Liability</div>
         <p>Hextale is provided &ldquo;as is&rdquo; and &ldquo;as available&rdquo;. We may change, suspend or discontinue all or part of it at any time, and we do not guarantee it will be uninterrupted or error-free.</p>
         <p>To the extent permitted by law, the developers are not liable for indirect or consequential losses arising from your use of Hextale. Nothing in this Agreement limits rights that cannot be limited by law, including your rights as a consumer.</p>
@@ -9404,6 +9404,27 @@ async function ricordoDecide(){
   _ricordoVestiIlModulo();
   return false;
 }
+function emailRicordaNellApp(email){
+  try{
+    const d = window.hextaleDesktop;
+    if(d && typeof d.ricordaEmail === 'function' && email) d.ricordaEmail(String(email)).catch(()=>{});
+  }catch(_){ }
+}
+function emailDallApp(){
+  try{
+    const d = window.hextaleDesktop;
+    if(!d || typeof d.ultimaEmail !== 'function') return;
+    d.ultimaEmail().then(email => {
+      if(!email) return;
+      const campo = document.getElementById('login-user');
+      if(campo && !campo.value) campo.value = email;
+    }).catch(()=>{});
+  }catch(_){ }
+}
+if(typeof window !== 'undefined'){
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', emailDallApp);
+  else emailDallApp();
+}
 function _ricordoVestiIlModulo(){
   if(!_ricordoEmailUltima) return;
   const campo = document.getElementById('login-user');
@@ -11187,6 +11208,7 @@ async function accediConPassword(bottone){
     const risposta = await nakamaAutenticaEmail(email, password, false);
     if(ricordoRichiesto()) _ricordoAttivo = true; else ricordoDimentica();
     const s = nakamaSalvaSessione(risposta, email);
+    emailRicordaNellApp(email);
     await nakamaCompletaProfilo(s);
     accessoOccupato(bottone, false);
     accessoEntra(s);
@@ -11207,6 +11229,7 @@ async function registraAccount(bottone){
   accessoMessaggio('registrazione', 'Creating your account...', 'attesa');
   try{
     const s = nakamaSalvaSessione(await nakamaAutenticaEmail(email, p1, true), email);
+    emailRicordaNellApp(email);
     await nakamaCompletaProfilo(s);
     let partita = true;
     try{ await nakamaRpc('hx_verifica_invia', {}); }
