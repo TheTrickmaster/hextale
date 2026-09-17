@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<title>Hextale — Sign in with Google</title>
+<link rel="icon" href="/favicon.png">
+
+<style>
+@font-face{ font-family:'Marcellus SC'; src:url('/fonts/MarcellusSC-Regular.ttf') format('truetype'); font-display:swap; }
+@font-face{ font-family:'Rosarivo'; src:url('/fonts/Rosarivo-Regular.ttf') format('truetype'); font-display:swap; }
+html, body{ margin:0; min-height:100%; background:#0B1011; color:#EDE0C6; }
+body{
+  position:relative; min-height:100vh; box-sizing:border-box;
+  display:flex; align-items:center; justify-content:center;
+  padding:60px 16px 40px; overflow-x:hidden;
+  font-family:'Rosarivo', Georgia, serif;
+}
+
+.fondo, .velo{ position:fixed; inset:0; pointer-events:none; }
+.fondo{ background:url('/ui/main-menu-bg.jpg') center / cover no-repeat; }
+.velo{ background:rgba(3,7,7,0.7); -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px); }
+.pannello{
+  position:relative; z-index:1;
+  width:460px; max-width:100%;
+  display:flex; flex-direction:column; align-items:center; gap:16px;
+  padding:30px; box-sizing:border-box;
+  border-radius:28px;
+  background-image:linear-gradient(135deg, rgba(84,96,98,0.5) 0%, rgba(29,38,39,0.5) 100%);
+  border:1.5px solid rgba(255,255,255,0.2);
+  text-align:center;
+}
+.pannello::before{
+  content:''; position:absolute; inset:0; border-radius:inherit;
+  background:url('/ui/brushed-texture.jpg') center / cover no-repeat;
+  opacity:0.4; mix-blend-mode:overlay; pointer-events:none; z-index:0;
+}
+.pannello > *{ position:relative; z-index:1; }
+.stendardo{
+  align-self:center; flex:0 0 auto;
+  width:297px; max-width:100%; height:90px; margin-top:-30px; box-sizing:border-box;
+  display:flex; align-items:center; justify-content:center;
+  padding:0 0 14px;
+  background:url('/ui/title-bar.png') center / 100% 100% no-repeat;
+}
+.stendardo img{ height:58px; width:auto; display:block; filter:drop-shadow(0 0 8px rgba(0,0,0,0.6)); }
+h1{
+  margin:0; font-family:'Marcellus SC', Georgia, serif; font-weight:400;
+  font-size:30px; line-height:1.1; color:#EDE0C6; text-shadow:0 0 8px #000;
+}
+h1[hidden]{ display:none; }
+p{ margin:0; font-size:17px; line-height:1.45; color:#CCC; }
+.riga{ align-self:stretch; height:1px; background:rgba(255,255,255,0.1); }
+.pulsante{
+  position:relative; height:68px; width:340px; max-width:100%;
+  display:inline-flex; align-items:center; justify-content:center;
+  padding:0 34px; box-sizing:border-box;
+  background:none; border:0; margin:0; cursor:pointer;
+  transition:filter 0.16s ease, transform 0.16s ease;
+}
+.pulsante[hidden]{ display:none; }
+.pulsante:hover{ filter:brightness(1.18); }
+.pulsante:active{ transform:scale(0.98); }
+.pulsante[disabled]{ cursor:default; filter:saturate(0.6) brightness(0.8); transform:none; }
+.striscia{ position:absolute; inset:0; display:flex; align-items:stretch; pointer-events:none; }
+.striscia > span{ background-repeat:no-repeat; background-size:100% 100%; margin-right:-1px; }
+.striscia > span:last-child{ margin-right:0; }
+.s-sx{ flex:0 0 49px; background-image:url('/ui/button-opaque-left.png'); }
+.s-dx{ flex:0 0 49px; background-image:url('/ui/button-opaque-right.png'); }
+.s-centro{ flex:0 0 58px; background-image:url('/ui/button-opaque-center.png'); }
+.striscia > .s-pieno{ flex:1 1 0; min-width:0; background-image:url('/ui/button-opaque-filler.png'); background-repeat:repeat-x; background-size:auto 100%; }
+.etichetta{
+  position:relative; display:inline-flex; align-items:center; gap:10px;
+  font-family:'Marcellus SC', Georgia, serif; font-size:22px; line-height:1;
+  color:#DDCAA1; white-space:nowrap;
+}
+.etichetta img{ height:22px; width:auto; display:block; }
+@media (max-width:440px){
+  .pannello{ padding:30px 18px; }
+  .pulsante{ padding:0 26px; }
+  .etichetta{ font-size:19px; gap:8px; }
+  .etichetta img{ height:19px; }
+}
+</style>
+</head>
+<body>
+<div class="fondo"></div>
+<div class="velo"></div>
+<main class="pannello">
+  <div class="stendardo"><img src="/ui/hextale-logo-topbar.png" alt="Hextale" draggable="false"></div>
+  <h1 id="titolo" hidden></h1>
+  <p id="testo">Sign in with your Google account. When you're done, go back to the game.</p>
+  <div class="riga" id="riga" hidden></div>
+  <button class="pulsante" id="google" type="button" hidden>
+    <span class="striscia"><span class="s-sx"></span><span class="s-pieno"></span><span class="s-centro"></span><span class="s-pieno"></span><span class="s-dx"></span></span>
+    <span class="etichetta"><img src="/ui/google-icon.png" alt="" draggable="false">Continue with Google</span>
+  </button>
+</main>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script>
+(function(){
+  var GOOGLE_CLIENT_ID = '947017238895-crsaaks4v9lv08o16jsin68dr3a5s0qh.apps.googleusercontent.com';
+  var q = new URLSearchParams(location.search);
+  var porta = Number(q.get('porta'));
+  var stato = q.get('stato') || '';
+  var esito = q.get('esito') || '';
+  var titolo = document.getElementById('titolo');
+  var testo = document.getElementById('testo');
+  var riga = document.getElementById('riga');
+  var pulsante = document.getElementById('google');
+  function scrivi(t){ testo.textContent = t; }
+  if(esito){
+    titolo.textContent = esito === 'ok' ? 'You are signed in' : 'Sign-in did not complete';
+    titolo.hidden = false;
+    scrivi(esito === 'ok' ? 'You can close this tab and go back to Hextale.' : 'Go back to Hextale and try again.');
+    return;
+  }
+  if(!(Math.floor(porta) === porta && porta >= 1024 && porta <= 65535) || !/^[0-9a-f]{32}$/.test(stato)){
+    scrivi('Open this page from the Hextale app: press "Login with Google" in the game.');
+    return;
+  }
+  function tornaAllApp(parametri){
+    location.replace('http://127.0.0.1:' + porta + '/google?stato=' + stato + '&' + parametri);
+  }
+  riga.hidden = false;
+  pulsante.hidden = false;
+  pulsante.addEventListener('click', function(){
+    if(!(window.google && google.accounts && google.accounts.oauth2)){
+      scrivi('Google sign-in is still loading. Try again in a moment.');
+      return;
+    }
+    var cliente = google.accounts.oauth2.initCodeClient({
+      client_id: GOOGLE_CLIENT_ID,
+      scope: 'openid email profile',
+      ux_mode: 'popup',
+      callback: function(r){
+        if(r && r.code){
+          pulsante.disabled = true;
+          scrivi('Signing you in...');
+          tornaAllApp('code=' + encodeURIComponent(r.code));
+        }else{
+          tornaAllApp('errore=' + encodeURIComponent((r && r.error) || 'nessun codice'));
+        }
+      },
+      error_callback: function(){
+        scrivi('The Google window was closed. Press the button to try again.');
+      }
+    });
+    cliente.requestCode();
+  });
+})();
+</script>
+</body>
+</html>

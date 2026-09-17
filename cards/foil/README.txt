@@ -1,0 +1,1 @@
+The Rainbow textures need to be bright because the game processes them at 38% opacity.
