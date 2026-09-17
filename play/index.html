@@ -1805,7 +1805,7 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
 }
 .scarta-croce{
   position:absolute; left:14px; top:14px;
-  width:37px; height:37px; margin:0;
+  width:44px; height:44px; margin:0;
   z-index:60;
   pointer-events:auto;
   cursor:var(--cursore);
@@ -1823,6 +1823,15 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
   filter:drop-shadow(0 2px 6px rgba(0,0,0,0.55)) brightness(1.25);
 }
 .scarta-croce:active img{ transform:scale(1.02) translateY(1px); }
+#board-lamp-layer{ pointer-events:none; }
+#board-lamp-layer .lampada{ transition:opacity .15s ease-out; }
+#board-lamp-layer .lampada.velata{ opacity:.3; }
+.lampada-lampo{ opacity:0; }
+.lampada-quante{ font-family:'Marcellus SC','Marcellus',serif; font-size:20px; fill:#FFFFFF; stroke:rgba(0,0,0,.75); stroke-width:3px; paint-order:stroke; }
+@keyframes lampadaCompare{ from{ opacity:0; } to{ opacity:1; } }
+@keyframes lampadaLampo{ 0%{ opacity:0; } 30%{ opacity:.9; } 100%{ opacity:0; } }
+@keyframes lampadaRiflesso{ from{ transform:translateX(0); } to{ transform:translateX(192px); } }
+@keyframes lampadaVola{ from{ transform:translate(var(--lampada-dx,0px), var(--lampada-dy,0px)); } to{ transform:translate(0,0); } }
 @keyframes scartaCroceIn{ from{ opacity:0; transform:scale(0.7); } to{ opacity:1; transform:scale(1); } }
 .hand-card-wrap.dragging{ opacity:0; pointer-events:none; }
 .hand-card-wrap.dragging .hand-card-hitzone{ pointer-events:none; cursor:var(--cursore); }
@@ -2559,6 +2568,7 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
 }
 .ct-mod.ct-mod-totale{ font-weight:700; }
 .ct-mod.su{ color:var(--hx-su, #00A349); }
+.ct-mod.lampada{ color:#6486B3; white-space:normal; text-align:right; }
 .ct-mod.giu{ color:var(--hx-giu, #C43F3F); }
 #card-tooltip .cm-riga{
   display:flex; align-items:flex-start; justify-content:space-between; gap:14px;
@@ -7130,7 +7140,7 @@ try{
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.49</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.50</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -13564,7 +13574,7 @@ function montaSfondoCollezione(){
 }
 const UI_BASE = 'https://hextalegame.com/ui/';
 const ICONA_MIRINO      = UI_BASE+'crosshair-icon.png';
-const SCALA_ICONE_SCELTA = 0.5;
+const SCALA_ICONE_SCELTA = 0.6;
 const ICONA_RINUNCIA    = UI_BASE+'close-icon-red.png';
 const ICONA_SCAMBIO     = UI_BASE+'swap-icon.png';
 const ICONA_PICCONE     = UI_BASE+'hammer-icon.png';
@@ -14190,6 +14200,13 @@ var ABILITA_MOTORE = (function () {
     } else if (eff.per === 'hand_trait') {
       var mano = scena.inMano || [];
       for (i = 0; i < mano.length; i++) if (haTratto(mano[i], tratti)) quanti++;
+    } else if (eff.per === 'owned_trait') {
+      var visti = {};
+      var propri = (fonte.traitNames && fonte.traitNames.length) ? fonte.traitNames : (fonte.traits || []);
+      var arrivo = scena.trattiInArrivo || [];
+      for (i = 0; i < propri.length; i++) if (propri[i]) visti[String(propri[i]).toLowerCase()] = true;
+      for (i = 0; i < arrivo.length; i++) if (arrivo[i]) visti[String(arrivo[i]).toLowerCase()] = true;
+      quanti = Object.keys(visti).length;
     } else if (eff.per === 'free_side') {
       quanti = (scena.latiLiberi && scena.latiLiberi(fonte)) || 0;
     } else if (eff.per === 'power_diff') {
@@ -14401,6 +14418,16 @@ var ABILITA_MOTORE = (function () {
     if (!condizioneVera(cond, fonte, scena)) return;
 
     var tutti = candidati(fonte, eff, scena);
+    if (eff.scelta) {
+      if (!scena || !scena.scelta) {
+        if (tutti.length) fuori.push({ azione: az, cosa: 'power', fonte: fonte, candidati: tutti, scelta: true,
+                                       dove: eff.dove || null, quale: eff.quale || null,
+                                       aCaso: (eff.ambito === 'RAND' || eff.ambito === 'ONE'), fraChi: tutti });
+        return;
+      }
+      if (tutti.indexOf(scena.scelta) < 0) return;
+      tutti = [scena.scelta];
+    }
     var difeso = null;
     if (az === 'debuff' && (eff.ambito === 'RAND' || eff.ambito === 'ONE')) {
       difeso = function (carta) { return function (lato) { return _latoDifeso(carta, lato, scena); }; };
@@ -14433,7 +14460,7 @@ var ABILITA_MOTORE = (function () {
         var d = (az === 'debuff' || az === 'steal') ? -q : q;
         if (!d) continue;
         fuori.push({ carta: bersaglio, lati: lati, delta: d, azione: az, fonte: fonte, aCaso: casuale,
-                     fraChi: eff.quale === 'random' ? tutti : null });
+                     fraChi: eff.quale === 'random' ? tutti : null, durata: eff.durata || 'permanent' });
         if (az === 'steal' && fonte && bersaglio !== fonte) {
           fuori.push({ carta: fonte, lati: lati, delta: q, azione: 'buff', fonte: fonte, aCaso: casuale,
                        fraChi: eff.quale === 'random' ? tutti : null });
@@ -14460,7 +14487,7 @@ var ABILITA_MOTORE = (function () {
     if (a.effetto && a.effetto.durata !== 'while_true') _cambiamentiDi(fonte, a.effetto, a.se, scena, fuori, a.finestra);
 
     if (a.legame === 'and') {
-      if (a.effetto2 && a.effetto2.durata !== 'while_true') _cambiamentiDi(fonte, a.effetto2, a.se2, scena, fuori, a.finestra);
+      if (a.effetto2 && a.effetto2.durata !== 'while_true') _cambiamentiDi(fonte, a.effetto2, a.se2, _conTrattiInArrivo(fonte, scena, fuori), fuori, a.finestra);
     } else if (a.legame === 'instead') {
       if (a.effetto2 && condizioneVera(a.se2, fonte, scena)) {
         fuori.length = 0;
@@ -14472,6 +14499,43 @@ var ABILITA_MOTORE = (function () {
       for (var o = 0; o < fuori.length; o++) fuori[o].aCaso = true;
     }
     if (fuori.length) segnaScatto(fonte, evento, scena);
+    return fuori;
+  }
+
+  function _conTrattiInArrivo(fonte, scena, fuori) {
+    var arrivo = [], i, j;
+    for (i = 0; i < fuori.length; i++) {
+      var c = fuori[i];
+      if (!c || c.azione !== 'copy' || c.cosa !== 'trait' || !c.carta || c.fonte !== fonte) continue;
+      var suoi = (c.carta.traitNames && c.carta.traitNames.length) ? c.carta.traitNames : (c.carta.traits || []);
+      for (j = 0; j < suoi.length; j++) arrivo.push(suoi[j]);
+    }
+    if (!arrivo.length) return scena;
+    var s = {};
+    for (var k in scena) if (Object.prototype.hasOwnProperty.call(scena, k)) s[k] = scena[k];
+    s.trattiInArrivo = arrivo;
+    return s;
+  }
+
+  function cambiamentiDellaScelta(fonte, evento, scena) {
+    var a = abilitaDi(fonte);
+    var fuori = [];
+    if (!a || a.trigger !== evento || !scena || !scena.scelta) return fuori;
+    var s = {};
+    for (var k in scena) if (Object.prototype.hasOwnProperty.call(scena, k)) s[k] = scena[k];
+    if (!s.bersaglio) s.bersaglio = s.scelta;
+    var primo = a.effetto && a.effetto.scelta;
+    if (primo && a.effetto.durata !== 'while_true') _cambiamentiDi(fonte, a.effetto, a.se, s, fuori, a.finestra);
+    if (a.effetto2 && a.effetto2.durata !== 'while_true') {
+      if (a.legame === 'instead' && primo) {
+        if (condizioneVera(a.se2, fonte, s)) {
+          fuori.length = 0;
+          _cambiamentiDi(fonte, a.effetto2, a.se2, s, fuori, a.finestra);
+        }
+      } else if (a.legame === 'and' && a.effetto2.scelta) {
+        _cambiamentiDi(fonte, a.effetto2, a.se2, s, fuori, a.finestra);
+      }
+    }
     return fuori;
   }
 
@@ -14511,6 +14575,7 @@ var ABILITA_MOTORE = (function () {
     scattoConsentito: scattoConsentito,
     segnaScatto: segnaScatto,
     cambiamentiAllEvento: cambiamentiAllEvento,
+    cambiamentiDellaScelta: cambiamentiDellaScelta,
     deltaContinuo: deltaContinuo,
     valoriEffettivi: valoriEffettivi
   };
@@ -22191,7 +22256,7 @@ const TILE_ABILITIES_DEF = {
   hex:               { carta:'Baba Yaga', name:'Hex',                  desc:'When *Conquered*, *Inflicts* -1 ALL per Power difference with the attacker.' },
   mischief:          { carta:'Pixies', name:'Mischief',              desc:'+2 Power RAND for every other /Trickster/ character on the board.' },
   nightmare:         { carta:'Strigoi', name:'Nightmare',             desc:'Becomes stronger at night (+2 ALL from turn 8).' },
-  sleight_of_hand:   { carta:'Aladdin', name:'Sleight of Hand',       desc:'*Gains* +1 on the highest Power, +3 if a /Princess/ character is present on the board.' },
+  sleight_of_hand:   { carta:'Aladdin', name:'Give Me That!',         desc:'*Owns* Magic Lamp. Whoever owns it scores +1 each turn' },
   open_celery:       { carta:'Ali Baba', name:'Open, Celery!',         desc:'*Move* a blocked tile to an adjacent free space.' },
   bear_necessities:  { carta:'Baloo', name:'Bear Necessities',      desc:'Adjacent /Wild/ allies *Gain* +1 ALL.' },
   tic_toc:           { carta:'Captain Hook', name:'Tic Toc',               desc:'If *played* in the first two turns, +2 ALL.' },
@@ -22641,7 +22706,7 @@ function annotaModificatore(card, chiave, da, delta, ambito){
   if(!delta){ delete card.modificatori[chiave]; return; }
   card.modificatori[chiave] = { da: da||'', delta: delta, ambito: ambito||'' };
 }
-function sommaModificatore(card, chiave, da, delta, ambito, id, perLato){
+function sommaModificatore(card, chiave, da, delta, ambito, id, perLato, temporaneo){
   if(_simulazioneInCorso) return;
   if(!card || !chiave || !delta) return;
   if(!card.modificatori) card.modificatori = {};
@@ -22653,7 +22718,7 @@ function sommaModificatore(card, chiave, da, delta, ambito, id, perLato){
   if(perLato){ lati = lati || {}; for(const l in perLato) if(perLato[l]) lati[l] = (lati[l] || 0) + perLato[l]; }
   card.modificatori[chiave] = { da: da || (gia && gia.da) || '', delta: totale,
                                 ambito: ambitoNuovo, id: id || (gia && gia.id) || null,
-                                perLato: lati };
+                                perLato: lati, temporaneo: !!(temporaneo || (gia && gia.temporaneo)) };
 }
 function elencoModificatori(card){
   const reg = card && card.modificatori;
@@ -22727,7 +22792,7 @@ function modificaValori(card, lati, delta, pavimento, fonte){
     for(const s of lati) applicatoDavvero = Math.max(applicatoDavvero, Math.abs((card.values[s]||0) - (prima[s]||0)));
     const perLato = {};
     for(const s of lati){ const d = (card.values[s]||0) - (prima[s]||0); if(d) perLato[s] = d; }
-    if(applicatoDavvero) sommaModificatore(card, fonte.chiave, fonte.da, Math.sign(delta)*applicatoDavvero, _ambitoDiLati(lati), fonte.id, perLato);
+    if(applicatoDavvero) sommaModificatore(card, fonte.chiave, fonte.da, Math.sign(delta)*applicatoDavvero, _ambitoDiLati(lati), fonte.id, perLato, !!fonte.temporaneo);
   }
   lampeggiaDifferenzaValori(card, prima);
 }
@@ -23450,6 +23515,7 @@ function doPlace(card,playerIdx,q,r,daServer,dUfficio){
   }
 
   if(G.holes && G.holes.has(k)) G.holes.delete(k);
+  if(card) card.lampade = 0;
   G.board[k]={card,owner:player};
   try{ questSegnaGiocata(card, player); }catch(_){ }
   if(G.turniGiocati) G.turniGiocati[player] = (G.turniGiocati[player]||0) + 1;
@@ -23536,46 +23602,207 @@ const EFFETTI_PIAZZAMENTO = {
   smol_friends: (card) => recalcHoorayShesStays(card),
   mischief: (card) => recalcMischief(card),
   nightmare: (card) => recalcNightmare(card),
-  sleight_of_hand: (card) => attivaSleightOfHand(card),
+  sleight_of_hand: (card) => attivaLampadaMagica(card),
   tic_toc: (card) => attivaTicToc(card),
   rush_hour: (card) => attivaRushHour(card),
   kiss:             (card, q, r) => { if(_simulazioneInCorso) attivaTrasformazioneAlPiazzamento(card, q, r); },
   bell_of_the_ball: (card, q, r) => { if(_simulazioneInCorso) attivaTrasformazioneAlPiazzamento(card, q, r); },
   scaredy_cat: (card) => attivaScaredyCat(card),
 };
-const BONUS_SLEIGHT = 1;
-const BONUS_SLEIGHT_CON_PRINCIPESSA = 3;
-function valoriOriginaliDi(card){
-  const baseId = card && (card.baseId || String(card.id||'').replace(/-\d+$/,''));
-  const entry = baseId && Array.isArray(FINAL_CARDS) && FINAL_CARDS.find(e=>e.id===baseId);
-  if(entry && entry.values) return entry.values;
-  return card.nightmareBaseValues || card.mischiefBaseValues || card.hoorayBaseValues
-      || card.tileAbilityBaseValues || card.values || {};
+const LAMPADA_ICONA = UI_BASE+'magic-lamp.png';
+const LAMPADA_LATO = 64;
+const LAMPADA_COMPARE_MS = 350;
+const LAMPADA_VOLO_MS = 450;
+const LAMPADA_LAMPO_MS = 500;
+const LAMPADA_RIFLESSO_MS = 750;
+const _lampadeAnim = new Map();
+let _lampadaGeo = null;
+let _lampadaVelata = null;
+
+function lampadeDi(card){ return (card && card.lampade > 0) ? card.lampade : 0; }
+function _cellaDellaCarta(card){
+  if(!card || !G || !G.board) return null;
+  for(const k in G.board) if(G.board[k] && G.board[k].card === card) return k;
+  return null;
 }
-function cePrincipessaInCampo(){
+function lampadeInCampo(card){
+  if(!card || !G || !G.board) return 0;
   for(const k in G.board){
-    const cella=G.board[k];
-    if(cella && cella.card && cella.card.traits && cella.card.traits.includes('princess')) return true;
+    const posto = G.board[k];
+    if(posto && posto.card && (posto.card === card || (card.id && posto.card.id === card.id))) return lampadeDi(posto.card);
   }
-  return false;
+  return 0;
 }
-function attivaSleightOfHand(card){
-  const gruppi = gruppiDiCarta(card);
-  if(!gruppi.length) return;
-  let massimo = -Infinity;
-  for(const g of gruppi) if((g.val||0) > massimo) massimo = (g.val||0);
-  let candidati = gruppi.filter(g => (g.val||0) === massimo);
-  if(candidati.length > 1){
-    const originali = valoriOriginaliDi(card);
-    const altezzaDiPartenza = g => Math.max(...g.sides.map(s => originali[s]||0));
-    let massimoOrigine = -Infinity;
-    for(const g of candidati) massimoOrigine = Math.max(massimoOrigine, altezzaDiPartenza(g));
-    candidati = candidati.filter(g => altezzaDiPartenza(g) === massimoOrigine);
+function attivaLampadaMagica(card){
+  if(_simulazioneInCorso || !card) return;
+  card.lampade = lampadeDi(card) + 1;
+  _lampadeAnim.set(card.id, { tipo: 'compare', t0: performance.now() + CARD_LAND_MS });
+  try{ disegnaLampade(); }catch(_){ }
+}
+function lampadaPassa(daCarta, aCarta, daCella, quante, subito){
+  const n = Math.min(lampadeDi(daCarta), (typeof quante === 'number') ? quante : Infinity);
+  if(!(n > 0) || !aCarta || daCarta === aCarta) return 0;
+  daCarta.lampade = lampadeDi(daCarta) - n;
+  aCarta.lampade = lampadeDi(aCarta) + n;
+  if(_simulazioneInCorso) return n;
+  _lampadeAnim.delete(daCarta.id);
+  _lampadeAnim.set(aCarta.id, { tipo: 'furto', t0: performance.now() + (subito ? 0 : 5000), da: daCella, inAttesa: !subito });
+  if(subito){ try{ disegnaLampade(); }catch(_){ } }
+  return n;
+}
+function lampadaAlColpo(aCarta, daCella, traMs){
+  const an = aCarta && _lampadeAnim.get(aCarta.id);
+  if(!an || an.tipo !== 'furto' || !an.inAttesa || an.da !== daCella) return;
+  an.inAttesa = false;
+  an.t0 = performance.now() + Math.max(0, traMs || 0);
+  setTimeout(()=>{ try{ disegnaLampade(); }catch(_){ } }, Math.max(0, traMs || 0));
+}
+function lampadeDelleConquiste(card, player, conquestInfo){
+  for(const info of (conquestInfo || [])){
+    const posto = G.board[info.nk];
+    const conquistata = posto && posto.card;
+    const attaccante = info.da ? ((G.board[info.da] && G.board[info.da].card) || card) : card;
+    const n = lampadaPassa(conquistata, attaccante, info.nk);
+    if(!n) continue;
+    const vincitore = info.vincitore || player;
+    const ultima = G.ultimaConquista && G.ultimaConquista[vincitore];
+    if(ultima && ultima.cella === info.nk) ultima.lampada = { quante: n, carta: attaccante };
   }
-  const scelto = candidati.length===1 ? candidati[0] : sorteggioStabile(candidati, (card.idRete||card.id)+':sleight');
-  if(!scelto) return;
-  const bonus = cePrincipessaInCampo() ? BONUS_SLEIGHT_CON_PRINCIPESSA : BONUS_SLEIGHT;
-  modificaValori(card, scelto.sides, bonus, undefined, {chiave:'sleight_of_hand', da:card.name||'Sleight of Hand'});
+}
+
+function stratoLampadeDellaPlancia(root){
+  let strato = root.querySelector('#board-lamp-layer');
+  if(!strato){
+    strato = document.createElementNS('http://www.w3.org/2000/svg','g');
+    strato.setAttribute('id','board-lamp-layer');
+    strato.style.pointerEvents = 'none';
+  }
+  root.appendChild(strato);
+  return strato;
+}
+function _animaLampada(el, nome, durata, ritardo, curva){
+  el.style.animation = nome + ' ' + durata + 'ms ' + (curva || 'ease-out') + ' ' + Math.round(ritardo) + 'ms both';
+}
+function disegnaLampade(){
+  const root = document.getElementById('board-svg');
+  if(!root || !_lampadaGeo || !G || !G.board) return;
+  const strato = stratoLampadeDellaPlancia(root);
+  const icone = root.querySelector('#board-icons-layer');
+  if(icone) root.appendChild(icone);
+  strato.textContent = '';
+  const { cx, cy, R } = _lampadaGeo;
+  const ora = performance.now();
+  const L = LAMPADA_LATO;
+  const vive = new Set();
+  for(const k in G.board){
+    const posto = G.board[k];
+    const n = lampadeDi(posto && posto.card);
+    if(!n) continue;
+    vive.add(posto.card.id);
+    const [q, r] = k.split(',').map(Number);
+    const { x, y } = axialToPixel(q, r, cx, cy, R);
+    const x0 = x - L/2, y0 = y - L/2;
+    const uid = 'lampada-' + String(k).replace(/[^\w-]/g, '_');
+
+    const g = svgEl('g');
+    g.setAttribute('class', 'lampada' + (_lampadaVelata === k ? ' velata' : ''));
+    g.setAttribute('data-lampada', k);
+    const dentro = svgEl('g');
+    dentro.setAttribute('class', 'lampada-dentro');
+    g.appendChild(dentro);
+
+    const defs = svgEl('defs');
+    const maschera = svgEl('mask');
+    maschera.setAttribute('id', uid + '-m');
+    maschera.setAttribute('maskUnits', 'userSpaceOnUse');
+    maschera.setAttribute('x', x0); maschera.setAttribute('y', y0);
+    maschera.setAttribute('width', L); maschera.setAttribute('height', L);
+    maschera.style.maskType = 'alpha';
+    const forma = svgEl('image');
+    forma.setAttribute('href', LAMPADA_ICONA);
+    forma.setAttribute('x', x0); forma.setAttribute('y', y0);
+    forma.setAttribute('width', L); forma.setAttribute('height', L);
+    maschera.appendChild(forma);
+    defs.appendChild(maschera);
+    const grad = svgEl('linearGradient');
+    grad.setAttribute('id', uid + '-g');
+    grad.setAttribute('x1', '0'); grad.setAttribute('y1', '0');
+    grad.setAttribute('x2', '1'); grad.setAttribute('y2', '0.35');
+    for(const [off, op] of [['0%', 0], ['42%', 0], ['50%', 0.95], ['58%', 0], ['100%', 0]]){
+      const s = svgEl('stop');
+      s.setAttribute('offset', off); s.setAttribute('stop-color', '#FFFFFF'); s.setAttribute('stop-opacity', op);
+      grad.appendChild(s);
+    }
+    defs.appendChild(grad);
+    dentro.appendChild(defs);
+
+    const img = svgEl('image');
+    img.setAttribute('href', LAMPADA_ICONA);
+    img.setAttribute('x', x0); img.setAttribute('y', y0);
+    img.setAttribute('width', L); img.setAttribute('height', L);
+    img.setAttribute('class', 'lampada-icona');
+    dentro.appendChild(img);
+
+    const lucido = svgEl('g');
+    lucido.setAttribute('mask', 'url(#' + uid + '-m)');
+    const lampo = svgEl('rect');
+    lampo.setAttribute('x', x0); lampo.setAttribute('y', y0);
+    lampo.setAttribute('width', L); lampo.setAttribute('height', L);
+    lampo.setAttribute('fill', '#FFFFFF');
+    lampo.setAttribute('class', 'lampada-lampo');
+    lucido.appendChild(lampo);
+    const riflesso = svgEl('rect');
+    riflesso.setAttribute('x', x0 - 2*L); riflesso.setAttribute('y', y0);
+    riflesso.setAttribute('width', 2*L); riflesso.setAttribute('height', L);
+    riflesso.setAttribute('fill', 'url(#' + uid + '-g)');
+    riflesso.setAttribute('class', 'lampada-riflesso');
+    lucido.appendChild(riflesso);
+    dentro.appendChild(lucido);
+
+    if(n > 1){
+      const quante = svgEl('text');
+      quante.setAttribute('x', x0 + L - 2);
+      quante.setAttribute('y', y0 + 17);
+      quante.setAttribute('text-anchor', 'end');
+      quante.setAttribute('class', 'lampada-quante');
+      quante.textContent = 'x' + n;
+      dentro.appendChild(quante);
+    }
+
+    const an = _lampadeAnim.get(posto.card.id);
+    if(an){
+      const t = ora - an.t0;
+      if(an.tipo === 'compare'){
+        if(t < 0){
+          dentro.style.opacity = '0';
+          if(!an.sveglia){ an.sveglia = true; setTimeout(()=>{ try{ disegnaLampade(); }catch(_){ } }, Math.ceil(-t)); }
+        } else if(t < LAMPADA_RIFLESSO_MS + 250){
+          _animaLampada(dentro, 'lampadaCompare', LAMPADA_COMPARE_MS, -t);
+          _animaLampada(lampo, 'lampadaLampo', LAMPADA_LAMPO_MS, 150 - t);
+          _animaLampada(riflesso, 'lampadaRiflesso', LAMPADA_RIFLESSO_MS, 250 - t, 'ease-in-out');
+        } else _lampadeAnim.delete(posto.card.id);
+      } else if(an.tipo === 'furto'){
+        const [dq, dr] = String(an.da || k).split(',').map(Number);
+        const da = axialToPixel(dq, dr, cx, cy, R);
+        dentro.style.setProperty('--lampada-dx', (da.x - x).toFixed(1) + 'px');
+        dentro.style.setProperty('--lampada-dy', (da.y - y).toFixed(1) + 'px');
+        if(t < 0){
+          dentro.style.transform = 'translate(' + (da.x - x).toFixed(1) + 'px,' + (da.y - y).toFixed(1) + 'px)';
+        } else if(t < LAMPADA_VOLO_MS + 100 + LAMPADA_RIFLESSO_MS){
+          _animaLampada(dentro, 'lampadaVola', LAMPADA_VOLO_MS, -t, 'cubic-bezier(.3,.7,.3,1)');
+          _animaLampada(lampo, 'lampadaLampo', LAMPADA_LAMPO_MS, LAMPADA_VOLO_MS - t);
+          _animaLampada(riflesso, 'lampadaRiflesso', LAMPADA_RIFLESSO_MS, LAMPADA_VOLO_MS + 100 - t, 'ease-in-out');
+        } else _lampadeAnim.delete(posto.card.id);
+      }
+    }
+    strato.appendChild(g);
+  }
+  for(const id of [..._lampadeAnim.keys()]) if(!vive.has(id)) _lampadeAnim.delete(id);
+}
+function velaLampada(k, velata){
+  _lampadaVelata = velata ? k : (_lampadaVelata === k ? null : _lampadaVelata);
+  const el = document.querySelector('#board-lamp-layer [data-lampada="' + k + '"]');
+  if(el) el.classList.toggle('velata', !!velata);
 }
 function attivaDarkPact(card){
   const proprietario = (card && card.owner) || G.currentPlayer;
@@ -24017,6 +24244,7 @@ function _effettoSemplice(e){
   if(e.scelta) return false;
   if(e.quale === 'next' || e.quale === 'last') return false;
   if(e.azione === 'freeze' && (e.cosa === 'card' || e.cosa === 'tile')) return true;
+  if(e.azione === 'copy' && e.cosa === 'trait') return true;
   if(['buff','debuff','set'].indexOf(e.azione) < 0) return false;
   if(e.cosa && e.cosa !== 'power') return false;
   if(e.dove === 'drawn' || e.dove === 'deck') return false;
@@ -24038,6 +24266,16 @@ function applicaLeMetaSemplici(card, evento, cella, perOgni){
   if(motoreFaLEvento(card, evento)) return false;
   let fatto = false;
   for(const eff of [a.effetto, a.effetto2]){
+    if(eff && eff.scelta && _simulazioneInCorso && eff === a.effetto && eff.dove === 'in_hand'
+       && (eff.azione === 'buff' || eff.azione === 'debuff') && (!eff.cosa || eff.cosa === 'power')){
+      const fintoScelta = { trigger:evento, frequenza:'every_time', finestra:a.finestra, se:a.se, regola:null,
+                            legame:null, se2:null, regola2:null, effetto2:null, effetto:eff };
+      const copiaScelta = { values:card.values, valoriBase:card.valoriBase, valoriNascita:card.valoriNascita,
+                            id:card.id, name:card.name, owner:card.owner, traits:card.traits,
+                            traitNames:card.traitNames, abilita:fintoScelta };
+      applicaCambiamenti(_motore().cambiamentiAllEvento(copiaScelta, evento, _scenaEvento(card, cella)));
+      continue;
+    }
     if(!eff || !_effettoSemplice(eff)) continue;
     const finto = { trigger:evento, frequenza:a.frequenza, finestra:a.finestra,
                     se:a.se, regola:null, legame:null, se2:null, regola2:null,
@@ -24084,6 +24322,8 @@ function _fonteDelFoglio(c){
   if(!f) return null;
   const nome = f.name || '';
   const id = f.id || nome || '?';
+  if(c.durata && c.durata !== 'permanent' && c.durata !== 'while_true')
+    return { chiave: 'foglio:' + id + '~' + c.durata, da: nome, id: f.id || null, temporaneo: true };
   return { chiave: 'foglio:' + id, da: nome, id: f.id || null };
 }
 function congelaTasselli(c){
@@ -24121,6 +24361,10 @@ function applicaCambiamenti(elenco){
     }
     if(c.azione === 'steal' && c.cosa === 'buff'){
       if(c.carta && c.fonte) rubaUnBuff(c.fonte, c.carta);
+      continue;
+    }
+    if(c.azione === 'copy' && c.cosa === 'trait'){
+      if(c.carta && c.fonte && c.carta !== c.fonte) _aggiungiTratti(c.fonte, _trattiDi(c.carta));
       continue;
     }
     if(!c.carta || !c.lati || !c.lati.length) continue;
@@ -24917,6 +25161,7 @@ function attivaSmokeAndMirrors(card){
   if(!cella || cella.owner !== avversario) return;
   if(casoCondiviso('smoke_and_mirrors|' + ultima.cella + '|' + (card.baseId || card.id)) >= 0.5) return;
   G.board[ultima.cella] = { card: cella.card, owner: ultima.exProprietario };
+  if(ultima.lampada) lampadaPassa(ultima.lampada.carta, cella.card, _cellaDellaCarta(ultima.lampada.carta), ultima.lampada.quante, true);
   G.ultimaConquista[avversario] = null;
   const cellaColpita = ultima.cella;
   G.girataInCorso = { cella: cellaColpita, ownerPrima: avversario };
@@ -25764,6 +26009,8 @@ function sceltaDalFoglio(card, q, r, giocatore){
     if(eff.azione === 'swap' && eff.cosa === 'card')     return _sceltaScambiaCarta(card, q, r, giocatore, a, eff);
     if(eff.azione === 'copy' && eff.cosa === 'trait')     return _sceltaCopiaTratti(card, q, r, giocatore, a, eff);
     if(eff.azione === 'steal' && eff.cosa === 'buff')     return _sceltaRubaBuff(card, q, r, giocatore, a, eff);
+    if((eff.azione === 'buff' || eff.azione === 'debuff') && (!eff.cosa || eff.cosa === 'power') && eff.dove === 'in_hand')
+      return _sceltaPotenzaInMano(card, q, r, giocatore, a, eff);
     if(eff.azione === 'move' && eff.dove === 'board' && _muoveQualcuno(eff))
       return _sceltaSpostaOvunque(card, q, r, giocatore, a, eff);
     if(eff.azione === 'freeze' && eff.cosa === 'tile') return _sceltaCongelaTassello(card, q, r, giocatore, a, eff);
@@ -25977,6 +26224,7 @@ function buffRubabiliDi(card){
   for(const chiave in reg){
     const m = reg[chiave];
     if(!m || !(m.delta > 0) || chiave.slice(-5) !== '#buff' || !m.perLato) continue;
+    if(m.temporaneo) continue;
     let quanto = 0;
     for(const l in m.perLato) if(m.perLato[l] > 0) quanto += m.perLato[l];
     if(quanto > 0) out.push({ chiave: chiave, voce: m, quanto: quanto });
@@ -26037,6 +26285,42 @@ function _sceltaRubaBuff(card, q, r, giocatore, a, eff){
         const posto = G.board[cella];
         const b = (posto && posto.card) ? buffDaRubare(posto.card) : null;
         if(b && b.voce.delta > quanto){ quanto = b.voce.delta; migliore = cella; }
+      }
+      return migliore;
+    },
+  };
+}
+function _sceltaPotenzaInMano(card, q, r, giocatore, a, eff){
+  const bersagli = candidatiDalFoglio(card, q, r, giocatore, a, eff);
+  if(!bersagli.length) return null;
+  const suo = (eff.chi === 'opponent') ? (giocatore === 1 ? 2 : 1) : giocatore;
+  const cambi = (id) => {
+    const scelta = (manoDi(suo) || []).find(c => c && c.id === id);
+    if(!scelta) return [];
+    const scena = _scenaEvento(card, key(q, r));
+    scena.scelta = scelta;
+    scena.bersaglio = scelta;
+    return _motore().cambiamentiDellaScelta(card, 'on_play', scena) || [];
+  };
+  return {
+    chiave: 'potenza_in_mano',
+    giocatore,
+    modo: 'mano',
+    icona: ICONA_MIRINO,
+    rinunciabile: true,
+    cellaOrigine: key(q, r),
+    bersagli,
+    applica: (id) => { applicaCambiamenti(cambi(id)); try{ render(); }catch(_){} },
+    rinuncia: () => {},
+    valuta: (sc) => {
+      let migliore = null, meglio = 0;
+      for(const id of sc.bersagli){
+        let v = 0;
+        for(const c of cambi(id)){
+          if(!c || !c.carta || !c.lati) continue;
+          v += (c.carta.owner === giocatore ? 1 : -1) * (c.delta || 0) * c.lati.length;
+        }
+        if(v > meglio){ meglio = v; migliore = id; }
       }
       return migliore;
     },
@@ -26995,6 +27279,7 @@ function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLa
   try{ teleSegnaConquiste(card, player, conquered, snap); }catch(_){ }
 
   yetiContrattacco(card, player, q, r, k, snap, myEffective, conquered, conquestInfo);
+  lampadeDelleConquiste(card, player, conquestInfo);
   if(conquestInfo.length){
     conquestInfo.forEach(({nk,prevOwner})=>{
       G.board[nk]={card:G.board[nk].card, owner:prevOwner};
@@ -27038,6 +27323,7 @@ function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLa
       const [dq2, dr2] = nk.split(',').map(Number);
       const nuovoPadrone = vincitore || player;
       const cartaAtt = da ? ((G.board[da] && G.board[da].card) || card) : card;
+      lampadaAlColpo(cartaAtt, nk, stepStart + STRIKE_MS);
       setTimeout(()=>{
         const bsvg=document.getElementById('board-svg');
         if(!bsvg)return;
@@ -27710,7 +27996,7 @@ function aiEvaluateConquests(card, q, r){
     const theirVal=difesa[dir.theirSide]||0;
     if(vinceIlConfronto(card, myVal, theirVal)){
       count++; damage+=(myVal-theirVal);
-      bottino += puntiDiCarta(nb.card);
+      bottino += puntiDiCarta(nb.card) + 2 * lampadeDi(nb.card);
       if(abilitaAttivaDi(nb.card)==='hex'){
         autolesione += costoHexPerIA(myVal-theirVal);
       }
@@ -28864,7 +29150,7 @@ function carteCheFruttano(){
   for(const k in G.board){
     const c = G.board[k];
     if(!c) continue;
-    const punti = puntiDiCarta(c.card);
+    const punti = puntiDiCarta(c.card) + lampadeDi(c.card);
     if(punti <= 0) continue;
     (celle[c.owner] || (celle[c.owner]=[])).push({ k:k, punti:punti });
   }
@@ -30905,7 +31191,7 @@ function renderHand(containerId,hand,playerIdx){
       const croce = document.createElement('div');
       croce.className = 'scarta-croce';
       const img = document.createElement('img');
-      img.src = ICONA_RINUNCIA;
+      img.src = sceltaScarto.icona || ICONA_RINUNCIA;
       img.alt = '';
       img.draggable = false;
       croce.appendChild(img);
@@ -31721,6 +32007,7 @@ function stratoCarteDellaPlancia(root){
   }
   root.appendChild(strato);
   root.appendChild(stratoTocchiDellaPlancia(root));
+  stratoLampadeDellaPlancia(root);
   root.appendChild(stratoComandiDellaPlancia(root));
   return strato;
 }
@@ -32497,8 +32784,8 @@ function renderBoard(){
       tp.style.pointerEvents='all';
       stratoTocchiDellaPlancia(boardSvgRoot).appendChild(tp);
       attachCardTooltip(tp, cardWithOwner, true, bonusInfo);
-      tp.addEventListener('mouseenter',()=>{ cardGroup.classList.add('group-sep-hover'); });
-      tp.addEventListener('mouseleave',()=>{ cardGroup.classList.remove('group-sep-hover'); });
+      tp.addEventListener('mouseenter',()=>{ cardGroup.classList.add('group-sep-hover'); velaLampada(k, true); });
+      tp.addEventListener('mouseleave',()=>{ cardGroup.classList.remove('group-sep-hover'); velaLampada(k, false); });
       tp.addEventListener('click',(ev)=>{
         if(G.sceltaBersaglio || G.dragging || dragState || G.selected) return;
         ev.stopPropagation();
@@ -32579,6 +32866,8 @@ function renderBoard(){
       setTimeout(()=>{ playSfxFile('bump.mp3'); }, delayMs+TILE_DROP_SINGLE_MS);
     }
   }
+  _lampadaGeo = { cx, cy, R };
+  try{ disegnaLampade(); }catch(_){ }
   cardLandReattach();
   cardJumpReattach();
   cardSlideReattach();
@@ -32636,7 +32925,14 @@ function renderBoard(){
     return btnGroup;
   }
 
-  if(G.sceltaBersaglio && G.sceltaBersaglio.modo === 'mano'){  }
+  if(G.sceltaBersaglio && G.sceltaBersaglio.modo === 'mano'){
+    const scelta = G.sceltaBersaglio;
+    const orig = scelta.rinunciabile && sceltaMia(scelta.giocatore) ? G.cells.find(x=>key(x.q,x.r)===scelta.cellaOrigine) : null;
+    if(orig){
+      const {x:ox,y:oy} = axialToPixel(orig.q,orig.r,cx,cy,R);
+      buildSvgIconBtn(ICONA_RINUNCIA, ox, oy, R*0.42, ()=>rinunciaSceltaBersaglio());
+    }
+  }
   else if(G.sceltaBersaglio && sceltaMia(G.sceltaBersaglio.giocatore)){
     const scelta = G.sceltaBersaglio;
     for(const cella of scelta.bersagli){
@@ -32799,7 +33095,8 @@ function _abilitaSuDiSe(card){
 function bloccoModificatoriHTML(card){
   const scarti = _scartiDaiValoriStampati(card);
   const nomi = _modificatoriDalMotore(card).concat(elencoModificatori(card));
-  if(!scarti.length && !nomi.length) return '';
+  const lampade = lampadeInCampo(card);
+  if(!scarti.length && !nomi.length && !lampade) return '';
 
   const righe = [];
   const unaTantum = _scartiDaiValoriStampati(card, true);
@@ -32823,10 +33120,11 @@ function bloccoModificatoriHTML(card){
       righe.splice(i, 1);
   }
   for(const n of nomi) righe.push(n);
+  if(lampade) righe.push({ testo: '+' + lampade + ' Score each turn from Magic Lamp', lampada: true });
   if(!righe.length) return '';
   return '<div class="cm-riga cm-mods"><span class="cm-et">Buffs/debuffs:</span>'
     + '<span class="cm-val"><span class="ct-mods">'
-    + righe.map(r=>'<span class="ct-mod '+(r.positivo?'su':'giu')+(r.forte?' ct-mod-totale':'')+'">'
+    + righe.map(r=>'<span class="ct-mod '+(r.lampada?'lampada':(r.positivo?'su':'giu'))+(r.forte?' ct-mod-totale':'')+'">'
         + escapeHtml(r.testo)+'</span>').join('')
     + '</span></span></div>';
 }
