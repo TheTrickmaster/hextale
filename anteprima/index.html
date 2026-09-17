@@ -1770,6 +1770,9 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
 .group-sep-hover .hex-card-group-sep-flat{
   opacity:1;
 }
+.scudo-fantasma{ opacity:0; pointer-events:none; transition:opacity .12s ease-out; }
+.scudo-fantasma.mostra{ opacity:.5; }
+.gruppo-acceso{ filter:brightness(1.45) drop-shadow(0 0 6px rgba(255,233,145,.85)); }
 .scudo-lampo{
   animation:scudoLampo 380ms ease-out 2;
 }
@@ -7140,7 +7143,7 @@ try{
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.50</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.51</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -14046,10 +14049,16 @@ var ABILITA_MOTORE = (function () {
     return vals[lato] || 0;
   }
 
-  function vince(attaccante, valoreAttacco, valoreDifesa) {
+  function vince(attaccante, valoreAttacco, valoreDifesa, difensore) {
+    var a = abilitaDi(attaccante);
     var r = regolaDi(attaccante, 'conquers_when');
-    if (r && String(r.valore || '').toLowerCase() === 'equal_or_higher') {
-      return valoreAttacco >= valoreDifesa;
+    if (r && a) {
+      var cond = (a.regola === r) ? a.se : a.se2;
+      if (condizioneVera(cond, attaccante, { attaccante: attaccante, difensore: difensore, bersaglio: difensore })) {
+        var v = String(r.valore || '').toLowerCase();
+        if (v === 'always') return true;
+        if (v === 'equal_or_higher') return valoreAttacco >= valoreDifesa;
+      }
     }
     return valoreAttacco > valoreDifesa;
   }
@@ -22235,7 +22244,7 @@ const TILE_ABILITIES_DEF = {
   power_of_love:{ carta:'Maid Marian',          name:'Power of Love',  desc:'Adjacent /Wild/ allies *Gain* +2 ALL. Robin Hood *Gains* +3 ALL.' },
   bothered:     { carta:'Princess and the Pea', name:'Bothered',       desc:'*Gains* +1 ALL for every free side.' },
   apex_predator:{ carta:'Shere Khan',           name:'Apex Predator',  desc:'Can *Conquer* even if Power is equal.' },
-  fearless:     { carta:'Little Red Riding Hood', name:'Fearless',     desc:'*Gains* +2 ALL when attacking /Cruel/, /Wild/ or /Obscure/ characters.' },
+  fearless:     { carta:'Little Red Riding Hood', name:'Fearless',     desc:'*Flips* /Cruel/, /Wild/, /Trickster/ even with lower Power' },
   rush_hour:    { carta:'White Rabbit',        name:'Rush Hour',     desc:'Starts the game in hand. *Gains* +3 ALL if *Played* on the first turn.' },
   heigh_ho:     { carta:'Seven Dwarves',       name:'Heigh-ho',      desc:'When *Played*, can *Destroy* an adjacent blocked tile.' },
   give_me_that: { carta:'Rumpelstiltskin',     name:'Give me that',  desc:'When *Played*, *Steals* the Traits of an adjacent enemy character.' },
@@ -23534,7 +23543,6 @@ function doPlace(card,playerIdx,q,r,daServer,dUfficio){
     card.tileAbilityBaseValues = {...card.values};
     card.activatedTileAbility = cellAbilityKey;
     applicaAbilitaPiazzamento(card, q, r, cellAbilityKey);
-    reazioniAlPiazzamento(card, q, r, player);
     applicaEffettiRealiPiazzamento(card, q, r, cellAbilityKey);
     if(timeAlreadyExpired) risolviSceltaSenzaFinestra(card, player, q, r, cellAbilityKey);
     else if(apriSceltaBersaglio(card, player, q, r, k, cellAbilityKey)){
@@ -24154,14 +24162,15 @@ function _cartaVisibileAlLocale(card){
 }
 function latiProtettiDi(card){
   if(!card) return [];
+  const scelti = scudoSceltoDi(card);
   const abilita = abilitaAttivaDi(card);
-  if(abilita === 'true_story') return card.latiInvulnerabili || [];
-  if(abilita !== 'crowned') return [];
+  if(abilita === 'true_story') return scelti.concat(card.latiInvulnerabili || []);
+  if(abilita !== 'crowned') return scelti;
   const gruppi = gruppiDiCarta(card);
   if(!gruppi.length) return [];
   let massimo = -Infinity;
   for(const g of gruppi) massimo = Math.max(massimo, g.val||0);
-  const lati = [];
+  const lati = scelti.slice();
   for(const g of gruppi) if((g.val||0) === massimo) lati.push(...g.sides);
   return lati;
 }
@@ -24175,14 +24184,12 @@ function _diSangueNobile(card){
   const a = card && card.traits;
   return !!(a && TRATTI_DI_SANGUE.some(x => a.includes(x)));
 }
-function vinceIlConfronto(attaccante, valoreAttacco, valoreDifesa){
+function vinceIlConfronto(attaccante, valoreAttacco, valoreDifesa, difensore){
   if(_haAbilitaNuova(attaccante) && _motore().regolaDi(attaccante, 'conquers_when'))
-    return _motore().vince(attaccante, valoreAttacco, valoreDifesa);
+    return _motore().vince(attaccante, valoreAttacco, valoreDifesa, difensore);
   if(abilitaAttivaDi(attaccante) === 'apex_predator') return valoreAttacco >= valoreDifesa;
   return valoreAttacco > valoreDifesa;
 }
-const PREDE_DI_CAPPUCCETTO = ['cruel','wild','trickster'];
-const BONUS_FEARLESS = 2;
 function puoConquistare(attaccante, difensore, scena){
   if(!difensore) return true;
   if(cartaCongelata(difensore)) return false;
@@ -24224,20 +24231,6 @@ function giraScudiDiFineTurno(){
     quanti++;
   }
   return quanti;
-}
-function reazioniAlPiazzamento(card, q, r, giocatore){
-  if(!card) return;
-  const chiArriva = (giocatore != null) ? giocatore : G.currentPlayer;
-  for(const dir of DIRS){
-    const vicino = G.board[key(q+dir.dq, r+dir.dr)];
-    if(!vicino || !vicino.card || vicino.card === card) continue;
-    if(vicino.owner === chiArriva) continue;
-    if(abilitaAttivaDi(vicino.card) !== 'fearless') continue;
-    const prede = card.traits || [];
-    if(!PREDE_DI_CAPPUCCETTO.some(a => prede.includes(a))) continue;
-    modificaValori(vicino.card, SIDES, BONUS_FEARLESS, undefined,
-      {chiave:'fearless', da:vicino.card.name||'Fearless'});
-  }
 }
 function _effettoSemplice(e){
   if(!e) return true;
@@ -25025,7 +25018,7 @@ function yetiContrattacco(card, player, q, r, k, snap, myEffective, conquered, c
     const attacco = getAttackValueForSide(posto.card, suoi, dir.theirSide);
     const difesa = myEffective[dir.mySide] || 0;
     if(!puoConquistare(posto.card, card, { differenza: Math.abs(attacco - difesa), valoreAttacco: attacco })) continue;
-    if(!vinceIlConfronto(posto.card, attacco, difesa)) continue;
+    if(!vinceIlConfronto(posto.card, attacco, difesa, card)) continue;
     G.board[k] = { card, owner: posto.owner };
     conquestInfo.push({ nk: k, dir, prevOwner: player, atkVal: attacco, defVal: difesa,
                         da: nk, vincitore: posto.owner, latoAtt: dir.theirSide, latoDif: dir.mySide });
@@ -26014,6 +26007,7 @@ function sceltaDalFoglio(card, q, r, giocatore){
     if(eff.azione === 'move' && eff.dove === 'board' && _muoveQualcuno(eff))
       return _sceltaSpostaOvunque(card, q, r, giocatore, a, eff);
     if(eff.azione === 'freeze' && eff.cosa === 'tile') return _sceltaCongelaTassello(card, q, r, giocatore, a, eff);
+    if(eff.azione === 'protect' && eff.cosa === 'side') return _sceltaProteggiGruppo(card, q, r, giocatore, a, eff);
   }
   return null;
 }
@@ -26325,6 +26319,118 @@ function _sceltaPotenzaInMano(card, q, r, giocatore, a, eff){
       return migliore;
     },
   };
+}
+function scudoSceltoDi(card){
+  const s = card && card.scudoScelto;
+  if(!s || !s.lati || !s.lati.length) return [];
+  if(!G || !G.board) return [];
+  for(const k in G.board){
+    const p = G.board[k];
+    if(p && p.card && p.card.id === s.fonte) return s.lati.slice();
+  }
+  card.scudoScelto = null;
+  return [];
+}
+function gruppiDaProteggere(card, q, r, giocatore, a, eff){
+  const fuori = [];
+  for(const k of candidatiDalFoglio(card, q, r, giocatore, a, eff)){
+    const posto = G.board[k];
+    if(!posto || !posto.card) continue;
+    const gia = scudoSceltoDi(posto.card);
+    for(const g of gruppiDiCarta(posto.card)){
+      if(gia.length && g.sides.every(s => gia.indexOf(s) >= 0)) continue;
+      fuori.push(k + '@' + g.sides.join('|'));
+    }
+  }
+  return fuori;
+}
+function _sceltaProteggiGruppo(card, q, r, giocatore, a, eff){
+  const bersagli = gruppiDaProteggere(card, q, r, giocatore, a, eff);
+  if(!bersagli.length) return null;
+  return {
+    chiave: 'proteggi_gruppo',
+    giocatore,
+    modo: 'gruppi',
+    rinunciabile: true,
+    cellaOrigine: key(q, r),
+    bersagli,
+    applica: (scelto) => proteggiIlGruppo(card, scelto),
+    rinuncia: () => {},
+    valuta: (sc) => {
+      let migliore = null, meglio = -Infinity;
+      for(const b of sc.bersagli){
+        const [cella, lati] = String(b).split('@');
+        const posto = G.board[cella];
+        if(!posto || !posto.card) continue;
+        const gruppo = gruppiDiCarta(posto.card).find(g => g.sides.join('|') === lati);
+        const v = (gruppo && gruppo.val) || 0;
+        if(v > meglio){ meglio = v; migliore = b; }
+      }
+      return migliore;
+    },
+  };
+}
+function proteggiIlGruppo(fonte, scelto){
+  const [cella, lati] = String(scelto || '').split('@');
+  const posto = G.board[cella];
+  if(!posto || !posto.card || !lati) return false;
+  const gia = (posto.card.scudoScelto && posto.card.scudoScelto.lati) || [];
+  posto.card.scudoScelto = { lati: gia.concat(lati.split('|')), fonte: fonte && fonte.id };
+  posto.card.scudoLampoFino = (typeof performance !== 'undefined' ? performance.now() : Date.now()) + SCUDO_LAMPO_MS;
+  if(!_simulazioneInCorso){ try{ playSfxFile('shield.mp3'); }catch(_){ } }
+  try{ renderBoard(); }catch(_){ }
+  return true;
+}
+function disegnaSceltaGruppi(scelta, cx, cy, R, buildSvgIconBtn){
+  const svg = document.getElementById('board-svg');
+  if(!svg) return;
+  for(const b of scelta.bersagli){
+    const [cella, lati] = String(b).split('@');
+    const cerchio = svg.querySelector('[data-conquered="' + cella + '"] [data-role="owner-value-circle"][data-value-group="' + lati + '"]');
+    if(!cerchio) continue;
+    const gx = parseFloat(cerchio.getAttribute('x')) + parseFloat(cerchio.getAttribute('width')) / 2;
+    const gy = parseFloat(cerchio.getAttribute('y')) + parseFloat(cerchio.getAttribute('height')) / 2;
+    const misura = parseFloat(cerchio.getAttribute('width'));
+    const strato = stratoComandiDellaPlancia(svg);
+
+    const fantasma = svgEl('image');
+    fantasma.setAttribute('href', CARD_PARTS_BASE + 'shield-icon.png');
+    fantasma.setAttribute('x', (gx - misura * 0.31).toFixed(2));
+    fantasma.setAttribute('y', (gy - misura * 0.31).toFixed(2));
+    fantasma.setAttribute('width', (misura * 0.62).toFixed(2));
+    fantasma.setAttribute('height', (misura * 0.62).toFixed(2));
+    fantasma.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+    fantasma.setAttribute('class', 'scudo-fantasma');
+    strato.appendChild(fantasma);
+
+    const numero = svg.querySelector('[data-conquered="' + cella + '"] [data-value-group="' + lati + '"]:not([data-role])');
+    const accendi = (acceso) => {
+      fantasma.classList.toggle('mostra', acceso);
+      cerchio.classList.toggle('gruppo-acceso', acceso);
+      if(numero) numero.classList.toggle('gruppo-acceso', acceso);
+    };
+    const bottone = buildSvgIconBtn(ICONA_MIRINO, gx, gy + misura * 0.8, R * 0.55, () => scegliBersaglio(b));
+    if(bottone){
+      bottone.addEventListener('mouseenter', () => accendi(true));
+      bottone.addEventListener('mouseleave', () => accendi(false));
+    }
+    const tocco = svgEl('circle');
+    tocco.setAttribute('cx', gx.toFixed(2));
+    tocco.setAttribute('cy', gy.toFixed(2));
+    tocco.setAttribute('r', (misura / 2).toFixed(2));
+    tocco.setAttribute('fill', 'transparent');
+    tocco.style.pointerEvents = 'all';
+    tocco.style.cursor = 'var(--cursore)';
+    tocco.addEventListener('mouseenter', () => accendi(true));
+    tocco.addEventListener('mouseleave', () => accendi(false));
+    tocco.addEventListener('click', (ev) => { ev.stopPropagation(); scegliBersaglio(b); });
+    strato.appendChild(tocco);
+  }
+  const orig = G.cells.find(x => key(x.q, x.r) === scelta.cellaOrigine);
+  if(orig && scelta.rinunciabile){
+    const { x: ox, y: oy } = axialToPixel(orig.q, orig.r, cx, cy, R);
+    buildSvgIconBtn(ICONA_RINUNCIA, ox, oy, R * 0.42, () => rinunciaSceltaBersaglio());
+  }
 }
 function _sceltaCopiaTratti(card, q, r, giocatore, a, eff){
   const bersagli = candidatiDalFoglio(card, q, r, giocatore, a, eff);
@@ -26961,7 +27067,6 @@ function simulaPiazzamento(card, q, r){
     if(chiave) applicaAbilitaPiazzamento(cartaClone, q, r, chiave);
     bonusBricioleSimulato(cartaClone, cella, proprietario);
     riscuotiPremioProssimaGiocata(cartaClone, proprietario, 0, true);
-    reazioniAlPiazzamento(cartaClone, q, r, G.currentPlayer);
     if(typeof sinergieDalFoglio === 'function' && sinergieDalFoglio()){
       for(const k in clone) ricalcolaValoriVivi(clone[k].card, k);
       mano1.forEach(c=>ricalcolaValoriVivi(c, null));
@@ -27265,7 +27370,7 @@ function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLa
     const[nq,nr]=nk.split(',').map(Number);
     const theirEffective=getFactionBonus(nb.card,nq,nr,snap).values;
     const myAttackVal=getAttackValueForSide(card, myEffective, dir.mySide);
-    if(vinceIlConfronto(card, myAttackVal, theirEffective[dir.theirSide])){
+    if(vinceIlConfronto(card, myAttackVal, theirEffective[dir.theirSide], nb.card)){
       G.board[nk]={card:nb.card,owner:player};
       conquered.push(nk);
       conquestInfo.push({nk, dir, prevOwner:nb.owner, atkVal:myAttackVal, defVal:theirEffective[dir.theirSide]});
@@ -27994,7 +28099,7 @@ function aiEvaluateConquests(card, q, r){
     const myVal=getAttackValueForSide(card, effValues, dir.mySide);
     const difesa=valoriVistiDallIA(nb, simulato && simulato.tabellone[nk]);
     const theirVal=difesa[dir.theirSide]||0;
-    if(vinceIlConfronto(card, myVal, theirVal)){
+    if(vinceIlConfronto(card, myVal, theirVal, nb.card)){
       count++; damage+=(myVal-theirVal);
       bottino += puntiDiCarta(nb.card) + 2 * lampadeDi(nb.card);
       if(abilitaAttivaDi(nb.card)==='hex'){
@@ -30062,6 +30167,7 @@ function drawHexCard(svg,cx,cy,R,card,fillColor,strokeColor,textColor,nameText,i
     circImg.setAttribute('preserveAspectRatio','xMidYMid meet');
     circImg.style.pointerEvents='none';
     circImg.setAttribute('data-role','owner-value-circle');
+    circImg.setAttribute('data-value-group', g.sides.join('|'));
     circImg.setAttribute('data-hex-c', cx.toFixed(2)+','+cy.toFixed(2));
     svg.appendChild(circImg);
 
@@ -32925,7 +33031,10 @@ function renderBoard(){
     return btnGroup;
   }
 
-  if(G.sceltaBersaglio && G.sceltaBersaglio.modo === 'mano'){
+  if(G.sceltaBersaglio && G.sceltaBersaglio.modo === 'gruppi' && sceltaMia(G.sceltaBersaglio.giocatore)){
+    disegnaSceltaGruppi(G.sceltaBersaglio, cx, cy, R, buildSvgIconBtn);
+  }
+  else if(G.sceltaBersaglio && G.sceltaBersaglio.modo === 'mano'){
     const scelta = G.sceltaBersaglio;
     const orig = scelta.rinunciabile && sceltaMia(scelta.giocatore) ? G.cells.find(x=>key(x.q,x.r)===scelta.cellaOrigine) : null;
     if(orig){
