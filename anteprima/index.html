@@ -27812,6 +27812,8 @@ const IA_OPZIONI = {
   pesoPunti: 0.6,
   pesoSeguito: 0.4,
   candidatiSeguito: 6,
+  risposta: true,
+  pesoRisposta: 1,
   pesoRischio: 1,
   pesoDanno: 1,
   pesoControllo: 1,
@@ -27929,11 +27931,8 @@ function aiValutaGiocata(card, q, r){
   if(IA_OPZIONI.cieche){ try{ net += aiValoreAbilitaCieca(card, q, r, ev); }catch(_){ } }
   return { net, conquests: ev.count, ev };
 }
-function aiMigliorSeguito(card, q, r){
+function _iaConCartaInCampo(card, q, r, fn){
   const io = _iaMio();
-  const mano = manoDi(io) || [];
-  const resto = mano.filter(c => c && c.id !== card.id && !cartaCongelata(c));
-  if(!resto.length) return 0;
   const sim = simulaPiazzamento(card, q, r);
   const cellaGiocata = key(q, r);
   const salvati = {};
@@ -27953,7 +27952,52 @@ function aiMigliorSeguito(card, q, r){
         G.board[k] = { owner: G.board[k].owner, card: c };
       }
     }
+    const resto = (manoVera || []).filter(c => c && c.id !== card.id);
     if(io === 1) G.p1Hand = resto; else G.p2Hand = resto;
+    return fn();
+  } finally {
+    for(const k of toccate){ if(salvati[k]) G.board[k] = salvati[k]; else delete G.board[k]; }
+    if(io === 1) G.p1Hand = manoVera; else G.p2Hand = manoVera;
+  }
+}
+const RISPOSTA_MARGINE = 1.25;
+function _iaCartaImmaginaria(lui){
+  const stima = valoreStimatoAlBuio() * RISPOSTA_MARGINE;
+  const valori = {};
+  for(const s of SIDES) valori[s] = Math.round(stima);
+  return { id: 'ia-immaginaria-' + lui, name: 'immaginaria', owner: lui, values: valori,
+           rarity: 'rare', traits: [], cardAbility: null, abilita: null, abilityDescSheet: '' };
+}
+function aiRispostaAvversario(card, q, r){
+  const io = _iaMio(), lui = _iaSuo();
+  const sueCarte = ((lui === 1 ? G.p1Hand : G.p2Hand) || []).length + ((lui === 1 ? G.p1Deck : G.p2Deck) || []).length;
+  if(!sueCarte) return 0;
+  const immaginaria = _iaCartaImmaginaria(lui);
+  return _iaConCartaInCampo(card, q, r, () => {
+    const manoSua = lui === 1 ? G.p1Hand : G.p2Hand;
+    if(lui === 1) G.p1Hand = [immaginaria]; else G.p2Hand = [immaginaria];
+    try{
+      return aiComeGiocatore(lui, () => {
+        let migliore = 0;
+        for(const cell of G.cells){
+          if(!canPlace(cell.q, cell.r)) continue;
+          let v = 0;
+          try{ v = aiValutaGiocata(immaginaria, cell.q, cell.r).net; }catch(_){ v = 0; }
+          if(v > migliore) migliore = v;
+        }
+        return migliore;
+      });
+    } finally {
+      if(lui === 1) G.p1Hand = manoSua; else G.p2Hand = manoSua;
+    }
+  });
+}
+function aiMigliorSeguito(card, q, r){
+  const io = _iaMio();
+  const mano = manoDi(io) || [];
+  const resto = mano.filter(c => c && c.id !== card.id && !cartaCongelata(c));
+  if(!resto.length) return 0;
+  return _iaConCartaInCampo(card, q, r, () => {
     const libere = G.cells.filter(c => canPlace(c.q, c.r));
     let migliore = 0;
     for(const altra of resto){
@@ -27964,10 +28008,7 @@ function aiMigliorSeguito(card, q, r){
       }
     }
     return migliore;
-  } finally {
-    for(const k of toccate){ if(salvati[k]) G.board[k] = salvati[k]; else delete G.board[k]; }
-    if(io === 1) G.p1Hand = manoVera; else G.p2Hand = manoVera;
-  }
+  });
 }
 function aiChooseMove(){
   const hand=manoDi(_iaMio()) || [];
@@ -28000,14 +28041,17 @@ function aiChooseMove(){
       }
     }
   }
-  if(IA_OPZIONI.seguito && tutte.length > 1 && hand.length > 1){
+  const conSeguito = IA_OPZIONI.seguito && hand.length > 1;
+  if((conSeguito || IA_OPZIONI.risposta) && tutte.length > 1){
     tutte.sort((a,b)=>b.net-a.net);
     const prime = tutte.slice(0, IA_OPZIONI.candidatiSeguito);
     let scelta = null, meglio = -Infinity;
     for(const m of prime){
-      let seguito = 0;
-      try{ seguito = aiMigliorSeguito(m.card, m.cell.q, m.cell.r); }catch(_){ seguito = 0; }
-      const totale = m.net + IA_OPZIONI.pesoSeguito * seguito;
+      let seguito = 0, risposta = 0;
+      if(conSeguito){ try{ seguito = aiMigliorSeguito(m.card, m.cell.q, m.cell.r); }catch(_){ seguito = 0; } }
+      if(IA_OPZIONI.risposta){ try{ risposta = aiRispostaAvversario(m.card, m.cell.q, m.cell.r); }catch(_){ risposta = 0; } }
+      m.seguito = seguito; m.risposta = risposta;
+      const totale = m.net + IA_OPZIONI.pesoSeguito * seguito - IA_OPZIONI.pesoRisposta * risposta;
       if(totale > meglio + 1e-9){ meglio = totale; scelta = m; }
     }
     if(scelta) return { card: scelta.card, cell: scelta.cell };
