@@ -7140,7 +7140,7 @@ try{
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.49</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.50</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -14421,7 +14421,8 @@ var ABILITA_MOTORE = (function () {
     if (eff.scelta) {
       if (!scena || !scena.scelta) {
         if (tutti.length) fuori.push({ azione: az, cosa: 'power', fonte: fonte, candidati: tutti, scelta: true,
-                                       dove: eff.dove || null, quale: eff.quale || null });
+                                       dove: eff.dove || null, quale: eff.quale || null,
+                                       aCaso: (eff.ambito === 'RAND' || eff.ambito === 'ONE'), fraChi: tutti });
         return;
       }
       if (tutti.indexOf(scena.scelta) < 0) return;
@@ -24265,6 +24266,16 @@ function applicaLeMetaSemplici(card, evento, cella, perOgni){
   if(motoreFaLEvento(card, evento)) return false;
   let fatto = false;
   for(const eff of [a.effetto, a.effetto2]){
+    if(eff && eff.scelta && _simulazioneInCorso && eff === a.effetto && eff.dove === 'in_hand'
+       && (eff.azione === 'buff' || eff.azione === 'debuff') && (!eff.cosa || eff.cosa === 'power')){
+      const fintoScelta = { trigger:evento, frequenza:'every_time', finestra:a.finestra, se:a.se, regola:null,
+                            legame:null, se2:null, regola2:null, effetto2:null, effetto:eff };
+      const copiaScelta = { values:card.values, valoriBase:card.valoriBase, valoriNascita:card.valoriNascita,
+                            id:card.id, name:card.name, owner:card.owner, traits:card.traits,
+                            traitNames:card.traitNames, abilita:fintoScelta };
+      applicaCambiamenti(_motore().cambiamentiAllEvento(copiaScelta, evento, _scenaEvento(card, cella)));
+      continue;
+    }
     if(!eff || !_effettoSemplice(eff)) continue;
     const finto = { trigger:evento, frequenza:a.frequenza, finestra:a.finestra,
                     se:a.se, regola:null, legame:null, se2:null, regola2:null,
