@@ -16413,14 +16413,16 @@ function glossarioTratti(testo){
   if(ultimo < s.length) fuori.push({ testo:s.slice(ultimo), voce:null });
   return fuori;
 }
-function glossarioIconaTratto(img, chiave){
+function glossarioIconaTratto(img, chiave, variante){
   if(!img) return;
   if(!chiave){ img.classList.remove('mostra'); img.removeAttribute('src'); delete img.dataset.tratto; return; }
   img.classList.add('mostra');
-  if(img.dataset.tratto === chiave) return;
-  img.dataset.tratto = chiave;
-  try{ impostaImgDaCandidati(img, _candidati(TRAIT_ICONS_REL + 'archetype-icon-' + chiave + '-dark.png', traitIconUrl(chiave, true))); }
-  catch(_){ img.src = traitIconUrl(chiave, true); }
+  const scura = variante !== 'light';
+  const segno = chiave + (scura ? '-dark' : '-light');
+  if(img.dataset.tratto === segno) return;
+  img.dataset.tratto = segno;
+  try{ impostaImgDaCandidati(img, _candidati(TRAIT_ICONS_REL + 'archetype-icon-' + segno + '.png', traitIconUrl(chiave, scura))); }
+  catch(_){ img.src = traitIconUrl(chiave, scura); }
 }
 function _nomeTrattoDaMostrare(card, chiave){
   const i = (card && card.traits || []).indexOf(chiave);
@@ -16614,7 +16616,7 @@ function glossarioAccendi(parola){
   if(!icona) parola.classList.add('gl-accesa');
   tip.querySelector('.gt-titolo').textContent = icona ? nomeTratto : String(parola.textContent || '').trim();
   tip.querySelector('.gt-testo').textContent = v ? v.testo : ('Characters with the ' + nomeTratto + ' trait.');
-  glossarioIconaTratto(tip.querySelector('.gt-icona'), icona ? chiave : ((v && v.tratto) || null));
+  glossarioIconaTratto(tip.querySelector('.gt-icona'), icona ? chiave : ((v && v.tratto) || null), 'light');
   tip.classList.add('visibile');
   tooltipSegui(tip);
 }
@@ -25820,6 +25822,7 @@ function _sceltaScambioPosizioni(card, q, r, giocatore, a, eff){
   if(idonei.length < 2) return null;
   return {
     chiave: 'scambio_posizioni',
+    chiaveAbilita: 'scambio_posizioni',
     giocatore,
     richieste: (eff.quanto && eff.quanto.numero) || 2,
     icona: ICONA_SCAMBIO,
@@ -25854,7 +25857,8 @@ function _sceltaCongelaTassello(card, q, r, giocatore, a, eff){
       let migliore = null, punti = -Infinity;
       for(const k of scelta.bersagli){
         const [bq, br] = k.split(',').map(Number);
-        const p = (typeof aiVicinatoUtile === 'function') ? aiVicinatoUtile(bq, br) : 0;
+        const p = IA_OPZIONI.scelte ? aiValoreChiudere(k)
+          : ((typeof aiVicinatoUtile === 'function') ? aiVicinatoUtile(bq, br) : 0);
         if(p > punti){ punti = p; migliore = k; }
       }
       return migliore;
@@ -26038,6 +26042,33 @@ function _sceltaSpostaOvunque(card, q, r, giocatore, a, eff){
         const p = String(k).split(',').map(Number);
         return (typeof aiVicinatoUtile === 'function') ? aiVicinatoUtile(p[0], p[1]) : 0;
       };
+      if(IA_OPZIONI.scelte){
+        let da = null, rischioDa = 0;
+        for(const k of sc.bersagli){
+          const posto = G.board[k];
+          if(!posto || !posto.card || posto.owner !== sc.giocatore) continue;
+          const [kq, kr] = String(k).split(',').map(Number);
+          const salvo = G.board[k]; delete G.board[k];
+          let rischio = 0;
+          try{ rischio = aiRischioDiPerderla(posto.card, kq, kr) * (1 + puntiDiCarta(posto.card)) + aiEstimateCounterRisk(posto.card, kq, kr) * 0.2; }
+          finally { G.board[k] = salvo; }
+          if(rischio > rischioDa){ rischioDa = rischio; da = k; }
+        }
+        if(!da) return null;
+        const carta = G.board[da].card;
+        let dove = null, rischioDove = rischioDa;
+        const salvo = G.board[da]; delete G.board[da];
+        try{
+          for(const m of sc.mete(da)){
+            const [mq, mr] = String(m).split(',').map(Number);
+            const rischio = aiRischioDiPerderla(carta, mq, mr) * (1 + puntiDiCarta(carta)) + aiEstimateCounterRisk(carta, mq, mr) * 0.2;
+            if(rischio < rischioDove - 0.2){ rischioDove = rischio; dove = m; }
+          }
+        } finally { G.board[da] = salvo; }
+        if(!dove) return null;
+        sc.destinazioneScelta = dove;
+        return da;
+      }
       const meglio = Math.max.apply(null, libere.map(quanto));
       let scelto = null, peggio = Infinity;
       for(const k of sc.bersagli){
@@ -27556,6 +27587,14 @@ function aiCountConquests(card, q, r){
 }
 
 const STIMA_AL_BUIO_DI_RIPIEGO = 4;
+let _iaIo = 2;
+function _iaMio(){ return _iaIo; }
+function _iaSuo(){ return _iaIo === 1 ? 2 : 1; }
+function aiComeGiocatore(giocatore, fn){
+  const prima = _iaIo;
+  _iaIo = (giocatore === 1) ? 1 : 2;
+  try{ return fn(); } finally { _iaIo = prima; }
+}
 function valoreStimatoAlBuio(){
   let somma=0, quanti=0;
   for(const k in G.board){
@@ -27563,14 +27602,14 @@ function valoreStimatoAlBuio(){
     if(!cella || !cella.card || cella.card.fumo) continue;
     for(const s of SIDES){ somma += (cella.card.values[s]||0); quanti++; }
   }
-  for(const c of (G.p2Hand||[])){
+  for(const c of (manoDi(_iaMio())||[])){
     for(const s of SIDES){ somma += (c.values[s]||0); quanti++; }
   }
   if(!quanti) return STIMA_AL_BUIO_DI_RIPIEGO;
   return somma/quanti;
 }
 function valoriVistiDallIA(cella, valoriSimulati){
-  if(cella && cella.card && cella.card.fumo && cella.owner!==2){
+  if(cella && cella.card && cella.card.fumo && cella.owner!==_iaMio()){
     const stima = valoreStimatoAlBuio();
     const alBuio = {};
     for(const s of SIDES) alBuio[s] = stima;
@@ -27585,13 +27624,13 @@ function costoHexPerIA(differenza){
   return Math.max(0, differenza - FRANCHIGIA_HEX) * PESO_AUTOLESIONE_HEX;
 }
 function aiEvaluateConquests(card, q, r){
-  let count=0, damage=0, autolesione=0;
+  let count=0, damage=0, autolesione=0, bottino=0;
   const effValues=aiEffectiveValuesAt(card, q, r);
   const simulato=simulaPiazzamento(card, q, r);
   for(const dir of DIRS){
     const nk=key(q+dir.dq,r+dir.dr);
     const nb=G.board[nk];
-    if(!nb||nb.owner===2) continue;
+    if(!nb||nb.owner===_iaMio()) continue;
     if(cartaIntoccabile(nb.card)) continue;
     if(latoInconquistabile(nb.card, dir.theirSide)) continue;
     if(!puoConquistare(card, nb.card, {
@@ -27603,16 +27642,18 @@ function aiEvaluateConquests(card, q, r){
     const theirVal=difesa[dir.theirSide]||0;
     if(vinceIlConfronto(card, myVal, theirVal)){
       count++; damage+=(myVal-theirVal);
+      bottino += puntiDiCarta(nb.card);
       if(abilitaAttivaDi(nb.card)==='hex'){
         autolesione += costoHexPerIA(myVal-theirVal);
       }
       if(foglioFaOSigla(nb.card, 'on_conquered', 'flip', 'card', 'rise_from_the_ashes') && !nb.card.feniceGiaRinata){
         count -= SCONTO_FENICE;
         damage -= (myVal-theirVal) * SCONTO_FENICE;
+        bottino -= puntiDiCarta(nb.card) * SCONTO_FENICE;
       }
     }
   }
-  return {count, damage, autolesione};
+  return {count, damage, autolesione, bottino};
 }
 
 
@@ -27623,7 +27664,7 @@ function minacciaStimataDallIA(){
 }
 function aiEstimateCounterRisk(card, q, r){
   const cellSet=new Set(G.cells.map(c=>key(c.q,c.r)));
-  if(!(G.p1Hand||[]).length) return 0;
+  if(!(manoDi(_iaSuo())||[]).length) return 0;
   const myEffective=aiEffectiveValuesAt(card,q,r);
   const minaccia=minacciaStimataDallIA();
   const colpi=[];
@@ -27654,7 +27695,7 @@ function aiTurniRimasti(){
   return Math.max(1, Math.min(libere, carte));
 }
 function aiRischioDiPerderla(card, q, r){
-  if(!(G.p1Hand||[]).length) return 0;
+  if(!(manoDi(_iaSuo())||[]).length) return 0;
   const cellSet = new Set(G.cells.map(c=>key(c.q,c.r)));
   const miei = aiEffectiveValuesAt(card, q, r);
   const minaccia = minacciaStimataDallIA();
@@ -27764,24 +27805,188 @@ function bonusAbilitaPerIA(card, q, r, giocatore){
   }
   return bonus;
 }
+const IA_OPZIONI = {
+  punti: true,
+  seguito: true,
+  cieche: true,
+  pesoPunti: 0.6,
+  pesoSeguito: 0.4,
+  candidatiSeguito: 6,
+  pesoRischio: 1,
+  pesoDanno: 1,
+  pesoControllo: 1,
+  scelte: true,
+};
+function aiFianchiDellaCasella(cella){
+  const minaccia = minacciaStimataDallIA();
+  const attacco = miglioreAttaccoInMano();
+  const [q, r] = String(cella).split(',').map(Number);
+  let mieiDeboli = 0, suoiDeboli = 0;
+  for(const dir of DIRS){
+    const nb = G.board[key(q+dir.dq, r+dir.dr)];
+    if(!nb || !nb.card) continue;
+    const valori = valoriVistiDallIA(nb, null);
+    const lato = valori[dir.theirSide] || 0;
+    if(nb.owner === _iaMio()) mieiDeboli += Math.max(0, minaccia - lato) * (1 + puntiDiCarta(nb.card) * 0.25);
+    else suoiDeboli += Math.max(0, attacco - lato) * (1 + puntiDiCarta(nb.card) * 0.25);
+  }
+  return { mieiDeboli, suoiDeboli };
+}
+function aiValoreChiudere(cella){
+  const f = aiFianchiDellaCasella(cella);
+  const [q, r] = String(cella).split(',').map(Number);
+  return f.mieiDeboli - f.suoiDeboli * 0.7 + aiVicinatoUtile(q, r) * 0.05;
+}
+function aiValoreAprire(cella){
+  const f = aiFianchiDellaCasella(cella);
+  return f.suoiDeboli - f.mieiDeboli * 0.8;
+}
+function aiControlloInPunti(card, q, r, ev){
+  const turni = aiTurniRimasti();
+  const mia = puntiDiCarta(card);
+  const perderla = aiRischioDiPerderla(card, q, r);
+  return turni * IA_OPZIONI.pesoPunti * (2 * (ev.bottino || 0) + mia - 2 * mia * perderla);
+}
+function _iaAbilitaDelFoglio(card){
+  try{ return (_haAbilitaNuova(card) && _motore()) ? _motore().abilitaDi(card) : null; }catch(_){ return null; }
+}
+function _iaQuanto(eff){ return (eff && eff.quanto && typeof eff.quanto.numero === 'number') ? eff.quanto.numero : 1; }
+function _iaLati(eff){
+  return (eff && eff.ambito === 'ALL') ? SIDES.length : 2;
+}
+function aiValoreAbilitaCieca(card, q, r, ev){
+  const a = _iaAbilitaDelFoglio(card);
+  if(!a) return 0;
+  const io = _iaMio(), lui = _iaSuo();
+  const turni = aiTurniRimasti();
+  const P = VALORE_PUNTO_POTERE;
+  let v = 0;
+  const vicini = (filtro) => {
+    let n = 0;
+    for(const dir of DIRS){ const nb = G.board[key(q+dir.dq, r+dir.dr)]; if(nb && nb.card && filtro(nb)) n++; }
+    return n;
+  };
+  for(const eff of [a.effetto, a.effetto2]){
+    if(!eff) continue;
+    const quanto = _iaQuanto(eff), lati = _iaLati(eff);
+    if(a.trigger === 'on_conquer' && eff.azione === 'buff' && eff.chi === 'self' && ev.count > 0){
+      const margine = ev.damage / Math.max(1, ev.count);
+      v += (eff.per === 'power_diff' ? quanto * Math.max(1, margine) : quanto) * lati * P;
+    }
+    if(a.trigger === 'end_of_turn' && eff.azione === 'protect' && eff.chi === 'self'){
+      v += puntiDiCarta(card) * Math.min(turni, 6) * IA_OPZIONI.pesoPunti * 0.3 + 1;
+    }
+    if(a.trigger === 'end_of_turn' && eff.azione === 'debuff' && eff.chi === 'opponent'){
+      v += Math.min(turni, 8) * quanto * lati * P * 0.5;
+    }
+    if(a.trigger === 'while_on_board' && eff.azione === 'debuff' && eff.chi === 'opponent' && eff.dove === 'adjacent'){
+      v += vicini(nb => nb.owner === lui) * quanto * SIDES.length * P;
+    }
+    if(eff.azione === 'buff' && eff.quale === 'next' && a.trigger !== 'on_conquer'){
+      v += quanto * lati * P * 0.8;
+    }
+    if(a.trigger === 'on_play' && eff.azione === 'buff' && eff.chi === 'ally' && eff.dove === 'in_hand'){
+      const mano = (manoDi(io) || []).filter(c => c && c.id !== card.id).length;
+      const quante = eff.quale === 'random' ? Math.min(1, mano) : mano;
+      v += quante * quanto * lati * P * 0.8;
+    }
+    if(a.trigger === 'on_play' && eff.azione === 'freeze' && eff.chi === 'opponent' && eff.dove === 'in_hand'){
+      if((manoDi(lui) || []).length) v += 3;
+    }
+    if(a.trigger === 'on_play' && eff.azione === 'summon' && eff.chi === 'opponent' && eff.dove === 'deck'){
+      v += 2;
+    }
+    if(a.trigger === 'on_play' && eff.azione === 'freeze' && eff.chi === 'ally' && eff.quale === 'next'){
+      v += 1.5;
+    }
+    if(a.trigger === 'on_play' && eff.azione === 'flip' && eff.chi === 'opponent'){
+      let migliore = 0;
+      for(const dir of DIRS){
+        const nb = G.board[key(q+dir.dq, r+dir.dr)];
+        if(!nb || !nb.card || nb.owner !== lui) continue;
+        const tratti = (nb.card.traits || []).map(x => String(x).toLowerCase());
+        if(tratti.indexOf('sovereign') < 0 && tratti.indexOf('noble') < 0) continue;
+        migliore = Math.max(migliore, 2 * puntiDiCarta(nb.card) * turni * IA_OPZIONI.pesoPunti + cardPower(nb.card) * P);
+      }
+      v += migliore;
+    }
+  }
+  if(a.trigger === 'while_in_hand' && a.effetto && a.effetto.azione === 'debuff' && a.effetto.chi === 'ally'){
+    v += 2 * P * Math.max(1, (manoDi(io) || []).length - 1);
+  }
+  return v;
+}
+function aiValutaGiocata(card, q, r){
+  const ev = aiEvaluateConquests(card, q, r);
+  const risk = aiEstimateCounterRisk(card, q, r);
+  let controllo;
+  if(IA_OPZIONI.punti){
+    controllo = aiControlloInPunti(card, q, r, ev);
+  } else {
+    controllo = 2 * (ev.count - aiRischioDiPerderla(card, q, r)) * aiTurniRimasti() * PESO_CONTROLLO;
+  }
+  let net = IA_OPZIONI.pesoDanno * ev.damage - IA_OPZIONI.pesoRischio * risk - ev.autolesione + bonusAbilitaPerIA(card, q, r, _iaMio()) + IA_OPZIONI.pesoControllo * controllo;
+  if(IA_OPZIONI.cieche){ try{ net += aiValoreAbilitaCieca(card, q, r, ev); }catch(_){ } }
+  return { net, conquests: ev.count, ev };
+}
+function aiMigliorSeguito(card, q, r){
+  const io = _iaMio();
+  const mano = manoDi(io) || [];
+  const resto = mano.filter(c => c && c.id !== card.id && !cartaCongelata(c));
+  if(!resto.length) return 0;
+  const sim = simulaPiazzamento(card, q, r);
+  const cellaGiocata = key(q, r);
+  const salvati = {};
+  const toccate = new Set([cellaGiocata]);
+  if(sim && sim.tabellone) for(const k in sim.tabellone) toccate.add(k);
+  for(const k of toccate){ salvati[k] = G.board[k]; }
+  const manoVera = io === 1 ? G.p1Hand : G.p2Hand;
+  try{
+    for(const k of toccate){
+      if(k === cellaGiocata){
+        const c = clonaPerSimulazione(card);
+        if(sim && sim.tabellone[k]) c.values = Object.assign({}, sim.tabellone[k]);
+        G.board[k] = { owner: io, card: c };
+      } else if(G.board[k] && G.board[k].card && sim && sim.tabellone[k]){
+        const c = clonaPerSimulazione(G.board[k].card);
+        c.values = Object.assign({}, sim.tabellone[k]);
+        G.board[k] = { owner: G.board[k].owner, card: c };
+      }
+    }
+    if(io === 1) G.p1Hand = resto; else G.p2Hand = resto;
+    const libere = G.cells.filter(c => canPlace(c.q, c.r));
+    let migliore = 0;
+    for(const altra of resto){
+      for(const cell of libere){
+        let v = -Infinity;
+        try{ v = aiValutaGiocata(altra, cell.q, cell.r).net; }catch(_){ v = -Infinity; }
+        if(v > migliore) migliore = v;
+      }
+    }
+    return migliore;
+  } finally {
+    for(const k of toccate){ if(salvati[k]) G.board[k] = salvati[k]; else delete G.board[k]; }
+    if(io === 1) G.p1Hand = manoVera; else G.p2Hand = manoVera;
+  }
+}
 function aiChooseMove(){
-  const hand=G.p2Hand;
+  const hand=manoDi(_iaMio()) || [];
   if(!hand.length) return null;
   const freeCells=G.cells.filter(c=>canPlace(c.q,c.r));
   const bloccate=G.cells.filter(c=>isHole(c.q,c.r) && !isOccupied(c.q,c.r));
   if(!freeCells.length && !bloccate.length) return null;
   let best=null, bestNet=-Infinity, bestScore=-1, bestPower=-1, bestCentro=-1;
   const candidates=[];
+  const tutte=[];
   for(const card of hand){
     if(cartaCongelata(card)) continue;
     const celle = puoCalareSuBloccata(card) ? freeCells.concat(bloccate) : freeCells;
     for(const cell of celle){
-      const {count:conquests, damage, autolesione}=aiEvaluateConquests(card,cell.q,cell.r);
+      const valutata=aiValutaGiocata(card,cell.q,cell.r);
+      const conquests=valutata.conquests;
       const power=SIDES.reduce((s,side)=>s+(card.values[side]||0),0);
-      const risk=aiEstimateCounterRisk(card,cell.q,cell.r);
-      const controllo = 2 * (conquests - aiRischioDiPerderla(card,cell.q,cell.r))
-                      * aiTurniRimasti() * PESO_CONTROLLO;
-      const net=damage-risk-autolesione+bonusAbilitaPerIA(card,cell.q,cell.r,2)+controllo;
+      const net=valutata.net;
+      tutte.push({card, cell, net, conquests, power});
       const centralita=aiVicinatoUtile(cell.q,cell.r);
       const meglio = (net>bestNet)
         || (net===bestNet && conquests>bestScore)
@@ -27794,6 +27999,18 @@ function aiChooseMove(){
         candidates.push({card,cell});
       }
     }
+  }
+  if(IA_OPZIONI.seguito && tutte.length > 1 && hand.length > 1){
+    tutte.sort((a,b)=>b.net-a.net);
+    const prime = tutte.slice(0, IA_OPZIONI.candidatiSeguito);
+    let scelta = null, meglio = -Infinity;
+    for(const m of prime){
+      let seguito = 0;
+      try{ seguito = aiMigliorSeguito(m.card, m.cell.q, m.cell.r); }catch(_){ seguito = 0; }
+      const totale = m.net + IA_OPZIONI.pesoSeguito * seguito;
+      if(totale > meglio + 1e-9){ meglio = totale; scelta = m; }
+    }
+    if(scelta) return { card: scelta.card, cell: scelta.cell };
   }
   if(candidates.length>1) return candidates[Math.floor(Math.random()*candidates.length)];
   return best;
@@ -27871,7 +28088,7 @@ VALUTAZIONI_IA.excalibur = (scelta) => {
       const vicino = G.board[key(q+dir.dq, r+dir.dr)];
       if(vicino && vicino.owner === scelta.giocatore) alleateVicine++;
     }
-    const punteggio = alleateVicine*2 + aiVicinatoUtile(q, r);
+    const punteggio = IA_OPZIONI.scelte ? aiValoreChiudere(cella) + alleateVicine * 0.5 : alleateVicine*2 + aiVicinatoUtile(q, r);
     if(punteggio > punteggioMigliore){ punteggioMigliore = punteggio; migliore = cella; }
   }
   return migliore;
@@ -27891,7 +28108,7 @@ VALUTAZIONI_IA.dancing_around = (scelta) => {
 const PESO_FIANCO_SCOPERTO = 0.8;
 function miglioreAttaccoInMano(){
   let massimo = 0;
-  for(const c of (G.p2Hand||[])){
+  for(const c of (manoDi(_iaMio())||[])){
     for(const s of SIDES) massimo = Math.max(massimo, c.values[s]||0);
   }
   return massimo;
@@ -27908,7 +28125,7 @@ function valoreSpostamentoTassello(daCella, aCella){
       if(!nb || !nb.card) continue;
       const valori = valoriVistiDallIA(nb, null);
       const lato = valori[dir.theirSide] || 0;
-      if(nb.owner === 2){
+      if(nb.owner === _iaMio()){
         const vale = Math.max(0, minaccia - lato) * PESO_FIANCO_SCOPERTO;
         punti += coprendo ? vale : -vale;
       } else {
@@ -27987,7 +28204,7 @@ VALUTAZIONI_IA.heigh_ho = (scelta) => {
   for(const cella of scelta.bersagli){
     const [q,r] = String(cella).split(',').map(Number);
     let p = 0;
-    try { p = aiVicinatoUtile(q,r); } catch(_){ p = 0; }
+    try { p = IA_OPZIONI.scelte ? aiValoreAprire(cella) : aiVicinatoUtile(q,r); } catch(_){ p = 0; }
     if(p > punteggio){ punteggio = p; migliore = cella; }
   }
   return migliore;
@@ -28029,10 +28246,18 @@ VALUTAZIONI_IA.mermaid_discard = (scelta) => {
   }
   return peggiore || scelta.bersagli[0];
 };
+function aiScegliMossa(giocatore){ return aiComeGiocatore(giocatore, () => aiChooseMove()); }
+function aiRisolviScelta(scelta){
+  if(!scelta) return;
+  return aiComeGiocatore(scelta.giocatore, () => _aiRisolviScelta(scelta));
+}
 function aiResolvePendingAbilityIfAny(){
   const scelta = G.sceltaBersaglio;
   if(!scelta || scelta.giocatore !== 2) return;
   if(giocatoreUmano(scelta.giocatore)) return;
+  return aiRisolviScelta(scelta);
+}
+function _aiRisolviScelta(scelta){
   const valuta = (typeof scelta.valuta === 'function') ? scelta.valuta : VALUTAZIONI_IA[scelta.chiaveAbilita];
   let bersaglio = null;
   if(typeof valuta === 'function'){
