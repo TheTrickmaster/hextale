@@ -7143,7 +7143,7 @@ try{
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.52</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.53</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -23467,9 +23467,12 @@ function spostaUnaCartaCheshire(k, poi){
   const suBloccato = _rigaSpostaSuBloccato(cella.card);
   if(suBloccato){
     const mete = tasselliBloccatiLiberi();
-    if(!mete.length){ finito(); return; }
-    const dove = mete[Math.floor(casoCondiviso('cheshire|' + k) * mete.length)];
-    if(dove === k){ finito(); return; }
+    const dove = mete.length ? mete[Math.floor(casoCondiviso('cheshire|' + k) * mete.length)] : null;
+    if(!dove || dove === k){
+      console.info('[Different Reality] ' + (cella.card.name || k) + ': nessun tassello bloccato libero, resta in ' + k + '.');
+      finito();
+      return;
+    }
     setTimeout(()=>{ spostaCartaConSalto(k, dove, finito, true); }, CHESHIRE_ATTESA_PRIMA_DEL_SALTO_MS);
     return;
   }
@@ -32851,7 +32854,7 @@ function renderBoard(){
     boardSvgRoot.appendChild(cellGroup);
     let svg = cellGroup;
 
-    if(hole){
+    if(hole && !placed){
       drawTileCell(svg,x,y,R,tasselloLibero(k,q,r),k+'sotto',false);
       const holePoly=drawTileCell(svg,x,y,R,muroDellaCella(k,q,r),k+'h',false);
       holePoly.setAttribute('data-tassello-bloccato', k);
@@ -32881,10 +32884,17 @@ function renderBoard(){
       }
     } else if(placed){
       ricalcolaValoriVivi(placed.card, k);
-      const tileSottoSrc = (G.destroyedHoles && G.destroyedHoles.has(k))
-        ? tileVariant(TILE_FIXED,q,r)
-        : tasselloLibero(k,q,r);
-      drawTileCell(svg,x,y,R,tileSottoSrc,k+'f',false);
+      if(hole){
+        drawTileCell(svg,x,y,R,tasselloLibero(k,q,r),k+'sotto',false);
+        const muro = drawTileCell(svg,x,y,R,muroDellaCella(k,q,r),k+'h',false);
+        muro.setAttribute('data-tassello-bloccato', k);
+        muro.setAttribute('data-hole-key', k);
+      } else {
+        const tileSottoSrc = (G.destroyedHoles && G.destroyedHoles.has(k))
+          ? tileVariant(TILE_FIXED,q,r)
+          : tasselloLibero(k,q,r);
+        drawTileCell(svg,x,y,R,tileSottoSrc,k+'f',false);
+      }
       const ownerDisegnato = (G.girataInCorso && G.girataInCorso.cella===k)
         ? G.girataInCorso.ownerPrima : placed.owner;
       const fc=ownerDisegnato===1?'var(--red-bg)':'var(--blue-bg)';
