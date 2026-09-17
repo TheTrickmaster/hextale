@@ -7143,7 +7143,7 @@ try{
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.51</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.52</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -22234,7 +22234,7 @@ const TILE_ABILITIES_DEF = {
   back_off:      { carta:'Bagheera', name:'Back off', desc:'Adjacent /allies/ can be *Buffed*, never *Debuffed*.' },
   a_kind_of_magic:       { carta:'Merlin', name:'A Kind of Magic',    desc:"Always attacks with its highest Power value, regardless its position." },
   eat_me_drink_me:   { carta:'Alice', name:'Eat me, Drink me',   desc:'*Rotates* its power clockwise each turn while in hand.' },
-  different_reality: { carta:'Cheshire Cat', name:'Different Reality', desc:'*Moves* and *rotates* its power clockwise each turn while on the board.' },
+  different_reality: { carta:'Cheshire Cat', name:'Different Reality', desc:'At the start of each turn, *Moves* to a random blocked tile' },
   mermaid_discard: { carta:'Little Mermaid', name:'...', desc:'When *Played*, *Discard* a card of your choice.' },
   kingslayer: { carta:'Mordred', name:'Kingslayer', desc:'When *Played*, can *Destroy* an adjacent /Sovereign/ or /Noble/.' },
   new_tax: { carta:'Nottingham Sheriff', name:'New Tax', desc:'When *Played*, *Steals* the ability of an adjacent card.' },
@@ -23432,13 +23432,29 @@ function celleLibere(){
   }
   return libere;
 }
+function _rigaSpostaSuBloccato(card){
+  if(!card || typeof _haAbilitaNuova !== 'function' || !_haAbilitaNuova(card)) return null;
+  const a = _motore().abilitaDi(card);
+  if(!a) return null;
+  for(const eff of [a.effetto, a.effetto2]){
+    if(!eff || eff.azione !== 'move' || eff.cosa !== 'tile' || eff.quale !== 'blocked') continue;
+    if(eff.chi && eff.chi !== 'self') continue;
+    return eff;
+  }
+  return null;
+}
+function tasselliBloccatiLiberi(){
+  const fuori = [];
+  for(const k of [...(G.holes || [])].sort()) if(!G.board[k]) fuori.push(k);
+  return fuori;
+}
 function carteCheSiSpostano(player){
   const trovate=[];
   for(const k in G.board){
     const cella=G.board[k];
     if(!cella || !cella.card) continue;
     if(player != null && cella.owner!==player) continue;
-    if(abilitaAttivaDi(cella.card)!=='different_reality') continue;
+    if(!_rigaSpostaSuBloccato(cella.card) && abilitaAttivaDi(cella.card)!=='different_reality') continue;
     if(cartaIntoccabile(cella.card)) continue;
     trovate.push(k);
   }
@@ -23448,6 +23464,15 @@ function spostaUnaCartaCheshire(k, poi){
   const finito=()=>{ if(typeof poi==='function') poi(); };
   const cella=G.board[k];
   if(!cella || !cella.card){ finito(); return; }
+  const suBloccato = _rigaSpostaSuBloccato(cella.card);
+  if(suBloccato){
+    const mete = tasselliBloccatiLiberi();
+    if(!mete.length){ finito(); return; }
+    const dove = mete[Math.floor(casoCondiviso('cheshire|' + k) * mete.length)];
+    if(dove === k){ finito(); return; }
+    setTimeout(()=>{ spostaCartaConSalto(k, dove, finito, true); }, CHESHIRE_ATTESA_PRIMA_DEL_SALTO_MS);
+    return;
+  }
   const el=elementoCarta(k);
   const ruotaEPoi=(dopo)=>{
     const applica=()=>{ ruotaGruppiDiUnPosto(cella.card); renderBoard(); dopo(); };
@@ -26008,6 +26033,7 @@ function sceltaDalFoglio(card, q, r, giocatore){
       return _sceltaSpostaOvunque(card, q, r, giocatore, a, eff);
     if(eff.azione === 'freeze' && eff.cosa === 'tile') return _sceltaCongelaTassello(card, q, r, giocatore, a, eff);
     if(eff.azione === 'protect' && eff.cosa === 'side') return _sceltaProteggiGruppo(card, q, r, giocatore, a, eff);
+    if(eff.azione === 'destroy' && (!eff.cosa || eff.cosa === 'card')) return _sceltaDistruggiCarta(card, q, r, giocatore, a, eff);
   }
   return null;
 }
@@ -26431,6 +26457,28 @@ function disegnaSceltaGruppi(scelta, cx, cy, R, buildSvgIconBtn){
     const { x: ox, y: oy } = axialToPixel(orig.q, orig.r, cx, cy, R);
     buildSvgIconBtn(ICONA_RINUNCIA, ox, oy, R * 0.42, () => rinunciaSceltaBersaglio());
   }
+}
+function _sceltaDistruggiCarta(card, q, r, giocatore, a, eff){
+  const bersagli = candidatiDalFoglio(card, q, r, giocatore, a, eff);
+  if(!bersagli.length) return null;
+  return {
+    chiave: 'distruggi_carta',
+    giocatore,
+    cellaOrigine: key(q, r),
+    bersagli,
+    applica: (cella) => { distruggiCarta(cella); },
+    rinuncia: () => {},
+    valuta: (sc) => {
+      let migliore = null, meglio = 0;
+      for(const cella of sc.bersagli){
+        const posto = G.board[cella];
+        if(!posto || !posto.card) continue;
+        const v = puntiDiCarta(posto.card) * 2 + lampadeDi(posto.card) * 2 + cardPower(posto.card) * 0.1;
+        if(v > meglio){ meglio = v; migliore = cella; }
+      }
+      return migliore;
+    },
+  };
 }
 function _sceltaCopiaTratti(card, q, r, giocatore, a, eff){
   const bersagli = candidatiDalFoglio(card, q, r, giocatore, a, eff);
@@ -27594,7 +27642,7 @@ function endTurn(player, animationsSettled, dannoFatto){
   calcScores();
   if(checkHpKO()) return;
   const playable=G.cells.filter(c=>!isHole(c.q,c.r)).length;
-  const placed=Object.keys(G.board).length + yetiNascosti().length;
+  const placed=Object.keys(G.board).filter(k => !G.holes.has(k)).length + yetiNascosti().length;
   const senzaCarte = G.p1Hand.length===0 || G.p2Hand.length===0;
   const prossimo = player===1 ? 2 : 1;
   const bloccatoDalloYeti = yetiNascosti().length > 0 && !G.cells.some(c=>{
@@ -32571,9 +32619,9 @@ function startCardLandAnim(k, selettore){
   setTimeout(()=>{ playSfxFile('bump.mp3'); }, CARD_LAND_IMPACT_MS);
 }
 
-function spostaCartaConSalto(daCella, aCella, poi){
+function spostaCartaConSalto(daCella, aCella, poi, suBloccato){
   const finito=()=>{ if(typeof poi==='function') poi(); };
-  if(G.holes.has(aCella)){ finito(); return; }
+  if(G.holes.has(aCella) && !suBloccato){ finito(); return; }
   if(G.board[aCella]){ finito(); return; }
   const partito=avviaSaltoCarta(daCella);
   const atterra=()=>{
