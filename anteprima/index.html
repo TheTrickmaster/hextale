@@ -1861,6 +1861,22 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
   22% { opacity:1; filter:brightness(1.55) drop-shadow(0 0 10px rgba(190,235,255,.8)); }
   100%{ opacity:0; filter:brightness(1.15); transform:scale(1.04); }
 }
+#board-svg .bomba-compare{
+  transform-box:fill-box; transform-origin:center;
+  animation:bombaCompare 400ms cubic-bezier(.2,.9,.3,1.25) both;
+}
+@keyframes bombaCompare{
+  0%  { opacity:0; transform:translateY(-30px) scale(.4); }
+  70% { opacity:1; transform:translateY(0) scale(1.1); }
+  100%{ opacity:1; transform:none; }
+}
+.bomba-volo{ position:fixed; left:0; top:0; z-index:9000; pointer-events:none; object-fit:contain;
+  will-change:transform; filter:drop-shadow(0 4px 6px rgba(0,0,0,.35)); }
+.bomba-ombra{ position:fixed; left:0; top:0; z-index:8999; pointer-events:none; border-radius:50%;
+  background:radial-gradient(closest-side, rgba(0,0,0,.55), rgba(0,0,0,0)); will-change:transform,opacity; }
+.bomba-scoppio{ position:fixed; left:0; top:0; z-index:9001; pointer-events:none; border-radius:50%;
+  background:radial-gradient(closest-side, #fffbe6 0%, #ffd36b 30%, rgba(255,120,40,.85) 55%, rgba(255,80,20,0) 100%);
+  mix-blend-mode:screen; will-change:transform,opacity; }
 #board-svg .briciola-arriva{
   transform-box:fill-box; transform-origin:center;
   animation:briciolaArriva 460ms cubic-bezier(.2,.9,.3,1.25) both;
@@ -9634,7 +9650,8 @@ function reteGioca(carta, q, r){
     data: btoa(JSON.stringify({ carta: _idDelMazzo(carta), forma: carta.baseId || carta.id,
                                 q: q, r: r, valori: _valoriDaMandare(carta),
                                 modificatori: _modificatoriDaMandare(carta),
-                                gruppi: _gruppiDaMandare(carta) }))
+                                gruppi: _gruppiDaMandare(carta),
+                                ruotata: carta.ruotata ? true : undefined }))
   }});
 }
 function _formaDiRete(carta, d){
@@ -10001,6 +10018,7 @@ function reteMessaggio(md){
   if(op === 15){ if(PARTITA_RETE && d.di !== PARTITA_RETE.io) stickerMostra(d.di, d.sticker); return; }
   if(op === 16){ stickerBloccaPer(d.resta); return; }
 
+  if(op === 22){ try{ bombaConfermata(d); }catch(e){ console.error('[rete] bomba: ' + (e && e.message)); } return; }
   if(op === 18){
     const y = _yetiElenco().find(x => x.stato === 'sceglie' && x.di === d.di && x.da === d.da);
     if(y) yetiNascondi(y, (typeof d.vera === 'string') ? d.vera : null, Array.isArray(d.impronte) ? d.impronte : [d.da]);
@@ -10133,9 +10151,12 @@ function reteApplicaGiocata(d){
       carta.modificatori = JSON.parse(JSON.stringify(d.modificatori));
     }
     if(_gruppiBuoni(d.gruppi)) carta.groupSides = d.gruppi.map(lati => lati.slice());
+    if(d.ruotata === true) carta.ruotata = true;
     if(posto >= 0) mano[posto] = carta; else mano.push(carta);
   }
   if(!carta) return;
+  if(d.mani && typeof d.mani === 'object') G.maniTratti = d.mani;
+  if(Array.isArray(d.bombe) && d.bombe.length){ try{ bombeDaServer(d.bombe); }catch(e){ console.error('[rete] bombe: ' + (e && e.message)); } }
   if(G.sceltaBersaglio){
     console.warn('[rete] arriva una giocata con una scelta ancora aperta: la chiudo come rinuncia.');
     try{ chiudiSceltaBersaglio(null, true); }catch(_){}
@@ -13961,6 +13982,7 @@ var ABILITA_MOTORE = (function () {
         for (var j = 0; j < tut.length; j++) if (haTratto(tut[j], v.tratti)) return true;
         return false;
       }
+      if (sog === 'hand') return contaInMano(carta, v.tratti, scena) > 0;
       return haTratto(chi, v.tratti);
     }
     if (cond.test === 'is_character') {
@@ -13994,6 +14016,20 @@ var ABILITA_MOTORE = (function () {
       return (scena.quanti || 0) >= v.numero;
     }
     return false;
+  }
+
+  function contaInMano(fonte, tratti, scena) {
+    scena = scena || {};
+    if (typeof scena.contaInMano === 'function') return scena.contaInMano(fonte, tratti) || 0;
+    var mano = (typeof scena.manoDi === 'function') ? (scena.manoDi(fonte) || []) : (scena.inMano || []);
+    var n = 0, i;
+    for (i = 0; i < mano.length; i++) {
+      var c = mano[i];
+      if (!c || stessaCarta(c, fonte)) continue;
+      if (fonte && fonte.owner !== undefined && c.owner !== undefined && c.owner !== fonte.owner) continue;
+      if (haTratto(c, tratti)) n++;
+    }
+    return n;
   }
 
 
@@ -14240,8 +14276,7 @@ var ABILITA_MOTORE = (function () {
     } else if (eff.per === 'adjacent_card') {
       quanti = ((scena.vicini && scena.vicini(fonte)) || []).length;
     } else if (eff.per === 'hand_trait') {
-      var mano = scena.inMano || [];
-      for (i = 0; i < mano.length; i++) if (haTratto(mano[i], tratti)) quanti++;
+      quanti = contaInMano(fonte, tratti, scena);
     } else if (eff.per === 'owned_trait') {
       var visti = {};
       var propri = (fonte.traitNames && fonte.traitNames.length) ? fonte.traitNames : (fonte.traits || []);
@@ -14319,6 +14354,20 @@ var ABILITA_MOTORE = (function () {
     s.bersaglio = bersaglio;
     s.adiacenti = (scena.vicini && scena.vicini(fonte)) || [];
     return s;
+  }
+
+  function _condSulBersaglio(cond, scena) {
+    return !!(cond && cond.soggetto === 'target' && !(scena && scena.bersaglio));
+  }
+  function _filtraPerCondizione(lista, cond, fonte, scena) {
+    var out = [], i;
+    for (i = 0; i < lista.length; i++) {
+      var s = {};
+      for (var k in (scena || {})) if (Object.prototype.hasOwnProperty.call(scena, k)) s[k] = scena[k];
+      s.bersaglio = lista[i];
+      if (condizioneVera(cond, fonte, s)) out.push(lista[i]);
+    }
+    return out;
   }
 
   function _unEffetto(fonte, eff, cond, bersaglio, scena, d, segno) {
@@ -14423,6 +14472,7 @@ var ABILITA_MOTORE = (function () {
         scelta: !!eff.scelta
       };
       if (finestra && finestra.tipo === 'for_turns' && typeof finestra.valore === 'number') pezzo.turni = finestra.valore;
+      else if (az === 'freeze' && eff.durata === 'n_turns' && eff.quanto && eff.quanto.numero > 0) pezzo.turni = eff.quanto.numero;
       if (eff.scelta) {
         pezzo.candidati = possibili;
         fuori.push(pezzo);
@@ -14460,11 +14510,38 @@ var ABILITA_MOTORE = (function () {
       }
       return;
     }
+    if (az === 'buff' && eff.cosa === 'trait') {
+      var dati = (eff.perValore && eff.perValore.tratti) || [];
+      if (!dati.length) return;
+      var suBersaglioT = _condSulBersaglio(cond, scena);
+      if (!suBersaglioT && !condizioneVera(cond, fonte, scena)) return;
+      var aChi = candidati(fonte, eff, scena), utili = [], ut, dt;
+      if (suBersaglioT) aChi = _filtraPerCondizione(aChi, cond, fonte, scena);
+      for (ut = 0; ut < aChi.length; ut++) {
+        if (intoccabile(aChi[ut])) continue;
+        var manca = false;
+        for (dt = 0; dt < dati.length; dt++) if (!haTratto(aChi[ut], [dati[dt]])) manca = true;
+        if (manca) utili.push(aChi[ut]);
+      }
+      if (!utili.length) return;
+      if (eff.scelta && !(scena && scena.scelta)) {
+        fuori.push({ azione: 'buff', cosa: 'trait', fonte: fonte, candidati: utili, tratti: dati.slice(), scelta: true, dove: eff.dove || null });
+        return;
+      }
+      var presiT = (eff.scelta && scena && scena.scelta) ? (utili.indexOf(scena.scelta) >= 0 ? [scena.scelta] : []) : scelti(utili, eff, scena, fonte);
+      for (ut = 0; ut < presiT.length; ut++) {
+        fuori.push({ azione: 'buff', cosa: 'trait', fonte: fonte, carta: presiT[ut], tratti: dati.slice(),
+                     aCaso: eff.quale === 'random', fraChi: eff.quale === 'random' ? utili : null });
+      }
+      return;
+    }
     if (az !== 'buff' && az !== 'debuff' && az !== 'set' && az !== 'steal') return;
     if (eff.cosa && eff.cosa !== 'power') return;
-    if (!condizioneVera(cond, fonte, scena)) return;
+    var suBersaglio = _condSulBersaglio(cond, scena);
+    if (!suBersaglio && !condizioneVera(cond, fonte, scena)) return;
 
     var tutti = candidati(fonte, eff, scena);
+    if (suBersaglio) tutti = _filtraPerCondizione(tutti, cond, fonte, scena);
     if (eff.scelta) {
       if (!scena || !scena.scelta) {
         if (tutti.length) fuori.push({ azione: az, cosa: 'power', fonte: fonte, candidati: tutti, scelta: true,
@@ -14550,6 +14627,12 @@ var ABILITA_MOTORE = (function () {
     return fuori;
   }
 
+  function cambiamentiDiEffetto(fonte, eff, scena) {
+    var fuori = [];
+    _cambiamentiDi(fonte, eff, null, scena || {}, fuori, null);
+    return fuori;
+  }
+
   function _conTrattiInArrivo(fonte, scena, fuori) {
     var arrivo = [], i, j;
     for (i = 0; i < fuori.length; i++) {
@@ -14624,6 +14707,8 @@ var ABILITA_MOTORE = (function () {
     segnaScatto: segnaScatto,
     cambiamentiAllEvento: cambiamentiAllEvento,
     cambiamentiDellaScelta: cambiamentiDellaScelta,
+    contaInMano: contaInMano,
+    cambiamentiDiEffetto: cambiamentiDiEffetto,
     deltaContinuo: deltaContinuo,
     valoriEffettivi: valoriEffettivi
   };
@@ -16809,6 +16894,9 @@ document.addEventListener('mousemove', glossarioSeguiPuntatore, { passive:true }
 const OGGETTI_CAMPO = {
   briciola: { titolo: 'Crumbs', testo: '+2 HIGHEST when an ally is placed on top', icona: 'crumb-1.png' },
   impronta: { titolo: 'Yeti footprints', testo: 'A Yeti could hide here', icona: 'foot-yeti.png' },
+  bomba3: { titolo: 'Bomb', testo: 'Explodes in 3 turns: -2 RAND to adjacent enemies', icona: 'bomb-3.png' },
+  bomba2: { titolo: 'Bomb', testo: 'Explodes in 2 turns: -2 RAND to adjacent enemies', icona: 'bomb-2.png' },
+  bomba1: { titolo: 'Bomb', testo: 'Explodes next turn: -2 RAND to adjacent enemies', icona: 'bomb-1.png' },
 };
 let _oggettoCampoAcceso = null;
 function _oggettoCampoSotto(bersaglio){
@@ -16817,6 +16905,8 @@ function _oggettoCampoSotto(bersaglio){
   const cella = bersaglio.closest('#board-svg [data-cellkey]');
   const k = cella && cella.getAttribute('data-cellkey');
   if(!k || (G.board && G.board[k])) return null;
+  const bomba = (typeof bombaVisibileIn === 'function') ? bombaVisibileIn(k) : null;
+  if(bomba) return 'bomba' + bombaConto(bomba);
   if(G.briciole && G.briciole[k]) return 'briciola';
   if(typeof yetiCelleImpronte === 'function' && yetiCelleImpronte().has(k)) return 'impronta';
   return null;
@@ -18214,6 +18304,7 @@ const SUONI_SFX_EXTRA = Object.values(WHOOSH_PER_RARITA)
            'munch.mp3',
            'freeze.mp3',
            'snow-footstep-1.mp3', 'snow-footstep-2.mp3', 'snow-footstep-3.mp3',
+           'explosion.mp3',
            'bell.mp3',
            'end-game-win.mp3',
            'end-game-loss.mp3',
@@ -22309,6 +22400,9 @@ const TILE_ABILITIES_DEF = {
   eat_the_rich:      { carta:'Robin Hood', name:'Eat the Rich',       desc:"*Steals* 1 Power from every adjacent enemy and gives it to an ally in need." },
   '!tomthumb':       { carta:'Tom Thumb',  name:'Crumbs',             desc:'*Drops* 3 Crumbs on random empty tiles. An ally played on one *Gains* +2 on its HIGHEST.' },
   '!yeti':           { carta:'Yeti',       name:"Hide 'n' kill",      desc:'*Hides* on the board and only attacks when an opponent is near it.' },
+  '!goblin':         { carta:'Goblin',        name:'GIGA-BOOM!',     desc:'Drops a Bomb on a selected tile: -2 RAND to adjacent enemies after 3 turns' },
+  '!thecarpenter':   { carta:'The Carpenter', name:'Woodwork',       desc:'*Blocks* a selected empty tile' },
+  '!jabberwock':     { carta:'Jabberwock',    name:'Callooh Callay', desc:'Each turn, -1 ALL to adjacent enemies for every card with *Rotated* Power on the board' },
   smol_friends:  { carta:'Snow White', name:'Smol Friends', desc:'+1 Power ALL for every /Small/ character on the board.' },
   back_off:      { carta:'Bagheera', name:'Back off', desc:'Adjacent /allies/ can be *Buffed*, never *Debuffed*.' },
   a_kind_of_magic:       { carta:'Merlin', name:'A Kind of Magic',    desc:"Always attacks with its highest Power value, regardless its position." },
@@ -23157,6 +23251,7 @@ function _scenaTabellone(){
   return {
     inCampo: inCampo,
     inMano: (G.p1Hand || []).concat(G.p2Hand || []),
+    contaInMano: (fonte, tratti) => contaTrattiInMano(fonte, tratti),
     cellaDi: (carta)=> dove.get(carta)
       || ((carta && carta.id && perId.get(carta.id)) || null),
     haBuffRubabile: (carta)=> haBuffRubabile(carta),
@@ -24346,6 +24441,7 @@ function _effettoSemplice(e){
   if(e.quale === 'next' || e.quale === 'last') return false;
   if(e.azione === 'freeze' && (e.cosa === 'card' || e.cosa === 'tile')) return true;
   if(e.azione === 'copy' && e.cosa === 'trait') return true;
+  if(e.azione === 'buff' && e.cosa === 'trait') return true;
   if(['buff','debuff','set'].indexOf(e.azione) < 0) return false;
   if(e.cosa && e.cosa !== 'power') return false;
   if(e.dove === 'drawn' || e.dove === 'deck') return false;
@@ -24396,6 +24492,34 @@ function applicaLeMetaSemplici(card, evento, cella, perOgni){
   return fatto;
 }
 
+function _padroneDiCarta(card){
+  if(!card || !G) return 1;
+  if(G.board) for(const k in G.board){
+    const p = G.board[k];
+    if(p && p.card && (p.card === card || (card.id && p.card.id === card.id))) return p.owner;
+  }
+  if((G.p2Hand || []).some(c => c && (c === card || c.id === card.id))) return 2;
+  if((G.p1Hand || []).some(c => c && (c === card || c.id === card.id))) return 1;
+  return card.owner === 2 ? 2 : 1;
+}
+function _chiaveTratti(tratti){
+  return (tratti || []).map(x => String(x).toLowerCase()).sort().join(',');
+}
+function contaTrattiInMano(fonte, tratti){
+  const chi = _padroneDiCarta(fonte);
+  if(typeof PARTITA_RETE !== 'undefined' && PARTITA_RETE){
+    const m = G && G.maniTratti && G.maniTratti[chi];
+    const n = m ? Number(m[_chiaveTratti(tratti)]) : 0;
+    return isFinite(n) ? Math.max(0, n|0) : 0;
+  }
+  const mano = (chi === 2 ? G.p2Hand : G.p1Hand) || [];
+  let n = 0;
+  for(const c of mano){
+    if(!c || c === fonte || (fonte && fonte.id && c.id === fonte.id)) continue;
+    if(_motore().haTratto(c, tratti || [])) n++;
+  }
+  return n;
+}
 function _scenaEvento(card, cella, extra){
   const s = _scenaTabellone();
   if(cella){
@@ -24456,12 +24580,16 @@ function applicaCambiamenti(elenco){
     if(c.azione === 'freeze'){
       if(c.cosa === 'tile'){ if(!c.scelta) congelaTasselli(c); continue; }
       if(!c.carta) continue;
-      c.carta.congelataFinoAlTurno = (G.numeroTurno||1) + (c.turni || 1);
+      c.carta.congelataFinoAlTurno = (G.numeroTurno||1) + 1 + (c.turni || 1);
       if(!_simulazioneInCorso){ try{ playSfxFile('freeze.mp3'); }catch(_){ } }
       continue;
     }
     if(c.azione === 'steal' && c.cosa === 'buff'){
       if(c.carta && c.fonte) rubaUnBuff(c.fonte, c.carta);
+      continue;
+    }
+    if(c.azione === 'buff' && c.cosa === 'trait'){
+      if(c.carta && !_simulazioneInCorso) _daiTratti(c.carta, c.tratti);
       continue;
     }
     if(c.azione === 'copy' && c.cosa === 'trait'){
@@ -25282,7 +25410,362 @@ function attivaSmokeAndMirrors(card){
   }, 200);
 }
 
+const BOMBA_CHIAVE = '!goblin';
+const BOMBA_TURNI = 3;
+const BOMBA_DANNO = 2;
+const BOMBA_ALTA_HD = 150;
+const BOMBA_SPOSTA_X_HD = 10;
+const BOMBA_SPOSTA_Y_HD = -20;
+const BOMBA_LANCIO_MS = 950;
+const BOMBA_CADUTA_MS = 700;
+const BOMBA_SCOPPIO_MS = 650;
+const BOMBA_SOBBALZO_MS = 620;
+
+function _bombeElenco(){ if(!G) return []; if(!G.bombe) G.bombe = []; return G.bombe; }
+function bombaConto(b){
+  return Math.max(1, Math.min(BOMBA_TURNI, BOMBA_TURNI - ((G.numeroTurno || 1) - _bombaDa(b))));
+}
+function _bombaDa(b){ return (b && typeof b.daTurno === 'number') ? b.daTurno : 1; }
+function bombaIcona(b){ return UI_BASE + 'bomb-' + bombaConto(b) + '.png'; }
+function bombaLaVedo(b){ return !!b && !!b.cella && b.stato === 'posata' && b.di === _goIoSono(); }
+function bombaVisibileIn(k){ return _bombeElenco().find(b => b.cella === k && bombaLaVedo(b)) || null; }
+
+function disegnaBombaInCella(svg, x, y, R, k){
+  const b = bombaVisibileIn(k);
+  if(!b) return null;
+  const alto = BOMBA_ALTA_HD * (R / 126.77);
+  x += BOMBA_SPOSTA_X_HD * (R / 126.77);
+  y += BOMBA_SPOSTA_Y_HD * (R / 126.77);
+  const img = document.createElementNS('http://www.w3.org/2000/svg', 'image');
+  img.setAttribute('href', bombaIcona(b));
+  img.setAttribute('x', (x - alto/2).toFixed(2)); img.setAttribute('y', (y - alto/2).toFixed(2));
+  img.setAttribute('width', alto.toFixed(2)); img.setAttribute('height', alto.toFixed(2));
+  img.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+  img.setAttribute('data-bomba', k);
+  img.style.pointerEvents = 'none';
+  const passati = performance.now() - (b.compareDa || 0);
+  if(passati < 400){
+    img.classList.add('bomba-compare');
+    img.style.animationDelay = (-Math.max(0, passati)).toFixed(0) + 'ms';
+  }
+  svg.appendChild(img);
+  return img;
+}
+
+function _rettangoloCella(k){
+  const el = document.querySelector('#board-svg [data-cellkey="' + k + '"]');
+  return el ? el.getBoundingClientRect() : null;
+}
+function _latoBombaPx(k){
+  const r = _rettangoloCella(k);
+  const R = r ? r.width / Math.sqrt(3) : 90;
+  return BOMBA_ALTA_HD * (R / 126.77);
+}
+function _bombaSprite(src, lato){
+  const img = document.createElement('img');
+  img.src = src;
+  img.alt = '';
+  img.className = 'bomba-volo';
+  img.style.width = lato.toFixed(0) + 'px';
+  img.style.height = lato.toFixed(0) + 'px';
+  document.body.appendChild(img);
+  return img;
+}
+function _bombaOmbra(lato){
+  const d = document.createElement('div');
+  d.className = 'bomba-ombra';
+  d.style.width = (lato * 0.8).toFixed(0) + 'px';
+  d.style.height = (lato * 0.32).toFixed(0) + 'px';
+  document.body.appendChild(d);
+  return d;
+}
+function _mettiIn(el, x, y){
+  el.style.left = (x - el.offsetWidth / 2).toFixed(1) + 'px';
+  el.style.top = (y - el.offsetHeight / 2).toFixed(1) + 'px';
+}
+
+function bombaLancia(k){
+  if(_simulazioneInCorso) return;
+  const attesa = (typeof CARD_LAND_MS === 'number') ? CARD_LAND_MS : 300;
+  setTimeout(() => {
+    const r = _rettangoloCella(k);
+    if(!r) return;
+    const lato = _latoBombaPx(k);
+    const scala = lato / BOMBA_ALTA_HD;
+    const cx = r.left + r.width / 2 + BOMBA_SPOSTA_X_HD * scala, cy = r.top + r.height / 2 + BOMBA_SPOSTA_Y_HD * scala;
+    const bomba = _bombaSprite(UI_BASE + 'bomb-3.png', lato);
+    const ombra = _bombaOmbra(lato);
+    _mettiIn(bomba, cx, cy - lato * 0.35);
+    _mettiIn(ombra, cx, cy + lato * 0.28);
+    const su = -(cy + lato * 1.5);
+    bomba.animate([
+      { transform: 'translate(0px, 0px) scale(0.85) rotate(0deg)', opacity: 1 },
+      { transform: 'translate(0px, ' + (su * 0.25).toFixed(0) + 'px) scale(1.05) rotate(-12deg)', opacity: 1, offset: 0.25 },
+      { transform: 'translate(0px, ' + su.toFixed(0) + 'px) scale(1.25) rotate(20deg)', opacity: 1 }
+    ], { duration: BOMBA_LANCIO_MS, easing: 'cubic-bezier(.45,.05,.8,.35)', fill: 'forwards' });
+    ombra.animate([
+      { transform: 'scale(1)', opacity: 0.55 },
+      { transform: 'scale(0.25)', opacity: 0 }
+    ], { duration: BOMBA_LANCIO_MS * 0.8, easing: 'ease-in', fill: 'forwards' });
+    setTimeout(() => { bomba.remove(); ombra.remove(); }, BOMBA_LANCIO_MS + 50);
+  }, attesa);
+}
+
+function sceltaBombaGoblin(card, q, r, giocatore){
+  const k = key(q, r);
+  bombaLancia(k);
+  const mete = celleLibere().filter(x => x !== k);
+  if(!mete.length) return null;
+  if(typeof PARTITA_RETE !== 'undefined' && PARTITA_RETE && !sceltaMia(giocatore)){
+    return { chiave: 'bomba_attesa', giocatore, bersagli: [], cellaOrigine: null,
+             privata: true, attesa: true, applica: () => {}, rinuncia: () => bombaPosa(giocatore, null) };
+  }
+  const aCaso = () => mete[Math.floor(casoCondiviso('bomba|' + k) * mete.length)];
+  return {
+    chiave: 'bomba', giocatore, privata: true, cellaOrigine: null, icona: ICONA_MIRINO,
+    bersagli: mete,
+    applica: (cella) => bombaPosa(giocatore, cella),
+    rinuncia: () => bombaPosa(giocatore, aCaso()),
+    seScade: () => aCaso(),
+    valuta: () => bombaScegliIA(giocatore, mete) || aCaso(),
+  };
+}
+function bombaScegliIA(giocatore, mete){
+  let migliore = null, meglio = -1;
+  for(const k of mete){
+    const [q, r] = k.split(',').map(Number);
+    let n = 0;
+    for(const d of DIRS){
+      const p = G.board[key(q + d.dq, r + d.dr)];
+      if(p && p.card && p.owner !== giocatore && !cartaIntoccabile(p.card)) n += 1;
+    }
+    const v = n + Math.random() * 0.3;
+    if(v > meglio){ meglio = v; migliore = k; }
+  }
+  return migliore;
+}
+function bombaPosa(giocatore, cella){
+  const b = { di: giocatore, cella: cella || null, daTurno: G.numeroTurno || 1, stato: 'posata', esplode: false,
+              compareDa: performance.now() + BOMBA_LANCIO_MS * 0.5 };
+  b.id = 'bomba:' + giocatore + ':' + b.daTurno + ':' + _bombeElenco().length;
+  _bombeElenco().push(b);
+  if(typeof PARTITA_RETE !== 'undefined' && PARTITA_RETE && sceltaMia(giocatore) && cella) reteBomba(cella);
+  console.info('[GIGA-BOOM!] bomba del giocatore ' + giocatore + (cella ? ' in ' + cella : ' (dove, non si sa)'));
+  try{ renderBoard(); }catch(_){ }
+  setTimeout(() => { try{ renderBoard(); }catch(_){ } }, BOMBA_LANCIO_MS * 0.5 + 20);
+  return b;
+}
+function bombaConfermata(d){
+  if(!G || !d) return;
+  const s = G.sceltaBersaglio;
+  if(s && s.chiave === 'bomba_attesa' && s.giocatore === d.di){ chiudiSceltaBersaglio(null, true); return; }
+  if(typeof d.cella === 'string'){
+    const mia = _bombeElenco().filter(b => b.di === d.di && b.stato === 'posata' && !b.esplode).pop();
+    if(mia && mia.cella !== d.cella){ mia.cella = d.cella; try{ renderBoard(); }catch(_){ } }
+  }
+}
+function bombeDaServer(elenco){
+  for(const x of (elenco || [])){
+    if(!x || typeof x.cella !== 'string') continue;
+    const di = Number(x.di);
+    let b = _bombeElenco().find(y => y.di === di && y.stato === 'posata' && !y.esplode);
+    if(!b){ b = { id: 'bomba:' + di + ':srv:' + x.cella, di, daTurno: (G.numeroTurno || 1) - BOMBA_TURNI, stato: 'posata' }; _bombeElenco().push(b); }
+    b.cella = x.cella;
+    b.esplode = true;
+  }
+}
+function reteBomba(cella){
+  if(!PARTITA_RETE) return;
+  mmManda({ cid: 'b' + Date.now().toString(36), match_data_send: {
+    match_id: PARTITA_RETE.matchId, op_code: 21,
+    data: btoa(JSON.stringify({ cella: String(cella) }))
+  }});
+}
+function bombePronte(){
+  const rete = (typeof PARTITA_RETE !== 'undefined' && PARTITA_RETE);
+  return _bombeElenco().filter(b => b.stato === 'posata' && b.cella
+    && (rete ? !!b.esplode : ((G.numeroTurno || 1) - _bombaDa(b) >= BOMBA_TURNI)))
+    .sort((a, b) => (a.cella < b.cella ? -1 : a.cella > b.cella ? 1 : a.di - b.di));
+}
+function cambiamentiBomba(b){
+  const fonte = { id: 'bomba:' + b.cella + ':' + b.di, idRete: 'bomba:' + b.cella + ':' + b.di,
+                  name: 'Bomb', owner: b.di, traits: [], traitNames: [], values: {} };
+  const scena = _scenaTabellone();
+  const [q, r] = b.cella.split(',').map(Number);
+  const intorno = [b.cella].concat(DIRS.map(d => key(q + d.dq, r + d.dr)));
+  const colpibili = intorno.map(k => G.board[k] && G.board[k].card).filter(Boolean);
+  const vicini = scena.vicini, cellaDi = scena.cellaDi;
+  scena.vicini = (c) => (c === fonte ? colpibili : vicini(c));
+  scena.cellaDi = (c) => (c === fonte ? b.cella : cellaDi(c));
+  const eff = { azione: 'debuff', chi: 'opponent', dove: 'adjacent', quale: 'all', cosa: 'power',
+                ambito: 'RAND', quanto: { numero: BOMBA_DANNO }, durata: 'permanent' };
+  return _motore().cambiamentiDiEffetto(fonte, eff, scena);
+}
+function esplodonoBombe(poi){
+  const fine = () => { if(typeof poi === 'function') poi(); };
+  if(!G || G.gameOver){ fine(); return; }
+  const pronte = bombePronte();
+  if(!pronte.length){ fine(); return; }
+  let i = 0;
+  const prossima = () => {
+    if(!G || G.gameOver || i >= pronte.length){ fine(); return; }
+    bombaCade(pronte[i++], prossima);
+  };
+  const t0 = performance.now();
+  const aspettaBanner = () => {
+    if(G && G.turnBannerActive && performance.now() - t0 < 4000){ setTimeout(aspettaBanner, 100); return; }
+    prossima();
+  };
+  aspettaBanner();
+}
+function bombaCade(b, poi){
+  b.stato = 'cade';
+  try{ renderBoard(); }catch(_){ }
+  const r = _rettangoloCella(b.cella);
+  const colpisci = () => {
+    bombaScoppia(b);
+    setTimeout(poi, BOMBA_SCOPPIO_MS);
+  };
+  if(!r){ colpisci(); return; }
+  const lato = _latoBombaPx(b.cella);
+  const scala = lato / BOMBA_ALTA_HD;
+  const cx = r.left + r.width / 2 + BOMBA_SPOSTA_X_HD * scala, cy = r.top + r.height / 2 + BOMBA_SPOSTA_Y_HD * scala;
+  const bomba = _bombaSprite(UI_BASE + 'bomb-1.png', lato);
+  const ombra = _bombaOmbra(lato);
+  _mettiIn(bomba, cx, cy);
+  _mettiIn(ombra, cx, cy + lato * 0.28);
+  const da = -(cy + lato * 1.5);
+  bomba.animate([
+    { transform: 'translate(0px, ' + da.toFixed(0) + 'px) scale(1.3) rotate(-25deg)' },
+    { transform: 'translate(0px, 0px) scale(1) rotate(0deg)' }
+  ], { duration: BOMBA_CADUTA_MS, easing: 'cubic-bezier(.55,0,1,.45)', fill: 'forwards' });
+  ombra.animate([
+    { transform: 'scale(0.2)', opacity: 0 },
+    { transform: 'scale(1)', opacity: 0.6 }
+  ], { duration: BOMBA_CADUTA_MS, easing: 'ease-in', fill: 'forwards' });
+  setTimeout(() => { bomba.remove(); ombra.remove(); colpisci(); }, BOMBA_CADUTA_MS);
+}
+function bombaScoppia(b){
+  b.stato = 'esplosa';
+  const cambi = cambiamentiBomba(b);
+  const prima = new Map();
+  for(const x of cambi) if(x && x.carta && !prima.has(x.carta)) prima.set(x.carta, {...x.carta.values});
+  applicaCambiamenti(cambi);
+  G.bombe = _bombeElenco().filter(y => y !== b);
+  try{ ricalcolaTabellone(); }catch(_){ }
+  _firmaTabellonePrecedente = null;
+  try{ renderBoard(); }catch(_){ }
+  try{ playSfxFile('explosion.mp3'); }catch(_){ }
+  const r = _rettangoloCella(b.cella);
+  if(r){
+    const lampo = document.createElement('div');
+    lampo.className = 'bomba-scoppio';
+    const d = r.width * 1.9;
+    lampo.style.width = d.toFixed(0) + 'px';
+    lampo.style.height = d.toFixed(0) + 'px';
+    document.body.appendChild(lampo);
+    _mettiIn(lampo, r.left + r.width / 2, r.top + r.height / 2);
+    lampo.animate([
+      { transform: 'scale(0.25)', opacity: 1 },
+      { transform: 'scale(1)', opacity: 0.9, offset: 0.35 },
+      { transform: 'scale(1.35)', opacity: 0 }
+    ], { duration: BOMBA_SCOPPIO_MS, easing: 'ease-out', fill: 'forwards' });
+    setTimeout(() => lampo.remove(), BOMBA_SCOPPIO_MS + 50);
+  }
+  let n = 0;
+  prima.forEach((valori, carta) => {
+    const cella = Object.keys(G.board).find(k => G.board[k] && G.board[k].card === carta);
+    const el = cella ? elementoCarta(cella) : null;
+    try{ lampeggiaCarta(el); }catch(_){ }
+    try{ lampeggiaDifferenzaValori(carta, valori); }catch(_){ }
+    const host = el && (el.querySelector('[data-role="recoil-host"]') || el);
+    if(host && host.animate){
+      const verso = (n % 2 === 0) ? 1 : -1;
+      const alto = 26 + (n % 3) * 12;
+      const giro = verso * (6 + (n % 4) * 4);
+      const dx = verso * (4 + (n % 3) * 5);
+      host.style.transformBox = 'fill-box';
+      host.style.transformOrigin = 'center';
+      host.animate([
+        { transform: 'translate(0px, 0px) rotate(0deg)' },
+        { transform: 'translate(' + dx + 'px, ' + (-alto) + 'px) rotate(' + giro + 'deg)', offset: 0.35 },
+        { transform: 'translate(0px, 0px) rotate(0deg)', offset: 0.7 },
+        { transform: 'translate(' + (-dx / 3).toFixed(1) + 'px, ' + (-alto / 5).toFixed(1) + 'px) rotate(' + (-giro / 3).toFixed(1) + 'deg)', offset: 0.85 },
+        { transform: 'translate(0px, 0px) rotate(0deg)' }
+      ], { duration: BOMBA_SOBBALZO_MS + n * 40, delay: n * 35, easing: 'ease-out' });
+    }
+    n++;
+  });
+  console.info('[GIGA-BOOM!] esplosa in ' + b.cella + ': ' + prima.size + ' carte colpite');
+}
+
+function sceltaCarpenter(card, q, r, giocatore){
+  const libere = celleLibere().filter(k => k !== key(q, r));
+  if(!libere.length) return null;
+  return {
+    chiave: 'woodwork', giocatore, cellaOrigine: key(q, r), rinunciabile: true,
+    bersagli: libere,
+    applica: (cella) => bloccaTassello(cella),
+    rinuncia: () => {},
+    valuta: (sc) => {
+      let migliore = null, meglio = -1;
+      for(const k of sc.bersagli){
+        const [cq, cr] = k.split(',').map(Number);
+        let v = 0;
+        for(const d of DIRS){
+          const p = G.board[key(cq + d.dq, cr + d.dr)];
+          if(!p || !p.card || p.owner !== giocatore) continue;
+          v += Math.max(0, 10 - ((p.card.values || {})[d.theirSide] || 0));
+        }
+        v += Math.random() * 0.3;
+        if(v > meglio){ meglio = v; migliore = k; }
+      }
+      return migliore;
+    },
+  };
+}
+function bloccaTassello(cella){
+  if(!cella || !G || G.board[cella] || G.holes.has(cella)) return false;
+  G.holes.add(cella);
+  if(G.destroyedHoles) G.destroyedHoles.delete(cella);
+  if(G.gelo) delete G.gelo[cella];
+  try{ renderBoard(); }catch(_){ }
+  try{ startCardLandAnim(cella, '[data-tile-wrap="' + cella + 'h"]'); }catch(_){ }
+  console.info('[Woodwork] tassello bloccato in ' + cella);
+  return true;
+}
+
+const JABBERWOCK_CHIAVE = '!jabberwock';
+function carteRuotateInCampo(){
+  let n = 0;
+  for(const k in (G.board || {})){ const p = G.board[k]; if(p && p.card && p.card.ruotata) n++; }
+  return n;
+}
+function jabberwockFineTurno(){
+  if(!G || !G.board) return false;
+  let mosso = false;
+  for(const k of Object.keys(G.board).sort()){
+    const p = G.board[k];
+    if(!p || !p.card || abilitaAttivaDi(p.card) !== JABBERWOCK_CHIAVE) continue;
+    const n = carteRuotateInCampo();
+    if(!n) continue;
+    const eff = { azione: 'debuff', chi: 'opponent', dove: 'adjacent', quale: 'all', cosa: 'power',
+                  ambito: 'ALL', quanto: { numero: n }, durata: 'permanent' };
+    const cambi = _motore().cambiamentiDiEffetto(p.card, eff, _scenaEvento(p.card, k));
+    if(!cambi.length) continue;
+    const prima = new Map();
+    for(const x of cambi) if(x.carta && !prima.has(x.carta)) prima.set(x.carta, {...x.carta.values});
+    applicaCambiamenti(cambi);
+    prima.forEach((valori, carta) => lampeggiaDifferenzaValori(carta, valori));
+    console.info('[Callooh Callay] ' + k + ': -' + n + ' ALL a ' + prima.size + ' nemici');
+    mosso = true;
+  }
+  return mosso;
+}
+
 const SCELTE_PIAZZAMENTO = {
+  '!goblin': (card, q, r, giocatore) => sceltaBombaGoblin(card, q, r, giocatore),
+  '!thecarpenter': (card, q, r, giocatore) => sceltaCarpenter(card, q, r, giocatore),
   excalibur: (card, q, r, giocatore) => {
     const entry = cartaEvocabilePerNome('Excalibur');
     if(!entry){
@@ -25559,6 +26042,12 @@ function _aggiungiTratti(card, coppie){
   card.traits = tutti.map(x => x.sigla);
   card.traitNames = tutti.map(x => x.nome);
   return nuovi;
+}
+function _daiTratti(card, nomi){
+  const coppie = (nomi || []).filter(Boolean).map(n => ({ sigla: String(n).toLowerCase(), nome: String(n) }));
+  const presi = _aggiungiTratti(card, coppie);
+  if(presi.length) console.info('[tratti] ' + (card.name || card.id) + ' diventa ' + presi.map(x => x.nome).join(', '));
+  return presi;
 }
 function _svuotaTratti(card){
   card.traits = [];
@@ -26112,6 +26601,8 @@ function sceltaDalFoglio(card, q, r, giocatore){
     if(eff.azione === 'steal' && eff.cosa === 'buff')     return _sceltaRubaBuff(card, q, r, giocatore, a, eff);
     if((eff.azione === 'buff' || eff.azione === 'debuff') && (!eff.cosa || eff.cosa === 'power') && eff.dove === 'in_hand')
       return _sceltaPotenzaInMano(card, q, r, giocatore, a, eff);
+    if((eff.azione === 'buff' || eff.azione === 'debuff') && (!eff.cosa || eff.cosa === 'power'))
+      return _sceltaPotenzaInCampo(card, q, r, giocatore, a, eff);
     if(eff.azione === 'move' && eff.dove === 'board' && _muoveQualcuno(eff))
       return _sceltaSpostaOvunque(card, q, r, giocatore, a, eff);
     if(eff.azione === 'freeze' && eff.cosa === 'tile') return _sceltaCongelaTassello(card, q, r, giocatore, a, eff);
@@ -26424,6 +26915,47 @@ function _sceltaPotenzaInMano(card, q, r, giocatore, a, eff){
           v += (c.carta.owner === giocatore ? 1 : -1) * (c.delta || 0) * c.lati.length;
         }
         if(v > meglio){ meglio = v; migliore = id; }
+      }
+      return migliore;
+    },
+  };
+}
+function _sceltaPotenzaInCampo(card, q, r, giocatore, a, eff){
+  const bersagli = candidatiDalFoglio(card, q, r, giocatore, a, eff);
+  if(!bersagli.length) return null;
+  const cambi = (cella) => {
+    const posto = G.board[cella];
+    if(!posto || !posto.card) return [];
+    const scena = _scenaEvento(card, key(q, r));
+    scena.scelta = posto.card;
+    scena.bersaglio = posto.card;
+    return _motore().cambiamentiDellaScelta(card, 'on_play', scena) || [];
+  };
+  return {
+    chiave: 'potenza_in_campo',
+    giocatore,
+    icona: ICONA_MIRINO,
+    rinunciabile: true,
+    cellaOrigine: key(q, r),
+    bersagli,
+    applica: (cella) => {
+      const lista = cambi(cella);
+      const prima = new Map();
+      for(const x of lista) if(x && x.carta && !prima.has(x.carta)) prima.set(x.carta, {...x.carta.values});
+      applicaCambiamenti(lista);
+      prima.forEach((valori, carta) => { try{ lampeggiaDifferenzaValori(carta, valori); }catch(_){ } });
+      try{ renderBoard(); }catch(_){ }
+    },
+    rinuncia: () => {},
+    valuta: (sc) => {
+      let migliore = null, meglio = 0;
+      for(const cella of sc.bersagli){
+        let v = 0;
+        for(const c of cambi(cella)){
+          if(!c || !c.carta || !c.lati) continue;
+          v += (c.carta.owner === giocatore ? 1 : -1) * (c.delta || 0) * c.lati.length;
+        }
+        if(v > meglio){ meglio = v; migliore = cella; }
       }
       return migliore;
     },
@@ -26965,6 +27497,7 @@ function _scambiaLatiOvunque(card, latiA, latiB){
   for(const nome of METRI_DELLA_CARTA) scambia(card[nome]);
 }
 function ruotaGruppiDiUnPosto(card){
+  card.ruotata = true;
   const prima = {...card.values};
   for(let i=0;i<SIDES.length;i++) card.values[SIDES[(i+1)%SIDES.length]] = prima[SIDES[i]];
   if(Array.isArray(card.groupSides)){
@@ -27741,6 +28274,7 @@ function endTurn(player, animationsSettled, dannoFatto){
   if(placed>=playable||senzaCarte||bloccatoDalloYeti||bloccatoDalGelo){endGame();return;}
   (player===1?G.p1Hand:G.p2Hand).forEach(c=>cardsGlowSettled.delete(c.id));
   motoreMomentoDelTurno('end_of_turn', player);
+  try{ jabberwockFineTurno(); }catch(e){ console.warn('[Callooh Callay] ' + (e && e.message)); }
   G.currentPlayer=player===1?2:1;
   try{ teleSegnaPunti(); }catch(_){ }
   G.numeroTurno = (G.numeroTurno||1) + 1;
@@ -27879,7 +28413,7 @@ function startTurn(){
   const deck=player===1?G.p1Deck:G.p2Deck;
   aspettaTrasformazioni(()=>
   rinasciteDiQuestoTurno(()=>
-  ruotaCarteInMano(player, ()=> spostaCarteCheshire(null, ()=>{
+  ruotaCarteInMano(player, ()=> spostaCarteCheshire(null, ()=> esplodonoBombe(()=>{
     if(!G || G.gameOver) return;
     try{ reteRaccontaTurno(); }catch(_){ }
     G.reteRisolve = false;
@@ -27895,7 +28429,7 @@ function startTurn(){
       render();
       maybeTriggerAiTurn();
     }
-  }))));
+  })))));
 }
 
 function startTimerRespectingBanner(){
@@ -33049,6 +33583,7 @@ function renderBoard(){
       }
       if(G.briciole && G.briciole[k]) disegnaBriciola(svg, x, y, R, k);
       if(G.yeti && G.yeti.length) disegnaYetiInCella(svg, boardSvgRoot, x, y, R, k);
+      if(G.bombe && G.bombe.length) disegnaBombaInCella(svg, x, y, R, k);
       poly.setAttribute('data-hole-key', k);
       if(placeable){
         poly.style.cursor='var(--cursore)';
