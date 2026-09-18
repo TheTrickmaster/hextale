@@ -3429,6 +3429,8 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
   -ms-overflow-style:none;
 }
 #patch-notes-body::-webkit-scrollbar{ width:0; height:0; }
+#patch-notes-body a{ color:#F2D38A; text-decoration:underline; text-underline-offset:2px; cursor:var(--cursore); }
+#patch-notes-body a:hover{ color:#FFF0C4; }
 .patch-versione{ margin-bottom:16px; }
 .patch-versione:last-child{ margin-bottom:0; }
 .patch-versione h3{
@@ -7143,7 +7145,7 @@ try{
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.55</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.56</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -14067,6 +14069,17 @@ var ABILITA_MOTORE = (function () {
     return !!(r && String(r.valore || '').toLowerCase() === 'blocked');
   }
 
+  function _immuneAiDanni(carta, scena) {
+    if (scena && typeof scena.immune === 'function') {
+      try { if (scena.immune(carta)) return true; } catch (e) { }
+    }
+    var vic = (scena && scena.vicini && scena.vicini(carta)) || [];
+    for (var i = 0; i < vic.length; i++) {
+      if (vic[i] !== carta && rendeImmuniIVicini(vic[i]) && _stessoPadrone(vic[i], carta)) return true;
+    }
+    return false;
+  }
+
   function rendeImmuniIVicini(carta) {
     var r = regolaDi(carta, 'immune');
     return !!(r && r.bersaglio === 'adjacent');
@@ -14121,12 +14134,33 @@ var ABILITA_MOTORE = (function () {
     return out;
   }
   function latiColpiti(ambito, valori, carta, seme, escludi) {
-    if (ambito === 'ALL' || !ambito) return SEI_LATI.slice();
+    if (ambito === 'ALL' || !ambito) {
+      if (typeof escludi !== 'function') return SEI_LATI.slice();
+      var scoperti = [];
+      for (i = 0; i < SEI_LATI.length; i++) if (!escludi(SEI_LATI[i])) scoperti.push(SEI_LATI[i]);
+      return scoperti;
+    }
     var nominati = latiNominati(ambito);
-    if (nominati) return nominati;
+    if (nominati) {
+      if (typeof escludi !== 'function') return nominati;
+      var nominatiScoperti = [];
+      for (i = 0; i < nominati.length; i++) if (!escludi(nominati[i])) nominatiScoperti.push(nominati[i]);
+      return nominatiScoperti;
+    }
     var gruppi = _gruppiDi(valori || {}, carta), i;
     if (!gruppi.length) return [];
     if (ambito === 'HIGHEST' || ambito === 'LOWEST') {
+      if (typeof escludi === 'function') {
+        var alto = ambito === 'HIGHEST', meglio = null, valMeglio = 0;
+        for (i = 0; i < gruppi.length; i++) {
+          var libero = true;
+          for (var gx = 0; gx < gruppi[i].length; gx++) if (escludi(gruppi[i][gx])) { libero = false; break; }
+          if (!libero) continue;
+          var vg = valori[gruppi[i][0]] || 0;
+          if (meglio === null || (alto ? vg > valMeglio : vg < valMeglio)) { meglio = gruppi[i]; valMeglio = vg; }
+        }
+        return meglio ? meglio.slice() : [];
+      }
       var cerca = estremo(valori, ambito === 'HIGHEST');
       for (i = 0; i < gruppi.length; i++) {
         if ((valori[gruppi[i][0]] || 0) === cerca) return gruppi[i].slice();
@@ -14296,9 +14330,14 @@ var ABILITA_MOTORE = (function () {
     if (!condizioneVera(cond, fonte, _scenaPer(fonte, bersaglio, scena))) return;
     var q = quantita(fonte, eff, cond, scena);
     if (!q) return;
+    var escludi = null;
+    if (eff.azione === 'debuff') {
+      if (intoccabile(bersaglio) || _immuneAiDanni(bersaglio, scena)) return;
+      escludi = function (lato) { return _latoDifeso(bersaglio, lato, scena); };
+    }
     if (eff.azione === 'debuff') q = -q;
     if (segno === -1) q = -q;
-    var lati = latiColpiti(eff.ambito, bersaglio.values || {}, bersaglio, scena.seme);
+    var lati = latiColpiti(eff.ambito, bersaglio.values || {}, bersaglio, scena.seme, escludi);
     for (var i = 0; i < lati.length; i++) d[lati[i]] += q;
   }
 
@@ -14437,14 +14476,15 @@ var ABILITA_MOTORE = (function () {
       tutti = [scena.scelta];
     }
     var difeso = null;
-    if (az === 'debuff' && (eff.ambito === 'RAND' || eff.ambito === 'ONE')) {
+    if (az === 'debuff' || az === 'steal') {
       difeso = function (carta) { return function (lato) { return _latoDifeso(carta, lato, scena); }; };
-      var scoperte = [];
+      var colpibili = [];
       for (var sc = 0; sc < tutti.length; sc++) {
         var cand = tutti[sc];
-        if (latiColpiti(eff.ambito, (cand.valoriBase || cand.values) || {}, cand, '', difeso(cand)).length) scoperte.push(cand);
+        if (intoccabile(cand) || _immuneAiDanni(cand, scena)) continue;
+        if (latiColpiti(eff.ambito, (cand.valoriBase || cand.values) || {}, cand, '', difeso(cand)).length) colpibili.push(cand);
       }
-      tutti = scoperte;
+      tutti = colpibili;
     }
     var lista = scelti(tutti, eff, scena, fonte);
     var q = quantita(fonte, eff, cond, scena);
@@ -14506,7 +14546,7 @@ var ABILITA_MOTORE = (function () {
       if (!testa && a.effetto2) { fuori.length = 0; _cambiamentiDi(fonte, a.effetto2, a.se2, scena, fuori, a.finestra); }
       for (var o = 0; o < fuori.length; o++) fuori[o].aCaso = true;
     }
-    if (fuori.length) segnaScatto(fonte, evento, scena);
+    if (fuori.length || evento === 'on_play') segnaScatto(fonte, evento, scena);
     return fuori;
   }
 
@@ -21180,6 +21220,10 @@ function mostraPatchNotes(versioni, opzioni){
   vestiPatchNotes();
   overlay.classList.add('show');
 }
+function _vocePatchHtml(testo){
+  return escapeHtml(testo).replace(/\[([^\]]+)\]\((https:\/\/hextalegame\.com\/[^\s)"<>]*)\)/g,
+    (_, parola, url) => '<a href="' + url + '" target="_blank" rel="noopener">' + parola + '</a>');
+}
 function riempiPatchNotes(versioni){
   const corpo = document.getElementById('patch-notes-body');
   if(!corpo) return;
@@ -21190,7 +21234,7 @@ function riempiPatchNotes(versioni){
     const eAttuale = attuale.replace(/^v/i,'') === suaVersione;
     return '<div class="patch-versione'+(eAttuale?' patch-corrente':'')+'">'
       + '<h3>' + escapeHtml(v.versione) + '</h3><ul>'
-      + v.voci.map(x=>'<li>'+escapeHtml(x)+'</li>').join('')
+      + v.voci.map(x=>'<li>'+_vocePatchHtml(x)+'</li>').join('')
       + '</ul></div>';
   }).join('');
 }
@@ -23097,6 +23141,7 @@ function _scenaTabellone(){
     },
     turno: (G && G.numeroTurno) || 0,
     latoProtetto: (carta, lato) => { try{ return latoInconquistabile(carta, lato); }catch(_){ return false; } },
+    immune: (carta) => { try{ return protettoDaBagheera(carta); }catch(_){ return false; } },
     seme: (typeof PARTITA_RETE !== 'undefined' && PARTITA_RETE)
       ? PARTITA_RETE.matchId : (G._semeSinergie || '')
   };
