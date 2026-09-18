@@ -16774,7 +16774,10 @@ function glossarioSeguiPuntatore(e){
   _glossarioRaf = requestAnimationFrame(() => {
     _glossarioRaf = 0;
     const u = _glossarioUltimo;
-    glossarioAccendi(u && tooltipParoleAccesi() ? _glossarioParolaSotto(u.x, u.y, u.t) : null);
+    const parola = u && tooltipParoleAccesi() ? _glossarioParolaSotto(u.x, u.y, u.t) : null;
+    const oggetto = (!parola && u) ? _oggettoCampoSotto(u.t) : null;
+    if(oggetto) oggettoCampoAccendi(oggetto);
+    else { oggettoCampoAccendi(null); glossarioAccendi(parola); }
     tooltipSegui(document.getElementById('glossario-tooltip'));
     tooltipSegui(document.getElementById('quest-tooltip'));
   });
@@ -16802,6 +16805,39 @@ function glossarioAccendi(parola){
   tooltipSegui(tip);
 }
 document.addEventListener('mousemove', glossarioSeguiPuntatore, { passive:true });
+
+const OGGETTI_CAMPO = {
+  briciola: { titolo: 'Crumbs', testo: '+2 HIGHEST when an ally is placed on top', icona: 'crumb-1.png' },
+  impronta: { titolo: 'Yeti footprints', testo: 'A Yeti could hide here', icona: 'foot-yeti.png' },
+};
+let _oggettoCampoAcceso = null;
+function _oggettoCampoSotto(bersaglio){
+  if(!G || !bersaglio || !bersaglio.closest) return null;
+  if(typeof _activePage !== 'undefined' && _activePage !== 'game') return null;
+  const cella = bersaglio.closest('#board-svg [data-cellkey]');
+  const k = cella && cella.getAttribute('data-cellkey');
+  if(!k || (G.board && G.board[k])) return null;
+  if(G.briciole && G.briciole[k]) return 'briciola';
+  if(typeof yetiCelleImpronte === 'function' && yetiCelleImpronte().has(k)) return 'impronta';
+  return null;
+}
+function oggettoCampoAccendi(nome){
+  if(nome === _oggettoCampoAcceso) return;
+  const tip = _glossarioTooltip();
+  _oggettoCampoAcceso = nome;
+  if(!nome){ tip.classList.remove('visibile'); return; }
+  glossarioAccendi(null);
+  const o = OGGETTI_CAMPO[nome];
+  tip.querySelector('.gt-titolo').textContent = o.titolo;
+  const testo = tip.querySelector('.gt-testo');
+  testo.textContent = o.testo;
+  testo.hidden = false;
+  const icona = tip.querySelector('.gt-icona');
+  icona.src = UI_BASE + o.icona;
+  icona.classList.add('mostra');
+  tip.classList.add('visibile');
+  tooltipSegui(tip);
+}
 function aggiornaCustomize(){
   try{ aggiornaInterruttoreTooltipParole(); }catch(_){ }
   const campo = document.getElementById('customize-username');
