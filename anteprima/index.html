@@ -25441,12 +25441,12 @@ function bersagliHeighHo(q, r){
   const trovati = [];
   for(const dir of DIRS){
     const nk = key(q+dir.dq, r+dir.dr);
-    if(G.holes.has(nk)) trovati.push(nk);
+    if(G.holes.has(nk) && !G.board[nk]) trovati.push(nk);
   }
   return trovati;
 }
 function sfondaTasselloBloccato(cella){
-  if(!G.holes.has(cella)) return false;
+  if(!G.holes.has(cella) || G.board[cella]) return false;
   G.holes.delete(cella);
   if(G.destroyedHoles) G.destroyedHoles.add(cella);
   return true;
@@ -25705,7 +25705,7 @@ function celleLibereAttornoATassello(cella){
 function tasselliBloccatiSpostabili(){
   const elenco = [];
   for(const k of G.holes){
-    if(meteDelTassello(k).length) elenco.push(k);
+    if(meteDelTassello(k).length && !G.board[k]) elenco.push(k);
   }
   return elenco;
 }
@@ -25722,7 +25722,7 @@ function miglioreCasellaPerTassello(cella){
 }
 function spostaTasselloBloccato(da, a){
   if(!da || !a) return false;
-  if(!G.holes.has(da)) return false;
+  if(!G.holes.has(da) || G.board[da]) return false;
   if(!meteDelTassello(da).includes(a)) return false;
   G.holes.delete(da);
   G.holes.add(a);
@@ -26062,7 +26062,7 @@ function candidatiDalFoglio(card, q, r, giocatore, a, eff){
   }
   if(eff.cosa === 'tile'){
     if(eff.quale === 'blocked'){
-      return zona.filter(k => G.holes.has(k)
+      return zona.filter(k => G.holes.has(k) && !G.board[k]
         && (eff.azione !== 'move' || meteDelTassello(k).length > 0));
     }
     return zona.filter(k => _celleLibereOra().has(k));
