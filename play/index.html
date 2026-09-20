@@ -7161,7 +7161,7 @@ try{
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.57</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.58</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -9820,13 +9820,20 @@ function reteYeti(vera, finta){
     data: btoa(JSON.stringify({ vera: vera || null, finta: finta || null }))
   }});
 }
-function reteScegli(cella, dest){
+function reteScegli(cella, dest, scarto){
   if(!PARTITA_RETE) return;
   mmManda({ cid: 's' + Date.now().toString(36), match_data_send: {
     match_id: PARTITA_RETE.matchId, op_code: 10,
     data: btoa(JSON.stringify({ cella: (cella === null || cella === undefined) ? null : String(cella),
-                                dest: (typeof dest === 'string') ? dest : null }))
+                                dest: (typeof dest === 'string') ? dest : null,
+                                scarto: (typeof scarto === 'number' && scarto >= 0) ? scarto : undefined }))
   }});
+}
+function _postoDelloScarto(scelta, cella){
+  if(!scelta || !scelta.scarta) return -1;
+  const mano = manoDi(scelta.giocatore) || [];
+  const id = (cella === null || cella === undefined) ? (scelta.bersagli || [])[0] : cella;
+  return mano.findIndex(c => c && c.id === id);
 }
 
 const STICKER_NOMI = ['bagheera-scared', 'captain-hook-facepalm', 'carabosse-menacing', 'frog-prince-okay', 'merlin-perfect', 'queen-of-hearts-angry'];
@@ -25889,6 +25896,7 @@ const SCELTE_PIAZZAMENTO = {
       chiave: 'mermaid_discard',
       giocatore,
       modo: 'mano',
+      scarta: true,
       cellaOrigine: key(q,r),
       bersagli: ids,
       applica: (id) => scartaCartaDallaMano(giocatore, id),
@@ -27363,7 +27371,7 @@ function chiudiSceltaBersaglio(cella, daServer){
   if(PARTITA_RETE && !daServer && scelta.privata && !sceltaMia(scelta.giocatore)) return;
   if(PARTITA_RETE && !daServer && !scelta.privata){
     if(!sceltaMia(scelta.giocatore)) return;
-    reteScegli(cella, scelta.destinazioneScelta || null);
+    reteScegli(cella, scelta.destinazioneScelta || null, _postoDelloScarto(scelta, cella));
     return;
   }
   if(scelta.richieste > 1 && cella && scelta.bersagli.indexOf(cella) >= 0){
