@@ -84,7 +84,10 @@
     // arriva dopo, cioe' noi. Senza, le due righe restavano appaiate.
     + 'a.scarica-a-due, .scarica-a-due{ display:flex; flex-direction:column; align-items:center; gap:3px; line-height:1; }'
     + '.scarica-titolo{ font-size:1em; }'
-    + '.scarica-sotto{ display:inline-flex; align-items:center; gap:7px; font-size:.66em; opacity:.92; cursor:pointer; }'
+    // La riga di sotto e' in Rosarivo #EADAB6 (Lorenzo): il titolo resta in
+    // Marcellus come il resto dei bottoni, questa e' un'altra voce.
+    + ".scarica-sotto{ display:inline-flex; align-items:center; gap:7px; font-size:.7em;"
+    + "  font-family:'Rosarivo',Georgia,serif; color:#EADAB6; cursor:pointer; }"
     + '.scarica-sotto .quale{ text-decoration:underline; text-underline-offset:3px; }'
     + '.scarica-sotto svg{ width:.72em; height:.72em; transition:transform .18s ease; }'
     + '.scarica-gruppo.aperto .scarica-sotto svg{ transform:rotate(180deg); }'
@@ -98,7 +101,7 @@
     + '.scarica-menu[hidden]{ display:none; }'
     + '.scarica-menu a{ display:flex; align-items:center; justify-content:center; gap:7px;'
     + '  padding:13px 16px; border-radius:10px; background:rgba(233,222,197,.07);'
-    + "  font-family:'Marcellus SC',Georgia,serif; font-size:20px; line-height:1; color:#EDE0C6;"
+    + "  font-family:'Rosarivo',Georgia,serif; font-size:21px; line-height:1; color:#EADAB6;"
     + '  text-decoration:none; white-space:nowrap; transition:background .16s ease; }'
     + '.scarica-menu a span{ text-decoration:underline; text-underline-offset:3px; }'
     + '.scarica-menu a:hover, .scarica-menu a:focus-visible{ background:rgba(233,222,197,.16); outline:none; }'
