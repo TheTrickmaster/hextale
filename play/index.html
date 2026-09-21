@@ -7184,7 +7184,7 @@ try{
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.59</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.60</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -23954,7 +23954,7 @@ function doPlace(card,playerIdx,q,r,daServer,dUfficio){
     }
   }
 
-  const attesaYeti = yetiAgguatoDa(k) ? YETI_RIVELA_MS : 0;
+  const attesaYeti = attesaRivelazioneYeti(k);
   if(fumiDiradati || attesaYeti){
     renderBoard();
     setTimeout(()=>{
@@ -25244,6 +25244,9 @@ const YETI_IMPRONTA_ENTRA_MS = 50;
 const YETI_SPARISCE_MS = 450;
 const YETI_RIVELA_MS = 560;
 const YETI_IMPRONTE_VIA_MS = 300;
+const YETI_RIVELA_PULIZIA_MS = 30;
+const YETI_RIVELA_TOTALE_MS = Math.max(YETI_RIVELA_MS, YETI_IMPRONTE_VIA_MS) + YETI_RIVELA_PULIZIA_MS;
+const YETI_COLPO_RESPIRO_MS = 80;
 const YETI_PASSI = ['snow-footstep-1.mp3', 'snow-footstep-2.mp3', 'snow-footstep-3.mp3'];
 
 function eYeti(card){ return !!card && abilitaAttivaDi(card) === YETI_CHIAVE; }
@@ -25446,8 +25449,18 @@ function yetiRivela(y, cella, perCella){
   _firmaTabellonePrecedente = null;
   try{ renderBoard(); }catch(_){ }
   setTimeout(()=>{ _firmaTabellonePrecedente = null; try{ renderBoard(); }catch(_){ } },
-    Math.max(YETI_RIVELA_MS, YETI_IMPRONTE_VIA_MS) + 30);
+    YETI_RIVELA_TOTALE_MS);
   return true;
+}
+function attesaRivelazioneYeti(k){
+  if(!G || !G.yeti || !G.yeti.length) return 0;
+  const ora = performance.now();
+  let attesa = 0;
+  for(const y of G.yeti){
+    if(y.stato !== 'rivelato' || !y.card || y.card.yetiAgguato !== k) continue;
+    attesa = Math.max(attesa, Math.round((y.rivelatoDa || ora) + YETI_RIVELA_TOTALE_MS + YETI_COLPO_RESPIRO_MS - ora));
+  }
+  return Math.max(0, attesa);
 }
 function yetiRivelaAccanto(player, k){
   const [q, r] = String(k).split(',').map(Number);
