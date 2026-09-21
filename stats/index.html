@@ -57,6 +57,8 @@ ol.classifica span{ float:right; color:var(--oro-caldo); }
 #in-partita-testo{ color:var(--grigio); margin-top:4px; }
 ul.nomi{ list-style:none; margin:10px 0 0; padding:0; columns:4 170px; column-gap:18px; }
 ul.nomi li{ padding:3px 0; color:var(--oro); break-inside:avoid; overflow-wrap:anywhere; }
+ul.nomi li .quando{ color:var(--grigio-scuro); font-size:13px; margin-left:8px; }
+#ultimi-nomi{ columns:3 230px; }
 [hidden]{ display:none !important; }
 </style>
 </head>
@@ -79,19 +81,22 @@ ul.nomi li{ padding:3px 0; color:var(--oro); break-inside:avoid; overflow-wrap:a
       <div class="sotto" id="da-quando"></div>
     </div>
     <div class="azioni">
-      <button class="bottone" type="button" id="in-partita-btn">Players in a match</button>
       <button class="bottone" type="button" id="aggiorna">Refresh</button>
     </div>
   </div>
   <div id="errore-dati" role="alert"></div>
-  <section class="sezione" id="in-partita" hidden>
+  <section class="sezione" id="in-partita">
     <div class="testa">
-      <h2>Players in a match</h2>
-      <button class="bottone" type="button" id="in-partita-chiudi">Close</button>
+      <h2>Players</h2>
+      <button class="bottone" type="button" id="in-partita-btn">Refresh names</button>
     </div>
+    <div class="gruppo">In a match right now</div>
     <div id="in-partita-testo"></div>
     <ul class="nomi" id="in-partita-nomi"></ul>
     <div class="vuoto" id="in-partita-vuoto" hidden>Nobody is in a match right now</div>
+    <div class="gruppo">Last 10 players who entered a match</div>
+    <ul class="nomi" id="ultimi-nomi"></ul>
+    <div class="vuoto" id="ultimi-vuoto" hidden>Nobody has entered a match yet</div>
   </section>
   <div id="griglia"></div>
 </div>
@@ -292,6 +297,7 @@ function disegnaCarta(id){
 
 function carica(){
   $('errore-dati').textContent = '';
+  mostraInPartita();
   $('aggiorna').disabled = true;
   return chiediStatistiche().then(function(d){
     disegna(d);
@@ -314,6 +320,7 @@ $('modulo').addEventListener('submit', function(ev){
       $('cancello').hidden = true;
       $('pagina').hidden = false;
       disegna(d);
+      mostraInPartita();
     }).catch(function(e){
       stato.parola = null;
       esito.textContent = 'Could not load the stats: ' + ((e && e.message) || 'unknown error');
@@ -323,23 +330,39 @@ $('modulo').addEventListener('submit', function(ev){
 });
 $('aggiorna').addEventListener('click', carica);
 
+// ── v0.80.63 — I GIOCATORI, COI NOMI ─────────────────────────────────────
+// Chi e' in partita adesso e gli ultimi dieci entrati in partita. Li porta
+// hx_stats_live, che legge solo le presenze e gli account (niente telemetria):
+// costa poco, arriva insieme alle statistiche all'apertura e si rilegge da solo
+// col Refresh della testata o col suo pulsante, che non ricarica tutto il resto.
+function quandoDetto(ms){
+  if(!ms) return '';
+  var s = Math.round((Date.now() - ms) / 1000);
+  if(s < 90) return 'just now';
+  if(s < 3600) return Math.round(s / 60) + ' min ago';
+  if(s < 86400) return Math.round(s / 3600) + 'h ago';
+  if(s < 7 * 86400) return Math.round(s / 86400) + 'd ago';
+  return new Date(ms).toLocaleString('en-GB');
+}
 function mostraInPartita(){
   var btn = $('in-partita-btn');
   btn.disabled = true;
   $('errore-dati').textContent = '';
   return chiediRpc('hx_stats_live').then(function(v){
-    var n = v.inPartita || 0, nomi = v.nomi || [];
+    var n = v.inPartita || 0, nomi = v.nomi || [], ultimi = v.ultimi || [];
     $('in-partita-testo').textContent = numero(n) + (n === 1 ? ' player' : ' players') + ' in a match · '
       + numero(v.online) + ' online · updated ' + new Date(v.generatoIl || Date.now()).toLocaleTimeString('en-GB');
     $('in-partita-nomi').innerHTML = nomi.map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('');
     $('in-partita-vuoto').hidden = n > 0;
-    $('in-partita').hidden = false;
+    $('ultimi-nomi').innerHTML = ultimi.map(function(x){
+      return '<li>' + esc(x.nome) + '<span class="quando">' + esc(quandoDetto(x.quando)) + '</span></li>';
+    }).join('');
+    $('ultimi-vuoto').hidden = ultimi.length > 0;
   }).catch(function(e){
-    $('errore-dati').textContent = 'Could not load the players in a match: ' + ((e && e.message) || 'unknown error');
+    $('errore-dati').textContent = 'Could not load the players: ' + ((e && e.message) || 'unknown error');
   }).then(function(){ btn.disabled = false; });
 }
 $('in-partita-btn').addEventListener('click', mostraInPartita);
-$('in-partita-chiudi').addEventListener('click', function(){ $('in-partita').hidden = true; });
 </script>
 </body>
 </html>
