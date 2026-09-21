@@ -4896,6 +4896,20 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
 }
 #guida-voce-testo{ font-family:'Rosarivo',serif; font-size:16px; line-height:1.2; color:#B0BCBE; }
 
+#favori-puntatore{ position:fixed; left:0; top:0; z-index:9100; pointer-events:none; }
+#favori-puntatore .alone{
+  position:absolute; left:-24px; top:-24px; width:48px; height:48px; border-radius:50%;
+  background:radial-gradient(circle, rgba(140,205,255,.62) 0%, rgba(90,165,255,.26) 45%, rgba(90,165,255,0) 72%);
+  animation:favoriPulsa 1.5s ease-in-out infinite;
+}
+#favori-puntatore .conto{
+  position:absolute; left:13px; top:11px; white-space:nowrap;
+  font-family:'Marcellus SC',Georgia,serif; font-size:19px; line-height:1; color:#CDEBFF;
+  text-shadow:0 0 7px rgba(95,180,255,.95), 0 0 2px rgba(95,180,255,.9), 0 2px 3px rgba(0,0,0,.85);
+}
+@keyframes favoriPulsa{ 0%,100%{ opacity:.7; transform:scale(1); } 50%{ opacity:1; transform:scale(1.14); } }
+@media (prefers-reduced-motion:reduce){ #favori-puntatore .alone{ animation:none; } }
+
 #glossario-tooltip{
   position:absolute; left:0; top:0; z-index:9000;
   width:300px; box-sizing:border-box; padding:12px 20px 14px;
@@ -7184,7 +7198,7 @@ try{
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.61</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.62</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -17060,6 +17074,25 @@ function _glossarioParolaSotto(x, y, bersaglio){
   }
   return migliore;
 }
+function favoriSeguiPuntatore(){
+  const sc = (typeof G !== 'undefined' && G) ? G.sceltaBersaglio : null;
+  const attiva = !!(sc && sc.chiave === 'robin_favori' && sc.favori > 0
+    && sceltaMia(sc.giocatore) && giocatoreUmano(sc.giocatore));
+  let el = document.getElementById('favori-puntatore');
+  if(!attiva){ if(el) el.remove(); return; }
+  if(!el){
+    el = document.createElement('div');
+    el.id = 'favori-puntatore';
+    el.setAttribute('aria-hidden', 'true');
+    el.innerHTML = '<span class="alone"></span><span class="conto"></span>';
+    document.body.appendChild(el);
+  }
+  const conto = el.querySelector('.conto');
+  const testo = 'x' + sc.favori;
+  if(conto.textContent !== testo) conto.textContent = testo;
+  const p = _puntatoreUltimo || { x: 0, y: 0 };
+  el.style.transform = 'translate(' + Math.round(p.x) + 'px,' + Math.round(p.y) + 'px)';
+}
 function glossarioSeguiPuntatore(e){
   _glossarioUltimo = { x:e.clientX, y:e.clientY, t:e.target };
   _puntatoreUltimo = { x:e.clientX, y:e.clientY };
@@ -17073,6 +17106,7 @@ function glossarioSeguiPuntatore(e){
     else { oggettoCampoAccendi(null); glossarioAccendi(parola); }
     tooltipSegui(document.getElementById('glossario-tooltip'));
     tooltipSegui(document.getElementById('quest-tooltip'));
+    favoriSeguiPuntatore();
   });
 }
 function glossarioAccendi(parola){
@@ -22605,7 +22639,7 @@ function valoriProvvisori(nome){
 }
 
 const TILE_ABILITIES_DEF = {
-  eat_the_rich:      { carta:'Robin Hood', name:'Eat the Rich',       desc:"*Steals* 1 Power from every adjacent enemy and gives it to an ally in need." },
+  eat_the_rich:      { carta:'Robin Hood', name:'Eat the Rich',       desc:"*Steals* 2 Power from every adjacent enemy and gives it to a selected ally" },
   '!tomthumb':       { carta:'Tom Thumb',  name:'Crumbs',             desc:'*Drops* 3 Crumbs on random empty tiles. An ally played on one *Gains* +2 on its HIGHEST.' },
   '!yeti':           { carta:'Yeti',       name:"Hide 'n' kill",      desc:'*Hides* on the board and only attacks when an opponent is near it.' },
   '!goblin':         { carta:'Goblin',        name:'GIGA-BOOM!',     desc:'Drops a Bomb on a selected tile: -2 RAND to adjacent enemies after 3 turns' },
@@ -23224,10 +23258,11 @@ function bisognoDiCarta(card, q, r){
   };
 }
 
+const ROBIN_RUBA = 2;
+const ROBIN_FAVORE = 2;
 function activateEatTheRich(card, q, r){
   const player = card.owner || G.currentPlayer;
-  const miaCella = key(q,r);
-  let bottino = 0;
+  let favori = 0;
 
   for(const dir of DIRS){
     const nk = key(q+dir.dq, r+dir.dr);
@@ -23238,51 +23273,90 @@ function activateEatTheRich(card, q, r){
     const valoreAttuale = nb.card.values[dir.theirSide] || 0;
     if(valoreAttuale <= 0) continue;
     if(!nb.card.tileAbilityBaseValues) nb.card.tileAbilityBaseValues={...nb.card.values};
-    modificaValori(nb.card, lati, -1, 0, {chiave:'eat_the_rich:'+card.id, da:card.name||'Robin Hood'});
-    bottino++;
+    modificaValori(nb.card, lati, -ROBIN_RUBA, 0, {chiave:'eat_the_rich:'+card.id, da:card.name||'Robin Hood'});
+    favori++;
   }
 
-  card.eatTheRichEnemyCount = bottino;
-  if(!bottino) return;
-
-  let candidati = [];
+  card.eatTheRichEnemyCount = favori;
+  card.robinFavori = favori;
+  if(favori) console.info('[Eat the Rich] rubati ' + ROBIN_RUBA + ' punti a ' + favori
+    + ' nemic' + (favori === 1 ? 'o' : 'i') + ': ' + favori + ' favor' + (favori === 1 ? 'e' : 'i') + ' da ridare.');
+}
+function robinGruppiDaAiutare(card, giocatore){
+  const mia = _cellaDellaCarta(card);
+  const fuori = [];
+  const aggiungi = (k, c) => { for(const g of gruppiDiCarta(c)) fuori.push(k + '@' + g.sides.join('|')); };
   for(const k in G.board){
-    const cella = G.board[k];
-    if(!cella || !cella.card || cella.owner !== player) continue;
-    if(k === miaCella) continue;
-    const [ck, cr] = k.split(',').map(Number);
-    candidati.push({k, card: cella.card, q: ck, r: cr});
+    const posto = G.board[k];
+    if(!posto || !posto.card || posto.owner !== giocatore || k === mia) continue;
+    aggiungi(k, posto.card);
   }
-  if(!candidati.length) candidati = [{k: miaCella, card, q, r}];
-
-  const conBisogno = candidati
-    .map(c=>{ const b = bisognoDiCarta(c.card, c.q, c.r); return b ? Object.assign(c, b) : null; })
-    .filter(Boolean);
-  if(!conBisogno.length){
-    console.info('[Eat the Rich] rubati '+bottino+' punti ma nessun alleato ha un gruppo scoperto da rinforzare: il bottino va perso.');
-    return;
-  }
-  const minGruppo = Math.min(...conBisogno.map(c=>c.gruppoPiuBasso));
-  let finalisti = conBisogno.filter(c=>c.gruppoPiuBasso === minGruppo);
-  if(finalisti.length > 1){
-    const minEsposto = Math.min(...finalisti.map(c=>c.espostoPiuBasso));
-    finalisti = finalisti.filter(c=>c.espostoPiuBasso === minEsposto);
-  }
-  const scelto = sorteggioStabile(finalisti, (card.idRete||card.id||card.name||'?')+'@'+miaCella+'#'+bottino);
-
-  const gruppi = scelto.gruppiUtili || gruppiDiCarta(scelto.card);
-  let gruppoDebole = null, valoreDebole = Infinity;
-  for(const g of gruppi){
-    const v = scelto.card.values[g.sides[0]] || 0;
-    if(v < valoreDebole){ valoreDebole = v; gruppoDebole = g; }
-  }
-  if(!gruppoDebole) return;
-  if(!scelto.card.tileAbilityBaseValues) scelto.card.tileAbilityBaseValues={...scelto.card.values};
-  modificaValori(scelto.card, gruppoDebole.sides, bottino, undefined, {chiave:'eat_the_rich:'+card.id, da:card.name||'Robin Hood'});
-  card.eatTheRichBeneficiario = scelto.k;
-  console.info('[Eat the Rich] rubati '+bottino+' punti, dati a "'
-    + (scelto.card.name||scelto.k) + '" in ' + scelto.k
-    + ' (gruppo ' + gruppoDebole.sides.join('+') + ')');
+  if(!fuori.length && mia && G.board[mia] && G.board[mia].card === card) aggiungi(mia, card);
+  return fuori;
+}
+function robinDaiIlFavore(card, scelto){
+  const [cella, lati] = String(scelto || '').split('@');
+  const posto = G.board[cella];
+  if(!posto || !posto.card || !lati) return false;
+  const gruppo = gruppiDiCarta(posto.card).find(g => g.sides.join('|') === lati);
+  const quali = gruppo ? gruppo.sides : lati.split('|');
+  if(!posto.card.tileAbilityBaseValues) posto.card.tileAbilityBaseValues = {...posto.card.values};
+  modificaValori(posto.card, quali, ROBIN_FAVORE, undefined, {chiave:'eat_the_rich:'+card.id, da:card.name||'Robin Hood'});
+  card.robinFavori = Math.max(0, (card.robinFavori|0) - 1);
+  card.eatTheRichBeneficiario = cella;
+  console.info('[Eat the Rich] +' + ROBIN_FAVORE + ' a "' + (posto.card.name||cella) + '" in ' + cella
+    + ' (gruppo ' + quali.join('+') + '), restano ' + card.robinFavori + ' favori.');
+  try{ renderBoard(); }catch(_){ }
+  return true;
+}
+function _sceltaFavoriRobin(card, q, r, giocatore){
+  if(!(card.robinFavori > 0)) return null;
+  const bersagli = robinGruppiDaAiutare(card, giocatore);
+  if(!bersagli.length) return null;
+  const k = key(q, r);
+  const scelta = {
+    chiave: 'robin_favori',
+    giocatore,
+    modo: 'gruppi',
+    rinunciabile: true,
+    cellaOrigine: k,
+    bersagli,
+    favori: card.robinFavori,
+    applica: (scelto) => { robinDaiIlFavore(card, scelto); },
+    rinuncia: () => { card.robinFavori = 0; },
+    alTermine: () => {
+      if(!G || G.gameOver) return;
+      const ancora = (card.robinFavori > 0) ? _sceltaFavoriRobin(card, q, r, giocatore) : null;
+      if(ancora){
+        ancora.card = card; ancora.q = q; ancora.r = r; ancora.k = k;
+        ancora.chiaveAbilita = 'eat_the_rich';
+        G.sceltaBersaglio = ancora;
+        try{ renderBoard(); }catch(_){ }
+        if(!giocatoreUmano(giocatore)) setTimeout(()=>{ if(G && G.sceltaBersaglio === ancora) aiResolvePendingAbilityIfAny(); }, 300);
+        return;
+      }
+      card.robinFavori = 0;
+      try{ favoriSeguiPuntatore(); }catch(_){ }
+      resolveConquestAndEndTurn(card, giocatore, q, r, k, 'eat_the_rich', true);
+    },
+    valuta: (sc) => {
+      let migliore = null, meglio = Infinity;
+      for(const b of sc.bersagli){
+        const [cella, lati] = String(b).split('@');
+        const posto = G.board[cella];
+        if(!posto || !posto.card) continue;
+        const [cq, cr] = cella.split(',').map(Number);
+        const bisogno = bisognoDiCarta(posto.card, cq, cr);
+        const gruppo = gruppiDiCarta(posto.card).find(g => g.sides.join('|') === lati);
+        if(!gruppo) continue;
+        const scoperto = bisogno && bisogno.gruppiUtili && bisogno.gruppiUtili.some(g => g.sides.join('|') === lati);
+        const v = (posto.card.values[gruppo.sides[0]] || 0) + (scoperto ? 0 : 100);
+        if(v < meglio){ meglio = v; migliore = b; }
+      }
+      return migliore;
+    },
+  };
+  return scelta;
 }
 
 function countSmallCards(){
@@ -24546,6 +24620,7 @@ function trasformaCartaIn(card, nomeCarta, etichetta){
   card.activatedTileAbility = card.cardAbility;
   if(nuova.abilita) card.abilita = JSON.parse(JSON.stringify(nuova.abilita));
   else delete card.abilita;
+  card._scatti = {};
   card.abilityLocked = false;
   card.abilityNameSheet = nuova.abilityNameSheet || '';
   card.abilityDescSheet = nuova.abilityDescSheet || '';
@@ -26052,6 +26127,7 @@ function jabberwockFineTurno(){
 const SCELTE_PIAZZAMENTO = {
   '!goblin': (card, q, r, giocatore) => sceltaBombaGoblin(card, q, r, giocatore),
   '!thecarpenter': (card, q, r, giocatore) => sceltaCarpenter(card, q, r, giocatore),
+  eat_the_rich: (card, q, r, giocatore) => _sceltaFavoriRobin(card, q, r, giocatore),
   excalibur: (card, q, r, giocatore) => {
     const entry = cartaEvocabilePerNome('Excalibur');
     if(!entry){
@@ -34692,7 +34768,11 @@ function _lvZoneCheCambiano(svgV, svgN, vecchia, nuova){
   const valori = [];
   svgV.querySelectorAll('[data-role="owner-value-circle"]').forEach(c => {
     const z = _lvZona(c, 6);
-    if(z && _lvTestiIn(svgV, z) !== _lvTestiIn(svgN, z)) valori.push(z);
+    if(!z || _lvTestiIn(svgV, z) === _lvTestiIn(svgN, z)) return;
+    const esatta = _lvZona(c, 0);
+    if(esatta) z.tondo = { cx: esatta.x + esatta.w / 2, cy: esatta.y + esatta.h / 2,
+                           r: Math.max(esatta.w, esatta.h) / 2 };
+    valori.push(z);
   });
   valori.sort((p, q) => (p.x - q.x) || (p.y - q.y));
   zone.push.apply(zone, valori);
@@ -34712,8 +34792,10 @@ function _lvPreparaCambio(fronte, svgPezzo, z){
   const W = LV_CARTA_W, H = LV_CARTA_H;
   const strato = document.createElement('div');
   strato.className = 'lvc-cambio';
-  strato.style.clipPath = 'inset(' + z.y.toFixed(1) + 'px ' + (W - z.x - z.w).toFixed(1) + 'px '
-    + (H - z.y - z.h).toFixed(1) + 'px ' + z.x.toFixed(1) + 'px round 10px)';
+  strato.style.clipPath = z.tondo
+    ? 'circle(' + z.tondo.r.toFixed(1) + 'px at ' + z.tondo.cx.toFixed(1) + 'px ' + z.tondo.cy.toFixed(1) + 'px)'
+    : 'inset(' + z.y.toFixed(1) + 'px ' + (W - z.x - z.w).toFixed(1) + 'px '
+      + (H - z.y - z.h).toFixed(1) + 'px ' + z.x.toFixed(1) + 'px round 10px)';
   strato.style.transformOrigin = (z.x + z.w/2).toFixed(1) + 'px ' + (z.y + z.h/2).toFixed(1) + 'px';
   strato.appendChild(svgPezzo);
   const bagliore = document.createElement('div');
