@@ -59,6 +59,11 @@ ul.nomi{ list-style:none; margin:10px 0 0; padding:0; columns:4 170px; column-ga
 ul.nomi li{ padding:3px 0; color:var(--oro); break-inside:avoid; overflow-wrap:anywhere; }
 ul.nomi li .quando{ color:var(--grigio-scuro); font-size:13px; margin-left:8px; }
 #ultimi-nomi{ columns:3 230px; }
+/* Il pulsantino di solo testo accanto a un gruppo: i nomi di chi e- online
+   possono essere tanti, e si guardano quando si vuole guardarli. */
+.gruppo .testo{ background:none; border:0; padding:0; margin-left:10px; font-family:inherit; font-size:13px;
+  letter-spacing:0; color:var(--grigio); cursor:pointer; border-bottom:1px solid transparent; }
+.gruppo .testo:hover{ color:var(--oro-caldo); border-bottom-color:currentColor; }
 [hidden]{ display:none !important; }
 </style>
 </head>
@@ -90,6 +95,11 @@ ul.nomi li .quando{ color:var(--grigio-scuro); font-size:13px; margin-left:8px; 
       <h2>Players</h2>
       <button class="bottone" type="button" id="in-partita-btn">Refresh names</button>
     </div>
+    <div class="gruppo">Online right now
+      <button class="testo" type="button" id="online-nomi-btn" aria-expanded="false">Show names</button>
+    </div>
+    <ul class="nomi" id="online-nomi" hidden></ul>
+    <div class="vuoto" id="online-vuoto" hidden>Nobody is online right now</div>
     <div class="gruppo">In a match right now</div>
     <div id="in-partita-testo"></div>
     <ul class="nomi" id="in-partita-nomi"></ul>
@@ -349,11 +359,13 @@ function mostraInPartita(){
   btn.disabled = true;
   $('errore-dati').textContent = '';
   return chiediRpc('hx_stats_live').then(function(v){
-    var n = v.inPartita || 0, nomi = v.nomi || [], ultimi = v.ultimi || [];
+    var n = v.inPartita || 0, nomi = v.nomi || [], ultimi = v.ultimi || [], online = v.nomiOnline || [];
     $('in-partita-testo').textContent = numero(n) + (n === 1 ? ' player' : ' players') + ' in a match · '
       + numero(v.online) + ' online · updated ' + new Date(v.generatoIl || Date.now()).toLocaleTimeString('en-GB');
     $('in-partita-nomi').innerHTML = nomi.map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('');
     $('in-partita-vuoto').hidden = n > 0;
+    $('online-nomi').innerHTML = online.map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('');
+    $('online-vuoto').hidden = !(online.length === 0 && !$('online-nomi').hidden);
     $('ultimi-nomi').innerHTML = ultimi.map(function(x){
       return '<li>' + esc(x.nome) + '<span class="quando">' + esc(quandoDetto(x.quando)) + '</span></li>';
     }).join('');
@@ -363,6 +375,16 @@ function mostraInPartita(){
   }).then(function(){ btn.disabled = false; });
 }
 $('in-partita-btn').addEventListener('click', mostraInPartita);
+// I nomi di chi e' online si guardano premendo (Lorenzo): possono essere molti,
+// e questa pagina si legge dall'alto in basso. Non chiede niente al server —
+// i nomi arrivano gia' con tutto il resto da hx_stats_live: apre e chiude.
+$('online-nomi-btn').addEventListener('click', function(){
+  var lista = $('online-nomi'), apri = lista.hidden;
+  lista.hidden = !apri;
+  $('online-vuoto').hidden = !(apri && lista.children.length === 0);
+  this.textContent = apri ? 'Hide names' : 'Show names';
+  this.setAttribute('aria-expanded', apri ? 'true' : 'false');
+});
 </script>
 </body>
 </html>
