@@ -325,6 +325,7 @@ body.mouse-down, body.mouse-down *{
   position:absolute; inset:0; z-index:1;
   pointer-events:none; opacity:0;
   mix-blend-mode:plus-lighter;
+  filter:blur(5px);
   transition:opacity 0.3s ease;
   -webkit-mask-image:var(--mm2-cap-sx), var(--mm2-cap-dx), linear-gradient(#000,#000);
           mask-image:var(--mm2-cap-sx), var(--mm2-cap-dx), linear-gradient(#000,#000);
@@ -5290,6 +5291,39 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
 #tutorial-ok{ width:100%; max-width:none; flex:0 0 auto; margin-top:auto; }
 
 
+#mm-promemoria{
+  position:fixed; left:20px; bottom:20px; z-index:4400;
+  display:flex; align-items:center; gap:10px;
+  padding:10px 16px; border-radius:12px;
+  background:rgba(12,16,17,0.82);
+  border:1px solid rgba(237,224,198,0.22);
+  box-shadow:0 6px 22px rgba(0,0,0,0.45);
+  font-family:'Rosarivo',Georgia,serif; font-size:15px; color:#EDE0C6;
+  opacity:0; transform:translateY(10px); pointer-events:none;
+  transition:opacity .25s ease, transform .25s ease;
+  user-select:none;
+}
+#mm-promemoria.si{ opacity:1; transform:translateY(0); pointer-events:auto; }
+#mm-promemoria-pallino{
+  width:9px; height:9px; border-radius:50%; flex:0 0 auto;
+  background:#9ED6A6; box-shadow:0 0 8px rgba(158,214,166,0.7);
+  animation:mmPromemoriaBattito 1.6s ease-in-out infinite;
+}
+@keyframes mmPromemoriaBattito{ 0%,100%{ opacity:1; transform:scale(1); } 50%{ opacity:.35; transform:scale(.78); } }
+#mm-promemoria-tempo{ font-family:'Marcellus SC','Marcellus',serif; color:#FBEAC4; }
+#mm-promemoria-annulla{
+  -webkit-appearance:none; appearance:none;
+  background:none; border:0; border-bottom:1px solid transparent;
+  padding:0 0 1px; margin-left:6px;
+  font-family:'Rosarivo',Georgia,serif; font-size:15px; line-height:1;
+  color:#E3947F; cursor:var(--cursore);
+}
+#mm-promemoria-annulla:hover{ color:#F2B8A6; border-bottom-color:currentColor; }
+@media (prefers-reduced-motion:reduce){
+  #mm-promemoria{ transition:none; }
+  #mm-promemoria-pallino{ animation:none; }
+}
+
 #trovato-overlay{ z-index:4560; }
 #trovato-cornice{
   position:relative;
@@ -7881,6 +7915,13 @@ try{
   </div>
 </div>
 
+<div id="mm-promemoria" role="status" aria-live="polite">
+  <span id="mm-promemoria-pallino" aria-hidden="true"></span>
+  <span>Searching for an opponent</span>
+  <span id="mm-promemoria-tempo">(0s)</span>
+  <button id="mm-promemoria-annulla" type="button" onclick="mm2AnnullaRicerca()">Cancel</button>
+</div>
+
 <div id="tutorial-overlay" class="hx-overlay">
   <div id="tutorial-cornice">
     <video id="tutorial-video" muted loop playsinline autoplay preload="auto"></video>
@@ -8896,9 +8937,6 @@ const _pageDetached = new Map();
 function unmountPage(name){
   const ids = PAGE_ELEMENT_IDS[name]; if(!ids) return;
   if(name==='start' && typeof fermaLogoSheen==='function') fermaLogoSheen();
-  if(name==='mainmenu'){
-    if(typeof mm2FermaRicerca==='function') mm2FermaRicerca();
-  }
   if(name==='collection') document.getElementById('card-db-overlay')?.classList.remove('show');
   if(name==='packs') document.getElementById('pack-overlay')?.classList.remove('show');
   for(const id of ids){
@@ -10351,12 +10389,15 @@ async function mm2CercaAvversario(){
   const btn = document.getElementById('mm2-find');
   const box = document.getElementById('mm2-gioca');
   const et  = btn && btn.querySelector('.hxb-label');
-  if(!btn || !et){ console.warn('[ricerca] il pulsante non e in pagina: ricerca non avviata'); return; }
+  if((!btn || !et) && _activePage === 'mainmenu'){
+    console.warn('[ricerca] il pulsante non e in pagina: ricerca non avviata');
+    return;
+  }
   _mm2Cercando = true;
   _mmForbice = 0;
-  btn.classList.add('cerca');
+  if(btn) btn.classList.add('cerca');
   if(box) box.classList.add('cerca');
-  et.textContent = 'Cancel';
+  if(et) et.textContent = 'Cancel';
   mmAvviaCronometro();
 
   const rank = (PROFILO_STAGIONE && PROFILO_STAGIONE.rank) || 0;
@@ -10477,6 +10518,7 @@ function apriTrovato(matchId){
   vestiTrovato();
   trovatoMostraScelta();
   ov.classList.add('show');
+  try{ mmPromemoriaAggiorna(); }catch(_){ }
   try{ _suonoTrovato = playSfxFile('match-found.mp3'); }catch(_){ }
   ov.classList.remove('arrivati');
   requestAnimationFrame(()=>requestAnimationFrame(()=>{
@@ -10580,7 +10622,6 @@ function trovatoFermaTimer(){
 function trovatoAccetta(){
   if(_trovatoAccettato) return;
   _trovatoAccettato = true;
-  fermaSuonoTrovato();
   trovatoMostraAttesa();
   mmManda({ cid:'j'+Date.now().toString(36), match_join:{ match_id: _trovatoMatch } });
 }
@@ -12132,6 +12173,7 @@ function showPage(name){
   mountPage(name);
   _activePage = name;
   try{ onlineSeCambiato(); }catch(_){ }
+  try{ mmPromemoriaAggiorna(); }catch(_){ }
   try{ teleCambioPagina(name); }catch(_){ }
   stanzaAccendi(PAGINE_DELLA_STANZA.has(name)
     || (name === 'start' && !!document.getElementById('start-screen')?.classList.contains('fondale-su')));
@@ -12795,10 +12837,10 @@ function mmAvviaCronometro(){
   _mmCronoDa = Date.now();
   const passo = ()=>{
     if(!_mm2Cercando){ mmFermaCronometro(); return; }
-    const et = document.querySelector('#mm2-find .hxb-label');
-    if(!et) return;
     const s = Math.floor((Date.now() - _mmCronoDa) / 1000);
-    et.textContent = _mmSottoIlDito ? 'Cancel' : 'Searching...(' + s + 's)';
+    try{ mmPromemoriaAggiorna(); }catch(_){ }
+    const et = document.querySelector('#mm2-find .hxb-label');
+    if(et) et.textContent = _mmSottoIlDito ? 'Cancel' : 'Searching...(' + s + 's)';
     if(s >= RICERCA_BOT_DOPO_S && !_trovatoMatch
        && !document.getElementById('mm2-find')?.classList.contains('trovato')){
       console.info('[ricerca] ' + s + ' secondi senza avversari: partita contro un Bot.');
@@ -13143,6 +13185,19 @@ function mm2FermaRicerca(){
   document.getElementById('mm2-find')?.classList.remove('cerca','trovato');
   document.getElementById('mm2-gioca')?.classList.remove('cerca','trovato');
   mm2AggiornaPulsanteGioca();
+  try{ mmPromemoriaAggiorna(); }catch(_){ }
+}
+
+function mmPromemoriaAggiorna(){
+  const el = document.getElementById('mm-promemoria');
+  if(!el) return;
+  const trovato = !!document.getElementById('trovato-overlay')?.classList.contains('show');
+  const si = !!_mm2Cercando && _activePage !== 'mainmenu' && !trovato;
+  el.classList.toggle('si', si);
+  if(!si) return;
+  const t = document.getElementById('mm-promemoria-tempo');
+  const s = _mmCronoDa ? Math.floor((Date.now() - _mmCronoDa) / 1000) : 0;
+  if(t) t.textContent = '(' + s + 's)';
 }
 
 function aggiornaDatiMenu(){
@@ -16131,7 +16186,6 @@ function requestNewGame(vsAI){
   fermaTuttiISuoni();
   try{ AVATAR_DEI_GIOCATORI[1] = null; AVATAR_DEI_GIOCATORI[2] = null; }catch(_){ }
   impostaFazioneUmano(fazioneDaGiocare());
-  if(vsAI){ try{ playSfxFile('match-found.mp3'); }catch(_){} }
   if(typeof mostraVersus === 'function') mostraVersus(()=> startGame(!!vsAI));
   else startGame(!!vsAI);
 }
@@ -24092,6 +24146,7 @@ function abilitaEseguibile(card){
 }
 const EFFETTI_PIAZZAMENTO = {
   eat_the_rich: (card, q, r) => activateEatTheRich(card, q, r),
+  dark_pact: (card) => attivaDarkPact(card),
   smol_friends: (card) => recalcHoorayShesStays(card),
   mischief: (card) => recalcMischief(card),
   nightmare: (card) => recalcNightmare(card),
@@ -24308,7 +24363,7 @@ function attivaDarkPact(card){
   const derubate = mano.length;
   if(!derubate) return;
   modificaValori(card, SIDES, derubate, undefined, {chiave:'dark_pact', da:card.name||'Dark Pact'});
-  console.info('[Dark Pact] rubato 1 ALL a '+derubate+' carte in mano: +'+derubate+' ALL alla strega.');
+  if(!_simulazioneInCorso) console.info('[Dark Pact] rubato 1 ALL a '+derubate+' carte in mano: +'+derubate+' ALL alla strega.');
 }
 function segnaRinascitaFenice(card, proprietarioOriginale){
   if(!card || !foglioFaOSigla(card, 'on_conquered', 'flip', 'card', 'rise_from_the_ashes')) return;
@@ -25700,7 +25755,6 @@ const EFFETTI_PIAZZAMENTO_REALI = {
   off_with_the_head: (card) => attivaOffWithTheHead(card),
   smoke_and_mirrors: (card) => attivaSmokeAndMirrors(card),
   exaketededly:      (card, q, r) => attivaExaketededly(card, q, r),
-  dark_pact:         (card) => attivaDarkPact(card),
   unicorn_hunt: (card) => attivaUnicornHunt(card),
   '!tomthumb': (card, q, r) => lasciaBriciole(card, q, r),
 };
@@ -29248,11 +29302,6 @@ function bonusValoreDaAbilita(card, q, r, giocatore){
 
 const SCONTO_FENICE = 0.6;
 const BONUS_STRATEGICO_IA = {
-  dark_pact: (card, q, r, giocatore) => {
-    const derubabili = manoDi(giocatore).filter(c => c && c.id !== card.id
-      && SIDES.some(s => (c.values[s]||0) > 0));
-    return derubabili.length * SIDES.length * VALORE_PUNTO_POTERE * 0.5;
-  },
 
   off_with_the_head: (card, q, r, giocatore) => {
     const mazzo = giocatore===1 ? G.p1Deck : G.p2Deck;
