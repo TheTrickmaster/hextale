@@ -4510,6 +4510,8 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
 .hx-btn-opaco .hxb-strip > span:last-child,
 .hx-btn-shop .hxb-strip > span:last-child,
 .hx-btn-important .hxb-strip > span:last-child{ margin-right:0; }
+.hx-btn .hxb-tela{ position:absolute; inset:0; width:100%; height:100%; display:block; pointer-events:none; }
+.hx-btn.hxb-dipinto .hxb-strip > span{ display:none; }
 .hx-btn .hxb-strip > .hxb-fill{
   flex:1 1 0; min-width:0;
   background-repeat:repeat-x; background-size:auto 100%;
@@ -10772,6 +10774,45 @@ function iconaDelRank(chiave){ return uiFileCandidati('ranks/' + chiave + '-rank
 function xpPerSalire(livello){ return 50 * (livello + 1); }
 
 const NOME_IA = 'A worthy opponent';
+const NOMI_BOT_TRAVESTITO = [
+  'ShadowGlade', 'mirrorwing', 'Thornbite', 'PuckLantern', 'velvetfang', 'GrimBellow',
+  'inkandember', 'Wanderlisk', 'nightjar_', 'Coldhollow', 'brambleskip', 'HuntressOwl',
+  'saltmarrow', 'Windfeather', 'lorelight', 'RookAndKey', 'hollowbell', 'Glimmerfen',
+  'quietstag', 'Redcapped', 'moth_to_flame', 'Ashvale', 'briarbone', 'WillowKnot',
+  'foxglove88', 'Tinderbox', 'palefable', 'Nocturnian', 'sugarcrypt', 'Hearthling',
+  'drownedbell', 'Marrowlark', 'candlewick', 'SevenLeagues', 'tallowmoon', 'Ferrymark',
+  'gloamfinch', 'Wyrmsong', 'littlemagpie', 'Silverbriar', 'dustmantle', 'Ravensward',
+  'thimblewitch', 'Oakenshade', 'frostcrumb', 'Lanternjaw', 'peatfire', 'Mistlethorn',
+  'copperhaze', 'Nettlecourt', 'starveling', 'Bramblewick', 'hushpuppet', 'Errantry',
+  'glassheron', 'Toadstone', 'winterkeep', 'Mourningdove', 'soot_and_silk', 'Fablebound',
+  'crookedpine', 'Lampblack', 'wispward', 'Hollyhex', 'ninesparrows', 'Emberlily',
+  'saltandrue', 'Gristlemaw', 'quillfeather', 'Cindervale', 'bogmoth', 'Harrowgate',
+  'lichenlore', 'Pennywhistle', 'aspenwold', 'Grimsby_', 'teacupdragon', 'Northwake',
+  'sleeplessfox', 'Barleycorn', 'moonspoon', 'Tanglewood', 'ratcatcher9', 'Hawthorne',
+  'velvetmoss', 'Ironbriar', 'cobweb_king', 'Lullabye', 'drifterfen', 'Wrenwolf',
+  'oldkettle', 'Thistledown', 'hazeltrap', 'Verglas', 'plumefall', 'Owlcourt',
+  'sorrelsnap', 'Deepwillow', 'gildedcrow', 'Hollowmere',
+];
+let BOT_TRAVESTITO = null;
+const _nomiBotUsati = [];
+function vestiIlBotDaGiocatore(){
+  const liberi = NOMI_BOT_TRAVESTITO.filter(n => _nomiBotUsati.indexOf(n) < 0);
+  const pesca = liberi.length ? liberi : NOMI_BOT_TRAVESTITO;
+  const nome = pesca[Math.floor(Math.random() * pesca.length)];
+  _nomiBotUsati.push(nome);
+  while(_nomiBotUsati.length > 20) _nomiBotUsati.shift();
+  const mio = (PROFILO_STAGIONE && typeof PROFILO_STAGIONE.rank === 'number') ? PROFILO_STAGIONE.rank : 0;
+  const ultimo = (typeof RANGHI !== 'undefined' && RANGHI) ? RANGHI.length - 1 : 0;
+  const rank = Math.max(0, Math.min(ultimo, mio + Math.floor(Math.random() * 3) - 1));
+  let avatar = '';
+  try{
+    const carte = (typeof FINAL_CARDS !== 'undefined' && FINAL_CARDS) ? FINAL_CARDS.filter(c => c && c.slug) : [];
+    if(carte.length) avatar = String(carte[Math.floor(Math.random() * carte.length)].slug || '');
+  }catch(_){ avatar = ''; }
+  console.info('[bot] si presenta come "' + nome + '" (rank ' + rank + ')');
+  return { nome, rank, avatar };
+}
+
 function nomeGiocatore(){
   return (sessioneAccount && sessioneAccount.username) || 'Player';
 }
@@ -12845,7 +12886,7 @@ function mmAvviaCronometro(){
        && !document.getElementById('mm2-find')?.classList.contains('trovato')){
       console.info('[ricerca] ' + s + ' secondi senza avversari: partita contro un Bot.');
       mm2AnnullaRicerca();
-      try{ requestNewGame(true); }catch(e){ console.error('[ricerca] la partita col Bot non parte: ' + (e && e.message)); }
+      try{ requestNewGame(true, true); }catch(e){ console.error('[ricerca] la partita col Bot non parte: ' + (e && e.message)); }
       return;
     }
     if(Date.now() - _onlineBattitoDa >= ONLINE_CERCANDO_OGNI_MS) aggiornaGiocatoriOnline();
@@ -15610,7 +15651,126 @@ function vestiPulsante(btn){
   impostaVariabileDaCandidati(btn, '--hxb-cap-dx', uiFileCandidati(fam.base+'right'+coda));
   btn.querySelectorAll('.hxb-fill').forEach(el=>
     impostaSfondoDaCandidati(el, uiFileCandidati(fam.base+'filler'+coda)));
+  if(fam === FAMIGLIA_PREDEFINITA){ try{ dipingiStriscia(btn, fam, coda); }catch(e){ console.info('[pulsante] tela non dipinta: ' + (e && e.message)); } }
 }
+const _teleStriscia = new Map();
+const _immaginiStriscia = new Map();
+let _risoluzioneStriscia = 0;
+
+function _immagineDaCandidati(candidati){
+  const chiave = (candidati || []).join('|');
+  if(_immaginiStriscia.has(chiave)) return _immaginiStriscia.get(chiave);
+  const attesa = new Promise((risolvi)=>{
+    let i = 0;
+    const prova = ()=>{
+      if(i >= candidati.length){ risolvi(null); return; }
+      const im = new Image();
+      im.onload = ()=>risolvi(im);
+      im.onerror = prova;
+      im.src = candidati[i++];
+    };
+    prova();
+  });
+  _immaginiStriscia.set(chiave, attesa);
+  return attesa;
+}
+
+function _piastrellaStriscia(ctx, im, x0, larga, alta){
+  if(!im || larga <= 0) return;
+  const passo = Math.max(1, Math.round((im.width || 1) * alta / (im.height || 1)));
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x0, 0, larga, alta);
+  ctx.clip();
+  for(let x = 0; x < larga; x += passo) ctx.drawImage(im, x0 + x, 0, passo, alta);
+  ctx.restore();
+}
+
+function _telaStriscia(pezzi, W, H, cap, mid){
+  const tela = document.createElement('canvas');
+  tela.width = W; tela.height = H;
+  const ctx = tela.getContext('2d');
+  if(!ctx) return null;
+  const resto = W - cap * 2 - mid;
+  const x1 = cap, w1 = Math.floor(resto / 2);
+  const xc = x1 + w1;
+  const x2 = xc + mid, w2 = resto - w1;
+  _piastrellaStriscia(ctx, pezzi.fill, x1, w1, H);
+  _piastrellaStriscia(ctx, pezzi.fill, x2, w2, H);
+  ctx.drawImage(pezzi.mid, xc, 0, mid, H);
+  ctx.drawImage(pezzi.sx, 0, 0, cap, H);
+  ctx.drawImage(pezzi.dx, W - cap, 0, cap, H);
+  return tela;
+}
+
+function _osservaStriscia(btn, fam, coda){
+  if(btn.__osservaStriscia || typeof ResizeObserver !== 'function') return;
+  const occhio = new ResizeObserver(()=>{ try{ dipingiStriscia(btn, fam, coda); }catch(_){ } });
+  occhio.observe(btn);
+  btn.__osservaStriscia = occhio;
+}
+
+async function dipingiStriscia(btn, fam, coda){
+  const striscia = btn && btn.querySelector('.hxb-strip');
+  if(!striscia) return;
+  _osservaStriscia(btn, fam, coda);
+  const dpr = window.devicePixelRatio || 1;
+  if(!_risoluzioneStriscia) _risoluzioneStriscia = dpr;
+  const r = btn.getBoundingClientRect();
+  const W = Math.round(r.width * dpr), H = Math.round(r.height * dpr);
+  if(W < 8 || H < 8) return;
+  const st = getComputedStyle(btn);
+  const cap = Math.round((parseFloat(st.getPropertyValue('--hxb-cap-w')) || 49) * dpr);
+  const mid = Math.round((parseFloat(st.getPropertyValue('--hxb-mid-w')) || 58) * dpr);
+  if(W - cap * 2 - mid < 2) return;
+  const chiave = fam.base + coda + '|' + W + 'x' + H;
+  if(btn.__strisciaChiave === chiave) return;
+  let attesa = _teleStriscia.get(chiave);
+  if(!attesa){
+    attesa = Promise.all([
+      _immagineDaCandidati(uiFileCandidati(fam.base + 'left' + coda)),
+      _immagineDaCandidati(uiFileCandidati(fam.base + 'center' + coda)),
+      _immagineDaCandidati(uiFileCandidati(fam.base + 'right' + coda)),
+      _immagineDaCandidati(uiFileCandidati(fam.base + 'filler' + coda)),
+    ]).then(function(p){
+      return (p[0] && p[1] && p[2] && p[3])
+        ? _telaStriscia({ sx: p[0], mid: p[1], dx: p[2], fill: p[3] }, W, H, cap, mid)
+        : null;
+    });
+    _teleStriscia.set(chiave, attesa);
+  }
+  let tela = null;
+  try{ tela = await attesa; }catch(_){ tela = null; }
+  if(!tela){ _teleStriscia.delete(chiave); return; }
+  if(btn.__strisciaChiave === chiave) return;
+  let mia = striscia.querySelector('canvas.hxb-tela');
+  if(!mia){
+    mia = document.createElement('canvas');
+    mia.className = 'hxb-tela';
+    mia.setAttribute('aria-hidden', 'true');
+    striscia.appendChild(mia);
+  }
+  if(mia.width !== W || mia.height !== H){ mia.width = W; mia.height = H; }
+  const ctx = mia.getContext('2d');
+  if(!ctx) return;
+  ctx.clearRect(0, 0, W, H);
+  ctx.drawImage(tela, 0, 0);
+  btn.__strisciaChiave = chiave;
+  btn.classList.add('hxb-dipinto');
+}
+
+function _controllaRisoluzioneStrisce(){
+  const dpr = window.devicePixelRatio || 1;
+  if(!_risoluzioneStriscia || dpr === _risoluzioneStriscia) return;
+  _risoluzioneStriscia = dpr;
+  _teleStriscia.clear();
+  document.querySelectorAll('.hx-btn.hxb-dipinto').forEach(function(b){
+    b.__strisciaChiave = null;
+    try{ vestiPulsante(b); }catch(_){ }
+  });
+}
+window.addEventListener('resize', function(){ try{ _controllaRisoluzioneStrisce(); }catch(_){ } });
+
 function eliminaMazzoInModifica(){
   const id = _mazzoInModificaId;
   MAZZI = MAZZI.filter(m=>m.id!==id);
@@ -16180,8 +16340,9 @@ function scegliPreferenzaFazione(scelta){
   try{ aggiornaCustomize(); }catch(_){}
   return s;
 }
-function requestNewGame(vsAI){
+function requestNewGame(vsAI, travestito){
   if(vsAI) PARTITA_RETE = null;
+  BOT_TRAVESTITO = (vsAI && travestito) ? vestiIlBotDaGiocatore() : null;
   PARTITA_ERA_IN_RETE = !vsAI && !!PARTITA_RETE;
   fermaTuttiISuoni();
   try{ AVATAR_DEI_GIOCATORI[1] = null; AVATAR_DEI_GIOCATORI[2] = null; }catch(_){ }
@@ -16241,7 +16402,10 @@ function vestiPannelliGiocatori(vsAI){
     avatar: miaSiglaAvatar()
   });
   if(vsAI){
-    _vestiUnPannello('p' + suoNumero, { nome:NOME_IA, rank:null, avatar:'' });
+    const t = BOT_TRAVESTITO;
+    _vestiUnPannello('p' + suoNumero, t
+      ? { nome:t.nome, rank:t.rank, avatar:t.avatar }
+      : { nome:NOME_IA, rank:null, avatar:'' });
   } else {
     const a = AVVERSARIO_INFO || {};
     _vestiUnPannello('p' + suoNumero, {
@@ -16334,6 +16498,7 @@ function _vsSiglaAvatarDi(numero){
      && typeof AVVERSARIO_INFO === 'object' && AVVERSARIO_INFO){
     return AVVERSARIO_INFO.avatar || '';
   }
+  if(BOT_TRAVESTITO) return BOT_TRAVESTITO.avatar || '';
   return '';
 }
 function _vsScegliRitratti(){
@@ -16373,10 +16538,11 @@ function _vsDatiGiocatore(mio){
       rank: (typeof AVVERSARIO_INFO.rank === 'number') ? AVVERSARIO_INFO.rank : null
     };
   }
+  if(BOT_TRAVESTITO) return { nome: BOT_TRAVESTITO.nome, rank: BOT_TRAVESTITO.rank };
   const mioRank = (prof && typeof prof.rank === 'number') ? prof.rank : 0;
   const scarto = Math.floor(Math.random()*3) - 1;
   const ultimo = (typeof RANGHI !== 'undefined' && RANGHI) ? RANGHI.length - 1 : 0;
-  return { nome: 'A worthy opponent', rank: Math.max(0, Math.min(ultimo, mioRank + scarto)) };
+  return { nome: NOME_IA, rank: Math.max(0, Math.min(ultimo, mioRank + scarto)) };
 }
 
 function _vsRiempiLato(lato, numero, ritratto, dati){
@@ -29022,6 +29188,7 @@ function hideAiSpeechBubble(){
 }
 
 function startAiSpeechBubble(){
+  if(BOT_TRAVESTITO){ stopAiSpeechBubble(); return; }
   stopAiSpeechBubble();
   setAiSpeechBubbleText(pickAiThinkingPhrase());
   showAiSpeechBubble();
@@ -30195,7 +30362,7 @@ function finishGameWithResult(){
   if(motivoEl) motivoEl.textContent = _motivoFinePartita || '';
   try{ goRiempiPunteggi(hp1, hp2); }catch(e){ console.warn('[fine partita] punteggi: ' + (e && e.message)); }
   if(!_finePartitaDalServer && !_fineDiProva){
-    try{ riferisciPartita(vincitore === (G.ioSonoIlNumero || 1), vincitore === 0, !!G.vsAI); }catch(_){}
+    try{ riferisciPartita(vincitore === (G.ioSonoIlNumero || 1), vincitore === 0, !!G.vsAI && !BOT_TRAVESTITO); }catch(_){}
   }
   _finePartitaDalServer = false;
   _motivoFinePartita = '';
