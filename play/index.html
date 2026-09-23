@@ -3448,9 +3448,6 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
 #drag-ghost{
   will-change:transform;
 }
-
-  will-change:auto;
-}
 .debug-item > div[id]{ min-width:0; }
 .debug-item select, .debug-item input[type="text"]{ max-width:100%; box-sizing:border-box; }
 @media (max-width: 1100px){ #debug-grid{ grid-template-columns:repeat(2, 1fr); } #debug-box{ width:720px; } }
@@ -7284,7 +7281,7 @@ try{
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.75</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.76</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -13942,7 +13939,8 @@ function _sorvegliaBaseCarta(img){
   try{
     const prova = new Image();
     prova.onload = ()=>{
-      _baseCarteEsiti.set(url + ' (come <img>)', 'decodificata ' + prova.naturalWidth + 'x' + prova.naturalHeight);
+      _baseCarteEsiti.set(url + ' (come <img>)', 'decodificata ' + prova.naturalWidth + 'x' + prova.naturalHeight
+        + _provaSuTela(prova));
       try{ _scriviEsitoBase(); }catch(_){ }
     };
     prova.onerror = ()=>{
@@ -13951,6 +13949,46 @@ function _sorvegliaBaseCarta(img){
     };
     prova.src = url;
   }catch(_){ }
+  try{ _dilloDellaScheda(); }catch(_){ }
+}
+function _provaSuTela(im){
+  try{
+    const c = document.createElement('canvas');
+    c.width = 210; c.height = 360;
+    const x = c.getContext('2d', { willReadFrequently:true });
+    if(!x) return ' | tela: niente contesto 2d';
+    x.drawImage(im, 0, 0, 210, 360);
+    const d = x.getImageData(0, 0, 210, 360).data;
+    let min = 255, max = 0, somma = 0, n = 0;
+    for(let y = 8; y < 352; y += 7){
+      for(let xx = 4; xx < 206; xx += 7){
+        const i = (y*210 + xx)*4;
+        const l = (d[i] + d[i+1] + d[i+2]) / 3;
+        if(l < min) min = l;
+        if(l > max) max = l;
+        somma += l; n++;
+      }
+    }
+    const ballo = Math.round(max - min);
+    return ' | su tela 210x360: ballo ' + ballo + ', medio ' + Math.round(somma/n)
+      + (ballo > 8 ? ' (TRAMA OK: il guasto e- nel disegno)' : ' (PIATTA: il guasto e- nella decodifica)');
+  }catch(e){ return ' | tela: ' + (e && e.message); }
+}
+function _dilloDellaScheda(){
+  if(_baseCarteEsiti.has('questa macchina')) return;
+  let s = 'sconosciuta';
+  try{
+    const c = document.createElement('canvas');
+    const gl = c.getContext('webgl') || c.getContext('experimental-webgl');
+    if(!gl) s = 'niente WebGL (segno che la grafica accelerata e- spenta)';
+    else {
+      const info = gl.getExtension('WEBGL_debug_renderer_info');
+      s = info ? String(gl.getParameter(info.UNMASKED_RENDERER_WEBGL)) : 'nome non esposto';
+      s += ', texture max ' + gl.getParameter(gl.MAX_TEXTURE_SIZE);
+    }
+  }catch(e){ s = 'errore: ' + (e && e.message); }
+  _baseCarteEsiti.set('questa macchina', s + ', dpr ' + (window.devicePixelRatio || 1)
+    + ', finestra ' + window.innerWidth + 'x' + window.innerHeight);
 }
 function _scriviEsitoBase(){
   const pannello = document.getElementById('debug-pannello');
@@ -13966,6 +14004,18 @@ function _scriviEsitoBase(){
     if(griglia && griglia.parentNode === pannello) pannello.insertBefore(riga, griglia);
     else pannello.appendChild(riga);
   }
+  try{
+    const radice = document.getElementById('game-root');
+    if(radice){
+      const t = getComputedStyle(radice).transform;
+      const m = /matrix\(([^,]+),/.exec(t);
+      const carta = document.querySelector('.card-db-card-slot .hand-card-full-svg');
+      _baseCarteEsiti.set('scala della pagina',
+        (m ? (+m[1]).toFixed(3) : (t === 'none' ? '1 (nessuna)' : t.slice(0, 40)))
+        + (carta ? ', carta in Libreria ' + Math.round(carta.getBoundingClientRect().width)
+            + 'x' + Math.round(carta.getBoundingClientRect().height) + ' px veri' : ''));
+    }
+  }catch(_){ }
   const voci = [];
   _baseCarteEsiti.forEach((esito, ind)=>{
     voci.push('• ' + ind.split('/').pop() + ' — ' + esito);
