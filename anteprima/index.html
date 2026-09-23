@@ -195,6 +195,7 @@ body.mouse-down, body.mouse-down *{
 }
 
 #mm2-topbar{
+  -webkit-backdrop-filter:none; backdrop-filter:none;
   position:absolute; top:0; left:0; right:0; height:102px; z-index:30;
   display:flex; align-items:center; justify-content:space-between;
   padding:0 30px; box-sizing:border-box;
@@ -3126,6 +3127,15 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
 #livello-bonus[hidden]{ display:none; }
 #livello-sblocco{ display:flex; flex-direction:column; align-items:center; gap:20px; }
 #livello-sblocco[hidden]{ display:none; }
+#livello-cosmetici{ display:flex; flex-direction:column; align-items:center; gap:20px; }
+#livello-cosmetici[hidden]{ display:none; }
+#livello-cosmetici-testo{ font-family:'Rosarivo',serif; font-size:16px; line-height:1.2; color:#C5D2D4; }
+#livello-cosmetici-elenco{
+  font-family:'Marcellus SC','Marcellus',serif; font-size:20px; line-height:1.3;
+  color:#E8B96A; text-align:center; letter-spacing:.02em;
+}
+#livello-carta{ pointer-events:auto; }
+#livello-carta.tilt-fermo .lvc-giro{ transition:transform .28s ease-out; }
 .livello-riga{
   width:454px; height:20px;
   background:linear-gradient(rgba(255,255,255,0.1), rgba(255,255,255,0.1)) center / 242px 1px no-repeat;
@@ -4463,6 +4473,19 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
 #library-filters img{ display:block; flex:none; width:32px; height:26.67px; margin:-3.15px 0; }
 #library-filters:hover{ filter:brightness(1.2); }
 #library-filters:active{ transform:scale(0.97); }
+#library-mancanti{
+  flex:0 0 auto; align-self:stretch;
+  display:flex; align-items:center; gap:8px;
+  background:none; border:0; padding:16px 20px 16px 8px; margin:-16px -20px -16px -8px;
+  font-family:'Marcellus SC','Marcellus',var(--font-display),serif;
+  font-size:22px; font-weight:400; line-height:normal;
+  color:#DDCAA1; white-space:nowrap;
+  transition:filter 0.16s ease, transform 0.16s ease;
+}
+#library-mancanti img{ display:block; flex:none; width:32px; height:auto; }
+#library-mancanti:hover{ filter:brightness(1.2); }
+#library-mancanti:active{ transform:scale(0.97); }
+.card-db-card-slot.non-posseduta{ opacity:0.4; }
 .hx-icon-btn{
   flex:0 0 auto;
   display:inline-flex; align-items:center; justify-content:center;
@@ -7135,6 +7158,11 @@ try{
           <div id="livello-sblocco-testo" class="lv-entra">New ability unlocked!</div>
           <div id="livello-abilita" class="lv-entra"><span class="la-nome"></span><span class="la-desc"></span></div>
         </div>
+        <div id="livello-cosmetici">
+          <div class="livello-riga lv-entra"></div>
+          <div id="livello-cosmetici-testo" class="lv-entra">New finish unlocked!</div>
+          <div id="livello-cosmetici-elenco" class="lv-entra"></div>
+        </div>
       </div>
       <div id="livello-barra" class="lv-entra">
         <div class="lv-riga"><span class="lv-liv"></span><span class="lv-testo"></span></div>
@@ -7253,7 +7281,7 @@ try{
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.66</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.67</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -8202,6 +8230,11 @@ try{
       <button id="library-filters" type="button" onclick="apriFiltri()">
         <img id="library-filters-icona" alt="" draggable="false">
         <span>Filters</span>
+      </button>
+      <span class="card-db-barra-divisore" aria-hidden="true"></span>
+      <button id="library-mancanti" type="button" onclick="cardDbMostraMancanti()">
+        <img id="library-mancanti-icona" alt="" draggable="false">
+        <span id="library-mancanti-testo">Show all</span>
       </button>
     </div>
   </div>
@@ -13952,6 +13985,7 @@ function montaGraficaLibreria(){
     impostaVariabileDaCandidati(el, '--hx-trama', uiFileCandidati('brushed-texture.jpg')));
   icona('#library-back img', 'back-button.png');
   icona('#library-filters-icona', 'filters-icon.png');
+  try{ cardDbAggiornaMancanti(); }catch(_){ }
   icona('#card-db-cerca-icona', 'search-icon.png');
   montaFreccetteTendine();
   impostaVariabileDaCandidati(document.getElementById('card-db-right'),
@@ -20933,8 +20967,10 @@ function cardDbRenderRoster(){
   cardDbBuildTraitFilter();
   for(const entry of cardDbRosterOrdinato()){
     const card=_makeCardDbCard(entry, _cardDbVariant);
+    if(entry.nonPosseduta){ card.nonPosseduta = true; _vestiDaBloccata(card); }
     const slot=document.createElement('div');
     slot.className='card-db-card-slot';
+    if(entry.nonPosseduta) slot.classList.add('non-posseduta');
     slot.dataset.hasAbility = entry.cardAbility ? 'true' : 'false';
     slot.dataset.traits = (entry.traits||[]).join(',');
     slot.dataset.rarity = entry.rarity || '';
@@ -20962,7 +20998,7 @@ function cardDbRenderRoster(){
     }
     const foilEnabled = cardDbFoilEnabledFor(card);
     const layersForVariant = varianteCollezioneScura() ? entry.artLayersDark : entry.artLayersLight;
-    if(Array.isArray(layersForVariant) && layersForVariant.length){
+    if(!entry.nonPosseduta && Array.isArray(layersForVariant) && layersForVariant.length){
       card.artLayers = layersForVariant;
       card.artParallax = cardDbParallaxEnabledFor(card);
     }
@@ -21266,9 +21302,53 @@ function cardDbBuildSortMenu(){
     .map(o=>`<option value="${o.chiave}">${o.testo}</option>`).join('');
   sel.dataset.pronto = '1';
 }
+let _mostraNonPossedute = false;
+const ART_BLOCCATA = { dark: '../cards/art/locked-character/locked-dark.jpg',
+                       light: '../cards/art/locked-character/locked-light.jpg' };
+
+function _vestiDaBloccata(card){
+  if(!card) return card;
+  const scura = (typeof varianteCollezioneScura === 'function') ? varianteCollezioneScura()
+              : playerFactionIsDark(card.owner || 1);
+  card.artLayers = null; card.artLayersDark = null; card.artLayersLight = null;
+  card.artParallax = false;
+  card.artDark = ART_BLOCCATA.dark;
+  card.artLight = ART_BLOCCATA.light;
+  card.artSrc = scura ? ART_BLOCCATA.dark : ART_BLOCCATA.light;
+  return card;
+}
+
+function _carteDellaLibreria(){
+  const mie = (typeof carteDelGiocatore === 'function') ? carteDelGiocatore() : [];
+  if(!_mostraNonPossedute) return mie;
+  const avute = {};
+  for(const c of mie) if(c && c.slug) avute[c.slug] = true;
+  const tutte = (typeof carteGiocabili === 'function') ? carteGiocabili() : [];
+  const mancanti = [];
+  for(const c of tutte){
+    if(!c || !c.slug || avute[c.slug]) continue;
+    const copia = Object.assign({}, c);
+    copia.nonPosseduta = true;
+    mancanti.push(copia);
+  }
+  return mie.concat(mancanti);
+}
+
+function cardDbMostraMancanti(){
+  _mostraNonPossedute = !_mostraNonPossedute;
+  cardDbAggiornaMancanti();
+  try{ cardDbRenderRoster(); }catch(e){ console.warn('[libreria] non si ridisegna: ' + (e && e.message)); }
+}
+function cardDbAggiornaMancanti(){
+  const testo = document.getElementById('library-mancanti-testo');
+  if(testo) testo.textContent = _mostraNonPossedute ? 'Hide unowned' : 'Show all';
+  const icona = document.getElementById('library-mancanti-icona');
+  if(icona) impostaImgDaCandidati(icona, uiFileCandidati(_mostraNonPossedute ? 'hide-icon.png' : 'show-icon.png'));
+}
+
 function cardDbRosterOrdinato(){
   const criterio = cardDbOrdinamentoAttivo();
-  const copia = carteDelGiocatore();
+  const copia = _carteDellaLibreria();
   if(!criterio.confronta) return copia;
   return copia.sort((a,b)=> criterio.confronta(a,b) || String(a.name||'').localeCompare(String(b.name||'')));
 }
@@ -21631,6 +21711,7 @@ function cardFoilVisualCard(card){
     const layers = entry && (playerFactionIsDark(card.owner||1) ? entry.artLayersDark : entry.artLayersLight);
     if(Array.isArray(layers) && layers.length) out.artLayers = layers;
   }
+  if(card.nonPosseduta) _vestiDaBloccata(out);
   return out;
 }
 function cardFoilWrap(cardSvg, variantIsDark){
@@ -35153,12 +35234,70 @@ function righeBonusLivello(vecchia, nuova){
   }
   return righe;
 }
+const LV_COSMETICI = [
+  { livello: 2, nome: 'Laminar' },
+  { livello: 3, nome: 'Foil' },
+  { livello: 4, nome: 'Parallax' },
+];
+function cosmeticiTraLivelli(entry, da, a){
+  const fuori = [];
+  for(const c of LV_COSMETICI){
+    if(c.livello <= da || c.livello > a) continue;
+    if(c.nome === 'Parallax'){
+      const livelli = entry && (entry.artLayersDark || entry.artLayersLight);
+      if(!Array.isArray(livelli) || !livelli.length) continue;
+    }
+    fuori.push(c.nome);
+  }
+  return fuori;
+}
+
+const LV_TILT_GRADI = 10;
+function _lvTiltAggancia(){
+  const carta = document.getElementById('livello-carta');
+  if(!carta || carta.__tiltPronto) return;
+  carta.__tiltPronto = true;
+  const giro = carta.querySelector('.lvc-giro');
+  const fronte = carta.querySelector('.lvc-faccia.fronte');
+  if(!giro || !fronte) return;
+  fronte.dataset.foilVariant = (typeof varianteCollezioneScura === 'function' && varianteCollezioneScura()) ? 'dark' : 'light';
+  carta.addEventListener('pointermove', (ev)=>{
+    if(!carta.classList.contains('tilt')) return;
+    const r = carta.getBoundingClientRect();
+    if(!r.width || !r.height) return;
+    const px = Math.min(1, Math.max(0, (ev.clientX - r.left) / r.width));
+    const py = Math.min(1, Math.max(0, (ev.clientY - r.top) / r.height));
+    const rx = px * 2 - 1, ry = py * 2 - 1;
+    carta.classList.remove('tilt-fermo');
+    giro.style.transform = 'rotateX(' + (-ry * LV_TILT_GRADI).toFixed(2) + 'deg) rotateY(' + (rx * LV_TILT_GRADI).toFixed(2) + 'deg)';
+    try{ cardFoilApply(fronte, rx, ry, px, py); }catch(_){ }
+  });
+  carta.addEventListener('pointerleave', ()=>{
+    if(!carta.classList.contains('tilt')) return;
+    carta.classList.add('tilt-fermo');
+    giro.style.transform = 'rotateY(0deg)';
+    try{ cardFoilReset(fronte); }catch(_){ }
+  });
+}
+function _lvTiltSpegni(){
+  const carta = document.getElementById('livello-carta');
+  if(!carta) return;
+  carta.classList.remove('tilt', 'tilt-fermo');
+}
+
 function _lvPreparaTesti(entry, vecchia, nuova, a){
   document.getElementById('livello-titolo').textContent = 'Level ' + a + '!';
   const righe = righeBonusLivello(vecchia, nuova);
   const bonus = document.getElementById('livello-bonus');
   bonus.innerHTML = righe.map(t => '<div>' + escapeHtml(t) + '</div>').join('');
   bonus.hidden = !righe.length;
+  const belli = cosmeticiTraLivelli(entry, (vecchia && vecchia.level) || 1, a);
+  const cosm = document.getElementById('livello-cosmetici');
+  if(cosm){
+    cosm.hidden = !belli.length;
+    const elenco = document.getElementById('livello-cosmetici-elenco');
+    if(elenco) elenco.textContent = belli.join('  ·  ');
+  }
   const testi = (vecchia.abilityLocked && !nuova.abilityLocked) ? testiAbilitaDi(nuova) : null;
   const blocco = document.getElementById('livello-sblocco');
   blocco.hidden = !testi;
@@ -35204,6 +35343,7 @@ async function animaSalitaDiLivello(entry, da, a){
   if(dorso) dorso.src = varianteCollezioneScura() ? CARD_BACK_DARK : CARD_BACK_LIGHT;
   _lvPreparaTesti(entry, vecchia, nuova, a);
 
+  _lvTiltSpegni();
   cornice.classList.remove('aperta');
   chiudi.classList.remove('dentro');
   ov.querySelectorAll('.lv-entra').forEach(el => el.classList.remove('dentro'));
@@ -35272,6 +35412,8 @@ async function animaSalitaDiLivello(entry, da, a){
     await _lvAspetta(130);
   }
   chiudi.classList.add('dentro');
+  _lvTiltAggancia();
+  carta.classList.add('tilt', 'tilt-fermo');
   ov.dataset.fase = 'fine';
   return new Promise(res => { _lvChiusura = res; });
 }
