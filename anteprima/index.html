@@ -7299,7 +7299,7 @@ try{
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.79</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.80</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -15653,11 +15653,24 @@ function aggiornaPannelloModifica(){
   }
   p.querySelector('.deck-edit-conta-num').textContent = m.carte.length + '/' + MAZZO_CARTE;
   const cont = p.querySelector('.deck-edit-carte');
-  cont.innerHTML = '';
+  const giaCiSono = new Map();
+  cont.querySelectorAll('.deck-card-row').forEach(riga => giaCiSono.set(String(riga.dataset.carta), riga));
+  const volute = [];
   for(const id of m.carte){
-    const entry = entryDaId(id);
-    if(entry) cont.appendChild(_rigaCartaMazzo(entry));
+    const chiave = String(id);
+    let riga = giaCiSono.get(chiave);
+    if(riga) giaCiSono.delete(chiave);
+    else {
+      const entry = entryDaId(id);
+      if(!entry) continue;
+      riga = _rigaCartaMazzo(entry);
+    }
+    volute.push(riga);
   }
+  giaCiSono.forEach(riga => riga.remove());
+  volute.forEach((riga, i) => {
+    if(cont.children[i] !== riga) cont.insertBefore(riga, cont.children[i] || null);
+  });
   const cap = capacitaDelMazzo(m);
   const sfora = cap > MAZZO_PUNTI;
   const barra = p.querySelector('.hx-capacity');
@@ -21916,7 +21929,30 @@ function initCardDbFoilTilt(){
 }
 const SCORRI_SOGLIA_PX = TIR_SOGLIA_PX;
 const SCORRI_MARGINE = 1.3;
+const SCORRI_ATTRITO = 0.996;
+const SCORRI_FERMO = 0.02;
 let _scorri = null;
+let _scorriRaf = 0;
+function _scorriFermaInerzia(){
+  if(_scorriRaf){ cancelAnimationFrame(_scorriRaf); _scorriRaf = 0; }
+}
+function _scorriInerzia(griglia, v0){
+  _scorriFermaInerzia();
+  if(!griglia) return;
+  let v = v0;
+  let prima = performance.now();
+  const passo = (ora)=>{
+    const dt = Math.min(48, ora - prima);
+    prima = ora;
+    griglia.scrollTop -= v * dt;
+    v *= Math.pow(SCORRI_ATTRITO, dt);
+    const inCima = griglia.scrollTop <= 0;
+    const inFondo = griglia.scrollTop >= griglia.scrollHeight - griglia.clientHeight - 1;
+    if(Math.abs(v) < SCORRI_FERMO || (inCima && v > 0) || (inFondo && v < 0)){ _scorriRaf = 0; return; }
+    _scorriRaf = requestAnimationFrame(passo);
+  };
+  _scorriRaf = requestAnimationFrame(passo);
+}
 function _scorriPrende(dx, dy){
   if(!_scorri) return false;
   if(_scorri.preso !== null) return _scorri.preso;
@@ -21939,23 +21975,32 @@ function initCardDbDragScroll(){
   _cardDbDragScrollInit = true;
   griglia.addEventListener('pointerdown', (ev)=>{
     if(ev.button !== undefined && ev.button !== 0) return;
+    _scorriFermaInerzia();
     const slot = ev.target && ev.target.closest
       ? ev.target.closest('#card-db-grid .card-db-card-slot') : null;
     _scorri = { x0:ev.clientX, y0:ev.clientY, top0:griglia.scrollTop,
-                pointerId:ev.pointerId, preso:null, suCarta:!!slot, griglia };
+                pointerId:ev.pointerId, preso:null, suCarta:!!slot, griglia,
+                v:0, yUltimo:ev.clientY, tUltimo:performance.now() };
   });
   document.addEventListener('pointermove', (ev)=>{
     if(!_scorri || ev.pointerId !== _scorri.pointerId) return;
     const dx = ev.clientX - _scorri.x0, dy = ev.clientY - _scorri.y0;
     if(!_scorriPrende(dx, dy)) return;
+    const ora = performance.now();
+    const dt = Math.max(1, ora - _scorri.tUltimo);
+    _scorri.v = _scorri.v * 0.6 + ((ev.clientY - _scorri.yUltimo) / dt) * 0.4;
+    _scorri.tUltimo = ora; _scorri.yUltimo = ev.clientY;
     _scorri.griglia.scrollTop = _scorri.top0 - dy;
   }, true);
   const finisci = (ev)=>{
     if(!_scorri || (ev && ev.pointerId !== undefined && ev.pointerId !== _scorri.pointerId)) return;
     const scorso = _scorri.preso === true;
+    const slancio = _scorri.v;
+    const dove = _scorri.griglia;
     try{ _scorri.griglia.releasePointerCapture(_scorri.pointerId); }catch(_){ }
     _scorri.griglia.classList.remove('sta-scorrendo');
     _scorri = null;
+    if(scorso && Math.abs(slancio) > SCORRI_FERMO) _scorriInerzia(dove, slancio);
     if(scorso){
       const ingoia = (e)=>{ e.stopPropagation(); e.preventDefault(); };
       document.addEventListener('click', ingoia, true);
