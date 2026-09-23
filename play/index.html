@@ -7299,7 +7299,7 @@ try{
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.80</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.81</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -12513,12 +12513,19 @@ function segnalaAssetMancante(candidati){
       + 'ELENCO COMPLETO:\n  ' + elenco.join('\n  '));
   }, 500);
 }
+const _assetVisti = new Map();
 function impostaImgDaCandidati(el, candidati){
   if(!el) return;
   let pronta = null;
   el.__assetPronto = new Promise(r => { pronta = r; });
+  for(const url of candidati){
+    const visto = _assetVisti.get(url);
+    if(visto === true){ el.src = url; pronta(); return; }
+    if(visto === undefined) break;
+  }
   let i = 0;
   const prova = ()=>{
+    while(i < candidati.length && _assetVisti.get(candidati[i]) === false) i++;
     if(i >= candidati.length){
       segnalaAssetMancante(candidati);
       pronta();
@@ -12526,8 +12533,8 @@ function impostaImgDaCandidati(el, candidati){
     }
     const url = candidati[i++];
     const test = new Image();
-    test.onload = ()=>{ el.src = url; pronta(); };
-    test.onerror = prova;
+    test.onload = ()=>{ _assetVisti.set(url, true); el.src = url; pronta(); };
+    test.onerror = ()=>{ _assetVisti.set(url, false); prova(); };
     test.src = url;
   };
   prova();
@@ -32464,7 +32471,8 @@ function buildFullHandCardSVG(card, boxW, boxH, preview){
   const cardLevel = card.level || 1;
   const LEVEL_SLOTS = 4;
   const levelSocketSize = CARD_LEVEL_SOCKET_NATIVE*scale;
-  const levelGemSize = CARD_LEVEL_GEM_NATIVE*scale;
+  const LIVELLO_GEMMA_QUOTA = 0.8;
+  const levelGemSize = CARD_LEVEL_GEM_NATIVE*scale*LIVELLO_GEMMA_QUOTA;
   const levelGap = 6*scale;
   const levelRowW = LEVEL_SLOTS*levelSocketSize+(LEVEL_SLOTS-1)*levelGap;
   let levelX = hexRightX-levelRowW;
