@@ -4594,6 +4594,12 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
   -ms-overflow-style:none;
 }
 #card-db-grid::-webkit-scrollbar{ display:none; width:0; height:0; }
+#card-db-grid.sta-scorrendo{
+  scroll-behavior:auto;
+  cursor:var(--cursore-trascina);
+  user-select:none; -webkit-user-select:none;
+}
+#card-db-grid.sta-scorrendo *{ pointer-events:none; }
 .card-db-card-slot{
   position:absolute;
   transition:transform 0.18s ease;
@@ -4975,6 +4981,18 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
 #glossario-tooltip .qt-punta{
   position:absolute; right:-1.5px; top:-1.5px; width:10px; height:10px; z-index:2;
   background:#EED8A9; clip-path:polygon(0 0, 100% 0, 100% 100%);
+}
+#glossario-tooltip.tip-a-destra, #quest-tooltip.tip-a-destra{ border-radius:0 20px 20px 20px; }
+#glossario-tooltip.tip-a-destra .qt-punta, #quest-tooltip.tip-a-destra .qt-punta{
+  right:auto; left:-1.5px; clip-path:polygon(0 0, 100% 0, 0 100%);
+}
+#glossario-tooltip.tip-sopra, #quest-tooltip.tip-sopra{ border-radius:20px 20px 0 20px; }
+#glossario-tooltip.tip-sopra .qt-punta, #quest-tooltip.tip-sopra .qt-punta{
+  top:auto; bottom:-1.5px; clip-path:polygon(100% 0, 100% 100%, 0 100%);
+}
+#glossario-tooltip.tip-a-destra.tip-sopra, #quest-tooltip.tip-a-destra.tip-sopra{ border-radius:20px 20px 20px 0; }
+#glossario-tooltip.tip-a-destra.tip-sopra .qt-punta, #quest-tooltip.tip-a-destra.tip-sopra .qt-punta{
+  right:auto; left:-1.5px; top:auto; bottom:-1.5px; clip-path:polygon(0 0, 0 100%, 100% 100%);
 }
 .gl-parola{ transition:fill 0.12s ease; }
 .gl-parola.gl-accesa{ text-shadow:0 0 5px rgba(255,205,120,0.8); }
@@ -7281,7 +7299,7 @@ try{
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.78</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.79</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -16151,8 +16169,9 @@ function _tirFine(ev){
 function _tirMuovi(ev){
   if(!_tir || ev.pointerId !== _tir.pointerId) return;
   if(!_tir.attivo){
-    const d = Math.hypot(ev.clientX - _tir.partenzaX, ev.clientY - _tir.partenzaY);
-    if(d < TIR_SOGLIA_PX) return;
+    const dx = ev.clientX - _tir.partenzaX, dy = ev.clientY - _tir.partenzaY;
+    if(Math.hypot(dx, dy) < TIR_SOGLIA_PX) return;
+    if(_scorriPrende(dx, dy)){ _tirFine(ev); return; }
     _tirAvvia(ev);
   }
   const p = _tirPosizioneAutoriale(ev);
@@ -17441,8 +17460,24 @@ function tooltipSegui(tip){
   const k = (radice.offsetWidth ? rr.width / radice.offsetWidth : 1) || 1;
   const px = (_puntatoreUltimo.x - rr.left) / k, py = (_puntatoreUltimo.y - rr.top) / k;
   const larga = tip.offsetWidth || 280, alta = tip.offsetHeight || 60;
-  const x = Math.max(8, px - TOOLTIP_STACCO - larga);
-  const y = Math.max(8, Math.min(py + TOOLTIP_STACCO, (radice.offsetHeight || 1080) - alta - 8));
+  const dentroL = radice.offsetWidth || 1920, dentroA = radice.offsetHeight || 1080;
+
+  let x = px - TOOLTIP_STACCO - larga;
+  let aDestra = false;
+  if(x < 8){
+    const provaDestra = px + TOOLTIP_STACCO;
+    if(provaDestra + larga <= dentroL - 8){ x = provaDestra; aDestra = true; }
+    else x = Math.max(8, Math.min(x, dentroL - larga - 8));
+  }
+  let y = py + TOOLTIP_STACCO;
+  let sopra = false;
+  if(y + alta > dentroA - 8){
+    const provaSopra = py - TOOLTIP_STACCO - alta;
+    if(provaSopra >= 8){ y = provaSopra; sopra = true; }
+    else y = Math.max(8, Math.min(y, dentroA - alta - 8));
+  }
+  tip.classList.toggle('tip-a-destra', aDestra);
+  tip.classList.toggle('tip-sopra', sopra);
   tip.style.left = Math.round(x) + 'px';
   tip.style.top = Math.round(y) + 'px';
 }
@@ -21020,6 +21055,7 @@ function openCardDbOverlay(){
   cardDbCascataAllaProssimaApertura();
   cardDbRenderRoster();
   initCardDbFoilTilt();
+  initCardDbDragScroll();
 
   musicaMenuAvvia();
 }
@@ -21878,7 +21914,57 @@ function initCardDbFoilTilt(){
   }, {passive:true});
   grid.addEventListener('pointerleave', clearActive);
 }
-function initCardDbDragScroll(){  }
+const SCORRI_SOGLIA_PX = TIR_SOGLIA_PX;
+const SCORRI_MARGINE = 1.3;
+let _scorri = null;
+function _scorriPrende(dx, dy){
+  if(!_scorri) return false;
+  if(_scorri.preso !== null) return _scorri.preso;
+  if(Math.hypot(dx, dy) < SCORRI_SOGLIA_PX) return false;
+  const inModifica = (typeof _mazzoInModifica !== 'undefined') && !!_mazzoInModifica;
+  const esito = (!inModifica || !_scorri.suCarta)
+    ? true
+    : Math.abs(dy) > Math.abs(dx) * SCORRI_MARGINE;
+  _scorri.preso = esito;
+  if(esito){
+    _scorri.griglia.classList.add('sta-scorrendo');
+    try{ _scorri.griglia.setPointerCapture(_scorri.pointerId); }catch(_){ }
+  }
+  return esito;
+}
+function initCardDbDragScroll(){
+  if(_cardDbDragScrollInit) return;
+  const griglia = document.getElementById('card-db-grid');
+  if(!griglia) return;
+  _cardDbDragScrollInit = true;
+  griglia.addEventListener('pointerdown', (ev)=>{
+    if(ev.button !== undefined && ev.button !== 0) return;
+    const slot = ev.target && ev.target.closest
+      ? ev.target.closest('#card-db-grid .card-db-card-slot') : null;
+    _scorri = { x0:ev.clientX, y0:ev.clientY, top0:griglia.scrollTop,
+                pointerId:ev.pointerId, preso:null, suCarta:!!slot, griglia };
+  });
+  document.addEventListener('pointermove', (ev)=>{
+    if(!_scorri || ev.pointerId !== _scorri.pointerId) return;
+    const dx = ev.clientX - _scorri.x0, dy = ev.clientY - _scorri.y0;
+    if(!_scorriPrende(dx, dy)) return;
+    _scorri.griglia.scrollTop = _scorri.top0 - dy;
+  }, true);
+  const finisci = (ev)=>{
+    if(!_scorri || (ev && ev.pointerId !== undefined && ev.pointerId !== _scorri.pointerId)) return;
+    const scorso = _scorri.preso === true;
+    try{ _scorri.griglia.releasePointerCapture(_scorri.pointerId); }catch(_){ }
+    _scorri.griglia.classList.remove('sta-scorrendo');
+    _scorri = null;
+    if(scorso){
+      const ingoia = (e)=>{ e.stopPropagation(); e.preventDefault(); };
+      document.addEventListener('click', ingoia, true);
+      setTimeout(()=>document.removeEventListener('click', ingoia, true), 0);
+    }
+  };
+  document.addEventListener('pointerup', finisci, true);
+  document.addEventListener('pointercancel', finisci, true);
+}
 
 const NOTE_REL  = '../patch-notes.txt';
 const NOTE_BASE = 'https://hextalegame.com/patch-notes.txt';
@@ -35313,19 +35399,27 @@ function _lvGira(el, da, a, ms, gen, alPasso){
     requestAnimationFrame(passo);
   });
 }
+const LV_FUOCO_CALDO  = [255, 219, 140];
+const LV_FUOCO_BIANCO = [255, 255, 255];
+function _lvTintaFuoco(){
+  const t = Math.random();
+  const r = Math.round(LV_FUOCO_CALDO[0] + (LV_FUOCO_BIANCO[0] - LV_FUOCO_CALDO[0]) * t);
+  const v = Math.round(LV_FUOCO_CALDO[1] + (LV_FUOCO_BIANCO[1] - LV_FUOCO_CALDO[1]) * t);
+  const b = Math.round(LV_FUOCO_CALDO[2] + (LV_FUOCO_BIANCO[2] - LV_FUOCO_CALDO[2]) * t);
+  return 'rgb(' + r + ',' + v + ',' + b + ')';
+}
 function _lvFuochi(canvas, cx, cy){
   const g = canvas && canvas.getContext && canvas.getContext('2d');
   if(!g) return;
   canvas.width = canvas.clientWidth || 1920;
   canvas.height = canvas.clientHeight || 1080;
-  const colori = ['#F8D06A', '#FFF4D6', '#6AAFBA', '#E8A72E', '#C77DFF', '#7FE0A0', '#FF7A6B'];
   const scintille = [];
   const scoppio = (quante, forza, ritardo) => {
     for(let i = 0; i < quante; i++){
       const ang = Math.random() * Math.PI * 2;
       const v = forza * (0.3 + Math.random() * 0.7);
       scintille.push({ x:cx, y:cy, vx:Math.cos(ang)*v, vy:Math.sin(ang)*v, nata:ritardo,
-        vita:900 + Math.random()*900, colore:colori[(Math.random()*colori.length)|0], spessore:(1.2 + Math.random()*2.4) * LV_FUOCHI_SCALA });
+        vita:900 + Math.random()*900, colore:_lvTintaFuoco(), spessore:(1.2 + Math.random()*2.4) * LV_FUOCHI_SCALA });
     }
   };
   scoppio(110, 0.95 * LV_FUOCHI_SCALA, 0);
