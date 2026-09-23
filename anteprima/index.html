@@ -7284,7 +7284,7 @@ try{
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.73</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.74</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -13917,13 +13917,16 @@ document.addEventListener('error', (ev)=>{
 
 const _baseCarteDette = new Set();
 const _baseCarteAttese = new Set();
+const _baseCarteEsiti = new Map();
 function _sorvegliaBaseCarta(img){
   const url = img.getAttribute('href') || '';
   if(!url) return;
   const dillo = (testo, grave)=>{
     if(_baseCarteDette.has(url)) return;
     _baseCarteDette.add(url);
+    _baseCarteEsiti.set(url, testo);
     (grave ? console.warn : console.info)('[carta] base ' + testo + ': ' + url);
+    try{ _scriviEsitoBase(); }catch(_){ }
   };
   img.addEventListener('load', ()=>{
     try{
@@ -13936,6 +13939,43 @@ function _sorvegliaBaseCarta(img){
   if(_baseCarteDette.has(url) || _baseCarteAttese.has(url)) return;
   _baseCarteAttese.add(url);
   setTimeout(()=>{ dillo('muta: nessuna risposta in 8s', true); }, 8000);
+  try{
+    const prova = new Image();
+    prova.onload = ()=>{
+      _baseCarteEsiti.set(url + ' (come <img>)', 'decodificata ' + prova.naturalWidth + 'x' + prova.naturalHeight);
+      try{ _scriviEsitoBase(); }catch(_){ }
+    };
+    prova.onerror = ()=>{
+      _baseCarteEsiti.set(url + ' (come <img>)', 'NON si decodifica');
+      try{ _scriviEsitoBase(); }catch(_){ }
+    };
+    prova.src = url;
+  }catch(_){ }
+}
+function _scriviEsitoBase(){
+  const pannello = document.getElementById('debug-pannello');
+  if(!pannello) return;
+  let riga = document.getElementById('debug-base-carta');
+  if(!riga){
+    riga = document.createElement('div');
+    riga.id = 'debug-base-carta';
+    riga.style.cssText = 'margin:0 0 10px;padding:8px 10px;border-radius:6px;'
+      + 'background:rgba(0,0,0,0.30);font-family:monospace;font-size:11px;'
+      + 'line-height:1.5;color:#F4E9D7;word-break:break-all;';
+    const griglia = document.getElementById('debug-grid');
+    if(griglia && griglia.parentNode === pannello) pannello.insertBefore(riga, griglia);
+    else pannello.appendChild(riga);
+  }
+  const voci = [];
+  _baseCarteEsiti.forEach((esito, ind)=>{
+    voci.push('• ' + ind.split('/').pop() + ' — ' + esito);
+  });
+  riga.textContent = 'card-base: ' + (voci.length ? '' : 'nessuna carta ancora disegnata');
+  voci.forEach(v=>{
+    const r = document.createElement('div');
+    r.textContent = v;
+    riga.appendChild(r);
+  });
 }
 
 const PEZZI_LIBRERIA = [
@@ -18395,6 +18435,7 @@ function openDebugModal(){
     return;
   }
   try{ montaMenuDebug(); }catch(_){}
+  try{ _scriviEsitoBase(); }catch(_){}
   document.getElementById('debug-modal-overlay').classList.add('show');
 }
 function closeDebugModal(){
