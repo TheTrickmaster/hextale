@@ -7281,7 +7281,7 @@ try{
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.76</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.77</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -13950,6 +13950,50 @@ function _sorvegliaBaseCarta(img){
     prova.src = url;
   }catch(_){ }
   try{ _dilloDellaScheda(); }catch(_){ }
+  try{ _rinfrescaBasiCarta(); }catch(_){ }
+}
+let _basiRinfrescate = false;
+async function _rinfrescaBasiCarta(){
+  if(_basiRinfrescate) return;
+  _basiRinfrescate = true;
+  const quali = [
+    { nome:'scura',  vecchio: CARD_BASE_DARK,  metti: (u)=>{ CARD_BASE_DARK = u; } },
+    { nome:'chiara', vecchio: CARD_BASE_LIGHT, metti: (u)=>{ CARD_BASE_LIGHT = u; } }
+  ];
+  for(const q of quali){
+    if(/^blob:/.test(q.vecchio)) continue;
+    try{
+      const r = await fetch(q.vecchio);
+      if(!r.ok) throw new Error('risposta ' + r.status);
+      const blob = await r.blob();
+      const nuovo = URL.createObjectURL(blob);
+      q.metti(nuovo);
+      let quante = 0;
+      document.querySelectorAll('.hand-card-full-chrome > image').forEach(el=>{
+        if(el.getAttribute('href') === q.vecchio){ _immagineScrivi(el, nuovo); quante++; }
+      });
+      document.querySelectorAll('.hand-card-base-css').forEach(el=>{
+        const s = el.getAttribute('style') || '';
+        if(s.indexOf(q.vecchio) >= 0) el.setAttribute('style', s.split(q.vecchio).join(nuovo));
+      });
+      _baseCarteEsiti.set('base ' + q.nome + ' rifatta', 'indirizzo nuovo (blob), ' + blob.size
+        + ' byte, ' + quante + ' carte aggiornate' + _provaSuTelaDa(nuovo, q.nome));
+    }catch(e){
+      _baseCarteEsiti.set('base ' + q.nome + ' rifatta', 'NON riuscita: ' + (e && e.message));
+    }
+    try{ _scriviEsitoBase(); }catch(_){ }
+  }
+}
+function _provaSuTelaDa(url, nome){
+  try{
+    const im = new Image();
+    im.onload = ()=>{
+      _baseCarteEsiti.set('copia nuova ' + nome + ', su tela', _provaSuTela(im).replace(/^ \| /, ''));
+      try{ _scriviEsitoBase(); }catch(_){ }
+    };
+    im.src = url;
+    return '';
+  }catch(e){ return ' | tela: ' + (e && e.message); }
 }
 function _provaSuTela(im){
   try{
@@ -31074,8 +31118,8 @@ const CORNER_NATIVE_W = 185;
 const CORNER_NATIVE_H = 107;
 
 const CARD_PARTS_BASE = 'https://hextalegame.com/cards/card-parts/';
-const CARD_BASE_DARK  = CARD_PARTS_BASE+'card-base-dark.png';
-const CARD_BASE_LIGHT = CARD_PARTS_BASE+'card-base-light.png';
+let CARD_BASE_DARK  = CARD_PARTS_BASE+'card-base-dark.png';
+let CARD_BASE_LIGHT = CARD_PARTS_BASE+'card-base-light.png';
 const CARD_VALUE_VISUAL_HINT_DARK  = CARD_PARTS_BASE+'value-visual-hint-dark.png';
 const CARD_VALUE_VISUAL_HINT_LIGHT = CARD_PARTS_BASE+'value-visual-hint-light.png';
 const TRAIT_ICONS_BASE = CARD_PARTS_BASE + 'Archetypes/';
