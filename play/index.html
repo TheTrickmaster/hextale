@@ -7298,7 +7298,7 @@ try{
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.84</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.85</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -24143,7 +24143,6 @@ function ricalcolaValoriVivi(card, cella){
   if(sinergieDalFoglio()){
     if(!card.valoriBase) card.valoriBase = {...card.values};
     card.values = ABILITA_MOTORE.valoriEffettivi(card, _scenaTabellone());
-    if(_simulazioneInCorso && _toccataDaContinuoACaso(card, _scenaTabellone())) card.__aSorte = true;
     if(protettoDaBagheera(card)){
       for(const lato of SIDES){
         const base = card.valoriBase[lato];
@@ -28678,6 +28677,27 @@ function simulaPiazzamento(card, q, r){
     mano2.forEach(c=>{ recalcHoorayShesStays(c); recalcMischief(c); recalcNightmare(c); });
     }
 
+    if(typeof sinergieDalFoglio === 'function' && sinergieDalFoglio()){
+      const girate = [];
+      try{
+        for(const presa of cellePreseDa(cartaClone, q, r, proprietario, clone)){
+          const posto = clone[presa.nk];
+          if(!posto || !posto.card) continue;
+          girate.push({ posto, eraPosto: posto.owner, eraCarta: posto.card.owner });
+          posto.owner = proprietario;
+          posto.card.owner = proprietario;
+        }
+      }catch(e){ console.info('[anteprima] chi cade: ' + (e && e.message)); }
+      try{
+        const scenaDopo = _scenaTabellone();
+        for(const k in clone){
+          if(clone[k].card && _toccataDaContinuoACaso(clone[k].card, scenaDopo)) clone[k].card.__aSorte = true;
+        }
+        mano1.forEach(c=>{ if(_toccataDaContinuoACaso(c, scenaDopo)) c.__aSorte = true; });
+        mano2.forEach(c=>{ if(_toccataDaContinuoACaso(c, scenaDopo)) c.__aSorte = true; });
+      }catch(e){ console.info('[anteprima] segno del caso: ' + (e && e.message)); }
+      for(const g of girate){ g.posto.owner = g.eraPosto; g.posto.card.owner = g.eraCarta; }
+    }
     const esito = { cellaGiocata: cella, tabellone: {}, mani: {1:{}, 2:{}},
                     aSorte: { tabellone: {}, mani: {1:{}, 2:{}} } };
     for(const k in clone){
@@ -28941,6 +28961,32 @@ function shakeBoard(hitIndex, ux, uy){
   wrap.classList.add((_shakeToggle++ % 2===0) ? 'board-shake-a' : 'board-shake-b');
 }
 
+function cellePreseDa(card, q, r, player, tabellone){
+  const prese = [];
+  const snap = tabellone || (typeof G !== 'undefined' && G ? G.board : null);
+  if(!card || !snap) return prese;
+  let myEffective;
+  try{ myEffective = getFactionBonus(card, q, r, snap).values; }catch(_){ return prese; }
+  for(const dir of DIRS){
+    const nk = key(q+dir.dq, r+dir.dr);
+    const nb = snap[nk];
+    if(!nb || nb.owner === player) continue;
+    if(cartaIntoccabile(nb.card)) continue;
+    if(latoInconquistabile(nb.card, dir.theirSide)) continue;
+    if(!puoConquistare(card, nb.card, {
+      differenza: Math.abs((myEffective[dir.mySide]||0) - ((nb.card.values||{})[dir.theirSide]||0)),
+      valoreAttacco: (myEffective[dir.mySide]||0)
+    })) continue;
+    const [nq, nr] = nk.split(',').map(Number);
+    let theirEffective;
+    try{ theirEffective = getFactionBonus(nb.card, nq, nr, snap).values; }catch(_){ continue; }
+    const myAttackVal = getAttackValueForSide(card, myEffective, dir.mySide);
+    if(vinceIlConfronto(card, myAttackVal, theirEffective[dir.theirSide], nb.card)){
+      prese.push({ nk, dir, atkVal: myAttackVal, defVal: theirEffective[dir.theirSide] });
+    }
+  }
+  return prese;
+}
 function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLandAnim){
   try{
     const dove = _cellaDellaCarta(card);
@@ -28957,23 +29003,12 @@ function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLa
   const myEffective=getFactionBonus(card,q,r,snap).values;
   const conquered=[];
   const conquestInfo=[];
-  for(const dir of DIRS){
-    const nk=key(q+dir.dq,r+dir.dr);
-    const nb=snap[nk];
-    if(!nb||nb.owner===player)continue;
-    if(cartaIntoccabile(nb.card)) continue;
-    if(latoInconquistabile(nb.card, dir.theirSide)) continue;
-    if(!puoConquistare(card, nb.card, {
-      differenza: Math.abs((myEffective[dir.mySide]||0) - ((nb.card.values||{})[dir.theirSide]||0)),
-      valoreAttacco: (myEffective[dir.mySide]||0)
-    })) continue;
-    const[nq,nr]=nk.split(',').map(Number);
-    const theirEffective=getFactionBonus(nb.card,nq,nr,snap).values;
-    const myAttackVal=getAttackValueForSide(card, myEffective, dir.mySide);
-    if(vinceIlConfronto(card, myAttackVal, theirEffective[dir.theirSide], nb.card)){
+  for(const presa of cellePreseDa(card, q, r, player, snap)){
+    const nk = presa.nk, dir = presa.dir, nb = snap[nk];
+    {
       G.board[nk]={card:nb.card,owner:player};
       conquered.push(nk);
-      conquestInfo.push({nk, dir, prevOwner:nb.owner, atkVal:myAttackVal, defVal:theirEffective[dir.theirSide]});
+      conquestInfo.push({nk, dir, prevOwner:nb.owner, atkVal:presa.atkVal, defVal:presa.defVal});
       segnaRinascitaFenice(nb.card, nb.owner);
       G.ultimaConquista[player] = {cella:nk, exProprietario:nb.owner};
     }
