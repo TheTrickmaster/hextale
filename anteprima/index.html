@@ -3648,6 +3648,12 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
   width:var(--dim,2px); height:var(--dim,2px);
   margin:calc(var(--dim,2px) / -2) 0 0 calc(var(--dim,2px) / -2);
   border-radius:50%;
+  -webkit-mask-image:var(--forma, none); mask-image:var(--forma, none);
+  -webkit-mask-size:calc(100% * var(--forma-scala, 1)) calc(100% * var(--forma-scala, 1));
+          mask-size:calc(100% * var(--forma-scala, 1)) calc(100% * var(--forma-scala, 1));
+  -webkit-mask-position:center; mask-position:center;
+  -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat;
+
   background:#FFF2D5;
   filter:blur(var(--sfoca,2px));
   mix-blend-mode:plus-lighter;
@@ -3799,6 +3805,12 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
 .pack-scia{
   position:absolute; left:0; top:0;
   border-radius:50%;
+  -webkit-mask-image:var(--forma, none); mask-image:var(--forma, none);
+  -webkit-mask-size:calc(100% * var(--forma-scala, 1)) calc(100% * var(--forma-scala, 1));
+          mask-size:calc(100% * var(--forma-scala, 1)) calc(100% * var(--forma-scala, 1));
+  -webkit-mask-position:center; mask-position:center;
+  -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat;
+
   opacity:0;
   filter:blur(1px);
   mix-blend-mode:plus-lighter;
@@ -7298,7 +7310,7 @@ try{
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.85</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.87</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -9088,6 +9100,102 @@ const PAGE_ENTER_HOOKS = {
 };
 let _activePage = null;
 const PARTICELLE_COLORE = '#FFF8C3';
+const PARTICELLE_QUANTE = 12;
+const _particelleImg = [];
+const _particelleTinte = new Map();
+let _particelleCandidati = null;
+let _particelleChieste = false;
+function particelleCandidati(){
+  if(_particelleCandidati) return _particelleCandidati;
+  _particelleCandidati = [
+    uiFileCandidati('particles/particle01.png'),
+    uiFileCandidati('particles/particle02.png'),
+    uiFileCandidati('particles/particle03.png'),
+    uiFileCandidati('particles/particle04.png'),
+    uiFileCandidati('particles/particle05.png'),
+    uiFileCandidati('particles/particle06.png'),
+    uiFileCandidati('particles/particle07.png'),
+    uiFileCandidati('particles/particle08.png'),
+    uiFileCandidati('particles/particle09.png'),
+    uiFileCandidati('particles/particle10.png'),
+    uiFileCandidati('particles/particle11.png'),
+    uiFileCandidati('particles/particle12.png')
+  ];
+  return _particelleCandidati;
+}
+function particelleCarica(){
+  if(_particelleChieste) return;
+  _particelleChieste = true;
+  const liste = particelleCandidati();
+  for(let i = 0; i < PARTICELLE_QUANTE; i++){
+    const im = new Image();
+    try{ impostaImgDaCandidati(im, liste[i]); }catch(_){ }
+    _particelleImg[i] = im;
+  }
+}
+const _particelleScala = [];
+function particellaScala(i){
+  i = i % PARTICELLE_QUANTE;
+  if(_particelleScala[i] !== undefined) return _particelleScala[i];
+  const im = _particelleImg[i];
+  if(!im || !im.complete || !im.naturalWidth) return 1;
+  let scala = 1;
+  try{
+    const c = document.createElement('canvas');
+    c.width = im.naturalWidth; c.height = im.naturalHeight;
+    const g = c.getContext('2d', { willReadFrequently: true });
+    g.drawImage(im, 0, 0);
+    const d = g.getImageData(0, 0, c.width, c.height).data;
+    let minX = c.width, maxX = -1, minY = c.height, maxY = -1;
+    for(let y = 0; y < c.height; y++){
+      for(let x = 0; x < c.width; x++){
+        if(d[(y * c.width + x) * 4 + 3] > 30){
+          if(x < minX) minX = x;
+          if(x > maxX) maxX = x;
+          if(y < minY) minY = y;
+          if(y > maxY) maxY = y;
+        }
+      }
+    }
+    const lato = Math.max(maxX - minX + 1, maxY - minY + 1);
+    if(lato > 0) scala = Math.max(c.width, c.height) / lato;
+  }catch(_){ }
+  _particelleScala[i] = scala;
+  return scala;
+}
+function particellaACaso(){ return (Math.random() * PARTICELLE_QUANTE) | 0; }
+function particellaTinta(i, colore){
+  particelleCarica();
+  const im = _particelleImg[i % PARTICELLE_QUANTE];
+  if(!im || !im.complete || !im.naturalWidth) return null;
+  const chiave = (i % PARTICELLE_QUANTE) + '|' + colore;
+  let tela = _particelleTinte.get(chiave);
+  if(tela) return tela;
+  try{
+    tela = document.createElement('canvas');
+    tela.width = im.naturalWidth; tela.height = im.naturalHeight;
+    const g = tela.getContext('2d');
+    g.drawImage(im, 0, 0);
+    g.globalCompositeOperation = 'source-in';
+    g.fillStyle = colore;
+    g.fillRect(0, 0, tela.width, tela.height);
+  }catch(_){ return null; }
+  _particelleTinte.set(chiave, tela);
+  return tela;
+}
+function particellaDisegna(g, i, colore, x, y, r){
+  const tela = particellaTinta(i, colore);
+  if(tela){
+    const lato = r * 2 * particellaScala(i);
+    g.drawImage(tela, x - lato / 2, y - lato / 2, lato, lato);
+    return;
+  }
+  g.fillStyle = colore;
+  g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+}
+function particellaUrl(i){
+  try{ return particelleCandidati()[i % PARTICELLE_QUANTE][0]; }catch(_){ return ''; }
+}
 const PARTICELLE_PIANI = [
   { id:'start-particles-far',  quante:90, rMin:0.3, rMax:0.7, vMin:5,  vMax:11, alfaMin:0.25, alfaMax:0.55, ondaMin:2,  ondaMax:7  },
   { id:'start-particles-mid',  quante:80, rMin:0.7, rMax:1.5, vMin:12, vMax:22, alfaMin:0.45, alfaMax:0.90, ondaMin:5,  ondaMax:14 },
@@ -9102,6 +9210,7 @@ const _pCaso = (a,b)=> a + Math.random()*(b-a);
 function _pNuovoGranello(piano, w, h, sparso){
   const r = _pCaso(piano.rMin, piano.rMax);
   return {
+    forma: particellaACaso(),
     vita: piano.vitaMin ? _pCaso(piano.vitaMin, piano.vitaMax) : piano.vita,
     eta: 0,
     x: _pCaso(-20, w+20),
@@ -9189,9 +9298,7 @@ function PolvereAvvia(piani, scena, misura){
         }
         const x = g.x + Math.sin(t*g.freq*Math.PI*2 + g.fase) * g.onda;
         ctx.globalAlpha = g.alfa * svanisce;
-        ctx.beginPath();
-        ctx.arc(x, g.y, g.r, 0, Math.PI*2);
-        ctx.fill();
+        particellaDisegna(ctx, g.forma, PARTICELLE_COLORE, x, g.y, g.r);
       }
       ctx.globalAlpha = 1;
     }
@@ -9241,6 +9348,7 @@ function _pbNuovoGranello(piano, w, h, indice){
   const x0 = aDestra ? (w - fascia + Math.random()*fascia) : (Math.random()*fascia);
   return {
     x0, y0: Math.random()*h,
+    forma: particellaACaso(),
     r: _pCaso(piano.rMin, piano.rMax),
     ax: _pCaso(piano.vagoMin, piano.vagoMax),
     ay: _pCaso(piano.vagoMin, piano.vagoMax) * 0.7,
@@ -12061,9 +12169,7 @@ function PolvereBustineAvvia(){
         const x = g.x0 + Math.sin(t*g.fx*Math.PI*2 + g.px) * g.ax;
         const y = g.y0 + Math.sin(t*g.fy*Math.PI*2 + g.py) * g.ay;
         ctx.globalAlpha = g.alfa;
-        ctx.beginPath();
-        ctx.arc(x, y, g.r, 0, Math.PI*2);
-        ctx.fill();
+        particellaDisegna(ctx, g.forma, PARTICELLE_COLORE, x, y, g.r);
       }
       ctx.globalAlpha = 1;
     }
@@ -12083,7 +12189,7 @@ function PolvereBustineFerma(){
   _polvereBustineStrati = null;
 }
 
-const TRANSIZIONE_MS = 200;
+const TRANSIZIONE_MS = 100;
 const PAGINE_DELLA_STANZA = new Set(['mainmenu', 'collection', 'packs']);
 const PAGINE_PEZZI = {
   mainmenu: [
@@ -12091,9 +12197,9 @@ const PAGINE_PEZZI = {
     { sel:'#mm2-sx',       via:'sinistra' },
     { sel:'#mm2-dx',       via:'destra' },
     { sel:'#mm2-testata',  via:'sfuma' },
-    { sel:'#mm2-modi',     via:'sfuma', entra:50 },
-    { sel:'#mm2-gioca',    via:'sfuma', esce:50, entra:100 },
-    { sel:'#mm2-basso',    via:'sfuma', esce:50, entra:100 },
+    { sel:'#mm2-modi',     via:'sfuma', entra:25 },
+    { sel:'#mm2-gioca',    via:'sfuma', esce:25, entra:50 },
+    { sel:'#mm2-basso',    via:'sfuma', esce:25, entra:50 },
   ],
   collection: [
     { sel:'#card-db-header',        via:'su' },
@@ -13609,6 +13715,7 @@ function questVoloFotogramma(){
         const f = i / passi;
         _questScia.push({ x: ult.x + (x - ult.x) * f + (Math.random() - 0.5) * 8, y: ult.y + (y - ult.y) * f + (Math.random() - 0.5) * 8,
           nato: ora, vita: 380 + Math.random() * 260, r: 3 + Math.random() * 4, col: QUEST_SCIA_COLORE[v.premio],
+          forma: particellaACaso(),
           vx: (Math.random() - 0.5) * 0.03, vy: (Math.random() - 0.5) * 0.03 });
       }
       v.coda.push({ x, y, t: ora });
@@ -13649,12 +13756,10 @@ function questSciaDisegna(ora){
   for(const p of _questScia){
     const dt = ora - p.nato, u = dt / p.vita;
     const x = p.x + p.vx * dt, y = p.y + p.vy * dt, r = p.r * (1 - 0.5 * u) * 2.2;
-    const grad = g.createRadialGradient(x, y, 0, x, y, r);
-    grad.addColorStop(0, 'rgba(255,255,255,' + (0.9 * (1 - u)).toFixed(3) + ')');
-    grad.addColorStop(0.35, 'rgba(' + p.col + ',' + (0.7 * (1 - u)).toFixed(3) + ')');
-    grad.addColorStop(1, 'rgba(' + p.col + ',0)');
-    g.fillStyle = grad;
-    g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+    const eraAlfa = g.globalAlpha;
+    g.globalAlpha = eraAlfa * (1 - u);
+    particellaDisegna(g, p.forma, 'rgb(' + p.col + ')', x, y, r);
+    g.globalAlpha = eraAlfa;
   }
 }
 function questVoloArriva(v){
@@ -13666,6 +13771,7 @@ function questVoloArriva(v){
     for(let i = 0; i < 16; i++){
       const ang = Math.random() * Math.PI * 2, vel = 0.08 + Math.random() * 0.16;
       _questScia.push({ x: v.p1.x, y: v.p1.y, nato: ora, vita: 420 + Math.random() * 240, r: 2.5 + Math.random() * 3.5,
+        forma: particellaACaso(),
         col: QUEST_SCIA_COLORE[v.premio], vx: Math.cos(ang) * vel, vy: Math.sin(ang) * vel });
     }
     v.img.remove(); v.img = null;
@@ -19437,6 +19543,11 @@ function accendiScintille(){
     respiro.className = 'pack-spark-pulse';
     const punto = document.createElement('i');
     punto.className = 'pack-spark-dot';
+    try{
+      const f = particellaACaso();
+      punto.style.setProperty('--forma', 'url("' + particellaUrl(f) + '")');
+      punto.style.setProperty('--forma-scala', particellaScala(f).toFixed(3));
+    }catch(_){ }
 
     const x0 = caso(-22, 22);
     const y0 = caso(-16, 16);
@@ -20288,6 +20399,11 @@ function bustaScintilleCarta(carta){
     p.className = 'pack-scia';
     const dim = caso(conf.dimMin, conf.dimMax);
     p.style.cssText = 'width:'+dim.toFixed(1)+'px;height:'+dim.toFixed(1)+'px;background:'+colore+';';
+    try{
+      const f = particellaACaso();
+      p.style.setProperty('--forma', 'url("' + particellaUrl(f) + '")');
+      p.style.setProperty('--forma-scala', particellaScala(f).toFixed(3));
+    }catch(_){ }
     casa.appendChild(p);
     const ang = Math.random() * Math.PI * 2;
     const raggio = caso(conf.rMin, conf.rMax);
@@ -33610,10 +33726,12 @@ function _ramiDisegnaScintille(){
     const ora = performance.now();
     for(const s of _ramiScintille){
       const v = (ora - s.nata) / s.vita;
-      const c = document.createElementNS(NS, 'circle');
-      c.setAttribute('cx', s.x.toFixed(1)); c.setAttribute('cy', s.y.toFixed(1));
-      c.setAttribute('r', (s.r * (1 - v * 0.6)).toFixed(2));
+      const raggio = s.r * (1 - v * 0.6);
+      const c = document.createElementNS(NS, 'rect');
+      c.setAttribute('x', (s.x - raggio).toFixed(1)); c.setAttribute('y', (s.y - raggio).toFixed(1));
+      c.setAttribute('width', (raggio * 2).toFixed(2)); c.setAttribute('height', (raggio * 2).toFixed(2));
       c.setAttribute('fill', 'url(#board-vines-oro)');
+      if(s.forma !== undefined) c.setAttribute('mask', 'url(#board-vines-forma' + s.forma + ')');
       c.setAttribute('opacity', (v < 0.15 ? v / 0.15 : 1 - (v - 0.15) / 0.85).toFixed(3));
       g.appendChild(c);
     }
@@ -33639,7 +33757,7 @@ function _ramiCresci(){
       const p = _ramiPuntoSulRamo(fronte);
       if(!p) continue;
       _ramiScintille.push({ x: p.x, y: p.y, vx: (Math.random() - 0.5) * 60, vy: -(40 + Math.random() * 110),
-        r: 8 + Math.random() * 10, nata: ora,
+        r: 8 + Math.random() * 10, nata: ora, forma: particellaACaso(),
         vita: RAMI_SCINTILLA_VITA_MS[0] + Math.random() * (RAMI_SCINTILLA_VITA_MS[1] - RAMI_SCINTILLA_VITA_MS[0]) });
     }
   }
@@ -33729,6 +33847,20 @@ function _mascheraDeiRami(root){
     oro.appendChild(s);
   }
   defs.appendChild(oro);
+  for(let i = 0; i < PARTICELLE_QUANTE; i++){
+    if(defs.querySelector('#board-vines-forma' + i)) continue;
+    const m = document.createElementNS(NS, 'mask');
+    m.setAttribute('id', 'board-vines-forma' + i);
+    m.setAttribute('maskContentUnits', 'objectBoundingBox');
+    const sc = particellaScala(i);
+    const im = document.createElementNS(NS, 'image');
+    im.setAttribute('x', ((1 - sc) / 2).toFixed(4)); im.setAttribute('y', ((1 - sc) / 2).toFixed(4));
+    im.setAttribute('width', sc.toFixed(4)); im.setAttribute('height', sc.toFixed(4));
+    im.setAttribute('preserveAspectRatio', 'none');
+    im.setAttribute('href', particellaUrl(i));
+    m.appendChild(im);
+    defs.appendChild(m);
+  }
   root.insertBefore(defs, root.firstChild);
 }
 function stratoCarteDellaPlancia(root){
@@ -35483,7 +35615,8 @@ function _lvFuochi(canvas, cx, cy){
       const ang = Math.random() * Math.PI * 2;
       const v = forza * (0.3 + Math.random() * 0.7);
       scintille.push({ x:cx, y:cy, vx:Math.cos(ang)*v, vy:Math.sin(ang)*v, nata:ritardo,
-        vita:900 + Math.random()*900, colore:_lvTintaFuoco(), spessore:(1.2 + Math.random()*2.4) * LV_FUOCHI_SCALA });
+        vita:900 + Math.random()*900, colore:_lvTintaFuoco(), forma:particellaACaso(),
+        spessore:(1.2 + Math.random()*2.4) * LV_FUOCHI_SCALA });
     }
   };
   scoppio(110, 0.95 * LV_FUOCHI_SCALA, 0);
@@ -35517,6 +35650,7 @@ function _lvFuochi(canvas, cx, cy){
       g.moveTo(s.x - s.vx * 34, s.y - s.vy * 34);
       g.lineTo(s.x, s.y);
       g.stroke();
+      particellaDisegna(g, s.forma, s.colore, s.x, s.y, s.spessore * 1.6);
     }
     g.globalAlpha = 1;
     g.globalCompositeOperation = 'source-over';
