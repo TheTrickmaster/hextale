@@ -7299,7 +7299,7 @@ try{
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.82</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.83</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -13416,7 +13416,7 @@ const QUEST_SPIEGA = {
   play20rare:     'Play sixteen cards of Rare rarity.',
   play5timeless:  'Play five cards of Timeless rarity.',
   move10:         'Move ten of your own cards on the board with an ability.',
-  buff20:         'Give twenty Power bonuses to cards with your abilities.',
+  buff20:         'Give 20 permanent Power ups to your cards (no synergies)',
   upgrade2:       'Upgrade two cards to the next level in your Collection.',
   complete3:      'Complete three other daily quests today.',
   keep2:          'Open a pack and pay to keep two cards from it instead of one.',
@@ -13725,33 +13725,10 @@ function questSegnaMossa(posto){
   if(di !== undefined && di !== _questMio()) return;
   _questConta('sposta');
 }
-function questContaSinergieDelTurno(){
-  if(!G || !G.board || G.gameOver) return;
-  if(typeof _simulazioneInCorso !== 'undefined' && _simulazioneInCorso) return;
-  if(typeof sinergieDalFoglio !== 'function' || !sinergieDalFoglio()) return;
-  const mio = _questMio();
-  if(G.currentPlayer !== mio) return;
-  let scena;
-  try{ scena = _scenaTabellone(); }catch(_){ return; }
-  const motore = _motore();
-  const inCampo = (scena && scena.inCampo) || [];
-  for(const fonte of inCampo){
-    if(!fonte || fonte.owner !== mio) continue;
-    for(const bersaglio of inCampo){
-      if(!bersaglio) continue;
-      let d = null;
-      try{ d = motore.deltaContinuo(bersaglio, scena, fonte); }catch(_){ continue; }
-      if(!d) continue;
-      let da = 0;
-      for(const lato of SIDES) if((d[lato] || 0) > 0) da = 1;
-      if(!da) continue;
-      questSegnaBuff(bersaglio, { chiave: 'sinergia:' + (fonte.id || fonte.name || '?'), da: fonte.name || '' });
-    }
-  }
-}
 function questSegnaBuff(card, fonte){
   if(!G || !card || G.gameOver || G.currentPlayer !== _questMio()) return;
   if(typeof _simulazioneInCorso !== 'undefined' && _simulazioneInCorso) return;
+  if(card.owner !== undefined && card.owner !== _questMio()) return;
   const chiave = (card.id || card.name || '?') + '|' + ((fonte && (fonte.chiave || fonte.da)) || '') + '|' + (G.numeroTurno || 0);
   if(_questBuffVisti.has(chiave)) return;
   _questBuffVisti.add(chiave);
@@ -15694,8 +15671,6 @@ function aggiornaPannelloModifica(){
   salva.setAttribute('aria-disabled', mazzoGiocabile(m) ? 'false' : 'true');
 }
 const DECK_ANTEPRIMA_SCALA = 1.15;
-const DECK_ANTEPRIMA_LEFT = 1310;
-const DECK_COLONNA_LEFT = 1485;
 function deckAnteprimaMostra(riga, entry){
   const host = document.getElementById('deck-anteprima');
   if(!host || !riga || !entry) return;
@@ -15716,8 +15691,10 @@ function deckAnteprimaMostra(riga, entry){
   }catch(e){ console.info('[anteprima mazzo] ' + (e && e.message)); return; }
   const margine = 12;
   const colonna = document.getElementById('card-db-right');
-  const daColonna = colonna ? colonna.getBoundingClientRect().left - (DECK_COLONNA_LEFT - DECK_ANTEPRIMA_LEFT) * k : (r.left - W - 18 * k);
-  host.style.left = Math.max(margine, daColonna) + 'px';
+  const rc = colonna ? colonna.getBoundingClientRect() : null;
+  let x = rc ? (rc.left - W - margine) : (r.left - W - 18 * k);
+  x = Math.max(margine, Math.min(x, window.innerWidth - W - margine));
+  host.style.left = Math.round(x) + 'px';
   host.style.top = Math.min(Math.max(margine, r.top + r.height / 2 - H / 2), Math.max(margine, window.innerHeight - H - margine)) + 'px';
   host.classList.add('visibile');
 }
@@ -23239,7 +23216,7 @@ const TILE_ABILITIES_DEF = {
   '!thecarpenter':   { carta:'The Carpenter', name:'Woodwork',       desc:'*Blocks* a selected empty tile' },
   '!jabberwock':     { carta:'Jabberwock',    name:'Callooh Callay', desc:'Each turn, -1 ALL to adjacent enemies for every card with *Rotated* Power on the board' },
   smol_friends:  { carta:'Snow White', name:'Smol Friends', desc:'+1 Power ALL for every /Small/ character on the board.' },
-  back_off:      { carta:'Bagheera', name:'Back off', desc:'Adjacent /allies/ can be *Buffed*, never *Debuffed*.' },
+  back_off:      { carta:'Bagheera', name:'Back off', desc:'Bagheera and adjacent /allies/ can be *Buffed*, never *Debuffed*.' },
   a_kind_of_magic:       { carta:'Merlin', name:'A Kind of Magic',    desc:"Always attacks with its highest Power value, regardless its position." },
   eat_me_drink_me:   { carta:'Alice', name:'Eat me, Drink me',   desc:'*Rotates* its power clockwise each turn while in hand.' },
   different_reality: { carta:'Cheshire Cat', name:'Different Reality', desc:'At the start of each turn, *Moves* to a random blocked tile' },
@@ -23772,6 +23749,7 @@ function _haAbilita(card, chiave){
 }
 function protettoDaBagheera(card){
   if(!card || !G || !G.board) return false;
+  if(_haAbilita(card, 'back_off')) return true;
   const cella = _cellaDellaCarta(card);
   if(!cella) return false;
   const pezzi = String(cella).split(',');
@@ -29247,7 +29225,6 @@ function endTurn(player, animationsSettled, dannoFatto){
   if(pienoDavvero||senzaCarte||bloccatoDalloYeti||bloccatoDalGelo){endGame();return;}
   (player===1?G.p1Hand:G.p2Hand).forEach(c=>cardsGlowSettled.delete(c.id));
   motoreMomentoDelTurno('end_of_turn', player);
-  try{ questContaSinergieDelTurno(); }catch(_){ }
   try{ jabberwockFineTurno(); }catch(e){ console.warn('[Callooh Callay] ' + (e && e.message)); }
   G.currentPlayer=player===1?2:1;
   try{ teleSegnaPunti(); }catch(_){ }
