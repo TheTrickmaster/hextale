@@ -292,6 +292,16 @@ h1::before{
 }
 #video .schermo:hover{ transform:translateY(-4px); }
 #video .schermo img.scena{ width:100%; height:auto; }
+/* Il riquadro e' premibile: il puntatore deve dirlo. */
+#video .schermo{ cursor:pointer; }
+#video .schermo:focus-visible{ outline:2px solid #EED8A9; outline-offset:4px; }
+/* Acceso, il fermo immagine e il play se ne vanno e resta il video. Il
+   rapporto 16:9 e' scritto qui e non lasciato al caso: senza, il riquadro
+   cambierebbe altezza nell'istante del clic e tutta la pagina sotto salterebbe. */
+#video .schermo iframe{ display:block; width:100%; aspect-ratio:16/9; border:0; }
+#video .schermo.acceso img{ display:none; }
+#video .schermo.acceso{ cursor:default; }
+#video .schermo.acceso:hover{ transform:none; }
 #video .play{
   position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
   width:88px; height:70px;
@@ -834,8 +844,16 @@ textarea.campo{ height:auto; min-height:132px; padding:14px 16px; resize:vertica
     </div>
   </header>
 
+  <!-- Il trailer. Al posto dell'immagine statica c'e' il video vero, ma non
+       si carica da solo: finche' nessuno preme resta il fermo immagine col
+       play che c'era gia' — e quello, adesso, e' un pulsante che funziona.
+       Si chiama facciata, e si fa per tre motivi: l'incorporazione di YouTube
+       pesa piu' di tutto il resto della pagina messo insieme; senza il clic
+       non parte nessun cookie di YouTube; e il disegno resta quello di prima
+       invece di diventare un rettangolo nero. -->
   <section id="video">
-    <div class="schermo entra">
+    <div class="schermo entra" id="video-schermo" data-youtube="maPfkzyLQcE"
+         role="button" tabindex="0" aria-label="Play the Hextale trailer">
       <img class="scena" src="/web-assets/sito/main-menu.png" loading="lazy" decoding="async" alt="A look at Hextale">
       <img class="play" src="/web-assets/sito/image5.png" loading="lazy" decoding="async" alt="" aria-hidden="true">
     </div>
@@ -1004,7 +1022,7 @@ textarea.campo{ height:auto; min-height:132px; padding:14px 16px; resize:vertica
     <div class="social">
       <a href="https://discord.com/invite/edsJqWhN6" target="_blank" rel="noopener" aria-label="Discord">
         <img src="/web-assets/sito/discord-icon.png" loading="lazy" decoding="async" alt="Discord"></a>
-      <a href="http://hextalegame.itch.io/" target="_blank" rel="noopener" aria-label="itch.io">
+      <a href="https://bigfennel.itch.io/hextale" target="_blank" rel="noopener" aria-label="itch.io">
         <img src="/web-assets/sito/itchio-icon.png" loading="lazy" decoding="async" alt="itch.io"></a>
       <a href="https://www.reddit.com/r/HextaleGame/" target="_blank" rel="noopener" aria-label="Reddit">
         <img src="/web-assets/sito/reddit-icon.png" loading="lazy" decoding="async" alt="Reddit"></a>
@@ -2096,6 +2114,36 @@ function dilo(come, cosa){
   esito.className = 'esito' + (come ? ' ' + come : '');
   esito.textContent = cosa;
 }
+
+// ── IL TRAILER ────────────────────────────────────────────────────────────
+// Il video si mette SOLO quando qualcuno preme (vedi il commento accanto alla
+// sezione). Da li' in poi il riquadro resta acceso: premere di nuovo non deve
+// ricaricare niente.
+(function(){
+  var s = document.getElementById('video-schermo');
+  if(!s) return;
+  var parti = function(){
+    if(s.classList.contains('acceso')) return;
+    var id = s.getAttribute('data-youtube');
+    if(!id) return;
+    var f = document.createElement('iframe');
+    // -nocookie: YouTube non lascia niente finche' il video non parte davvero
+    f.src = 'https://www.youtube-nocookie.com/embed/' + id + '?autoplay=1&rel=0';
+    f.title = 'Hextale';
+    f.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share');
+    f.setAttribute('allowfullscreen', '');
+    f.setAttribute('loading', 'lazy');
+    s.classList.add('acceso');
+    s.removeAttribute('role');
+    s.removeAttribute('tabindex');
+    s.appendChild(f);
+  };
+  s.addEventListener('click', parti);
+  // e con la tastiera, perche' e' un pulsante anche per chi non usa il mouse
+  s.addEventListener('keydown', function(e){
+    if(e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar'){ e.preventDefault(); parti(); }
+  });
+})();
 
 })();
 </script>
