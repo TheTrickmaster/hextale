@@ -3648,13 +3648,12 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
   width:var(--dim,2px); height:var(--dim,2px);
   margin:calc(var(--dim,2px) / -2) 0 0 calc(var(--dim,2px) / -2);
   border-radius:50%;
-  -webkit-mask-image:var(--forma, none); mask-image:var(--forma, none);
-  -webkit-mask-size:calc(100% * var(--forma-scala, 1)) calc(100% * var(--forma-scala, 1));
-          mask-size:calc(100% * var(--forma-scala, 1)) calc(100% * var(--forma-scala, 1));
-  -webkit-mask-position:center; mask-position:center;
-  -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat;
+  background-image:var(--forma, none);
+  background-size:calc(100% * var(--forma-scala, 1)) calc(100% * var(--forma-scala, 1));
+  background-position:center;
+  background-repeat:no-repeat;
 
-  background:#FFF2D5;
+  background-color:var(--forma-fondo, #FFF2D5);
   filter:blur(var(--sfoca,2px));
   mix-blend-mode:plus-lighter;
   animation:scintillaVive var(--vita,5400ms) linear var(--ritardo,0ms) both,
@@ -3805,11 +3804,10 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
 .pack-scia{
   position:absolute; left:0; top:0;
   border-radius:50%;
-  -webkit-mask-image:var(--forma, none); mask-image:var(--forma, none);
-  -webkit-mask-size:calc(100% * var(--forma-scala, 1)) calc(100% * var(--forma-scala, 1));
-          mask-size:calc(100% * var(--forma-scala, 1)) calc(100% * var(--forma-scala, 1));
-  -webkit-mask-position:center; mask-position:center;
-  -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat;
+  background-image:var(--forma, none);
+  background-size:calc(100% * var(--forma-scala, 1)) calc(100% * var(--forma-scala, 1));
+  background-position:center;
+  background-repeat:no-repeat;
 
   opacity:0;
   filter:blur(1px);
@@ -6888,7 +6886,7 @@ try{
     </div>
     <div id="mm2-social">
       <a href="https://discord.com/invite/edsJqWhN6" target="_blank" rel="noopener" aria-label="Discord" id="mm2-social-discord"><img alt="Discord" draggable="false"></a>
-      <a href="http://hextalegame.itch.io/" target="_blank" rel="noopener" aria-label="itch.io" id="mm2-social-itchio"><img alt="itch.io" draggable="false"></a>
+      <a href="https://bigfennel.itch.io/hextale" target="_blank" rel="noopener" aria-label="itch.io" id="mm2-social-itchio"><img alt="itch.io" draggable="false"></a>
       <a href="https://www.reddit.com/r/HextaleGame/" target="_blank" rel="noopener" aria-label="Reddit" id="mm2-social-reddit"><img alt="Reddit" draggable="false"></a>
       <a href="https://www.instagram.com/hextale.game/" target="_blank" rel="noopener" aria-label="Instagram" id="mm2-social-instagram"><img alt="Instagram" draggable="false"></a>
     </div>
@@ -7310,7 +7308,7 @@ try{
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.87</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.88</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -9102,7 +9100,6 @@ let _activePage = null;
 const PARTICELLE_COLORE = '#FFF8C3';
 const PARTICELLE_QUANTE = 12;
 const _particelleImg = [];
-const _particelleTinte = new Map();
 let _particelleCandidati = null;
 let _particelleChieste = false;
 function particelleCandidati(){
@@ -9164,30 +9161,16 @@ function particellaScala(i){
   return scala;
 }
 function particellaACaso(){ return (Math.random() * PARTICELLE_QUANTE) | 0; }
-function particellaTinta(i, colore){
+function particellaPronta(i){
   particelleCarica();
   const im = _particelleImg[i % PARTICELLE_QUANTE];
-  if(!im || !im.complete || !im.naturalWidth) return null;
-  const chiave = (i % PARTICELLE_QUANTE) + '|' + colore;
-  let tela = _particelleTinte.get(chiave);
-  if(tela) return tela;
-  try{
-    tela = document.createElement('canvas');
-    tela.width = im.naturalWidth; tela.height = im.naturalHeight;
-    const g = tela.getContext('2d');
-    g.drawImage(im, 0, 0);
-    g.globalCompositeOperation = 'source-in';
-    g.fillStyle = colore;
-    g.fillRect(0, 0, tela.width, tela.height);
-  }catch(_){ return null; }
-  _particelleTinte.set(chiave, tela);
-  return tela;
+  return (im && im.complete && im.naturalWidth) ? im : null;
 }
 function particellaDisegna(g, i, colore, x, y, r){
-  const tela = particellaTinta(i, colore);
-  if(tela){
+  const im = particellaPronta(i);
+  if(im){
     const lato = r * 2 * particellaScala(i);
-    g.drawImage(tela, x - lato / 2, y - lato / 2, lato, lato);
+    g.drawImage(im, x - lato / 2, y - lato / 2, lato, lato);
     return;
   }
   g.fillStyle = colore;
@@ -9197,9 +9180,9 @@ function particellaUrl(i){
   try{ return particelleCandidati()[i % PARTICELLE_QUANTE][0]; }catch(_){ return ''; }
 }
 const PARTICELLE_PIANI = [
-  { id:'start-particles-far',  quante:90, rMin:0.3, rMax:0.7, vMin:5,  vMax:11, alfaMin:0.25, alfaMax:0.55, ondaMin:2,  ondaMax:7  },
-  { id:'start-particles-mid',  quante:80, rMin:0.7, rMax:1.5, vMin:12, vMax:22, alfaMin:0.45, alfaMax:0.90, ondaMin:5,  ondaMax:14 },
-  { id:'start-particles-near', quante:30, rMin:2.5, rMax:5.5, vMin:22, vMax:40, alfaMin:0.18, alfaMax:0.40, ondaMin:10, ondaMax:26 },
+  { id:'start-particles-far',  quante:90, rMin:0.6, rMax:1.4, vMin:5,  vMax:11, alfaMin:0.25, alfaMax:0.55, ondaMin:2,  ondaMax:7  },
+  { id:'start-particles-mid',  quante:80, rMin:1.6, rMax:3.4, vMin:12, vMax:22, alfaMin:0.45, alfaMax:0.90, ondaMin:5,  ondaMax:14 },
+  { id:'start-particles-near', quante:30, rMin:5.5, rMax:12.0, vMin:22, vMax:40, alfaMin:0.18, alfaMax:0.40, ondaMin:10, ondaMax:26 },
 ];
 function nuovaScenaPolvere(){ return { raf:null, strati:null, ultimo:0, resize:null }; }
 const _scenaStart = nuovaScenaPolvere();
@@ -9325,9 +9308,9 @@ function fermaLoopParticelle(){ ParticelleFerma(); }
 const POLVERE_BUSTINE_QUANTE = 50;
 const POLVERE_BUSTINE_FASCIA = 0.28;
 const POLVERE_BUSTINE_PIANI = [
-  { id:'pack-particles-far',  quota:24, rMin:0.6, rMax:1.4,  alfaMin:0.25, alfaMax:0.55, vagoMin:6,  vagoMax:16 },
-  { id:'pack-particles-mid',  quota:18, rMin:1.4, rMax:3.0,  alfaMin:0.45, alfaMax:0.90, vagoMin:10, vagoMax:26 },
-  { id:'pack-particles-near', quota:8,  rMin:5.0, rMax:11.0, alfaMin:0.18, alfaMax:0.40, vagoMin:16, vagoMax:40 },
+  { id:'pack-particles-far',  quota:24, rMin:1.2, rMax:2.8,  alfaMin:0.25, alfaMax:0.55, vagoMin:6,  vagoMax:16 },
+  { id:'pack-particles-mid',  quota:18, rMin:3.0, rMax:6.5,  alfaMin:0.45, alfaMax:0.90, vagoMin:10, vagoMax:26 },
+  { id:'pack-particles-near', quota:8,  rMin:10.0, rMax:22.0, alfaMin:0.18, alfaMax:0.40, vagoMin:16, vagoMax:40 },
 ];
 let _polvereBustineRAF = null;
 let _polvereBustineStrati = null;
@@ -13714,7 +13697,7 @@ function questVoloFotogramma(){
       for(let i = 1; i <= passi; i++){
         const f = i / passi;
         _questScia.push({ x: ult.x + (x - ult.x) * f + (Math.random() - 0.5) * 8, y: ult.y + (y - ult.y) * f + (Math.random() - 0.5) * 8,
-          nato: ora, vita: 380 + Math.random() * 260, r: 3 + Math.random() * 4, col: QUEST_SCIA_COLORE[v.premio],
+          nato: ora, vita: 380 + Math.random() * 260, r: 6 + Math.random() * 8, col: QUEST_SCIA_COLORE[v.premio],
           forma: particellaACaso(),
           vx: (Math.random() - 0.5) * 0.03, vy: (Math.random() - 0.5) * 0.03 });
       }
@@ -13770,7 +13753,7 @@ function questVoloArriva(v){
     const ora = performance.now();
     for(let i = 0; i < 16; i++){
       const ang = Math.random() * Math.PI * 2, vel = 0.08 + Math.random() * 0.16;
-      _questScia.push({ x: v.p1.x, y: v.p1.y, nato: ora, vita: 420 + Math.random() * 240, r: 2.5 + Math.random() * 3.5,
+      _questScia.push({ x: v.p1.x, y: v.p1.y, nato: ora, vita: 420 + Math.random() * 240, r: 5 + Math.random() * 7,
         forma: particellaACaso(),
         col: QUEST_SCIA_COLORE[v.premio], vx: Math.cos(ang) * vel, vy: Math.sin(ang) * vel });
     }
@@ -19543,11 +19526,6 @@ function accendiScintille(){
     respiro.className = 'pack-spark-pulse';
     const punto = document.createElement('i');
     punto.className = 'pack-spark-dot';
-    try{
-      const f = particellaACaso();
-      punto.style.setProperty('--forma', 'url("' + particellaUrl(f) + '")');
-      punto.style.setProperty('--forma-scala', particellaScala(f).toFixed(3));
-    }catch(_){ }
 
     const x0 = caso(-22, 22);
     const y0 = caso(-16, 16);
@@ -19564,7 +19542,7 @@ function accendiScintille(){
     const giu = caso(3400, 6200);
     const cy = caso(150, 420);
     const giro = caso(-220, 220);
-    const dim = 0.5 + Math.pow(Math.random(), 3) * 8.5;
+    const dim = 1.0 + Math.pow(Math.random(), 3) * 17.0;
     const sfoca = caso(0, 7.5);
     const vita = su + giu;
 
@@ -19587,6 +19565,12 @@ function accendiScintille(){
       '--dim:'+dim.toFixed(2)+'px; --sfoca:'+sfoca.toFixed(2)+'px;'+
       '--vita:'+vita.toFixed(0)+'ms; --ritardo:'+ritardo.toFixed(0)+'ms;'+
       '--giro:'+giro.toFixed(0)+'deg;';
+    try{
+      const f = particellaACaso();
+      punto.style.setProperty('--forma', 'url("' + particellaUrl(f) + '")');
+      punto.style.setProperty('--forma-scala', particellaScala(f).toFixed(3));
+      punto.style.setProperty('--forma-fondo', 'transparent');
+    }catch(_){ }
 
     respiro.appendChild(punto);
     cade.appendChild(respiro);
@@ -20382,10 +20366,10 @@ function _costruisciCartaBustina(entry, dir, indice){
 }
 
 const SCINTILLE_CARTA = {
-  common:   { quante:  9, dMin: 500, dMax:  800, rMin:150, rMax:250, dimMin:2, dimMax:5 },
-  rare:     { quante: 20, dMin: 600, dMax: 1000, rMin:170, rMax:300, dimMin:2, dimMax:6 },
-  mythic:   { quante: 34, dMin: 700, dMax: 1200, rMin:190, rMax:340, dimMin:2, dimMax:7 },
-  timeless: { quante: 58, dMin: 900, dMax: 1500, rMin:210, rMax:390, dimMin:2, dimMax:8 }
+  common:   { quante:  9, dMin: 500, dMax:  800, rMin:150, rMax:250, dimMin:4, dimMax:10 },
+  rare:     { quante: 20, dMin: 600, dMax: 1000, rMin:170, rMax:300, dimMin:4, dimMax:12 },
+  mythic:   { quante: 34, dMin: 700, dMax: 1200, rMin:190, rMax:340, dimMin:4, dimMax:14 },
+  timeless: { quante: 58, dMin: 900, dMax: 1500, rMin:210, rMax:390, dimMin:4, dimMax:16 }
 };
 function bustaScintilleCarta(carta){
   const casa = carta && carta.querySelector('.pack-scie');
@@ -20398,11 +20382,12 @@ function bustaScintilleCarta(carta){
     const p = document.createElement('i');
     p.className = 'pack-scia';
     const dim = caso(conf.dimMin, conf.dimMax);
-    p.style.cssText = 'width:'+dim.toFixed(1)+'px;height:'+dim.toFixed(1)+'px;background:'+colore+';';
+    p.style.cssText = 'width:'+dim.toFixed(1)+'px;height:'+dim.toFixed(1)+'px;background-color:var(--forma-fondo, '+colore+');';
     try{
       const f = particellaACaso();
       p.style.setProperty('--forma', 'url("' + particellaUrl(f) + '")');
       p.style.setProperty('--forma-scala', particellaScala(f).toFixed(3));
+      p.style.setProperty('--forma-fondo', 'transparent');
     }catch(_){ }
     casa.appendChild(p);
     const ang = Math.random() * Math.PI * 2;
@@ -33726,12 +33711,20 @@ function _ramiDisegnaScintille(){
     const ora = performance.now();
     for(const s of _ramiScintille){
       const v = (ora - s.nata) / s.vita;
-      const raggio = s.r * (1 - v * 0.6);
-      const c = document.createElementNS(NS, 'rect');
-      c.setAttribute('x', (s.x - raggio).toFixed(1)); c.setAttribute('y', (s.y - raggio).toFixed(1));
-      c.setAttribute('width', (raggio * 2).toFixed(2)); c.setAttribute('height', (raggio * 2).toFixed(2));
-      c.setAttribute('fill', 'url(#board-vines-oro)');
-      if(s.forma !== undefined) c.setAttribute('mask', 'url(#board-vines-forma' + s.forma + ')');
+      const raggio = s.r * (1 - v * 0.6) * (s.forma !== undefined ? particellaScala(s.forma) : 1);
+      let c;
+      if(s.forma !== undefined && particellaUrl(s.forma)){
+        c = document.createElementNS(NS, 'image');
+        c.setAttribute('href', particellaUrl(s.forma));
+        c.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+        c.setAttribute('x', (s.x - raggio).toFixed(1)); c.setAttribute('y', (s.y - raggio).toFixed(1));
+        c.setAttribute('width', (raggio * 2).toFixed(2)); c.setAttribute('height', (raggio * 2).toFixed(2));
+      } else {
+        c = document.createElementNS(NS, 'circle');
+        c.setAttribute('cx', s.x.toFixed(1)); c.setAttribute('cy', s.y.toFixed(1));
+        c.setAttribute('r', raggio.toFixed(2));
+        c.setAttribute('fill', 'url(#board-vines-oro)');
+      }
       c.setAttribute('opacity', (v < 0.15 ? v / 0.15 : 1 - (v - 0.15) / 0.85).toFixed(3));
       g.appendChild(c);
     }
@@ -35650,7 +35643,7 @@ function _lvFuochi(canvas, cx, cy){
       g.moveTo(s.x - s.vx * 34, s.y - s.vy * 34);
       g.lineTo(s.x, s.y);
       g.stroke();
-      particellaDisegna(g, s.forma, s.colore, s.x, s.y, s.spessore * 1.6);
+      particellaDisegna(g, s.forma, s.colore, s.x, s.y, s.spessore * 3.2);
     }
     g.globalAlpha = 1;
     g.globalCompositeOperation = 'source-over';
