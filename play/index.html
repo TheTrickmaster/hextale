@@ -7312,7 +7312,7 @@ try{
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.89</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.90</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -30477,15 +30477,85 @@ VALUTAZIONI_IA.give_me_that = (scelta) => {
   }
   return migliore;
 };
-VALUTAZIONI_IA.swap_values = (scelta) => {
-  let migliore = null, divario = 0;
-  for(const cella of scelta.bersagli){
-    const posto = G.board[cella];
+
+function _marchHareTabelloneDopo(cellaBersaglio){
+  const clone = {};
+  for(const k in G.board){
+    const posto = G.board[k];
     if(!posto || !posto.card) continue;
-    const valori = gruppiDiCarta(posto.card).map(g=>g.val||0);
-    if(valori.length < 2) continue;
-    const d = Math.max(...valori) - Math.min(...valori);
-    if(d > divario){ divario = d; migliore = cella; }
+    clone[k] = { owner: posto.owner, card: clonaPerSimulazione(posto.card) };
+  }
+  const posto = clone[cellaBersaglio];
+  if(!posto || !posto.card) return null;
+  const gruppi = gruppiDiCarta(posto.card);
+  if(gruppi.length < 2) return null;
+  let alto = gruppi[0], basso = gruppi[0];
+  for(const g of gruppi){
+    if((g.val||0) > (alto.val||0)) alto = g;
+    if((g.val||0) < (basso.val||0)) basso = g;
+  }
+  if(alto === basso) return null;
+  _scambiaLatiOvunque(posto.card, alto.sides, basso.sides);
+  return clone;
+}
+
+function _marchHareScoperta(cella, tabellone, libere){
+  const posto = tabellone[cella];
+  if(!posto || !posto.card) return 0;
+  const pezzi = String(cella).split(',').map(Number);
+  const valori = posto.card.values || {};
+  let somma = 0;
+  for(const dir of DIRS){
+    const nk = key(pezzi[0]+dir.dq, pezzi[1]+dir.dr);
+    if(!libere.has(nk)) continue;
+    somma += valori[dir.mySide] || 0;
+  }
+  return somma;
+}
+
+function _marchHareBottino(cartaMia, q, r, giocatore, tabellone){
+  let quante = 0, forza = 0;
+  let prese = [];
+  try { prese = cellePreseDa(cartaMia, q, r, giocatore, tabellone) || []; }
+  catch(_){ return { quante: 0, forza: 0 }; }
+  for(const p of prese){
+    const posto = tabellone[p.nk];
+    if(!posto || !posto.card) continue;
+    quante++;
+    try { forza += cardPower(posto.card); } catch(_){ }
+  }
+  return { quante: quante, forza: forza };
+}
+
+VALUTAZIONI_IA.swap_values = (scelta) => {
+  const cellaMia = scelta.cellaOrigine;
+  const mio = cellaMia && G.board[cellaMia];
+  if(!mio || !mio.card) return null;
+  const pezzi = String(cellaMia).split(',').map(Number);
+  const q = pezzi[0], r = pezzi[1];
+  const libere = new Set(celleLibere());
+  const prima = _marchHareBottino(mio.card, q, r, scelta.giocatore, G.board);
+
+  let migliore = null, punteggio = null;
+  for(const cella of scelta.bersagli){
+    const dopo = _marchHareTabelloneDopo(cella);
+    if(!dopo) continue;
+    const bottino = _marchHareBottino(dopo[cellaMia] && dopo[cellaMia].card, q, r, scelta.giocatore, dopo);
+    const guadagno = bottino.quante - prima.quante;
+    if(guadagno < 0) continue;
+
+    const scopertaPrima = _marchHareScoperta(cella, G.board, libere);
+    const scopertaDopo  = _marchHareScoperta(cella, dopo, libere);
+    const comodita = (guadagno > 0) ? (scopertaDopo - scopertaPrima)
+                                    : (scopertaPrima - scopertaDopo);
+    if(guadagno === 0 && comodita <= 0) continue;
+
+    const voto = [guadagno, bottino.forza - prima.forza, comodita];
+    if(!punteggio || voto[0] > punteggio[0] ||
+      (voto[0] === punteggio[0] && voto[1] > punteggio[1]) ||
+      (voto[0] === punteggio[0] && voto[1] === punteggio[1] && voto[2] > punteggio[2])){
+      punteggio = voto; migliore = cella;
+    }
   }
   return migliore;
 };
