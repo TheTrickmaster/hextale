@@ -70,7 +70,7 @@ body.mouse-down, body.mouse-down *{
   position:fixed; inset:0; z-index:9600;
   display:flex; align-items:center; justify-content:center;
   background:#000;
-  opacity:1; transition:opacity 0.6s ease;
+  opacity:1; transition:opacity 0.3s ease;
 }
 #splash-versione{
   position:absolute; right:18px; bottom:14px;
@@ -87,7 +87,7 @@ body.mouse-down, body.mouse-down *{
 #splash-logo{
   position:relative;
   width:min(430px, 60vw); height:auto; display:block;
-  opacity:0; transition:opacity 1.5s ease;
+  opacity:0; transition:opacity 0.75s ease;
   pointer-events:none; user-select:none;
 }
 #splash-logo.acceso{ opacity:1; }
@@ -4640,7 +4640,24 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
   position:absolute; right:-2px; top:65px;
   height:40px; width:auto; z-index:6;
   pointer-events:none; user-select:none; -webkit-user-drag:none;
+  transition:opacity 0.18s ease;
 }
+#card-db-grid.mazzo-in-modifica .card-db-card-slot .lvup-nastro{ opacity:0; }
+.card-db-card-slot .carta-energia{
+  position:absolute; right:0; top:0; z-index:7;
+  display:flex; align-items:flex-start; gap:2px;
+  opacity:0; transition:opacity 0.18s ease;
+  pointer-events:none; user-select:none;
+}
+#card-db-grid.mazzo-in-modifica .card-db-card-slot .carta-energia{ opacity:1; }
+.card-db-card-slot .carta-energia img{ height:16px; width:auto; display:block; }
+.deck-card-row-energia{
+  display:flex; align-items:center; gap:2px;
+  margin-left:auto; position:relative; z-index:2; pointer-events:none;
+}
+.deck-card-row-energia img{ height:14px; width:auto; display:block; }
+.deck-edit-cap-energia{ height:14px; width:auto; margin-left:5px; vertical-align:-2px; }
+#card-modal-info .cm-val img.cm-energia{ width:auto; height:20px; }
 .mm2-pallino-novita{
   position:absolute; right:64px; top:52%;
   transform:translateY(-50%);
@@ -7318,7 +7335,7 @@ try{
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.80.97</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.0</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -8744,9 +8761,9 @@ if(document.readyState==='loading'){
   }
 
   let _splashViaA = 0;
-  const SPLASH_DISSOLVENZA_MS = 1500;
-  const SPLASH_ATTESA_MS      = 2000;
-  const SPLASH_USCITA_MS      =  600;
+  const SPLASH_DISSOLVENZA_MS =  750;
+  const SPLASH_ATTESA_MS      = 1000;
+  const SPLASH_USCITA_MS      =  300;
   function avviaSplash(){
     const velo = document.getElementById('splash');
     if(!velo) return;
@@ -14870,11 +14887,10 @@ var ABILITA_MOTORE = (function () {
   }
 
   function _tickDiUnRand(eff, totale) {
-    if (!eff || !eff.per) return 1;
+    if (!eff) return 1;
     if (eff.ambito !== 'RAND' && eff.ambito !== 'ONE') return 1;
-    var base = (eff.quanto && typeof eff.quanto.numero === 'number') ? Math.abs(eff.quanto.numero) : 0;
-    if (!base) return 1;
-    var volte = Math.round(Math.abs(totale) / base);
+    var volte = Math.abs(Number(totale) || 0);
+    if (volte !== Math.round(volte)) return 1;
     return volte > 1 ? volte : 1;
   }
 
@@ -15586,7 +15602,10 @@ function _pannelloModifica(mazzo){
   capRiga.className = 'deck-edit-cap-riga';
   const capEt = document.createElement('span'); capEt.textContent = 'Power capacity';
   const capNum = document.createElement('span'); capNum.className = 'deck-edit-cap-num';
-  capRiga.append(capEt, capNum);
+  const capIco = document.createElement('img');
+  capIco.className = 'deck-edit-cap-energia'; capIco.alt = ''; capIco.draggable = false;
+  impostaImgDaCandidati(capIco, uiFileCandidati('energy-icon.png'));
+  capRiga.append(capEt, capNum, capIco);
 
   const salva = document.createElement('button');
   salva.type = 'button'; salva.className = 'hx-btn deck-edit-save';
@@ -15823,7 +15842,10 @@ function _rigaCartaMazzo(entry){
   r.addEventListener('pointerenter', ()=>deckAnteprimaMostra(r, entry));
   r.addEventListener('pointerleave', deckAnteprimaNascondi);
   r.addEventListener('pointerdown', deckAnteprimaNascondi);
-  r.append(art, velo, gemma, nome, x);
+  const energia = document.createElement('span');
+  energia.className = 'deck-card-row-energia';
+  energia.appendChild(energiaIcone(entry.rarity, ''));
+  r.append(art, velo, gemma, nome, energia, x);
   return r;
 }
 const DISSOLVENZA_ART_MS = 220;
@@ -16089,6 +16111,8 @@ function chiudiModificaMazzo(ridisegna){
 }
 function aggiornaFantasmiCollezione(){
   const dentro = new Set(_mazzoInModifica ? _mazzoInModifica.carte.map(String) : []);
+  const griglia = document.getElementById('card-db-grid');
+  if(griglia) griglia.classList.toggle('mazzo-in-modifica', !!_mazzoInModifica);
   document.querySelectorAll('#card-db-grid .card-db-card-slot').forEach(s=>{
     const id = s.dataset.entryId || '';
     s.classList.toggle('gia-nel-mazzo', dentro.has(String(id)));
@@ -16527,7 +16551,6 @@ function tornaAllaPaginaChiamante(){
   musicaMenuAvvia();
 }
 function musicaMenuAvvia(){
-  if(typeof _giocatoreDentro !== 'undefined' && !_giocatoreDentro) return;
   if(_musicIntroLoopActive) return;
   const bgm=document.getElementById('bgm');
   if(!bgm) return;
@@ -21229,6 +21252,9 @@ function cardDbRenderRoster(){
       nastroLivello.className = 'lvup-nastro'; nastroLivello.alt = 'Lv up'; nastroLivello.draggable = false;
       impostaImgDaCandidati(nastroLivello, uiFileCandidati('lv-up-banner.png'));
     }
+    const energia = document.createElement('div');
+    energia.className = 'carta-energia';
+    energia.appendChild(energiaIcone(entry.rarity, ''));
     if(_eCartaNuova(entry)){
       slot.classList.add('carta-nuova');
       const nastro = document.createElement('img');
@@ -21268,6 +21294,12 @@ function cardDbRenderRoster(){
       slot.appendChild(cardSvg);
       if(nastroLivello) slot.appendChild(nastroLivello);
     }
+    const ang = angoloAltoDestroEsagono(cardSvg);
+    if(ang){
+      energia.style.right = (100 - ang.destra).toFixed(3) + '%';
+      energia.style.top = ang.alto.toFixed(3) + '%';
+    }
+    slot.appendChild(energia);
     slot.style.cursor='var(--cursore)';
     slot.addEventListener('click', ()=>{ playCardVoiceLine(card); openCardModal(card, 0); });
     slot._cardDbCard = card;
@@ -22993,6 +23025,37 @@ function carteGiocabili(){
 const COSTO_RARITA = { timeless:4, mythic:3, rare:2, common:1 };
 const MAZZO_CARTE  = 12;
 const MAZZO_PUNTI  = 24;
+function angoloAltoDestroEsagono(svg){
+  const clip = svg && svg.dataset && svg.dataset.hexClip;
+  if(!clip) return null;
+  let destra = -Infinity, alto = Infinity;
+  for(const punto of clip.split(',')){
+    const pezzi = punto.trim().split(/\s+/);
+    const x = parseFloat(pezzi[0]), y = parseFloat(pezzi[1]);
+    if(!isFinite(x) || !isFinite(y)) return null;
+    if(x > destra) destra = x;
+    if(y < alto) alto = y;
+  }
+  if(!isFinite(destra) || !isFinite(alto)) return null;
+  return { destra: destra, alto: alto };
+}
+function energiaIconeHtml(rarita, classe){
+  const n = costoDiRarita(rarita);
+  let out = '';
+  for(let i = 0; i < n; i++) out += '<img class="' + classe + '" data-cm-icona="energy-icon.png" alt="" draggable="false">';
+  return out;
+}
+function energiaIcone(rarita, classe){
+  const frammento = document.createDocumentFragment();
+  const n = costoDiRarita(rarita);
+  for(let i = 0; i < n; i++){
+    const im = document.createElement('img');
+    im.className = classe; im.alt = ''; im.draggable = false;
+    impostaImgDaCandidati(im, uiFileCandidati('energy-icon.png'));
+    frammento.appendChild(im);
+  }
+  return frammento;
+}
 function costoDiRarita(chiave){
   const c = COSTO_RARITA[String(chiave||'').toLowerCase()];
   return typeof c === 'number' ? c : 1;
@@ -23410,7 +23473,8 @@ function getFactionBonus(card, q, r, boardState){
   return { values:{...card.values}, bonusActive:false, bonusText:null, activeCount:0 };
 }
 
-const HAND_SIZE=4, DECK_TOTAL=MAZZO_CARTE, HOLE_COUNT=6;
+const HAND_SIZE=4, DECK_TOTAL=MAZZO_CARTE;
+const MURI_POSSIBILI = [3, 5];
 const TURN_SECS=45;
 const TILE_DROP_TOTAL_MS=1410;
 const TILE_DROP_SINGLE_MS=300;
@@ -23473,7 +23537,7 @@ function initGame(vsAI){
   if(PARTITA_RETE && PARTITA_RETE.buchi && PARTITA_RETE.buchi.length){
     holes = new Set(PARTITA_RETE.buchi);
   } else {
-    const holeCount=2+Math.floor(Math.random()*4);
+    const holeCount=MURI_POSSIBILI[Math.floor(Math.random()*MURI_POSSIBILI.length)];
     holes=new Set();
     while(holes.size<holeCount){const c=cands[Math.floor(Math.random()*cands.length)];holes.add(key(c.q,c.r));}
   }
@@ -23650,7 +23714,22 @@ function resetTimerBarVisual(){
   updateTimerUI();
 }
 let timerDeadline=null;
+function partitaSenzaTimer(){
+  if(typeof PARTITA_RETE !== 'undefined' && PARTITA_RETE) return false;
+  return !!(typeof G !== 'undefined' && G && G.vsAI)
+      && !(typeof BOT_TRAVESTITO !== 'undefined' && BOT_TRAVESTITO);
+}
 function startTimer(riprendi){
+  if(partitaSenzaTimer()){
+    clearInterval(timerInterval); timerInterval = null;
+    try{ stopTictoc(); }catch(_){ }
+    try{ stopScreenEdgeFlash(); }catch(_){ }
+    timerDeadline = 0;
+    try{ barraPiena(); }catch(_){ }
+    try{ var w = document.getElementById('timer-bar-wrap'); if(w) w.style.display = 'none'; }catch(_){ }
+    return;
+  }
+  try{ var wOn = document.getElementById('timer-bar-wrap'); if(wOn && wOn.style.display === 'none') wOn.style.display = ''; }catch(_){ }
   let scadenzaDelServer = 0;
   if(PARTITA_RETE && PARTITA_RETE.scadenza){
     const restano = (PARTITA_RETE.scadenza - Date.now()) / 1000;
@@ -24127,14 +24206,16 @@ function recalcMischief(card){
   const nuovi={...base};
   const premiati=[];
   for(let n=1;n<=quanti;n++){
-    const scelto=sorteggioStabile(gruppi, (card.idRete||card.id)+'#'+n);
-    if(!scelto) continue;
-    for(const s of scelto.sides) nuovi[s]=(nuovi[s]||0)+BONUS_MISCHIEF;
-    premiati.push(scelto.sides.join('|'));
+    for(let u=1;u<=BONUS_MISCHIEF;u++){
+      const scelto=sorteggioStabile(gruppi, (card.idRete||card.id)+'#'+n+'.'+u);
+      if(!scelto) continue;
+      for(const s of scelto.sides) nuovi[s]=(nuovi[s]||0)+1;
+      premiati.push(scelto.sides.join('|'));
+    }
   }
   const primaEra = (typeof card.mischiefCount==='number') ? card.mischiefCount : 0;
   if(quanti>primaEra && card.mischiefCount!==undefined){
-    segnaLampoValori(card.id, premiati.slice(primaEra), 'su');
+    segnaLampoValori(card.id, premiati.slice(primaEra * BONUS_MISCHIEF), 'su');
   }
   card.mischiefCount=quanti;
   card.values=nuovi;
@@ -25869,8 +25950,20 @@ function riscuotiPremioProssimaGiocata(card, giocatore, quanteConquiste, soloAnt
   const semePremio = (typeof PARTITA_RETE !== 'undefined' && PARTITA_RETE) ? PARTITA_RETE.matchId : (G._semeSinergie || '');
   const lati = _motore().latiColpiti(p.ambito, (card.valoriBase || card.values) || {}, card, semePremio);
   if(!lati.length) return false;
-  if(soloAnteprima && (p.ambito === 'RAND' || p.ambito === 'ONE')) card.__aSorte = true;
-  modificaValori(card, lati, p.quanto, undefined, {chiave: p.chiave, da: p.da});
+  const aSorte = (p.ambito === 'RAND' || p.ambito === 'ONE');
+  if(soloAnteprima && aSorte) card.__aSorte = true;
+  const unita = (aSorte && Number.isInteger(p.quanto) && Math.abs(p.quanto) > 1) ? Math.abs(p.quanto) : 1;
+  if(unita === 1){
+    modificaValori(card, lati, p.quanto, undefined, {chiave: p.chiave, da: p.da});
+    return true;
+  }
+  const passo = p.quanto > 0 ? 1 : -1;
+  for(let u = 0; u < unita; u++){
+    const latiU = u === 0 ? lati
+      : _motore().latiColpiti(p.ambito, (card.valoriBase || card.values) || {}, card, semePremio + '|u' + u);
+    if(!latiU.length) continue;
+    modificaValori(card, latiU, passo, undefined, {chiave: p.chiave, da: p.da});
+  }
   return true;
 }
 
@@ -32142,7 +32235,7 @@ let ghostTargetX=0, ghostTargetY=0;
 let ghostX=0, ghostY=0;
 let ghostVX=0, ghostVY=0;
 let ghostRafId=null;
-const GHOST_STIFFNESS=0.08;
+const GHOST_STIFFNESS=0.16;
 const GHOST_DAMPING=0.65;
 
 const DRAG_TILT_REF_SPEED = 10;
@@ -35345,6 +35438,8 @@ function costruisciSchedaCarta(card, livello, conSelettore){
   html += '<div class="cm-riga"><span class="cm-et">Rarity:</span><span class="cm-val">'
         + escapeHtml(_cmEtichettaRarita(rarita))
         + ' <img src="'+gemmaRaritaSrc(rarita)+'" alt=""></span></div>';
+  html += '<div class="cm-riga"><span class="cm-et">Power cost:</span>'
+        + '<span class="cm-val">' + energiaIconeHtml(rarita, 'cm-energia') + '</span></div>';
   const archi = (card.traits||[]).filter(Boolean);
   if(archi.length){
     const pezzi = archi.map((chiave,i)=>
