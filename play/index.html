@@ -3871,7 +3871,7 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
           mask-composite:intersect;
 
   opacity:0;
-  filter:blur(1px);
+  filter:blur(var(--scia-sfocatura, 0px));
   mix-blend-mode:plus-lighter;
   will-change:transform, opacity;
 }
@@ -7386,7 +7386,7 @@ try{
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.8</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.9</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -9057,8 +9057,7 @@ function abilitaSuonoClickGlobale(){
 }
 abilitaSuonoClickGlobale();
 
-const SFX_GAIN_DB={ 'arcane': 2, 'bump': -4, 'scored': -3, 'change-turn': -6,
-                    'unpack-whoosh': -5, 'card-draw': -4 };
+const SFX_GAIN_DB={ 'arcane': 2, 'bump': -4, 'scored': -3, 'change-turn': -6 };
 function sfxGainMultiplier(name){
   const db=SFX_GAIN_DB[name];
   return db ? Math.pow(10, db/20) : 1;
@@ -20401,7 +20400,6 @@ async function bustaApri(){
   lampoAperturaLibro();
   if(raggio) raggio.classList.add('firing');
   accendiScintille();
-  try{ playSfxFile('unpack-whoosh.mp3'); }catch(_){ }
   scena.classList.add('raggiere-via');
   const versi = [-1, 0, 1];
   uscite.forEach((entry, i)=>{
@@ -20548,7 +20546,7 @@ function _costruisciCartaBustina(entry, dir, indice){
 }
 
 const SCINTILLE_VITA_MS = 2000;
-const SCINTILLE_GRANDEZZA = 4;
+const SCINTILLE_GRANDEZZA = 3.4;
 const SCINTILLE_QUANTITA  = 2;
 function scintilleQuantita(rarita){
   const conf = SCINTILLE_CARTA[String(rarita||'common').toLowerCase()] || SCINTILLE_CARTA.common;
@@ -20576,6 +20574,8 @@ function bustaScintilleCarta(carta){
     const dim = caso(conf.dimMin, conf.dimMax) * SCINTILLE_GRANDEZZA;
     p.style.cssText = 'width:'+dim.toFixed(1)+'px;height:'+dim.toFixed(1)+'px;background-color:'+colore+';';
     try{
+      p.style.setProperty('--scia-sfocatura',
+        (Math.random() < 0.5 ? 0 : Math.max(1, dim * 0.09)).toFixed(2) + 'px');
       const f = particellaACaso();
       p.style.setProperty('--forma', 'url("' + particellaUrl(f) + '")');
       p.style.setProperty('--forma-scala', particellaScala(f).toFixed(3));
