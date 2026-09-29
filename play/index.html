@@ -4584,7 +4584,9 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
   color:#DDCAA1; white-space:nowrap;
   transition:filter 0.16s ease, transform 0.16s ease;
 }
-#library-mancanti img{ display:block; flex:none; width:32px; height:auto; }
+#library-mancanti{ cursor:var(--cursore); }
+#library-mancanti .filters-nome{ font:inherit; color:inherit; margin:0; }
+#library-mancanti .filters-casella{ --hx-casella-lato:26px; margin-left:10px; }
 #library-mancanti:hover{ filter:brightness(1.2); }
 #library-mancanti:active{ transform:scale(0.97); }
 .card-db-card-slot.non-posseduta{ opacity:0.4; }
@@ -4911,7 +4913,7 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
 #filters-overlay.show, .hx-overlay.show{ display:flex; }
 #filters-overlay *, .hx-overlay *{ cursor:var(--cursore); }
 #filters-box, .hx-box{ display:flex; flex-direction:column; gap:16px; }
-#filters-box{ width:650px; }
+#filters-box{ width:750px; }
 #filters-pannello{
   -webkit-backdrop-filter:blur(30px); backdrop-filter:blur(30px);
   position:relative;
@@ -5764,9 +5766,11 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
 .filters-tratti{
   display:grid;
   grid-template-columns:162px 163px 162px;
-  column-gap:52px; row-gap:26px;
+  column-gap:52px; row-gap:13px;
   justify-content:start;
 }
+.filters-abilita{ display:flex; align-items:center; gap:52px; }
+.filters-abilita .filters-nome{ margin-left:4px; }
 .filters-tratti .filters-opt{ width:auto; }
 .filters-tratti .filters-nome{ margin-left:4px; margin-right:auto; }
 .filters-azione{ width:100%; }
@@ -7419,7 +7423,7 @@ try{
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.12</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.13</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -8352,7 +8356,7 @@ try{
     </div>
     <div id="card-db-barra-cerca">
       <label class="card-db-cerca-campo">
-        <input id="card-db-cerca" type="text" placeholder="Search card" spellcheck="false" autocomplete="off" oninput="cardDbApplyFilters()">
+        <input id="card-db-cerca" type="text" placeholder="Search name, ability, trait" spellcheck="false" autocomplete="off" oninput="cardDbApplyFilters()">
         <img id="card-db-cerca-icona" alt="" draggable="false">
       </label>
       <span class="card-db-barra-divisore" aria-hidden="true"></span>
@@ -8361,10 +8365,11 @@ try{
         <span>Filters</span>
       </button>
       <span class="card-db-barra-divisore" aria-hidden="true"></span>
-      <button id="library-mancanti" type="button" onclick="cardDbMostraMancanti()">
-        <img id="library-mancanti-icona" alt="" draggable="false">
-        <span id="library-mancanti-testo">Show all</span>
-      </button>
+      <label id="library-mancanti" class="filters-opt">
+        <input type="checkbox" id="library-mancanti-check" onchange="cardDbMostraMancanti(this)">
+        <span class="filters-nome" id="library-mancanti-testo">Show all</span>
+        <span class="filters-casella"></span>
+      </label>
     </div>
   </div>
   <div id="card-db-right">
@@ -8413,6 +8418,20 @@ try{
         <div class="filters-riga"></div>
         <div class="filters-titolo">Trait</div>
         <div class="filters-tratti" id="card-db-trait-filter-options"></div>
+        <div class="filters-riga"></div>
+        <div class="filters-titolo">Ability</div>
+        <div class="filters-abilita" id="card-db-ability-filter-options">
+          <label class="filters-opt">
+            <input type="checkbox" data-ability-filter="with" onchange="cardDbApplyFilters()">
+            <span class="filters-casella"></span>
+            <span class="filters-nome">With ability</span>
+          </label>
+          <label class="filters-opt">
+            <input type="checkbox" data-ability-filter="without" onchange="cardDbApplyFilters()">
+            <span class="filters-casella"></span>
+            <span class="filters-nome">Without ability</span>
+          </label>
+        </div>
         <div class="filters-riga"></div>
         <button class="hx-btn hx-btn-warning filters-azione" type="button" onclick="cardDbResetFilters()">
           <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
@@ -14291,7 +14310,7 @@ const PEZZI_LIBRERIA = [
   ['filters-overlay',    'la finestra dei filtri'],
   ['delete-overlay',     'la conferma di eliminazione'],
   ['card-db-sort',       'l\'ordinamento'],
-  ['card-db-cerca',      'la ricerca delle carte per nome'],
+  ['card-db-cerca',      'la ricerca delle carte per nome, abilita- e tratti'],
 ];
 function controllaPezziLibreria(){
   const mancanti = PEZZI_LIBRERIA.filter(([id])=>!document.getElementById(id));
@@ -21538,6 +21557,23 @@ function cardDbRenderRoster(){
     slot.dataset.traits = (entry.traits||[]).join(',');
     slot.dataset.rarity = entry.rarity || '';
     slot.dataset.nome = normalizzaRicerca(entry.name || '');
+    {
+      const pezzi = [entry.name || ''];
+      const chiaveAbilita = entry.cardAbility || '';
+      if(chiaveAbilita){
+        pezzi.push(String(chiaveAbilita).replace(/_/g, ' '));
+        try{
+          const testi = testiAbilitaDi(card, chiaveAbilita);
+          if(testi){ pezzi.push(testi.name || ''); pezzi.push(testi.desc || ''); }
+        }catch(_){ }
+      }
+      for(const chiaveTratto of (entry.traits || [])){
+        if(!chiaveTratto) continue;
+        pezzi.push(chiaveTratto);
+        try{ pezzi.push(nomeTratto(chiaveTratto)); }catch(_){ }
+      }
+      slot.dataset.cerca = normalizzaRicerca(pezzi.join(' ').replace(/[*_]/g, ''));
+    }
     slot.dataset.entryId = String(entry.id||'');
     let nastroLivello = null;
     if(cartaProntaASalire(entry)){
@@ -21712,7 +21748,7 @@ function cardDbApplyFilters(animate){
       matches = matches && checkedRarities.includes(slot.dataset.rarity);
     }
     if(cerca){
-      matches = matches && (slot.dataset.nome || '').includes(cerca);
+      matches = matches && (slot.dataset.cerca || slot.dataset.nome || '').includes(cerca);
     }
     matchResults.set(slot, matches);
   });
@@ -21908,16 +21944,14 @@ function _carteDellaLibreria(){
   return mie.concat(mancanti);
 }
 
-function cardDbMostraMancanti(){
-  _mostraNonPossedute = !_mostraNonPossedute;
+function cardDbMostraMancanti(casella){
+  _mostraNonPossedute = casella ? !!casella.checked : !_mostraNonPossedute;
   cardDbAggiornaMancanti();
   try{ cardDbRenderRoster(); }catch(e){ console.warn('[libreria] non si ridisegna: ' + (e && e.message)); }
 }
 function cardDbAggiornaMancanti(){
-  const testo = document.getElementById('library-mancanti-testo');
-  if(testo) testo.textContent = _mostraNonPossedute ? 'Hide unowned' : 'Show all';
-  const icona = document.getElementById('library-mancanti-icona');
-  if(icona) impostaImgDaCandidati(icona, uiFileCandidati(_mostraNonPossedute ? 'hide-icon.png' : 'show-icon.png'));
+  const casella = document.getElementById('library-mancanti-check');
+  if(casella && casella.checked !== _mostraNonPossedute) casella.checked = _mostraNonPossedute;
 }
 
 function cardDbRosterOrdinato(){
