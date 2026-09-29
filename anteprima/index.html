@@ -1659,6 +1659,26 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
   transform:translateX(-50%) translateY(var(--bolla-salto,-110px));
 }
 .score-bubble.sfuma{ opacity:0; transition:opacity 0.18s ease; }
+.bolla-campo{
+  position:absolute; width:60px; height:60px;
+  z-index:520; pointer-events:none;
+  display:flex; align-items:center; justify-content:center;
+  opacity:0; transform:translate(-50%,-50%) translateY(18px);
+  transition:opacity 0.12s ease-out, transform 0.12s ease-out;
+}
+.bolla-campo.dentro{ opacity:1; transform:translate(-50%,-50%) translateY(0); }
+.bolla-campo.via{ opacity:0; transition:opacity 0.15s ease-in; }
+.bolla-campo-art{
+  position:absolute; inset:0; width:100%; height:100%;
+  object-fit:contain; pointer-events:none;
+}
+.bolla-campo-num{
+  position:relative; z-index:1;
+  font-family:'Marcellus SC','Marcellus',var(--font-display),serif;
+  font-weight:400; font-size:24px; line-height:1;
+  font-variant-numeric:tabular-nums;
+  text-shadow:0 1px 3px rgba(0,0,0,0.35);
+}
 .player-hp-orb-lampo{
   position:absolute; inset:0; width:100%; height:100%;
   object-fit:contain;
@@ -2783,6 +2803,18 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
   transform:translate(-50%,-50%);
   background-size:100% 100%; background-repeat:no-repeat;
 }
+#card-tooltip.ctb-board .ctb-rarita{ display:flex; align-items:center; gap:8px; }
+#card-tooltip.ctb-board .ctb-rarita img{ width:28px; height:28px; object-fit:contain; }
+#card-tooltip.ctb-board .ctb-rarita span{
+  font-family:'Rosarivo',serif;
+  font-size:20px; color:#A7B6B8;
+}
+#card-tooltip.ctb-board.ctb-light .ctb-rarita span{ color:#4C3111; }
+#card-tooltip.ctb-board .ctb-punti{
+  font-family:'Rosarivo',serif;
+  font-size:20px; color:#fff;
+}
+#card-tooltip.ctb-board.ctb-light .ctb-punti{ color:#3B2E23; }
 #card-tooltip.ctb-board .ctb-ability-box{
   border-radius:15px; background:#242C2B; border:1.5px solid #333B3A;
   padding:12px 14px; margin:0 0 14px; text-align:center;
@@ -7354,7 +7386,7 @@ try{
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.2</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.3</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -29449,7 +29481,7 @@ function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLa
           if(!el)return;
           riavviaAnimazione(el, ['value-win']);
         });
-        applyHpDamage(prevOwner, atkVal, defVal, nk);
+        applyHpDamage(prevOwner, atkVal, defVal, nk, cellaAtt);
         lampeggiaCarta(defEl);
         playHitSfx();
         playSfxFile('card-flip.mp3');
@@ -30968,17 +31000,19 @@ function calcScores(){
 
 const HP_START=0;
 const DANNI_RIFERIMENTO=30;
-function applyHpDamage(defenderPlayer, atkVal, defVal, sourceKey){
+function applyHpDamage(defenderPlayer, atkVal, defVal, sourceKey, attaccanteKey){
   const punti=Math.max(0, atkVal-defVal);
   if(punti<=0) return;
   const vincitore = defenderPlayer===1 ? 2 : 1;
+  bollaPuntiFraCelle(vincitore, punti, attaccanteKey, sourceKey);
   assegnaPunti(vincitore, punti, sourceKey);
 }
 
 function getCellScreenCenter(cellKey){
   const bsvg=document.getElementById('board-svg');
   if(!bsvg||!cellKey) return null;
-  const el=bsvg.querySelector(`[data-conquered="${cellKey}"]`);
+  const el=bsvg.querySelector(`[data-conquered="${cellKey}"]`) ||
+           bsvg.querySelector(`[data-cellkey="${cellKey}"]`);
   if(!el) return null;
   try{
     const rect=el.getBoundingClientRect();
@@ -31304,13 +31338,16 @@ function puntiDiCarta(card){
   return Object.prototype.hasOwnProperty.call(PUNTI_PER_RARITA, r)
     ? PUNTI_PER_RARITA[r] : PUNTI_PER_RARITA.common;
 }
+function puntiInCampoDi(card){
+  return puntiDiCarta(card) + lampadeDi(card) * LAMPADA_PUNTI;
+}
 function carteCheFruttano(){
   const celle = {1:[], 2:[]};
   if(!G || !G.board) return celle;
   for(const k in G.board){
     const c = G.board[k];
     if(!c) continue;
-    const punti = puntiDiCarta(c.card) + lampadeDi(c.card) * LAMPADA_PUNTI;
+    const punti = puntiInCampoDi(c.card);
     if(punti <= 0) continue;
     (celle[c.owner] || (celle[c.owner]=[])).push({ k:k, punti:punti });
   }
@@ -31366,6 +31403,44 @@ function conSegno(n){
 }
 function suonoDelPunto(){
   try{ playSfxFile('score.mp3'); }catch(_){}
+}
+const BOLLA_CAMPO_ENTRATA_MS = 120;
+const BOLLA_CAMPO_SOSTA_MS   = 600;
+const BOLLA_CAMPO_USCITA_MS  = 150;
+const BOLLA_CAMPO_COLORE = { dark:'#E8D09E', light:'#211C12' };
+function bollaPuntiSulCampo(player, punti, punto){
+  if(!punti || !punto) return;
+  const strato = fxLayer();
+  if(!strato) return;
+  const scuro = playerFactionIsDark(player);
+  const el = document.createElement('div');
+  el.className = 'bolla-campo';
+  el.style.left = punto.x.toFixed(1) + 'px';
+  el.style.top  = punto.y.toFixed(1) + 'px';
+  const art = document.createElement('img');
+  art.className = 'bolla-campo-art'; art.alt = ''; art.draggable = false;
+  impostaImgDaCandidati(art, uiFileCandidati(scuro ? 'score-bubble-dark.png' : 'score-bubble-light.png'));
+  const num = document.createElement('span');
+  num.className = 'bolla-campo-num';
+  num.style.color = scuro ? BOLLA_CAMPO_COLORE.dark : BOLLA_CAMPO_COLORE.light;
+  num.textContent = conSegno(punti);
+  el.append(art, num);
+  strato.appendChild(el);
+  requestAnimationFrame(()=>{
+    el.classList.add('dentro');
+    setTimeout(()=>{
+      el.classList.add('via');
+      setTimeout(()=>{ try{ el.remove(); }catch(_){} }, BOLLA_CAMPO_USCITA_MS + 60);
+    }, BOLLA_CAMPO_ENTRATA_MS + BOLLA_CAMPO_SOSTA_MS);
+  });
+}
+function bollaPuntiFraCelle(player, punti, cellaA, cellaB){
+  try{
+    const a = getCellScreenCenter(cellaA);
+    const b = getCellScreenCenter(cellaB);
+    const punto = (a && b) ? { x:(a.x + b.x)/2, y:(a.y + b.y)/2 } : (a || b);
+    bollaPuntiSulCampo(player, punti, punto);
+  }catch(e){ console.warn('[punti] bolla saltata: ' + e); }
 }
 function apriBollaPunti(player){
   const pannello = _pannelloDi(player);
@@ -31532,6 +31607,7 @@ function ondataDanno(owner, cellKeys, onDone){
           el.classList.add(colorClass==='dark'?'sd-flash-red':'sd-flash-blue');
         }
         incrementaBollaPunti(owner, cella.punti);
+        if(k) bollaPuntiFraCelle(owner, cella.punti, k, k);
       }catch(e){ console.warn('[punti] carta '+k+' saltata: '+e); }
     }, INIZIO + i*PASSO_MS);
   });
@@ -35464,6 +35540,14 @@ function buildBoardCardTooltipHTML(card){
   html += `<div class="ctb-row">`;
   html += `<div class="ctb-row-side">${archHtml}</div>`;
   html += `<div class="ctb-row-side ctb-row-destra"><span class="ctb-row-side ctb-gems-side">${gemsHtml}</span><span class="ctb-level-sockets">${levelSocketsHtml}</span></div>`;
+  html += `</div>`;
+
+  const raritaChiave = String(card.rarity || 'common').toLowerCase();
+  const puntiCarta = puntiInCampoDi(card);
+  const parolaPunti = Math.abs(puntiCarta) === 1 ? 'board point' : 'board points';
+  html += `<div class="ctb-row">`;
+  html += `<span class="ctb-rarita"><img src="${gemmaRaritaSrc(raritaChiave)}" alt=""/><span>${escapeHtml(_cmEtichettaRarita(raritaChiave))}</span></span>`;
+  html += `<span class="ctb-punti">${puntiCarta} ${parolaPunti}</span>`;
   html += `</div>`;
 
   const abilityKey = card.activatedTileAbility || card.cardAbility;
