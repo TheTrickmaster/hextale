@@ -443,7 +443,7 @@ body.mouse-down, body.mouse-down *{
 #pack-ink-fisso .mm-cur{ width:100%; height:100%; }
 #pack-ink-fisso .mm-cur-bg{ display:none; }
 #pack-ink-fisso .mm-cur-icon{ position:absolute; left:-30px; top:55%; transform:translateY(-50%); height:118px; width:auto; }
-#pack-ink-fisso .mm-cur-ink .mm-cur-icon{ left:auto !important; right:152.9px !important; height:125px !important; }
+#pack-ink-fisso .mm-cur-ink .mm-cur-icon{ left:auto !important; right:152.9px !important; height:105px !important; }
 #pack-ink-fisso .mm-cur-value{ right:64px; }
 #pack-ink-fisso .mm-cur-plus{ right:0; width:42px; height:44px; opacity:0.3; pointer-events:none; }
 
@@ -7386,7 +7386,7 @@ try{
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.5</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.6</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -19784,7 +19784,7 @@ function spegniScintille(){
   if(casa) casa.innerHTML = '';
 }
 const BUSTINA_SOVRAPPOSIZIONE_MS = 140;
-const BUSTINA_CARICA_DEFAULT_MS = 1860;
+const BUSTINA_CARICA_DEFAULT_MS = 2700;
 const _silenzioIniziale = {};
 const _silenzioFinale = {};
 function saltoSilenzioIniziale(nome){
@@ -20080,7 +20080,6 @@ async function _bustinaChiediAlServer(tipo){
 const BUSTA_COLPI = 5;
 const BUSTA_ZONA_Y = 840;
 const BUSTA_ISTRUZIONE_MS = 1000;
-const BUSTA_MONTA_MS = 350;
 const BUSTA_PATELLA_MS = 200;
 const BUSTA_POSA_MS = 460;
 const BUSTA_SIGILLI = ['wax.png','crack-1.png','crack-2.png','crack-3.png','crack-4.png'];
@@ -20283,6 +20282,7 @@ function bustaNonSiApre(e){
   const spesa = _bustaSpesa;
   _bustaSpesa = null;
   _bustinaAnnullaTempi();
+  _bustaFermaCarica();
   if(_bustaIstruzioneTempo){ clearTimeout(_bustaIstruzioneTempo); _bustaIstruzioneTempo = null; }
   _busta = null;
   _bustaCarte = null;
@@ -20386,6 +20386,12 @@ function bustaBriciole(colpo){
   bustaBricioleAvvia();
 }
 
+let _bustaSuonoCarica = null;
+function _bustaFermaCarica(){
+  if(!_bustaSuonoCarica) return;
+  try{ _bustaSuonoCarica.stop(); }catch(_){ }
+  _bustaSuonoCarica = null;
+}
 function bustaRompi(){
   const scena = _bustaScena();
   scena.classList.add('busta-rotta');
@@ -20393,9 +20399,11 @@ function bustaRompi(){
   if(_bustaIstruzioneTempo){ clearTimeout(_bustaIstruzioneTempo); _bustaIstruzioneTempo = null; }
   scena.classList.remove('busta-colpita');
   scena.classList.add('busta-monta');
-  bustaScuoti(17, BUSTA_MONTA_MS, true);
-  try{ playSfxFile('unpack-load.mp3', undefined, saltoSilenzioIniziale('unpack-load')); }catch(_){ }
-  _bustinaDopo(BUSTA_MONTA_MS, bustaApri);
+  const caricaMs = _bustinaDurataCarica();
+  bustaScuoti(17, caricaMs, true);
+  try{ _bustaSuonoCarica = playSfxFile('unpack-load.mp3', undefined, saltoSilenzioIniziale('unpack-load')); }
+  catch(_){ _bustaSuonoCarica = null; }
+  _bustinaDopo(Math.max(0, caricaMs - BUSTINA_SOVRAPPOSIZIONE_MS), bustaApri);
 }
 
 async function bustaApri(){
