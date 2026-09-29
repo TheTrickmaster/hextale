@@ -447,6 +447,24 @@ body.mouse-down, body.mouse-down *{
 #pack-ink-fisso .mm-cur-value{ right:64px; }
 #pack-ink-fisso .mm-cur-plus{ right:0; width:42px; height:44px; opacity:0.3; pointer-events:none; }
 
+#valuta-banner{
+  position:fixed; left:0; top:47%; z-index:5700;
+  width:312px; height:100px; padding:0 20px; box-sizing:border-box;
+  display:flex; align-items:center;
+  transform:translate(-110%, -50%);
+  transition:transform .42s cubic-bezier(.22,1,.36,1);
+  pointer-events:none;
+}
+#valuta-banner.dentro{ transform:translate(0, -50%); }
+#valuta-banner .mm-cur{ width:100%; height:100%; }
+#valuta-banner .mm-cur-icon{
+  position:absolute; left:auto; right:152.9px; top:55%;
+  transform:translateY(-50%); height:105px; width:auto;
+  pointer-events:none; user-select:none; -webkit-user-drag:none;
+  filter:drop-shadow(0 4px 10px rgba(0,0,0,0.45));
+}
+#valuta-banner .mm-cur-value{ right:24px; }
+
 #mm2-centro{
   position:absolute; left:515.5px; top:236px; width:890px; z-index:25;
   display:flex; flex-direction:column; align-items:center; gap:20px;
@@ -3139,15 +3157,24 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
 #livello-carta .lvc-faccia svg{ position:absolute; inset:0; width:100%; height:100%; display:block; }
 #livello-carta .lvc-faccia svg.lvc-riferimento{ opacity:0; }
 #livello-carta .lvc-lampo{
-  position:absolute; inset:-40%; border-radius:50%; pointer-events:none; opacity:0; z-index:3;
-  background:radial-gradient(circle, rgba(255,255,255,1) 0%, rgba(255,236,190,0.7) 22%, rgba(255,236,190,0) 60%);
+  position:absolute; left:50%; top:50%;
+  height:180%; width:auto; aspect-ratio:1;
+  transform:translate(-50%,-50%) scale(.5);
+  pointer-events:none; opacity:0; z-index:3;
+  background:radial-gradient(circle closest-side,
+    rgba(255,255,255,1) 0%,
+    rgba(255,236,190,0.70) 18%,
+    rgba(255,236,190,0.34) 38%,
+    rgba(255,236,190,0.13) 58%,
+    rgba(255,236,190,0.04) 78%,
+    rgba(255,236,190,0) 100%);
   mix-blend-mode:screen;
 }
 #livello-carta .lvc-lampo.va{ animation:lvcLampo .7s ease-out forwards; }
 @keyframes lvcLampo{
-  0%  { opacity:0; transform:scale(.5); }
-  18% { opacity:1; transform:scale(1); }
-  100%{ opacity:0; transform:scale(1.35); }
+  0%  { opacity:0; transform:translate(-50%,-50%) scale(.5); }
+  18% { opacity:1; transform:translate(-50%,-50%) scale(1); }
+  100%{ opacity:0; transform:translate(-50%,-50%) scale(1.35); }
 }
 .lvc-cambio{ position:absolute; inset:0; opacity:0; pointer-events:none; }
 .lvc-cambio.va{ animation:lvcCambio .72s linear forwards; }
@@ -7135,6 +7162,12 @@ try{
     </div>
   </div>
 </div>
+<div id="valuta-banner" class="mm2-box mm2-box-sx" aria-hidden="true">
+  <div class="mm-cur" id="vb-cur">
+    <img class="mm-cur-icon" alt="" draggable="false">
+    <div class="mm-cur-value" id="vb-numero">0</div>
+  </div>
+</div>
 <div id="riavvio-overlay" class="hx-overlay">
   <div id="riavvio-box" class="hx-box">
     <div class="hx-pannello">
@@ -7386,7 +7419,7 @@ try{
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.11</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.12</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -17816,6 +17849,10 @@ function _glossarioTooltip(){
   try{ impostaVariabileDaCandidati(tip, '--hx-trama', uiFileCandidati('brushed-texture.jpg')); }catch(_){ }
   return tip;
 }
+function _parolaCoperta(p){
+  try{ return !!(p && p.closest && p.closest('.pack-card:not(.revealed)')); }
+  catch(_){ return false; }
+}
 function _glossarioParolaSotto(x, y, bersaglio){
   let dove = bersaglio && bersaglio.nodeType === 1 ? bersaglio : null;
   let parole = [];
@@ -17826,6 +17863,7 @@ function _glossarioParolaSotto(x, y, bersaglio){
   }
   let migliore = null, distanza = Infinity;
   for(const p of parole){
+    if(_parolaCoperta(p)) continue;
     const r = p.getBoundingClientRect();
     if(!r.width || !r.height) continue;
     const m = r.height * GLOSSARIO_MARGINE;
@@ -20719,7 +20757,48 @@ function impostaTraiettoriaUscita(carta, dir, da){
 
 const VALUTA_CONTO_MS = 620;
 const INK_RIENTRO_MS = 0;
+const VALUTA_BANNER_RESTA_MS = 2000;
+const VALUTA_BANNER_ICONA = { ink:'magic-ink-icon.png', dust:'fairy-dust-icon.png' };
+let _vbUscita = 0;
+function _valutaGiaAVideo(quale){
+  for(const el of document.querySelectorAll('[data-valuta="'+quale+'"]')){
+    if(el.offsetParent !== null) return true;
+  }
+  return false;
+}
+function cartelloValutaSpesa(quale, da, a){
+  const b = document.getElementById('valuta-banner');
+  const num = document.getElementById('vb-numero');
+  if(!b || !num || a >= da) return;
+  if(_valutaGiaAVideo(quale)) return;
+  const icona = b.querySelector('.mm-cur-icon');
+  const file = VALUTA_BANNER_ICONA[quale];
+  if(icona && file && icona.dataset.file !== file){
+    icona.dataset.file = file;
+    try{ impostaImgDaCandidati(icona, uiFileCandidati(file)); }catch(_){ }
+  }
+  if(!b.dataset.vestito){
+    b.dataset.vestito = '1';
+    try{ impostaVariabileDaCandidati(b, '--hx-trama', uiFileCandidati('brushed-texture.jpg')); }catch(_){ }
+  }
+  num.textContent = Math.round(da).toLocaleString('en-US');
+  b.classList.add('dentro');
+  const inizio = performance.now();
+  const passo = (ora)=>{
+    const t = Math.min(1, (ora-inizio)/VALUTA_CONTO_MS);
+    const morbido = 1 - Math.pow(1-t, 3);
+    num.textContent = Math.round(da + (a-da)*morbido).toLocaleString('en-US');
+    if(t < 1) requestAnimationFrame(passo);
+  };
+  requestAnimationFrame(passo);
+  if(_vbUscita) clearTimeout(_vbUscita);
+  _vbUscita = setTimeout(()=>{
+    _vbUscita = 0;
+    b.classList.remove('dentro');
+  }, VALUTA_CONTO_MS + VALUTA_BANNER_RESTA_MS);
+}
 function contaValutaAllIndietro(quale, da, a){
+  try{ cartelloValutaSpesa(quale, da, a); }catch(_){ }
   const campi = [...document.querySelectorAll('[data-valuta="'+quale+'"]')];
   if(!campi.length) return;
   const inizio = performance.now();
@@ -36023,6 +36102,7 @@ function _lvGira(el, da, a, ms, gen, alPasso){
     requestAnimationFrame(passo);
   });
 }
+const LV_GIRO_SUONO_MS = 300;
 const LV_FUOCO_CALDO  = [255, 219, 140];
 const LV_FUOCO_BIANCO = [255, 255, 255];
 function _lvTintaFuoco(){
@@ -36237,7 +36317,7 @@ async function animaSalitaDiLivello(entry, da, a){
   const cambi = zone.map(z => _lvPreparaCambio(fronte, disegna(nuova), z));
 
   ov.dataset.fase = 'giro';
-  try{ playSfxFile('card-flip.mp3'); }catch(_){ }
+  setTimeout(()=>{ try{ playSfxFile('card-flip.mp3'); }catch(_){ } }, LV_GIRO_SUONO_MS);
   let lampo = false;
   await _lvGira(giro, 0, 360, 1100, gen, ang => {
     if(lampo || ang < 180) return;
