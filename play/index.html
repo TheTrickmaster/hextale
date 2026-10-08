@@ -7631,7 +7631,7 @@ try{
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.20</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.21</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -8498,7 +8498,7 @@ try{
     </div>
     <div id="pack-basso">
       <div class="pk-gruppo pk-gruppo-daily">
-        <div class="pk-titolo">Timed reward (12h)</div>
+        <div class="pk-titolo" id="pk-titolo-daily">Timed reward</div>
         <div class="mm2-box pk-pannello">
           <div class="pk-pista" id="pk-daily"></div>
         </div>
@@ -10404,7 +10404,7 @@ function _postoDelloScarto(scelta, cella){
   return mano.findIndex(c => c && c.id === id);
 }
 
-const STICKER_NOMI = ['bagheera-scared', 'captain-hook-facepalm', 'carabosse-menacing', 'frog-prince-okay', 'merlin-perfect', 'queen-of-hearts-angry'];
+const STICKER_NOMI = ['bagheera-scared', 'captain-hook-facepalm', 'carabosse-menacing', 'frog-prince-okay', 'merlin-perfect', 'queen-of-hearts-angry', 'sherazade-bored'];
 const STICKER_A_SCHERMO_MS = 3000;
 const STICKER_USCITA_MS = 250;
 const STICKER_MAX = 5, STICKER_FINESTRA_MS = 10000, STICKER_BLOCCO_MS = 120000;
@@ -19996,7 +19996,31 @@ function playMusicWithIntroLoop(introUrl){
   });
   return true;
 }
-const BUSTINA_ATTESA_MS = 12*60*60*1000;
+var BUSTINA_ORE = [8, 20];
+var BUSTINA_ORA_LEGALE = true;
+function _ultimaDomenicaUTC(anno, mese) {
+  var ultimo = new Date(Date.UTC(anno, mese + 1, 0, 1, 0, 0));
+  return ultimo.getTime() - ultimo.getUTCDay() * 86400000;
+}
+function _oreRomaSuUTC(t) {
+  if (!BUSTINA_ORA_LEGALE) return 1;
+  var anno = new Date(t).getUTCFullYear();
+  return (t >= _ultimaDomenicaUTC(anno, 2) && t < _ultimaDomenicaUTC(anno, 9)) ? 2 : 1;
+}
+function bustinaAppuntamentoDopo(t) {
+  var locale = new Date(t + _oreRomaSuUTC(t) * 3600000);
+  var a = locale.getUTCFullYear(), m = locale.getUTCMonth(), g = locale.getUTCDate();
+  var meglio = Infinity;
+  for (var giorno = -1; giorno <= 1; giorno++) {
+    for (var i = 0; i < BUSTINA_ORE.length; i++) {
+      var comeSeUTC = Date.UTC(a, m, g + giorno, BUSTINA_ORE[i], 0, 0);
+      var vero = comeSeUTC - _oreRomaSuUTC(comeSeUTC - 3600000) * 3600000;
+      if (vero > t && vero < meglio) meglio = vero;
+    }
+  }
+  return meglio;
+}
+
 const BUSTINA_CARTE = 3;
 
 function _bustinaProssimaApertura(){
@@ -20585,7 +20609,7 @@ function bustaPosa(){
   const giro = ++_bustaGiro;
   _bustaSpesa = { giro: giro, tipo: tipo, primaProssima: _bustinaProssimaApertura(), prossimaMessa: null };
   if(tipo === 'daily'){
-    _bustinaSalvaProssima(Date.now() + BUSTINA_ATTESA_MS);
+    _bustinaSalvaProssima(bustinaAppuntamentoDopo(Date.now()));
     _bustaSpesa.prossimaMessa = PREFERENZE.bustinaProssima;
   }
   else if(tipo === 'reward') BUSTINE_VINTE = Math.max(0, BUSTINE_VINTE - 1);
@@ -21543,7 +21567,17 @@ function initPacchettiGesti(){
   if(sigillo) sigillo.addEventListener('click', bustaColpo);
 }
 
+function pkTitoloDaily(){
+  const el = document.getElementById('pk-titolo-daily');
+  if(!el) return;
+  const primo = bustinaAppuntamentoDopo(Date.now());
+  const secondo = bustinaAppuntamentoDopo(primo);
+  const ora = t => { const d = new Date(t); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
+  const orari = [ora(primo), ora(secondo)].sort();
+  el.textContent = 'Timed reward (' + orari[0] + ' & ' + orari[1] + ')';
+}
 function pkDisegnaTutto(){
+  try{ pkTitoloDaily(); }catch(_){ }
   pkDisegnaDaily();
   pkDisegnaTutti();
   pkAggiornaPulsanteCompra();
