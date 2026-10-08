@@ -7631,7 +7631,7 @@ try{
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.19</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.20</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -9857,6 +9857,7 @@ function nakamaDimenticaSessione(){
 }
 function azzeraStatoAccount(){
   try{ GIOCATORE_ADMIN = false; }catch(_){}
+  try{ chatSocketSpegni(); }catch(_){}
   try{ CARTE_POSSEDUTE = {}; }catch(_){}
   try{ CARTE_COPIE = {}; }catch(_){}
   try{ _possessoNoto = false; }catch(_){}
@@ -10555,6 +10556,7 @@ function reteMessaggio(md){
   if(op === 1){
     if(d.tu){
       try{ fermaSuonoTrovato(); }catch(_){ }
+      _mmStanza = null;
       PARTITA_RETE = {
         matchId: md.match_id || (PARTITA_RETE && PARTITA_RETE.matchId) || _reteMatchId,
         io: d.tu, mano: d.mano || [], mazzo: d.mazzo || [], buchi: d.buchi || [],
@@ -10645,7 +10647,8 @@ function reteMessaggio(md){
     _daMostrareDopoPartita = d;
     try{ applicaValuteDalServer(d.valute); }catch(_){ }
     try{ if(d.quest) questMostraMosse(d.quest); }catch(_){ }
-    try{ questRaccontaFinePartita(true); }catch(_){ }
+    if(d.amichevole){ try{ questAzzeraConto(); }catch(_){ } }
+    else { try{ questRaccontaFinePartita(true); }catch(_){ } }
     console.info('[rete] esito dal server: ' + (d.pari ? 'pari' : (d.vinta ? 'vinta' : 'persa'))
       + ', ' + d.xpGuadagnata + ' xp');
     return;
@@ -10826,9 +10829,24 @@ function mmDomanda(rank, forza, forbice){
     + ' +properties.capacita:<=' + capMax;
 }
 
+var _mmStanza = null;
+const STANZA_CAPACITA_CLIENT = -1000;
+
 let _mmUltimoBiglietto = null;
 function mmConsegnaBiglietto(rank, forza, codice){
   _mmUltimoBiglietto = { rank: rank, forza: forza, codice: codice };
+  if(_mmStanza){
+    const io = mmMioId();
+    mmManda({ cid: 'mm-' + Date.now().toString(36), matchmaker_add: {
+      min_count: 2, max_count: 2,
+      query: '+properties.gioco:hextale +properties.stanza:' + _mmStanza.codice + (io ? ' -properties.utente:' + io : ''),
+      string_properties: { gioco: 'hextale', mazzo: codice, nome: nomeGiocatore(),
+                           avatar: miaSiglaAvatar(), utente: io, stanza: _mmStanza.codice },
+      numeric_properties: { rank: rank, capacita: STANZA_CAPACITA_CLIENT,
+                            livello: Math.round(forza.livelloMedio * 10) }
+    }});
+    return;
+  }
   mmManda({ cid: 'mm-' + Date.now().toString(36), matchmaker_add: {
     min_count: 2, max_count: 2,
     query: mmDomanda(rank, forza, _mmForbice),
@@ -10855,7 +10873,7 @@ function mmRifiutato(errore){
 async function mm2CercaAvversario(){
   if(_mm2Cercando){ mm2AnnullaRicerca(); return; }
 
-  if(_mm2Vista === 'ai'){ try{ requestNewGame(true); }catch(_){} return; }
+  if(_mm2Vista === 'ai' && !_mmStanza){ try{ requestNewGame(true); }catch(_){} return; }
 
   if(typeof ANTEPRIMA !== 'undefined' && ANTEPRIMA){
     apriAvviso('Preview build',
@@ -10908,6 +10926,7 @@ async function mm2CercaAvversario(){
 
   _mmTimer = setInterval(()=>{
     if(!_mm2Cercando) return;
+    if(_mmStanza) return;
     if(_mmForbice >= MM_FORBICE_MAX) return;
     _mmForbice++;
     if(_mmTicket) mmManda({ cid:'rm-'+Date.now().toString(36), matchmaker_remove:{ ticket:_mmTicket } });
@@ -10988,6 +11007,12 @@ function mm2AnnullaRicerca(){
   mmFermaTimer();
   mmChiudiSocket();
   mm2FermaRicerca();
+  if(_mmStanza){
+    const codiceStanza = _mmStanza.codice;
+    _mmStanza = null;
+    try{ nakamaRpc('hx_stanza_chiudi', { stanza: codiceStanza }).catch(()=>{}); }catch(_){ }
+    try{ chatForzaRidisegno(); }catch(_){ }
+  }
   console.info('[ricerca] annullata.');
 }
 function mmFermaTimer(){
@@ -13448,8 +13473,16 @@ function mmAvviaCronometro(){
     const s = Math.floor((Date.now() - _mmCronoDa) / 1000);
     try{ mmPromemoriaAggiorna(); }catch(_){ }
     const et = document.querySelector('#mm2-find .hxb-label');
-    if(et) et.textContent = _mmSottoIlDito ? 'Cancel' : 'Searching...(' + s + 's)';
-    if(s >= RICERCA_BOT_DOPO_S && !_trovatoMatch
+    if(et) et.textContent = _mmSottoIlDito ? 'Cancel'
+      : (_mmStanza ? 'Waiting for friend...(' + s + 's)'
+                   : 'Searching...(' + s + 's)');
+    if(_mmStanza && Date.now() > _mmStanza.scade){
+      const nome = _mmStanza.nome || 'Your friend';
+      mm2AnnullaRicerca();
+      apriAvviso('Invite expired', nome + ' did not join in time.', true);
+      return;
+    }
+    if(s >= RICERCA_BOT_DOPO_S && !_trovatoMatch && !_mmStanza
        && !document.getElementById('mm2-find')?.classList.contains('trovato')){
       console.info('[ricerca] ' + s + ' secondi senza avversari: partita contro un Bot.');
       mm2AnnullaRicerca();
@@ -37065,6 +37098,7 @@ function chatAggiornaAccesso(){
   const si = chatPermessa();
   p.classList.toggle('c-su', si);
   if(!si) chatMinimizza();
+  try{ if(si) chatSocketAccendi(); else chatSocketSpegni(); }catch(_){ }
 }
 
 function chatApri(){
@@ -37075,7 +37109,7 @@ function chatApri(){
   _chatStato.aperta = true;
   chatMostraAmici();
   chatGiro();
-  if(!_chatStato.orologio) _chatStato.orologio = setInterval(chatGiro, CHAT_GIRO_MS);
+  if(!_chatStato.orologio) _chatStato.orologio = setInterval(()=>chatGiro(true), CHAT_GIRO_MS);
 }
 function chatMinimizza(){
   const p = _chatPannello();
@@ -37085,8 +37119,10 @@ function chatMinimizza(){
   chatTavolozza(null);
 }
 
-async function chatGiro(){
+async function chatGiro(dallOrologio){
   if(!_chatStato.aperta || _chatStato.inCorso) return;
+  if(dallOrologio && _chatSocketVivo() && Date.now() - _chatUltimoGiro < CHAT_GIRO_LENTO_MS) return;
+  _chatUltimoGiro = Date.now();
   if(!sessioneAccount || !sessioneAccount.token) return;
   _chatStato.inCorso = true;
   try{
@@ -37247,7 +37283,9 @@ function chatDisegnaMessaggi(){
   const dove = document.getElementById('chat-messaggi');
   if(!dove) return;
   const mio = (_chatDati && _chatDati.io && _chatDati.io.id) || '';
-  const firma = _chatMessaggi.map(m=>m.id + (m.presa ? '!' : '')).join(',');
+  const firma = _chatMessaggi.map(m=>m.id + (m.presa ? '!' : '') + (m.annullata ? 'x' : '')
+    + (m.scade && m.scade < Date.now() ? 's' : '')).join(',')
+    + '|' + ((_mmStanza && _mm2Cercando) ? _mmStanza.codice : '');
   if(dove.dataset.firma === firma) return;
   dove.dataset.firma = firma;
   const inFondo = (dove._chatInFondo !== false);
@@ -37267,13 +37305,16 @@ function chatDisegnaMessaggi(){
       h += '<div class="c-bolla c-solo-emoji">' + escapeHtml(m.corpo) + '</div>';
     } else if(m.tipo === 'invito'){
       const scaduto = !m.scade || m.scade < Date.now();
+      const qui = !!(_mmStanza && _mmStanza.codice === m.stanza && _mm2Cercando);
+      const args = "'" + escapeHtml(m.stanza || '') + "'," + Number(m.scade || 0) + ",'" + escapeHtml(suo ? (_chatStato.con || '') : m.da) + "'";
+      let azione;
+      if(m.annullata) azione = '<span class="c-scaduto">Invite cancelled.</span>';
+      else if(scaduto || !m.stanza) azione = '<span class="c-scaduto">Invite expired.</span>';
+      else if(qui) azione = '<span class="c-scaduto">Waiting…</span><button class="c-btn c-no" onclick="mm2AnnullaRicerca()">Cancel</button>';
+      else azione = '<button class="c-btn" onclick="chatEntraInStanza(' + args + ')">' + (suo ? 'Wait' : 'Play') + '</button>';
       h += '<div class="c-bolla"><span class="c-da">' + escapeHtml(_chatNome(m.da)) + '</span>'
          + (suo ? 'You invited them to a match.' : 'Invited you to a match.')
-         + '<div class="c-invito">' + (scaduto
-             ? '<span class="c-scaduto">Invite expired.</span>'
-             : (suo ? '<span class="c-scaduto">Waiting…</span>'
-                    : '<button class="c-btn" onclick="chatAccettaInvito()">Play</button>'))
-         + '</div></div>';
+         + '<div class="c-invito">' + azione + '</div></div>';
     } else if(m.tipo === 'sistema'){
       h += '<div class="c-bolla c-sistema"><span class="c-da">Hextale</span>' + escapeHtml(m.corpo || '');
       if(m.premio){
@@ -37360,13 +37401,44 @@ async function chatManda(tipo, corpo){
 }
 
 async function chatInvitaAPartita(id){
-  try{ await nakamaRpc('hx_chat_invito', { con:id }); }
+  if(!_chatPossoGiocare()) return;
+  let r = null;
+  try{ r = await nakamaRpc('hx_chat_invito', { con:id }); }
   catch(e){ console.warn('[chat] invito non mandato: ' + ((e && e.message) || '')); return; }
   await chatApriConversazione(id);
+  if(r && r.stanza) await chatEntraInStanza(r.stanza, r.scade, id);
 }
-function chatAccettaInvito(){
-  chatMinimizza();
-  try{ mmAvviaPartita(false); }catch(e){ console.warn('[chat] ' + ((e && e.message) || '')); }
+function _chatPossoGiocare(){
+  if(typeof ANTEPRIMA !== 'undefined' && ANTEPRIMA){
+    apriAvviso('Preview build', 'Online matches are turned off in the preview build.', true);
+    return false;
+  }
+  const mio = (typeof mazzoConCuiGiocare === 'function') ? mazzoConCuiGiocare() : null;
+  if(!mio || !mazzoGiocabile(mio)){
+    apriAvviso('Deck not ready', 'Pick a deck with ' + MAZZO_CARTE + ' cards you own, within '
+      + MAZZO_PUNTI + ' points, before playing with a friend.', false);
+    return false;
+  }
+  return true;
+}
+async function chatEntraInStanza(codice, scade, con){
+  if(!codice) return;
+  if(Date.now() > Number(scade || 0)){ chatForzaRidisegno(); return; }
+  if(_mmStanza && _mmStanza.codice === codice && _mm2Cercando) return;
+  if(!_chatPossoGiocare()) return;
+  if(_mm2Cercando) mm2AnnullaRicerca();
+  _mmStanza = { codice: codice, scade: Number(scade), con: con, nome: _chatNome(con) };
+  try{ await mm2CercaAvversario(); }catch(e){ console.warn('[chat] ' + ((e && e.message) || '')); }
+  if(!_mm2Cercando && _mmStanza && _mmStanza.codice === codice){
+    _mmStanza = null;
+    try{ nakamaRpc('hx_stanza_chiudi', { stanza: codice }).catch(()=>{}); }catch(_){ }
+  }
+  chatForzaRidisegno();
+}
+function chatForzaRidisegno(){
+  const dove = document.getElementById('chat-messaggi');
+  if(dove) dove.dataset.firma = '';
+  try{ if(_chatStato.vista === 'conversazione') chatDisegnaMessaggi(); }catch(_){ }
 }
 
 async function chatRiscuotiPremio(idMsg, el){
@@ -37394,6 +37466,65 @@ async function chatRiscuotiPremio(idMsg, el){
   try{ await chatCaricaAmici(); }catch(_){ }
 }
 
+
+const CHAT_CODICI = { 1001: 'amici', 1002: 'chat', 1003: 'invito', 1004: 'hextale' };
+const CHAT_GIRO_LENTO_MS = 30000;
+const CHAT_RIPROVA_MS = [2000, 5000, 15000, 30000];
+let _chatSocket = null;
+let _chatSocketVoluto = false;
+let _chatSocketTentativi = 0;
+let _chatSocketRiprova = null;
+let _chatCampanelloTimer = null;
+let _chatUltimoGiro = 0;
+
+function _chatSocketVivo(){ return !!(_chatSocket && _chatSocket.readyState === 1); }
+
+function chatSocketAccendi(){
+  _chatSocketVoluto = true;
+  if(_chatSocket || _chatSocketRiprova) return;
+  if(typeof sessioneAccount === 'undefined' || !sessioneAccount || !sessioneAccount.token) return;
+  let s;
+  try{
+    s = new WebSocket(MM_SOCKET + '?token=' + encodeURIComponent(sessioneAccount.token) + '&format=json&status=false');
+  }catch(e){ _chatSocketRiprendi(); return; }
+  _chatSocket = s;
+  s.onopen = ()=>{ _chatSocketTentativi = 0; };
+  s.onmessage = ev => {
+    let m = null;
+    try{ m = JSON.parse(ev.data); }catch(_){ return; }
+    if(m && m.ping){ try{ s.send(JSON.stringify({ cid: m.cid, pong: {} })); }catch(_){ } return; }
+    if(m && m.notifications) chatCampanello(m.notifications);
+  };
+  s.onclose = ()=>{
+    if(_chatSocket === s) _chatSocket = null;
+    if(_chatSocketVoluto) _chatSocketRiprendi();
+  };
+  s.onerror = ()=>{  };
+}
+function _chatSocketRiprendi(){
+  if(_chatSocketRiprova || !_chatSocketVoluto) return;
+  const attesa = CHAT_RIPROVA_MS[Math.min(_chatSocketTentativi, CHAT_RIPROVA_MS.length - 1)];
+  _chatSocketTentativi++;
+  _chatSocketRiprova = setTimeout(()=>{ _chatSocketRiprova = null; if(_chatSocketVoluto) chatSocketAccendi(); }, attesa);
+}
+function chatSocketSpegni(){
+  _chatSocketVoluto = false;
+  if(_chatSocketRiprova){ clearTimeout(_chatSocketRiprova); _chatSocketRiprova = null; }
+  const s = _chatSocket; _chatSocket = null;
+  if(s){ try{ s.close(); }catch(_){ } }
+}
+
+function chatCampanello(pacco){
+  const elenco = (pacco && pacco.notifications) || [];
+  if(!elenco.some(n => CHAT_CODICI[Number(n && n.code)])) return;
+  if(_chatCampanelloTimer) return;
+  _chatCampanelloTimer = setTimeout(()=>{
+    _chatCampanelloTimer = null;
+    if(!chatPermessa()) return;
+    if(_chatStato.aperta) chatGiro();
+    else chatCaricaAmici().catch(()=>{});
+  }, 250);
+}
 
 function chatApriConsole(){
   if(!chatPermessa()) return;
