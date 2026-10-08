@@ -6155,6 +6155,7 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
   -webkit-user-drag:none;
 }
 .card-db-card-slot.gia-nel-mazzo{ opacity:0.35; }
+.card-db-card-slot.presa{ opacity:0.35; }
 #card-db-right h1{
   margin:0;
   font-family:var(--font-display);
@@ -7423,7 +7424,7 @@ try{
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.16</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.17</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -16343,6 +16344,7 @@ function _tirAvvia(ev){
     cont.insertBefore(buco, _tir.origine);
     _tir.origine.classList.add('deck-card-row-presa');
   }
+  if(_tir.verso === 'dentro') _tir.origine.classList.add('presa');
   const p = _tirPosizioneAutoriale(ev);
   _tir.x = screenToAuthoredX(r.left + r.width/2);
   _tir.y = screenToAuthoredY(r.top + r.height/2);
@@ -16439,6 +16441,7 @@ function _tirFine(ev){
     }
     const cont = document.querySelector('.deck-edit-carte.bersaglio');
     if(cont) cont.classList.remove('bersaglio');
+    if(_tir.origine && _tir.origine.classList) _tir.origine.classList.remove('presa');
   }
   _tir = null;
   document.removeEventListener('pointermove', _tirMuovi, true);
@@ -28894,6 +28897,7 @@ const SCELTE_DOPO_CONQUISTA = {
       bersagli,
       applicaEAspetta: (cella, poi) => spostaCartaConSalto(origine, cella, poi),
       rinuncia: () => {},
+      seScade: () => bersagli[Math.floor(casoCondiviso('dancing_around|' + origine) * bersagli.length)],
     };
   },
 };
@@ -29697,10 +29701,21 @@ function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLa
   const chiudiIlTurno = ()=>{
     if(!G || G.gameOver) return;
     const _tolte = svuotaLeRimozioniInAttesa();
-    if(conquered.length && timerLeft>0){
+    if(conquered.length){
       const chiaveScelta = card.activatedTileAbility || abilitaAttivaDi(card);
       if(chiaveScelta && apriSceltaDopoConquista(card, player, q, r, chiaveScelta, conquestInfo)){
         renderBoard();
+        if(timerLeft <= 0){
+          const sc = G.sceltaBersaglio;
+          if(!(PARTITA_RETE && sc && !sceltaMia(sc.giocatore))){
+            let ripiego = null;
+            if(sc && typeof sc.seScade === 'function'){
+              try { ripiego = sc.seScade(); } catch(_){ ripiego = null; }
+            }
+            chiudiSceltaBersaglio(ripiego);
+          }
+          return;
+        }
         if(player===2) aiResolvePendingAbilityIfAny();
         return;
       }
