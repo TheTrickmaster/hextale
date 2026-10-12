@@ -1078,6 +1078,10 @@ body.mouse-down, body.mouse-down *{
   font-family:'Rosarivo',serif; font-size:17px; line-height:1.45;
   text-align:center; color:#EDE0C6; opacity:0.9;
 }
+#benvenuto-box{ width:540px; }
+#benvenuto-spiega{ font-family:'Rosarivo',serif; font-size:17px; line-height:1.45; text-align:center; color:#EDE0C6; opacity:0.9; padding:0 28px; }
+#benvenuto-spiega p{ margin:0 0 10px; }
+#benvenuto-spiega b{ color:#F3D891; font-weight:normal; }
 
 #rank-nuovo-alone{
   position:relative; align-self:center;
@@ -7448,6 +7452,20 @@ try{
     </div>
   </div>
 </div>
+<div id="benvenuto-overlay" class="hx-overlay">
+  <div id="benvenuto-box" class="hx-box">
+    <div class="hx-pannello">
+      <div class="hx-titolo-riga">
+        <div class="hx-titolo" id="benvenuto-barra"><h2 id="benvenuto-titolo">Welcome gift</h2></div>
+      </div>
+      <div id="benvenuto-spiega"></div>
+      <button class="hx-btn hx-azione" type="button" id="benvenuto-prendi" onclick="riscuotiBenvenuto(event)">
+        <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
+        <span class="hxb-label">Collect</span>
+      </button>
+    </div>
+  </div>
+</div>
 <div id="username-overlay" class="hx-overlay">
   <div id="username-box" class="hx-box">
     <div class="hx-pannello">
@@ -7637,7 +7655,7 @@ try{
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.24</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.25</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -9422,6 +9440,7 @@ const PAGE_ENTER_HOOKS = {
     if(typeof montaMenuPrincipale === 'function') montaMenuPrincipale();
     try{ chatAggiornaAccesso(); }catch(_){ }
     try{ mm2DisegnaQuest(QUEST_OGGI); questChiediAlServer(); }catch(_){ }
+    try{ benvenutoSeServe(); }catch(_){ }
     try{ regaloPlaytestSeServe(); }catch(_){ }
     try{ rimborsoInkSeServe(); }catch(_){ }
     try{ aggiornaPallinoNovita(); }catch(_){ }
@@ -11256,20 +11275,6 @@ function apriAvvisoConAzione(titolo, testo, guasto, opzioni){
   }
 }
 
-function annunciaRegalo(regalo){
-  const pacchi = Math.max(0, Number(regalo && regalo.pacchetti) || 0);
-  const ink = Math.max(0, Number(regalo && regalo.ink) || 0);
-  const pezzi = [];
-  if(pacchi) pezzi.push(pacchi + (pacchi === 1 ? ' card pack' : ' card packs'));
-  if(ink) pezzi.push(ink + ' Magic Ink');
-  if(!pezzi.length) return;
-  apriAvvisoConAzione('Welcome gift', '', false, {
-    etichetta: 'Thanks!',
-    azione: ()=>{ try{ aggiornaValuteAVideo(); }catch(_){ } }
-  });
-  const p = document.getElementById('avviso-testo');
-  if(p) p.textContent = 'A gift from us: ' + pezzi.join(' and ') + '. Enjoy!';
-}
 function annunciaStagioneNuova(numero, poi){
   const n = Number(numero) || 1;
   apriAvvisoConAzione('New season', '', false, {
@@ -11508,6 +11513,73 @@ function chiudiRimborsoInk(ev){
     questVoloParte(v);
   }catch(_){ }
   nakamaRpc('hx_rimborso_visto', {}).then(r => { try{ applicaValuteDalServer(r && r.valute); }catch(_){ } }).catch(()=>{});
+}
+let _benvenutoAttesa = 0;
+function benvenutoSeServe(){
+  const regalo = _regaloDaAnnunciare;
+  if(!regalo || !_regaloOnboardingFinito) return;
+  if(!sessioneAccount || !sessioneAccount.token) return;
+  const ov = document.getElementById('benvenuto-overlay');
+  if(!ov || ov.classList.contains('show')) return;
+  const occupato = _activePage !== 'mainmenu'
+    || !!document.querySelector('.hx-overlay.show, .hx-modal-overlay.show, #tutorial-overlay.show, #settings-modal-overlay.show, #patch-notes-overlay.show');
+  if(occupato){
+    if(!_benvenutoAttesa) _benvenutoAttesa = setTimeout(()=>{ _benvenutoAttesa = 0; benvenutoSeServe(); }, 800);
+    return;
+  }
+  const pacchi = Math.max(0, Number(regalo.pacchetti) || 0);
+  const ink = Math.max(0, Number(regalo.ink) || 0);
+  if(!pacchi && !ink){ _regaloDaAnnunciare = null; return; }
+  vestiFinestraSemplice('benvenuto');
+  const pezzi = [];
+  if(pacchi) pezzi.push('<b>' + pacchi + (pacchi === 1 ? ' free card pack' : ' free card packs') + '</b>');
+  if(ink) pezzi.push('<b>' + ink.toLocaleString('en-US') + ' Magic Ink</b>');
+  const t = document.getElementById('benvenuto-titolo');
+  if(t) t.textContent = 'Welcome gift';
+  const p = document.getElementById('benvenuto-spiega');
+  if(p) p.innerHTML = '<p>Welcome to Hextale! To get you started, here are ' + pezzi.join(' and ') + '.</p>'
+    + (pacchi ? '<p>Open the packs to grow your collection and build your first decks.</p>' : '');
+  if(ink && _questInkFermo == null){ _questInkFermo = Math.max(0, MENU_GIOCATORE.magicInk - ink); try{ aggiornaValuteAVideo(); }catch(_){ } }
+  const b = document.getElementById('benvenuto-prendi');
+  if(b) b.disabled = false;
+  ov.classList.add('show');
+  try{ playSfxFile('quest-complete.mp3'); }catch(_){ }
+}
+function riscuotiBenvenuto(ev){
+  const b = document.getElementById('benvenuto-prendi');
+  if(b && b.disabled) return;
+  if(b) b.disabled = true;
+  const regalo = _regaloDaAnnunciare || {};
+  _regaloDaAnnunciare = null;
+  const ov = document.getElementById('benvenuto-overlay');
+  if(ov) ov.classList.remove('show');
+  const pacchi = Math.max(0, Number(regalo.pacchetti) || 0);
+  const ink = Math.max(0, Number(regalo.ink) || 0);
+  nakamaRpc('hx_regalo_visto', {}).catch(()=>{});
+  try{
+    const R = _questRadice();
+    let cx = 960, cy = 700;
+    if(R && ev && typeof ev.clientX === 'number' && (ev.clientX || ev.clientY)){
+      cx = (ev.clientX - R.rr.left) / R.k; cy = (ev.clientY - R.rr.top) / R.k;
+    } else if(R && b){
+      const q = _questRiquadro(b, R); cx = q.x + q.w / 2; cy = q.y + q.h / 2;
+    }
+    const voli = [];
+    if(ink) voli.push({ premio:'ink', quanto: ink, da:{ x: cx - 28, y: cy - 28, w: 56, h: 56 }, arrivato:false, img:null, coda:[] });
+    const h = 45, w = Math.round(h * 203 / 162);
+    for(let i = 0; i < pacchi; i++) voli.push({ premio:'pack', quanto:1, da:{ x: cx - w / 2, y: cy - h / 2 + 16, w: w, h: h }, arrivato:false, img:null, coda:[] });
+    if(pacchi) _questBusteFerme = true;
+    voli.forEach(v => _questVoli.push(v));
+    const parti = (i)=>{
+      if(i >= voli.length) return;
+      questVoloParte(voli[i]);
+      setTimeout(()=>parti(i + 1), QUEST_VOLO_PASSO_MS);
+    };
+    parti(0);
+  }catch(_){
+    _questInkFermo = null; _questBusteFerme = false;
+    try{ aggiornaValuteAVideo(); mm2AggiornaBustine(); }catch(__){ }
+  }
 }
 let REGALO_PLAYTEST_DA_DARE = false;
 let _regaloOnboardingFinito = false;
@@ -16946,16 +17018,11 @@ function _riordinoFine(){
 let _patchNotesProposte = false;
 function apriMenuPrincipale(){
   try{ chatAggiornaAccesso(); }catch(_){ }
-  if(_stagioneDaAnnunciare || _regaloDaAnnunciare){
+  if(_stagioneDaAnnunciare){
     const qualeStagione = _stagioneDaAnnunciare;
-    const qualeRegalo = _regaloDaAnnunciare;
     _stagioneDaAnnunciare = 0;
-    _regaloDaAnnunciare = null;
     setTimeout(()=>{
-      try{
-        if(qualeStagione) annunciaStagioneNuova(qualeStagione, qualeRegalo ? ()=>annunciaRegalo(qualeRegalo) : null);
-        else if(qualeRegalo) annunciaRegalo(qualeRegalo);
-      }catch(_){ }
+      try{ annunciaStagioneNuova(qualeStagione, null); }catch(_){ }
     }, 600);
   }
   _giocatoreDentro = true;
@@ -18548,7 +18615,7 @@ async function chiediStarterSeServe(){
   let stato = null;
   try{ stato = await nakamaRpc('hx_starter', {}); }
   catch(e){ console.warn('[starter] non so se il mazzo e\' gia\' stato scelto: ' + ((e && e.message) || '')); return; }
-  if(!stato || stato.scelto){ _regaloOnboardingFinito = true; regaloPlaytestSeServe(); rimborsoInkSeServe(); return; }
+  if(!stato || stato.scelto){ _regaloOnboardingFinito = true; benvenutoSeServe(); regaloPlaytestSeServe(); rimborsoInkSeServe(); return; }
   if(tutorialDaVedere('principale')){
     try{ await apriTutorial('principale'); }catch(_){ }
   }
@@ -18601,7 +18668,7 @@ function chiudiSceltaStarter(){
     ov.classList.remove('show', 'starter-chiude');
     box.classList.remove('starter-esce');
     _starterEsce = false;
-    _regaloOnboardingFinito = true; regaloPlaytestSeServe(); rimborsoInkSeServe();
+    _regaloOnboardingFinito = true; benvenutoSeServe(); regaloPlaytestSeServe(); rimborsoInkSeServe();
   }, STARTER_USCITA_MS);
 }
 
