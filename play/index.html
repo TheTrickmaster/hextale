@@ -5760,8 +5760,14 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
   background-size:contain; background-position:center; background-repeat:no-repeat;
   background-image:var(--hx-casella-off, url('https://hextalegame.com/ui/checkbox-square-unchecked.png'));
 }
-.filters-opt input[type="checkbox"]:checked ~ .filters-casella{
+.filters-casella{ position:relative; }
+.filters-opt input[type="checkbox"]:checked ~ .filters-casella{ background-image:none; }
+.filters-opt input[type="checkbox"]:checked ~ .filters-casella::after{
+  content:''; position:absolute; pointer-events:none;
+  left:0; top:calc(var(--hx-casella-lato) * -2 / 64);
+  width:calc(var(--hx-casella-lato) * 72 / 64); height:calc(var(--hx-casella-lato) * 59 / 64);
   background-image:var(--hx-casella-on, url('https://hextalegame.com/ui/checkbox-square-checked.png'));
+  background-size:100% 100%; background-repeat:no-repeat;
 }
 .filters-tratti{
   display:grid;
@@ -7631,7 +7637,7 @@ try{
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.21</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.22</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -11663,9 +11669,19 @@ function _nakamaRinnovaInCorsa(s, forza){
   return _nakamaRinnovo;
 }
 
+var ABILITA_SBLOCCO_MASSIMO = 1;
+function sbloccoAbilita(valore){
+  const v = Number(valore);
+  return Math.min(ABILITA_SBLOCCO_MASSIMO, (isFinite(v) && v >= 1) ? Math.floor(v) : 1);
+}
 function _applicaCatalogo(carte){
   FINAL_CARDS.length = 0;
   FINAL_CARDS.push.apply(FINAL_CARDS, carte);
+  for(const e of FINAL_CARDS){
+    if(!e) continue;
+    e.abilityUnlockLevel = sbloccoAbilita(e.abilityUnlockLevel);
+    e.abilityLocked = (Number(e.level) || 1) < e.abilityUnlockLevel;
+  }
 }
 function catalogoInCache(versione, carte){
   try{ localStorage.removeItem(CHIAVE_CATALOGO); }catch(_){}
@@ -27024,7 +27040,7 @@ function disegnaYetiInCella(svgCella, radice, x, y, R, k){
 }
 function disegnaImprontaYeti(svg, x, y, R, imp, ora, via){
   const alta = YETI_IMPRONTA_ALTA_HD * (R / 126.77);
-  const larga = alta * 126 / 230;
+  const larga = alta;
   const g = svgEl('g');
   g.setAttribute('transform', 'translate(' + x.toFixed(2) + ',' + y.toFixed(2) + ') rotate(' + imp.angolo.toFixed(1) + ')'
     + (imp.specchio ? ' scale(-1,1)' : ''));
