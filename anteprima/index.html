@@ -1042,6 +1042,7 @@ body.chat-al-centro #mm2-social{ opacity:0 !important; pointer-events:none !impo
 .hx-riga-scelte .hx-ricorda, .hx-riga-scelte .hx-link{ align-self:auto; }
 .deck-slot.non-giocabile{ opacity:0.45; cursor:var(--cursore); }
 .deck-slot.non-giocabile:hover{ filter:none; }
+.deck-slot-conta{ margin-left:8px; font-size:.8em; color:#C9A27A; opacity:.9; }
 .deck-slot-check.non-giocabile{ opacity:0.3; pointer-events:none; }
 .deck-slot-check{ transition:filter .12s ease, transform .12s ease; }
 .deck-slot-check:hover{ filter:brightness(1.45) drop-shadow(0 0 6px rgba(232,195,106,0.55)); transform:scale(1.08); }
@@ -7304,7 +7305,7 @@ try{
       <button class="mm2-icona" id="mm2-news" aria-label="Patch notes" onclick="apriPatchNotesDalMenu()"><img alt="" draggable="false"></button>
     </div>
     <div id="mm2-social">
-      <a href="https://discord.com/invite/edsJqWhN6" target="_blank" rel="noopener" aria-label="Discord" id="mm2-social-discord"><img alt="Discord" draggable="false"></a>
+      <a href="https://discord.gg/Qyrc3KaRk" target="_blank" rel="noopener" aria-label="Discord" id="mm2-social-discord"><img alt="Discord" draggable="false"></a>
       <a href="https://bigfennel.itch.io/hextale" target="_blank" rel="noopener" aria-label="itch.io" id="mm2-social-itchio"><img alt="itch.io" draggable="false"></a>
       <a href="https://www.reddit.com/r/HextaleGame/" target="_blank" rel="noopener" aria-label="Reddit" id="mm2-social-reddit"><img alt="Reddit" draggable="false"></a>
       <a href="https://www.instagram.com/hextale.game/" target="_blank" rel="noopener" aria-label="Instagram" id="mm2-social-instagram"><img alt="Instagram" draggable="false"></a>
@@ -7751,7 +7752,7 @@ try{
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.36</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.37</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -11001,7 +11002,14 @@ function mmRifiutato(errore){
 async function mm2CercaAvversario(){
   if(_mm2Cercando){ mm2AnnullaRicerca(); return; }
 
-  if(_mm2Vista === 'ai' && !_mmStanza){ try{ requestNewGame(true); }catch(_){} return; }
+  if(_mm2Vista === 'ai' && !_mmStanza){
+    const sceltoAI = (MAZZO_SCELTO && MAZZO_SCELTO !== MAZZO_CASUALE && typeof mazzoPerId === 'function') ? mazzoPerId(MAZZO_SCELTO) : null;
+    if(sceltoAI && !mazzoGiocabile(sceltoAI)){
+      apriAvviso('Deck not ready', motivoNonGiocabile(sceltoAI) + ' Pick a complete deck, or the random one.', false);
+      return;
+    }
+    try{ requestNewGame(true); }catch(_){} return;
+  }
 
   if(typeof ANTEPRIMA !== 'undefined' && ANTEPRIMA){
     apriAvviso('Preview build',
@@ -11132,6 +11140,14 @@ function mmTrovato(dati){
 }
 
 function mm2AnnullaRicerca(){
+  const tavolo = _trovatoMatch;
+  if(tavolo){
+    try{ trovatoChiudi(); }catch(_){ }
+    if(sessioneAccount && sessioneAccount.token){
+      try{ nakamaRpc('hx_rifiuta', { matchId: tavolo, perTempo: false }).catch(()=>{}); }catch(_){ }
+    }
+  }
+  try{ _cx.accettato = null; }catch(_){ }
   mmManda({ cid:'rm-'+Date.now().toString(36), matchmaker_remove:{ ticket:_mmTicket||'' } });
   mmFermaTimer();
   mmChiudiSocket();
@@ -11140,8 +11156,8 @@ function mm2AnnullaRicerca(){
     const codiceStanza = _mmStanza.codice;
     _mmStanza = null;
     try{ nakamaRpc('hx_stanza_chiudi', { stanza: codiceStanza }).catch(()=>{}); }catch(_){ }
-    try{ chatForzaRidisegno(); }catch(_){ }
   }
+  try{ chatForzaRidisegno(); }catch(_){ }
   console.info('[ricerca] annullata.');
 }
 function mmFermaTimer(){
@@ -11298,6 +11314,7 @@ function trovatoEsciPerPartita(){
   }, 400);
 }
 function trovatoChiudi(){
+  try{ if(typeof _cx !== 'undefined' && _cx) _cx.accettato = null; }catch(_){ }
   trovatoFermaTimer();
   fermaSuonoTrovato();
   _trovatoMatch = '';
@@ -11316,6 +11333,12 @@ function trovatoAltroNonHaAccettato(torna){
   mmChiudiSocket();
   _mm2Cercando = false;
   mm2FermaRicerca();
+  if(_mmStanza){
+    _mmStanza = null;
+    try{ chatForzaRidisegno(); }catch(_){ }
+    apriAvviso('Match cancelled', 'The friendly match did not start.', true);
+    return;
+  }
   if(!rientra) return;
   setTimeout(()=>{ try{ mm2CercaAvversario(); }catch(_){ } }, 600);
 }
@@ -13673,7 +13696,7 @@ function mmAvviaCronometro(){
     if(et) et.textContent = _mmSottoIlDito ? 'Cancel'
       : (_mmStanza ? 'Waiting for friend...(' + s + 's)'
                    : 'Searching...(' + s + 's)');
-    if(_mmStanza && Date.now() > _mmStanza.scade){
+    if(_mmStanza && !_trovatoMatch && Date.now() > _mmStanza.scade){
       const nome = _mmStanza.nome || 'Your friend';
       mm2AnnullaRicerca();
       apriAvviso('Invite expired', nome + ' did not join in time.', true);
@@ -15037,7 +15060,8 @@ function _adottaMazziDalServer(dalServer, soloSeDiversi){
   _mazziVersione = (dalServer && typeof dalServer.versione === 'number') ? dalServer.versione : 0;
   const sceltaValida = dalServer && dalServer.scelto
     && (dalServer.scelto === MAZZO_CASUALE || nuovi.some(m=>m.id===dalServer.scelto));
-  const scelto = sceltaValida ? dalServer.scelto : (nuovi.length ? nuovi[0].id : null);
+  const ripiego = nuovi.find(m => { try{ return mazzoGiocabile(m); }catch(_){ return false; } });
+  const scelto = sceltaValida ? dalServer.scelto : (ripiego ? ripiego.id : (nuovi.length ? nuovi[0].id : null));
   if(soloSeDiversi && scelto === MAZZO_SCELTO && JSON.stringify(nuovi) === JSON.stringify(MAZZI)) return;
   MAZZI = nuovi;
   MAZZO_SCELTO = scelto;
@@ -15267,6 +15291,15 @@ var ABILITA_MOTORE = (function () {
   function rendeImmuniIVicini(carta) {
     var r = regolaDi(carta, 'immune');
     return !!(r && r.bersaglio === 'adjacent');
+  }
+
+  function colpibile(eff, carta, scena) {
+    if (!eff || !carta) return true;
+    var az = eff.azione;
+    if (az !== 'debuff' && !(az === 'steal' && (!eff.cosa || eff.cosa === 'power'))) return true;
+    if (intoccabile(carta) || _immuneAiDanni(carta, scena)) return false;
+    return latiColpiti(eff.ambito, (carta.valoriBase || carta.values) || {}, carta, '',
+      function (lato) { return _latoDifeso(carta, lato, scena); }).length > 0;
   }
 
 
@@ -15702,6 +15735,13 @@ var ABILITA_MOTORE = (function () {
 
     var tutti = candidati(fonte, eff, scena);
     if (suBersaglio) tutti = _filtraPerCondizione(tutti, cond, fonte, scena);
+    var difeso = null;
+    if (az === 'debuff' || az === 'steal') {
+      difeso = function (carta) { return function (lato) { return _latoDifeso(carta, lato, scena); }; };
+      var colpibili = [];
+      for (var sc = 0; sc < tutti.length; sc++) if (colpibile(eff, tutti[sc], scena)) colpibili.push(tutti[sc]);
+      tutti = colpibili;
+    }
     if (eff.scelta) {
       if (!scena || !scena.scelta) {
         if (tutti.length) fuori.push({ azione: az, cosa: 'power', fonte: fonte, candidati: tutti, scelta: true,
@@ -15711,17 +15751,6 @@ var ABILITA_MOTORE = (function () {
       }
       if (tutti.indexOf(scena.scelta) < 0) return;
       tutti = [scena.scelta];
-    }
-    var difeso = null;
-    if (az === 'debuff' || az === 'steal') {
-      difeso = function (carta) { return function (lato) { return _latoDifeso(carta, lato, scena); }; };
-      var colpibili = [];
-      for (var sc = 0; sc < tutti.length; sc++) {
-        var cand = tutti[sc];
-        if (intoccabile(cand) || _immuneAiDanni(cand, scena)) continue;
-        if (latiColpiti(eff.ambito, (cand.valoriBase || cand.values) || {}, cand, '', difeso(cand)).length) colpibili.push(cand);
-      }
-      tutti = colpibili;
     }
     var lista = scelti(tutti, eff, scena, fonte);
     var q = quantita(fonte, eff, cond, scena);
@@ -15746,17 +15775,26 @@ var ABILITA_MOTORE = (function () {
         if (!d) continue;
         var volte = _tickDiUnRand(eff, d);
         var dUno = d / volte;
+        var latiPresi = [];
         for (var tk = 0; tk < volte; tk++) {
           var latiTk = volte === 1 ? lati
             : latiColpiti(eff.ambito, (bersaglio.valoriBase || bersaglio.values) || {}, bersaglio,
                           _occasione(fonte, scena) + '|r' + tk, difeso ? difeso(bersaglio) : null);
           if (!latiTk.length) continue;
+          latiPresi.push(latiTk);
           fuori.push({ carta: bersaglio, lati: latiTk, delta: dUno, azione: az, fonte: fonte, aCaso: casuale,
                        fraChi: eff.quale === 'random' ? tutti : null, durata: eff.durata || 'permanent' });
         }
         if (az === 'steal' && fonte && bersaglio !== fonte) {
-          fuori.push({ carta: fonte, lati: lati, delta: q, azione: 'buff', fonte: fonte, aCaso: casuale,
-                       fraChi: eff.quale === 'random' ? tutti : null });
+          if (volte === 1) {
+            fuori.push({ carta: fonte, lati: lati, delta: q, azione: 'buff', fonte: fonte, aCaso: casuale,
+                         fraChi: eff.quale === 'random' ? tutti : null });
+          } else {
+            for (var tp = 0; tp < latiPresi.length; tp++) {
+              fuori.push({ carta: fonte, lati: latiPresi[tp], delta: -dUno, azione: 'buff', fonte: fonte, aCaso: casuale,
+                           fraChi: eff.quale === 'random' ? tutti : null });
+            }
+          }
         }
       }
     }
@@ -15867,6 +15905,7 @@ var ABILITA_MOTORE = (function () {
     AZIONI_DESCRITTE: AZIONI_DESCRITTE,
     idStabile: _idStabile,
     latiColpiti: latiColpiti,
+    colpibile: colpibile,
     colpisce: colpisce,
     quantita: quantita,
     finestraAperta: finestraAperta,
@@ -15996,10 +16035,18 @@ function _slotMazzoPieno(mazzo){
   const giocabile = mazzoGiocabile(mazzo);
   check.classList.toggle('non-giocabile', !giocabile);
   if(!giocabile) check.setAttribute('aria-label', 'Deck not playable yet');
+  el.classList.toggle('mazzo-incompleto', !giocabile);
+  if(!giocabile) el.title = motivoNonGiocabile(mazzo);
   check.onclick = (ev)=>{ ev.stopPropagation(); selezionaMazzo(mazzo.id); };
   const nome = document.createElement('span');
   nome.className = 'deck-slot-nome';
   nome.textContent = mazzo.nome || 'Untitled deck';
+  if(!giocabile){
+    const conta = document.createElement('span');
+    conta.className = 'deck-slot-conta';
+    conta.textContent = carteDelMazzo(mazzo).length + '/' + MAZZO_CARTE;
+    nome.appendChild(conta);
+  }
   const edit = document.createElement('button');
   edit.type = 'button';
   edit.className = 'deck-slot-edit';
@@ -16069,7 +16116,7 @@ function importaMazzoDalCampo(){
   const m = { id:'m'+Date.now().toString(36)+Math.floor(Math.random()*1e4).toString(36),
               nome:esito.nome, carte:carte };
   MAZZI.push(m);
-  if(!MAZZO_SCELTO) MAZZO_SCELTO = m.id;
+  if(!MAZZO_SCELTO && mazzoGiocabile(m)) MAZZO_SCELTO = m.id;
   salvaMazzi();
   campo.value = '';
   renderListaMazzi();
@@ -16134,6 +16181,22 @@ function mazzoGiocabile(mazzo){
   return !!mazzo && typeof mazzoValido === 'function' && mazzoValido(mazzo)
     && carteDelMazzo(mazzo).every(cartaTua);
 }
+function mazzoSalvabile(mazzo){
+  if(!mazzo) return false;
+  const carte = carteDelMazzo(mazzo);
+  return carte.length <= MAZZO_CARTE && capacitaDelMazzo(mazzo) <= MAZZO_PUNTI && carte.every(cartaTua);
+}
+function motivoNonGiocabile(mazzo){
+  const n = carteDelMazzo(mazzo).length, cap = capacitaDelMazzo(mazzo);
+  if(n !== MAZZO_CARTE) return 'Incomplete deck: ' + n + '/' + MAZZO_CARTE + ' cards. Complete it to play with it.';
+  if(cap > MAZZO_PUNTI) return 'Over the point cap: ' + cap + '/' + MAZZO_PUNTI + '.';
+  if(!carteDelMazzo(mazzo).every(cartaTua)) return 'This deck has cards you do not own.';
+  return '';
+}
+function primoMazzoGiocabile(){
+  const m = (MAZZI || []).find(x => mazzoGiocabile(x));
+  return m ? m.id : null;
+}
 function selezionaMazzo(id){
   if(id === MAZZO_CASUALE){ MAZZO_SCELTO = id; salvaMazzi(); renderListaMazzi(); return true; }
   const m = MAZZI.find(x=>x.id===id);
@@ -16155,7 +16218,6 @@ function creaMazzo(){
   const m = { id:'m'+Date.now().toString(36)+Math.floor(Math.random()*1e4).toString(36),
               nome:'New deck', carte:[] };
   MAZZI.push(m);
-  if(!MAZZO_SCELTO) MAZZO_SCELTO = m.id;
   salvaMazzi();
   renderListaMazzi();
   apriModificaMazzo(m.id);
@@ -16395,7 +16457,7 @@ function aggiornaPannelloModifica(){
   p.querySelector('.deck-edit-cap-num').textContent = cap + '/' + MAZZO_PUNTI;
   disegnaDistribuzione(p.querySelector('.deck-distrib-hex'), m);
   const salva = p.querySelector('.deck-edit-save');
-  salva.setAttribute('aria-disabled', mazzoGiocabile(m) ? 'false' : 'true');
+  salva.setAttribute('aria-disabled', mazzoSalvabile(m) ? 'false' : 'true');
 }
 const DECK_ANTEPRIMA_SCALA = 1.15;
 function deckAnteprimaMostra(riga, entry){
@@ -16510,9 +16572,13 @@ function togliCartaDalMazzo(id){
 }
 function salvaMazzoInModifica(){
   const m = _mazzoInModifica;
-  if(!m || !mazzoGiocabile(m)) return;
+  if(!m || !mazzoSalvabile(m)) return;
   const vero = mazzoPerId(_mazzoInModificaId);
   if(vero){ vero.nome = (m.nome||'').trim() || 'Untitled deck'; vero.carte = m.carte.slice(); }
+  if(vero && MAZZO_SCELTO === vero.id && !mazzoGiocabile(vero)){
+    const altro = primoMazzoGiocabile();
+    if(altro) MAZZO_SCELTO = altro;
+  }
   salvaMazzi();
   chiudiModificaMazzo(true);
 }
@@ -17301,7 +17367,8 @@ function requestNewGame(vsAI, travestito){
 
 function playerFactionIsDark(player){
   const humanIsLight = (typeof window!=='undefined' && window.__humanFaction==='light');
-  const io = (typeof PARTITA_RETE !== 'undefined' && PARTITA_RETE) ? PARTITA_RETE.io : 1;
+  const io = (typeof PARTITA_RETE !== 'undefined' && PARTITA_RETE && PARTITA_RETE.io)
+    || (typeof G === 'object' && G && G.ioSonoIlNumero) || 1;
   const eIlMio = (player === io);
   return humanIsLight ? !eIlMio : eIlMio;
 }
@@ -25699,6 +25766,7 @@ function doPlace(card,playerIdx,q,r,daServer,dUfficio){
   else           G.p2Hand=G.p2Hand.filter(c=>c.id!==card.id);
   try{ mangiaBriciola(card, player, k, eYeti(card)); }catch(e){ console.warn('[briciole] ' + (e && e.message)); }
   if(!PARTITA_RETE) yetiRivelaAccanto(player, k);
+  yetiImpronteViaAccanto(player, k);
   if(eYeti(card) && !yetiAccantoANemici(player, k) && yetiAlPiazzamento(card, player, q, r, k, timeAlreadyExpired)) return;
 
   const fumiDiradati = diradaFumoIntorno(q, r, player);
@@ -27248,6 +27316,28 @@ function yetiRivelaAccanto(player, k){
   }
   return n;
 }
+function yetiImpronteViaAccanto(player, k){
+  const [q, r] = String(k).split(',').map(Number);
+  const vicine = new Set(DIRS.map(d => key(q + d.dq, r + d.dr)));
+  const ora = performance.now();
+  let n = 0;
+  for(const y of _yetiElenco()){
+    if(y.stato !== 'nascosto' || y.di === player) continue;
+    const via = y.impronte.filter(i => vicine.has(i.cella) && i.cella !== y.cella);
+    if(!via.length) continue;
+    y.impronte = y.impronte.filter(i => via.indexOf(i) < 0);
+    if(!y.impronteTolte) y.impronteTolte = [];
+    for(const i of via){ i.viaDa = ora; y.impronteTolte.push(i); n++; }
+  }
+  if(n){
+    console.info('[Yeti] ' + n + ' impronta/e accanto a ' + k + ': via');
+    _firmaTabellonePrecedente = null;
+    try{ renderBoard(); }catch(_){ }
+    setTimeout(()=>{ _firmaTabellonePrecedente = null; try{ renderBoard(); }catch(_){ } },
+      YETI_IMPRONTE_VIA_MS + YETI_RIVELA_PULIZIA_MS);
+  }
+  return n;
+}
 function yetiRivelaDaServer(elenco, perCella){
   let n = 0;
   for(const e of (Array.isArray(elenco) ? elenco : [])){
@@ -27324,6 +27414,11 @@ function disegnaYetiInCella(svgCella, radice, x, y, R, k){
         if(imp.cella !== k || ora < imp.da) continue;
         disegnaImprontaYeti(svgCella, x, y, R, imp, ora, yy.stato === 'rivelato' ? via : null);
       }
+    }
+    for(const imp of (yy.impronteTolte || [])){
+      const t = ora - imp.viaDa;
+      if(imp.cella !== k || t >= YETI_IMPRONTE_VIA_MS) continue;
+      disegnaImprontaYeti(svgCella, x, y, R, imp, ora, t);
     }
     if(yy.stato === 'nascosto' && yy.cella === k && _yetiLoVedo(yy)) disegnaYetiFantasma(radice, x, y, R, k, yy);
   }
@@ -28748,6 +28843,10 @@ function _condizioneSulBersaglio(cond, bersaglio){
 
 function _effettoHaSensoSu(eff, fonte, bersaglio){
   if(cartaIntoccabile(bersaglio)) return false;
+  try{
+    const m = _motore();
+    if(m && m.colpibile && !m.colpibile(eff, bersaglio, _scenaTabellone())) return false;
+  }catch(_){ }
   if(eff.cosa === 'buff') return haBuffRubabile(bersaglio);
   if(eff.cosa === 'trait'){
     return ((bersaglio.traits || bersaglio.traitNames || []).length > 0);
@@ -38116,8 +38215,11 @@ function chatAccettaInvito(con){
 async function chatRifiutaInvito(con){
   const s = _cxStatoInvito(con);
   if(!s || !s.m) return;
+  const stanza = s.m.stanza;
+  s.m.annullata = true;
   if(s.qui){ try{ mm2AnnullaRicerca(); }catch(_){ } }
-  else { try{ await nakamaRpc('hx_stanza_chiudi', { stanza: s.m.stanza }); }catch(e){ console.warn('[chat] ' + ((e && e.message) || '')); } }
+  chatForzaRidisegno();
+  try{ await nakamaRpc('hx_stanza_chiudi', { stanza: stanza }); }catch(e){ console.warn('[chat] ' + ((e && e.message) || '')); }
   await chatGiro();
   chatForzaRidisegno();
 }
@@ -38307,6 +38409,9 @@ function chatCampanello(pacco){
     const codice = Number(n && n.code);
     if((codice === 1001 && dentro.tipo === 'amico-richiesta') || (codice === 1003 && dentro.tipo === 'invito')) richiamo = true;
     if(codice === 1002 || codice === 1004) messaggio = true;
+    if(codice === 1003 && dentro.tipo === 'invito-chiuso' && typeof _mmStanza !== 'undefined' && _mmStanza && dentro.da === _mmStanza.con){
+      try{ mm2AnnullaRicerca(); }catch(_){ }
+    }
   }
   if(chatPermessa()){
     if(richiamo){ try{ playSfxFile('sticker.mp3'); }catch(_){ } }
