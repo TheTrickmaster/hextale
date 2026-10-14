@@ -6835,6 +6835,7 @@ img.cx-annuncio-img{ width:100%; height:143px; object-fit:cover; display:block; 
 .cx-annuncio-testo p{ margin:0 0 10px; }
 .cx-annuncio-testo p:last-child{ margin:0; }
 .cx-annuncio-testo a{ color:#F0C568; text-decoration:underline; cursor:var(--cursore); }
+.cx-annuncio-testo .cx-nome-lettore{ color:#F0C568; }
 .cx-premio{
   flex:0 0 auto; height:44px; box-sizing:border-box; display:flex; align-items:center; justify-content:space-between; gap:8px;
   padding:4px 12px; border-radius:8px; border:1.5px solid rgba(255,255,255,0.7);
@@ -6896,6 +6897,7 @@ img.cx-premio-icona.cx-premio-pack{ rotate:-10.63deg; }
 @keyframes cxMatchLampo{ 0%{ opacity:0; } 30%{ opacity:1; } 100%{ opacity:0; } }
 @keyframes cxMatchRiflesso{ from{ transform:translateX(-120%); } to{ transform:translateX(330%); } }
 .cx-console-tutti{ margin:0; }
+.cx-console-tutti .filters-nome{ font-family:'Marcellus SC','Marcellus',var(--font-display),serif; font-size:14px; color:#D4CBB9; }
 #chat-console-a:disabled{ opacity:0.4; }
 
 .cx-etichetta{ font-size:14px; color:#D4CBB9; }
@@ -6907,6 +6909,8 @@ textarea.cx-campo{ min-height:110px; resize:vertical; }
 .cx-console-riga{ display:flex; gap:8px; }
 img.cx-console-anteprima{ width:100%; height:120px; object-fit:cover; border-radius:8px; border:1px solid #FFFFFF; box-sizing:border-box; }
 .cx-console-esito{ font-size:13px; color:#ABB7B9; min-height:16px; }
+.cx-console-memo{ margin-top:-4px; font-size:12px; line-height:1.3; color:#7B8587; }
+.cx-console-memo b{ font-weight:normal; color:#F0C568; }
 
 </style>
 </head>
@@ -7746,7 +7750,7 @@ try{
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.34</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.35</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -37529,7 +37533,8 @@ function _cxVoceConsole(){
     +     '<label class="settings-opzione filters-opt cx-console-tutti"><input type="checkbox" id="chat-console-tutti" onchange="chatConsoleTutti(this)">'
     +       '<span class="filters-nome">All registered players</span><span class="filters-casella"></span></label>'
     +     '<span class="cx-etichetta">Message</span>'
-    +     '<textarea class="cx-campo" id="chat-console-testo" maxlength="3000" placeholder="Hey Hextalers! (a blank line starts a new paragraph)"></textarea>'
+    +     '<textarea class="cx-campo" id="chat-console-testo" maxlength="3000" placeholder="Hey *username*! A blank line starts a new paragraph."></textarea>'
+    +     '<div class="cx-console-memo">Tip: write <b>*username*</b> and each player will see their own name there, in gold.</div>'
     +     '<span class="cx-etichetta">Image</span>'
     +     '<input class="cx-campo" id="chat-console-file" type="file" accept="image/png,image/jpeg,image/webp" onchange="chatConsoleImmagine(this)">'
     +     '<img class="cx-console-anteprima" id="chat-console-anteprima" alt="" hidden>'
@@ -37976,7 +37981,8 @@ function _cxAnnuncio(m){
   let h = '<div class="cx-annuncio" data-msg="' + escapeHtml(m.id) + '"><div class="cx-annuncio-corpo">';
   if(m.immagine) h += '<img class="cx-annuncio-img" alt="" draggable="false" data-immagine="' + escapeHtml(m.immagine) + '">';
   const pezzi = String(m.corpo || '').split(/\n\s*\n|\n/).map(t => t.trim()).filter(Boolean);
-  let testo = pezzi.map(t => '<p>' + escapeHtml(t) + '</p>').join('');
+  const nome = '<span class="cx-nome-lettore">' + escapeHtml((typeof nomeGiocatore === 'function' && nomeGiocatore()) || 'Hextaler') + '</span>';
+  let testo = pezzi.map(t => '<p>' + escapeHtml(t).replace(/\*username\*/gi, nome) + '</p>').join('');
   if(m.link && /^https:\/\//.test(m.link)) testo += '<p><a href="' + escapeHtml(m.link) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(m.linkTesto || 'Link') + '</a></p>';
   if(testo) h += '<div class="cx-annuncio-testo">' + testo + '</div>';
   if(m.premio){
