@@ -7655,7 +7655,7 @@ try{
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.28</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.29</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -7802,6 +7802,11 @@ try{
       <label class="settings-opzione filters-opt">
         <input type="checkbox" id="tooltip-parole-check" class="tooltip-parole-check" onchange="toggleTooltipParole(this)">
         <span class="filters-nome">Show tooltips on keywords</span>
+        <span class="filters-casella"></span>
+      </label>
+      <label class="settings-opzione filters-opt" id="art-ai-opzione" style="display:none">
+        <input type="checkbox" id="art-ai-check" onchange="toggleArtAI(this)">
+        <span class="filters-nome" id="art-ai-nome">Use AI card art (admin)</span>
         <span class="filters-casella"></span>
       </label>
       <div class="filters-riga"></div>
@@ -11754,6 +11759,7 @@ function _applicaCatalogo(carte){
     e.abilityUnlockLevel = sbloccoAbilita(e.abilityUnlockLevel);
     e.abilityLocked = (Number(e.level) || 1) < e.abilityUnlockLevel;
   }
+  try{ artAIAvvia(); }catch(_){ }
 }
 function catalogoInCache(versione, carte){
   try{ localStorage.removeItem(CHIAVE_CATALOGO); }catch(_){}
@@ -11803,6 +11809,7 @@ async function caricaCarteDalServer(){
   if(risposta.livelliCarte && risposta.livelliCarte.copie) LIVELLI_CARTE_REGOLE = risposta.livelliCarte;
   GIOCATORE_ADMIN = !!risposta.admin;
   try{ aggiornaAccessoDebug(); }catch(_){ }
+  try{ artAIAvvia(); aggiornaInterruttoreArtAI(); }catch(_){ }
   try{ carteNuoveDalServer(risposta.nuove); }catch(_){ }
   applicaValuteDalServer(risposta.valute);
   if(typeof risposta.avatar === 'string') MIO_AVATAR = risposta.avatar;
@@ -13170,6 +13177,7 @@ function preferenzeDalServer(p, bustinaProssima, bustineExtra, bustineTesoro, pr
   try{ if(typeof caricaImpostazioniAudio === 'function') caricaImpostazioniAudio(); }catch(_){}
   try{ if(typeof caricaAiutoEsagono === 'function') caricaAiutoEsagono(); }catch(_){}
   try{ if(typeof applyFactionToPlayerPanels === 'function') applyFactionToPlayerPanels(); }catch(_){}
+  try{ artAIAvvia(); }catch(_){ }
 }
 let _preferenzeInVolo = false, _preferenzeDaRimandare = null;
 function salvaPreferenze(cambiamenti){
@@ -17734,6 +17742,92 @@ function tooltipParoleAccesi(){ return PREFERENZE.tooltipParole !== false; }
 function aggiornaInterruttoreTooltipParole(){
   document.querySelectorAll('.tooltip-parole-check').forEach(c => { c.checked = tooltipParoleAccesi(); });
 }
+const ART_AI_BASE = 'https://download.hextalegame.com/ai-art/';
+let _artAIPresenti = null;
+let _artAIScarico = null;
+let _artAIFatte = 0, _artAITotale = 0;
+function artAIAccesa(){ return !!GIOCATORE_ADMIN && PREFERENZE.artAI === true; }
+function _artAIDi(url){
+  const m = /cards\/art\/(.+)\.(?:jpe?g|png)$/i.exec(typeof url === 'string' ? url : '');
+  return m ? ART_AI_BASE + m[1] + '.jpg' : null;
+}
+function _artVeraDi(e){
+  if(!e._artVera) e._artVera = { dark: e.artLayersDark || null, light: e.artLayersLight || null };
+  return e._artVera;
+}
+function _pilaAI(pila){
+  if(!Array.isArray(pila) || !pila.length || !_artAIPresenti) return null;
+  const nuova = pila.map(_artAIDi);
+  return nuova.every(u => u && _artAIPresenti.has(u)) ? nuova : null;
+}
+function artAIApplica(){
+  const accesa = artAIAccesa() && !!_artAIPresenti;
+  for(const e of FINAL_CARDS){
+    if(!e || (!accesa && !e._artVera)) continue;
+    const v = _artVeraDi(e);
+    e.artLayersDark = (accesa && _pilaAI(v.dark)) || v.dark;
+    e.artLayersLight = (accesa && _pilaAI(v.light)) || v.light;
+  }
+}
+function artAIRidisegna(){
+  try{ applyFactionToPlayerPanels(); }catch(_){ }
+  try{ mm2RinfrescaGiocatore(); }catch(_){ }
+  try{ if(document.querySelector('#card-db-grid .card-db-card-slot')) cardDbRenderRoster(); }catch(_){ }
+}
+function artAIScarica(){
+  if(_artAIPresenti || _artAIScarico) return _artAIScarico || Promise.resolve();
+  const indirizzi = new Set();
+  for(const e of FINAL_CARDS){
+    if(!e) continue;
+    const v = _artVeraDi(e);
+    for(const pila of [v.dark, v.light]) if(Array.isArray(pila)) for(const u of pila){ const a = _artAIDi(u); if(a) indirizzi.add(a); }
+  }
+  const lista = [...indirizzi];
+  if(!lista.length) return Promise.resolve();
+  const buone = new Set();
+  _artAIFatte = 0; _artAITotale = lista.length;
+  let prossimo = 0;
+  const una = (u)=> new Promise(fine=>{
+    const img = new Image();
+    let finita = false;
+    const chiudi = (buona)=>{ if(finita) return; finita = true; if(buona) buone.add(u); _artAIFatte++; aggiornaInterruttoreArtAI(); fine(); };
+    img.onload = ()=>chiudi(true);
+    img.onerror = ()=>chiudi(false);
+    img.src = u;
+  });
+  const canale = ()=> (prossimo < lista.length) ? una(lista[prossimo++]).then(canale) : Promise.resolve();
+  _artAIScarico = Promise.all([0,1,2,3,4,5].map(canale)).then(()=>{
+    _artAIPresenti = buone;
+    _artAIScarico = null;
+    artAIApplica();
+    artAIRidisegna();
+    aggiornaInterruttoreArtAI();
+  });
+  aggiornaInterruttoreArtAI();
+  return _artAIScarico;
+}
+function artAIAvvia(){
+  if(!artAIAccesa()){ if(_artAIPresenti) artAIApplica(); return; }
+  if(_artAIPresenti){ artAIApplica(); return; }
+  artAIScarica();
+}
+function aggiornaInterruttoreArtAI(){
+  const riga = document.getElementById('art-ai-opzione');
+  if(riga) riga.style.display = GIOCATORE_ADMIN ? '' : 'none';
+  const c = document.getElementById('art-ai-check');
+  if(c) c.checked = artAIAccesa();
+  const n = document.getElementById('art-ai-nome');
+  if(n) n.textContent = 'Use AI card art (admin)'
+    + ((_artAIScarico && _artAITotale) ? ' - downloading ' + Math.floor(100 * _artAIFatte / _artAITotale) + '%' : '');
+}
+function toggleArtAI(c){
+  if(!GIOCATORE_ADMIN){ if(c) c.checked = false; return; }
+  const acceso = !!(c && c.checked);
+  salvaPreferenze({ artAI: acceso });
+  if(acceso) artAIAvvia();
+  else { artAIApplica(); artAIRidisegna(); }
+  aggiornaInterruttoreArtAI();
+}
 function toggleTooltipParole(quale){
   const c = quale || document.querySelector('.tooltip-parole-check');
   const acceso = c ? !!c.checked : !tooltipParoleAccesi();
@@ -18336,6 +18430,7 @@ function oggettoCampoAccendi(nome){
 }
 function aggiornaCustomize(){
   try{ aggiornaInterruttoreTooltipParole(); }catch(_){ }
+  try{ aggiornaInterruttoreArtAI(); }catch(_){ }
   const campo = document.getElementById('customize-username');
   if(campo) campo.value = (typeof nomeGiocatore === 'function' ? nomeGiocatore() : '') || '';
   const foto = document.querySelector('#customize-avatar .player-avatar-photo');
