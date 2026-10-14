@@ -7655,7 +7655,7 @@ try{
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.29</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.30</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -15848,10 +15848,10 @@ function candidatiArtDiCarta(entry){
   if(!entry) return [];
   const scura = varianteCollezioneScura();
   const gia = (scura ? entry.artDark : entry.artLight) || entry.artSrc;
-  if(gia) return [gia];
+  if(gia) return _conAI([gia]);
   const slug = entry.slug || slugPersonaggio(entry.name);
   if(!slug) return [];
-  return artUrlVariante(slug, scura ? 'dark' : 'light').senzaNumero || [];
+  return _conAI(artUrlVariante(slug, scura ? 'dark' : 'light').senzaNumero || []);
 }
 function renderListaMazzi(){
   const lista = document.getElementById('deck-list');
@@ -17217,7 +17217,7 @@ function avatarCandidati(sigla, fazione){
   }
   if(!/^[a-z0-9-]+$/i.test(v)) return [];
   const f = (fazione === 'light') ? 'light' : 'dark';
-  try{ return (artUrlVariante(v.toLowerCase(), f).senzaNumero) || []; }catch(_){ return []; }
+  try{ return _conAI((artUrlVariante(v.toLowerCase(), f).senzaNumero) || []); }catch(_){ return []; }
 }
 function miaSiglaAvatar(){ return MIO_AVATAR || ''; }
 
@@ -17317,10 +17317,10 @@ function assegnaAvatarDeiGiocatori(){
     const entry = mescolate[(p-1) % mescolate.length];
     const scura = playerFactionIsDark(p);
     const gia = scura ? entry.artDark : entry.artLight;
-    if(gia){ el.src = gia; continue; }
+    if(gia){ el.src = artAIUrl(gia); continue; }
     const slug = entry.slug || slugPersonaggio(entry.name);
     if(!slug) continue;
-    _avatarProva(el, artUrlVariante(slug, scura ? 'dark' : 'light').senzaNumero || [], gen);
+    _avatarProva(el, _conAI(artUrlVariante(slug, scura ? 'dark' : 'light').senzaNumero || []), gen);
   }
 }
 const VERSUS_MS = 6000;
@@ -17360,8 +17360,8 @@ function _vsScegliRitratti(){
     const scura = playerFactionIsDark(p);
     const gia = scura ? entry.artDark : entry.artLight;
     const slug = entry.slug || (typeof slugPersonaggio === 'function' ? slugPersonaggio(entry.name) : '');
-    const candidati = gia ? [gia]
-      : (slug ? ((artUrlVariante(slug, scura ? 'dark' : 'light').senzaNumero) || []) : []);
+    const candidati = _conAI(gia ? [gia]
+      : (slug ? ((artUrlVariante(slug, scura ? 'dark' : 'light').senzaNumero) || []) : []));
     fuori[p] = { entry: entry, candidati: candidati };
   }
   return fuori;
@@ -17748,12 +17748,30 @@ let _artAIScarico = null;
 let _artAIFatte = 0, _artAITotale = 0;
 function artAIAccesa(){ return !!GIOCATORE_ADMIN && PREFERENZE.artAI === true; }
 function _artAIDi(url){
-  const m = /cards\/art\/(.+)\.(?:jpe?g|png)$/i.exec(typeof url === 'string' ? url : '');
-  return m ? ART_AI_BASE + m[1] + '.jpg' : null;
+  const m = /cards\/art\/(.+)\.(jpe?g|png)$/i.exec(typeof url === 'string' ? url : '');
+  if(!m) return null;
+  const png = /png/i.test(m[2]) && /smoke-value-circle-\d+$/i.test(m[1]);
+  return ART_AI_BASE + m[1] + (png ? '.png' : '.jpg');
 }
+const ART_AI_CAMPI = ['artFumoDark', 'artFumoLight', 'artNotteDark', 'artNotteLight'];
+const _eAI = (v)=> typeof v === 'string' ? v.indexOf(ART_AI_BASE) === 0 : (Array.isArray(v) && v.some(_eAI));
 function _artVeraDi(e){
-  if(!e._artVera) e._artVera = { dark: e.artLayersDark || null, light: e.artLayersLight || null };
-  return e._artVera;
+  if(!e._artVera) e._artVera = {};
+  const v = e._artVera;
+  if(!_eAI(e.artLayersDark)) v.dark = e.artLayersDark || null;
+  if(!_eAI(e.artLayersLight)) v.light = e.artLayersLight || null;
+  for(const k of ART_AI_CAMPI) if(!_eAI(e[k])) v[k] = e[k] || null;
+  return v;
+}
+function artAIUrl(u){
+  if(!artAIAccesa()) return u;
+  const a = _artAIDi(u);
+  return (a && (!_artAIPresenti || _artAIPresenti.has(a))) ? a : u;
+}
+function _conAI(lista){
+  if(!artAIAccesa() || !Array.isArray(lista) || !lista.length) return lista;
+  const a = _artAIDi(lista[0]);
+  return (a && (!_artAIPresenti || _artAIPresenti.has(a))) ? [a].concat(lista) : lista;
 }
 function _pilaAI(pila){
   if(!Array.isArray(pila) || !pila.length || !_artAIPresenti) return null;
@@ -17767,12 +17785,16 @@ function artAIApplica(){
     const v = _artVeraDi(e);
     e.artLayersDark = (accesa && _pilaAI(v.dark)) || v.dark;
     e.artLayersLight = (accesa && _pilaAI(v.light)) || v.light;
+    for(const k of ART_AI_CAMPI){ const a = _artAIDi(v[k]); e[k] = (accesa && a && _artAIPresenti.has(a)) ? a : v[k]; }
   }
 }
 function artAIRidisegna(){
   try{ applyFactionToPlayerPanels(); }catch(_){ }
   try{ mm2RinfrescaGiocatore(); }catch(_){ }
   try{ if(document.querySelector('#card-db-grid .card-db-card-slot')) cardDbRenderRoster(); }catch(_){ }
+  try{ mm2AggiornaProfilo(); }catch(_){ }
+  try{ aggiornaArtiMazzi(); }catch(_){ }
+  try{ aggiornaCustomize(); }catch(_){ }
 }
 function artAIScarica(){
   if(_artAIPresenti || _artAIScarico) return _artAIScarico || Promise.resolve();
@@ -17781,7 +17803,9 @@ function artAIScarica(){
     if(!e) continue;
     const v = _artVeraDi(e);
     for(const pila of [v.dark, v.light]) if(Array.isArray(pila)) for(const u of pila){ const a = _artAIDi(u); if(a) indirizzi.add(a); }
+    for(const k of ART_AI_CAMPI){ const a = _artAIDi(v[k]); if(a) indirizzi.add(a); }
   }
+  for(const u of [ART_BLOCCATA.dark, ART_BLOCCATA.light].concat(SMOKE_VALUE_CIRCLES)){ const a = _artAIDi(u); if(a) indirizzi.add(a); }
   const lista = [...indirizzi];
   if(!lista.length) return Promise.resolve();
   const buone = new Set();
@@ -19650,7 +19674,7 @@ function smokeValueCircleSrc(card, indice){
   let h = 0;
   const s = String((card && (card.id||card.name)) || '');
   for(let i=0;i<s.length;i++) h = (h*31 + s.charCodeAt(i)) >>> 0;
-  return SMOKE_VALUE_CIRCLES[(indice + h) % SMOKE_VALUE_CIRCLES.length];
+  return artAIUrl(SMOKE_VALUE_CIRCLES[(indice + h) % SMOKE_VALUE_CIRCLES.length]);
 }
 const VOCI_BASE = 'https://hextalegame.com/audio/voices/';
 const ART_REL = '../cards/art/';
@@ -22396,9 +22420,9 @@ function _vestiDaBloccata(card){
               : playerFactionIsDark(card.owner || 1);
   card.artLayers = null; card.artLayersDark = null; card.artLayersLight = null;
   card.artParallax = false;
-  card.artDark = ART_BLOCCATA.dark;
-  card.artLight = ART_BLOCCATA.light;
-  card.artSrc = scura ? ART_BLOCCATA.dark : ART_BLOCCATA.light;
+  card.artDark = artAIUrl(ART_BLOCCATA.dark);
+  card.artLight = artAIUrl(ART_BLOCCATA.light);
+  card.artSrc = scura ? card.artDark : card.artLight;
   return card;
 }
 
