@@ -6738,11 +6738,12 @@ img.cx-busta.cx-valuta{ width:auto; height:34px; rotate:0deg; }
   flex:1 1 auto; min-height:0; display:flex; flex-direction:column; gap:8px; padding:12px;
   border:1.5px solid #404445; border-radius:16px; background:#2B3132; overflow-y:auto; overflow-x:hidden;
   box-shadow:inset 0 4px 10px 0 rgba(0,0,0,0.34);
-  scrollbar-width:thin; scrollbar-color:rgba(232,208,158,0.30) transparent;
 }
-.cx-scatola::-webkit-scrollbar{ width:6px; }
-.cx-scatola::-webkit-scrollbar-track{ background:transparent; }
-.cx-scatola::-webkit-scrollbar-thumb{ background:rgba(232,208,158,0.30); border-radius:3px; }
+#chat-pannello *::-webkit-scrollbar{ width:4px; height:4px; }
+#chat-pannello *::-webkit-scrollbar-button{ display:none; width:0; height:0; }
+#chat-pannello *::-webkit-scrollbar-track{ background:transparent; }
+#chat-pannello *::-webkit-scrollbar-thumb{ background:#404748; border-radius:2px; }
+#chat-pannello *::-webkit-scrollbar-corner{ background:transparent; }
 .cx-sez{ flex:0 0 28px; height:28px; display:flex; align-items:center; gap:12px; cursor:var(--cursore); user-select:none; }
 .cx-sez span{ font-size:16px; line-height:normal; color:#D4CBB9; white-space:nowrap; }
 .cx-sez i{ flex:1 1 auto; height:1px; background:rgba(212,203,185,0.22); }
@@ -6874,6 +6875,28 @@ img.cx-premio-icona.cx-premio-pack{ rotate:-10.63deg; }
 .cx-menu-voce img{ width:19px; height:20.12px; display:block; flex:0 0 auto; }
 .cx-menu-riga{ height:24px; display:flex; align-items:center; }
 .cx-menu-riga i{ flex:1 1 auto; height:1px; background:rgba(212,203,185,0.22); }
+
+.cx-fin.cx-anima{ transition:width .2s ease, height .2s ease; overflow:hidden; }
+.cx-fin.cx-anima > *{ transition:opacity .12s ease; }
+.cx-fin.cx-piccola > *{ opacity:0; }
+.cx-pill{ position:relative; isolation:isolate; }
+.cx-pill::before{
+  content:''; position:absolute; inset:0; border-radius:inherit; z-index:-1; pointer-events:none;
+  background-image:var(--hx-trama, none); background-size:847px 809.5px; background-position:top left;
+  mix-blend-mode:overlay; opacity:0.4;
+}
+.cx-match{ position:relative; }
+.cx-match.cx-entra{ animation:cxMatchApre .28s ease-out both; }
+.cx-match.cx-entra::before, .cx-match.cx-entra::after{ content:''; position:absolute; pointer-events:none; z-index:3; }
+.cx-match.cx-entra::before{ inset:0; background:rgba(255,255,255,0.32); opacity:0; animation:cxMatchLampo .5s ease-out .22s both; }
+.cx-match.cx-entra::after{ top:-10%; bottom:-10%; left:0; width:45%;
+  background:linear-gradient(100deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.5) 50%, rgba(255,255,255,0) 100%);
+  transform:translateX(-120%); animation:cxMatchRiflesso .75s ease-in-out .28s both; }
+@keyframes cxMatchApre{ from{ max-height:0; padding-top:0; padding-bottom:0; opacity:0.2; } to{ max-height:200px; opacity:1; } }
+@keyframes cxMatchLampo{ 0%{ opacity:0; } 30%{ opacity:1; } 100%{ opacity:0; } }
+@keyframes cxMatchRiflesso{ from{ transform:translateX(-120%); } to{ transform:translateX(330%); } }
+.cx-console-tutti{ margin:0; }
+#chat-console-a:disabled{ opacity:0.4; }
 
 .cx-etichetta{ font-size:14px; color:#D4CBB9; }
 .cx-campo{ box-sizing:border-box; width:100%; border:1px solid rgba(255,255,255,0.2); border-radius:12px;
@@ -7723,7 +7746,7 @@ try{
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.33</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.34</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -9957,6 +9980,7 @@ function nakamaDimenticaSessione(){
 function azzeraStatoAccount(){
   try{ GIOCATORE_ADMIN = false; }catch(_){}
   try{ chatSocketSpegni(); }catch(_){}
+  try{ _chatFuori = true; chatMinimizza(); chatAggiornaAccesso(); }catch(_){}
   try{ CARTE_POSSEDUTE = {}; }catch(_){}
   try{ CARTE_COPIE = {}; }catch(_){}
   try{ _possessoNoto = false; }catch(_){}
@@ -11878,6 +11902,7 @@ async function caricaCarteDalServer(){
   CARTE_COPIE = risposta.copie || {};
   if(risposta.livelliCarte && risposta.livelliCarte.copie) LIVELLI_CARTE_REGOLE = risposta.livelliCarte;
   GIOCATORE_ADMIN = !!risposta.admin;
+  try{ _chatFuori = false; }catch(_){ }
   try{ aggiornaAccessoDebug(); }catch(_){ }
   try{ artAIAvvia(); aggiornaInterruttoreArtAI(); }catch(_){ }
   try{ carteNuoveDalServer(risposta.nuove); }catch(_){ }
@@ -37396,8 +37421,9 @@ let _chatNomi = {};
 let _cx = { lista:false, conv:[], console:false, sezChiuse:{}, cercaTimer:null, menu:null,
             immagini:{}, battito:null, accettato:null, ultima:null, consoleImmagine:'' };
 
+var _chatFuori = false;
 function chatPermessa(){
-  return typeof GIOCATORE_ADMIN !== 'undefined' && !!GIOCATORE_ADMIN;
+  return !_chatFuori && typeof sessioneAccount !== 'undefined' && !!(sessioneAccount && sessioneAccount.token);
 }
 function _chatPannello(){
   const qui = document.getElementById('chat-pannello');
@@ -37500,6 +37526,8 @@ function _cxVoceConsole(){
     +   '<div class="cx-scatola">'
     +     '<span class="cx-etichetta">To (player ID)</span>'
     +     '<input class="cx-campo" id="chat-console-a" type="text" maxlength="60" placeholder="00000000-0000-0000-0000-000000000000">'
+    +     '<label class="settings-opzione filters-opt cx-console-tutti"><input type="checkbox" id="chat-console-tutti" onchange="chatConsoleTutti(this)">'
+    +       '<span class="filters-nome">All registered players</span><span class="filters-casella"></span></label>'
     +     '<span class="cx-etichetta">Message</span>'
     +     '<textarea class="cx-campo" id="chat-console-testo" maxlength="3000" placeholder="Hey Hextalers! (a blank line starts a new paragraph)"></textarea>'
     +     '<span class="cx-etichetta">Image</span>'
@@ -37521,6 +37549,7 @@ function _cxVoceConsole(){
 function chatDock(){
   const p = _chatPannello();
   if(!p || !chatPermessa()) return;
+  if(!p.dataset.trama){ p.dataset.trama = '1'; try{ impostaVariabileDaCandidati(p, '--hx-trama', uiFileCandidati('brushed-texture.jpg')); }catch(_){ } }
   const voluti = ['lista'].concat(_cx.console ? ['console'] : []).concat(_cx.conv.map(c => c.con));
   p.querySelectorAll(':scope > .cx-voce').forEach(v => { if(voluti.indexOf(v.dataset.con) < 0) v.remove(); });
   let prima = null;
@@ -37533,8 +37562,9 @@ function chatDock(){
     const dopo = prima ? prima.nextElementSibling : p.firstElementChild;
     if(v !== dopo) p.insertBefore(v, dopo);
     prima = v;
-    const c = _cxConv(con);
-    v.classList.toggle('cx-aperta', con === 'lista' ? _cx.lista : con === 'console' ? true : !!(c && c.aperta));
+    const vuole = _cxVuoleAperta(con), era = v.classList.contains('cx-aperta');
+    if(vuole && !era){ v.classList.add('cx-aperta'); _cxApriAnimata(v); }
+    else if(!vuole && era) _cxChiudiAnimata(v);
   }
   _cxTeste();
   _cxAggiornaPunti();
@@ -37552,6 +37582,42 @@ function _cxCentroLibero(){
   }
   try{ document.body.classList.toggle('chat-al-centro', occupato); }catch(_){ }
 }
+const CHAT_ANIMA_MS = 200;
+function _cxVuoleAperta(con){
+  if(con === 'lista') return !!_cx.lista;
+  if(con === 'console') return !!_cx.console;
+  const c = _cxConv(con); return !!(c && c.aperta);
+}
+function _cxApriAnimata(v){
+  const f = v.querySelector('.cx-fin'); if(!f) return;
+  clearTimeout(f._cxT);
+  f.classList.add('cx-anima', 'cx-piccola');
+  f.style.width = '200px'; f.style.height = '56px';
+  void f.offsetWidth;
+  f.style.width = ''; f.style.height = '';
+  f.classList.remove('cx-piccola');
+  f._cxT = setTimeout(()=>{ f.classList.remove('cx-anima'); _cxCentroLibero(); }, CHAT_ANIMA_MS + 30);
+}
+function _cxChiudiAnimata(v){
+  const f = v.querySelector('.cx-fin');
+  if(!f){ v.classList.remove('cx-aperta'); return; }
+  if(v._cxChiude) return;
+  v._cxChiude = true;
+  clearTimeout(f._cxT);
+  f.classList.add('cx-anima');
+  f.style.width = f.offsetWidth + 'px'; f.style.height = f.offsetHeight + 'px';
+  void f.offsetWidth;
+  f.classList.add('cx-piccola');
+  f.style.width = '200px'; f.style.height = '56px';
+  f._cxT = setTimeout(()=>{
+    v._cxChiude = false;
+    f.classList.remove('cx-anima', 'cx-piccola');
+    f.style.width = ''; f.style.height = '';
+    if(!_cxVuoleAperta(v.dataset.con)) v.classList.remove('cx-aperta');
+    _cxCentroLibero();
+  }, CHAT_ANIMA_MS);
+}
+
 function _cxTeste(){
   for(const c of _cx.conv){
     const v = _cxVoce(c.con); if(!v) continue;
@@ -37989,8 +38055,17 @@ function _cxDisegnaInvito(con){
         + '<div class="cx-match-scelta" onclick="chatRifiutaInvito(\'' + q + '\')"><span>Cancel</span><img alt="" draggable="false" data-ui="decline-icon.png"></div></div>'
         + barra + '</div>';
     }
-    posto.innerHTML = h;
+    const vecchia = posto.querySelector('.cx-match');
+    const tipoNuovo = s ? s.tipo : '';
+    if(vecchia && h && posto.dataset.tipoVisto === tipoNuovo){
+      const t = document.createElement('template'); t.innerHTML = h;
+      vecchia.innerHTML = t.content.firstChild.innerHTML;
+    } else posto.innerHTML = h;
     _cxVesti(posto);
+    const tipo = s ? s.tipo : '';
+    const m = posto.querySelector('.cx-match');
+    if(m && tipo && posto.dataset.tipoVisto !== tipo) m.classList.add('cx-entra');
+    posto.dataset.tipoVisto = tipo;
   }
   _cxAggiornaTempo(posto, s);
   _cxBattitoServe();
@@ -38073,6 +38148,7 @@ async function chatManda(tipo, corpo, con){
   if(!tipo){ tipo = 'testo'; corpo = campo ? campo.value.trim() : ''; }
   if(!corpo) return;
   if(tipo === 'testo' && campo) campo.value = '';
+  try{ playSfxFile('click.mp3'); }catch(_){ }
   try{
     const r = await nakamaRpc('hx_chat_scrivi', { con:con, tipo:tipo, corpo:corpo });
     const c = _cxConv(con);
@@ -38088,6 +38164,7 @@ async function chatInvitaAPartita(id){
   let r = null;
   try{ r = await nakamaRpc('hx_chat_invito', { con:id }); }
   catch(e){ console.warn('[chat] invito non mandato: ' + ((e && e.message) || '')); return; }
+  try{ playSfxFile('sticker.mp3'); }catch(_){ }
   await chatApriConversazione(id);
   if(r && r.stanza) await chatEntraInStanza(r.stanza, r.scade, id);
 }
@@ -38217,6 +38294,18 @@ function chatSocketSpegni(){
 function chatCampanello(pacco){
   const elenco = (pacco && pacco.notifications) || [];
   if(!elenco.some(n => CHAT_CODICI[Number(n && n.code)])) return;
+  let richiamo = false, messaggio = false;
+  for(const n of elenco){
+    let dentro = (n && n.content) || {};
+    if(typeof dentro === 'string'){ try{ dentro = JSON.parse(dentro); }catch(_){ dentro = {}; } }
+    const codice = Number(n && n.code);
+    if((codice === 1001 && dentro.tipo === 'amico-richiesta') || (codice === 1003 && dentro.tipo === 'invito')) richiamo = true;
+    if(codice === 1002 || codice === 1004) messaggio = true;
+  }
+  if(chatPermessa()){
+    if(richiamo){ try{ playSfxFile('sticker.mp3'); }catch(_){ } }
+    else if(messaggio){ try{ playSfxFile('score.mp3'); }catch(_){ } }
+  }
   if(_chatCampanelloTimer) return;
   _chatCampanelloTimer = setTimeout(()=>{
     _chatCampanelloTimer = null;
@@ -38227,7 +38316,7 @@ function chatCampanello(pacco){
 }
 
 function chatApriConsole(){
-  if(!chatPermessa()) return;
+  if(!chatPermessa() || typeof GIOCATORE_ADMIN === 'undefined' || !GIOCATORE_ADMIN) return;
   try{ closeDebugModal(); }catch(_){ }
   if(typeof _activePage !== 'undefined' && _activePage !== 'mainmenu'){
     if(_activePage === 'game'){
@@ -38241,6 +38330,12 @@ function chatApriConsole(){
   chatDock();
   const esito = p && p.querySelector('#chat-console-esito');
   if(esito) esito.textContent = '';
+}
+function chatConsoleTutti(casella){
+  const a = _cxConsoleCampo('chat-console-a');
+  if(a) a.disabled = !!casella.checked;
+  _cx.consoleConferma = 0;
+  const esito = _cxConsoleCampo('chat-console-esito'); if(esito) esito.textContent = '';
 }
 function chatChiudiConsole(){
   _cx.console = false;
@@ -38290,15 +38385,26 @@ async function chatConsoleManda(){
   const immagine = _cx.consoleImmagine || '';
   const esito = _cxConsoleCampo('chat-console-esito');
   const dillo = (t)=>{ if(esito) esito.textContent = t; };
-  if(!a){ dillo('Who to? Paste a player ID.'); return; }
+  const tutti = !!(_cxConsoleCampo('chat-console-tutti') || {}).checked;
+  if(tutti){
+    if(!_cx.consoleConferma || Date.now() - _cx.consoleConferma > 4000){
+      _cx.consoleConferma = Date.now();
+      dillo('This goes to EVERY registered player. Click Send again to confirm.');
+      return;
+    }
+    _cx.consoleConferma = 0;
+  }
+  const destinatario = tutti ? '*' : a;
+  if(!destinatario){ dillo('Who to? Paste a player ID.'); return; }
   if(!testo && !premio && !immagine){ dillo('Nothing to send.'); return; }
   if(link && !/^https:\/\//.test(link)){ dillo('The link must start with https://'); return; }
-  dillo('Sending…');
+  dillo(tutti ? 'Sending to everyone…' : 'Sending…');
+  let risposta = null;
   try{
-    await nakamaRpc('hx_hextale_manda', { a:a, testo:testo, premio:premio || '', quanto:quanto,
+    risposta = await nakamaRpc('hx_hextale_manda', { a:destinatario, testo:testo, premio:premio || '', quanto:quanto,
       immagine:immagine, link:link, linkTesto:linkTesto });
   }catch(e){ dillo((e && e.message) || 'Not sent.'); return; }
-  dillo('Sent.');
+  dillo(tutti ? 'Sent to ' + ((risposta && risposta.quanti) || 0) + ' players' + ((risposta && risposta.rotti) ? ' (' + risposta.rotti + ' failed).' : '.') : 'Sent.');
   for(const id of ['chat-console-testo', 'chat-console-link', 'chat-console-link-testo']){ const c = _cxConsoleCampo(id); if(c) c.value = ''; }
   const file = _cxConsoleCampo('chat-console-file'); if(file) file.value = '';
   const anteprima = _cxConsoleCampo('chat-console-anteprima'); if(anteprima){ anteprima.hidden = true; anteprima.removeAttribute('src'); }
