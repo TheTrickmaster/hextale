@@ -7752,7 +7752,7 @@ try{
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.38</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.39</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -15877,6 +15877,48 @@ var ABILITA_MOTORE = (function () {
     return fuori;
   }
 
+  var GIRO_LATI = ['NE', 'E', 'SE', 'SW', 'W', 'NW'];
+  var ORDINI_TRE = [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]];
+  function riordinoVersoIScoperti(valori, gruppi, scoperti) {
+    if (!valori || !gruppi || gruppi.length !== 3 || !scoperti || !scoperti.length) return null;
+    var coppie = [], i, j;
+    for (i = 0; i < 3; i++) {
+      var g = gruppi[i];
+      if (!g || g.length !== 2) return null;
+      var a = GIRO_LATI.indexOf(g[0]), b = GIRO_LATI.indexOf(g[1]);
+      if (a < 0 || b < 0) return null;
+      if ((a + 1) % 6 === b) coppie.push([g[0], g[1]]);
+      else if ((b + 1) % 6 === a) coppie.push([g[1], g[0]]);
+      else return null;
+    }
+    var punteggio = function (v) {
+      var x = [];
+      for (var s = 0; s < scoperti.length; s++) x.push(Number(v[scoperti[s]]) || 0);
+      x.sort(function (p, q) { return q - p; });
+      return x;
+    };
+    var meglio = function (x, y) {
+      for (var t = 0; t < x.length; t++) if (x[t] !== y[t]) return x[t] > y[t];
+      return false;
+    };
+    var migliore = punteggio(valori), scelta = null;
+    for (var inizio = 0; inizio < 2; inizio++) {
+      for (var o = 0; o < ORDINI_TRE.length; o++) {
+        var mappa = {}, nuovi = {}, nuoviGruppi = [];
+        for (j = 0; j < 3; j++) {
+          var chi = ORDINI_TRE[o][j], da = coppie[chi];
+          var l1 = GIRO_LATI[(inizio + 2 * j) % 6], l2 = GIRO_LATI[(inizio + 2 * j + 1) % 6];
+          mappa[l1] = da[0]; mappa[l2] = da[1];
+          nuovi[l1] = valori[da[0]]; nuovi[l2] = valori[da[1]];
+          nuoviGruppi[chi] = [l1, l2];
+        }
+        var p = punteggio(nuovi);
+        if (meglio(p, migliore)) { migliore = p; scelta = { mappa: mappa, gruppi: nuoviGruppi }; }
+      }
+    }
+    return scelta;
+  }
+
   function valoriEffettivi(carta, scena) {
     var base = (carta && (carta.valoriBase || carta.values)) || {};
     var d = deltaContinuo(carta, scena);
@@ -15906,6 +15948,7 @@ var ABILITA_MOTORE = (function () {
     idStabile: _idStabile,
     latiColpiti: latiColpiti,
     colpibile: colpibile,
+    riordinoVersoIScoperti: riordinoVersoIScoperti,
     colpisce: colpisce,
     quantita: quantita,
     finestraAperta: finestraAperta,
@@ -24377,7 +24420,7 @@ const TILE_ABILITIES_DEF = {
   back_off:      { carta:'Bagheera', name:'Back off', desc:'Bagheera and adjacent /allies/ can be *Buffed*, never *Debuffed*.' },
   a_kind_of_magic:       { carta:'Merlin', name:'A Kind of Magic',    desc:"Always attacks with its highest Power value, regardless its position." },
   eat_me_drink_me:   { carta:'Alice', name:'Eat me, Drink me',   desc:'*Rotates* its power clockwise each turn while in hand.' },
-  different_reality: { carta:'Cheshire Cat', name:'Different Reality', desc:'At the start of each turn, *Moves* to a random blocked tile' },
+  different_reality: { carta:'Cheshire Cat', name:'Different Reality', desc:"After attacking, its highest power value always faces the card's unprotected sides" },
   mermaid_discard: { carta:'Little Mermaid', name:'...', desc:'When *Played*, *Discard* a card of your choice.' },
   kingslayer: { carta:'Mordred', name:'Kingslayer', desc:'When *Played*, can *Destroy* an adjacent /Sovereign/ or /Noble/.' },
   new_tax: { carta:'Nottingham Sheriff', name:'New Tax', desc:'When *Played*, *Steals* the ability of an adjacent card.' },
@@ -25658,7 +25701,7 @@ function carteCheSiSpostano(player){
     const cella=G.board[k];
     if(!cella || !cella.card) continue;
     if(player != null && cella.owner!==player) continue;
-    if(!_rigaSpostaSuBloccato(cella.card) && abilitaAttivaDi(cella.card)!=='different_reality') continue;
+    if(!_rigaSpostaSuBloccato(cella.card)) continue;
     if(cartaIntoccabile(cella.card)) continue;
     trovate.push(k);
   }
@@ -25702,6 +25745,7 @@ function spostaUnaCartaCheshire(k, poi){
 function spostaCarteCheshire(player, poi){
   const finito=()=>{ if(typeof poi==='function') poi(); };
   if(!G || G.gameOver){ finito(); return; }
+  try{ stregattoRiordina(); }catch(e){ console.warn('[Different Reality] ' + (e && e.message)); }
   const celle=carteCheSiSpostano(player);
   if(!celle.length){ finito(); return; }
   let i=0;
@@ -25710,6 +25754,48 @@ function spostaCarteCheshire(player, poi){
     spostaUnaCartaCheshire(celle[i++], prossima);
   };
   prossima();
+}
+
+function latiScopertiDi(cella){
+  const [q, r] = String(cella).split(',').map(Number);
+  const impronte = yetiCelleImpronte();
+  const fuori = [];
+  for(const d of DIRS){
+    const nq = q + d.dq, nr = r + d.dr, nk = key(nq, nr);
+    if(!G.cells.some(c => c.q === nq && c.r === nr)) continue;
+    if(G.holes.has(nk) || G.board[nk] || impronte.has(nk)) continue;
+    fuori.push(d.mySide);
+  }
+  return fuori;
+}
+function permutaLatiCarta(card, mappa){
+  for(const t of [card.values].concat(METRI_DELLA_CARTA.map(n => card[n]))){
+    if(!t) continue;
+    const prima = {...t};
+    for(const nuovo in mappa) t[nuovo] = prima[mappa[nuovo]];
+  }
+}
+function stregattoRiordina(){
+  if(!G || !G.board) return 0;
+  let n = 0;
+  for(const k of Object.keys(G.board).sort()){
+    const p = G.board[k];
+    if(!p || !p.card || abilitaAttivaDi(p.card) !== 'different_reality') continue;
+    const r = _motore().riordinoVersoIScoperti(p.card.values, p.card.groupSides, latiScopertiDi(k));
+    if(!r) continue;
+    permutaLatiCarta(p.card, r.mappa);
+    p.card.groupSides = r.gruppi;
+    p.card.ruotata = true;
+    try{ lampeggiaSpostamentoValori(p.card); }catch(_){ }
+    console.info('[Different Reality] ' + k + ': ' + SIDES.map(s => s + p.card.values[s]).join(' '));
+    n++;
+  }
+  if(n){
+    try{ ricalcolaTabellone(); }catch(_){ }
+    _firmaTabellonePrecedente = null;
+    try{ renderBoard(); }catch(_){ }
+  }
+  return n;
 }
 
 function selectCard(card,playerIdx){
@@ -31108,10 +31194,7 @@ const BONUS_STRATEGICO_IA = {
     return Math.max(0, potere - dopoLaFollia) * VALORE_PUNTO_POTERE * 0.5;
   },
   different_reality: (card, q, r, giocatore) => {
-    const valori = SIDES.map(s => card.values[s]||0);
-    const massimo = Math.max(...valori);
-    const media = valori.reduce((a,b)=>a+b,0) / valori.length;
-    return -(massimo - media) * VALORE_PUNTO_POTERE * 0.5;
+    return aiEstimateCounterRisk(card, q, r) * 0.5;
   },
   dancing_around: (card, q, r, giocatore) => {
     const conquista = aiEvaluateConquests(card, q, r);
