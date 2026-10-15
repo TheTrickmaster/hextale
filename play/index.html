@@ -7757,7 +7757,7 @@ try{
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.40</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.41</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -9471,7 +9471,7 @@ const PAGE_ELEMENT_IDS = {
     'hand-expand-overlay','p1-info','p2-info','board-score',
     'banner-dim-overlay','turn-banner','turn-banner-text','timesup-banner','timesup-content',
     'drag-ghost','hand-hover-preview',
-    'timer-bar-wrap','gameover','settings-btn','report-btn',
+    'timer-bar-wrap','gameover','btn-show-results','settings-btn','report-btn',
     'sticker-btn','sticker-menu','sticker-bolla-sinistra','sticker-bolla-destra',
   ],
   mainmenu: ['main-menu'],
@@ -16512,8 +16512,7 @@ function deckAnteprimaMostra(riga, entry){
   const host = document.getElementById('deck-anteprima');
   if(!host || !riga || !entry) return;
   const r = riga.getBoundingClientRect();
-  const k = riga.offsetHeight ? (r.height / riga.offsetHeight) : 1;
-  const W = 210 * DECK_ANTEPRIMA_SCALA * k, H = 360 * DECK_ANTEPRIMA_SCALA * k;
+  const W = 210 * DECK_ANTEPRIMA_SCALA, H = 360 * DECK_ANTEPRIMA_SCALA;
   try{
     const carta = _makeCardDbCard(entry, _cardDbVariant);
     const mostrata = (typeof cartaAlLivello === 'function') ? cartaAlLivello(carta, Math.max(1, carta.level || 1)) : carta;
@@ -16529,10 +16528,11 @@ function deckAnteprimaMostra(riga, entry){
   const margine = 12;
   const colonna = document.getElementById('card-db-right');
   const rc = colonna ? colonna.getBoundingClientRect() : null;
-  let x = rc ? (rc.left - W - margine) : (r.left - W - 18 * k);
-  x = Math.max(margine, Math.min(x, window.innerWidth - W - margine));
+  let x = rc ? (screenToAuthoredX(rc.left) - W - margine) : (screenToAuthoredX(r.left) - W - 18);
+  x = Math.max(margine, Math.min(x, CANVAS_W - W - margine));
+  const centroRiga = screenToAuthoredY(r.top + r.height / 2);
   host.style.left = Math.round(x) + 'px';
-  host.style.top = Math.min(Math.max(margine, r.top + r.height / 2 - H / 2), Math.max(margine, window.innerHeight - H - margine)) + 'px';
+  host.style.top = Math.round(Math.min(Math.max(margine, centroRiga - H / 2), Math.max(margine, CANVAS_H - H - margine))) + 'px';
   host.classList.add('visibile');
 }
 function deckAnteprimaNascondi(){
@@ -23918,6 +23918,7 @@ function abandonCurrentGame(){
   if(_pendingOverlayRender){ clearTimeout(_pendingOverlayRender); _pendingOverlayRender=null; }
   setGameAudioMuted(true);
   setGameAudioMuted(false);
+  try{ toggleBoardView(false); }catch(_){ }
 }
 function backToMainMenu(){
   fermaTuttiISuoni();
@@ -24461,7 +24462,7 @@ const TILE_ABILITIES_DEF = {
   bear_necessities:  { carta:'Baloo', name:'Bear Necessities',      desc:'Adjacent /Wild/ allies *Gain* +1 ALL.' },
   tic_toc:           { carta:'Captain Hook', name:'Tic Toc',               desc:'If *played* in the first two turns, +2 ALL.' },
   hunger_bites:      { carta:'Big Bad Wolf', name:'Hunger Bites',          desc:'*Gains* +1 RAND for each Power difference with the conquered card.' },
-  scaredy_cat:       { carta:'Cowardly Lion', name:'Scaredy cat',           desc:'When played, *Afflicts* -1 RAND to itself.' },
+  scaredy_cat:       { carta:'Cowardly Lion', name:'Scaredy Cat',           desc:'When *Flipped*, *Freezes* for 1 turn' },
   bell_of_the_ball:  { carta:'Cinderella', name:'Bell of the Ball',      desc:'If *Played* adjacent to a /Guardian/, *Transforms* into The Crystal Princess.' },
   crowned:           { carta:'The Crystal Princess', name:'Crowned',               desc:'Highest Power value cannot be *Conquered*.' },
   true_story:        { carta:'Pinocchio', name:'True Story',            desc:'At the *End of Turn*, a random Power group becomes *Invulnerable*.' },
@@ -26017,7 +26018,6 @@ const EFFETTI_PIAZZAMENTO = {
   rush_hour: (card) => attivaRushHour(card),
   kiss:             (card, q, r) => { if(_simulazioneInCorso) attivaTrasformazioneAlPiazzamento(card, q, r); },
   bell_of_the_ball: (card, q, r) => { if(_simulazioneInCorso) attivaTrasformazioneAlPiazzamento(card, q, r); },
-  scaredy_cat: (card) => attivaScaredyCat(card),
 };
 const LAMPADA_PUNTI = 2;
 const LAMPADA_ICONA = UI_BASE+'magic-lamp.png';
@@ -26483,7 +26483,7 @@ function attivaScaredyCat(card){
   const scelto = gruppi[Math.floor(casoCondiviso('scaredy_cat|' + (_cellaDellaCarta(card) || '') + '|' + (card.baseId || card.id)) * gruppi.length)];
   if(scelto) modificaValori(card, scelto.sides, -1, 0, {chiave:'scaredy_cat', da:card.name||'Scaredy cat'});
 }
-const ABILITA_A_SORTE_AL_PIAZZAMENTO = new Set(['scaredy_cat']);
+const ABILITA_A_SORTE_AL_PIAZZAMENTO = new Set([]);
 function abilitaAConSorteAlPiazzamento(card){
   const chiave = abilitaAttivaDi(card);
   return !!chiave && ABILITA_A_SORTE_AL_PIAZZAMENTO.has(chiave);
@@ -26641,6 +26641,7 @@ function _effettoSemplice(e){
   if(e.scelta) return false;
   if(e.quale === 'next' || e.quale === 'last') return false;
   if(e.azione === 'freeze' && (e.cosa === 'card' || e.cosa === 'tile')) return true;
+  if(e.azione === 'freeze' && !e.cosa && e.chi === 'self') return true;
   if(e.azione === 'copy' && e.cosa === 'trait') return true;
   if(e.azione === 'buff' && e.cosa === 'trait') return true;
   if(['buff','debuff','set'].indexOf(e.azione) < 0) return false;
@@ -27141,7 +27142,10 @@ function applicaAbilitaPiazzamento(card, q, r, chiave){
   if(suaAbilita && suaAbilita.trigger !== 'on_play' && motoreFaLEvento(card, suaAbilita.trigger)) return;
   if(eseguiDalFoglio(card, 'on_play', {q, r})) return;
   if(motoreFaLEvento(card, 'on_play')){
-    applicaCambiamenti(_motore().cambiamentiAllEvento(card, 'on_play', _scenaEvento(card, key(q, r))));
+    const cambi = _motore().cambiamentiAllEvento(card, 'on_play', _scenaEvento(card, key(q, r)));
+    const dopo = _simulazioneInCorso ? [] : cambi.filter(c => c && c.azione === 'freeze' && c.cosa === 'card' && c.carta === card);
+    if(dopo.length) card._geloDopoScontro = dopo;
+    applicaCambiamenti(cambi.filter(c => dopo.indexOf(c) < 0));
     return;
   }
   const effetto = EFFETTI_PIAZZAMENTO[chiave];
@@ -29803,6 +29807,13 @@ const EFFETTI_DOPO_SCONTRO = {
 };
 function effettiDopoLoScontro(card, q, r){
   if(!card) return 0;
+  if(card._geloDopoScontro){
+    const gelo = card._geloDopoScontro;
+    delete card._geloDopoScontro;
+    applicaCambiamenti(gelo);
+    _firmaTabellonePrecedente = null;
+    try{ renderBoard(); }catch(_){ }
+  }
   const chiave = card.activatedTileAbility || abilitaAttivaDi(card);
   const effetto = chiave && EFFETTI_DOPO_SCONTRO[chiave];
   if(typeof effetto !== 'function') return 0;
@@ -32353,9 +32364,9 @@ function goPremi(premi){
 function toggleBoardView(showBoard){
   const overlay=document.getElementById('gameover');
   const backBtn=document.getElementById('btn-show-results');
+  if(backBtn) backBtn.classList.toggle('show', !!(showBoard && overlay));
   if(!overlay) return;
   overlay.classList.toggle('board-view', !!showBoard);
-  if(backBtn) backBtn.classList.toggle('show', !!showBoard);
 }
 
 
@@ -37340,6 +37351,12 @@ function closeCardModal(){
     const finestra = _finestraPiuInAlto();
     if(finestra){ finestra.click(); return; }
     if(_mazzoInModifica){ chiudiModificaMazzo(false); return; }
+    const attivo = document.activeElement;
+    const scrive = attivo && (attivo.tagName === 'INPUT' || attivo.tagName === 'TEXTAREA' || attivo.isContentEditable);
+    if(scrive || !_giocatoreDentro || !_activePage || _activePage === 'start') return;
+    e.preventDefault();
+    if(_activePage === 'game') openSettingsModal();
+    else openSettingsModal('menu');
   });
   document.addEventListener('keydown',(e)=>{
     if(e.key!=='m' && e.key!=='M') return;
