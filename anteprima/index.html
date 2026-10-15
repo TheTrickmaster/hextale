@@ -2524,6 +2524,11 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
   from{ transform:rotate(0deg); }
   to  { transform:rotate(60deg); }
 }
+@keyframes ornamentiInRotazioneIndietro{
+  from{ transform:rotate(0deg); }
+  to  { transform:rotate(-60deg); }
+}
+.ornamenti-in-rotazione.al-contrario{ animation-name:ornamentiInRotazioneIndietro; }
 .ornamenti-in-rotazione{
   animation:ornamentiInRotazione var(--asdur,0.52s) linear forwards;
   transform-box:view-box;
@@ -7752,7 +7757,7 @@ try{
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.39</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.40</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -25745,7 +25750,16 @@ function spostaUnaCartaCheshire(k, poi){
 function spostaCarteCheshire(player, poi){
   const finito=()=>{ if(typeof poi==='function') poi(); };
   if(!G || G.gameOver){ finito(); return; }
-  try{ stregattoRiordina(); }catch(e){ console.warn('[Different Reality] ' + (e && e.message)); }
+  let partito = false;
+  const salti = ()=>{
+    if(partito) return;
+    partito = true;
+    if(!G || G.gameOver){ finito(); return; }
+    spostaCarteCheSaltano(player, finito);
+  };
+  try{ stregattoRiordina(salti); }catch(e){ console.warn('[Different Reality] ' + (e && e.message)); salti(); }
+}
+function spostaCarteCheSaltano(player, finito){
   const celle=carteCheSiSpostano(player);
   if(!celle.length){ finito(); return; }
   let i=0;
@@ -25768,6 +25782,57 @@ function latiScopertiDi(cella){
   }
   return fuori;
 }
+function _inizioCoppia(lati){
+  const a = SIDES.indexOf(lati[0]), b = SIDES.indexOf(lati[1]);
+  return ((a + 1) % 6 === b) ? a : b;
+}
+function animaRiordinoValori(cardEl, gruppiPrima, gruppiDopo){
+  if(!cardEl || !gruppiPrima || !gruppiDopo) return false;
+  const testi=[...cardEl.querySelectorAll('[data-value-group]')];
+  if(!testi.length) return false;
+  const chiave = lati => lati.slice().sort().join('|');
+  const passiDi = {};
+  let verso = 0;
+  gruppiPrima.forEach((g, i)=>{
+    let p = ((_inizioCoppia(gruppiDopo[i]) - _inizioCoppia(g)) % 6 + 6) % 6;
+    if(p > 3) p -= 6;
+    passiDi[chiave(g)] = p;
+    if(!verso && p % 2) verso = p > 0 ? 1 : -1;
+  });
+  const centroCarta=(testi[0].getAttribute('data-hex-c')||'').split(',').map(parseFloat);
+  if(verso && centroCarta.length===2 && isFinite(centroCarta[0]) && isFinite(centroCarta[1])){
+    if(animaRotazioneOrnamenti(cardEl, centroCarta) && verso < 0){
+      const g = cardEl.querySelector('.ornamenti-in-rotazione');
+      if(g) g.classList.add('al-contrario');
+    }
+  }
+  let mosso=false;
+  for(const testo of testi){
+    const lati=(testo.getAttribute('data-value-group')||'').split('|').filter(Boolean);
+    const p = passiDi[chiave(lati)];
+    if(!p) continue;
+    const centro=(testo.getAttribute('data-hex-c')||'').split(',').map(parseFloat);
+    const px=parseFloat(testo.getAttribute('x')), py=parseFloat(testo.getAttribute('y'));
+    if(centro.length!==2 || !isFinite(centro[0]) || !isFinite(centro[1]) || !isFinite(px) || !isFinite(py)) continue;
+    const rx=px-centro[0], ry=py-centro[1];
+    const giro=(ang)=>[rx*Math.cos(ang) - ry*Math.sin(ang), rx*Math.sin(ang) + ry*Math.cos(ang)];
+    const ang = p * ROTAZIONE_PASSO_RAD;
+    const fine = giro(ang), meta = giro(ang/2);
+    const dx = fine[0] - rx, dy = fine[1] - ry;
+    const bowx = meta[0] - (rx + fine[0])/2, bowy = meta[1] - (ry + fine[1])/2;
+    for(const el of [cerchioDelValore(cardEl, testo), testo]){
+      if(!el) continue;
+      el.style.setProperty('--asdur', ROTAZIONE_VALORI_MS+'ms');
+      el.style.setProperty('--astx', dx.toFixed(2)+'px');
+      el.style.setProperty('--asty', dy.toFixed(2)+'px');
+      el.style.setProperty('--asbowx', bowx.toFixed(2)+'px');
+      el.style.setProperty('--asbowy', bowy.toFixed(2)+'px');
+      riavviaAnimazione(el, ['valore-in-viaggio']);
+    }
+    mosso=true;
+  }
+  return mosso;
+}
 function permutaLatiCarta(card, mappa){
   for(const t of [card.values].concat(METRI_DELLA_CARTA.map(n => card[n]))){
     if(!t) continue;
@@ -25775,27 +25840,45 @@ function permutaLatiCarta(card, mappa){
     for(const nuovo in mappa) t[nuovo] = prima[mappa[nuovo]];
   }
 }
-function stregattoRiordina(){
-  if(!G || !G.board) return 0;
-  let n = 0;
+function stregattoRiordina(poi){
+  const finito = ()=>{ if(typeof poi === 'function') poi(); };
+  if(!G || !G.board){ finito(); return 0; }
+  const daFare = [];
   for(const k of Object.keys(G.board).sort()){
     const p = G.board[k];
     if(!p || !p.card || abilitaAttivaDi(p.card) !== 'different_reality') continue;
     const r = _motore().riordinoVersoIScoperti(p.card.values, p.card.groupSides, latiScopertiDi(k));
-    if(!r) continue;
-    permutaLatiCarta(p.card, r.mappa);
-    p.card.groupSides = r.gruppi;
-    p.card.ruotata = true;
-    try{ lampeggiaSpostamentoValori(p.card); }catch(_){ }
-    console.info('[Different Reality] ' + k + ': ' + SIDES.map(s => s + p.card.values[s]).join(' '));
-    n++;
+    if(r) daFare.push({ k:k, card:p.card, r:r, prima:(p.card.groupSides || []).map(g => g.slice()) });
   }
-  if(n){
+  if(!daFare.length){ finito(); return 0; }
+  const partita = G;
+  const applica = ()=>{
+    if(G !== partita){ finito(); return; }
+    for(const x of daFare){
+      permutaLatiCarta(x.card, x.r.mappa);
+      x.card.groupSides = x.r.gruppi;
+      x.card.ruotata = true;
+      try{ lampeggiaSpostamentoValori(x.card); }catch(_){ }
+      console.info('[Different Reality] ' + x.k + ': ' + SIDES.map(s => s + x.card.values[s]).join(' '));
+    }
     try{ ricalcolaTabellone(); }catch(_){ }
     _firmaTabellonePrecedente = null;
     try{ renderBoard(); }catch(_){ }
-  }
-  return n;
+    finito();
+  };
+  const elementi = [];
+  for(const x of daFare){ const el = elementoCarta(x.k); if(el) elementi.push({ x:x, el:el }); }
+  if(!elementi.length){ applica(); return daFare.length; }
+  elementi.forEach(o => { try{ lampeggiaCarta(o.el); }catch(_){ } });
+  setTimeout(()=>{
+    let animata = false;
+    for(const o of elementi){
+      try{ if(animaRiordinoValori(o.el, o.x.prima, o.x.r.gruppi)) animata = true; }catch(_){ }
+    }
+    if(animata) setTimeout(applica, ROTAZIONE_VALORI_MS);
+    else applica();
+  }, LAMPO_PRIMA_DI_RUOTARE_MS);
+  return daFare.length;
 }
 
 function selectCard(card,playerIdx){
