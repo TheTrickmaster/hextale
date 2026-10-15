@@ -597,14 +597,13 @@ body.chat-al-centro #mm2-social{ opacity:0 !important; pointer-events:none !impo
   background:linear-gradient(180deg,#2C3437 0%,#232A2D 100%);
   box-shadow:inset 0 0 0 1px rgba(255,255,255,0.10);
 }
-.classifica-colonna::before{ content:''; position:absolute; inset:0; z-index:-1; background:var(--lega-sfondo); pointer-events:none; }
-.classifica-colonna::after{ content:''; position:absolute; inset:0; z-index:0; background:var(--lega-sfondo); opacity:.6; pointer-events:none; }
+.classifica-colonna::after{ content:''; position:absolute; inset:0; z-index:0; background:var(--lega-sfondo); pointer-events:none; }
 .classifica-banner{ z-index:0; }
 .classifica-icona, .classifica-nome-lega, .classifica-banner-testo{ z-index:2 !important; }
-.classifica-colonna[data-gruppo="master"]{ --lega-sfondo:linear-gradient(180deg, rgba(52,126,178,0.75) 0%, rgba(76,88,150,0.55) 38%, rgba(108,66,150,0.45) 68%, rgba(40,46,60,0.15) 100%); }
-.classifica-colonna[data-gruppo="gold"]{ --lega-sfondo:linear-gradient(180deg, rgba(222,182,72,0.62) 0%, rgba(206,138,52,0.48) 45%, rgba(150,82,36,0.32) 75%, rgba(50,42,34,0.12) 100%); }
-.classifica-colonna[data-gruppo="silver"]{ --lega-sfondo:linear-gradient(180deg, rgba(150,206,232,0.55) 0%, rgba(140,170,190,0.40) 45%, rgba(130,138,146,0.30) 75%, rgba(44,50,54,0.12) 100%); }
-.classifica-colonna[data-gruppo="bronze"]{ --lega-sfondo:linear-gradient(180deg, rgba(168,104,60,0.62) 0%, rgba(132,82,50,0.46) 45%, rgba(96,62,42,0.32) 75%, rgba(46,38,34,0.12) 100%); }
+.classifica-colonna[data-gruppo="master"]{ --lega-sfondo:linear-gradient(180deg, rgba(59,187,251,0.40) 0%, rgba(129,47,200,0.20) 50%, rgba(46,58,60,0) 100%); }
+.classifica-colonna[data-gruppo="gold"]{ --lega-sfondo:linear-gradient(180deg, rgba(245,222,50,0.40) 0%, rgba(200,124,47,0.20) 50%, rgba(46,58,60,0) 100%); }
+.classifica-colonna[data-gruppo="silver"]{ --lega-sfondo:linear-gradient(180deg, rgba(135,190,217,0.40) 0%, rgba(255,255,255,0.20) 50%, rgba(46,58,60,0) 100%); }
+.classifica-colonna[data-gruppo="bronze"]{ --lega-sfondo:linear-gradient(180deg, rgba(142,83,68,0.40) 0%, rgba(137,104,90,0.20) 50%, rgba(46,58,60,0) 100%); }
 .classifica-banner{ position:absolute; left:11.5px; top:0; width:134px; height:300px; display:block; pointer-events:none; }
 .classifica-icona{ position:absolute; left:50%; top:20px; transform:translateX(-50%); width:150px; height:118px; object-fit:contain; z-index:1; }
 .classifica-nome-lega{ position:absolute; left:0; right:0; text-align:center; top:156px; z-index:1;
@@ -7921,7 +7920,7 @@ try{
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.43</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.44</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -14608,7 +14607,7 @@ function questVolaPremi(presi, partenze){
 function questVoloParte(v){
   if(v.arrivato) return;
   const R = _questRadice();
-  const bersaglio = v.verso || questBersaglioPremio(v.premio);
+  const bersaglio = (typeof v.verso === 'function') ? v.verso() : (v.verso || questBersaglioPremio(v.premio));
   if(!R || !v.da || !bersaglio || !bersaglio.isConnected){ questVoloArriva(v); return; }
   let strato = document.getElementById('quest-volo');
   if(!strato){
@@ -28685,8 +28684,9 @@ const TRATTI_VOLO_COLORE = '255,214,140';
 function trattiInVolo(daCella, aCella, tratti, scuri){
   if(!tratti || !tratti.length || _simulazioneInCorso) return;
   const R = _questRadice();
-  const da = daCella && elementoCarta(daCella), a = aCella && elementoCarta(aCella);
-  if(!R || !da || !a) return;
+  const da = daCella && elementoCarta(daCella);
+  const arrivo = () => (aCella && elementoCarta(aCella)) || null;
+  if(!R || !da || !arrivo()) return;
   const rd = _questRiquadro(da, R);
   const larghi = tratti.map(t => { const i = traitIconInfo(t.sigla); return i ? TRATTI_VOLO_ALTI * i.w / i.h : TRATTI_VOLO_ALTI; });
   const totale = larghi.reduce((s, w) => s + w, 0) + 8 * (tratti.length - 1);
@@ -28696,8 +28696,8 @@ function trattiInVolo(daCella, aCella, tratti, scuri){
     const info = traitIconInfo(t.sigla), w = larghi[n];
     const v = { premio:'tratto', quanto:0, arrivato:false, img:null, coda:[],
       da:{ x:x, y:rd.y + rd.h / 2 - TRATTI_VOLO_ALTI / 2, w:w, h:TRATTI_VOLO_ALTI },
-      verso:a, icona: info ? [info.dark] : null, colore:TRATTI_VOLO_COLORE, scalaFine:0.8, classe:'tratto-in-volo',
-      poi: () => { if(--restano === 0){ try{ playSfxFile('card-flip.mp3'); }catch(_){ } try{ lampeggiaCarta(a); }catch(_){ } } } };
+      verso:arrivo, icona: info ? [info.dark] : null, colore:TRATTI_VOLO_COLORE, scalaFine:0.8, classe:'tratto-in-volo',
+      poi: () => { if(--restano === 0){ try{ playSfxFile('card-flip.mp3'); }catch(_){ } try{ const a = arrivo(); if(a) lampeggiaCarta(a); }catch(_){ } } } };
     x += w + 8;
     if(!v.icona) { restano--; return; }
     _questVoli.push(v);
