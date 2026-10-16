@@ -7920,7 +7920,7 @@ try{
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.44</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.45</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -8649,30 +8649,6 @@ try{
         </div>
 
         <div class="debug-item">
-          <button class="hx-btn hx-azione" type="button" onclick="debugToggleMusicLoopPicker()">
-            <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
-            <span class="hxb-label">Music loop test...</span>
-          </button>
-          <div id="debug-music-loop-picker" class="debug-tendina" style="display:none">
-            <select id="debug-music-loop-select" class="debug-campo"></select>
-            <div class="debug-riga">
-              <label>Start</label>
-              <input id="debug-music-loop-lead" class="debug-campo debug-campo-stretto" type="number" min="1" max="60" step="1" value="8">
-              <span>s before the loop point</span>
-            </div>
-            <div id="debug-music-loop-status" class="debug-nota"></div>
-            <button class="hx-btn hx-azione" type="button" onclick="debugPlayMusicLoopJoin()">
-              <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
-              <span class="hxb-label">Play the loop</span>
-            </button>
-            <button class="hx-btn hx-azione hx-btn-warning" type="button" onclick="debugStopMusicLoopJoin()">
-              <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
-              <span class="hxb-label">Stop</span>
-            </button>
-          </div>
-        </div>
-
-        <div class="debug-item">
           <button class="hx-btn hx-azione" type="button" onclick="debugToggleCardSearchDropdown()">
             <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
             <span class="hxb-label">Test a card...</span>
@@ -8694,13 +8670,6 @@ try{
           <button class="hx-btn hx-azione" type="button" onclick="debugAggiungiFairyDust()">
             <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
             <span class="hxb-label">Add 100 Fairy dust</span>
-          </button>
-        </div>
-
-        <div class="debug-item">
-          <button class="hx-btn hx-azione" type="button" onclick="debugSegnaTutteViste()">
-            <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
-            <span class="hxb-label">Clear new-card dot</span>
           </button>
         </div>
 
@@ -12088,8 +12057,10 @@ async function riferisciPartita(vinta, pari, controIA){
   try{
     const mieiTurni = (G && G.turniGiocati)
       ? (G.turniGiocati[G.vsAI ? 1 : (G.ioSonoIlNumero || 1)] || 0) : 0;
+    const conBiglietto = _bigliettoBot;
+    const biglietto = conBiglietto ? await Promise.race([conBiglietto.promessa, new Promise(ok => setTimeout(() => ok(null), 4000))]) : null;
     const r = await nakamaRpc('hx_partita', {
-      vinta: !!vinta, pari: !!pari, controIA: !!controIA, turni: mieiTurni });
+      vinta: !!vinta, pari: !!pari, controIA: !!controIA, turni: mieiTurni, biglietto: biglietto });
     PROFILO_STAGIONE = r.profilo;
     _daMostrareDopoPartita = r;
     try{ applicaValuteDalServer(r && r.valute); }catch(_){ }
@@ -14970,121 +14941,6 @@ document.addEventListener('error', (ev)=>{
   try{ _immagineRipiego(el); }catch(e){ }
 }, true);
 
-const _baseCarteDette = new Set();
-const _baseCarteAttese = new Set();
-const _baseCarteEsiti = new Map();
-function _sorvegliaBaseCarta(img){
-  const url = img.getAttribute('href') || '';
-  if(!url) return;
-  const dillo = (testo, grave)=>{
-    if(_baseCarteDette.has(url)) return;
-    _baseCarteDette.add(url);
-    _baseCarteEsiti.set(url, testo);
-    (grave ? console.warn : console.info)('[carta] base ' + testo + ': ' + url);
-    try{ _scriviEsitoBase(); }catch(_){ }
-  };
-  img.addEventListener('load', ()=>{
-    try{
-      img.style.opacity = '0.999';
-      requestAnimationFrame(()=>{ try{ img.style.opacity = ''; }catch(_){ } });
-    }catch(_){ }
-    dillo('arrivata', false);
-  }, { once:true });
-  img.addEventListener('error', ()=>{ dillo('NON arrivata', true); }, { once:true });
-  if(_baseCarteDette.has(url) || _baseCarteAttese.has(url)) return;
-  _baseCarteAttese.add(url);
-  setTimeout(()=>{ dillo('muta: nessuna risposta in 8s', true); }, 8000);
-  try{
-    const prova = new Image();
-    prova.onload = ()=>{
-      _baseCarteEsiti.set(url + ' (come <img>)', 'decodificata ' + prova.naturalWidth + 'x' + prova.naturalHeight
-        + _provaSuTela(prova));
-      try{ _scriviEsitoBase(); }catch(_){ }
-    };
-    prova.onerror = ()=>{
-      _baseCarteEsiti.set(url + ' (come <img>)', 'NON si decodifica');
-      try{ _scriviEsitoBase(); }catch(_){ }
-    };
-    prova.src = url;
-  }catch(_){ }
-  try{ _dilloDellaScheda(); }catch(_){ }
-}
-function _provaSuTela(im){
-  try{
-    const c = document.createElement('canvas');
-    c.width = 210; c.height = 360;
-    const x = c.getContext('2d', { willReadFrequently:true });
-    if(!x) return ' | tela: niente contesto 2d';
-    x.drawImage(im, 0, 0, 210, 360);
-    const d = x.getImageData(0, 0, 210, 360).data;
-    let min = 255, max = 0, somma = 0, n = 0;
-    for(let y = 8; y < 352; y += 7){
-      for(let xx = 4; xx < 206; xx += 7){
-        const i = (y*210 + xx)*4;
-        const l = (d[i] + d[i+1] + d[i+2]) / 3;
-        if(l < min) min = l;
-        if(l > max) max = l;
-        somma += l; n++;
-      }
-    }
-    const ballo = Math.round(max - min);
-    return ' | su tela 210x360: ballo ' + ballo + ', medio ' + Math.round(somma/n)
-      + (ballo > 8 ? ' (TRAMA OK: il guasto e- nel disegno)' : ' (PIATTA: il guasto e- nella decodifica)');
-  }catch(e){ return ' | tela: ' + (e && e.message); }
-}
-function _dilloDellaScheda(){
-  if(_baseCarteEsiti.has('questa macchina')) return;
-  let s = 'sconosciuta';
-  try{
-    const c = document.createElement('canvas');
-    const gl = c.getContext('webgl') || c.getContext('experimental-webgl');
-    if(!gl) s = 'niente WebGL (segno che la grafica accelerata e- spenta)';
-    else {
-      const info = gl.getExtension('WEBGL_debug_renderer_info');
-      s = info ? String(gl.getParameter(info.UNMASKED_RENDERER_WEBGL)) : 'nome non esposto';
-      s += ', texture max ' + gl.getParameter(gl.MAX_TEXTURE_SIZE);
-    }
-  }catch(e){ s = 'errore: ' + (e && e.message); }
-  _baseCarteEsiti.set('questa macchina', s + ', dpr ' + (window.devicePixelRatio || 1)
-    + ', finestra ' + window.innerWidth + 'x' + window.innerHeight);
-}
-function _scriviEsitoBase(){
-  const pannello = document.getElementById('debug-pannello');
-  if(!pannello) return;
-  let riga = document.getElementById('debug-base-carta');
-  if(!riga){
-    riga = document.createElement('div');
-    riga.id = 'debug-base-carta';
-    riga.style.cssText = 'margin:0 0 10px;padding:8px 10px;border-radius:6px;'
-      + 'background:rgba(0,0,0,0.30);font-family:monospace;font-size:11px;'
-      + 'line-height:1.5;color:#F4E9D7;word-break:break-all;';
-    const griglia = document.getElementById('debug-grid');
-    if(griglia && griglia.parentNode === pannello) pannello.insertBefore(riga, griglia);
-    else pannello.appendChild(riga);
-  }
-  try{
-    const radice = document.getElementById('game-root');
-    if(radice){
-      const t = getComputedStyle(radice).transform;
-      const m = /matrix\(([^,]+),/.exec(t);
-      const carta = document.querySelector('.card-db-card-slot .hand-card-full-svg');
-      _baseCarteEsiti.set('scala della pagina',
-        (m ? (+m[1]).toFixed(3) : (t === 'none' ? '1 (nessuna)' : t.slice(0, 40)))
-        + (carta ? ', carta in Libreria ' + Math.round(carta.getBoundingClientRect().width)
-            + 'x' + Math.round(carta.getBoundingClientRect().height) + ' px veri' : ''));
-    }
-  }catch(_){ }
-  const voci = [];
-  _baseCarteEsiti.forEach((esito, ind)=>{
-    voci.push('• ' + ind.split('/').pop() + ' — ' + esito);
-  });
-  riga.textContent = 'card-base: ' + (voci.length ? '' : 'nessuna carta ancora disegnata');
-  voci.forEach(v=>{
-    const r = document.createElement('div');
-    r.textContent = v;
-    riga.appendChild(r);
-  });
-}
 
 const PEZZI_LIBRERIA = [
   ['library-drag-ghost', 'trascinare le carte nei mazzi'],
@@ -17705,9 +17561,14 @@ function scegliPreferenzaFazione(scelta){
   try{ aggiornaCustomize(); }catch(_){}
   return s;
 }
+let _bigliettoBot = null;
 function requestNewGame(vsAI, travestito){
   if(vsAI) PARTITA_RETE = null;
   BOT_TRAVESTITO = (vsAI && travestito) ? vestiIlBotDaGiocatore() : null;
+  _bigliettoBot = null;
+  if(vsAI && typeof sessioneAccount !== 'undefined' && sessioneAccount && sessioneAccount.token){
+    _bigliettoBot = { promessa: nakamaRpc('hx_bot_inizia', { travestito: !!travestito }).then(r => (r && r.biglietto) || null).catch(() => null) };
+  }
   PARTITA_ERA_IN_RETE = !vsAI && !!PARTITA_RETE;
   fermaTuttiISuoni();
   try{ AVATAR_DEI_GIOCATORI[1] = null; AVATAR_DEI_GIOCATORI[2] = null; }catch(_){ }
@@ -19887,7 +19748,6 @@ function openDebugModal(){
     return;
   }
   try{ montaMenuDebug(); }catch(_){}
-  try{ _scriviEsitoBase(); }catch(_){}
   document.getElementById('debug-modal-overlay').classList.add('show');
 }
 function closeDebugModal(){
@@ -23694,7 +23554,7 @@ function confrontaVersioni(a, b){
 
 
 function debugCloseOtherPickers(exceptId){
-  ['debug-card-picker','debug-music-loop-picker'].forEach(id=>{
+  ['debug-card-picker'].forEach(id=>{
     if(id===exceptId) return;
     const el=document.getElementById(id);
     if(el) el.style.display='none';
@@ -24040,75 +23900,6 @@ function debugPasteFoilValues(){
   }
 }
 
-function debugToggleMusicLoopPicker(){
-  const picker=document.getElementById('debug-music-loop-picker');
-  const willShow = picker.style.display==='none';
-  debugCloseOtherPickers('debug-music-loop-picker');
-  if(willShow){
-    const sel=document.getElementById('debug-music-loop-select');
-    const voci=Object.keys(MUSIC_INTRO_LOOPS);
-    sel.innerHTML = voci.length
-      ? voci.map(u=>{
-          const nome=u.split('/').pop();
-          return `<option value="${u}">${nome} — giunzione ${giunzioneLeggibile(u, null)}</option>`;
-        }).join('')
-      : '<option value="">no track with a looping tail</option>';
-    const st=document.getElementById('debug-music-loop-status');
-    if(st) st.textContent='';
-  }
-  picker.style.display = willShow ? 'block' : 'none';
-}
-
-let _debugMusicLoopWatch=null;
-function debugStopMusicLoopJoin(){
-  if(_debugMusicLoopWatch){ clearInterval(_debugMusicLoopWatch); _debugMusicLoopWatch=null; }
-  stopMusicLoopChain();
-  const bgm=document.getElementById('bgm');
-  if(bgm){ try{ bgm.pause(); }catch(e){} }
-  const st=document.getElementById('debug-music-loop-status');
-  if(st) st.textContent='Fermato.';
-}
-
-function debugPlayMusicLoopJoin(){
-  const sel=document.getElementById('debug-music-loop-select');
-  const st=document.getElementById('debug-music-loop-status');
-  const introUrl=sel && sel.value;
-  const cfg=introUrl && MUSIC_INTRO_LOOPS[introUrl];
-  if(!cfg){ if(st) st.textContent='No track selected.'; return; }
-  const leadEl=document.getElementById('debug-music-loop-lead');
-  const lead=Math.max(1, Math.min(60, parseFloat(leadEl && leadEl.value) || 8));
-
-  debugStopMusicLoopJoin();
-  const bgm=document.getElementById('bgm');
-  if(!bgm) return;
-  playMusicWithIntroLoop(introUrl);
-
-  const salta=()=>{
-    const at=puntoDiGiunzioneDi(introUrl, bgm);
-    if(!isFinite(at)) return;
-    const partenza=Math.max(0, at-lead);
-    try{ bgm.currentTime=partenza; }catch(e){}
-    if(st) st.textContent=`Parto da ${partenza.toFixed(0)}s — giunzione ${giunzioneLeggibile(introUrl, bgm)}...`;
-  };
-  if(bgm.readyState>=1) salta();
-  else bgm.addEventListener('loadedmetadata', salta, {once:true});
-
-  const lp=document.getElementById('bgm-loop');
-  if(st) st.textContent=`Carico — giunzione ${giunzioneLeggibile(introUrl, bgm)}...`;
-  _debugMusicLoopWatch=setInterval(()=>{
-    if(!st) return;
-    if(lp && !lp.paused && lp.currentTime>0){
-      st.textContent=`Coda in riproduzione (loop) — ${lp.currentTime.toFixed(1)}s`;
-      return;
-    }
-    const at=puntoDiGiunzioneDi(introUrl, bgm);
-    if(!isFinite(at)){ st.textContent=`Intro a ${bgm.currentTime.toFixed(1)}s — giunzione alla fine`; return; }
-    const restano=at-bgm.currentTime;
-    st.textContent = restano>0
-      ? `Intro a ${bgm.currentTime.toFixed(1)}s — giunzione fra ${restano.toFixed(1)}s`
-      : 'Giunzione superata, coda in avvio...';
-  }, 200);
-}
 
 function debugToggleCardSearchDropdown(){
   const picker=document.getElementById('debug-card-picker');
@@ -24984,6 +24775,7 @@ function initGame(vsAI){
     startTimerRespectingBanner();
     maybeTriggerAiTurn();
   }); });
+  try{ botNuovaPartita(); }catch(_){ }
 }
 
 function key(q,r){return`${q},${r}`;}
@@ -31003,7 +30795,9 @@ function endTurn(player, animationsSettled, dannoFatto){
   (player===1?G.p1Hand:G.p2Hand).forEach(c=>cardsGlowSettled.delete(c.id));
   motoreMomentoDelTurno('end_of_turn', player);
   try{ jabberwockFineTurno(); }catch(e){ console.warn('[Callooh Callay] ' + (e && e.message)); }
+  try{ botDopoIlTurno(player); }catch(_){ }
   G.currentPlayer=player===1?2:1;
+  try{ botAttesaLunga(); }catch(_){ }
   try{ teleSegnaPunti(); }catch(_){ }
   G.numeroTurno = (G.numeroTurno||1) + 1;
   try { ricalcolaTabellone(); } catch(_){ }
@@ -31176,10 +30970,104 @@ function startTimerRespectingBanner(){
 
 let pendingTimerStartAfterBanner=null;
 
+
+const BOT_SIGMA = 7;
+const BOT_SOGLIA_RESA = 0.05;
+const BOT_SOGLIA_PAURA = 0.30;
+const BOT_RESA_DOPO_MS = 2 * 60 * 1000;
+const BOT_STICKER_MAX = 3;
+const BOT_ATTESA_LUNGA_MS = 25000;
+function _botFi(z){
+  const t = 1 / (1 + 0.3275911 * Math.abs(z) / Math.SQRT2);
+  const e = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-z * z / 2);
+  return 0.5 * (1 + (z >= 0 ? e : -e));
+}
+function _botTabellone(){
+  const giocabili = (G.cells || []).filter(c => !G.holes.has(key(c.q, c.r))).length;
+  let coperte = Object.keys(G.board || {}).length;
+  for(const y of (G.yeti || [])) if(y.stato === 'nascosto') coperte++;
+  return { giocabili, coperte, libere: Math.max(0, giocabili - coperte) };
+}
+function botProbVittoria(){
+  const p = G.puntiFatti || G.hp || {};
+  const D = (p[1] || 0) - (p[2] || 0);
+  const F = _botTabellone().libere;
+  if(!F) return D < 0 ? 1 : (D === 0 ? 0.5 : 0);
+  return 1 - _botFi(D / (BOT_SIGMA * Math.sqrt(F)));
+}
+function botSticker(nome, prob, ritardo){
+  if(!G || !G.vsAI || G.gameOver) return false;
+  if((G.botSticker || 0) >= BOT_STICKER_MAX) return false;
+  if(Math.random() >= prob) return false;
+  G.botSticker = (G.botSticker || 0) + 1;
+  const gen = gameGeneration;
+  setTimeout(() => { if(gen === gameGeneration && G && !G.gameOver) stickerMostra(2, nome); }, (typeof ritardo === 'number') ? ritardo : 600);
+  console.info('[bot] sticker ' + nome);
+  return true;
+}
+function botNuovaPartita(){
+  if(!G || !G.vsAI) return;
+  G.botSticker = 0; G.botPaura = false; G.botInizio = Date.now();
+  G.botConti = { 1: 0, 2: 0 }; G.botContiTurno = 0;
+  const gen = gameGeneration;
+  setTimeout(() => {
+    if(gen !== gameGeneration || !G || G.gameOver) return;
+    if(!botSticker('frog-prince-okay', 0.05)) botSticker('carabosse-menacing', 0.05);
+  }, 4200);
+  botAttesaLunga();
+}
+function botDopoIlTurno(chi){
+  if(!G || !G.vsAI || G.gameOver || G.botContiTurno === G.numeroTurno) return;
+  G.botContiTurno = G.numeroTurno;
+  const conti = { 1: 0, 2: 0 };
+  for(const k in G.board) if(G.board[k] && G.board[k].card) conti[G.board[k].owner === 1 ? 1 : 2]++;
+  const prima = G.botConti || { 1: 0, 2: 0 };
+  if(chi === 2 && conti[2] - prima[2] - 1 >= 2) botSticker('merlin-perfect', 0.10);
+  if(chi === 1 && prima[2] - conti[2] >= 2) botSticker('queen-of-hearts-angry', 0.20);
+  G.botConti = conti;
+}
+function botAttesaLunga(){
+  if(!G || !G.vsAI || G.gameOver || G.currentPlayer !== 1) return;
+  const gen = gameGeneration, turno = G.numeroTurno;
+  setTimeout(() => {
+    if(gen !== gameGeneration || !G || G.gameOver || G.currentPlayer !== 1 || G.numeroTurno !== turno) return;
+    botSticker('sherazade-bored', 0.05);
+  }, BOT_ATTESA_LUNGA_MS);
+}
+function botValutaResa(){
+  if(!G || !G.vsAI || G.gameOver || G.currentPlayer !== 2) return false;
+  const t = _botTabellone();
+  if(t.coperte * 2 < t.giocabili) return false;
+  const p = botProbVittoria();
+  if(p >= BOT_SOGLIA_RESA){
+    if(p < BOT_SOGLIA_PAURA && !G.botPaura){ G.botPaura = true; botSticker('bagheera-scared', 0.05); }
+    return false;
+  }
+  if(Date.now() - (G.botInizio || Date.now()) < BOT_RESA_DOPO_MS) return false;
+  const ultimo = Math.random() < 0.5 ? 'captain-hook-facepalm' : 'queen-of-hearts-angry';
+  const parla = botSticker(ultimo, 0.07, 200);
+  console.info('[bot] si arrende: probabilita\' di vincere ' + (p * 100).toFixed(1) + '%');
+  const gen = gameGeneration;
+  setTimeout(() => { if(gen === gameGeneration) botArrendi(); }, parla ? 2200 : 900);
+  return true;
+}
+function botArrendi(){
+  if(!G || G.gameOver || !G.vsAI) return;
+  try{ spegniBannerPartita(); }catch(_){ }
+  fermaIlConto();
+  try{ collapseAllHandExpand(); }catch(_){ }
+  G.vincitoreDichiarato = 1;
+  _motivoFinePartita = _goNomeDi(2) + ' surrendered.';
+  G.gameOver = true;
+  render();
+  finishGameWithResult();
+}
+
 function maybeTriggerAiTurn(){
   if(!G.vsAI || G.gameOver) return;
   if(G.currentPlayer!==2) return;
   if(G.sceltaBersaglio) return;
+  try{ if(botValutaResa()) return; }catch(e){ console.warn('[bot] resa: ' + (e && e.message)); }
   const genAtSchedule = gameGeneration;
   const delay = 2000 + Math.random()*3000;
   startAiThinkingHover(genAtSchedule);
@@ -34097,7 +33985,6 @@ function buildFullHandCardSVG(card, boxW, boxH, preview){
   baseImg.setAttribute('x','0'); baseImg.setAttribute('y','0');
   baseImg.setAttribute('width', boxW); baseImg.setAttribute('height', boxH);
   baseImg.setAttribute('preserveAspectRatio','xMidYMid slice');
-  try{ _sorvegliaBaseCarta(baseImg); }catch(_){ }
   chromeGroup.appendChild(baseImg);
 
   const g = isDark ? CARD_BORDER_GRADIENT_DARK : CARD_BORDER_GRADIENT_LIGHT;
