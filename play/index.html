@@ -7927,7 +7927,7 @@ try{
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.59</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.60</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -39167,10 +39167,21 @@ function chatConsoleImmagine(campo){
       tela.width = Math.max(1, Math.round(img.naturalWidth * k));
       tela.height = Math.max(1, Math.round(img.naturalHeight * k));
       const g = tela.getContext('2d');
-      g.fillStyle = '#1D2526'; g.fillRect(0, 0, tela.width, tela.height);
+      const trasparente = /^image\/(png|webp)$/i.test(f.type || '');
       g.drawImage(img, 0, 0, tela.width, tela.height);
-      let qualita = 0.85, dati = tela.toDataURL('image/jpeg', qualita);
-      while(dati.length > CHAT_IMMAGINE_MAX && qualita > 0.4){ qualita -= 0.1; dati = tela.toDataURL('image/jpeg', qualita); }
+      let qualita = 0.85, dati = '';
+      if(trasparente){
+        dati = tela.toDataURL('image/webp', qualita);
+        if(!/^data:image\/webp/.test(dati)) dati = tela.toDataURL('image/png');
+        while(/^data:image\/webp/.test(dati) && dati.length > CHAT_IMMAGINE_MAX && qualita > 0.4){ qualita -= 0.1; dati = tela.toDataURL('image/webp', qualita); }
+      }
+      if(!dati || dati.length > CHAT_IMMAGINE_MAX){
+        g.globalCompositeOperation = 'destination-over';
+        g.fillStyle = '#1D2526'; g.fillRect(0, 0, tela.width, tela.height);
+        g.globalCompositeOperation = 'source-over';
+        qualita = 0.85; dati = tela.toDataURL('image/jpeg', qualita);
+        while(dati.length > CHAT_IMMAGINE_MAX && qualita > 0.4){ qualita -= 0.1; dati = tela.toDataURL('image/jpeg', qualita); }
+      }
       if(dati.length > CHAT_IMMAGINE_MAX){ dillo('That image is too large, even compressed.'); return; }
       _cx.consoleImmagine = dati;
       if(anteprima){ anteprima.src = dati; anteprima.hidden = false; }
