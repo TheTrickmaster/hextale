@@ -7923,7 +7923,7 @@ try{
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.55</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.56</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -11358,12 +11358,7 @@ async function mm2CercaAvversario(){
     mmConsegnaBiglietto(rank, forza, codice);
     console.info('[ricerca] forbice allargata a ' + _mmForbice + ' rank');
     if(_mmForbice >= MM_FORBICE_MAX && !_mmRinuncia){
-      _mmRinuncia = setTimeout(()=>{
-        if(!_mm2Cercando) return;
-        console.info('[ricerca] forbice al massimo e nessuno in coda: partita contro un Bot.');
-        mm2AnnullaRicerca();
-        try{ requestNewGame(true, true); }catch(e){ console.error('[ricerca] la partita col Bot non parte: ' + (e && e.message)); }
-      }, MM_INSISTI_MS);
+      _mmRinuncia = true;
     }
   }, MM_PASSO_MS);
 }
@@ -14112,10 +14107,18 @@ const MM2_PASSO_MS = 1000;
 let _mm2Cercando = false;
 let _mmCronoDa = 0, _mmCrono = null;
 const RICERCA_BOT_DOPO_S = 120;
+const RICERCA_BOT_DA_S = 60, RICERCA_BOT_PASSO = 0.04;
+let _mmBotAlSecondo = RICERCA_BOT_DOPO_S;
+function mmSorteggiaIlBot(){
+  const secondi = Math.ceil(1 / RICERCA_BOT_PASSO);
+  _mmBotAlSecondo = RICERCA_BOT_DA_S + Math.min(secondi, Math.max(1, Math.ceil(Math.random() * secondi)));
+  return _mmBotAlSecondo;
+}
 let _mmSottoIlDito = false;
 function mmAvviaCronometro(){
   mmFermaCronometro();
   _mmCronoDa = Date.now();
+  mmSorteggiaIlBot();
   const passo = ()=>{
     if(!_mm2Cercando){ mmFermaCronometro(); return; }
     const s = Math.floor((Date.now() - _mmCronoDa) / 1000);
@@ -14130,7 +14133,7 @@ function mmAvviaCronometro(){
       apriAvviso('Invite expired', nome + ' did not join in time.', true);
       return;
     }
-    if(s >= RICERCA_BOT_DOPO_S && !_trovatoMatch && !_mmStanza
+    if(s >= Math.min(RICERCA_BOT_DOPO_S, _mmBotAlSecondo) && !_trovatoMatch && !_mmStanza
        && !document.getElementById('mm2-find')?.classList.contains('trovato')){
       console.info('[ricerca] ' + s + ' secondi senza avversari: partita contro un Bot.');
       mm2AnnullaRicerca();
