@@ -7927,7 +7927,7 @@ try{
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.60</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.61</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -10582,6 +10582,13 @@ function _valoriDaMandare(carta){
 function _idDelMazzo(carta){
   return carta ? (carta.idDelMazzo || carta.baseId || carta.id) : null;
 }
+function _scattiDaMandare(carta){
+  const s = carta && carta._scatti;
+  if(!s || typeof s !== 'object') return undefined;
+  const fuori = {};
+  for(const k in s) if(s[k] && s[k].volte >= 1) fuori[k] = { volte: s[k].volte | 0, turno: (typeof s[k].turno === 'number') ? s[k].turno : null };
+  return Object.keys(fuori).length ? fuori : undefined;
+}
 function reteGioca(carta, q, r){
   if(!PARTITA_RETE) return;
   mmManda({ cid: 'g' + Date.now().toString(36), match_data_send: {
@@ -10590,6 +10597,7 @@ function reteGioca(carta, q, r){
                                 q: q, r: r, valori: _valoriDaMandare(carta),
                                 modificatori: _modificatoriDaMandare(carta),
                                 gruppi: _gruppiDaMandare(carta),
+                                scatti: _scattiDaMandare(carta),
                                 ruotata: carta.ruotata ? true : undefined }))
   }});
 }
@@ -11135,6 +11143,11 @@ function reteApplicaGiocata(d){
     }
     if(_gruppiBuoni(d.gruppi)) carta.groupSides = d.gruppi.map(lati => lati.slice());
     if(d.ruotata === true) carta.ruotata = true;
+    if(d.scatti && typeof d.scatti === 'object' && !Array.isArray(d.scatti)){
+      const sc = {};
+      for(const k in d.scatti){ const v = d.scatti[k]; if(/^[a-z_]{1,30}$/.test(k) && v && v.volte >= 1) sc[k] = { volte: v.volte | 0, turno: (typeof v.turno === 'number') ? v.turno : null }; }
+      if(Object.keys(sc).length) carta._scatti = sc;
+    }
     if(posto >= 0) mano[posto] = carta; else mano.push(carta);
   }
   if(!carta) return;
@@ -29524,15 +29537,21 @@ function rubaUnBuff(ladra, vittima){
     if(tolto > 0) presi[l] = tolto;
   }
   if(!_simulazioneInCorso && vittima.modificatori) delete vittima.modificatori[b.chiave];
-  const lati = Object.keys(presi);
-  if(!lati.length) return presi;
+  if(!Object.keys(presi).length) return presi;
+  const dati = {};
   let piuGrande = 0;
-  for(const l of lati){
-    modificaValori(ladra, [l], presi[l], null, null);
-    piuGrande = Math.max(piuGrande, presi[l]);
+  for(const g of gruppiDiCarta(ladra)){
+    let quanto = 0;
+    for(const l of g.sides) if((presi[l] || 0) > quanto) quanto = presi[l];
+    if(!(quanto > 0)) continue;
+    modificaValori(ladra, g.sides, quanto, null, null);
+    for(const l of g.sides) dati[l] = quanto;
+    piuGrande = Math.max(piuGrande, quanto);
   }
+  const lati = Object.keys(dati);
+  if(!lati.length) return presi;
   sommaModificatore(ladra, 'buff_rubato:' + (vittima.id || vittima.name || '?'), vittima.name || '',
-    piuGrande, _ambitoDiLati(lati), vittima.id || null, presi);
+    piuGrande, _ambitoDiLati(lati), vittima.id || null, dati);
   return presi;
 }
 function _sceltaRubaBuff(card, q, r, giocatore, a, eff){
@@ -33334,7 +33353,7 @@ function disegnaGradienteRarita(svg, card, frameImg, angoli, scuro){
   copia(frameImg, 'rarita-maschera-frame');
   (angoli || []).forEach(a => copia(a, 'rarita-maschera-corner'));
   const velo = crea('rect', { x:mx, y:my, width:mw, height:mh, fill:'url(#rarita-sfuma-' + n + ')', mask:'url(#rarita-forma-' + n + ')', 'data-role':'rarita-gradiente' });
-  velo.style.mixBlendMode = scuro ? 'lighten' : 'multiply';
+  velo.style.mixBlendMode = scuro ? 'lighten' : 'normal';
   velo.style.pointerEvents = 'none';
   svg.appendChild(sfuma);
   svg.appendChild(maschera);
@@ -33374,7 +33393,7 @@ function swapCardOwnerVariant(containerEl, newOwner, card){
   });
   containerEl.querySelectorAll('[data-role="rarita-maschera-frame"]').forEach(img=>img.setAttribute('href', isDark?CARD_FRAME_DARK:CARD_FRAME_LIGHT));
   containerEl.querySelectorAll('[data-role="rarita-maschera-corner"]').forEach(img=>img.setAttribute('href', isDark?CARD_CORNER_DARK:CARD_CORNER_LIGHT));
-  containerEl.querySelectorAll('[data-role="rarita-gradiente"]').forEach(r=>{ r.style.mixBlendMode = isDark ? 'lighten' : 'multiply'; });
+  containerEl.querySelectorAll('[data-role="rarita-gradiente"]').forEach(r=>{ r.style.mixBlendMode = isDark ? 'lighten' : 'normal'; });
   containerEl.querySelectorAll('[data-role="owner-value-circle"]').forEach(img=>{
     img.setAttribute('href', isDark?VALUE_CIRCLE_DARK:VALUE_CIRCLE_LIGHT);
   });
