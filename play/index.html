@@ -7934,7 +7934,7 @@ try{
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.66</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.67</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -8974,10 +8974,25 @@ const CANVAS_W = 1920, CANVAS_H = 1080;
 const _fit = { scale: 1, offsetX: 0, offsetY: 0 };
 
 const ACCESSO_IN_FINESTRA = !!(typeof window !== 'undefined' && window.hextaleDesktop && typeof window.hextaleDesktop.finestra === 'function');
+let _accessoDaDecidere = null;
+function accessoDaDecidere(){
+  if(_accessoDaDecidere === null){
+    try{ _accessoDaDecidere = ACCESSO_IN_FINESTRA && !!ricordoLeggiUnaVolta(); }catch(_){ _accessoDaDecidere = false; }
+    if(_accessoDaDecidere) setTimeout(()=>accessoFinestraDeciso(false), 8000);
+  }
+  return _accessoDaDecidere;
+}
+function accessoFinestraDeciso(dentro){
+  if(!accessoDaDecidere()) return;
+  _accessoDaDecidere = false;
+  if(!dentro && document.documentElement.classList.contains('accesso-finestra')){
+    try{ window.hextaleDesktop.finestra('accesso'); }catch(_){ }
+  }
+}
 function accessoFinestraStringi(){
   if(!ACCESSO_IN_FINESTRA) return;
   document.documentElement.classList.add('accesso-finestra');
-  try{ window.hextaleDesktop.finestra('accesso'); }catch(_){ }
+  if(!accessoDaDecidere()){ try{ window.hextaleDesktop.finestra('accesso'); }catch(_){ } }
   try{ fitGameRoot(); }catch(_){ }
 }
 function accessoFinestraAllarga(){
@@ -8992,7 +9007,7 @@ function accessoFinestraPerPagina(name){
 if(ACCESSO_IN_FINESTRA) document.documentElement.classList.add('accesso-finestra');
 if(ACCESSO_IN_FINESTRA){
   window.addEventListener('load', ()=>setTimeout(()=>{
-    if(_activePage === 'start' && document.documentElement.classList.contains('accesso-finestra')){
+    if(_activePage === 'start' && document.documentElement.classList.contains('accesso-finestra') && !accessoDaDecidere()){
       try{ window.hextaleDesktop.finestra('accesso'); }catch(_){ }
     }
   }, 300));
@@ -10239,7 +10254,7 @@ function azzeraStatoAccount(){
 }
 const CHIAVI_DA_DIMENTICARE = [
   'hextale.sessione','hextale.catalogo','hextale.possesso','hextale.mazzi',
-  'hextale.valute','hextale.fazione','hextale.audio','hextale.aiuto.esagono',
+  'hextale.valute','hextale.fazione','hextale.aiuto.esagono',
   'hextale.bustina.prossima','hextale.unicorno',
   'hextale.patchnotes.lette','hextale.patchnotes.cache'
 ];
@@ -10372,10 +10387,11 @@ async function ricordoDecide(){
       new Promise(function(res){ setTimeout(function(){ res(null); }, RICORDO_ATTESA_MAX_MS); })
     ]);
   }catch(_){ s = null; }
-  if(!s){ _ricordoVestiIlModulo(); return false; }
+  if(!s){ _ricordoVestiIlModulo(); accessoFinestraDeciso(false); return false; }
   try{ await accessoEntra(s); }catch(_){}
-  if(_giocatoreDentro || _ingressoAvviato) return true;
+  if(_giocatoreDentro || _ingressoAvviato){ accessoFinestraDeciso(true); return true; }
   _ricordoVestiIlModulo();
+  accessoFinestraDeciso(false);
   return false;
 }
 function emailRicordaNellApp(email){
