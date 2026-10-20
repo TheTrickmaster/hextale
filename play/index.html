@@ -4993,6 +4993,59 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
 }
 @keyframes favoriPulsa{ 0%,100%{ opacity:.7; transform:scale(1); } 50%{ opacity:1; transform:scale(1.14); } }
 @media (prefers-reduced-motion:reduce){ #favori-puntatore .alone{ animation:none; } }
+html.azione-attiva #favori-puntatore .conto{ display:none; }
+
+#azione-tooltip{
+  position:absolute; left:0; top:0; z-index:9200;
+  display:flex; align-items:center; gap:16px;
+  min-height:92px; padding:12px 16px; box-sizing:border-box;
+  border-radius:0 20px 20px 20px;
+  background-color:rgba(24,36,38,0.5);
+  background-image:linear-gradient(225deg, rgba(0,0,0,0.2) 0%, rgba(255,255,255,0.2) 100%);
+  -webkit-backdrop-filter:blur(20px); backdrop-filter:blur(20px);
+  box-shadow:0 0 14px #87EBFF;
+  --mm2-bordo:0.22;
+  opacity:0; visibility:hidden; pointer-events:none;
+  transition:opacity 80ms linear, visibility 0s linear 80ms;
+}
+#azione-tooltip.visibile{ opacity:1; visibility:visible; transition:opacity 80ms linear, visibility 0s; }
+#azione-tooltip.mm2-vetro::before{ opacity:0.4; background-size:423.5px 404.75px; }
+#azione-tooltip.az-a-sinistra{ border-radius:20px 0 20px 20px; }
+#azione-tooltip.az-sopra{ border-radius:20px 20px 20px 0; }
+#azione-tooltip.az-a-sinistra.az-sopra{ border-radius:20px 20px 0 20px; }
+#azione-tooltip > *{ position:relative; z-index:1; }
+#azione-tooltip .az-punta{
+  position:absolute; left:0; top:0; width:10px; height:10px; z-index:2;
+  background:#EED8A9; clip-path:polygon(0 0, 100% 0, 0 100%);
+}
+#azione-tooltip.az-a-sinistra .az-punta{ left:auto; right:0; clip-path:polygon(0 0, 100% 0, 100% 100%); }
+#azione-tooltip.az-sopra .az-punta{ top:auto; bottom:0; clip-path:polygon(0 0, 0 100%, 100% 100%); }
+#azione-tooltip.az-a-sinistra.az-sopra .az-punta{ clip-path:polygon(100% 0, 100% 100%, 0 100%); }
+#azione-tooltip .az-icona{ flex:0 0 auto; width:48px; height:48px; object-fit:contain; display:block; }
+#azione-tooltip .az-testi{ display:flex; flex-direction:column; gap:0; max-width:300px; }
+#azione-tooltip .az-titolo{
+  font-family:'Marcellus SC','Marcellus',var(--font-display),serif; font-size:22px; line-height:27px;
+  color:#EDE0C6; white-space:nowrap;
+}
+#azione-tooltip .az-male{ color:#E65153; }
+#azione-tooltip .az-bene{ color:#5DBF39; }
+#azione-tooltip .az-testo{
+  margin:0; font-family:'Rosarivo',var(--font-body),Georgia,serif; font-size:16px; line-height:20px;
+  color:#A7B6B8;
+}
+#azione-tooltip .az-testo b{ font-weight:400; color:#FFFFFF; }
+#azione-tooltip .az-valore{
+  flex:0 0 auto; min-width:73px; min-height:66px; padding:6px 12px; box-sizing:border-box;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  border:1px solid rgba(255,255,255,0.22); border-radius:10px;
+  font-family:'Marcellus SC','Marcellus',var(--font-display),serif; font-size:22px; line-height:25px;
+  color:#F0C46A; white-space:nowrap; text-align:center;
+}
+html.azione-attiva #card-tooltip,
+html.azione-attiva #glossario-tooltip,
+html.azione-attiva #quest-tooltip,
+html.azione-attiva #gem-name-tip,
+html.azione-attiva #timer-pin-hover{ opacity:0 !important; visibility:hidden !important; }
 
 #glossario-tooltip{
   position:absolute; left:0; top:0; z-index:9000;
@@ -7381,7 +7434,7 @@ try{
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.68</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.69</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -18172,6 +18225,178 @@ function favoriSeguiPuntatore(){
   const p = _puntatoreUltimo || { x: 0, y: 0 };
   el.style.transform = 'translate(' + Math.round(p.x) + 'px,' + Math.round(p.y) + 'px)';
 }
+const AZIONE_ICONE = {
+  mirino: 'crosshair-icon-grey.png', mano: 'hand-icon-grey.png', scambio: 'swap-icon-grey.png',
+  scarta: 'close-icon-grey.png', martello: 'hammer-icon-grey.png', bomba: 'bomb-grey.png',
+  impronta: 'foot-yeti-icon-grey.png',
+};
+const _azMale = (v) => '<span class="az-male">' + v + '</span>';
+const _azBene = (v) => '<span class="az-bene">' + v + '</span>';
+const AZIONI_TOOLTIP = {
+  alibaba:            { icona:'mano', titolo:'Move a blocked tile', testo:'Move one <b>blocked tile</b> of your choice anywhere on the board.' },
+  badralbudur:        { icona:'scambio', titolo:'Switch two cards’ position', testo:'Switch the position of this card with <b>another enemy</b>.' },
+  banshee:            { icona:'mirino', titolo:'Select a target to ' + _azMale('afflict'), testo:'Select an <b>enemy target</b>.', valore:'potenza' },
+  feydragon:          { icona:'mirino', titolo:'Select a target to ' + _azBene('buff'), testo:'Select a <b>friendly target</b>.', valore:'potenza' },
+  guinevere:          { icona:'mirino', titolo:'Select a target to ' + _azBene('buff'), testo:'Select a <b>friendly target</b> in your hand.', valore:'mano' },
+  goblin:             { icona:'bomba', titolo:'Drop the bomb', testo:'Select a <b>free tile</b> on the board.' },
+  jackandthebeanstalk:{ icona:'mano', titolo:'Move an ally card', testo:'Move an <b>ally card</b> to a free tile of your choice' },
+  littlemermaid:      { icona:'scarta', titolo:'Discard a card from hand', testo:'Discard a card of your choice from your hand.' },
+  pixies:             { icona:'mirino', titolo:'Select a target to ' + _azMale('afflict'), testo:'Select an <b>enemy target</b>.', valore:'potenza' },
+  kingarthur:         { icona:'mirino', titolo:'Select where to summon', testo:'Select a <b>free tile</b> to summon.' },
+  mordred:            { icona:'mirino', titolo:'Select a target to ' + _azMale('remove'), testo:'Select a <b>Sovereign</b> or <b>Noble</b> to remove from the board.' },
+  sevendwarves:       { icona:'martello', titolo:'Destroy a blocked tile', testo:'Select a <b>blocked tile</b> to free.' },
+  yeti_impronta:      { icona:'impronta', titolo:'Place decoy', testo:'Select a <b>free tile</b> to place a decoy footprint. The Yeti won’t hide here.' },
+  yeti_sposta:        { icona:'mano', titolo:'Hide the Yeti', testo:'Move the Yeti to a <b>free tile</b>. Only you will know where it hides.' },
+  magicmirror:        { icona:'mirino', titolo:'Select a target to ' + _azBene('copy'), testo:'Select an <b>adjacent character</b> to copy its ability.' },
+  marchhare:          { icona:'scambio', titolo:'Swap two Power values', testo:'Swap the <b>highest</b> and <b>lowest</b> Power of an <b>adjacent enemy</b>.' },
+  nottinghamsheriff:  { icona:'mirino', titolo:'Select a target to ' + _azMale('steal'), testo:'Steal the ability of an <b>adjacent card</b>.' },
+  piedpiper:          { icona:'mirino', titolo:'Select a target to ' + _azMale('remove'), testo:'Select a <b>Small</b> character to remove from the board.' },
+  rapunzel:           { icona:'mano', titolo:'Pull a character', testo:'Select a <b>non-adjacent character</b> in a straight line to pull it next to Rapunzel.' },
+  robin_favori:       { icona:'mirino', titolo:'Select a target to ' + _azBene('buff'), testo:'Give the stolen Power to a <b>friendly target</b>.', valore:'favori' },
+  rumpelstiltskin:    { icona:'mirino', titolo:'Select a target to ' + _azMale('steal'), testo:'Steal the <b>Traits</b> of an <b>adjacent enemy</b>.' },
+  sherazade:          { icona:'mirino', titolo:'Freeze a tile', testo:'Select an <b>empty tile</b> to freeze for one turn.' },
+  thecarpenter:       { icona:'martello', titolo:'Block a tile', testo:'Select an <b>empty tile</b> to block.' },
+  tinkerbell:         { icona:'mirino', titolo:'Select a buff to ' + _azMale('steal'), testo:'Steal a <b>permanent Buff</b> from a card on the board.' },
+  wendy:              { icona:'mirino', titolo:'Select a target to ' + _azBene('protect'), testo:'Select a <b>Small</b> character to protect.' },
+  '12dancingprincesses': { icona:'mano', titolo:'Dance away', testo:'Move this card to an <b>adjacent free tile</b>.' },
+};
+const AZIONI_TOOLTIP_FAMIGLIA = {
+  potenza_in_campo: { icona:'mirino', titolo:'Select a target', testo:'Select a <b>card</b> on the board.', valore:'potenza' },
+  potenza_in_mano:  { icona:'mirino', titolo:'Select a target', testo:'Select a <b>card</b> in your hand.', valore:'mano' },
+  sposta_ovunque:   { icona:'mano', titolo:'Move a card', testo:'Move a <b>card</b> to a free tile of your choice.' },
+  sposta_un_vicino: { icona:'mano', titolo:'Move a card', testo:'Move an <b>adjacent card</b> to a free tile.' },
+  scambio_posizioni:{ icona:'scambio', titolo:'Switch two cards’ position', testo:'Select a <b>card</b> to switch places with.' },
+  scambio_carta:    { icona:'scambio', titolo:'Switch two cards’ position', testo:'Select a <b>card</b> to switch places with.' },
+  congela_tassello: { icona:'mirino', titolo:'Freeze a tile', testo:'Select an <b>empty tile</b> to freeze.' },
+  distruggi_carta:  { icona:'mirino', titolo:'Select a target to ' + _azMale('remove'), testo:'Select a <b>card</b> to remove from the board.' },
+  proteggi_gruppo:  { icona:'mirino', titolo:'Select a target to ' + _azBene('protect'), testo:'Select a <b>card</b> to protect.' },
+  ruba_buff:        { icona:'mirino', titolo:'Select a buff to ' + _azMale('steal'), testo:'Select a <b>Buff</b> on the board.' },
+  copia_tratti:     { icona:'mirino', titolo:'Select a target to ' + _azBene('copy'), testo:'Select a <b>card</b> to copy its Traits.' },
+};
+const _azNome = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+function _azioneVoce(sc){
+  if(!sc) return null;
+  return AZIONI_TOOLTIP[sc.chiave] || (sc.card && AZIONI_TOOLTIP[_azNome(sc.card.name)])
+      || AZIONI_TOOLTIP_FAMIGLIA[sc.chiave] || null;
+}
+function _azioneSceltaMia(){
+  const sc = (typeof G !== 'undefined' && G) ? G.sceltaBersaglio : null;
+  if(!sc || sc.attesa || G.gameOver) return null;
+  if(!sceltaMia(sc.giocatore) || !giocatoreUmano(sc.giocatore)) return null;
+  return sc;
+}
+function _azioneValore(sc, voce){
+  try{
+    if(voce.valore === 'favori') return (sc.favori > 0) ? ['+' + ROBIN_FAVORE, '×' + sc.favori] : null;
+    const card = sc.card;
+    if(!card || !_haAbilitaNuova(card)) return null;
+    const a = _motore().abilitaDi(card);
+    const eff = a && [a.effetto, a.effetto2].find(e => e && e.scelta);
+    if(!eff) return null;
+    const ambito = String(eff.ambito || '').toUpperCase();
+    let n = null;
+    if(voce.valore === 'mano'){
+      const q = eff.quanto && Number(eff.quanto.numero);
+      if(isFinite(q)) n = (eff.azione === 'debuff' ? -1 : 1) * Math.abs(q);
+    } else if(voce.valore === 'potenza' && Array.isArray(sc.bersagli) && sc.bersagli.length){
+      const posto = G.board[sc.bersagli[0]];
+      if(posto && posto.card){
+        const scena = _scenaEvento(card, key(sc.q, sc.r));
+        scena.scelta = posto.card; scena.bersaglio = posto.card;
+        const sulBersaglio = (_motore().cambiamentiDellaScelta(card, 'on_play', scena) || [])
+          .filter(x => x && x.delta && x.carta === posto.card);
+        if(sulBersaglio.length) n = sulBersaglio.reduce((s, x) => s + x.delta, 0);
+      }
+    }
+    if(n === null || !isFinite(n)) return null;
+    const segno = (n > 0 ? '+' : '') + n;
+    if(ambito === 'LOWEST' || ambito === 'HIGHEST') return [segno + ' to', ambito];
+    return [segno, ambito || ''];
+  }catch(_){ return null; }
+}
+let _azioneUltima = null;
+let _azioneIconaChiesta = '';
+function _azioneMettiIcona(img, nome){
+  _azioneIconaChiesta = nome;
+  const cand = uiFileCandidati(nome);
+  const nota = cand.find(u => _assetVisti.get(u) === true);
+  if(nota){ if(img.getAttribute('src') !== nota) img.src = nota; return; }
+  img.removeAttribute('src');
+  const finto = {};
+  impostaImgDaCandidati(finto, cand);
+  (finto.__assetPronto || Promise.resolve()).then(() => {
+    if(_azioneIconaChiesta === nome && finto.src) img.src = finto.src;
+  });
+}
+function _azionePrecaricaIcone(){
+  for(const nome of Object.values(AZIONE_ICONE)){ try{ impostaImgDaCandidati({}, uiFileCandidati(nome)); }catch(_){ } }
+}
+function _azioneTooltip(){
+  let tip = document.getElementById('azione-tooltip');
+  if(tip) return tip;
+  const radice = document.getElementById('game-root') || document.body;
+  tip = document.createElement('div');
+  tip.id = 'azione-tooltip';
+  tip.className = 'mm2-vetro';
+  tip.setAttribute('aria-hidden', 'true');
+  tip.innerHTML = '<span class="az-punta"></span><img class="az-icona" alt="" draggable="false">'
+    + '<span class="az-testi"><span class="az-titolo"></span><p class="az-testo"></p></span>'
+    + '<span class="az-valore"><span class="az-v1"></span><span class="az-v2"></span></span>';
+  radice.appendChild(tip);
+  try{ impostaVariabileDaCandidati(tip, '--hx-trama', uiFileCandidati('brushed-texture.jpg')); }catch(_){ }
+  _azionePrecaricaIcone();
+  return tip;
+}
+function _azioneSegui(tip){
+  if(!_puntatoreUltimo) return;
+  const radice = tip.offsetParent || tip.parentElement;
+  if(!radice) return;
+  const rr = radice.getBoundingClientRect();
+  const k = (radice.offsetWidth ? rr.width / radice.offsetWidth : 1) || 1;
+  const px = (_puntatoreUltimo.x - rr.left) / k, py = (_puntatoreUltimo.y - rr.top) / k;
+  const larga = tip.offsetWidth || 400, alta = tip.offsetHeight || 92;
+  const dentroL = radice.offsetWidth || 1920, dentroA = radice.offsetHeight || 1080;
+  let x = px + TOOLTIP_STACCO, y = py + TOOLTIP_STACCO, sinistra = false, sopra = false;
+  if(x + larga > dentroL - 8){
+    const prova = px - TOOLTIP_STACCO - larga;
+    if(prova >= 8){ x = prova; sinistra = true; } else x = Math.max(8, dentroL - larga - 8);
+  }
+  if(y + alta > dentroA - 8){
+    const prova = py - TOOLTIP_STACCO - alta;
+    if(prova >= 8){ y = prova; sopra = true; } else y = Math.max(8, dentroA - alta - 8);
+  }
+  tip.classList.toggle('az-a-sinistra', sinistra);
+  tip.classList.toggle('az-sopra', sopra);
+  tip.style.left = Math.round(x) + 'px';
+  tip.style.top = Math.round(y) + 'px';
+}
+function azioneTooltipAggiorna(){
+  const sc = _azioneSceltaMia();
+  const voce = sc ? _azioneVoce(sc) : null;
+  const radiceHtml = document.documentElement;
+  if(!voce){
+    radiceHtml.classList.remove('azione-attiva');
+    const tip = document.getElementById('azione-tooltip');
+    if(tip) tip.classList.remove('visibile');
+    _azioneUltima = null;
+    return;
+  }
+  const tip = _azioneTooltip();
+  const valore = _azioneValore(sc, voce);
+  const firma = voce.titolo + '|' + voce.testo + '|' + (valore ? valore.join('/') : '');
+  if(_azioneUltima !== firma){
+    _azioneUltima = firma;
+    try{ _azioneMettiIcona(tip.querySelector('.az-icona'), AZIONE_ICONE[voce.icona] || AZIONE_ICONE.mirino); }catch(_){ }
+    tip.querySelector('.az-titolo').innerHTML = voce.titolo;
+    tip.querySelector('.az-testo').innerHTML = voce.testo;
+    const box = tip.querySelector('.az-valore');
+    box.style.display = valore ? '' : 'none';
+    if(valore){ box.querySelector('.az-v1').textContent = valore[0]; box.querySelector('.az-v2').textContent = valore[1]; }
+  }
+  radiceHtml.classList.add('azione-attiva');
+  tip.classList.add('visibile');
+  _azioneSegui(tip);
+}
 function glossarioSeguiPuntatore(e){
   _glossarioUltimo = { x:e.clientX, y:e.clientY, t:e.target };
   _puntatoreUltimo = { x:e.clientX, y:e.clientY };
@@ -18186,6 +18411,7 @@ function glossarioSeguiPuntatore(e){
     tooltipSegui(document.getElementById('glossario-tooltip'));
     tooltipSegui(document.getElementById('quest-tooltip'));
     favoriSeguiPuntatore();
+    azioneTooltipAggiorna();
   });
 }
 function glossarioAccendi(parola){
@@ -35261,6 +35487,7 @@ function firmaMano(hand, playerIdx){
 const _firmaManoPrecedente = {};
 
 function renderBoard(){
+  try{ azioneTooltipAggiorna(); }catch(_){ }
   if(G.boardDropAnimInProgress){
     if(G.sceltaBersaglio && !_pendingOverlayRender){
       _pendingOverlayRender = setTimeout(function riprovaOverlay(){
