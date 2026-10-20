@@ -5098,13 +5098,13 @@ html.azione-attiva #favori-puntatore .conto{ display:none; }
   color:#F0C46A; white-space:nowrap; text-align:center;
 }
 .azione-alone-bordo{
-  fill:none; stroke:#87EBFF; stroke-width:3;
+  fill:none; stroke:#87EBFF; stroke-width:2;
   filter:drop-shadow(0 0 6px #87EBFF) drop-shadow(0 0 14px #87EBFF);
   animation:azioneAloneRespira 2200ms ease-in-out infinite;
 }
 @keyframes azioneAloneRespira{
-  0%, 100% { opacity:0.55; stroke-width:2.5; }
-  50%      { opacity:1;    stroke-width:4; }
+  0%, 100% { opacity:0.55; }
+  50%      { opacity:1; }
 }
 .azione-alone-riflesso{
   mix-blend-mode:screen;
@@ -7509,7 +7509,7 @@ try{
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.72</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.73</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -10636,6 +10636,7 @@ function reteApplicaGiocata(d){
     try{ yetiRivelaDaServer(d.yeti, key(d.q, d.r)); }catch(e){ console.error('[rete] yeti: ' + (e && e.message)); }
   }
   if(!carta.idRete) carta.idRete = String(d.carta) + '@' + d.q + ',' + d.r + '#' + d.numeroTurno;
+  G.yetiSpecchio = { k: key(d.q, d.r), da: Array.isArray(d.yetiSpecchio) ? d.yetiSpecchio.map(String) : [] };
   G.reteRisolve = true;
   try{ svelaGiocata(); }catch(_){ }
   const suoni = mio ? null : _veloSuoniInCoda();
@@ -18523,7 +18524,10 @@ function disegnaAloneAzione(svg, cx, cy, R){
   banda.setAttribute('class', 'azione-alone-riflesso');
   banda.style.setProperty('--corsa', (R * 2.6).toFixed(1) + 'px');
   banda.style.animationDelay = (-(ora % AZIONE_RIFLESSO_MS)).toFixed(0) + 'ms';
-  dentro.appendChild(banda);
+  const inclinato = svgEl('g');
+  inclinato.setAttribute('transform', 'rotate(20 ' + p.x.toFixed(1) + ' ' + p.y.toFixed(1) + ')');
+  inclinato.appendChild(banda);
+  dentro.appendChild(inclinato);
   g.appendChild(dentro);
   strato.insertBefore(g, strato.firstChild);
 }
@@ -18531,7 +18535,22 @@ const AZIONE_LUCCIOLE_TIP = 18, AZIONE_LUCCIOLE_CARTA = 16;
 let _azioneTela = null, _azioneRaf = 0, _azioneLucciole = null, _azioneUltimoT = 0;
 function _azioneNuovaLucciola(nido){
   return { nido, ang: Math.random() * Math.PI * 2, giro: (Math.random() < 0.5 ? -1 : 1) * (0.05 + Math.random() * 0.12),
-           fuori: 4 + Math.random() * 26, deriva: 0, lato: 1.2 + Math.random() * 1.8, fase: Math.random() * Math.PI * 2 };
+           fuori: 4 + Math.random() * 26, deriva: 0, lato: 3 + Math.random() * 4.5, fase: Math.random() * Math.PI * 2,
+           forma: particellaACaso(), giroForma: (Math.random() - 0.5) * 0.8, rot: Math.random() * Math.PI * 2 };
+}
+const _azioneTinte = [];
+function _azioneParticellaTinta(i){
+  if(_azioneTinte[i]) return _azioneTinte[i];
+  const im = particellaPronta(i);
+  if(!im) return null;
+  const tela = document.createElement('canvas');
+  tela.width = im.naturalWidth; tela.height = im.naturalHeight;
+  const g = tela.getContext('2d');
+  g.drawImage(im, 0, 0);
+  g.globalCompositeOperation = 'source-in';
+  g.fillStyle = AZIONE_COLORE; g.fillRect(0, 0, tela.width, tela.height);
+  _azioneTinte[i] = tela;
+  return tela;
 }
 function azioneParticelleAvvia(){
   if(_azioneRaf) return;
@@ -18564,7 +18583,6 @@ function azioneParticelleAvvia(){
     const k = _azioneCellaCarta(_azioneSceltaMia());
     if(k){ const rc = _rettangoloCella(k); if(rc && rc.width) nidi.carta = rc; }
     c.fillStyle = AZIONE_COLORE;
-    c.shadowColor = AZIONE_COLORE; c.shadowBlur = 6;
     for(const l of _azioneLucciole){
       const n = nidi[l.nido];
       if(!n) continue;
@@ -18580,8 +18598,13 @@ function azioneParticelleAvvia(){
       const a = n.width / 2 + l.fuori, b = n.height / 2 + l.fuori;
       const x = n.left + n.width / 2 + Math.cos(l.ang) * a;
       const y = n.top + n.height / 2 + Math.sin(l.ang) * b;
-      c.globalAlpha = 0.45 + 0.4 * (0.5 + 0.5 * Math.sin(l.fase));
-      c.beginPath(); c.arc(x, y, l.lato, 0, Math.PI * 2); c.fill();
+      c.globalAlpha = 0.5 + 0.4 * (0.5 + 0.5 * Math.sin(l.fase));
+      l.rot += l.giroForma * dt;
+      const tinta = _azioneParticellaTinta(l.forma);
+      if(tinta){
+        const lato = l.lato * 2 * particellaScala(l.forma);
+        c.save(); c.translate(x, y); c.rotate(l.rot); c.drawImage(tinta, -lato / 2, -lato / 2, lato, lato); c.restore();
+      } else { c.beginPath(); c.arc(x, y, l.lato * 0.5, 0, Math.PI * 2); c.fill(); }
     }
     c.globalAlpha = 1;
     _azioneRaf = requestAnimationFrame(passo);
@@ -25117,7 +25140,7 @@ function vestiLampoValore(el, voce, eCifra){
   setTimeout(() => { if(el.isConnected && el.textContent === vecchio) el.textContent = nuovo; }, LAMPO_CAMBIO_MS - passati);
 }
 const STRISCE_DURATA_MS = 1250;
-function strisceSulCerchio(cerchio, tipo){
+function strisceSulCerchio(cerchio, tipo, cardId, gruppo){
   if(!cerchio || _simulazioneInCorso) return;
   const r = cerchio.getBoundingClientRect();
   if(!r.width) return;
@@ -25132,7 +25155,25 @@ function strisceSulCerchio(cerchio, tipo){
     box.appendChild(s);
   }
   document.body.appendChild(box);
-  setTimeout(() => { try{ box.remove(); }catch(_){ } }, STRISCE_DURATA_MS + 60);
+  const fine = performance.now() + STRISCE_DURATA_MS;
+  const segui = () => {
+    if(!box.isConnected) return;
+    if(performance.now() >= fine){ try{ box.remove(); }catch(_){ } return; }
+    let c = cerchio.isConnected ? cerchio : null;
+    if(!c && cardId){
+      const cont = contenitoreDisegnatoDellaCarta(cardId);
+      c = cont ? cont.querySelector('[data-role="owner-value-circle"][data-value-group="' + gruppo + '"]') : null;
+      if(c) cerchio = c;
+    }
+    if(c){
+      const q = c.getBoundingClientRect();
+      if(q.width){ box.style.left = q.left.toFixed(1) + 'px'; box.style.top = q.top.toFixed(1) + 'px';
+        box.style.width = q.width.toFixed(1) + 'px'; box.style.height = q.height.toFixed(1) + 'px'; }
+    }
+    requestAnimationFrame(segui);
+  };
+  requestAnimationFrame(segui);
+  setTimeout(() => { try{ box.remove(); }catch(_){ } }, STRISCE_DURATA_MS + 300);
 }
 function accendiLampiValori(){
   if(!_lampiValori.size) return;
@@ -25154,7 +25195,7 @@ function accendiLampiValori(){
       const cerchio = contenitore.querySelector('[data-role="owner-value-circle"][data-value-group="'+gruppo+'"]');
       vestiLampoValore(cerchio, voce, false);
       vestiLampoValore(contenitore.querySelector('text[data-value-group="'+gruppo+'"]'), voce, true);
-      if(voce.tipo === 'su' || voce.tipo === 'giu') strisceSulCerchio(cerchio, voce.tipo);
+      if(voce.tipo === 'su' || voce.tipo === 'giu') strisceSulCerchio(cerchio, voce.tipo, cardId, gruppo);
     }
   }
 }
@@ -27392,6 +27433,30 @@ function yetiRivelaDaServer(elenco, perCella){
 function yetiRivelaTutti(){
   for(const y of _yetiElenco()) if(y.stato === 'nascosto' && y.cella) yetiRivela(y, y.cella, null);
 }
+const YETI_SEGNO = 'yeti@';
+function yetiAlleatiPerSpecchio(q, r, giocatore){
+  const k = key(q, r);
+  const vicine = new Set(DIRS.map(d => key(q + d.dq, r + d.dr)));
+  const dalServer = (PARTITA_RETE && G.yetiSpecchio && G.yetiSpecchio.k === k) ? G.yetiSpecchio.da : null;
+  return _yetiElenco().filter(y => {
+    if(y.stato !== 'nascosto' || y.di !== giocatore || !y.card || !eYeti(y.card)) return false;
+    if(y.card.eSpecchio) return false;
+    if(PARTITA_RETE) return !!dalServer && dalServer.indexOf(y.da) >= 0;
+    return !!y.cella && vicine.has(y.cella);
+  });
+}
+function yetiBersaglioDi(y){ return y.cella || (YETI_SEGNO + y.da); }
+function yetiNascostoDaBersaglio(b, giocatore){
+  const s = String(b || '');
+  const perSegno = s.indexOf(YETI_SEGNO) === 0;
+  return _yetiElenco().find(y => y.stato === 'nascosto' && y.di === giocatore
+    && (perSegno ? y.da === s.slice(YETI_SEGNO.length) : (!!y.cella && y.cella === s))) || null;
+}
+function yetiImprontaNascostaDallaScelta(y, cella){
+  const sc = G && G.sceltaBersaglio;
+  return !!sc && !!y && y.stato === 'nascosto' && y.cella === cella && _yetiLoVedo(y)
+    && Array.isArray(sc.bersagli) && sc.bersagli.indexOf(cella) >= 0;
+}
 function yetiContrattacco(card, player, q, r, k, snap, myEffective, conquered, conquestInfo){
   if(!G.yeti || !G.yeti.length) return;
   for(const dir of DIRS){
@@ -27451,6 +27516,7 @@ function disegnaYetiInCella(svgCella, radice, x, y, R, k){
     if(yy.stato === 'nascosto' || (yy.stato === 'rivelato' && via !== null && via < YETI_IMPRONTE_VIA_MS)){
       for(const imp of yy.impronte){
         if(imp.cella !== k || ora < imp.da) continue;
+        if(yetiImprontaNascostaDallaScelta(yy, k)) continue;
         disegnaImprontaYeti(svgCella, x, y, R, imp, ora, yy.stato === 'rivelato' ? via : null);
       }
     }
@@ -28098,13 +28164,23 @@ const SCELTE_PIAZZAMENTO = {
   },
   magic_mirror: (card, q, r, giocatore) => {
     card.eSpecchio = true;
-    const bersagli = bersagliDi(card, q, r, giocatore, () => bersagliMagicMirror(q, r));
+    const bersagli = bersagliDi(card, q, r, giocatore, () => bersagliMagicMirror(q, r))
+      .concat(yetiAlleatiPerSpecchio(q, r, giocatore).map(yetiBersaglioDi));
     if(!bersagli.length) return null;
     return {
       chiave: 'magic_mirror',
       giocatore,
       cellaOrigine: key(q,r),
       bersagli,
+      perRete: (cella) => {
+        if(G.board[cella]) return cella;
+        const y = yetiNascostoDaBersaglio(cella, giocatore);
+        return y ? YETI_SEGNO + y.da : cella;
+      },
+      daRete: (c) => {
+        const y = yetiNascostoDaBersaglio(c, giocatore);
+        return (y && y.cella && bersagli.indexOf(y.cella) >= 0) ? y.cella : c;
+      },
       applicaEAspetta: (cella, poi) => copiaAbilitaDa(card, cella, q, r, giocatore, poi),
       rinuncia: () => {}
     };
@@ -28703,7 +28779,11 @@ function bersagliMagicMirror(q, r){
 
 function copiaAbilitaDa(specchio, cellaBersaglio, q, r, giocatore, poi){
   const finito = ()=>{ if(typeof poi === 'function') poi(); };
-  const bersaglio = G.board[cellaBersaglio];
+  let bersaglio = G.board[cellaBersaglio];
+  if(!bersaglio || !bersaglio.card){
+    const y = yetiNascostoDaBersaglio(cellaBersaglio, giocatore);
+    bersaglio = y ? { card: y.card, owner: y.di } : null;
+  }
   if(!bersaglio || !bersaglio.card){ finito(); return; }
   if(bersaglio.card.eSpecchio || bersaglio.card.cardAbility === 'magic_mirror'){ finito(); return; }
   const copiata = abilitaAttivaDi(bersaglio.card);
@@ -28716,6 +28796,13 @@ function _usaAbilitaPresa(carta, chiave, q, r, giocatore, finito){
   applicaAbilitaPiazzamento(carta, q, r, chiave);
   applicaEffettiRealiPiazzamento(carta, q, r, chiave);
   renderBoard();
+  if(chiave === YETI_CHIAVE){
+    const chi = (giocatore != null) ? giocatore : G.currentPlayer;
+    const k = key(q, r);
+    if(!yetiAccantoANemici(chi, k) && yetiAlPiazzamento(carta, chi, q, r, k, typeof timerLeft === 'number' && timerLeft <= 0)) return;
+    finito();
+    return;
+  }
   const chiPuoScegliere = (giocatore != null) ? giocatore : G.currentPlayer;
   const k = key(q,r);
   const chiedeUnBersaglio = !!SCELTE_PIAZZAMENTO[chiave]
@@ -29587,9 +29674,11 @@ function chiudiSceltaBersaglio(cella, daServer){
   const scelta = G.sceltaBersaglio;
   if(!scelta) return;
   if(PARTITA_RETE && !daServer && scelta.privata && !sceltaMia(scelta.giocatore)) return;
+  if(daServer && cella && typeof scelta.daRete === 'function') cella = scelta.daRete(cella);
   if(PARTITA_RETE && !daServer && !scelta.privata){
     if(!sceltaMia(scelta.giocatore)) return;
-    reteScegli(cella, scelta.destinazioneScelta || null, _postoDelloScarto(scelta, cella));
+    const inviata = (cella && typeof scelta.perRete === 'function') ? scelta.perRete(cella) : cella;
+    reteScegli(inviata,scelta.destinazioneScelta || null, _postoDelloScarto(scelta, cella));
     return;
   }
   if(scelta.richieste > 1 && cella && scelta.bersagli.indexOf(cella) >= 0){
