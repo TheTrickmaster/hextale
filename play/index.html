@@ -1962,6 +1962,46 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
   30%  { filter:brightness(0) invert(1) drop-shadow(0 0 5px rgba(255,255,255,0.9)); }
   100% { filter:none; }
 }
+.bagheera-scudo{
+  position:fixed; z-index:530; pointer-events:none;
+  animation:bagheeraScudo var(--durata, 1300ms) linear forwards;
+}
+.bagheera-scudo img{ display:block; width:100%; height:100%; object-fit:contain;
+  filter:drop-shadow(0 0 10px rgba(255,255,255,0.55)) drop-shadow(0 3px 6px rgba(0,0,0,0.6)); }
+.bagheera-scudo::after{
+  content:''; position:absolute; inset:0; pointer-events:none;
+  -webkit-mask:var(--scudo-url) center / contain no-repeat; mask:var(--scudo-url) center / contain no-repeat;
+  background:linear-gradient(115deg, rgba(255,255,255,0) 35%, rgba(255,255,255,0.95) 50%, rgba(255,255,255,0) 65%) no-repeat;
+  background-size:300% 100%; background-position:120% 0;
+  mix-blend-mode:screen;
+  animation:bagheeraRiflesso var(--durata, 1300ms) linear forwards;
+}
+@keyframes bagheeraScudo{
+  0%   { opacity:0; transform:scale(0.86); }
+  18%  { opacity:1; transform:scale(1); }
+  75%  { opacity:1; transform:scale(1); }
+  100% { opacity:0; transform:scale(1.04); }
+}
+@keyframes bagheeraRiflesso{
+  0%, 20% { background-position:120% 0; }
+  58%     { background-position:-20% 0; }
+  100%    { background-position:-20% 0; }
+}
+.colpo-schegge{ position:fixed; inset:0; z-index:525; pointer-events:none; overflow:hidden; }
+.colpo-scheggia{
+  position:absolute; border-radius:50%; will-change:transform, opacity;
+  background:radial-gradient(circle, #FFFFFF 0%, #FFE3A3 34%, rgba(255,176,72,0.9) 60%, rgba(255,150,50,0) 100%);
+  box-shadow:0 0 8px rgba(255,190,90,0.95), 0 0 16px rgba(255,150,60,0.55);
+}
+.gruppo-parato{ animation:gruppoParato 520ms ease-out 1 both; }
+@keyframes gruppoParato{
+  0%   { filter:none; }
+  35%  { filter:brightness(0) invert(1) drop-shadow(0 0 7px rgba(255,255,255,0.95)); }
+  100% { filter:none; }
+}
+@media (prefers-reduced-motion:reduce){
+  .bagheera-scudo::after{ animation:none; opacity:0; }
+}
 .carta-distrutta-volo{
   position:fixed;
   z-index:520;
@@ -2555,8 +2595,14 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
   animation:arteNotteSvanisce var(--notte-durata,1000ms) ease-in-out forwards;
   pointer-events:none;
 }
-.lampo-valori-su    { --lampo-colore:rgba(0,163,73,1);    --lampo-colore-t:rgba(0,163,73,0); }
-.lampo-valori-giu   { --lampo-colore:rgba(196,63,63,1);   --lampo-colore-t:rgba(196,63,63,0); }
+@keyframes lampoValoriAcceso{
+  0%   {filter:drop-shadow(0 0 0 var(--lampo-colore-t));}
+  40%  {filter:drop-shadow(0 0 4px var(--lampo-colore)) drop-shadow(0 0 11px var(--lampo-colore)) brightness(1.55);}
+  100% {filter:drop-shadow(0 0 0 var(--lampo-colore-t));}
+}
+.lampo-valori-su, .lampo-valori-giu{ animation:lampoValoriAcceso 0.7s ease-out; }
+.lampo-valori-su    { --lampo-colore:hsl(147,100%,58%); --lampo-colore-t:hsla(147,100%,58%,0); }
+.lampo-valori-giu   { --lampo-colore:hsl(0,100%,64%);   --lampo-colore-t:hsla(0,100%,64%,0); }
 .lampo-valori-cambia{ --lampo-colore:rgba(255,255,255,1); --lampo-colore-t:rgba(255,255,255,0); }
 
 @keyframes hitFlash{
@@ -7434,7 +7480,7 @@ try{
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.69</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.71</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -15356,10 +15402,16 @@ var ABILITA_MOTORE = (function () {
     var tutti = candidati(fonte, eff, scena);
     if (suBersaglio) tutti = _filtraPerCondizione(tutti, cond, fonte, scena);
     var difeso = null;
-    if (az === 'debuff' || az === 'steal') {
+    if ((az === 'debuff' || az === 'steal') && eff.dove !== 'in_hand') {
       difeso = function (carta) { return function (lato) { return _latoDifeso(carta, lato, scena); }; };
       var colpibili = [];
-      for (var sc = 0; sc < tutti.length; sc++) if (colpibile(eff, tutti[sc], scena)) colpibili.push(tutti[sc]);
+      for (var sc = 0; sc < tutti.length; sc++) {
+        if (colpibile(eff, tutti[sc], scena)) { colpibili.push(tutti[sc]); continue; }
+        if ((!eff.quale || eff.quale === 'all') && !eff.scelta && !intoccabile(tutti[sc]) && _immuneAiDanni(tutti[sc], scena)) {
+          fuori.push({ azione: 'difesa', carta: tutti[sc], fonte: fonte, lati: [],
+                       parati: latiColpiti(eff.ambito, (tutti[sc].valoriBase || tutti[sc].values) || {}, tutti[sc], _occasione(fonte, scena), null) });
+        }
+      }
       tutti = colpibili;
     }
     if (eff.scelta) {
@@ -24077,7 +24129,6 @@ const TILE_ABILITIES_DEF = {
   mermaid_discard: { carta:'Little Mermaid', name:'...', desc:'When *Played*, *Discard* a card of your choice.' },
   kingslayer: { carta:'Mordred', name:'Kingslayer', desc:'When *Played*, can *Destroy* an adjacent /Sovereign/ or /Noble/.' },
   new_tax: { carta:'Nottingham Sheriff', name:'New Tax', desc:'When *Played*, *Steals* the ability of an adjacent card.' },
-  dark_pact: { carta:'Sea Witch', name:'Dark Pact', desc:'When *Played*, *Steals* 1 Power from every card in your hand.' },
   power_nap: { carta:'Sleeping Beauty', name:'Power Nap', desc:'Can only be *Conquered* by /Princess/, /Noble/ or /Sovereign/ characters.' },
   loyalty:      { carta:'Lancelot',             name:'Loyalty',        desc:'*Afflicts* -1 ALL to adjacent /Sovereign/, *Gains* +1 ALL for each adjacent /Princess/.' },
   power_of_love:{ carta:'Maid Marian',          name:'Power of Love',  desc:'Adjacent /Wild/ allies *Gain* +2 ALL. Robin Hood *Gains* +3 ALL.' },
@@ -24107,7 +24158,6 @@ const TILE_ABILITIES_DEF = {
   sleight_of_hand:   { carta:'Aladdin', name:'Give Me That!',         desc:'*Owns* Magic Lamp. Whoever owns it scores +1 each turn' },
   open_celery:       { carta:'Ali Baba', name:'Open, Celery!',         desc:'*Move* a blocked tile to an adjacent free space.' },
   bear_necessities:  { carta:'Baloo', name:'Bear Necessities',      desc:'Adjacent /Wild/ allies *Gain* +1 ALL.' },
-  tic_toc:           { carta:'Captain Hook', name:'Tic Toc',               desc:'If *played* in the first two turns, +2 ALL.' },
   hunger_bites:      { carta:'Big Bad Wolf', name:'Hunger Bites',          desc:'*Gains* +1 RAND for each Power difference with the conquered card.' },
   scaredy_cat:       { carta:'Cowardly Lion', name:'Scaredy Cat',           desc:'When *Flipped*, *Freezes* for 1 turn' },
   bell_of_the_ball:  { carta:'Cinderella', name:'Bell of the Ball',      desc:'If *Played* adjacent to a /Guardian/, *Transforms* into The Crystal Princess.' },
@@ -24626,10 +24676,60 @@ function protettoDaBagheera(card){
   }
   return false;
 }
+const BAGHEERA_SCUDO_MS = 1300;
+const BAGHEERA_CERCHI_MS = 520;
+let _bagheeraSuonoA = 0;
+function bagheeraParataSuGruppo(card, lati){
+  const p = card && card.bagheeraParata;
+  if(!p || !lati || !lati.length) return null;
+  const ora = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+  if(ora >= p.da + BAGHEERA_CERCHI_MS) return null;
+  return lati.some(s => p.lati.indexOf(s) >= 0) ? (ora - p.da) : null;
+}
+function bagheeraDifesa(card, lati){
+  if(!card || (typeof _simulazioneInCorso !== 'undefined' && _simulazioneInCorso)) return;
+  const ora = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+  const prima = card.bagheeraParata;
+  const stessaRaffica = prima && ora - prima.da < 250;
+  const parati = (lati && lati.length) ? lati.slice() : SIDES.slice();
+  card.bagheeraParata = { da: stessaRaffica ? prima.da : ora, lati: stessaRaffica ? prima.lati.concat(parati) : parati };
+  try{
+    const cellaC = _cellaDellaCarta(card);
+    const lista = cellaC ? document.querySelectorAll('#board-svg [data-conquered="' + cellaC + '"] [data-role="owner-value-circle"]') : [];
+    for(const cerchio of lista){
+      const gruppo = String(cerchio.getAttribute('data-value-group') || '').split('|');
+      if(!gruppo.some(s => card.bagheeraParata.lati.indexOf(s) >= 0)) continue;
+      cerchio.classList.remove('gruppo-parato'); void cerchio.getBoundingClientRect();
+      cerchio.style.animationDelay = (-(ora - card.bagheeraParata.da)).toFixed(0) + 'ms';
+      cerchio.classList.add('gruppo-parato');
+    }
+  }catch(_){ }
+  if(stessaRaffica) return;
+  if(ora - _bagheeraSuonoA > 200){ _bagheeraSuonoA = ora; try{ playSfxFile('shield.mp3'); }catch(_){ } }
+  const cella = _cellaDellaCarta(card);
+  const r = cella ? _rettangoloCella(cella) : null;
+  if(!r || !r.width) return;
+  const lato = r.width * 0.42;
+  const el = document.createElement('div');
+  el.className = 'bagheera-scudo';
+  el.setAttribute('aria-hidden', 'true');
+  el.style.left = (r.left + r.width / 2 - lato / 2).toFixed(1) + 'px';
+  el.style.top = (r.top + r.height / 2 - lato / 2).toFixed(1) + 'px';
+  el.style.width = el.style.height = lato.toFixed(1) + 'px';
+  el.style.setProperty('--durata', BAGHEERA_SCUDO_MS + 'ms');
+  const img = document.createElement('img');
+  img.alt = ''; img.draggable = false;
+  img.src = CARD_PARTS_BASE + 'shield-icon.png';
+  el.style.setProperty('--scudo-url', 'url("' + img.src + '")');
+  el.appendChild(img);
+  document.body.appendChild(el);
+  setTimeout(() => { try{ el.remove(); }catch(_){ } }, BAGHEERA_SCUDO_MS + 60);
+}
 function modificaValori(card, lati, delta, pavimento, fonte){
   if(!card || !lati || !lati.length || !delta) return;
+  if(card.sconosciuta || Array.isArray(card.values)) return;
   if(delta > 0){ try{ questSegnaBuff(card, fonte); }catch(_){ } }
-  if(delta < 0 && protettoDaBagheera(card)) return;
+  if(delta < 0 && protettoDaBagheera(card)){ bagheeraDifesa(card, lati); return; }
   const minimo = (typeof pavimento === 'number') ? pavimento : -Infinity;
   const prima = {...card.values};
   for(const s of lati){
@@ -24816,30 +24916,35 @@ function recalcHoorayShesStays(card){
 const BONUS_MISCHIEF = 2;
 const _lampiValori = new Map();
 let _simulazioneInCorso = false;
-function segnaLampoValori(cardId, gruppi, tipo){
+function segnaLampoValori(cardId, gruppi, tipo, vecchi){
   if(_simulazioneInCorso) return;
   if(!cardId || !gruppi || !gruppi.length) return;
   const gia = _lampiValori.get(cardId) || [];
-  _lampiValori.set(cardId, gia.concat(gruppi.map(g=>({gruppo:g, tipo}))));
+  const primi = {};
+  for(const v of gia) if(v.vecchio !== undefined) primi[v.gruppo] = v.vecchio;
+  _lampiValori.set(cardId, gia.concat(gruppi.map(g=>({gruppo:g, tipo,
+    vecchio: (primi[g] !== undefined) ? primi[g] : (vecchi ? vecchi[g] : undefined) }))));
 }
 function lampeggiaDifferenzaValori(card, prima){
   if(!card || !prima) return;
   const gruppi = gruppiDiCarta(card);
-  const saliti=[], scesi=[];
+  const saliti=[], scesi=[], vecchi={};
   for(const g of gruppi){
     const lato = g.sides[0];
     const dopoV = (card.values[lato]||0), primaV = (prima[lato]||0);
     if(dopoV>primaV) saliti.push(g.sides.join('|'));
     else if(dopoV<primaV) scesi.push(g.sides.join('|'));
+    vecchi[g.sides.join('|')] = primaV;
   }
-  segnaLampoValori(card.id, saliti, 'su');
-  segnaLampoValori(card.id, scesi, 'giu');
+  segnaLampoValori(card.id, saliti, 'su', vecchi);
+  segnaLampoValori(card.id, scesi, 'giu', vecchi);
 }
 function lampeggiaSpostamentoValori(card){
   if(!card) return;
   segnaLampoValori(card.id, gruppiDiCarta(card).map(g=>g.sides.join('|')), 'cambia');
 }
 const CLASSE_LAMPO = { su:'lampo-valori-su', giu:'lampo-valori-giu', cambia:'lampo-valori-cambia' };
+const LAMPO_CAMBIO_MS = 280;
 function contenitoreDisegnatoDellaCarta(cardId){
   const inMano=document.querySelector('[data-card-id="'+CSS.escape(cardId)+'"]');
   if(inMano) return inMano;
@@ -24849,23 +24954,48 @@ function contenitoreDisegnatoDellaCarta(cardId){
   }
   return null;
 }
+const LAMPO_DURATA_MS = 700;
+const _lampiAttivi = new Map();
+function lampoAttivoDi(cardId, gruppo){
+  const m = cardId && _lampiAttivi.get(cardId);
+  const v = m && m[gruppo];
+  if(!v) return null;
+  if(performance.now() - v.da >= LAMPO_DURATA_MS){ delete m[gruppo]; return null; }
+  return v;
+}
+function vestiLampoValore(el, voce, eCifra){
+  if(!el || !voce) return;
+  const passati = performance.now() - voce.da;
+  for(const c in CLASSE_LAMPO) el.classList.remove(CLASSE_LAMPO[c]);
+  void el.getBoundingClientRect();
+  el.style.animationDelay = (-passati).toFixed(0) + 'ms';
+  el.classList.add(CLASSE_LAMPO[voce.tipo] || CLASSE_LAMPO.cambia);
+  if(!eCifra || voce.vecchio === undefined || (voce.tipo !== 'su' && voce.tipo !== 'giu')) return;
+  if(passati >= LAMPO_CAMBIO_MS) return;
+  const nuovo = el.textContent, vecchio = String(voce.vecchio);
+  if(nuovo === vecchio) return;
+  el.textContent = vecchio;
+  setTimeout(() => { if(el.isConnected && el.textContent === vecchio) el.textContent = nuovo; }, LAMPO_CAMBIO_MS - passati);
+}
 function accendiLampiValori(){
   if(!_lampiValori.size) return;
+  const ora = performance.now();
   for(const [cardId, voci] of [..._lampiValori.entries()]){
     _lampiValori.delete(cardId);
+    const attivi = _lampiAttivi.get(cardId) || {};
+    for(const {gruppo, tipo, vecchio} of voci){
+      const gia = attivi[gruppo];
+      const vecchioVero = (gia && ora - gia.da < LAMPO_CAMBIO_MS && gia.vecchio !== undefined) ? gia.vecchio : vecchio;
+      attivi[gruppo] = { tipo, vecchio: vecchioVero, da: ora };
+    }
+    _lampiAttivi.set(cardId, attivi);
     const contenitore=contenitoreDisegnatoDellaCarta(cardId);
     if(!contenitore) continue;
-    for(const {gruppo, tipo} of voci){
-      const classe = CLASSE_LAMPO[tipo] || CLASSE_LAMPO.cambia;
-      const testo=contenitore.querySelector('[data-value-group="'+gruppo+'"]');
-      if(!testo) continue;
-      const pezzi=elementiValoreDelLato(contenitore, gruppo.split('|')[0]||'');
-      for(const el of [testo, pezzi && pezzi.circleEl]){
-        if(!el) continue;
-        for(const c in CLASSE_LAMPO) el.classList.remove(CLASSE_LAMPO[c]);
-        void el.getBoundingClientRect();
-        el.classList.add(classe);
-      }
+    for(const gruppo in attivi){
+      const voce = lampoAttivoDi(cardId, gruppo);
+      if(!voce || voce.da !== ora) continue;
+      vestiLampoValore(contenitore.querySelector('[data-role="owner-value-circle"][data-value-group="'+gruppo+'"]'), voce, false);
+      vestiLampoValore(contenitore.querySelector('text[data-value-group="'+gruppo+'"]'), voce, true);
     }
   }
 }
@@ -25620,12 +25750,10 @@ function abilitaEseguibile(card){
 }
 const EFFETTI_PIAZZAMENTO = {
   eat_the_rich: (card, q, r) => activateEatTheRich(card, q, r),
-  dark_pact: (card) => attivaDarkPact(card),
   smol_friends: (card) => recalcHoorayShesStays(card),
   mischief: (card) => recalcMischief(card),
   nightmare: (card) => recalcNightmare(card),
   sleight_of_hand: (card) => attivaLampadaMagica(card),
-  tic_toc: (card) => attivaTicToc(card),
   rush_hour: (card) => attivaRushHour(card),
   kiss:             (card, q, r) => { if(_simulazioneInCorso) attivaTrasformazioneAlPiazzamento(card, q, r); },
   bell_of_the_ball: (card, q, r) => { if(_simulazioneInCorso) attivaTrasformazioneAlPiazzamento(card, q, r); },
@@ -25820,18 +25948,6 @@ function velaLampada(k, velata){
   _lampadaVelata = velata ? k : (_lampadaVelata === k ? null : _lampadaVelata);
   const el = document.querySelector('#board-lamp-layer [data-lampada="' + k + '"]');
   if(el) el.classList.toggle('velata', !!velata);
-}
-function attivaDarkPact(card){
-  const proprietario = (card && card.owner) || G.currentPlayer;
-  const mano = manoDi(proprietario).filter(c => c && c !== card && c.id !== card.id);
-  for(const c of mano){
-    if(c.sconosciuta || !c.values || Array.isArray(c.values)) continue;
-    modificaValori(c, SIDES, -1, 0, {chiave:'dark_pact:'+card.id, da:card.name||'Sea Witch'});
-  }
-  const derubate = mano.length;
-  if(!derubate) return;
-  modificaValori(card, SIDES, derubate, undefined, {chiave:'dark_pact', da:card.name||'Dark Pact'});
-  if(!_simulazioneInCorso) console.info('[Dark Pact] rubato 1 ALL a '+derubate+' carte in mano: +'+derubate+' ALL alla strega.');
 }
 function segnaRinascitaFenice(card, proprietarioOriginale){
   if(!card || !foglioFaOSigla(card, 'on_conquered', 'flip', 'card', 'rise_from_the_ashes')) return;
@@ -26076,12 +26192,6 @@ function attivaRushHour(card){
   if((G && G.numeroTurno || 1) > TURNI_RUSH_HOUR) return;
   modificaValori(card, SIDES, BONUS_RUSH_HOUR, undefined, {chiave:'rush_hour', da:card.name||'Rush Hour'});
 }
-const TURNI_TIC_TOC = 4;
-const BONUS_TIC_TOC = 2;
-function attivaTicToc(card){
-  if((G && G.numeroTurno || 1) > TURNI_TIC_TOC) return;
-  modificaValori(card, SIDES, BONUS_TIC_TOC, undefined, {chiave:'tic_toc', da:card.name||'Tic Toc'});
-}
 const ABILITA_A_SORTE_AL_PIAZZAMENTO = new Set([]);
 function abilitaAConSorteAlPiazzamento(card){
   const chiave = abilitaAttivaDi(card);
@@ -26243,6 +26353,7 @@ function _effettoSemplice(e){
   if(e.azione === 'freeze' && !e.cosa && e.chi === 'self') return true;
   if(e.azione === 'copy' && e.cosa === 'trait') return true;
   if(e.azione === 'buff' && e.cosa === 'trait') return true;
+  if(e.azione === 'steal' && (!e.cosa || e.cosa === 'power')) return true;
   if(['buff','debuff','set'].indexOf(e.azione) < 0) return false;
   if(e.cosa && e.cosa !== 'power') return false;
   if(e.dove === 'drawn' || e.dove === 'deck') return false;
@@ -26397,6 +26508,7 @@ function applicaCambiamenti(elenco){
       if(c.carta && c.fonte && c.carta !== c.fonte) _aggiungiTratti(c.fonte, _trattiDi(c.carta));
       continue;
     }
+    if(c.azione === 'difesa'){ if(c.carta) bagheeraDifesa(c.carta, c.parati); continue; }
     if(!c.carta || !c.lati || !c.lati.length) continue;
     const fonte = _fonteDelFoglio(c);
     if(c.azione === 'set'){
@@ -27333,9 +27445,17 @@ function bombaConto(b){
 function _bombaDa(b){ return (b && typeof b.daTurno === 'number') ? b.daTurno : 1; }
 function bombaIcona(b){ return UI_BASE + 'bomb-' + bombaConto(b) + '.png'; }
 function bombaLaVedo(b){ return !!b && !!b.cella && b.stato === 'posata' && b.di === _goIoSono(); }
-function bombaVisibileIn(k){ return _bombeElenco().find(b => b.cella === k && bombaLaVedo(b)) || null; }
+function bombaNascostaDallaScelta(){
+  const sc = G && G.sceltaBersaglio;
+  return !!sc && !/^bomba/.test(String(sc.chiave || ''));
+}
+function bombaVisibileIn(k){
+  if(bombaNascostaDallaScelta()) return null;
+  return _bombeElenco().find(b => b.cella === k && bombaLaVedo(b)) || null;
+}
 function disegnaBombeSopraTutto(radice, cx, cy, R){
   if(!G || !G.bombe || !G.bombe.length || !radice) return;
+  if(bombaNascostaDallaScelta()) return;
   const strato = (typeof stratoComandiDellaPlancia === 'function') ? stratoComandiDellaPlancia(radice) : radice;
   for(const b of _bombeElenco()){
     if(!bombaLaVedo(b)) continue;
@@ -29961,12 +30081,65 @@ function flashScreenOnHit(hitIndex){
   void el.offsetWidth;
   el.classList.add((_hitFlashToggle++ % 2===0) ? 'hit-screen-flash-a' : 'hit-screen-flash-b');
 }
+const COLPO_FASCE = [
+  { fino: 2,        quante: 5,  grandi: false },
+  { fino: 5,        quante: 12, grandi: false },
+  { fino: 8,        quante: 20, grandi: true  },
+  { fino: Infinity, quante: 30, grandi: true  },
+];
+const COLPO_FORTE_DA = 9;
+const COLPO_FORTE_SCOSSA = 1.8;
+const COLPO_VENTAGLIO = Math.PI * 0.42;
+function particelleColpo(defEl, ux, uy, differenza){
+  if(!defEl || typeof defEl.getBoundingClientRect !== 'function') return;
+  try{ if(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return; }catch(_){ }
+  const r = defEl.getBoundingClientRect();
+  if(!r.width) return;
+  const forza = Math.max(1, Math.round(Math.abs(differenza) || 1));
+  const fascia = COLPO_FASCE.find(f => forza <= f.fino) || COLPO_FASCE[COLPO_FASCE.length - 1];
+  const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+  const misura = r.width;
+  const base = Math.atan2(uy || 0, (typeof ux === 'number' ? ux : 1));
+  const strato = document.createElement('div');
+  strato.className = 'colpo-schegge';
+  strato.setAttribute('aria-hidden', 'true');
+  document.body.appendChild(strato);
+  let piuLunga = 0;
+  for(let i = 0; i < fascia.quante; i++){
+    const angolo = base + (Math.random() - 0.5) * COLPO_VENTAGLIO;
+    const strada = misura * (0.35 + Math.random() * (fascia.grandi ? 0.9 : 0.65));
+    const lato = (fascia.grandi ? 10 : 6) + Math.random() * (fascia.grandi ? 8 : 4);
+    const durata = 560 + Math.random() * (fascia.grandi ? 520 : 360);
+    piuLunga = Math.max(piuLunga, durata);
+    const via = misura * 0.12;
+    const x0 = cx + Math.cos(angolo) * via + (Math.random() - 0.5) * misura * 0.25;
+    const y0 = cy + Math.sin(angolo) * via + (Math.random() - 0.5) * misura * 0.25;
+    const p = document.createElement('span');
+    p.className = 'colpo-scheggia';
+    p.style.width = p.style.height = lato.toFixed(1) + 'px';
+    p.style.left = (x0 - lato / 2).toFixed(1) + 'px';
+    p.style.top = (y0 - lato / 2).toFixed(1) + 'px';
+    strato.appendChild(p);
+    const dx = Math.cos(angolo) * strada, dy = Math.sin(angolo) * strada;
+    try{
+      p.animate([
+        { transform:'translate(0,0) scale(1)', opacity: 1 },
+        { transform:'translate(' + (dx * 0.8).toFixed(1) + 'px,' + (dy * 0.8).toFixed(1) + 'px) scale(0.85)', opacity: 0.9, offset: 0.5 },
+        { transform:'translate(' + dx.toFixed(1) + 'px,' + dy.toFixed(1) + 'px) scale(0.45)', opacity: 0 },
+      ], { duration: durata, easing: 'cubic-bezier(.12,.82,.3,1)', fill: 'forwards' });
+    }catch(_){ }
+  }
+  setTimeout(() => { try{ strato.remove(); }catch(_){ } }, piuLunga + 80);
+}
+function forzaScossaColpo(differenza){
+  return (Math.abs(differenza) || 0) >= COLPO_FORTE_DA ? COLPO_FORTE_SCOSSA : 1;
+}
 const BOARD_SHAKE_BASE = 5;
 let _shakeToggle = 0;
-function shakeBoard(hitIndex, ux, uy){
+function shakeBoard(hitIndex, ux, uy, forza){
   const wrap=document.getElementById('board-svg');
   if(!wrap) return;
-  const amp = BOARD_SHAKE_BASE * Math.pow(0.6, Math.max(0, hitIndex||0));
+  const amp = BOARD_SHAKE_BASE * Math.pow(0.6, Math.max(0, hitIndex||0)) * (forza || 1);
   if(amp < 1) return;
   wrap.style.setProperty('--shake', amp.toFixed(2));
   wrap.style.setProperty('--shx', (typeof ux==='number'?ux:1).toFixed(3));
@@ -30116,8 +30289,9 @@ function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLa
           const rlen=Math.hypot(rdx,rdy)||1;
           _shakeUx=rdx/rlen; _shakeUy=rdy/rlen;
           playDefenderRecoil(defEl, rdx/rlen, rdy/rlen);
+          try{ particelleColpo(defEl, _shakeUx, _shakeUy, (atkVal||0) - (defVal||0)); }catch(_){ }
         }
-        shakeBoard(idx, _shakeUx, _shakeUy);
+        shakeBoard(idx, _shakeUx, _shakeUy, forzaScossaColpo((atkVal||0) - (defVal||0)));
         flashScreenOnHit(idx);
         const winEl=placedEl && placedEl.querySelector(`[data-value-side-${latoAtt || dir.mySide}]`);
         const loseEl=defEl && defEl.querySelector(`[data-value-side-${latoDif || dir.theirSide}]`);
@@ -32973,6 +33147,11 @@ function drawHexCard(svg,cx,cy,R,card,fillColor,strokeColor,textColor,nameText,i
     circImg.setAttribute('data-role','owner-value-circle');
     circImg.setAttribute('data-value-group', g.sides.join('|'));
     circImg.setAttribute('data-hex-c', cx.toFixed(2)+','+cy.toFixed(2));
+    {
+      const giaPassati = bagheeraParataSuGruppo(card, g.sides);
+      if(giaPassati !== null){ circImg.classList.add('gruppo-parato'); circImg.style.animationDelay = (-giaPassati).toFixed(0) + 'ms'; }
+    }
+    try{ vestiLampoValore(circImg, lampoAttivoDi(card && card.id, g.sides.join('|')), false); }catch(_){ }
     svg.appendChild(circImg);
 
     const protettoQuestoGruppo = (fortifiedSidesForDisplay.length
@@ -33015,6 +33194,7 @@ function drawHexCard(svg,cx,cy,R,card,fillColor,strokeColor,textColor,nameText,i
       for(const gs of g.sides) t.setAttribute('data-value-side-'+gs,'1');
       t.setAttribute('data-value-group', g.sides.join('|'));
       t.setAttribute('data-hex-c', cx.toFixed(2)+','+cy.toFixed(2));
+      try{ vestiLampoValore(t, lampoAttivoDi(card && card.id, g.sides.join('|')), true); }catch(_){ }
       svg.appendChild(t);
       if(uncertainBonus){
         const qMark=svgEl('text');
