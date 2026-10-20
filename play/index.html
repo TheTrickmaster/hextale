@@ -7542,7 +7542,7 @@ try{
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.76</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.77</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -36036,10 +36036,13 @@ function avviaSaltoCarta(k){
 const VOLO_ENTRA_MS = 260;
 const VOLO_SOSTA_MS = 420;
 const VOLO_ESAGONO_MS = 180;
-const VOLO_VIAGGIO_MS = 560;
-const VOLO_USCITA_MS = 140;
+const VOLO_VIAGGIO_MS = 600;
+const VOLO_USCITA_MS = 70;
 const VOLO_DURATA_MS = VOLO_ENTRA_MS + VOLO_SOSTA_MS + VOLO_VIAGGIO_MS;
-const VOLO_CADUTA_SU = 150, VOLO_CADUTA_SCALA = 1.28;
+const VOLO_CONTATTO_SCALA = 1.03;
+const VOLO_ARCO_ALTEZZA = 0.35;
+const VOLO_ARCO_GONFIA = 0.22;
+let _atterraggioDalVolo = null;
 function _voloMeta(k){
   const bsvg = document.getElementById('board-svg');
   const cella = bsvg && (bsvg.querySelector('[data-cellkey="' + k + '"]') || bsvg.querySelector('[data-conquered="' + k + '"]'));
@@ -36051,9 +36054,9 @@ function _voloMeta(k){
   const centro = screenToAuthoredPoint({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
   const unita = screenToAuthoredY(ctm.f + ctm.d) - screenToAuthoredY(ctm.f);
   const alta = screenToAuthoredY(r.bottom) - screenToAuthoredY(r.top);
-  const y = centro.y - VOLO_CADUTA_SU * unita - (VOLO_CADUTA_SCALA - 1) * alta / 2;
+  const y = centro.y - (VOLO_CONTATTO_SCALA - 1) * alta / 2;
   const raggioCasella = _ultimoRaggioCella * unita;
-  return { x: centro.x, y, scala: VOLO_CADUTA_SCALA * raggioCasella / BOARD_TILE_GHOST_HEX_R };
+  return { x: centro.x, y, scala: VOLO_CONTATTO_SCALA * raggioCasella / BOARD_TILE_GHOST_HEX_R };
 }
 function voloCartaAvversaria(card, k, poi){
   let fatto = false;
@@ -36083,7 +36086,9 @@ function voloCartaAvversaria(card, k, poi){
     strato.appendChild(el);
     const t0 = performance.now();
     let x = centro.x, y = centro.y, prima = null, esagonoAcceso = false;
-    const facile = (u) => u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;
+    const facile = (u) => u * u * (1.4 - 0.4 * u);
+    const strada = Math.hypot(meta.x - centro.x, meta.y - centro.y);
+    const ctrl = { x: (centro.x + meta.x) / 2, y: Math.min(centro.y, meta.y) - (VOLO_ARCO_ALTEZZA * strada + 80) };
     const passo = (ora) => {
       if(!el.isConnected){ prosegui(); return; }
       if(!G || (typeof gameGeneration !== 'undefined' && gameGeneration !== generazione)){ try{ el.remove(); }catch(_){ } return; }
@@ -36099,10 +36104,10 @@ function voloCartaAvversaria(card, k, poi){
           const riflesso = el.querySelector('.card-db-foil-glare');
           if(riflesso) riflesso.style.clipPath = esagono.dataset.hexClip ? 'polygon(' + esagono.dataset.hexClip + ')' : 'none';
         }
-        const u = Math.min(1, (t - partenza) / VOLO_VIAGGIO_MS), e = facile(u);
-        x = centro.x + (meta.x - centro.x) * e;
-        y = centro.y + (meta.y - centro.y) * e;
-        scala = 1 + (meta.scala - 1) * e;
+        const u = Math.min(1, (t - partenza) / VOLO_VIAGGIO_MS), e = facile(u), ne = 1 - e;
+        x = ne * ne * centro.x + 2 * ne * e * ctrl.x + e * e * meta.x;
+        y = ne * ne * centro.y + 2 * ne * e * ctrl.y + e * e * meta.y;
+        scala = 1 + (meta.scala - 1) * e + VOLO_ARCO_GONFIA * Math.sin(Math.PI * e);
       }
       if(prima){
         const dt = Math.max(1, ora - prima.t) / (1000 / 60);
@@ -36117,7 +36122,9 @@ function voloCartaAvversaria(card, k, poi){
       el.style.transform = 'translate(-50%,-50%) scale(' + scala.toFixed(4) + ')';
       if(t >= VOLO_DURATA_MS){
         G.voloAvversario = null;
+        _atterraggioDalVolo = k;
         prosegui();
+        _atterraggioDalVolo = null;
         el.style.transition = 'opacity ' + VOLO_USCITA_MS + 'ms linear';
         el.style.opacity = '0';
         setTimeout(() => { try{ el.remove(); }catch(_){ } }, VOLO_USCITA_MS + 60);
@@ -36140,11 +36147,12 @@ function voloCartaAvversaria(card, k, poi){
   }
 }
 function startCardLandAnim(k, selettore){
-  _cardLand = { k, t0: performance.now(), selettore: selettore || null };
+  const dalVolo = (_atterraggioDalVolo === k);
+  _cardLand = { k, t0: performance.now() - (dalVolo ? CARD_LAND_IMPACT_MS : 0), selettore: selettore || null };
   const bsvg=document.getElementById('board-svg');
   const el=bsvg && bsvg.querySelector(_cardLand.selettore || `[data-conquered="${k}"]`);
   if(el) cardLandApplyTo(el);
-  setTimeout(()=>{ if(G && G.velo && G.velo.cella === k) return; playSfxFile('bump.mp3'); }, CARD_LAND_IMPACT_MS);
+  setTimeout(()=>{ if(G && G.velo && G.velo.cella === k) return; playSfxFile('bump.mp3'); }, dalVolo ? 0 : CARD_LAND_IMPACT_MS);
 }
 
 function spostaCartaConSalto(daCella, aCella, poi, suBloccato){
