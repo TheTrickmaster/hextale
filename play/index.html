@@ -2595,12 +2595,22 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
   animation:arteNotteSvanisce var(--notte-durata,1000ms) ease-in-out forwards;
   pointer-events:none;
 }
-@keyframes lampoValoriAcceso{
-  0%   {filter:drop-shadow(0 0 0 var(--lampo-colore-t));}
-  40%  {filter:drop-shadow(0 0 4px var(--lampo-colore)) drop-shadow(0 0 11px var(--lampo-colore)) brightness(1.55);}
-  100% {filter:drop-shadow(0 0 0 var(--lampo-colore-t));}
+.strisce-valore{
+  position:fixed; z-index:526; pointer-events:none; border-radius:50%; overflow:hidden;
+  animation:strisceVive 1250ms linear forwards;
 }
-.lampo-valori-su, .lampo-valori-giu{ animation:lampoValoriAcceso 0.7s ease-out; }
+@keyframes strisceVive{ 0%{ opacity:0; } 14%{ opacity:1; } 80%{ opacity:1; } 100%{ opacity:0; } }
+.strisce-valore i{
+  position:absolute; width:13%; height:62%; border-radius:3px;
+  background:linear-gradient(to bottom, var(--striscia) 0%, var(--striscia-t) 100%);
+  animation:strisciaSale 380ms linear 3 both;
+}
+.strisce-valore.su i{ top:100%; }
+.strisce-valore.giu i{ bottom:100%; background:linear-gradient(to top, var(--striscia) 0%, var(--striscia-t) 100%); animation-name:strisciaScende; }
+.strisce-valore.su { --striscia:hsl(147,100%,58%); --striscia-t:hsla(147,100%,58%,0); }
+.strisce-valore.giu{ --striscia:hsl(0,100%,64%);   --striscia-t:hsla(0,100%,64%,0); }
+@keyframes strisciaSale{ from{ transform:translateY(0); } to{ transform:translateY(-262%); } }
+@keyframes strisciaScende{ from{ transform:translateY(0); } to{ transform:translateY(262%); } }
 .lampo-valori-su    { --lampo-colore:hsl(147,100%,58%); --lampo-colore-t:hsla(147,100%,58%,0); }
 .lampo-valori-giu   { --lampo-colore:hsl(0,100%,64%);   --lampo-colore-t:hsla(0,100%,64%,0); }
 .lampo-valori-cambia{ --lampo-colore:rgba(255,255,255,1); --lampo-colore-t:rgba(255,255,255,0); }
@@ -5087,6 +5097,25 @@ html.azione-attiva #favori-puntatore .conto{ display:none; }
   font-family:'Marcellus SC','Marcellus',var(--font-display),serif; font-size:22px; line-height:25px;
   color:#F0C46A; white-space:nowrap; text-align:center;
 }
+.azione-alone-bordo{
+  fill:none; stroke:#87EBFF; stroke-width:3;
+  filter:drop-shadow(0 0 6px #87EBFF) drop-shadow(0 0 14px #87EBFF);
+  animation:azioneAloneRespira 2200ms ease-in-out infinite;
+}
+@keyframes azioneAloneRespira{
+  0%, 100% { opacity:0.55; stroke-width:2.5; }
+  50%      { opacity:1;    stroke-width:4; }
+}
+.azione-alone-riflesso{
+  mix-blend-mode:screen;
+  animation:azioneAloneRiflesso 3200ms ease-in-out infinite;
+}
+@keyframes azioneAloneRiflesso{
+  0%        { transform:translateX(calc(var(--corsa) * -1)); }
+  45%, 100% { transform:translateX(var(--corsa)); }
+}
+#azione-lucciole{ position:fixed; inset:0; width:100%; height:100%; z-index:9300; pointer-events:none; }
+@media (prefers-reduced-motion:reduce){ .azione-alone-bordo, .azione-alone-riflesso{ animation:none; } }
 html.azione-attiva #card-tooltip,
 html.azione-attiva #glossario-tooltip,
 html.azione-attiva #quest-tooltip,
@@ -7480,7 +7509,7 @@ try{
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.71</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.72</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -18448,6 +18477,116 @@ function azioneTooltipAggiorna(){
   radiceHtml.classList.add('azione-attiva');
   tip.classList.add('visibile');
   _azioneSegui(tip);
+  azioneParticelleAvvia();
+}
+const AZIONE_COLORE = '#87EBFF';
+const AZIONE_PULSO_MS = 2200;
+const AZIONE_RIFLESSO_MS = 3200;
+function _azioneCellaCarta(sc){
+  if(!sc) return null;
+  const k = sc.k || sc.cellaOrigine || (sc.card ? _cellaDellaCarta(sc.card) : null);
+  return (k && G.board && G.board[k] && G.board[k].card) ? k : null;
+}
+function disegnaAloneAzione(svg, cx, cy, R){
+  const sc = _azioneSceltaMia();
+  if(!sc || !_azioneVoce(sc)) return;
+  const k = _azioneCellaCarta(sc);
+  if(!k) return;
+  const [q, r] = k.split(',').map(Number);
+  const p = axialToPixel(q, r, cx, cy, R);
+  const strato = stratoComandiDellaPlancia(svg);
+  const ora = performance.now();
+  const g = svgEl('g');
+  g.setAttribute('class', 'azione-alone');
+  g.setAttribute('pointer-events', 'none');
+  const bordo = svgEl('polygon');
+  bordo.setAttribute('points', ptStr(p.x, p.y, R * 0.985));
+  bordo.setAttribute('class', 'azione-alone-bordo');
+  bordo.style.animationDelay = (-(ora % AZIONE_PULSO_MS)).toFixed(0) + 'ms';
+  g.appendChild(bordo);
+  const id = 'azione-alone-clip';
+  const defs = svgEl('defs');
+  const clip = svgEl('clipPath'); clip.setAttribute('id', id);
+  const forma = svgEl('polygon'); forma.setAttribute('points', ptStr(p.x, p.y, R * 0.97));
+  clip.appendChild(forma);
+  const grad = svgEl('linearGradient'); grad.setAttribute('id', id + '-g');
+  grad.setAttribute('x1', '0'); grad.setAttribute('y1', '0'); grad.setAttribute('x2', '1'); grad.setAttribute('y2', '0');
+  for(const [o, a] of [['0', '0'], ['0.5', '0.42'], ['1', '0']]){
+    const st = svgEl('stop'); st.setAttribute('offset', o); st.setAttribute('stop-color', '#FFFFFF'); st.setAttribute('stop-opacity', a); grad.appendChild(st);
+  }
+  defs.appendChild(clip); defs.appendChild(grad); g.appendChild(defs);
+  const dentro = svgEl('g'); dentro.setAttribute('clip-path', 'url(#' + id + ')');
+  const banda = svgEl('rect');
+  banda.setAttribute('x', (p.x - R * 0.45).toFixed(1)); banda.setAttribute('y', (p.y - R * 1.6).toFixed(1));
+  banda.setAttribute('width', (R * 0.9).toFixed(1)); banda.setAttribute('height', (R * 3.2).toFixed(1));
+  banda.setAttribute('fill', 'url(#' + id + '-g)');
+  banda.setAttribute('class', 'azione-alone-riflesso');
+  banda.style.setProperty('--corsa', (R * 2.6).toFixed(1) + 'px');
+  banda.style.animationDelay = (-(ora % AZIONE_RIFLESSO_MS)).toFixed(0) + 'ms';
+  dentro.appendChild(banda);
+  g.appendChild(dentro);
+  strato.insertBefore(g, strato.firstChild);
+}
+const AZIONE_LUCCIOLE_TIP = 18, AZIONE_LUCCIOLE_CARTA = 16;
+let _azioneTela = null, _azioneRaf = 0, _azioneLucciole = null, _azioneUltimoT = 0;
+function _azioneNuovaLucciola(nido){
+  return { nido, ang: Math.random() * Math.PI * 2, giro: (Math.random() < 0.5 ? -1 : 1) * (0.05 + Math.random() * 0.12),
+           fuori: 4 + Math.random() * 26, deriva: 0, lato: 1.2 + Math.random() * 1.8, fase: Math.random() * Math.PI * 2 };
+}
+function azioneParticelleAvvia(){
+  if(_azioneRaf) return;
+  try{ if(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return; }catch(_){ }
+  if(!_azioneTela){
+    _azioneTela = document.createElement('canvas');
+    _azioneTela.id = 'azione-lucciole';
+    _azioneTela.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(_azioneTela);
+  }
+  if(!_azioneLucciole){
+    _azioneLucciole = [];
+    for(let i = 0; i < AZIONE_LUCCIOLE_TIP; i++) _azioneLucciole.push(_azioneNuovaLucciola('tip'));
+    for(let i = 0; i < AZIONE_LUCCIOLE_CARTA; i++) _azioneLucciole.push(_azioneNuovaLucciola('carta'));
+  }
+  _azioneUltimoT = performance.now();
+  const passo = (t) => {
+    const tip = document.getElementById('azione-tooltip');
+    const attiva = document.documentElement.classList.contains('azione-attiva') && tip && tip.classList.contains('visibile');
+    if(!attiva){ _azioneRaf = 0; _azioneLucciole = null; const c = _azioneTela.getContext('2d'); c.clearRect(0, 0, _azioneTela.width, _azioneTela.height); return; }
+    const dt = Math.min(0.1, (t - _azioneUltimoT) / 1000); _azioneUltimoT = t;
+    const dpr = window.devicePixelRatio || 1, W = innerWidth, H = innerHeight;
+    if(_azioneTela.width !== Math.round(W * dpr) || _azioneTela.height !== Math.round(H * dpr)){
+      _azioneTela.width = Math.round(W * dpr); _azioneTela.height = Math.round(H * dpr);
+    }
+    const c = _azioneTela.getContext('2d');
+    c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    c.clearRect(0, 0, W, H);
+    const nidi = { tip: tip.getBoundingClientRect(), carta: null };
+    const k = _azioneCellaCarta(_azioneSceltaMia());
+    if(k){ const rc = _rettangoloCella(k); if(rc && rc.width) nidi.carta = rc; }
+    c.fillStyle = AZIONE_COLORE;
+    c.shadowColor = AZIONE_COLORE; c.shadowBlur = 6;
+    for(const l of _azioneLucciole){
+      const n = nidi[l.nido];
+      if(!n) continue;
+      l.deriva += (Math.random() - 0.5) * 2.4 * dt;
+      l.deriva *= Math.pow(0.35, dt);
+      l.giro += l.deriva * 0.12 * dt;
+      l.giro = Math.max(-0.22, Math.min(0.22, l.giro));
+      if(Math.abs(l.giro) < 0.03) l.giro = (l.giro < 0 ? -1 : 1) * 0.03;
+      l.ang += l.giro * dt;
+      l.fuori += (Math.random() - 0.5) * 22 * dt + l.deriva * 6 * dt;
+      l.fuori = Math.max(-2, Math.min(34, l.fuori));
+      l.fase += dt * 1.6;
+      const a = n.width / 2 + l.fuori, b = n.height / 2 + l.fuori;
+      const x = n.left + n.width / 2 + Math.cos(l.ang) * a;
+      const y = n.top + n.height / 2 + Math.sin(l.ang) * b;
+      c.globalAlpha = 0.45 + 0.4 * (0.5 + 0.5 * Math.sin(l.fase));
+      c.beginPath(); c.arc(x, y, l.lato, 0, Math.PI * 2); c.fill();
+    }
+    c.globalAlpha = 1;
+    _azioneRaf = requestAnimationFrame(passo);
+  };
+  _azioneRaf = requestAnimationFrame(passo);
 }
 function glossarioSeguiPuntatore(e){
   _glossarioUltimo = { x:e.clientX, y:e.clientY, t:e.target };
@@ -24944,7 +25083,7 @@ function lampeggiaSpostamentoValori(card){
   segnaLampoValori(card.id, gruppiDiCarta(card).map(g=>g.sides.join('|')), 'cambia');
 }
 const CLASSE_LAMPO = { su:'lampo-valori-su', giu:'lampo-valori-giu', cambia:'lampo-valori-cambia' };
-const LAMPO_CAMBIO_MS = 280;
+const LAMPO_CAMBIO_MS = 400;
 function contenitoreDisegnatoDellaCarta(cardId){
   const inMano=document.querySelector('[data-card-id="'+CSS.escape(cardId)+'"]');
   if(inMano) return inMano;
@@ -24969,13 +25108,31 @@ function vestiLampoValore(el, voce, eCifra){
   for(const c in CLASSE_LAMPO) el.classList.remove(CLASSE_LAMPO[c]);
   void el.getBoundingClientRect();
   el.style.animationDelay = (-passati).toFixed(0) + 'ms';
-  el.classList.add(CLASSE_LAMPO[voce.tipo] || CLASSE_LAMPO.cambia);
+  if(voce.tipo !== 'su' && voce.tipo !== 'giu') el.classList.add(CLASSE_LAMPO[voce.tipo] || CLASSE_LAMPO.cambia);
   if(!eCifra || voce.vecchio === undefined || (voce.tipo !== 'su' && voce.tipo !== 'giu')) return;
   if(passati >= LAMPO_CAMBIO_MS) return;
   const nuovo = el.textContent, vecchio = String(voce.vecchio);
   if(nuovo === vecchio) return;
   el.textContent = vecchio;
   setTimeout(() => { if(el.isConnected && el.textContent === vecchio) el.textContent = nuovo; }, LAMPO_CAMBIO_MS - passati);
+}
+const STRISCE_DURATA_MS = 1250;
+function strisceSulCerchio(cerchio, tipo){
+  if(!cerchio || _simulazioneInCorso) return;
+  const r = cerchio.getBoundingClientRect();
+  if(!r.width) return;
+  const box = document.createElement('div');
+  box.className = 'strisce-valore ' + (tipo === 'giu' ? 'giu' : 'su');
+  box.setAttribute('aria-hidden', 'true');
+  box.style.left = r.left.toFixed(1) + 'px'; box.style.top = r.top.toFixed(1) + 'px';
+  box.style.width = r.width.toFixed(1) + 'px'; box.style.height = r.height.toFixed(1) + 'px';
+  for(const [x, ritardo] of [[16, 0], [37, 110], [58, 40], [78, 160]]){
+    const s = document.createElement('i');
+    s.style.left = x + '%'; s.style.animationDelay = ritardo + 'ms';
+    box.appendChild(s);
+  }
+  document.body.appendChild(box);
+  setTimeout(() => { try{ box.remove(); }catch(_){ } }, STRISCE_DURATA_MS + 60);
 }
 function accendiLampiValori(){
   if(!_lampiValori.size) return;
@@ -24994,8 +25151,10 @@ function accendiLampiValori(){
     for(const gruppo in attivi){
       const voce = lampoAttivoDi(cardId, gruppo);
       if(!voce || voce.da !== ora) continue;
-      vestiLampoValore(contenitore.querySelector('[data-role="owner-value-circle"][data-value-group="'+gruppo+'"]'), voce, false);
+      const cerchio = contenitore.querySelector('[data-role="owner-value-circle"][data-value-group="'+gruppo+'"]');
+      vestiLampoValore(cerchio, voce, false);
       vestiLampoValore(contenitore.querySelector('text[data-value-group="'+gruppo+'"]'), voce, true);
+      if(voce.tipo === 'su' || voce.tipo === 'giu') strisceSulCerchio(cerchio, voce.tipo);
     }
   }
 }
@@ -36062,6 +36221,7 @@ function renderBoard(){
   }
   try{ stratoCarteDellaPlancia(boardSvgRoot); }catch(_){}
   try{ disegnaBombeSopraTutto(boardSvgRoot, cx, cy, R); }catch(_){}
+  try{ disegnaAloneAzione(boardSvgRoot, cx, cy, R); }catch(_){}
 }
 
 function render(){
