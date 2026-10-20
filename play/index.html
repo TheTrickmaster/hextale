@@ -5115,6 +5115,7 @@ html.azione-attiva #favori-puntatore .conto{ display:none; }
   45%, 100% { transform:translateX(var(--corsa)); }
 }
 #azione-lucciole{ position:fixed; inset:0; width:100%; height:100%; z-index:9300; pointer-events:none; }
+#azione-lucciole-carta{ position:fixed; inset:0; width:100%; height:100%; z-index:15; pointer-events:none; }
 @media (prefers-reduced-motion:reduce){ .azione-alone-bordo, .azione-alone-riflesso{ animation:none; } }
 html.azione-attiva #card-tooltip,
 html.azione-attiva #glossario-tooltip,
@@ -7509,7 +7510,7 @@ try{
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.73</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.74</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -18532,7 +18533,7 @@ function disegnaAloneAzione(svg, cx, cy, R){
   strato.insertBefore(g, strato.firstChild);
 }
 const AZIONE_LUCCIOLE_TIP = 18, AZIONE_LUCCIOLE_CARTA = 16;
-let _azioneTela = null, _azioneRaf = 0, _azioneLucciole = null, _azioneUltimoT = 0;
+let _azioneTela = null, _azioneTelaCarta = null, _azioneRaf = 0, _azioneLucciole = null, _azioneUltimoT = 0;
 function _azioneNuovaLucciola(nido){
   return { nido, ang: Math.random() * Math.PI * 2, giro: (Math.random() < 0.5 ? -1 : 1) * (0.05 + Math.random() * 0.12),
            fuori: 4 + Math.random() * 26, deriva: 0, lato: 3 + Math.random() * 4.5, fase: Math.random() * Math.PI * 2,
@@ -18561,6 +18562,14 @@ function azioneParticelleAvvia(){
     _azioneTela.setAttribute('aria-hidden', 'true');
     document.body.appendChild(_azioneTela);
   }
+  if(!_azioneTelaCarta){
+    _azioneTelaCarta = document.createElement('canvas');
+    _azioneTelaCarta.id = 'azione-lucciole-carta';
+    _azioneTelaCarta.setAttribute('aria-hidden', 'true');
+    const mano = document.getElementById('p1-hand-fan');
+    if(mano && mano.parentNode) mano.parentNode.insertBefore(_azioneTelaCarta, mano);
+    else document.body.appendChild(_azioneTelaCarta);
+  }
   if(!_azioneLucciole){
     _azioneLucciole = [];
     for(let i = 0; i < AZIONE_LUCCIOLE_TIP; i++) _azioneLucciole.push(_azioneNuovaLucciola('tip'));
@@ -18570,22 +18579,29 @@ function azioneParticelleAvvia(){
   const passo = (t) => {
     const tip = document.getElementById('azione-tooltip');
     const attiva = document.documentElement.classList.contains('azione-attiva') && tip && tip.classList.contains('visibile');
-    if(!attiva){ _azioneRaf = 0; _azioneLucciole = null; const c = _azioneTela.getContext('2d'); c.clearRect(0, 0, _azioneTela.width, _azioneTela.height); return; }
+    if(!attiva){ _azioneRaf = 0; _azioneLucciole = null;
+      for(const tela of [_azioneTela, _azioneTelaCarta]){ const c = tela.getContext('2d'); c.clearRect(0, 0, tela.width, tela.height); }
+      return; }
     const dt = Math.min(0.1, (t - _azioneUltimoT) / 1000); _azioneUltimoT = t;
     const dpr = window.devicePixelRatio || 1, W = innerWidth, H = innerHeight;
-    if(_azioneTela.width !== Math.round(W * dpr) || _azioneTela.height !== Math.round(H * dpr)){
-      _azioneTela.width = Math.round(W * dpr); _azioneTela.height = Math.round(H * dpr);
+    const pennelli = {};
+    for(const [nido, tela] of [['tip', _azioneTela], ['carta', _azioneTelaCarta]]){
+      if(tela.width !== Math.round(W * dpr) || tela.height !== Math.round(H * dpr)){
+        tela.width = Math.round(W * dpr); tela.height = Math.round(H * dpr);
+      }
+      const p = tela.getContext('2d');
+      p.setTransform(dpr, 0, 0, dpr, 0, 0);
+      p.clearRect(0, 0, W, H);
+      p.fillStyle = AZIONE_COLORE;
+      pennelli[nido] = p;
     }
-    const c = _azioneTela.getContext('2d');
-    c.setTransform(dpr, 0, 0, dpr, 0, 0);
-    c.clearRect(0, 0, W, H);
     const nidi = { tip: tip.getBoundingClientRect(), carta: null };
     const k = _azioneCellaCarta(_azioneSceltaMia());
     if(k){ const rc = _rettangoloCella(k); if(rc && rc.width) nidi.carta = rc; }
-    c.fillStyle = AZIONE_COLORE;
     for(const l of _azioneLucciole){
       const n = nidi[l.nido];
       if(!n) continue;
+      const c = pennelli[l.nido];
       l.deriva += (Math.random() - 0.5) * 2.4 * dt;
       l.deriva *= Math.pow(0.35, dt);
       l.giro += l.deriva * 0.12 * dt;
@@ -18605,8 +18621,8 @@ function azioneParticelleAvvia(){
         const lato = l.lato * 2 * particellaScala(l.forma);
         c.save(); c.translate(x, y); c.rotate(l.rot); c.drawImage(tinta, -lato / 2, -lato / 2, lato, lato); c.restore();
       } else { c.beginPath(); c.arc(x, y, l.lato * 0.5, 0, Math.PI * 2); c.fill(); }
+      c.globalAlpha = 1;
     }
-    c.globalAlpha = 1;
     _azioneRaf = requestAnimationFrame(passo);
   };
   _azioneRaf = requestAnimationFrame(passo);
