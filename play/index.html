@@ -1808,16 +1808,21 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
 }
 .bolla-campo.dentro{ opacity:1; transform:translate(-50%,-50%) translateY(0); }
 .bolla-campo.via{ opacity:0; transition:opacity 0.15s ease-in; }
-.bolla-campo-art{
-  position:absolute; inset:0; width:100%; height:100%;
-  object-fit:contain; pointer-events:none;
+.numero-campo-svg{
+  position:relative; flex:none; overflow:visible; pointer-events:none;
+  filter:drop-shadow(3px 8px 0 #24292A);
 }
-.bolla-campo-num{
-  position:relative; z-index:1;
+.numero-campo-svg text{
   font-family:'Marcellus SC','Marcellus',var(--font-display),serif;
-  font-weight:400; font-size:24px; line-height:1;
-  font-variant-numeric:tabular-nums;
-  text-shadow:0 1px 3px rgba(0,0,0,0.35);
+  font-weight:400; font-size:80px;
+}
+.numero-danno{
+  position:absolute; width:0; height:0;
+  z-index:520; pointer-events:none;
+}
+.numero-danno-molla{
+  position:absolute; left:0; top:0; width:0; height:0;
+  display:flex; align-items:center; justify-content:center;
 }
 .player-hp-orb-lampo{
   position:absolute; inset:0; width:100%; height:100%;
@@ -1987,9 +1992,22 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
   58%     { background-position:-20% 0; }
   100%    { background-position:-20% 0; }
 }
-.colpo-schegge{ position:fixed; inset:0; z-index:525; pointer-events:none; overflow:hidden; }
+.colpo-schegge{ position:fixed; inset:0; z-index:15; pointer-events:none; overflow:hidden; }
+.attacco-squarci{ position:fixed; inset:0; z-index:15; pointer-events:none; overflow:hidden; }
+.attacco-squarcio{
+  position:absolute; width:511px; height:546px;
+  background-repeat:no-repeat; background-position:0 0;
+  pointer-events:none; will-change:transform;
+}
 .colpo-scheggia{
-  position:absolute; border-radius:50%; will-change:transform, opacity;
+  position:absolute; will-change:transform, opacity;
+  background-image:var(--forma, none);
+  background-size:calc(100% * var(--forma-scala, 1)) calc(100% * var(--forma-scala, 1));
+  background-position:center; background-repeat:no-repeat;
+  filter:drop-shadow(0 0 4px rgba(255,190,90,0.95)) drop-shadow(0 0 9px rgba(255,150,60,0.55));
+}
+.colpo-scheggia.tonda{
+  border-radius:50%; filter:none;
   background:radial-gradient(circle, #FFFFFF 0%, #FFE3A3 34%, rgba(255,176,72,0.9) 60%, rgba(255,150,50,0) 100%);
   box-shadow:0 0 8px rgba(255,190,90,0.95), 0 0 16px rgba(255,150,60,0.55);
 }
@@ -2671,6 +2689,15 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
 
 
 #drag-ghost.ghost-su-tabellone{ --tilt-ampiezza:20deg; }
+.volo-avversario{
+  position:absolute; left:0; top:0; width:210px; height:360px;
+  pointer-events:none; z-index:500; opacity:0;
+  transform:translate(-50%,-50%);
+  filter:drop-shadow(0 46px 38px rgba(0,0,0,0.55));
+  --tilt-ampiezza:20deg;
+}
+.volo-avversario .card-db-foil-tilt{ transition:none; }
+.volo-avversario svg{ position:absolute; inset:0; display:block; width:100%; height:100%; }
 #drag-ghost{position:fixed;pointer-events:none;z-index:500;opacity:1;transform:translate(-50%,-50%);display:none;filter:drop-shadow(0 46px 38px rgba(0,0,0,0.55));transition:transform .18s ease,width .18s ease,height .18s ease;}
 #hand-hover-preview{position:fixed;pointer-events:none;z-index:150;display:none;filter:drop-shadow(0 10px 30px rgba(0,0,0,0.6)) brightness(1.15);transform-origin:center center;opacity:0;transform:scale(0.74);transition:transform 0.18s cubic-bezier(.22,1,.36,1),opacity 0.18s ease-out;}
 #hand-hover-preview.show{opacity:1;transform:scale(1);}
@@ -7515,7 +7542,7 @@ try{
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.75</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.76</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -10407,6 +10434,7 @@ function reteMessaggio(md){
   const op = Number(md.op_code);
   let d = {};
   try{ d = JSON.parse(atob(md.data)); }catch(_){ return; }
+  if(G && G.voloRete && (op === 11 || op === 18 || op === 22 || op === 6)){ G.voloRete.coda.push(md); return; }
 
   if(op === 1){
     if(d.tu){
@@ -10442,9 +10470,14 @@ function reteMessaggio(md){
 
   if(op === 11){
     if(G && G.sceltaBersaglio && typeof d.dest === 'string') G.sceltaBersaglio.destinazioneScelta = d.dest;
-    if(svelaGiocata()){
+    if(G && G.velo){
       const gen = gameGeneration, scelta = G.sceltaBersaglio;
-      setTimeout(() => { if(gen === gameGeneration && G && G.sceltaBersaglio === scelta) chiudiSceltaBersaglio(d.cella === null ? null : String(d.cella), true); }, VELO_ATTERRAGGIO_MS);
+      svelaConVolo((rilascia) => {
+        setTimeout(() => {
+          if(gen === gameGeneration && G && G.sceltaBersaglio === scelta) chiudiSceltaBersaglio(d.cella === null ? null : String(d.cella), true);
+          rilascia();
+        }, VELO_ATTERRAGGIO_MS);
+      });
       return;
     }
     chiudiSceltaBersaglio(d.cella === null ? null : String(d.cella), true);
@@ -10455,11 +10488,16 @@ function reteMessaggio(md){
   if(op === 15){ if(PARTITA_RETE && d.di !== PARTITA_RETE.io) stickerMostra(d.di, d.sticker); return; }
   if(op === 16){ stickerBloccaPer(d.resta); return; }
 
-  if(op === 22){ try{ svelaGiocata(); }catch(_){ } try{ bombaConfermata(d); }catch(e){ console.error('[rete] bomba: ' + (e && e.message)); } return; }
+  if(op === 22){
+    svelaConVolo((rilascia) => { try{ bombaConfermata(d); }catch(e){ console.error('[rete] bomba: ' + (e && e.message)); } rilascia(); });
+    return;
+  }
   if(op === 18){
-    try{ svelaGiocata(); }catch(_){ }
-    const y = _yetiElenco().find(x => x.stato === 'sceglie' && x.di === d.di && x.da === d.da);
-    if(y) yetiNascondi(y, (typeof d.vera === 'string') ? d.vera : null, Array.isArray(d.impronte) ? d.impronte : [d.da]);
+    svelaConVolo((rilascia) => {
+      const y = _yetiElenco().find(x => x.stato === 'sceglie' && x.di === d.di && x.da === d.da);
+      if(y) yetiNascondi(y, (typeof d.vera === 'string') ? d.vera : null, Array.isArray(d.impronte) ? d.impronte : [d.da]);
+      rilascia();
+    });
     return;
   }
 
@@ -10587,6 +10625,33 @@ function svelaGiocata(){
   _veloSuona(v.suoni);
   return true;
 }
+function svelaConVolo(poi){
+  const v = G && G.velo;
+  const fatto = (rilascia) => { try{ poi(rilascia); }catch(e){ console.error('[rete] svelamento: ' + (e && e.message)); rilascia(); } };
+  if(!v || !v.carta){ try{ svelaGiocata(); }catch(_){ } fatto(() => {}); return; }
+  if(G.voloRete){ G.voloRete.coda.push(null); }
+  const cancello = { coda: [] };
+  G.voloRete = cancello;
+  voloCartaAvversaria(v.carta, v.cella, () => {
+    try{ svelaGiocata(); }catch(_){ }
+    fatto(() => {
+      if(G && G.voloRete === cancello) G.voloRete = null;
+      for(const md of cancello.coda) if(md){ try{ reteMessaggio(md); }catch(e){ console.error('[rete] messaggio trattenuto: ' + (e && e.message)); } }
+    });
+  });
+}
+function giocataChiedeScelta(carta){
+  try{
+    const chiave = abilitaAttivaDi(carta);
+    if(!chiave) return false;
+    if(chiave === YETI_CHIAVE || SCELTE_PIAZZAMENTO[chiave]) return true;
+    if(_haAbilitaNuova(carta)){
+      const a = _motore().abilitaDi(carta);
+      if(a && a.trigger === 'on_play' && [a.effetto, a.effetto2].some(e => e && e.scelta)) return true;
+    }
+    return false;
+  }catch(_){ return true; }
+}
 function reteApplicaGiocata(d){
   if(!PARTITA_RETE || !G) return;
   const mio = d.giocatore === PARTITA_RETE.io;
@@ -10637,6 +10702,23 @@ function reteApplicaGiocata(d){
   PARTITA_RETE.turno = d.turno;
   PARTITA_RETE.scadenza = d.scadenza;
   PARTITA_RETE.numeroTurno = d.numeroTurno;
+  if(!mio && !giocataChiedeScelta(carta)){
+    G.turnPlayLocked = true;
+    G.reteRisolve = true;
+    try{ svelaGiocata(); }catch(_){ }
+    const cancello = { coda: [] };
+    G.voloRete = cancello;
+    voloCartaAvversaria(carta, key(d.q, d.r), () => {
+      if(G && G.voloRete === cancello) G.voloRete = null;
+      if(!PARTITA_RETE || !G) return;
+      _reteCalaGiocata(d, carta, mio);
+      for(const md of cancello.coda){ try{ reteMessaggio(md); }catch(e){ console.error('[rete] messaggio trattenuto: ' + (e && e.message)); } }
+    });
+    return;
+  }
+  _reteCalaGiocata(d, carta, mio);
+}
+function _reteCalaGiocata(d, carta, mio){
   G.turnPlayLocked = false;
   if(Array.isArray(d.yeti) && d.yeti.length){
     try{ yetiRivelaDaServer(d.yeti, key(d.q, d.r)); }catch(e){ console.error('[rete] yeti: ' + (e && e.message)); }
@@ -17425,6 +17507,8 @@ function svuotaLaScena(){
 }
 function startGame(vsAI){
   fermaIlConto();
+  try{ particelleCarica(); }catch(_){ }
+  try{ if(!window.__attaccoFoglio){ window.__attaccoFoglio = new Image(); window.__attaccoFoglio.src = attaccoSpritesheetUrl(); } }catch(_){ }
   stopScreenEdgeFlash();
   stopAiThinkingHover();
 
@@ -18592,19 +18676,24 @@ function azioneParticelleAvvia(){
     const dt = Math.min(0.1, (t - _azioneUltimoT) / 1000); _azioneUltimoT = t;
     const dpr = window.devicePixelRatio || 1, W = innerWidth, H = innerHeight;
     const pennelli = {};
+    const spCarta = spazioDelloStrato(_azioneTelaCarta);
     for(const [nido, tela] of [['tip', _azioneTela], ['carta', _azioneTelaCarta]]){
-      if(tela.width !== Math.round(W * dpr) || tela.height !== Math.round(H * dpr)){
-        tela.width = Math.round(W * dpr); tela.height = Math.round(H * dpr);
+      const Wt = (nido === 'carta' && spCarta.dentro) ? 1920 : W, Ht = (nido === 'carta' && spCarta.dentro) ? 1080 : H;
+      if(tela.width !== Math.round(Wt * dpr) || tela.height !== Math.round(Ht * dpr)){
+        tela.width = Math.round(Wt * dpr); tela.height = Math.round(Ht * dpr);
       }
       const p = tela.getContext('2d');
       p.setTransform(dpr, 0, 0, dpr, 0, 0);
-      p.clearRect(0, 0, W, H);
+      p.clearRect(0, 0, Wt, Ht);
       p.fillStyle = AZIONE_COLORE;
       pennelli[nido] = p;
     }
     const nidi = { tip: tip.getBoundingClientRect(), carta: null };
     const k = _azioneCellaCarta(_azioneSceltaMia());
-    if(k){ const rc = _rettangoloCella(k); if(rc && rc.width) nidi.carta = rc; }
+    if(k){
+      const rc = _rettangoloCella(k);
+      if(rc && rc.width) nidi.carta = { left: spCarta.x(rc.left), top: spCarta.y(rc.top), width: spCarta.l(rc.width), height: spCarta.l(rc.height) };
+    }
     for(const l of _azioneLucciole){
       const n = nidi[l.nido];
       if(!n) continue;
@@ -24742,6 +24831,7 @@ function stopScreenEdgeFlash(){
 
 function autoPlay(player){
   if(G.gameOver)return;
+  if(G.voloAvversario && !PARTITA_RETE && (G.p2Hand || []).indexOf(G.voloAvversario.carta) >= 0) return;
   if(G.sceltaBersaglio && G.sceltaBersaglio.giocatore===player){
     const scelta = G.sceltaBersaglio;
     if(PARTITA_RETE && !sceltaMia(scelta.giocatore)) return;
@@ -30361,6 +30451,65 @@ const COLPO_FASCE = [
 const COLPO_FORTE_DA = 9;
 const COLPO_FORTE_SCOSSA = 1.8;
 const COLPO_VENTAGLIO = Math.PI * 0.42;
+const ATTACCO_FOGLIO = { w: 511, h: 546, cx: 210.5, cy: 426.1, raggio: 243.6 };
+const ATTACCO_TEMPI_MS = [40, 50, 60, 70, 80, 100];
+const ATTACCO_VERSO_DEL_FOGLIO = -60;
+function attaccoSpritesheetUrl(){ try{ return uiFileCandidati('animations/attack-spritesheet.png')[0]; }catch(_){ return ''; } }
+function stratoSottoAlleMani(classe){
+  const el = document.createElement('div');
+  el.className = classe;
+  el.setAttribute('aria-hidden', 'true');
+  const mano = document.getElementById('p1-hand-fan');
+  if(mano && mano.parentNode) mano.parentNode.insertBefore(el, mano);
+  else document.body.appendChild(el);
+  return el;
+}
+function spazioDelloStrato(strato){
+  const dentro = !!(strato && strato.parentNode && strato.parentNode.id === 'game-root' && typeof _fit !== 'undefined' && _fit && _fit.scale);
+  return {
+    dentro,
+    x: (v) => dentro ? screenToAuthoredX(v) : v,
+    y: (v) => dentro ? screenToAuthoredY(v) : v,
+    l: (v) => dentro ? v / _fit.scale : v,
+  };
+}
+function animazioneAttacco(cella, ux, uy){
+  try{
+    try{ if(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return null; }catch(_){ }
+    const url = attaccoSpritesheetUrl();
+    const bsvg = document.getElementById('board-svg');
+    if(!url || !bsvg || !_ultimoCentroPlancia || !_ultimoRaggioCella) return null;
+    const [q, r] = String(cella).split(',').map(Number);
+    const c = axialToPixel(q, r, _ultimoCentroPlancia.x, _ultimoCentroPlancia.y, _ultimoRaggioCella);
+    const ctm = bsvg.getScreenCTM();
+    if(!ctm) return null;
+    const sx = ctm.a * c.x + ctm.c * c.y + ctm.e, sy = ctm.b * c.x + ctm.d * c.y + ctm.f;
+    const raggioSchermo = _ultimoRaggioCella * Math.hypot(ctm.a, ctm.b);
+    const verso = Math.atan2(uy || 0, (typeof ux === 'number') ? ux : 1) * 180 / Math.PI;
+    const giro = Math.round((verso - ATTACCO_VERSO_DEL_FOGLIO) / 60) * 60;
+    const strato = stratoSottoAlleMani('attacco-squarci');
+    const sp = spazioDelloStrato(strato);
+    const scala = sp.l(raggioSchermo) / ATTACCO_FOGLIO.raggio;
+    const el = document.createElement('div');
+    el.className = 'attacco-squarcio';
+    el.style.backgroundImage = 'url("' + url + '")';
+    el.style.left = (sp.x(sx) - ATTACCO_FOGLIO.cx).toFixed(2) + 'px';
+    el.style.top = (sp.y(sy) - ATTACCO_FOGLIO.cy).toFixed(2) + 'px';
+    el.style.transformOrigin = ATTACCO_FOGLIO.cx + 'px ' + ATTACCO_FOGLIO.cy + 'px';
+    el.style.transform = 'rotate(' + giro + 'deg) scale(' + scala.toFixed(4) + ')';
+    el.dataset.giro = String(giro);
+    strato.appendChild(el);
+    let i = 0;
+    const avanti = () => {
+      i++;
+      if(i >= ATTACCO_TEMPI_MS.length){ try{ strato.remove(); }catch(_){ } return; }
+      el.style.backgroundPosition = (-ATTACCO_FOGLIO.w * i) + 'px 0';
+      setTimeout(avanti, ATTACCO_TEMPI_MS[i]);
+    };
+    setTimeout(avanti, ATTACCO_TEMPI_MS[0]);
+    return el;
+  }catch(e){ console.warn('[attacco] ' + (e && e.message)); return null; }
+}
 function particelleColpo(defEl, ux, uy, differenza){
   if(!defEl || typeof defEl.getBoundingClientRect !== 'function') return;
   try{ if(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return; }catch(_){ }
@@ -30368,18 +30517,16 @@ function particelleColpo(defEl, ux, uy, differenza){
   if(!r.width) return;
   const forza = Math.max(1, Math.round(Math.abs(differenza) || 1));
   const fascia = COLPO_FASCE.find(f => forza <= f.fino) || COLPO_FASCE[COLPO_FASCE.length - 1];
-  const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
-  const misura = r.width;
+  const strato = stratoSottoAlleMani('colpo-schegge');
+  const sp = spazioDelloStrato(strato);
+  const cx = sp.x(r.left + r.width / 2), cy = sp.y(r.top + r.height / 2);
+  const misura = sp.l(r.width);
   const base = Math.atan2(uy || 0, (typeof ux === 'number' ? ux : 1));
-  const strato = document.createElement('div');
-  strato.className = 'colpo-schegge';
-  strato.setAttribute('aria-hidden', 'true');
-  document.body.appendChild(strato);
   let piuLunga = 0;
   for(let i = 0; i < fascia.quante; i++){
     const angolo = base + (Math.random() - 0.5) * COLPO_VENTAGLIO;
     const strada = misura * (0.35 + Math.random() * (fascia.grandi ? 0.9 : 0.65));
-    const lato = (fascia.grandi ? 10 : 6) + Math.random() * (fascia.grandi ? 8 : 4);
+    const lato = (fascia.grandi ? 15 : 9) + Math.random() * (fascia.grandi ? 12 : 6);
     const durata = 560 + Math.random() * (fascia.grandi ? 520 : 360);
     piuLunga = Math.max(piuLunga, durata);
     const via = misura * 0.12;
@@ -30388,15 +30535,21 @@ function particelleColpo(defEl, ux, uy, differenza){
     const p = document.createElement('span');
     p.className = 'colpo-scheggia';
     p.style.width = p.style.height = lato.toFixed(1) + 'px';
+    const forma = particellaACaso(), url = particellaUrl(forma);
+    if(url){
+      p.style.setProperty('--forma', 'url("' + url + '")');
+      p.style.setProperty('--forma-scala', (particellaPronta(forma) ? particellaScala(forma) : 2.2).toFixed(3));
+    } else p.classList.add('tonda');
+    const giro = Math.round(Math.random() * 360), giroFine = giro + Math.round((Math.random() - 0.5) * 240);
     p.style.left = (x0 - lato / 2).toFixed(1) + 'px';
     p.style.top = (y0 - lato / 2).toFixed(1) + 'px';
     strato.appendChild(p);
     const dx = Math.cos(angolo) * strada, dy = Math.sin(angolo) * strada;
     try{
       p.animate([
-        { transform:'translate(0,0) scale(1)', opacity: 1 },
-        { transform:'translate(' + (dx * 0.8).toFixed(1) + 'px,' + (dy * 0.8).toFixed(1) + 'px) scale(0.85)', opacity: 0.9, offset: 0.5 },
-        { transform:'translate(' + dx.toFixed(1) + 'px,' + dy.toFixed(1) + 'px) scale(0.45)', opacity: 0 },
+        { transform:'translate(0,0) rotate(' + giro + 'deg) scale(1)', opacity: 1 },
+        { transform:'translate(' + (dx * 0.8).toFixed(1) + 'px,' + (dy * 0.8).toFixed(1) + 'px) rotate(' + ((giro + giroFine) / 2).toFixed(0) + 'deg) scale(0.85)', opacity: 0.9, offset: 0.5 },
+        { transform:'translate(' + dx.toFixed(1) + 'px,' + dy.toFixed(1) + 'px) rotate(' + giroFine + 'deg) scale(0.45)', opacity: 0 },
       ], { duration: durata, easing: 'cubic-bezier(.12,.82,.3,1)', fill: 'forwards' });
     }catch(_){ }
   }
@@ -30561,6 +30714,7 @@ function resolveConquestAndEndTurn(card, player, q, r, k, cellAbilityKey, skipLa
           _shakeUx=rdx/rlen; _shakeUy=rdy/rlen;
           playDefenderRecoil(defEl, rdx/rlen, rdy/rlen);
           try{ particelleColpo(defEl, _shakeUx, _shakeUy, (atkVal||0) - (defVal||0)); }catch(_){ }
+          try{ animazioneAttacco(nk, _shakeUx, _shakeUy); }catch(_){ }
         }
         shakeBoard(idx, _shakeUx, _shakeUy, forzaScossaColpo((atkVal||0) - (defVal||0)));
         flashScreenOnHit(idx);
@@ -31737,8 +31891,16 @@ function aiPlay(){
   if(G.gameOver || G.currentPlayer!==2 || !G.vsAI) return;
   const move=aiChooseMove();
   if(!move){ endTurn(2); return; }
-  doPlace(move.card, 1, move.cell.q, move.cell.r);
-  aiResolvePendingAbilityIfAny();
+  G.turnPlayLocked = true;
+  const generazione = (typeof gameGeneration !== 'undefined') ? gameGeneration : 0;
+  voloCartaAvversaria(move.card, key(move.cell.q, move.cell.r), () => {
+    if(!G || G.gameOver || G.currentPlayer !== 2) return;
+    if(typeof gameGeneration !== 'undefined' && gameGeneration !== generazione) return;
+    if((G.p2Hand || []).indexOf(move.card) < 0) return;
+    G.turnPlayLocked = false;
+    doPlace(move.card, 1, move.cell.q, move.cell.r);
+    aiResolvePendingAbilityIfAny();
+  });
 }
 
 const VALUTAZIONI_IA = {
@@ -32201,7 +32363,7 @@ function applyHpDamage(defenderPlayer, atkVal, defVal, sourceKey, attaccanteKey)
   const punti=Math.max(0, atkVal-defVal);
   if(punti<=0) return;
   const vincitore = defenderPlayer===1 ? 2 : 1;
-  bollaPuntiFraCelle(vincitore, punti, attaccanteKey, sourceKey);
+  numeroDannoFraCelle(punti, attaccanteKey, sourceKey);
   assegnaPunti(vincitore, punti, sourceKey);
 }
 
@@ -32531,24 +32693,48 @@ function suonoDelPunto(){
 const BOLLA_CAMPO_ENTRATA_MS = 120;
 const BOLLA_CAMPO_SOSTA_MS   = 600;
 const BOLLA_CAMPO_USCITA_MS  = 150;
-const BOLLA_CAMPO_COLORE = { dark:'#E8D09E', light:'#211C12' };
+const NUMERO_CAMPO_PIENO = ['#FFD240', '#FFF1D4', '#FFB61B'];
+const NUMERO_CAMPO_BORDO = '#24292A';
+let _numeroCampoN = 0;
+function numeroCampoSvg(testo){
+  const NS = 'http://www.w3.org/2000/svg';
+  const id = 'numero-campo-pieno-' + (++_numeroCampoN);
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('class', 'numero-campo-svg');
+  svg.setAttribute('width', '320'); svg.setAttribute('height', '150');
+  svg.setAttribute('viewBox', '-160 -75 320 150');
+  svg.setAttribute('aria-hidden', 'true');
+  const defs = document.createElementNS(NS, 'defs');
+  const grad = document.createElementNS(NS, 'linearGradient');
+  grad.setAttribute('id', id);
+  grad.setAttribute('x1', '0'); grad.setAttribute('y1', '0'); grad.setAttribute('x2', '1'); grad.setAttribute('y2', '1');
+  NUMERO_CAMPO_PIENO.forEach((colore, i) => {
+    const st = document.createElementNS(NS, 'stop');
+    st.setAttribute('offset', String(i / (NUMERO_CAMPO_PIENO.length - 1)));
+    st.setAttribute('stop-color', colore);
+    grad.appendChild(st);
+  });
+  defs.appendChild(grad); svg.appendChild(defs);
+  const t = document.createElementNS(NS, 'text');
+  t.setAttribute('x', '0'); t.setAttribute('y', '0');
+  t.setAttribute('text-anchor', 'middle'); t.setAttribute('dominant-baseline', 'central');
+  t.setAttribute('fill', 'url(#' + id + ')');
+  t.setAttribute('stroke', NUMERO_CAMPO_BORDO); t.setAttribute('stroke-width', '8');
+  t.setAttribute('stroke-linejoin', 'round'); t.setAttribute('paint-order', 'stroke');
+  t.textContent = testo;
+  svg.appendChild(t);
+  return svg;
+}
 function bollaPuntiSulCampo(player, punti, punto){
   if(!punti || !punto) return;
   const strato = fxLayer();
   if(!strato) return;
-  const scuro = playerFactionIsDark(player);
   const el = document.createElement('div');
   el.className = 'bolla-campo';
   el.style.left = punto.x.toFixed(1) + 'px';
   el.style.top  = punto.y.toFixed(1) + 'px';
-  const art = document.createElement('img');
-  art.className = 'bolla-campo-art'; art.alt = ''; art.draggable = false;
-  impostaImgDaCandidati(art, uiFileCandidati(scuro ? 'score-bubble-dark.png' : 'score-bubble-light.png'));
-  const num = document.createElement('span');
-  num.className = 'bolla-campo-num';
-  num.style.color = scuro ? BOLLA_CAMPO_COLORE.dark : BOLLA_CAMPO_COLORE.light;
-  num.textContent = conSegno(punti);
-  el.append(art, num);
+  el.dataset.testo = conSegno(punti);
+  el.appendChild(numeroCampoSvg(conSegno(punti)));
   strato.appendChild(el);
   requestAnimationFrame(()=>{
     el.classList.add('dentro');
@@ -32565,6 +32751,57 @@ function bollaPuntiFraCelle(player, punti, cellaA, cellaB){
     const punto = (a && b) ? { x:(a.x + b.x)/2, y:(a.y + b.y)/2 } : (a || b);
     bollaPuntiSulCampo(player, punti, punto);
   }catch(e){ console.warn('[punti] bolla saltata: ' + e); }
+}
+const NUMERO_DANNO_VITA_MS = 1400;
+const NUMERO_DANNO_USCITA_MS = 260;
+const NUMERO_DANNO_STRADA = 95;
+function numeroDannoSulCampo(punti, punto, ux, uy){
+  if(!punti || !punto) return null;
+  const strato = fxLayer();
+  if(!strato) return null;
+  const lungo = Math.hypot(ux || 0, uy || 0);
+  const dx = lungo ? ux / lungo : 0, dy = lungo ? uy / lungo : -1;
+  const el = document.createElement('div');
+  el.className = 'numero-danno';
+  el.style.left = punto.x.toFixed(1) + 'px';
+  el.style.top  = punto.y.toFixed(1) + 'px';
+  el.dataset.testo = String(punti);
+  const molla = document.createElement('div');
+  molla.className = 'numero-danno-molla';
+  molla.appendChild(numeroCampoSvg(String(punti)));
+  el.appendChild(molla);
+  strato.appendChild(el);
+  const tutta = NUMERO_DANNO_VITA_MS + NUMERO_DANNO_USCITA_MS;
+  const fine = NUMERO_DANNO_VITA_MS / tutta;
+  const ang = Math.atan2(dy, dx) * 180 / Math.PI;
+  const molle = (sx, sy) => 'rotate(' + ang.toFixed(1) + 'deg) scale(' + sx + ',' + sy + ') rotate(' + (-ang).toFixed(1) + 'deg)';
+  try{
+    el.animate([
+      { transform: 'translate(0px,0px)' },
+      { transform: 'translate(' + (dx * NUMERO_DANNO_STRADA).toFixed(1) + 'px,' + (dy * NUMERO_DANNO_STRADA).toFixed(1) + 'px)' },
+    ], { duration: tutta, easing: 'cubic-bezier(.1,.8,.25,1)', fill: 'forwards' });
+    molla.animate([
+      { transform: molle(0.4, 0.4),   opacity: 0 },
+      { transform: molle(1.32, 0.74), opacity: 1, offset: 0.07 },
+      { transform: molle(0.84, 1.16), opacity: 1, offset: 0.16 },
+      { transform: molle(1.1, 0.92),  opacity: 1, offset: 0.26 },
+      { transform: molle(0.96, 1.04), opacity: 1, offset: 0.38 },
+      { transform: molle(1, 1),       opacity: 1, offset: 0.52 },
+      { transform: molle(1, 1),       opacity: 1, offset: fine },
+      { transform: molle(1, 1),       opacity: 0 },
+    ], { duration: tutta, easing: 'ease-out', fill: 'forwards' });
+  }catch(_){ }
+  setTimeout(() => { try{ el.remove(); }catch(_){ } }, tutta + 80);
+  return el;
+}
+function numeroDannoFraCelle(punti, cellaAtt, cellaDif){
+  try{
+    const a = getCellScreenCenter(cellaAtt);
+    const b = getCellScreenCenter(cellaDif);
+    const punto = (a && b) ? { x:(a.x + b.x)/2, y:(a.y + b.y)/2 } : (a || b);
+    const ux = (a && b) ? b.x - a.x : 0, uy = (a && b) ? b.y - a.y : -1;
+    return numeroDannoSulCampo(punti, punto, ux, uy);
+  }catch(e){ console.warn('[punti] numero saltato: ' + e); return null; }
 }
 function apriBollaPunti(player){
   const pannello = _pannelloDi(player);
@@ -34295,6 +34532,9 @@ function renderHand(containerId,hand,playerIdx){
     hand = hand.slice();
     hand.splice(Math.min(G.velo.posto, hand.length), 0, G.velo.carta);
   }
+  if(G && G.voloAvversario && G.voloAvversario.carta && hand.indexOf(G.voloAvversario.carta) >= 0){
+    hand = hand.filter(c => c !== G.voloAvversario.carta);
+  }
   const container=document.getElementById(containerId);
   if(container){
     const firmaOra = firmaMano(hand, playerIdx);
@@ -35792,6 +36032,112 @@ function avviaSaltoCarta(k){
   _cardJump = { k, t0: performance.now(), distanza: el ? altezzaDelSalto(el) : 1400 };
   if(el) cardJumpApplyTo(el);
   return !!el;
+}
+const VOLO_ENTRA_MS = 260;
+const VOLO_SOSTA_MS = 420;
+const VOLO_ESAGONO_MS = 180;
+const VOLO_VIAGGIO_MS = 560;
+const VOLO_USCITA_MS = 140;
+const VOLO_DURATA_MS = VOLO_ENTRA_MS + VOLO_SOSTA_MS + VOLO_VIAGGIO_MS;
+const VOLO_CADUTA_SU = 150, VOLO_CADUTA_SCALA = 1.28;
+function _voloMeta(k){
+  const bsvg = document.getElementById('board-svg');
+  const cella = bsvg && (bsvg.querySelector('[data-cellkey="' + k + '"]') || bsvg.querySelector('[data-conquered="' + k + '"]'));
+  if(!cella || !_ultimoRaggioCella) return null;
+  const r = cella.getBoundingClientRect();
+  if(!r.width) return null;
+  const ctm = bsvg.getScreenCTM && bsvg.getScreenCTM();
+  if(!ctm) return null;
+  const centro = screenToAuthoredPoint({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
+  const unita = screenToAuthoredY(ctm.f + ctm.d) - screenToAuthoredY(ctm.f);
+  const alta = screenToAuthoredY(r.bottom) - screenToAuthoredY(r.top);
+  const y = centro.y - VOLO_CADUTA_SU * unita - (VOLO_CADUTA_SCALA - 1) * alta / 2;
+  const raggioCasella = _ultimoRaggioCella * unita;
+  return { x: centro.x, y, scala: VOLO_CADUTA_SCALA * raggioCasella / BOARD_TILE_GHOST_HEX_R };
+}
+function voloCartaAvversaria(card, k, poi){
+  let fatto = false;
+  const prosegui = () => { if(fatto) return; fatto = true; if(typeof poi === 'function') poi(); };
+  let el = null;
+  try{
+    try{ if(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches){ prosegui(); return; } }catch(_){ }
+    const strato = fxLayer();
+    const meta = _voloMeta(k);
+    if(!strato || !meta || !card){ prosegui(); return; }
+    const generazione = (typeof gameGeneration !== 'undefined') ? gameGeneration : 0;
+    G.voloAvversario = { carta: card, k };
+    try{ renderHand('p1-hand-fan', G.p1Hand, 0); renderHand('p2-hand-fan', G.p2Hand, 1); }catch(_){ }
+    el = document.createElement('div');
+    el.className = 'volo-avversario';
+    el.dataset.foilVariant = playerFactionName(card.owner || 1);
+    el.setAttribute('data-foil-active', '1');
+    const piena = buildFullHandCardSVG(cardFoilVisualCard(card), 210, 360);
+    applicaScartoGhost(piena, true);
+    const wrap = cardFoilWrap(piena);
+    const tilt = wrap.querySelector('.card-db-foil-tilt');
+    const esagono = buildHandCardSVG(card, 210, 360, BOARD_TILE_GHOST_HEX_R);
+    esagono.style.opacity = '0';
+    tilt.insertBefore(esagono, piena.nextSibling);
+    el.appendChild(wrap);
+    const centro = { x: 960, y: 540 };
+    strato.appendChild(el);
+    const t0 = performance.now();
+    let x = centro.x, y = centro.y, prima = null, esagonoAcceso = false;
+    const facile = (u) => u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;
+    const passo = (ora) => {
+      if(!el.isConnected){ prosegui(); return; }
+      if(!G || (typeof gameGeneration !== 'undefined' && gameGeneration !== generazione)){ try{ el.remove(); }catch(_){ } return; }
+      const t = ora - t0;
+      let scala = 1, opa = 1;
+      if(t < VOLO_ENTRA_MS){ const u = t / VOLO_ENTRA_MS; opa = u; scala = 0.9 + 0.1 * u; }
+      const partenza = VOLO_ENTRA_MS + VOLO_SOSTA_MS;
+      if(t >= partenza){
+        if(!esagonoAcceso){
+          esagonoAcceso = true;
+          piena.style.transition = esagono.style.transition = 'opacity ' + VOLO_ESAGONO_MS + 'ms ease';
+          esagono.style.opacity = '1'; piena.style.opacity = '0';
+          const riflesso = el.querySelector('.card-db-foil-glare');
+          if(riflesso) riflesso.style.clipPath = esagono.dataset.hexClip ? 'polygon(' + esagono.dataset.hexClip + ')' : 'none';
+        }
+        const u = Math.min(1, (t - partenza) / VOLO_VIAGGIO_MS), e = facile(u);
+        x = centro.x + (meta.x - centro.x) * e;
+        y = centro.y + (meta.y - centro.y) * e;
+        scala = 1 + (meta.scala - 1) * e;
+      }
+      if(prima){
+        const dt = Math.max(1, ora - prima.t) / (1000 / 60);
+        const rx = Math.max(-1, Math.min(1, (x - prima.x) / dt / DRAG_TILT_REF_SPEED));
+        const ry = Math.max(-1, Math.min(1, (y - prima.y) / dt / DRAG_TILT_REF_SPEED));
+        try{ cardFoilApply(el, rx, ry, 0.5 + rx * 0.5, 0.5 + ry * 0.5); }catch(_){ }
+      }
+      prima = { x, y, t: ora };
+      el.style.left = x.toFixed(1) + 'px';
+      el.style.top = y.toFixed(1) + 'px';
+      el.style.opacity = opa.toFixed(3);
+      el.style.transform = 'translate(-50%,-50%) scale(' + scala.toFixed(4) + ')';
+      if(t >= VOLO_DURATA_MS){
+        G.voloAvversario = null;
+        prosegui();
+        el.style.transition = 'opacity ' + VOLO_USCITA_MS + 'ms linear';
+        el.style.opacity = '0';
+        setTimeout(() => { try{ el.remove(); }catch(_){ } }, VOLO_USCITA_MS + 60);
+        return;
+      }
+      requestAnimationFrame(passo);
+    };
+    requestAnimationFrame(passo);
+    setTimeout(() => {
+      if(fatto) return;
+      if(G && G.voloAvversario && G.voloAvversario.carta === card) G.voloAvversario = null;
+      prosegui();
+      try{ el.remove(); }catch(_){ }
+    }, VOLO_DURATA_MS + 1500);
+  }catch(e){
+    console.warn('[volo] ' + (e && e.message));
+    if(G && G.voloAvversario && G.voloAvversario.carta === card) G.voloAvversario = null;
+    try{ if(el) el.remove(); }catch(_){ }
+    prosegui();
+  }
 }
 function startCardLandAnim(k, selettore){
   _cardLand = { k, t0: performance.now(), selettore: selettore || null };
