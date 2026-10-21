@@ -7542,7 +7542,7 @@ try{
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.79</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.80</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -33110,36 +33110,6 @@ function getCardArtVariants(card){
   return {dark:CARD_ART_PLACEHOLDER_DARK, light:CARD_ART_PLACEHOLDER_LIGHT};
 }
 
-const RARITA_GRADIENTE_LIGHT = { rare:'#62CAE2', mythic:'#FF0099' };
-function coloreGradienteRarita(rar, scuro){ return (!scuro && RARITA_GRADIENTE_LIGHT[rar]) || coloreRarita(rar); }
-const RARITA_GRADIENTE_OPACITA = 0.4;
-let _raritaGradienteN = 0;
-function disegnaGradienteRarita(svg, card, frameImg, angoli, scuro){
-  const rar = String((card && card.rarity) || '').toLowerCase();
-  if(!svg || !frameImg || rar === 'common' || !COLORI_RARITA[rar]) return null;
-  const NS = 'http://www.w3.org/2000/svg', n = ++_raritaGradienteN, colore = coloreGradienteRarita(rar, scuro);
-  const x = parseFloat(frameImg.getAttribute('x')), y = parseFloat(frameImg.getAttribute('y'));
-  const w = parseFloat(frameImg.getAttribute('width')), h = parseFloat(frameImg.getAttribute('height'));
-  if(!(w > 0 && h > 0)) return null;
-  const crea = (nome, attr)=>{ const e = document.createElementNS(NS, nome); for(const k in attr) e.setAttribute(k, String(attr[k])); return e; };
-  const sfuma = crea('linearGradient', { id:'rarita-sfuma-' + n, gradientUnits:'userSpaceOnUse', x1:x, y1:y, x2:x + w, y2:y + h });
-  [[0, RARITA_GRADIENTE_OPACITA], [0.5, 0], [1, RARITA_GRADIENTE_OPACITA]].forEach(([o, a])=>{
-    sfuma.appendChild(crea('stop', { offset:o, 'stop-color':colore, 'stop-opacity':a }));
-  });
-  const mx = x - w * 0.25, my = y - h * 0.25, mw = w * 1.5, mh = h * 1.5;
-  const maschera = crea('mask', { id:'rarita-forma-' + n, maskUnits:'userSpaceOnUse', x:mx, y:my, width:mw, height:mh });
-  maschera.style.maskType = 'alpha';
-  const copia = (img, ruolo)=>{ const c = img.cloneNode(false); c.setAttribute('data-role', ruolo); c.removeAttribute('class'); c.style.cssText = ''; maschera.appendChild(c); };
-  copia(frameImg, 'rarita-maschera-frame');
-  (angoli || []).forEach(a => copia(a, 'rarita-maschera-corner'));
-  const velo = crea('rect', { x:mx, y:my, width:mw, height:mh, fill:'url(#rarita-sfuma-' + n + ')', mask:'url(#rarita-forma-' + n + ')', 'data-role':'rarita-gradiente', 'data-rarita':rar });
-  velo.style.mixBlendMode = scuro ? 'lighten' : 'normal';
-  velo.style.pointerEvents = 'none';
-  svg.appendChild(sfuma);
-  svg.appendChild(maschera);
-  svg.appendChild(velo);
-  return velo;
-}
 function swapCardOwnerVariant(containerEl, newOwner, card){
   if(!containerEl) return;
   const isDark = playerFactionIsDark(newOwner);
@@ -33170,14 +33140,6 @@ function swapCardOwnerVariant(containerEl, newOwner, card){
 
   containerEl.querySelectorAll('[data-role="owner-corner"]').forEach(img=>{
     img.setAttribute('href', isDark?CARD_CORNER_DARK:CARD_CORNER_LIGHT);
-  });
-  containerEl.querySelectorAll('[data-role="rarita-maschera-frame"]').forEach(img=>img.setAttribute('href', isDark?CARD_FRAME_DARK:CARD_FRAME_LIGHT));
-  containerEl.querySelectorAll('[data-role="rarita-maschera-corner"]').forEach(img=>img.setAttribute('href', isDark?CARD_CORNER_DARK:CARD_CORNER_LIGHT));
-  containerEl.querySelectorAll('[data-role="rarita-gradiente"]').forEach(r=>{
-    r.style.mixBlendMode = isDark ? 'lighten' : 'normal';
-    const id = String(r.getAttribute('fill') || '').replace(/^url\(#|\)$/g, '');
-    const sf = id ? containerEl.querySelector('#' + id) : null;
-    if(sf) sf.querySelectorAll('stop').forEach(st => st.setAttribute('stop-color', coloreGradienteRarita(r.getAttribute('data-rarita'), isDark)));
   });
   containerEl.querySelectorAll('[data-role="owner-value-circle"]').forEach(img=>{
     img.setAttribute('href', isDark?VALUE_CIRCLE_DARK:VALUE_CIRCLE_LIGHT);
@@ -33543,7 +33505,6 @@ function drawHexCard(svg,cx,cy,R,card,fillColor,strokeColor,textColor,nameText,i
 
   const corners=hexCorners(cx,cy,R);
   const scp=getSideCornerPairs(corners);
-  const angoliDellaCarta = [];
   const groups=gruppiDiCarta(card, cardValues);
 
   const BOARD_R_HD = 126.77;
@@ -33614,11 +33575,9 @@ function drawHexCard(svg,cx,cy,R,card,fillColor,strokeColor,textColor,nameText,i
       cornerImg.style.pointerEvents='none';
       cornerImg.setAttribute('data-role','owner-corner');
       svg.appendChild(cornerImg);
-      angoliDellaCarta.push(cornerImg);
     }
   }
 
-  try{ disegnaGradienteRarita(svg, card, frameImg, angoliDellaCarta, isDarkPlayer); }catch(_){ }
 
   const labelInset=0.78;
   const activatedGroups = card.activatedGroups || {};
