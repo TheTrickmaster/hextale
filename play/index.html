@@ -2689,6 +2689,75 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
 
 
 #drag-ghost.ghost-su-tabellone{ --tilt-ampiezza:20deg; }
+.copione-velo{
+  position:absolute; inset:0; z-index:6000;
+  background:rgba(0,0,0,0.5);
+  opacity:0; pointer-events:none;
+  transition:opacity .25s ease;
+}
+.copione-velo.mostra{ opacity:1; pointer-events:auto; cursor:var(--cursore, pointer); }
+.copione-tizio{
+  position:absolute; right:90px; bottom:0; height:720px; width:auto;
+  pointer-events:none; user-select:none;
+  transform:translateY(30px); transition:transform .35s cubic-bezier(.2,.8,.3,1);
+}
+.copione-velo.mostra .copione-tizio{ transform:translateY(0); }
+.copione-fumetto{
+  position:absolute; right:583px; top:647px;
+  transform:translateY(-50%);
+  filter:drop-shadow(0 0 20px #111415) drop-shadow(0 0 20px #111415);
+}
+.copione-bolla{
+  position:relative; isolation:isolate;
+  max-width:620px; min-width:300px; box-sizing:border-box;
+  padding:34px 46px 40px;
+  background:#FFF8EE; border-radius:30px;
+  font-family:'Rosarivo',serif; font-size:25px; line-height:1.32; color:#24292A;
+}
+.copione-bolla::after,
+.copione-coda-trama{
+  content:''; position:absolute; inset:0; pointer-events:none;
+  background-image:var(--copione-trama, none); background-size:520px 520px;
+  mix-blend-mode:hard-light; opacity:0.4;
+}
+.copione-bolla::after{ border-radius:inherit; z-index:2; }
+.copione-bolla-testo{ position:relative; z-index:1; }
+.copione-clic{
+  position:absolute; right:22px; bottom:14px; width:21px; height:28px; z-index:3;
+  animation:copioneClic 1.4s ease-in-out infinite;
+}
+@keyframes copioneClic{ 0%,100%{ opacity:.45; } 50%{ opacity:1; } }
+.copione-coda{
+  position:absolute; left:100%; top:50%; width:92px; height:63px;
+  margin-left:-4px; transform:translateY(-50%);
+  isolation:isolate;
+}
+.copione-coda img{ position:absolute; inset:0; width:100%; height:100%; display:block; }
+.copione-coda-trama{
+  -webkit-mask-image:var(--copione-coda, none); mask-image:var(--copione-coda, none);
+  -webkit-mask-size:100% 100%; mask-size:100% 100%;
+}
+.copione-freccia{
+  position:absolute; left:0; top:0; width:68px; height:73px; z-index:5900;
+  pointer-events:none; display:none;
+  transform:translate(-50%, -100%);
+}
+.copione-freccia.mostra{ display:block; }
+.copione-freccia-molla{
+  width:100%; height:100%; transform-origin:50% 100%;
+  animation:copioneSaltello 0.9s infinite;
+}
+.copione-freccia-molla img{ width:100%; height:100%; display:block; transform:rotate(180deg); }
+@keyframes copioneSaltello{
+  0%  { transform:translateY(0) scale(1.1, 0.9); animation-timing-function:ease-out; }
+  50% { transform:translateY(-28px) scale(0.93, 1.09); animation-timing-function:ease-in; }
+  100%{ transform:translateY(0) scale(1.1, 0.9); }
+}
+.hand-card-wrap.copione-spenta::after{
+  content:''; position:absolute; inset:0; z-index:60; pointer-events:none;
+  border-radius:14px; background:rgba(6,10,12,0.6);
+}
+.hand-card-wrap.copione-accesa{ filter:drop-shadow(0 0 16px #FFE991) drop-shadow(0 0 6px #FFE991); }
 .volo-avversario{
   position:absolute; left:0; top:0; width:210px; height:360px;
   pointer-events:none; z-index:500; opacity:0;
@@ -7507,7 +7576,7 @@ try{
   <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.82</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.84</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -8243,6 +8312,13 @@ try{
               <span class="hxb-label">Confirm</span>
             </button>
           </div>
+        </div>
+
+        <div class="debug-item">
+          <button class="hx-btn hx-azione" type="button" onclick="avviaPartitaTutorial()">
+            <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
+            <span class="hxb-label">Tutorial match</span>
+          </button>
         </div>
 
         <div class="debug-item">
@@ -11513,9 +11589,11 @@ async function mm2MostraGuadagno(){
     mm2XpDaCapo(xpPerSalire(d.profilo.livello));
     await attesa(120);
   }
+  if(typeof d.masterTop === 'boolean') _masterTop = d.masterTop;
   mm2AggiornaProfilo();
 
-  if(d.salito){ await attesa(500); apriModaleNuovoRank(RANGHI[d.profilo.rank]); }
+  if(d.entratoMasterV){ await attesa(500); apriModaleNuovoRank('master-5'); }
+  else if(d.salito){ await attesa(500); apriModaleNuovoRank(RANGHI[d.profilo.rank]); }
 }
 
 function apriModaleNuovoRank(chiave){
@@ -17116,7 +17194,7 @@ function requestNewGame(vsAI, travestito){
   if(vsAI) PARTITA_RETE = null;
   BOT_TRAVESTITO = (vsAI && travestito) ? vestiIlBotDaGiocatore() : null;
   _bigliettoBot = null;
-  if(vsAI && typeof sessioneAccount !== 'undefined' && sessioneAccount && sessioneAccount.token){
+  if(vsAI && !window.__tutorialPartita && typeof sessioneAccount !== 'undefined' && sessioneAccount && sessioneAccount.token){
     _bigliettoBot = { promessa: nakamaRpc('hx_bot_inizia', { travestito: !!travestito }).then(r => (r && r.biglietto) || null).catch(() => null) };
   }
   PARTITA_ERA_IN_RETE = !vsAI && !!PARTITA_RETE;
@@ -24472,6 +24550,7 @@ function initGame(vsAI){
     holes=new Set();
     while(holes.size<holeCount){const c=cands[Math.floor(Math.random()*cands.length)];holes.add(key(c.q,c.r));}
   }
+  if(window.__tutorialPartita) holes = new Set(TUTORIAL_MURI);
   const muriAssegnati = assegnaMuriDellaPartita([...holes]);
   const tasselliAssegnati = assegnaTasselliLiberi(cells.map(c=>key(c.q,c.r)));
   const balanced=makeBalancedDecks(!!vsAI);
@@ -24501,6 +24580,11 @@ function initGame(vsAI){
     window.__debugForcedAncheAvversario = false;
   }
 
+  if(window.__tutorialPartita){
+    d1.length = 0; d2.length = 0;
+    TUTORIAL_MANO.forEach((nome, i) => d1.push(tutorialCarta(nome, 1, i)));
+    TUTORIAL_BOT.forEach((nome, i) => d2.push(tutorialCarta(nome, 2, i)));
+  }
   for(const mazzo of [d1, d2]){
     for(const carta of (mazzo || [])){
       if(carta && carta.values && !carta.valoriNascita) carta.valoriNascita = {...carta.values};
@@ -24558,6 +24642,7 @@ function initGame(vsAI){
   toggleBoardView(false);
   G._semeSinergie = String(Date.now()) + '-' + Math.random().toString(36).slice(2);
   G.currentPlayer = PARTITA_RETE ? PARTITA_RETE.turno : (Math.random()<0.5?1:2);
+  if(window.__tutorialPartita) tutorialPrepara();
   G.turnPlayLocked = true;
   conLaManoQuandoSiPuo(()=>{ render(); drawInitialHands(()=>{
     if(G) G.turnPlayLocked = false;
@@ -24576,6 +24661,7 @@ function puoCalareSuBloccata(card){
   try{ return !!_motore().giocabileSuBloccata(card); }catch(_){ return false; }
 }
 function canPlace(q,r,card){
+  if(G && G.tutorial && !tutorialCellaConsentita(key(q,r), card)) return false;
   if(isOccupied(q,r)) return false;
   if(cellaCongelata(key(q,r))) return false;
   if(yetiBloccaCasella(key(q,r), G.currentPlayer)) return false;
@@ -24643,6 +24729,7 @@ function resetTimerBarVisual(){
 let timerDeadline=null;
 function partitaSenzaTimer(){
   if(typeof PARTITA_RETE !== 'undefined' && PARTITA_RETE) return false;
+  if(typeof G !== 'undefined' && G && G.tutorial) return true;
   return !!(typeof G !== 'undefined' && G && G.vsAI)
       && !(typeof BOT_TRAVESTITO !== 'undefined' && BOT_TRAVESTITO);
 }
@@ -25867,6 +25954,7 @@ function stregattoRiordina(poi){
 
 
 function doPlace(card,playerIdx,q,r,daServer,dUfficio){
+  try{ if(G && G.tutorial && playerIdx === 0) tutorialPosata(card, key(q,r)); }catch(_){ }
   if(PARTITA_RETE && !daServer){
     if(!reteSonoIo(playerIdx)) return;
     if(G.gameOver || !canPlace(q,r,card)) return;
@@ -30960,6 +31048,235 @@ function startTurn(){
   })))));
 }
 
+const TUTORIAL_MURI = ['1,-2', '0,-2', '2,-2', '2,-1', '-2,2'];
+const TUTORIAL_TAVOLO = [
+  ['-1,0', 'Tortoise', 2], ['0,1', 'Mouse', 1], ['-1,-1', 'Tom Thumb', 1],
+  ['-2,0', 'Fox', 1], ['-2,1', 'Crow', 1], ['-1,2', 'Snow White', 2], ['0,2', 'Pinocchio', 2],
+];
+const TUTORIAL_MANO = ['Chupacabra', 'Captain Hook', 'Geppetto', 'Baloo'];
+const TUTORIAL_BOT = ['The Walrus', 'Hare', 'Lion', 'Ant'];
+const TUTORIAL_ABILITA = ['Captain Hook', 'Geppetto'];
+const TUTORIAL_PASSI = [
+  { parla: "Hello there. Who I am doesn't matter. Give me three minutes, and I'll teach you how to win." },
+  { parla: "Every side of a card has a Power. Touch an enemy with a stronger side, and it's yours.",
+    azione: { carta: 'Chupacabra', cella: '0,0' } },
+  { aspetta: 2 },
+  { parla: "4 against 1. You won by 3, so you scored 3 points. Bigger gap, bigger reward." },
+  { parla: "At the end of each turn, every card you own scores. Commons give 3, Rares 2, Mythics 1. Timeless give none." },
+  { bot: { carta: 'The Walrus', cella: '1,-1' } },
+  { aspetta: 1 },
+  { parla: "Ouch! He hit your weak side. Mind which side you show." },
+  { parla: "Some cards have an ability, written at the bottom. Captain Hook steals 2 Power from every enemy he touches. Let's take that card back.",
+    azione: { carta: 'Captain Hook', cella: '0,-1' } },
+  { aspetta: 2 },
+  { bot: { carta: 'Hare', cella: '2,0' } },
+  { aspetta: 1 },
+  { parla: "These icons are traits. Some abilities care about them. Geppetto loves the Small: every Small on the board gets +2.",
+    azione: { carta: 'Geppetto', cella: '-1,1' } },
+  { aspetta: 2 },
+  { bot: { carta: 'Lion', cella: '1,1' } },
+  { aspetta: 1 },
+  { parla: "One tile left. When the board is full, the highest score wins. Finish it!",
+    azione: { carta: 'Baloo', cella: '1,0' } },
+  { aspetta: 'fine' },
+  { parla: "Well played! Now go build your deck. And watch your weak sides." },
+];
+function avviaPartitaTutorial(){
+  try{ closeDebugModal(); }catch(_){ }
+  window.__tutorialPartita = true;
+  requestNewGame(true);
+}
+function tutorialCarta(nome, owner, i){
+  const entry = FINAL_CARDS.find(e => e && e.name === nome);
+  if(!entry) throw new Error('tutorial: manca ' + nome);
+  const c = _makeCardDbCard(cartaAlLivello(entry, 1), owner);
+  c.id = 'tutorial-' + entry.id + '-' + owner + '-' + i;
+  c.baseId = entry.id; c.owner = owner;
+  if(TUTORIAL_ABILITA.indexOf(nome) >= 0) c.abilityLocked = false;
+  else { c.abilityLocked = true; c.cardAbility = null; c.abilita = null; }
+  if(!c.valoriNascita) c.valoriNascita = Object.assign({}, c.values);
+  return c;
+}
+function tutorialPrepara(){
+  window.__tutorialPartita = false;
+  G.currentPlayer = 1;
+  G.board = {};
+  TUTORIAL_TAVOLO.forEach(([k, nome, di], i) => { G.board[k] = { card: tutorialCarta(nome, di, 100 + i), owner: di }; });
+  G.tutorial = { passo: -1, turnoPronto: 0, consenti: null, mossaBot: null, attesa: null, parla: false };
+}
+function tutorialCartaUsabile(card){
+  const t = G && G.tutorial;
+  return !!(t && t.consenti && card && card.name === t.consenti.carta);
+}
+function tutorialCellaConsentita(k, card){
+  const t = G && G.tutorial;
+  if(!t) return true;
+  if(G.currentPlayer === 2) return true;
+  if(!t.consenti || k !== t.consenti.cella) return false;
+  return !card || card.name === t.consenti.carta;
+}
+function tutorialPosata(card, k){
+  const t = G.tutorial;
+  if(!t.consenti || k !== t.consenti.cella || !card || card.name !== t.consenti.carta) return;
+  setTimeout(() => {
+    if(!G || G.tutorial !== t || !t.consenti) return;
+    if(!(G.board[k] && G.board[k].card === card)) return;
+    t.consenti = null;
+    t.turnoPronto = 0;
+    tutorialFreccia(null);
+    if(t.attesa === 'posata'){ t.attesa = null; tutorialAvanti(); }
+  }, 0);
+}
+function tutorialEvento(nome){
+  const t = G && G.tutorial;
+  if(!t) return;
+  if(nome === 'turno'){
+    t.turnoPronto = G.currentPlayer;
+    if(t.passo < 0){ tutorialAvanti(); return; }
+    if(t.attesa === 'turno' + G.currentPlayer){ t.attesa = null; tutorialAvanti(); }
+    return;
+  }
+  if(nome === 'fine' && t.attesa === 'fine'){ t.attesa = null; setTimeout(tutorialAvanti, 900); }
+}
+function tutorialAvanti(){
+  const t = G && G.tutorial;
+  if(!t) return;
+  t.passo++;
+  const p = TUTORIAL_PASSI[t.passo];
+  if(!p){ tutorialChiudi(); return; }
+  if(p.aspetta === 'fine'){ t.attesa = 'fine'; return; }
+  if(p.aspetta){
+    if(t.turnoPronto === p.aspetta && G.currentPlayer === p.aspetta){ tutorialAvanti(); return; }
+    t.attesa = 'turno' + p.aspetta;
+    return;
+  }
+  if(p.bot){
+    const carta = (G.p2Hand || []).find(c => c && c.name === p.bot.carta);
+    const [q, r] = p.bot.cella.split(',').map(Number);
+    if(!carta){ console.warn('[tutorial] il bot non ha ' + p.bot.carta); tutorialAvanti(); return; }
+    t.mossaBot = { card: carta, cell: { q, r } };
+    t.turnoPronto = 0;
+    setTimeout(() => { if(G && G.tutorial === t) aiPlay(); }, 700);
+    tutorialAvanti();
+    return;
+  }
+  if(p.parla){
+    tutorialParla(p.parla, () => {
+      if(p.azione){
+        t.consenti = { carta: p.azione.carta, cella: p.azione.cella };
+        t.attesa = 'posata';
+        _firmaTabellonePrecedente = null;
+        try{ renderBoard(); render(); }catch(_){ }
+        tutorialFreccia(true);
+      } else tutorialAvanti();
+    });
+  }
+}
+function _tutorialVelo(){
+  let v = document.getElementById('copione-velo');
+  if(v) return v;
+  v = document.createElement('div');
+  v.id = 'copione-velo'; v.className = 'copione-velo';
+  v.innerHTML = '<img class="copione-tizio" alt="" draggable="false">'
+    + '<div class="copione-fumetto"><div class="copione-bolla"><div class="copione-bolla-testo"></div>'
+    + '<img class="copione-clic" alt="" draggable="false"></div>'
+    + '<div class="copione-coda"><img alt="" draggable="false"><div class="copione-coda-trama"></div></div></div>';
+  fxLayer().appendChild(v);
+  impostaImgDaCandidati(v.querySelector('.copione-tizio'), uiFileCandidati('mysterious-guy.png'));
+  impostaImgDaCandidati(v.querySelector('.copione-clic'), uiFileCandidati('left-click-icon-dark.png'));
+  impostaImgDaCandidati(v.querySelector('.copione-coda img'), uiFileCandidati('tail-speech-bubble.png'));
+  try{
+    impostaVariabileDaCandidati(v, '--copione-trama', uiFileCandidati('brushed-texture.jpg'));
+    impostaVariabileDaCandidati(v, '--copione-coda', uiFileCandidati('tail-speech-bubble.png'));
+  }catch(_){ }
+  return v;
+}
+function tutorialParla(testo, poi){
+  const t = G && G.tutorial;
+  if(!t) return;
+  if(G.turnBannerActive){ setTimeout(() => tutorialParla(testo, poi), 200); return; }
+  const v = _tutorialVelo();
+  v.querySelector('.copione-bolla-testo').textContent = testo;
+  t.parla = true;
+  tutorialFreccia(null);
+  requestAnimationFrame(() => v.classList.add('mostra'));
+  const pronto = performance.now() + 350;
+  v.onclick = (e) => {
+    e.stopPropagation();
+    if(performance.now() < pronto) return;
+    v.onclick = null;
+    v.classList.remove('mostra');
+    t.parla = false;
+    setTimeout(() => { if(G && G.tutorial === t && typeof poi === 'function') poi(); }, 120);
+  };
+}
+function tutorialChiudi(){
+  const v = document.getElementById('copione-velo');
+  if(v){ v.classList.remove('mostra'); setTimeout(() => { try{ v.remove(); }catch(_){ } }, 300); }
+  tutorialFreccia(null);
+  if(G) G.tutorial = null;
+}
+let _tutorialFrecciaRaf = 0;
+function tutorialFreccia(accesa){
+  let el = document.getElementById('copione-freccia');
+  if(!accesa){
+    if(el) el.classList.remove('mostra');
+    if(_tutorialFrecciaRaf){ cancelAnimationFrame(_tutorialFrecciaRaf); _tutorialFrecciaRaf = 0; }
+    _tutorialAccendiMano();
+    return;
+  }
+  if(!el){
+    el = document.createElement('div');
+    el.id = 'copione-freccia'; el.className = 'copione-freccia';
+    el.innerHTML = '<div class="copione-freccia-molla"><img alt="" draggable="false"></div>';
+    fxLayer().appendChild(el);
+    impostaImgDaCandidati(el.querySelector('img'), uiFileCandidati('xp-icon.png'));
+  }
+  el.classList.add('mostra');
+  if(_tutorialFrecciaRaf) return;
+  const passo = () => {
+    _tutorialFrecciaRaf = 0;
+    const t = G && G.tutorial;
+    if(!t || !t.consenti){ el.classList.remove('mostra'); _tutorialAccendiMano(); return; }
+    _tutorialAccendiMano();
+    const punto = _tutorialDoveIndicare(t);
+    if(punto){ el.style.left = punto.x.toFixed(1) + 'px'; el.style.top = punto.y.toFixed(1) + 'px'; el.style.visibility = 'visible'; }
+    else el.style.visibility = 'hidden';
+    _tutorialFrecciaRaf = requestAnimationFrame(passo);
+  };
+  _tutorialFrecciaRaf = requestAnimationFrame(passo);
+}
+function _tutorialDoveIndicare(t){
+  const inMano = !!(typeof dragState !== 'undefined' && dragState && dragState.card && dragState.card.name === t.consenti.carta);
+  if(inMano){
+    const bsvg = document.getElementById('board-svg');
+    const cella = bsvg && (bsvg.querySelector('[data-cellkey="' + t.consenti.cella + '"]') || bsvg.querySelector('[data-conquered="' + t.consenti.cella + '"]'));
+    if(!cella) return null;
+    const r = cella.getBoundingClientRect();
+    return screenToAuthoredPoint({ x: r.left + r.width / 2, y: r.top + r.height * 0.12 });
+  }
+  const carta = (G.p1Hand || []).find(c => c && c.name === t.consenti.carta);
+  const wrap = carta && document.querySelector('#p1-hand-fan .hand-card-wrap[data-carta="' + carta.id + '"]');
+  if(!wrap) return null;
+  const r = wrap.getBoundingClientRect();
+  return screenToAuthoredPoint({ x: r.left + r.width / 2, y: r.top - 6 });
+}
+function _tutorialAccendiMano(){
+  const t = G && G.tutorial;
+  document.querySelectorAll('#p1-hand-fan .hand-card-wrap').forEach(w => {
+    const usabile = !!(t && t.consenti && (G.p1Hand || []).some(c => c && c.id === w.dataset.carta && c.name === t.consenti.carta));
+    w.classList.toggle('copione-accesa', !!t && usabile);
+    w.classList.toggle('copione-spenta', !!t && !usabile);
+  });
+}
+function tutorialDisegnaMeta(svg, cx, cy, R){
+  const t = G && G.tutorial;
+  if(!t || !t.consenti || !svg) return;
+  const [q, r] = t.consenti.cella.split(',').map(Number);
+  const p = axialToPixel(q, r, cx, cy, R);
+  glowEsagonale(svg, p.x, p.y, R, t.consenti.cella);
+}
+
 function startTimerRespectingBanner(){
   if(!G.turnBannerActive && !G.boardDropAnimInProgress){
     startTimer();
@@ -31002,7 +31319,7 @@ function botProbVittoria(){
   return 1 - _botFi(D / (BOT_SIGMA * Math.sqrt(F)));
 }
 function botSticker(nome, prob, ritardo){
-  if(!G || !G.vsAI || G.gameOver) return false;
+  if(!G || !G.vsAI || G.gameOver || G.tutorial) return false;
   if((G.botSticker || 0) >= BOT_STICKER_MAX) return false;
   if(Math.random() >= prob) return false;
   G.botSticker = (G.botSticker || 0) + 1;
@@ -31079,6 +31396,7 @@ function botArrendi(){
 }
 
 function maybeTriggerAiTurn(){
+  if(G && G.tutorial){ tutorialEvento('turno'); return; }
   if(!G.vsAI || G.gameOver) return;
   if(G.currentPlayer!==2) return;
   if(G.sceltaBersaglio) return;
@@ -31807,7 +32125,8 @@ function aiChooseMove(){
 
 function aiPlay(){
   if(G.gameOver || G.currentPlayer!==2 || !G.vsAI) return;
-  const move=aiChooseMove();
+  const move = (G.tutorial && G.tutorial.mossaBot) ? G.tutorial.mossaBot : aiChooseMove();
+  if(G.tutorial) G.tutorial.mossaBot = null;
   if(!move){ endTurn(2); return; }
   G.turnPlayLocked = true;
   const generazione = (typeof gameGeneration !== 'undefined') ? gameGeneration : 0;
@@ -32391,7 +32710,7 @@ function finishGameWithResult(){
   const motivoEl = document.getElementById('gameover-motivo');
   if(motivoEl) motivoEl.textContent = _motivoFinePartita || '';
   try{ goRiempiPunteggi(hp1, hp2); }catch(e){ console.warn('[fine partita] punteggi: ' + (e && e.message)); }
-  if(!_finePartitaDalServer && !_fineDiProva){
+  if(!_finePartitaDalServer && !_fineDiProva && !(G && G.tutorial)){
     try{ riferisciPartita(vincitore === (G.ioSonoIlNumero || 1), vincitore === 0, !!G.vsAI && !BOT_TRAVESTITO); }catch(_){}
   }
   _finePartitaDalServer = false;
@@ -32400,6 +32719,7 @@ function finishGameWithResult(){
   try{ stickerFinePartita(); }catch(_){ }
   setTimeout(()=>{
     document.getElementById('gameover').classList.add('show');
+    try{ if(G && G.tutorial) tutorialEvento('fine'); }catch(_){ }
     try{ goEntrata(); }catch(e){ console.warn('[fine partita] entrata: ' + (e && e.message)); }
     try{ playSfxFile(vincitore === _goIoSono() ? 'end-game-win.mp3' : 'end-game-loss.mp3'); }catch(_){}
     try{ stopMusicLoopChain(); }catch(_){}
@@ -34674,6 +34994,7 @@ function armDragOrClick(e,card,playerIdx,W,H,fillColor,strokeColor,textColor,glo
   if(G.gameOver) soloVisione = true;
   if(G.turnPlayLocked) soloVisione = true;
   if(playerIdx+1!==G.currentPlayer) soloVisione = true;
+  if(G.tutorial && !tutorialCartaUsabile(card)) soloVisione = true;
   if(G.vsAI && playerIdx===1){toast("You can't see your opponent's cards!");return;}
   if(timerLeft<=0) soloVisione = true;
   e.preventDefault();
@@ -36565,6 +36886,7 @@ function renderBoard(){
   try{ stratoCarteDellaPlancia(boardSvgRoot); }catch(_){}
   try{ disegnaBombeSopraTutto(boardSvgRoot, cx, cy, R); }catch(_){}
   try{ disegnaAloneAzione(boardSvgRoot, cx, cy, R); }catch(_){}
+  try{ tutorialDisegnaMeta(boardSvgRoot, cx, cy, R); }catch(_){}
 }
 
 function render(){
