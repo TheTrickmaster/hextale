@@ -196,7 +196,6 @@ body[data-pagina="mainmenu"] #stanza-lit{ filter:blur(50px); transform:translate
   height:66px; padding:0 20px; margin:0; box-sizing:border-box;
   display:flex; align-items:center; gap:11px;
   border:0; border-radius:20px; background:none;
-  -webkit-backdrop-filter:blur(20px); backdrop-filter:blur(20px);
   cursor:var(--cursore); transition:filter .16s ease;
 }
 #mm2-fazione:hover{ filter:brightness(1.18); }
@@ -238,10 +237,11 @@ body[data-pagina="mainmenu"] #stanza-lit{ filter:blur(50px); transform:translate
 .mm2-tab.attivo .mm2-tab-alone{ opacity:1; }
 .mm2-tab:not(.attivo):not(:disabled):hover .mm2-tab-fondo{ fill:rgba(255,255,255,0.05); }
 .mm2-tab:not(.attivo):not(:disabled):hover .mm2-tab-nome{ filter:brightness(1.25); }
-.mm2-nav-scintille{
-  position:absolute; inset:0; width:100%; height:100%; z-index:1;
+.mm2-nav-scintille-box{
+  position:absolute; top:0; bottom:0; overflow:hidden; z-index:1;
   pointer-events:none; mix-blend-mode:plus-lighter;
 }
+.mm2-nav-scintille{ position:absolute; left:0; display:block; pointer-events:none; }
 .mm2-tab-testi{ position:relative; z-index:2; display:flex; flex-direction:column; align-items:center; pointer-events:none; }
 .mm2-tab-nome{ font-size:26px; line-height:1.1; }
 .mm2-tab-play .mm2-tab-nome{ font-size:50px; }
@@ -6886,7 +6886,7 @@ try{
                  onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();mostraModuloAccesso('registrazione');}">Create a new one</a></div>
             </div>
             <div class="filters-riga hx-riga-oppure"><span>or</span></div>
-            <button type="button" id="login-google-btn" aria-label="Login with Google" title="Login with Google" onclick="accessoConGoogle()">
+            <button type="button" id="login-google-btn" aria-label="Login with Google" onclick="accessoConGoogle()">
               <img id="login-google-icon" alt="" draggable="false">
             </button>
           </div>
@@ -7023,11 +7023,11 @@ try{
     <div id="chat-pannello"></div>
     <div id="mm2-topbar">
       <div id="mm2-tb-sx">
-        <div class="player-avatar" id="mm2-avatar" onclick="apriCustomizeDalMenu()" title="Customize">
+        <div class="player-avatar" id="mm2-avatar" onclick="apriCustomizeDalMenu()" aria-label="Customize">
           <img class="player-avatar-photo" alt="" draggable="false">
           <img class="player-avatar-frame" alt="" draggable="false">
         </div>
-        <button type="button" id="mm2-fazione" onclick="mm2CambiaFazione()" title="Card colour">
+        <button type="button" id="mm2-fazione" onclick="mm2CambiaFazione()" aria-label="Card colour">
           <img id="mm2-fazione-icona" alt="" draggable="false">
           <span id="mm2-fazione-nome">Light</span>
         </button>
@@ -7104,7 +7104,7 @@ try{
             </div>
           </div>
         </div>
-        <div id="mm2-rank" onclick="apriClassifica()" title="Leaderboard">
+        <div id="mm2-rank" onclick="apriClassifica()" aria-label="Leaderboard">
           <img id="mm2-rank-icona" alt="" draggable="false">
           <div id="mm2-rank-destra">
             <div id="mm2-rank-testi">
@@ -7611,10 +7611,11 @@ try{
     <feComposite operator="in" in2="blurred" result="white"/>
     <feComposite operator="in" in="white" in2="SourceAlpha" result="inner"/>
     <feMerge result="filled"><feMergeNode in="SourceGraphic"/><feMergeNode in="inner"/></feMerge>
-    <feMorphology in="SourceAlpha" operator="dilate" radius="0.5" result="grown"/>
+    <feMorphology in="SourceAlpha" operator="erode" radius="0.5" result="shrunk"/>
+    <feComposite in="SourceAlpha" in2="shrunk" operator="out" result="ring"/>
     <feFlood flood-color="#DDCBA3"/>
-    <feComposite operator="in" in2="grown" result="stroke"/>
-    <feMerge result="text"><feMergeNode in="stroke"/><feMergeNode in="filled"/></feMerge>
+    <feComposite operator="in" in2="ring" result="stroke"/>
+    <feMerge result="text"><feMergeNode in="filled"/><feMergeNode in="stroke"/></feMerge>
     <feGaussianBlur in="text" stdDeviation="2" result="soft"/>
     <feOffset in="soft" dy="2" result="low"/>
     <feFlood flood-color="#000000" flood-opacity="0.8"/>
@@ -7625,7 +7626,7 @@ try{
 <button id="btn-show-results" class="hx-btn hx-btn-opaco" onclick="toggleBoardView(false)">
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.86</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:20px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.87</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -12928,6 +12929,7 @@ function showPage(name){
   setTimeout(() => { try{ allineaVersioneAiSocial(); }catch(_){ } }, 900);
   _chiudiTransizione();
   const vecchia = _activePage;
+  if(vecchia === 'packs' && name !== 'packs'){ try{ bustinaLasciata(); }catch(_){ } }
   const entra = (vecchia !== name) && PAGINE_DELLA_STANZA.has(name);
   const esce = entra && PAGINE_DELLA_STANZA.has(vecchia) && _radiciPagina(vecchia).length > 0;
   if(name !== 'packs' && typeof PolvereBustineFerma === 'function') PolvereBustineFerma();
@@ -13306,7 +13308,7 @@ const MM2_TAB_FORME = {
   play: { x:-2,  y:-11, alta:113, punta:45.2 },
   dx:   { x:null, y:-16, alta:125, punta:50 },
 };
-const MM2_TAB_SCINTILLE = { ...MM2_SCINTILLE, quante:300, rMin:1.0, rMax:2.6, alfaMin:0.55, alfaMax:1 };
+const MM2_TAB_SCINTILLE = { ...MM2_SCINTILLE, quante:520, rMin:1.0, rMax:2.6, alfaMin:0.55, alfaMax:1 };
 function _mm2TabPunti(forma, larga){
   const f = MM2_TAB_FORME[forma], a = f.alta, m = a / 2, d = f.punta, w = larga;
   if(forma === 'sx')   return [[0,m],[d,0],[w,0],[w-d,m],[w,a],[d,a]];
@@ -13337,12 +13339,16 @@ function mm2DisegnaTab(btn){
     + '<g clip-path="url(#' + id + '-fuori)"><path class="mm2-tab-alone" d="' + d + '" filter="url(#' + id + '-sfuma)"/></g>'
     + '<path class="mm2-tab-fondo" d="' + d + '"/>';
   btn.insertBefore(svg, btn.firstChild);
+  const box = document.createElement('div');
+  box.className = 'mm2-nav-scintille-box';
+  box.setAttribute('aria-hidden', 'true');
+  box.style.left = x + 'px'; box.style.width = larga + 'px';
   const tela = document.createElement('canvas');
   tela.className = 'mm2-nav-scintille';
-  tela.setAttribute('aria-hidden', 'true');
-  const clip = punti.map(p => (p[0] + x).toFixed(1) + 'px ' + (p[1] + f.y).toFixed(1) + 'px').join(', ');
-  tela.style.clipPath = 'polygon(' + clip + ')';
-  btn.insertBefore(tela, svg.nextSibling);
+  tela.style.top = f.y + 'px'; tela.style.width = larga + 'px'; tela.style.height = f.alta + 'px';
+  tela.style.clipPath = 'polygon(' + punti.map(p => p[0].toFixed(1) + 'px ' + p[1].toFixed(1) + 'px').join(', ') + ')';
+  box.appendChild(tela);
+  btn.insertBefore(box, svg.nextSibling);
 }
 function mm2AccendiTab(quale){
   document.querySelectorAll('#mm2-nav .mm2-tab').forEach(btn=>{
@@ -13353,7 +13359,7 @@ function mm2AccendiTab(quale){
     if(attivo && !_scintilleNav.has(btn)){
       const scena = nuovaScenaPolvere();
       _scintilleNav.set(btn, scena);
-      PolvereAvvia([{ ...MM2_TAB_SCINTILLE, el:tela }], scena, btn);
+      PolvereAvvia([{ ...MM2_TAB_SCINTILLE, el:tela }], scena, tela);
     } else if(!attivo && _scintilleNav.has(btn)){
       PolvereFerma(_scintilleNav.get(btn));
       _scintilleNav.delete(btn);
@@ -13494,7 +13500,7 @@ function mm2AggiornaMazzo(){
   freccia.className = 'mm2-freccia'; freccia.alt = ''; freccia.draggable = false;
   impostaImgDaCandidati(freccia, uiFileCandidati('down-arrow-icon.png'));
   destra.append(testi, freccia);
-  if(mazzo && !mazzoGiocabile(mazzo)){ riga.classList.add('mazzo-incompleto'); riga.title = motivoNonGiocabile(mazzo); }
+  if(mazzo && !mazzoGiocabile(mazzo)){ riga.classList.add('mazzo-incompleto'); }
   riga.append(arte, icona, destra);
   dove.appendChild(riga);
 }
@@ -15860,7 +15866,6 @@ function _slotMazzoPieno(mazzo){
   check.classList.toggle('non-giocabile', !giocabile);
   if(!giocabile) check.setAttribute('aria-label', 'Deck not playable yet');
   el.classList.toggle('mazzo-incompleto', !giocabile);
-  if(!giocabile) el.title = motivoNonGiocabile(mazzo);
   check.onclick = (ev)=>{ ev.stopPropagation(); selezionaMazzo(mazzo.id); };
   const nome = document.createElement('span');
   nome.className = 'deck-slot-nome';
@@ -19344,7 +19349,7 @@ function costruisciGrigliaAvatar(){
     b.type = 'button';
     b.className = 'avatar-scelta' + (slug === _avatarInForse ? ' scelta' : '');
     b.setAttribute('data-slug', slug);
-    b.title = entry.name || slug;
+    b.setAttribute('aria-label', entry.name || slug);
     const bagliore = document.createElement('span');
     bagliore.className = 'avatar-glow';
     bagliore.appendChild(document.createElement('span'));
@@ -21389,6 +21394,7 @@ async function raccogliCarte(){
         return;
       }
       applicaValuteDalServer(r && r.valute);
+      _bustaSpesa = null;
       try{ if(r && r.quest) mm2DisegnaQuest(r.quest); if(r && r.questMosse) questMostraMosse(r.questMosse); }catch(_){ }
       if(r && typeof r.bustinaProssima === 'number') _bustinaSalvaProssima(r.bustinaProssima);
       if(r && typeof r.bustineExtra === 'number') BUSTINE_VINTE = r.bustineExtra;
@@ -21904,6 +21910,16 @@ function montaGraficaBustine(){
     impostaVariabileDaCandidati(el, '--hx-trama', uiFileCandidati('brushed-texture.jpg'));
   });
   pkRisolviIcona();
+}
+
+function bustinaLasciata(){
+  if(!_bustinaInCorso && !_busta && !_bustaSpesa) return;
+  const spesa = _bustaSpesa;
+  _bustaSpesa = null;
+  _bustaGiro++;
+  try{ _bustaFermaCarica(); }catch(_){ }
+  tornaAllaBustina();
+  if(spesa) _bustinaRidaiPacchetto(Object.assign({}, spesa, { giro: _bustaGiro }));
 }
 
 function openPackOverlay(){
