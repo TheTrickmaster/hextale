@@ -8048,7 +8048,7 @@ try{
 <button id="btn-show-results" class="hx-btn hx-btn-opaco" onclick="toggleBoardView(false)">
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:10px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.98</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:10px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.99</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -14060,7 +14060,7 @@ function mmAvviaCronometro(){
     try{ mmPromemoriaAggiorna(); }catch(_){ }
     const et = document.querySelector('#mm2-find .hxb-label');
     if(et) et.textContent = _mmSottoIlDito ? 'Cancel'
-      : (_mmStanza ? 'Waiting for friend...(' + s + 's)'
+      : (_mmStanza ? 'Waiting... (' + s + 's)'
                    : 'Searching...(' + s + 's)');
     if(_mmStanza && !_trovatoMatch && Date.now() > _mmStanza.scade){
       const nome = _mmStanza.nome || 'Your friend';
@@ -22023,7 +22023,7 @@ function bustaPosa(){
   const scena = _bustaScena();
   _bustinaInCorso = true;
   _bustinaAnnullaTempi();
-  scena.classList.remove('busta-in-mano');
+  scena.classList.remove('busta-in-mano', 'busta-sulla-fila');
   scena.classList.add('sbustando');
   scena.classList.add('busta-si-posa');
   _bustaAzzeraTrasformazioni();
@@ -22903,10 +22903,7 @@ function initPacchettiGesti(){
     const dxp = e.clientX - giu.x, dyp = e.clientY - giu.y;
     if(!giu.modo){
       if(Math.abs(dxp) < PK_SOGLIA_TRASCINO && Math.abs(dyp) < PK_SOGLIA_TRASCINO) return;
-      if(Math.abs(dxp) > Math.abs(dyp) && giu.nellaVista && pkPuoScorrere()){
-        giu.modo = 'scorre';
-        try{ vista.setPointerCapture(giu.id); }catch(_){ }
-      } else if(giu.slot && bustaSolleva(giu.slot.dataset.tipo, e.clientX, e.clientY)){
+      if(giu.slot && bustaSolleva(giu.slot.dataset.tipo, e.clientX, e.clientY)){
         giu.modo = 'solleva';
       } else {
         giu = null; return;
@@ -34180,6 +34177,7 @@ function cardBaseSrc(card, isDark){
 
 const LAMINA_COLORI = { rare:'#5EC3D9', mythic:'#D24979', timeless:'#E5861D' };
 const LAMINA_FERMATE = [[-1,0],[-0.5,0.8],[-0.15,0],[0,1],[0.42,0],[1,0.35],[1.5,0.8],[2,0]];
+const LAMINA_OBLIQUO = 30;
 function aggiungiLaminaRarita(svg, defs, gruppo, card, isDark, boxW, boxH, scale, raggio){
   const colore = LAMINA_COLORI[card && card.rarity];
   if(!colore) return;
@@ -34188,7 +34186,10 @@ function aggiungiLaminaRarita(svg, defs, gruppo, card, isDark, boxW, boxH, scale
   const id = Math.random().toString(36).slice(2);
   const grad = document.createElementNS(NS, 'linearGradient');
   grad.setAttribute('id', 'hcf-lamina-g-' + id);
-  grad.setAttribute('x1', '0'); grad.setAttribute('y1', '0'); grad.setAttribute('x2', '0'); grad.setAttribute('y2', '1');
+  grad.setAttribute('gradientUnits', 'userSpaceOnUse');
+  grad.setAttribute('x1', (boxW / 2).toFixed(2)); grad.setAttribute('y1', (-boxH).toFixed(2));
+  grad.setAttribute('x2', (boxW / 2).toFixed(2)); grad.setAttribute('y2', (2 * boxH).toFixed(2));
+  grad.setAttribute('gradientTransform', 'rotate(' + LAMINA_OBLIQUO + ' ' + (boxW / 2).toFixed(2) + ' ' + (boxH / 2).toFixed(2) + ')');
   for(const [c, a] of LAMINA_FERMATE){
     const s = document.createElementNS(NS, 'stop');
     s.setAttribute('offset', ((c + 1) / 3).toFixed(4));
