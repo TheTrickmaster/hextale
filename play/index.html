@@ -144,6 +144,13 @@ body.mouse-down, body.mouse-down *{
 #stanza-bg, #stanza-lit{ position:absolute; inset:0; background-size:cover; background-position:center; background-repeat:no-repeat; }
 #stanza-bg{ background-image:url('https://hextalegame.com/ui/main-menu-bg.jpg'); }
 #stanza-lit{ background-image:url('https://hextalegame.com/ui/main-menu-bg-lit.jpg'); opacity:0.5; animation:mm2Fiaccola 2.2s linear infinite; }
+#stanza-bg, #stanza-lit{ transform:translateX(var(--stanza-px, 0px)) scale(1.03); }
+#stanza-trama{
+  position:absolute; inset:0;
+  background-image:var(--hx-trama, none); background-size:512px 512px; background-repeat:repeat;
+  background-position:var(--stanza-trama-px, 0px) 0;
+  opacity:0.4; mix-blend-mode:overlay;
+}
 .stanza-particelle{ position:absolute; inset:0; width:100%; height:100%; pointer-events:none; mix-blend-mode:plus-lighter; }
 #stanza-particles-far{ filter:blur(1px); }
 #stanza-particles-near{ filter:blur(3.5px); }
@@ -169,8 +176,6 @@ body.mouse-down, body.mouse-down *{
   pointer-events:none;
 }
 
-body[data-pagina="mainmenu"] #stanza-bg,
-body[data-pagina="mainmenu"] #stanza-lit{ filter:blur(50px); transform:translateX(var(--stanza-px, 0px)) scale(1.124); }
 
 #mm2-topbar{
   position:absolute; left:0; top:0; z-index:30;
@@ -860,6 +865,7 @@ body[data-pagina="packs"] #build-version-badge{
   z-index:0 !important;
 }
 #start-effetti.pulsa{ animation:startEffettiPulsa 4s ease-in-out infinite alternate; }
+#start-effetti{ display:none !important; }
 @keyframes startEffettiPulsa{
   from{ opacity:1; }
   to  { opacity:0.45; }
@@ -6538,10 +6544,6 @@ body[data-pagina="collection"] #cornice,
 body[data-pagina="packs"] #cornice{ display:block; }
 #cornice > *{ pointer-events:auto; }
 #cornice > #chat-pannello{ pointer-events:none; }
-body[data-pagina="collection"] #stanza-bg,
-body[data-pagina="collection"] #stanza-lit,
-body[data-pagina="packs"] #stanza-bg,
-body[data-pagina="packs"] #stanza-lit{ filter:blur(50px); transform:translateX(var(--stanza-px, 0px)) scale(1.124); }
 body[data-pagina="collection"] #card-db-bg{ display:none !important; }
 
 #card-db-barra-cerca{
@@ -7045,6 +7047,7 @@ try{
 <div id="stanza" aria-hidden="true">
   <div id="stanza-bg"></div>
   <div id="stanza-lit"></div>
+  <div id="stanza-trama"></div>
   <canvas id="stanza-particles-far"  class="stanza-particelle"></canvas>
   <canvas id="stanza-particles-mid"  class="stanza-particelle"></canvas>
   <canvas id="stanza-particles-near" class="stanza-particelle"></canvas>
@@ -7664,7 +7667,7 @@ try{
 <button id="btn-show-results" class="hx-btn hx-btn-opaco" onclick="toggleBoardView(false)">
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:10px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.95</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:10px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.96</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -12644,7 +12647,6 @@ function montaColonnaAccesso(){
   impostaImgDaCandidati(document.getElementById('start-radial-a'), uiFileCandidati('radial-glow.png'));
   impostaImgDaCandidati(document.getElementById('start-radial-b'), uiFileCandidati('radial-glow-flipped.png'));
   ridisegnaICampiQuandoCiSonoIFont();
-  impostaImgDaCandidati(document.getElementById('start-effetti'), uiFileCandidati('start-screen-effects.png'));
   impostaImgDaCandidati(document.getElementById('login-google-icon'), uiFileCandidati('google-icon.png'));
   impostaImgDaCandidati(document.getElementById('accesso-logo'), uiFileCandidati('hextale-logo-login.png'));
   impostaImgDaCandidati(document.querySelector('#accesso-chiudi img'), uiFileCandidati('close-icon.png'));
@@ -12927,6 +12929,7 @@ function _chiudiTransizione(){
 }
 const STANZA_PARALLASSE_PX = 24;
 const STANZA_PARALLASSE_SEGUE = 0.08;
+const STANZA_TRAMA_PER = 2.5;
 let _stanzaMiraX = 0, _stanzaOraX = 0, _stanzaRaf = null;
 function _stanzaParallassePasso(){
   _stanzaRaf = null;
@@ -12935,6 +12938,7 @@ function _stanzaParallassePasso(){
   _stanzaOraX += (_stanzaMiraX - _stanzaOraX) * STANZA_PARALLASSE_SEGUE;
   if(Math.abs(_stanzaMiraX - _stanzaOraX) < 0.05) _stanzaOraX = _stanzaMiraX;
   st.style.setProperty('--stanza-px', _stanzaOraX.toFixed(2) + 'px');
+  st.style.setProperty('--stanza-trama-px', (_stanzaOraX * STANZA_TRAMA_PER).toFixed(2) + 'px');
   if(_stanzaOraX !== _stanzaMiraX) _stanzaRaf = requestAnimationFrame(_stanzaParallassePasso);
 }
 window.addEventListener('pointermove', function(ev){
@@ -12947,6 +12951,8 @@ function stanzaAccendi(si){
   const st = document.getElementById('stanza');
   if(!st) return;
   st.classList.toggle('accesa', !!si);
+  if(si && !st.style.getPropertyValue('--hx-trama'))
+    impostaVariabileDaCandidati(st, '--hx-trama', uiFileCandidati('brushed-texture.jpg'));
   if(si){ if(!_scenaMenu.strati) PolvereAvvia(MM2_PIANI, _scenaMenu); }
   else PolvereFerma(_scenaMenu);
 }
