@@ -2057,6 +2057,11 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
   transition: opacity .18s ease;
   opacity: 1;
 }
+.hcf-lamina-lastra{
+  transform:translateY(calc(var(--foil-ry, 0) * -1 * var(--lamina-corsa, 0px)));
+  transition:transform .18s ease-out;
+}
+@media (prefers-reduced-motion: reduce){ .hcf-lamina-lastra{ transition:none; } }
 .hand-card-glow{
   position:absolute; left:50%; top:50%;
   width:calc(100% + 8px); height:calc(100% + 8px);
@@ -7659,7 +7664,7 @@ try{
 <button id="btn-show-results" class="hx-btn hx-btn-opaco" onclick="toggleBoardView(false)">
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:10px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.94</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:10px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.81.95</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -33078,7 +33083,62 @@ const CARD_BASE_BY_RARITY = { dark:{}, light:{} };
 });
 function cardBaseSrc(card, isDark){
   const lato = isDark ? CARD_BASE_BY_RARITY.dark : CARD_BASE_BY_RARITY.light;
-  return lato[card && card.rarity] || lato.common;
+  return lato.common;
+}
+
+const LAMINA_COLORI = { rare:'#5EC3D9', mythic:'#D24979', timeless:'#E5861D' };
+const LAMINA_FERMATE = [[-1,0],[-0.5,0.8],[-0.15,0],[0,1],[0.42,0],[1,0.35],[1.5,0.8],[2,0]];
+function aggiungiLaminaRarita(svg, defs, gruppo, card, isDark, boxW, boxH, scale, raggio){
+  const colore = LAMINA_COLORI[card && card.rarity];
+  if(!colore) return;
+  const NS = 'http://www.w3.org/2000/svg';
+  const px = 976 / 640 * scale;
+  const id = Math.random().toString(36).slice(2);
+  const grad = document.createElementNS(NS, 'linearGradient');
+  grad.setAttribute('id', 'hcf-lamina-g-' + id);
+  grad.setAttribute('x1', '0'); grad.setAttribute('y1', '0'); grad.setAttribute('x2', '0'); grad.setAttribute('y2', '1');
+  for(const [c, a] of LAMINA_FERMATE){
+    const s = document.createElementNS(NS, 'stop');
+    s.setAttribute('offset', ((c + 1) / 3).toFixed(4));
+    s.setAttribute('stop-color', colore);
+    s.setAttribute('stop-opacity', String(a));
+    grad.appendChild(s);
+  }
+  defs.appendChild(grad);
+  const tondo = (x, r) => { const e = document.createElementNS(NS, 'rect');
+    e.setAttribute('x', x.toFixed(2)); e.setAttribute('y', x.toFixed(2));
+    e.setAttribute('width', (boxW - 2 * x).toFixed(2)); e.setAttribute('height', (boxH - 2 * x).toFixed(2));
+    e.setAttribute('rx', Math.max(0, r).toFixed(2)); e.setAttribute('ry', Math.max(0, r).toFixed(2)); return e; };
+  const maschera = document.createElementNS(NS, 'mask');
+  maschera.setAttribute('id', 'hcf-lamina-m-' + id);
+  maschera.setAttribute('maskUnits', 'userSpaceOnUse');
+  maschera.setAttribute('x', '0'); maschera.setAttribute('y', '0');
+  maschera.setAttribute('width', boxW); maschera.setAttribute('height', boxH);
+  const fascia = document.createElementNS(NS, 'path');
+  const giro = (x, r) => { const w = boxW - 2 * x, h = boxH - 2 * x; r = Math.max(0, Math.min(r, w / 2, h / 2));
+    return 'M' + (x + r) + ',' + x + 'h' + (w - 2 * r) + 'a' + r + ',' + r + ' 0 0 1 ' + r + ',' + r + 'v' + (h - 2 * r)
+      + 'a' + r + ',' + r + ' 0 0 1 ' + (-r) + ',' + r + 'h' + (-(w - 2 * r)) + 'a' + r + ',' + r + ' 0 0 1 ' + (-r) + ',' + (-r)
+      + 'v' + (-(h - 2 * r)) + 'a' + r + ',' + r + ' 0 0 1 ' + r + ',' + (-r) + 'z'; };
+  fascia.setAttribute('d', giro(0, raggio) + giro(19 * px, raggio - 19 * px));
+  fascia.setAttribute('fill-rule', 'evenodd');
+  fascia.setAttribute('fill', '#fff');
+  fascia.setAttribute('fill-opacity', isDark ? '0.22' : '0.55');
+  maschera.appendChild(fascia);
+  const filo = tondo(20 * px, raggio - 20 * px);
+  filo.setAttribute('fill', 'none'); filo.setAttribute('stroke', '#fff'); filo.setAttribute('stroke-width', (3 * px).toFixed(2));
+  maschera.appendChild(filo);
+  defs.appendChild(maschera);
+  const g = document.createElementNS(NS, 'g');
+  g.setAttribute('class', 'hcf-lamina');
+  g.setAttribute('mask', 'url(#hcf-lamina-m-' + id + ')');
+  const lastra = document.createElementNS(NS, 'rect');
+  lastra.setAttribute('class', 'hcf-lamina-lastra');
+  lastra.setAttribute('x', '0'); lastra.setAttribute('y', (-boxH).toFixed(2));
+  lastra.setAttribute('width', boxW); lastra.setAttribute('height', (3 * boxH).toFixed(2));
+  lastra.setAttribute('fill', 'url(#hcf-lamina-g-' + id + ')');
+  lastra.style.setProperty('--lamina-corsa', (boxH / 2).toFixed(1) + 'px');
+  g.appendChild(lastra);
+  gruppo.appendChild(g);
 }
 const CARD_VALUE_VISUAL_HINT_DARK  = CARD_PARTS_BASE+'value-visual-hint-dark.png';
 const CARD_VALUE_VISUAL_HINT_LIGHT = CARD_PARTS_BASE+'value-visual-hint-light.png';
@@ -34051,6 +34111,7 @@ function buildFullHandCardSVG(card, boxW, boxH, preview){
   baseImg.setAttribute('width', boxW); baseImg.setAttribute('height', boxH);
   baseImg.setAttribute('preserveAspectRatio','xMidYMid slice');
   chromeGroup.appendChild(baseImg);
+  try{ aggiungiLaminaRarita(svg, defs, chromeGroup, card, isDark, boxW, boxH, scale, CORNER_RADIUS); }catch(_){ }
 
   const g = isDark ? CARD_BORDER_GRADIENT_DARK : CARD_BORDER_GRADIENT_LIGHT;
   const gradId='hcf-bordergrad-'+Math.random().toString(36).slice(2);
