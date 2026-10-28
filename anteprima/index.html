@@ -1716,6 +1716,11 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
   transition:opacity 0.12s ease-out, transform 0.12s ease-out;
 }
 .bolla-campo.dentro{ opacity:1; transform:translate(-50%,-50%) translateY(0); }
+.bolla-campo-gemma{
+  position:absolute; left:50%; top:50%; width:32px; height:32px; display:block;
+  object-fit:contain; pointer-events:none;
+  filter:drop-shadow(2px 4px 0 #24292A);
+}
 .bolla-campo.via{ opacity:0; transition:opacity 0.15s ease-in; }
 .numero-campo-svg{
   position:relative; flex:none; overflow:visible; pointer-events:none;
@@ -2617,7 +2622,7 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
 }
 .copione-velo.mostra .copione-tizio{ transform:translateY(0); }
 .copione-fumetto{
-  position:absolute; right:583px; top:647px;
+  position:absolute; right:583px; top:712px;
   transform:translateY(-50%);
   filter:drop-shadow(0 0 20px #111415) drop-shadow(0 0 20px #111415);
 }
@@ -8108,7 +8113,7 @@ try{
 <button id="btn-show-results" class="hx-btn hx-btn-opaco" onclick="toggleBoardView(false)">
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:12.5px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.82.10</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:12.5px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.82.11</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -33989,13 +33994,13 @@ function carteCheFruttano(){
     if(!c) continue;
     const punti = puntiInCampoDi(c.card);
     if(punti <= 0) continue;
-    (celle[c.owner] || (celle[c.owner]=[])).push({ k:k, punti:punti });
+    (celle[c.owner] || (celle[c.owner]=[])).push({ k:k, punti:punti, rarita: c.card && c.card.rarity });
   }
   for(const y of (G.yeti || [])){
     if(y.stato !== 'nascosto') continue;
     const punti = puntiDiCarta(y.card);
     if(punti <= 0) continue;
-    (celle[y.di] || (celle[y.di]=[])).push({ k: _yetiLoVedo(y) ? y.cella : null, punti:punti });
+    (celle[y.di] || (celle[y.di]=[])).push({ k: _yetiLoVedo(y) ? y.cella : null, punti:punti, rarita: y.card && y.card.rarity });
   }
   return celle;
 }
@@ -34080,7 +34085,17 @@ function numeroCampoSvg(testo){
   svg.appendChild(t);
   return svg;
 }
-function bollaPuntiSulCampo(player, punti, punto){
+const BOLLA_CAMPO_GEMMA = 32;
+const BOLLA_CAMPO_GEMMA_STACCO = 8;
+let _bollaCampoMisura = null;
+function _larghezzaNumeroCampo(testo){
+  try{
+    if(!_bollaCampoMisura) _bollaCampoMisura = document.createElement('canvas').getContext('2d');
+    _bollaCampoMisura.font = "80px 'Marcellus SC', 'Marcellus', serif";
+    return _bollaCampoMisura.measureText(testo).width;
+  }catch(_){ return 46 * String(testo).length; }
+}
+function bollaPuntiSulCampo(player, punti, punto, rarita){
   if(!punti || !punto) return;
   const strato = fxLayer();
   if(!strato) return;
@@ -34088,8 +34103,23 @@ function bollaPuntiSulCampo(player, punti, punto){
   el.className = 'bolla-campo';
   el.style.left = punto.x.toFixed(1) + 'px';
   el.style.top  = punto.y.toFixed(1) + 'px';
-  el.dataset.testo = conSegno(punti);
-  el.appendChild(numeroCampoSvg(conSegno(punti)));
+  const rar = String(rarita || '').toLowerCase();
+  const conGemma = ['common', 'rare', 'mythic', 'timeless'].indexOf(rar) >= 0;
+  const testo = conGemma ? String(punti) : conSegno(punti);
+  el.dataset.testo = testo;
+  const numero = numeroCampoSvg(testo);
+  el.appendChild(numero);
+  if(conGemma){
+    el.dataset.rarita = rar;
+    const passo = BOLLA_CAMPO_GEMMA + BOLLA_CAMPO_GEMMA_STACCO;
+    const meta = _larghezzaNumeroCampo(testo) / 2;
+    numero.style.transform = 'translateX(' + (passo / 2).toFixed(1) + 'px)';
+    const gemma = document.createElement('img');
+    gemma.className = 'bolla-campo-gemma'; gemma.alt = ''; gemma.draggable = false;
+    gemma.style.transform = 'translate(' + (-(meta + passo / 2)).toFixed(1) + 'px, -50%)';
+    impostaImgDaCandidati(gemma, uiFileCandidati('gem-' + rar + '.png'));
+    el.appendChild(gemma);
+  }
   strato.appendChild(el);
   requestAnimationFrame(()=>{
     el.classList.add('dentro');
@@ -34099,12 +34129,12 @@ function bollaPuntiSulCampo(player, punti, punto){
     }, BOLLA_CAMPO_ENTRATA_MS + BOLLA_CAMPO_SOSTA_MS);
   });
 }
-function bollaPuntiFraCelle(player, punti, cellaA, cellaB){
+function bollaPuntiFraCelle(player, punti, cellaA, cellaB, rarita){
   try{
     const a = getCellScreenCenter(cellaA);
     const b = getCellScreenCenter(cellaB);
     const punto = (a && b) ? { x:(a.x + b.x)/2, y:(a.y + b.y)/2 } : (a || b);
-    bollaPuntiSulCampo(player, punti, punto);
+    bollaPuntiSulCampo(player, punti, punto, rarita);
   }catch(e){ console.warn('[punti] bolla saltata: ' + e); }
 }
 const NUMERO_DANNO_VITA_MS = 1400;
@@ -34329,7 +34359,7 @@ function ondataDanno(owner, cellKeys, onDone){
           el.classList.add(colorClass==='dark'?'sd-flash-red':'sd-flash-blue');
         }
         incrementaBollaPunti(owner, cella.punti);
-        if(k) bollaPuntiFraCelle(owner, cella.punti, k, k);
+        if(k) bollaPuntiFraCelle(owner, cella.punti, k, k, cella.rarita);
       }catch(e){ console.warn('[punti] carta '+k+' saltata: '+e); }
     }, INIZIO + i*PASSO_MS);
   });
