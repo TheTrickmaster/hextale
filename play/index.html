@@ -4694,6 +4694,7 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
 .card-db-card-slot{
   position:absolute;
   transition:transform 0.18s ease;
+  content-visibility:auto; contain-intrinsic-size:auto 210px auto 360px; overflow-clip-margin:60px;
 }
 .card-db-card-slot.carta-nuova{
   filter:drop-shadow(0 0 10px #fff);
@@ -8107,7 +8108,7 @@ try{
 <button id="btn-show-results" class="hx-btn hx-btn-opaco" onclick="toggleBoardView(false)">
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:12.5px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.82.8</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:12.5px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.82.9</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -9960,10 +9961,7 @@ function PolvereAvvia(piani, scena, misura){
     if(!tela || !tela.getContext) continue;
     const ctx = tela.getContext('2d');
     if(!ctx) continue;
-    const strato = { piano, tela, ctx, granelli:[], w:0, h:0, dpr:1, misura: misura || null };
-    if(_pDimensiona(strato)){
-      for(let i=0;i<piano.quante;i++) strato.granelli.push(_pNuovoGranello(piano, strato.w, strato.h, true));
-    }
+    const strato = { piano, tela, ctx, granelli:[], w:0, h:0, dpr:1, misura: misura || null, inAttesa: true };
     strati.push(strato);
   }
   if(!strati.length) return;
@@ -13201,11 +13199,9 @@ function PolvereBustineAvvia(){
     const ctx = tela.getContext('2d');
     if(!ctx) continue;
     const strato = { piano, tela, ctx, granelli:[], w:0, h:0, dpr:1 };
-    _pbDimensiona(strato);
     strati.push(strato);
   }
   if(!strati.length) return;
-  _pbRiempi(strati);
   _polvereBustineStrati = strati;
   _polvereBustineResize = ()=>{
     if(!_polvereBustineStrati) return;
@@ -13213,8 +13209,14 @@ function PolvereBustineAvvia(){
     _pbRiempi(_polvereBustineStrati);
   };
   window.addEventListener('resize', _polvereBustineResize);
+  let misurati = false;
   const passo = (ora)=>{
     _polvereBustineRAF = requestAnimationFrame(passo);
+    if(!misurati){
+      misurati = true;
+      for(const s of _polvereBustineStrati) _pbDimensiona(s);
+      _pbRiempi(_polvereBustineStrati);
+    }
     const t = ora/1000;
     for(const s of _polvereBustineStrati){
       const {ctx, w, h} = s;
@@ -13312,7 +13314,7 @@ function _animaUnPezzo(el, p, verso, m){
     });
   }catch(_){ return null; }
 }
-function _animaPezzi(nome, verso){
+function _misuraPezziDi(nome){
   const misurati = [];
   for(const p of (PAGINE_PEZZI[nome] || [])){
     for(const el of document.querySelectorAll(p.sel)){
@@ -13320,6 +13322,10 @@ function _animaPezzi(nome, verso){
       misurati.push([el, p, _misuraPezzo(el, p)]);
     }
   }
+  return misurati;
+}
+function _animaPezzi(nome, verso, misurati){
+  if(!misurati) misurati = _misuraPezziDi(nome);
   const fuori = [];
   for(const [el, p, m] of misurati){
     const a = _animaUnPezzo(el, p, verso, m);
@@ -13348,6 +13354,15 @@ function _urlDiSfondo(valore){
 }
 function assetProntiDi(radici, tettoMs){
   const elenco = (Array.isArray(radici) ? radici : [radici]).filter(Boolean);
+  if(elenco.length === 1 && elenco[0].__assetConta && elenco[0].__assetConta === elenco[0].getElementsByTagName('*').length) return Promise.resolve(true);
+  const r = _assetProntiDiTutti(elenco, tettoMs);
+  if(elenco.length === 1){
+    const radice = elenco[0];
+    r.then(ok => { if(ok && radice.isConnected) radice.__assetConta = radice.getElementsByTagName('*').length; });
+  }
+  return r;
+}
+function _assetProntiDiTutti(elenco, tettoMs){
   const attese = [], visti = new Set();
   const aspettaUrl = (u) => { if(u && !/^data:/i.test(u) && !visti.has(u)){ visti.add(u); attese.push(_decodificaImmagine(u)); } };
   for(const radice of elenco){
@@ -13390,6 +13405,7 @@ function _entraQuandoPronti(nome, t){
   let pronti = [];
   const parti = () => {
     const giro = pronti; pronti = [];
+    for(const [el] of giro) el.classList.remove('pezzo-attende');
     if(_transizione !== t) return;
     const misurati = giro.filter(([el]) => el.isConnected).map(([el, p]) => [el, p, _misuraPezzo(el, p)]);
     for(const [el, p, m] of misurati){
@@ -13403,14 +13419,13 @@ function _entraQuandoPronti(nome, t){
       el.classList.add('pezzo-attende');
       t.inAttesa.push(el);
       partenze.push(assetProntiDi(el).then(() => {
-        el.classList.remove('pezzo-attende');
-        if(_transizione !== t || !el.isConnected) return;
+        if(_transizione !== t || !el.isConnected){ el.classList.remove('pezzo-attende'); return; }
         pronti.push([el, p]);
-        if(pronti.length === 1) queueMicrotask(parti);
+        if(pronti.length === 1) requestAnimationFrame(parti);
       }));
     }
   }
-  return Promise.all(partenze);
+  return Promise.all(partenze).then(() => new Promise(res => requestAnimationFrame(() => { parti(); res(); })));
 }
 function _fineAnimazione(a){
   try{ return a.effect.getComputedTiming().endTime || 0; }catch(_){ return TRANSIZIONE_MS; }
@@ -13481,6 +13496,7 @@ function showPage(name){
   const esce = entra && PAGINE_DELLA_STANZA.has(vecchia) && _radiciPagina(vecchia).length > 0;
   if(name !== 'packs' && typeof PolvereBustineFerma === 'function') PolvereBustineFerma();
   if(name !== 'mainmenu' && typeof fermaOrologioSegnalibroBustine === 'function') fermaOrologioSegnalibroBustine();
+  const misureUscita = esce ? _misuraPezziDi(vecchia) : null;
   for(const other in PAGE_ELEMENT_IDS){ if(other!==name && !(esce && other===vecchia)) unmountPage(other); }
   mountPage(name);
   _activePage = name;
@@ -13494,7 +13510,7 @@ function showPage(name){
   let uscite = [];
   if(esce){
     _segnaPagina(vecchia, 'pagina-esce', true);
-    uscite = _animaPezzi(vecchia, 'esce');
+    uscite = _animaPezzi(vecchia, 'esce', misureUscita);
     _segnaPagina(name, 'pagina-attende', true);
   }
   const hook = PAGE_ENTER_HOOKS[name];
@@ -13879,10 +13895,10 @@ function mm2DisegnaTab(btn){
   svg.setAttribute('aria-hidden', 'true');
   svg.style.left = x + 'px'; svg.style.top = f.y + 'px';
   svg.innerHTML = '<defs>'
-    + '<clipPath id="' + id + '-fuori"><path clip-rule="evenodd" d="M-300,-300 H' + (larga + 300) + ' V' + (f.alta + 300) + ' H-300 Z ' + d + '"/></clipPath>'
+    + '<clipPath id="' + id + '-dentro"><path d="' + d + '"/></clipPath>'
     + '<filter id="' + id + '-sfuma" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="10"/></filter>'
     + '</defs>'
-    + '<g clip-path="url(#' + id + '-fuori)"><path class="mm2-tab-alone" d="' + d + '" filter="url(#' + id + '-sfuma)"/></g>'
+    + '<g clip-path="url(#' + id + '-dentro)"><path class="mm2-tab-alone" d="' + d + '" filter="url(#' + id + '-sfuma)"/></g>'
     + '<path class="mm2-tab-fondo" d="' + d + '"/>';
   btn.insertBefore(svg, btn.firstChild);
   const box = document.createElement('div');
@@ -19326,12 +19342,14 @@ function _parolaCoperta(p){
   try{ return !!(p && p.closest && p.closest('.pack-card:not(.revealed)')); }
   catch(_){ return false; }
 }
+const GLOSSARIO_VICINE_MAX = 40;
 function _glossarioParolaSotto(x, y, bersaglio){
   let dove = bersaglio && bersaglio.nodeType === 1 ? bersaglio : null;
   let parole = [];
   for(let i = 0; dove && i < 4; i++, dove = dove.parentElement){
     if(dove.classList && (dove.classList.contains('gl-parola') || dove.classList.contains('gl-icona'))){ parole = [dove]; break; }
     const q = dove.querySelectorAll ? dove.querySelectorAll('.gl-parola, .gl-icona') : [];
+    if(q.length > GLOSSARIO_VICINE_MAX) break;
     if(q.length){ parole = q; break; }
   }
   let migliore = null, distanza = Infinity;
@@ -23298,8 +23316,10 @@ function cardDbFermaCascata(grid){
     slot.getAnimations().forEach(a=>{ if(a.id === 'cascata') a.cancel(); });
   });
 }
+let _cardDbCascate = [];
 function cardDbCascataDIngresso(grid){
   if(!grid) return;
+  _cardDbCascate = [];
   const slots = [].slice.call(grid.querySelectorAll('.card-db-card-slot'))
     .filter(s => s.style.display !== 'none');
   slots.forEach((slot, i)=>{
@@ -23310,6 +23330,7 @@ function cardDbCascataDIngresso(grid){
       fill: 'backwards'
     });
     a.id = 'cascata';
+    _cardDbCascate.push(a);
   });
 }
 let _cardDbFirmaFatta = null;
@@ -23331,7 +23352,7 @@ function cardDbRenderRosterSeCambiato(){
   cardDbUpdateToggleLabel();
   if(_cardDbCascataProssima){
     _cardDbCascataProssima = false;
-    grid.getAnimations({ subtree:true }).forEach(a => { if(a.id === 'cascata') a.cancel(); });
+    _cardDbCascate.forEach(a => { try{ a.cancel(); }catch(_){ } });
     cardDbCascataDIngresso(grid);
   }
 }
@@ -39499,7 +39520,12 @@ function chatDock(){
   _cxOrologio();
   _cxCentroLibero();
 }
+let _cxCentroRaf = 0;
 function _cxCentroLibero(){
+  if(_cxCentroRaf) return;
+  _cxCentroRaf = requestAnimationFrame(() => { _cxCentroRaf = 0; _cxCentroLiberoOra(); });
+}
+function _cxCentroLiberoOra(){
   const p = _chatPannello();
   let occupato = false;
   if(p && p.isConnected && p.classList.contains('c-su')){
