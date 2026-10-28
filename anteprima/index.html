@@ -2628,10 +2628,12 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
   background:#FFF8EE; border-radius:30px;
   font-family:'Rosarivo',serif; font-size:25px; line-height:1.32; color:#24292A;
 }
+.copione-bolla{ transform-origin:calc(100% + 89px) calc(50% - 31px); animation:aiSpeechWobble 3.4s ease-in-out infinite; }
 .copione-bolla::after,
 .copione-coda-trama{
   content:''; position:absolute; inset:0; pointer-events:none;
   background-image:var(--copione-trama, none); background-size:520px 520px;
+  background-position:0 0; background-repeat:repeat;
   mix-blend-mode:hard-light; opacity:0.4;
 }
 .copione-bolla::after{ border-radius:inherit; z-index:2; }
@@ -2643,13 +2645,19 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
 @keyframes copioneClic{ 0%,100%{ opacity:.45; } 50%{ opacity:1; } }
 .copione-coda{
   position:absolute; left:100%; top:50%; width:92px; height:63px;
-  margin-left:-4px; transform:translateY(-50%);
-  isolation:isolate;
+  margin-left:-2px; transform:translateY(-50%);
+  background:#FFF8EE;
+  -webkit-mask:var(--copione-coda, none) 0 0 / 100% 100% no-repeat;
+  mask:var(--copione-coda, none) 0 0 / 100% 100% no-repeat;
 }
-.copione-coda img{ position:absolute; inset:0; width:100%; height:100%; display:block; }
 .copione-coda-trama{
-  -webkit-mask-image:var(--copione-coda, none); mask-image:var(--copione-coda, none);
-  -webkit-mask-size:100% 100%; mask-size:100% 100%;
+  right:-90px; z-index:2;
+  -webkit-mask-image:var(--copione-coda, none), linear-gradient(to right, transparent calc(100% - 90px), #000 calc(100% - 90px));
+  mask-image:var(--copione-coda, none), linear-gradient(to right, transparent calc(100% - 90px), #000 calc(100% - 90px));
+  -webkit-mask-size:92px 63px, 100% 100%; mask-size:92px 63px, 100% 100%;
+  -webkit-mask-position:right center, 0 0; mask-position:right center, 0 0;
+  -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat;
+  -webkit-mask-composite:source-in; mask-composite:intersect;
 }
 .copione-freccia{
   position:absolute; left:0; top:0; width:68px; height:73px; z-index:5900;
@@ -8099,7 +8107,7 @@ try{
 <button id="btn-show-results" class="hx-btn hx-btn-opaco" onclick="toggleBoardView(false)">
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:12.5px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.82.7</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:12.5px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.82.8</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -13280,16 +13288,20 @@ function _pezzoFuori(el, via){
   if(via === 'destra')   return Math.round(1920 - x + aria) + 'px 0px';
   return null;
 }
-function _animaUnPezzo(el, p, verso){
+function _misuraPezzo(el, p){
+  if(p.via === 'sfuma') return { base: getComputedStyle(el).opacity };
+  const t = _pezzoFuori(el, p.via);
+  return t ? { t } : null;
+}
+function _animaUnPezzo(el, p, verso, m){
   const esce = (verso === 'esce');
+  if(m === undefined) m = _misuraPezzo(el, p);
+  if(!m) return null;
   let lontano, vicino;
   if(p.via === 'sfuma'){
-    const base = getComputedStyle(el).opacity;
-    lontano = { opacity: 0 }; vicino = { opacity: base };
+    lontano = { opacity: 0 }; vicino = { opacity: m.base };
   } else {
-    const t = _pezzoFuori(el, p.via);
-    if(!t) return null;
-    lontano = { translate: t }; vicino = { translate: '0px 0px' };
+    lontano = { translate: m.t }; vicino = { translate: '0px 0px' };
   }
   try{
     return el.animate(esce ? [vicino, lontano] : [lontano, vicino], {
@@ -13301,21 +13313,28 @@ function _animaUnPezzo(el, p, verso){
   }catch(_){ return null; }
 }
 function _animaPezzi(nome, verso){
-  const fuori = [];
+  const misurati = [];
   for(const p of (PAGINE_PEZZI[nome] || [])){
     for(const el of document.querySelectorAll(p.sel)){
       if(!el.isConnected) continue;
-      const a = _animaUnPezzo(el, p, verso);
-      if(a) fuori.push(a);
+      misurati.push([el, p, _misuraPezzo(el, p)]);
     }
+  }
+  const fuori = [];
+  for(const [el, p, m] of misurati){
+    const a = _animaUnPezzo(el, p, verso, m);
+    if(a) fuori.push(a);
   }
   return fuori;
 }
 const ASSET_ATTESA_MAX_MS = 4000;
+const _immaginiDecodificate = new Set();
 function _decodificaImmagine(url){
+  if(_immaginiDecodificate.has(url)) return Promise.resolve();
   return new Promise(res => {
     const im = new Image();
-    im.onload = () => { if(im.decode) im.decode().then(res, res); else res(); };
+    const fatto = () => { _immaginiDecodificate.add(url); res(); };
+    im.onload = () => { if(im.decode) im.decode().then(fatto, fatto); else fatto(); };
     im.onerror = res;
     im.src = url;
   });
@@ -13337,6 +13356,7 @@ function assetProntiDi(radici, tettoMs){
       const tag = String(el.tagName || '').toLowerCase();
       if(tag === 'img') aspettaUrl(el.currentSrc || el.getAttribute('src'));
       else if(tag === 'image') aspettaUrl(el.getAttribute('href'));
+      if(el instanceof SVGElement && tag !== 'svg') continue;
       let sfondo = '';
       try{ sfondo = getComputedStyle(el).backgroundImage; }catch(_){ }
       if(sfondo && sfondo !== 'none') _urlDiSfondo(sfondo).forEach(aspettaUrl);
@@ -13367,6 +13387,16 @@ function _assetDellaCaduta(){
 }
 function _entraQuandoPronti(nome, t){
   const partenze = [];
+  let pronti = [];
+  const parti = () => {
+    const giro = pronti; pronti = [];
+    if(_transizione !== t) return;
+    const misurati = giro.filter(([el]) => el.isConnected).map(([el, p]) => [el, p, _misuraPezzo(el, p)]);
+    for(const [el, p, m] of misurati){
+      const a = _animaUnPezzo(el, p, 'entra', m);
+      if(a) t.entrate.push(a);
+    }
+  };
   for(const p of (PAGINE_PEZZI[nome] || [])){
     for(const el of document.querySelectorAll(p.sel)){
       if(!el.isConnected) continue;
@@ -13375,8 +13405,8 @@ function _entraQuandoPronti(nome, t){
       partenze.push(assetProntiDi(el).then(() => {
         el.classList.remove('pezzo-attende');
         if(_transizione !== t || !el.isConnected) return;
-        const a = _animaUnPezzo(el, p, 'entra');
-        if(a) t.entrate.push(a);
+        pronti.push([el, p]);
+        if(pronti.length === 1) queueMicrotask(parti);
       }));
     }
   }
@@ -23231,7 +23261,7 @@ function openCardDbOverlay(){
   renderListaMazzi();
   try{ collegaRiordinoMazzi(); }catch(_){}
   cardDbCascataAllaProssimaApertura();
-  cardDbRenderRoster();
+  cardDbRenderRosterSeCambiato();
   initCardDbFoilTilt();
   initCardDbDragScroll();
 
@@ -23282,7 +23312,31 @@ function cardDbCascataDIngresso(grid){
     a.id = 'cascata';
   });
 }
+let _cardDbFirmaFatta = null;
+function _cardDbFirma(){
+  try{
+    return JSON.stringify([_cardDbVariant, varianteCollezioneScura(),
+      cardDbRosterOrdinato().map(e => [e, statoLivelloCarta(e), _eCartaNuova(e)])]);
+  }catch(_){ return null; }
+}
+function cardDbRenderRosterSeCambiato(){
+  const grid = document.getElementById('card-db-grid');
+  const firma = _cardDbFirma();
+  if(!grid || !firma || firma !== _cardDbFirmaFatta || !grid.querySelector('.card-db-card-slot')){
+    cardDbRenderRoster();
+    return;
+  }
+  cardDbLayoutGrid();
+  cardDbApplyFilters(false);
+  cardDbUpdateToggleLabel();
+  if(_cardDbCascataProssima){
+    _cardDbCascataProssima = false;
+    grid.getAnimations({ subtree:true }).forEach(a => { if(a.id === 'cascata') a.cancel(); });
+    cardDbCascataDIngresso(grid);
+  }
+}
 function cardDbRenderRoster(){
+  _cardDbFirmaFatta = _cardDbFirma();
   const grid=document.getElementById('card-db-grid');
   const scorrimentoPrima = grid ? grid.scrollTop : 0;
   if(_cardDbGridBusy){
@@ -32199,12 +32253,11 @@ function _tutorialVelo(){
   v.id = 'copione-velo'; v.className = 'copione-velo';
   v.innerHTML = '<img class="copione-tizio" alt="" draggable="false">'
     + '<div class="copione-fumetto"><div class="copione-bolla"><div class="copione-bolla-testo"></div>'
-    + '<img class="copione-clic" alt="" draggable="false"></div>'
-    + '<div class="copione-coda"><img alt="" draggable="false"><div class="copione-coda-trama"></div></div></div>';
+    + '<img class="copione-clic" alt="" draggable="false">'
+    + '<div class="copione-coda"></div><div class="copione-coda-trama"></div></div></div>';
   fxLayer().appendChild(v);
   impostaImgDaCandidati(v.querySelector('.copione-tizio'), uiFileCandidati('mysterious-guy.png'));
   impostaImgDaCandidati(v.querySelector('.copione-clic'), uiFileCandidati('left-click-icon-dark.png'));
-  impostaImgDaCandidati(v.querySelector('.copione-coda img'), uiFileCandidati('tail-speech-bubble.png'));
   try{
     impostaVariabileDaCandidati(v, '--copione-trama', uiFileCandidati('brushed-texture.jpg'));
     impostaVariabileDaCandidati(v, '--copione-coda', uiFileCandidati('tail-speech-bubble.png'));
