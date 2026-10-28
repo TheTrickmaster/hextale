@@ -900,6 +900,7 @@ body[data-pagina="progress"] #build-version-badge{
 }
 #start-screen > :not(#accesso-finestra){ display:none !important; }
 #start-screen, #start-screen.fondale-su{ background:#000; }
+html.accesso-attesa #accesso-finestra{ visibility:hidden !important; }
 #accesso-finestra{
   position:relative; flex:0 0 auto;
   width:1000px; height:700px; box-sizing:border-box;
@@ -4643,6 +4644,14 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
 .hx-btn:disabled .hxb-label, .hx-btn[aria-disabled="true"] .hxb-label{ opacity:0.3; }
 .hx-btn .hxb-icon{ display:block; height:22px; width:auto; }
 .hx-btn .hxb-label img + .pk-cifra{ margin-left:-7px; }
+.hx-btn .hxb-label:has(> img){ background:none; filter:none; }
+.hx-btn .hxb-label:has(> img) > :not(img){
+  background:linear-gradient(90deg, #F5B754 0%, #F6E0BB 50%, #F5B754 100%);
+  -webkit-background-clip:text; background-clip:text;
+  color:transparent !important;
+  filter:url(#hx-btn-label);
+}
+.hx-btn .hxb-label:has(> img) > img{ filter:drop-shadow(0 2px 4px rgba(0,0,0,0.8)); }
 .hx-btn:not(:disabled):not([aria-disabled="true"]):hover{ filter:brightness(1.12); }
 .hx-btn:not(:disabled):not([aria-disabled="true"]):active{ transform:scale(0.98); }
 
@@ -8071,7 +8080,7 @@ try{
 <button id="btn-show-results" class="hx-btn hx-btn-opaco" onclick="toggleBoardView(false)">
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:10px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.82.2</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:10px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.82.3</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -8917,7 +8926,7 @@ try{
   </div>
   <div class="mm2-box mm2-box-dx" id="pack-compra-box">
     <button class="hx-btn hx-btn-important" type="button" id="pack-buy" onclick="compraPacchetto()">
-      <span class="hxb-label">Buy for <span id="pack-buy-prezzo">100</span><img class="hxb-icon" id="pack-buy-icona" alt="" draggable="false"></span>
+      <span class="hxb-label"><span class="hxb-parola">Buy for </span><span id="pack-buy-prezzo">100</span><img class="hxb-icon" id="pack-buy-icona" alt="" draggable="false"></span>
     </button>
   </div>
 </div>
@@ -9041,17 +9050,22 @@ const CANVAS_W = 1920, CANVAS_H = 1080;
 const _fit = { scale: 1, offsetX: 0, offsetY: 0 };
 
 const ACCESSO_IN_FINESTRA = !!(typeof window !== 'undefined' && window.hextaleDesktop && typeof window.hextaleDesktop.finestra === 'function');
+const ACCESSO_RETE_MS = 30000;
 let _accessoDaDecidere = null;
 function accessoDaDecidere(){
   if(_accessoDaDecidere === null){
     try{ _accessoDaDecidere = ACCESSO_IN_FINESTRA && !!ricordoLeggiUnaVolta(); }catch(_){ _accessoDaDecidere = false; }
-    if(_accessoDaDecidere) setTimeout(()=>accessoFinestraDeciso(false), 8000);
+    if(_accessoDaDecidere){
+      document.documentElement.classList.add('accesso-attesa');
+      setTimeout(()=>accessoFinestraDeciso(false), ACCESSO_RETE_MS);
+    }
   }
   return _accessoDaDecidere;
 }
 function accessoFinestraDeciso(dentro){
   if(!accessoDaDecidere()) return;
   _accessoDaDecidere = false;
+  document.documentElement.classList.remove('accesso-attesa');
   if(!dentro && document.documentElement.classList.contains('accesso-finestra')){
     try{ window.hextaleDesktop.finestra('accesso'); }catch(_){ }
   }
@@ -13367,7 +13381,7 @@ function _chiudiTransizione(){
   for(const a of t.entrate) try{ a.cancel(); }catch(_){ }
 }
 const STANZA_PARALLASSE_PX = 24;
-const STANZA_PARALLASSE_SEGUE = 0.08;
+const STANZA_PARALLASSE_SEGUE = 0.032;
 const STANZA_TRAMA_PER = 2.5;
 let _stanzaMiraX = 0, _stanzaOraX = 0, _stanzaMiraY = 0, _stanzaOraY = 0, _stanzaRaf = null;
 function _stanzaParallassePasso(){
@@ -21767,11 +21781,11 @@ function aggiornaSceltaBustina(){
       testo = 'Discarded';
       spento = true;
     } else if(cartaDaVendere(c)){
-      testo = 'Sell for <img src="' + iconaInchiostro + '" alt="magic ink"><span class="pk-cifra">' + costoDiCarta(c) + '</span>';
+      testo = '<span class="hxb-parola">Sell for </span><img src="' + iconaInchiostro + '" alt="magic ink"><span class="pk-cifra">' + costoDiCarta(c) + '</span>';
     } else if(costo <= 0){
       testo = 'Keep for free';
     } else {
-      testo = 'Keep for <img src="' + iconaInchiostro + '" alt="magic ink"><span class="pk-cifra">' + costo + '</span>';
+      testo = '<span class="hxb-parola">Keep for </span><img src="' + iconaInchiostro + '" alt="magic ink"><span class="pk-cifra">' + costo + '</span>';
       spento = !puoPagare;
     }
     if(et) et.innerHTML = testo;
@@ -21785,7 +21799,7 @@ function aggiornaSceltaBustina(){
   if(raccogli){
     const et = raccogli.querySelector('.hxb-label');
     if(et) et.innerHTML = (costoFinale > 0)
-      ? ('Unlock for <img src="' + iconaInchiostro + '" alt="magic ink"><span class="pk-cifra">' + costoFinale + '</span>')
+      ? ('<span class="hxb-parola">Unlock for </span><img src="' + iconaInchiostro + '" alt="magic ink"><span class="pk-cifra">' + costoFinale + '</span>')
       : 'Collect';
     mostraPulsanteBustina('pack-collect', quante > 0);
   }
