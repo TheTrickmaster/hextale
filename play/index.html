@@ -2610,10 +2610,10 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
 #drag-ghost.ghost-su-tabellone{ --tilt-ampiezza:20deg; }
 .copione-velo{
   position:absolute; inset:0; z-index:6000;
-  background:rgba(0,0,0,0.5);
   opacity:0; pointer-events:none;
   transition:opacity .25s ease;
 }
+.copione-buio{ position:absolute; left:0; top:0; width:100%; height:100%; pointer-events:none; }
 .copione-velo.mostra{ opacity:1; pointer-events:auto; cursor:var(--cursore, pointer); }
 .copione-tizio{
   position:absolute; right:90px; bottom:0; height:720px; width:auto;
@@ -2621,6 +2621,7 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
   transform:translateY(30px); transition:transform .35s cubic-bezier(.2,.8,.3,1);
 }
 .copione-velo.mostra .copione-tizio{ transform:translateY(0); }
+.copione-velo.mostra.uscito .copione-tizio{ transform:translateX(130%); transition:transform .8s cubic-bezier(.55,0,.8,.3); }
 .copione-fumetto{
   position:absolute; right:583px; top:712px;
   transform:translateY(-50%);
@@ -2643,6 +2644,34 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
 }
 .copione-bolla::after{ border-radius:inherit; z-index:2; }
 .copione-bolla-testo{ position:relative; z-index:1; }
+.copione-fumetto{ opacity:0; transition:opacity .18s ease; z-index:1; }
+.copione-fumetto.acceso{ opacity:1; }
+.copione-fumetto.sotto{ z-index:0; }
+.copione-chi{
+  position:relative; z-index:1; margin-bottom:6px;
+  font-family:'Marcellus SC','Marcellus',serif; font-size:19px; line-height:1.1;
+  letter-spacing:.06em; color:#8A6A3E;
+}
+.copione-c{ visibility:hidden; }
+.copione-c.visto{ visibility:visible; }
+.copione-icona{ height:1.15em; width:auto; vertical-align:-0.24em; margin:0 .06em; }
+.copione-trema-parola{ white-space:nowrap; }
+.copione-trema{ display:inline-block; animation:copioneTrema .2s linear infinite; }
+@keyframes copioneTrema{
+  0%  { transform:translate(0,0) rotate(0deg); }
+  25% { transform:translate(1px,-1.5px) rotate(5deg); }
+  50% { transform:translate(-1.2px,1px) rotate(-4deg); }
+  75% { transform:translate(1.4px,.6px) rotate(3deg); }
+  100%{ transform:translate(0,0) rotate(0deg); }
+}
+.copione-fumetto:not(.finita) .copione-clic{ visibility:hidden; }
+.copione-fumetto[data-chi="eugene"]{ right:auto; left:130px; top:640px; transform:translateY(-50%) scaleX(-1); }
+.copione-fumetto[data-chi="eugene"] .copione-chi,
+.copione-fumetto[data-chi="eugene"] .copione-bolla-testo{ transform:scaleX(-1); }
+.copione-fumetto[data-chi="eugene"] .copione-clic{ right:auto; left:22px; transform:scaleX(-1); }
+.copione-velo.uscito .copione-fumetto[data-chi="tt"]{ right:110px; }
+.copione-fumetto.piccolo .copione-bolla{ font-size:19px; padding:24px 44px 40px 34px; min-width:0; }
+.copione-fumetto.piccolo .copione-chi{ font-size:15px; }
 .copione-clic{
   position:absolute; right:22px; bottom:14px; width:21px; height:28px; z-index:3;
   animation:copioneClic 1.4s ease-in-out infinite;
@@ -8113,7 +8142,7 @@ try{
 <button id="btn-show-results" class="hx-btn hx-btn-opaco" onclick="toggleBoardView(false)">
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:12.5px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.82.11</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:12.5px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.82.12</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -14161,6 +14190,12 @@ let _mmCronoDa = 0, _mmCrono = null;
 const RICERCA_BOT_DOPO_S = 120;
 const RICERCA_BOT_DA_S = 60, RICERCA_BOT_PASSO = 0.04;
 let _mmBotAlSecondo = RICERCA_BOT_DOPO_S;
+const RICERCA_BOT_POCHI_ONLINE = 5, RICERCA_BOT_POCHI_ANTICIPO_S = 30;
+let _onlineQuanti = null;
+function mmSecondoDelBot(){
+  const pochi = typeof _onlineQuanti === 'number' && _onlineQuanti < RICERCA_BOT_POCHI_ONLINE;
+  return Math.min(RICERCA_BOT_DOPO_S, _mmBotAlSecondo) - (pochi ? RICERCA_BOT_POCHI_ANTICIPO_S : 0);
+}
 function mmSorteggiaIlBot(){
   const secondi = Math.ceil(1 / RICERCA_BOT_PASSO);
   _mmBotAlSecondo = RICERCA_BOT_DA_S + Math.min(secondi, Math.max(1, Math.ceil(Math.random() * secondi)));
@@ -14185,7 +14220,7 @@ function mmAvviaCronometro(){
       apriAvviso('Invite expired', nome + ' did not join in time.', true);
       return;
     }
-    if(s >= Math.min(RICERCA_BOT_DOPO_S, _mmBotAlSecondo) && !_trovatoMatch && !_mmStanza
+    if(s >= mmSecondoDelBot() && !_trovatoMatch && !_mmStanza
        && !document.getElementById('mm2-find')?.classList.contains('trovato')){
       console.info('[ricerca] ' + s + ' secondi senza avversari: partita contro un Bot.');
       mm2AnnullaRicerca();
@@ -14232,6 +14267,7 @@ async function aggiornaGiocatoriOnline(){
     try{ if(r && ('riavvio' in r)) riavvioDalServer(r.riavvio); }catch(_){ }
     try{ if(r && typeof r.versione === 'string') versioneDalServer(r.versione); }catch(_){ }
     const n = (r && typeof r.giocatori === 'number') ? r.giocatori : null;
+    if(n !== null) _onlineQuanti = n;
     const c = (r && typeof r.cercano === 'number') ? r.cercano : null;
     const elC = document.getElementById('mm2-cercano');
     if(c !== null && elC) elC.textContent = c + (c === 1 ? ' player in matchmaking' : ' players in matchmaking');
@@ -18204,7 +18240,11 @@ function requestNewGame(vsAI, travestito){
   PARTITA_ERA_IN_RETE = !vsAI && !!PARTITA_RETE;
   fermaTuttiISuoni();
   try{ AVATAR_DEI_GIOCATORI[1] = null; AVATAR_DEI_GIOCATORI[2] = null; }catch(_){ }
-  impostaFazioneUmano(fazioneDaGiocare());
+  if(vsAI && window.__tutorialPartita){
+    if(window.__tutorialFazionePrima === undefined) window.__tutorialFazionePrima = window.__humanFaction;
+    window.__humanFaction = 'light';
+    applyFactionToPlayerPanels();
+  } else { window.__tutorialFazionePrima = undefined; impostaFazioneUmano(fazioneDaGiocare()); }
   if(typeof mostraVersus === 'function') mostraVersus(()=> startGame(!!vsAI));
   else startGame(!!vsAI);
 }
@@ -18262,8 +18302,10 @@ function vestiPannelliGiocatori(vsAI){
   });
   if(vsAI){
     const t = BOT_TRAVESTITO;
-    _vestiUnPannello('p' + suoNumero, t
-      ? { nome:t.nome, rank:t.rank, avatar:t.avatar }
+    const narratore = window.__tutorialPartita ? TUTORIAL_NARRATORE : null;
+    _vestiUnPannello('p' + suoNumero, narratore
+      ? { nome:narratore.nome, rank:null, avatar:narratore.avatar }
+      : t ? { nome:t.nome, rank:t.rank, avatar:t.avatar }
       : { nome:NOME_IA, rank:null, avatar:'' });
   } else {
     const a = AVVERSARIO_INFO || {};
@@ -18358,6 +18400,7 @@ function _vsSiglaAvatarDi(numero){
     return AVVERSARIO_INFO.avatar || '';
   }
   if(BOT_TRAVESTITO) return BOT_TRAVESTITO.avatar || '';
+  if(window.__tutorialPartita) return TUTORIAL_NARRATORE.avatar;
   return '';
 }
 function _vsScegliRitratti(){
@@ -18398,6 +18441,7 @@ function _vsDatiGiocatore(mio){
     };
   }
   if(BOT_TRAVESTITO) return { nome: BOT_TRAVESTITO.nome, rank: BOT_TRAVESTITO.rank };
+  if(window.__tutorialPartita) return { nome: TUTORIAL_NARRATORE.nome, rank: null };
   const mioRank = (prof && typeof prof.rank === 'number') ? prof.rank : 0;
   const scarto = Math.floor(Math.random()*3) - 1;
   const ultimo = (typeof RANGHI !== 'undefined' && RANGHI) ? RANGHI.length - 1 : 0;
@@ -18905,10 +18949,11 @@ function openSettingsModal(quando){
   const resa = document.getElementById('btn-surrender');
   if(resa){
     const inCorso = !!(dove === 'partita' && G && !G.gameOver && G.currentPlayer);
+    const tutorial = inCorso && !!G.tutorial;
     const etichetta = resa.querySelector('.hxb-label');
-    if(etichetta) etichetta.textContent = inCorso ? 'Surrender' : 'Main menu';
-    resa.classList.toggle('hx-btn-warning', inCorso);
-    resa.onclick = inCorso ? surrenderGame : backToMainMenu;
+    if(etichetta) etichetta.textContent = tutorial ? 'End tutorial' : inCorso ? 'Surrender' : 'Main menu';
+    resa.classList.toggle('hx-btn-warning', inCorso && !tutorial);
+    resa.onclick = tutorial ? tutorialTermina : inCorso ? surrenderGame : backToMainMenu;
     resa.style.display = '';
   }
   const uscita = document.getElementById('settings-uscita');
@@ -24995,6 +25040,12 @@ function abandonCurrentGame(){
   try{ toggleBoardView(false); }catch(_){ }
 }
 function backToMainMenu(){
+  try{ if(G && G.tutorial) tutorialChiudi(); }catch(_){ }
+  if(window.__tutorialFazionePrima !== undefined){
+    window.__humanFaction = window.__tutorialFazionePrima;
+    window.__tutorialFazionePrima = undefined;
+    try{ applyFactionToPlayerPanels(); }catch(_){ }
+  }
   fermaTuttiISuoni();
   closeSettingsModal();
   abandonCurrentGame();
@@ -25646,7 +25697,7 @@ function initGame(vsAI){
     holes=new Set();
     while(holes.size<holeCount){const c=cands[Math.floor(Math.random()*cands.length)];holes.add(key(c.q,c.r));}
   }
-  if(window.__tutorialPartita) holes = new Set(TUTORIAL_MURI);
+  if(window.__tutorialPartita) holes = new Set();
   const muriAssegnati = assegnaMuriDellaPartita([...holes]);
   const tasselliAssegnati = assegnaTasselliLiberi(cells.map(c=>key(c.q,c.r)));
   const balanced=makeBalancedDecks(!!vsAI);
@@ -25678,8 +25729,8 @@ function initGame(vsAI){
 
   if(window.__tutorialPartita){
     d1.length = 0; d2.length = 0;
-    TUTORIAL_MANO.forEach((nome, i) => d1.push(tutorialCarta(nome, 1, i)));
-    TUTORIAL_BOT.forEach((nome, i) => d2.push(tutorialCarta(nome, 2, i)));
+    TUTORIAL_MAZZO.forEach((nome, i) => d1.push(tutorialCarta(nome, 1, i)));
+    TUTORIAL_MAZZO_BOT.forEach((nome, i) => d2.push(tutorialCarta(nome, 2, i)));
   }
   for(const mazzo of [d1, d2]){
     for(const carta of (mazzo || [])){
@@ -30631,7 +30682,7 @@ function disegnaSceltaGruppi(scelta, cx, cy, R, buildSvgIconBtn){
     strato.appendChild(tocco);
   }
   const orig = G.cells.find(x => key(x.q, x.r) === scelta.cellaOrigine);
-  if(orig && scelta.rinunciabile){
+  if(orig && scelta.rinunciabile && !G.tutorial){
     const { x: ox, y: oy } = axialToPixel(orig.q, orig.r, cx, cy, R);
     buildSvgIconBtn(ICONA_RINUNCIA, ox, oy, R * 0.42, () => rinunciaSceltaBersaglio());
   }
@@ -30909,6 +30960,7 @@ function apriSceltaBersaglio(card, player, q, r, k, chiaveAbilita){
   scelta.chiaveAbilita = chiaveAbilita;
   G.sceltaBersaglio = scelta;
   G.selected=null; G.dragging=null; G.dragOver=null;
+  try{ if(G.tutorial && player === 1) tutorialEvento('bersaglio'); }catch(_){ }
   return true;
 }
 
@@ -32158,11 +32210,12 @@ function startTurn(){
     G.reteRisolve = false;
     if(PARTITA_RETE) G.turnPlayLocked = false;
     if(deck.length>0 && hand.length<HAND_SIZE){
-      drawAndAnimate(player, false, ()=>{
+      const pesca = ()=> drawAndAnimate(player, false, ()=>{
         startTimerRespectingBanner();
         render();
         maybeTriggerAiTurn();
       });
+      if(!(G.tutorial && tutorialTrattieniPescata(player, pesca))) pesca();
     } else {
       startTimerRespectingBanner();
       render();
@@ -32171,41 +32224,188 @@ function startTurn(){
   })))));
 }
 
-const TUTORIAL_MURI = ['1,-2', '0,-2', '2,-2', '2,-1', '-2,2'];
-const TUTORIAL_TAVOLO = [
-  ['-1,0', 'Tortoise', 2], ['0,1', 'Mouse', 1], ['-1,-1', 'Tom Thumb', 1],
-  ['-2,0', 'Fox', 1], ['-2,1', 'Crow', 1], ['-1,2', 'Snow White', 2], ['0,2', 'Pinocchio', 2],
-];
-const TUTORIAL_MANO = ['Chupacabra', 'Captain Hook', 'Geppetto', 'Baloo'];
-const TUTORIAL_BOT = ['The Walrus', 'Hare', 'Lion', 'Ant'];
-const TUTORIAL_ABILITA = ['Captain Hook', 'Geppetto'];
+const _oroNativo = {
+  setTimeout: window.setTimeout.bind(window),
+  clearTimeout: window.clearTimeout.bind(window),
+  raf: window.requestAnimationFrame.bind(window),
+  caf: window.cancelAnimationFrame.bind(window),
+  now: performance.now.bind(performance),
+};
+const OROLOGIO = { installato: false, fermo: false, da: 0, perso: 0, seq: 1e9, timer: new Map(), quadri: new Map(), animazioni: [] };
+function oroOra(){ return (OROLOGIO.fermo ? OROLOGIO.da : _oroNativo.now()) - OROLOGIO.perso; }
+function orologioInstalla(){
+  if(OROLOGIO.installato) return;
+  OROLOGIO.installato = true;
+  window.setTimeout = function(fn, ms, ...args){
+    if(typeof fn !== 'function') return _oroNativo.setTimeout(fn, ms, ...args);
+    const id = ++OROLOGIO.seq;
+    const attesa = Math.max(0, +ms || 0);
+    const t = { fn, args, scade: oroOra() + attesa, nativo: 0 };
+    OROLOGIO.timer.set(id, t);
+    if(!OROLOGIO.fermo) t.nativo = _oroNativo.setTimeout(() => _oroScatta(id), attesa);
+    return id;
+  };
+  window.clearTimeout = function(id){
+    const t = OROLOGIO.timer.get(id);
+    if(t){ _oroNativo.clearTimeout(t.nativo); OROLOGIO.timer.delete(id); return; }
+    _oroNativo.clearTimeout(id);
+  };
+  window.requestAnimationFrame = function(cb){
+    const id = ++OROLOGIO.seq;
+    const q = { cb, nativo: 0 };
+    OROLOGIO.quadri.set(id, q);
+    if(!OROLOGIO.fermo) q.nativo = _oroNativo.raf(ts => _oroQuadro(id, ts));
+    return id;
+  };
+  window.cancelAnimationFrame = function(id){
+    const q = OROLOGIO.quadri.get(id);
+    if(q){ _oroNativo.caf(q.nativo); OROLOGIO.quadri.delete(id); return; }
+    _oroNativo.caf(id);
+  };
+  performance.now = oroOra;
+}
+function _oroScatta(id){
+  const t = OROLOGIO.timer.get(id);
+  if(!t || OROLOGIO.fermo) return;
+  OROLOGIO.timer.delete(id);
+  t.fn(...t.args);
+}
+function _oroQuadro(id, ts){
+  const q = OROLOGIO.quadri.get(id);
+  if(!q || OROLOGIO.fermo) return;
+  OROLOGIO.quadri.delete(id);
+  q.cb(ts - OROLOGIO.perso);
+}
+function _oroDelCopione(a){
+  const el = a && a.effect && a.effect.target;
+  return !!(el && el.closest && el.closest('#copione-velo, #copione-freccia, #azione-tooltip'));
+}
+function orologioFerma(){
+  if(!OROLOGIO.installato || OROLOGIO.fermo) return;
+  OROLOGIO.da = _oroNativo.now();
+  OROLOGIO.fermo = true;
+  for(const t of OROLOGIO.timer.values()){ _oroNativo.clearTimeout(t.nativo); t.nativo = 0; }
+  for(const q of OROLOGIO.quadri.values()){ _oroNativo.caf(q.nativo); q.nativo = 0; }
+  OROLOGIO.animazioni = document.getAnimations().filter(a => a.playState === 'running' && !_oroDelCopione(a));
+  OROLOGIO.animazioni.forEach(a => { try{ a.pause(); }catch(_){ } });
+}
+function orologioRiparti(){
+  if(!OROLOGIO.fermo) return;
+  OROLOGIO.perso += _oroNativo.now() - OROLOGIO.da;
+  OROLOGIO.fermo = false;
+  OROLOGIO.animazioni.forEach(a => { try{ if(a.playState === 'paused') a.play(); }catch(_){ } });
+  OROLOGIO.animazioni = [];
+  const ora = oroOra();
+  for(const [id, t] of OROLOGIO.timer) t.nativo = _oroNativo.setTimeout(() => _oroScatta(id), Math.max(0, t.scade - ora));
+  for(const [id, q] of OROLOGIO.quadri) q.nativo = _oroNativo.raf(ts => _oroQuadro(id, ts));
+}
+
+const TUTORIAL_NARRATORE = { nome: 'The Tale Teller', avatar: 'mysterious-guy-avatar.png' };
+const TUTORIAL_VOCI = { tt: 'The Tale Teller', eugene: 'Eugene' };
+const TUTORIAL_MAZZO = ['Ant', 'Lion', 'March Hare', 'Poisoned Apple', 'Kitsune', 'Leprechaun', 'Shere Khan'];
+const TUTORIAL_MAZZO_BOT = ['Grasshopper', 'Scarecrow', 'Sleeping Beauty', 'Mouse', 'Fox', 'Pixies'];
+const TUTORIAL_ABILITA = ['Scarecrow', 'March Hare', 'Sleeping Beauty', 'Shere Khan'];
 const TUTORIAL_PASSI = [
-  { parla: "Hello there. Who I am doesn't matter. Give me three minutes, and I'll teach you how to win." },
-  { parla: "Every side of a card has a Power. Touch an enemy with a stronger side, and it's yours.",
-    azione: { carta: 'Chupacabra', cella: '0,0' } },
+  { parla: [
+    "Ahem. Okay, where were we?| Oh yes, you're here to learn the game.",
+    "First let me prepare the board. I'm blocking some of the tiles so to make things easier.",
+  ] },
+  { muri: true },
+  { parla: [
+    "Done. These are blocked tiles.|{luce:muri} Usually, cards cannot be played here.",
+    "{luce:}Let's start. Your hand is in the bottom-left corner and you're playing as the light {img:light-card-icon.png} player.",
+    "Let's try to place your first card.| Just drag the Ant on the board and release it.",
+  ] },
+  { mossa: { carta: 'Ant', cella: '1,0' } },
   { aspetta: 2 },
-  { parla: "4 against 1. You won by 3, so you scored 3 points. Bigger gap, bigger reward." },
-  { parla: "At the end of each turn, every card you own scores. Commons give 3, Rares 2, Mythics 1. Timeless give none." },
-  { bot: { carta: 'The Walrus', cella: '1,-1' } },
+  { parla: [
+    "What a move!| Nobody before picked up this game so fast!",
+    "Just kidding,| you just placed a card.| What were you expecting?| An applause?| An \"achievement unlocked\" popup?| No.| Let's move on.",
+  ] },
+  { bot: { carta: 'Grasshopper', cella: '1,-1' } },
   { aspetta: 1 },
-  { parla: "Ouch! He hit your weak side. Mind which side you show." },
-  { parla: "Some cards have an ability, written at the bottom. Captain Hook steals 2 Power from every enemy he touches. Let's take that card back.",
-    azione: { carta: 'Captain Hook', cella: '0,-1' } },
+  { parla: [
+    "Wheeze!| Would you look at that?| I kicked your ass and conquered your card.",
+    "If you place a card close to an enemy and yours has a higher power value, you conquer that card.",
+    "Now try to play the Lion on the left of my Grasshopper.",
+  ] },
+  { mossa: { carta: 'Lion', cella: '0,-1' } },
+  { aspetta: 'danno' },
+  { ferma: true, luce: 'danno', parla: [
+    "Ahh yes.| See that number floating between the cards?| That's how much you scored by conquering my card.",
+    "The conquering score is simply the difference of Power between the attacker and the defender.| {lento}You attacked a 2 with a 3, so you scored 1.{/lento}| Too fast, Sherlock?",
+    "{luce:}No?| Good, let's move on.| But let me tell you why yours was a mediocre move.",
+    "{luce:cella:0,-1}By placing the Lion there, you just exposed its weak side to my next card!| Check this!",
+  ] },
   { aspetta: 2 },
-  { bot: { carta: 'Hare', cella: '2,0' } },
+  { bot: { carta: 'Scarecrow', cella: '-1,0' } },
+  { aspetta: 'ondata' },
+  { ferma: true, luce: 'bolle', parla: [
+    "See?| That's what I call a great move.| 5 points for me.",
+    "{luce:cella:-1,0}Also, my Scarecrow has an ability. It will buff the next card I play, so keep that in mind.",
+    "{luce:}{lento}...{/lento}",
+    "{lento}...{/lento}",
+    "{luce:bolle}At this point I would expect you to ask why are there tiny colored gems and numbers floating on the cards at the end of each turn, but I overestimated you.| Again.",
+    "Sigh.| Let me explain.",
+    "Those gems indicate the rarity of the cards. Grey {img:gem-common.png} is for Common cards, Blue {img:gem-rare.png} for Rares, Purple {img:gem-mythic.png} for Mythic, and lastly, Orange {img:gem-timeless.png} for Timeless.",
+    "Each card scores points at the end of each turn:| Commons score 3, Rare 2, Mythic 1 and Timeless 0",
+    "Common cards are harder to keep, so they're worth more; instead, Timeless cards are beasts.| They're pretty hard to flip, so keeping them scores you nothing.",
+    "You should then focus both on keeping dominion, as well as landing devastating blows.",
+    "{luce:}Ok I'm bored now.| Your turn. Try playing a card with an ability. Take the March Hare, for example.",
+  ] },
   { aspetta: 1 },
-  { parla: "These icons are traits. Some abilities care about them. Geppetto loves the Small: every Small on the board gets +2.",
-    azione: { carta: 'Geppetto', cella: '-1,1' } },
+  { mossa: { carta: 'March Hare', cella: '0,1' } },
+  { aspetta: 'bersaglio' },
+  { parla: [
+    "Okay, what's that tooltip that's following your cursor?",
+    "It explains that the card you just played, has an ability that requires you to take action in order to finalize your move and move onto the next turn.",
+    "The March Hare swaps an adjacent enemy's lowest and highest Power values.| Try swapping the Ant's values by clicking on the crosshair on top of it.",
+  ] },
+  { bersaglio: '1,0' },
   { aspetta: 2 },
-  { bot: { carta: 'Lion', cella: '1,1' } },
+  { parla: [
+    "Okay,| okay.| Are you starting to have trouble reading the board, Einstein?",
+    "I'll give you one more hint:| the \"Board score\" window on top of the screen {luce:board-score}indicates how much your cards will score at the end of each turn, so you don't have to do the math yourself.",
+    "{luce:}Back in my days, we used to play this on paper,| blindfolded,| with one tied hand.| Anyway.",
+  ] },
+  { bot: { carta: 'Sleeping Beauty', cella: '-1,1' } },
+  { aspetta: 'pescata' },
+  { parla: [
+    "{luce:cella:-1,1}Look at this card.| So powerful, right?| Read its ability.| She can only be conquered by Princesses {img:trait-princess.png}, Nobles {img:trait-noble.png} and Sovereigns {img:trait-sovereign.png}.",
+    "Good luck flipping that, {trema}kiddo{/trema}.",
+    "{luce:}What are you saying?| You don't know what a Trait is?| Of course you don't.",
+    "Each card can have one or two traits.| Traits differentiate the nature of each card, and can be used to create powerful synergies.",
+    "Just...| let's move on.| That's way too complicated for you anyway.",
+  ] },
+  { pesca: true },
   { aspetta: 1 },
-  { parla: "One tile left. When the board is full, the highest score wins. Finish it!",
-    azione: { carta: 'Baloo', cella: '1,0' } },
+  { parla: [
+    "WAIT.| Who gave you that card?!| That's not in the script!",
+    "Eugene!| Who put that card into the apprentice's deck?!",
+    { chi: 'eugene', t: "I d-d-don't know, sir!| I'm s-sorry sir!" },
+    { sopra: true, t: "I DON'T CARE EUGENE, I SWEAR, MAKE ANOTHER MISTAKE AND YOU'RE FIRED!" },
+    { chi: 'eugene', t: "But sir..." },
+    { sopra: true, t: "BuT SiR iT wAsN'T mY FaULt, I'M TOO DUMB blah blah blah." },
+    "Whatever.| Go on.| Play Shere Khan right in the middle.",
+  ] },
+  { mossa: { carta: 'Shere Khan', cella: '0,0' } },
   { aspetta: 'fine' },
-  { parla: "Well played! Now go build your deck. And watch your weak sides." },
+  { parla: [
+    "Easy when you have a Timeless card in your deck,| RIGHT EUGENE?!",
+    "Well the board is full and so the match is over.| Take the win and go home.",
+    { fuori: true, t: "I can't believe this is the people I have to deal with everyday." },
+  ] },
 ];
+const TUTORIAL_BATTUTA_MS = 26;
+const TUTORIAL_LENTO_MS = 85;
+const TUTORIAL_PAUSA_MS = 450;
+const TUTORIAL_SOPRA_MS = 380;
+const TUTORIAL_MURO_PASSO_MS = 110;
+const TUTORIAL_DANNO_MS = 560;
+const TUTORIAL_USCITA_MS = 900;
 function avviaPartitaTutorial(){
   try{ closeDebugModal(); }catch(_){ }
+  orologioInstalla();
   window.__tutorialPartita = true;
   requestNewGame(true);
 }
@@ -32224,8 +32424,7 @@ function tutorialPrepara(){
   window.__tutorialPartita = false;
   G.currentPlayer = 1;
   G.board = {};
-  TUTORIAL_TAVOLO.forEach(([k, nome, di], i) => { G.board[k] = { card: tutorialCarta(nome, di, 100 + i), owner: di }; });
-  G.tutorial = { passo: -1, turnoPronto: 0, consenti: null, mossaBot: null, attesa: null, parla: false };
+  G.tutorial = { passo: -1, turnoPronto: 0, consenti: null, indica: null, mossaBot: null, attesa: null, parla: false, pescata: null, luce: null };
 }
 function tutorialCartaUsabile(card){
   const t = G && G.tutorial;
@@ -32250,16 +32449,32 @@ function tutorialPosata(card, k){
     if(t.attesa === 'posata'){ t.attesa = null; tutorialAvanti(); }
   }, 0);
 }
-function tutorialEvento(nome){
+function tutorialEvento(nome, dato){
   const t = G && G.tutorial;
   if(!t) return;
   if(nome === 'turno'){
     t.turnoPronto = G.currentPlayer;
+    t.indica = null;
     if(t.passo < 0){ tutorialAvanti(); return; }
     if(t.attesa === 'turno' + G.currentPlayer){ t.attesa = null; tutorialAvanti(); }
     return;
   }
-  if(nome === 'fine' && t.attesa === 'fine'){ t.attesa = null; setTimeout(tutorialAvanti, 900); }
+  if(t.attesa !== nome) return;
+  t.attesa = null;
+  if(nome === 'danno') _oroNativo.setTimeout(tutorialAvanti, TUTORIAL_DANNO_MS);
+  else if(nome === 'ondata'){
+    const V = (typeof ONDATA_VELOCITA === 'number' && ONDATA_VELOCITA) ? ONDATA_VELOCITA : 1;
+    _oroNativo.setTimeout(tutorialAvanti, BOLLA_PRONTA_MS + Math.max(0, (dato || 1) - 1) * 90 / V + BOLLA_CAMPO_ENTRATA_MS + 100);
+  }
+  else _oroNativo.setTimeout(tutorialAvanti, nome === 'fine' ? 900 : 350);
+}
+function tutorialTrattieniPescata(player, pesca){
+  const t = G && G.tutorial;
+  if(!t || player !== 1 || t.attesa !== 'pescata') return false;
+  t.attesa = null;
+  t.pescata = pesca;
+  tutorialAvanti();
+  return true;
 }
 function tutorialAvanti(){
   const t = G && G.tutorial;
@@ -32267,12 +32482,17 @@ function tutorialAvanti(){
   t.passo++;
   const p = TUTORIAL_PASSI[t.passo];
   if(!p){ tutorialChiudi(); return; }
-  if(p.aspetta === 'fine'){ t.attesa = 'fine'; return; }
-  if(p.aspetta){
+  if(p.aspetta === 1 || p.aspetta === 2){
     if(t.turnoPronto === p.aspetta && G.currentPlayer === p.aspetta){ tutorialAvanti(); return; }
     t.attesa = 'turno' + p.aspetta;
     return;
   }
+  if(p.aspetta){
+    t.attesa = p.aspetta;
+    if(p.aspetta === 'bersaglio' && G.sceltaBersaglio) tutorialEvento('bersaglio');
+    return;
+  }
+  if(p.muri){ tutorialMuri(() => { if(G && G.tutorial === t) tutorialAvanti(); }); return; }
   if(p.bot){
     const carta = (G.p2Hand || []).find(c => c && c.name === p.bot.carta);
     const [q, r] = p.bot.cella.split(',').map(Number);
@@ -32283,67 +32503,278 @@ function tutorialAvanti(){
     tutorialAvanti();
     return;
   }
+  if(p.mossa){
+    t.consenti = { carta: p.mossa.carta, cella: p.mossa.cella };
+    t.attesa = 'posata';
+    _firmaTabellonePrecedente = null;
+    try{ renderBoard(); render(); }catch(_){ }
+    tutorialFreccia(true);
+    return;
+  }
+  if(p.bersaglio){
+    t.indica = p.bersaglio;
+    tutorialFreccia(true);
+    tutorialAvanti();
+    return;
+  }
+  if(p.pesca){
+    const pesca = t.pescata;
+    t.pescata = null;
+    tutorialAvanti();
+    if(typeof pesca === 'function') pesca();
+    return;
+  }
   if(p.parla){
-    tutorialParla(p.parla, () => {
-      if(p.azione){
-        t.consenti = { carta: p.azione.carta, cella: p.azione.cella };
-        t.attesa = 'posata';
-        _firmaTabellonePrecedente = null;
-        try{ renderBoard(); render(); }catch(_){ }
-        tutorialFreccia(true);
-      } else tutorialAvanti();
+    if(p.ferma) orologioFerma();
+    tutorialParla(p.parla, p.luce || null, () => {
+      if(p.ferma) orologioRiparti();
+      tutorialAvanti();
     });
   }
+}
+function tutorialMuri(poi){
+  const anello = ordineASpirale(G.cells).filter(c => Math.max(Math.abs(c.q), Math.abs(c.r), Math.abs(c.q + c.r)) === 2);
+  const chiavi = anello.map(c => key(c.q, c.r));
+  G.muriAssegnati = assegnaMuriDellaPartita(chiavi);
+  chiavi.forEach(k => G.holes.add(k));
+  _firmaTabellonePrecedente = null;
+  try{ renderBoard(); }catch(_){ }
+  G.boardDropAnimInProgress = true;
+  const svg = document.getElementById('board-svg');
+  chiavi.forEach((k, i) => {
+    const muro = svg && svg.querySelector('[data-hole-key="' + k + '"]');
+    const pezzo = muro && muro.parentNode;
+    if(!pezzo) return;
+    const ritardo = i * TUTORIAL_MURO_PASSO_MS;
+    pezzo.style.transformBox = 'fill-box';
+    pezzo.style.transformOrigin = 'center center';
+    pezzo.style.animation = `tileDropIn ${TILE_DROP_SINGLE_MS}ms ease-in-out ${ritardo}ms both`;
+    setTimeout(() => { try{ playSfxFile('card-flip.mp3'); }catch(_){ } }, ritardo + TILE_DROP_SINGLE_MS / 2);
+  });
+  const gen = gameGeneration;
+  setTimeout(() => {
+    if(gen !== gameGeneration || !G) return;
+    G.boardDropAnimInProgress = false;
+    _firmaTabellonePrecedente = null;
+    try{ renderBoard(); }catch(_){ }
+    poi();
+  }, chiavi.length * TUTORIAL_MURO_PASSO_MS + TILE_DROP_SINGLE_MS + 300);
+}
+function _tutorialFumettoHtml(chi){
+  return '<div class="copione-fumetto" data-chi="' + chi + '"><div class="copione-bolla">'
+    + '<div class="copione-chi"></div><div class="copione-bolla-testo"></div>'
+    + '<img class="copione-clic" alt="" draggable="false">'
+    + '<div class="copione-coda"></div><div class="copione-coda-trama"></div></div></div>';
 }
 function _tutorialVelo(){
   let v = document.getElementById('copione-velo');
   if(v) return v;
   v = document.createElement('div');
   v.id = 'copione-velo'; v.className = 'copione-velo';
-  v.innerHTML = '<img class="copione-tizio" alt="" draggable="false">'
-    + '<div class="copione-fumetto"><div class="copione-bolla"><div class="copione-bolla-testo"></div>'
-    + '<img class="copione-clic" alt="" draggable="false">'
-    + '<div class="copione-coda"></div><div class="copione-coda-trama"></div></div></div>';
+  v.innerHTML = '<svg class="copione-buio" viewBox="0 0 1920 1080" preserveAspectRatio="none" aria-hidden="true">'
+    + '<defs><filter id="copione-sfuma" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="7"/></filter>'
+    + '<mask id="copione-maschera" maskUnits="userSpaceOnUse" x="0" y="0" width="1920" height="1080">'
+    + '<rect width="1920" height="1080" fill="#fff"/><g class="copione-buchi" fill="#000" filter="url(#copione-sfuma)"></g></mask></defs>'
+    + '<rect width="1920" height="1080" fill="#000" fill-opacity="0.5" mask="url(#copione-maschera)"/></svg>'
+    + '<img class="copione-tizio" alt="" draggable="false">'
+    + _tutorialFumettoHtml('tt') + _tutorialFumettoHtml('eugene');
   fxLayer().appendChild(v);
   impostaImgDaCandidati(v.querySelector('.copione-tizio'), uiFileCandidati('mysterious-guy.png'));
-  impostaImgDaCandidati(v.querySelector('.copione-clic'), uiFileCandidati('left-click-icon-dark.png'));
+  v.querySelectorAll('.copione-clic').forEach(el => impostaImgDaCandidati(el, uiFileCandidati('left-click-icon-dark.png')));
   try{
     impostaVariabileDaCandidati(v, '--copione-trama', uiFileCandidati('brushed-texture.jpg'));
     impostaVariabileDaCandidati(v, '--copione-coda', uiFileCandidati('tail-speech-bubble.png'));
   }catch(_){ }
   return v;
 }
-function tutorialParla(testo, poi){
+function _tutorialPezzi(testo){
+  const pezzi = [];
+  let lento = false, trema = false;
+  const lettere = (s) => { for(const c of s) pezzi.push({ c, lento, trema }); };
+  const re = /\{(\/?)(lento|trema|img|luce)(?::([^}]*))?\}|\|/g;
+  let da = 0, m;
+  while((m = re.exec(testo))){
+    lettere(testo.slice(da, m.index));
+    da = re.lastIndex;
+    if(m[0] === '|'){ pezzi.push({ pausa: TUTORIAL_PAUSA_MS }); continue; }
+    if(m[2] === 'lento') lento = !m[1];
+    else if(m[2] === 'trema') trema = !m[1];
+    else if(m[2] === 'img') pezzi.push({ img: m[3] });
+    else pezzi.push({ luce: m[3] || null });
+  }
+  lettere(testo.slice(da));
+  return pezzi;
+}
+function _tutorialMettiPezzi(box, pezzi){
+  box.textContent = '';
+  let parola = null;
+  for(const p of pezzi){
+    if(p.c !== undefined){
+      const s = document.createElement('span');
+      s.className = 'copione-c';
+      s.textContent = p.c;
+      if(p.trema){
+        if(!parola){ parola = document.createElement('span'); parola.className = 'copione-trema-parola'; box.appendChild(parola); }
+        s.classList.add('copione-trema');
+        s.style.animationDuration = (0.16 + Math.random() * 0.12).toFixed(2) + 's';
+        s.style.animationDelay = (-Math.random()).toFixed(2) + 's';
+        parola.appendChild(s);
+      } else { parola = null; box.appendChild(s); }
+      p.el = s;
+    } else if(p.img){
+      parola = null;
+      const im = document.createElement('img');
+      im.className = 'copione-c copione-icona'; im.alt = ''; im.draggable = false;
+      impostaImgDaCandidati(im, uiFileCandidati(p.img));
+      box.appendChild(im);
+      p.el = im;
+    }
+  }
+}
+function _tutorialRiga(r){ return (typeof r === 'string') ? { t: r } : r; }
+function tutorialParla(righe, luce, poi){
   const t = G && G.tutorial;
   if(!t) return;
-  if(G.turnBannerActive){ setTimeout(() => tutorialParla(testo, poi), 200); return; }
+  if(G.turnBannerActive && !OROLOGIO.fermo){ _oroNativo.setTimeout(() => tutorialParla(righe, luce, poi), 200); return; }
   const v = _tutorialVelo();
-  v.querySelector('.copione-bolla-testo').textContent = testo;
   t.parla = true;
   tutorialFreccia(null);
-  requestAnimationFrame(() => v.classList.add('mostra'));
-  const pronto = performance.now() + 350;
-  v.onclick = (e) => {
-    e.stopPropagation();
-    if(performance.now() < pronto) return;
+  tutorialLuce(luce);
+  _oroNativo.raf(() => v.classList.add('mostra'));
+  let n = -1, corsa = null, dopo = 0;
+  let pronto = _oroNativo.now() + 350;
+  const fumetti = () => [...v.querySelectorAll('.copione-fumetto')];
+  const scrivi = (r) => {
+    const chi = r.chi || 'tt';
+    const f = v.querySelector('.copione-fumetto[data-chi="' + chi + '"]');
+    fumetti().forEach(x => { if(x !== f){ if(r.sopra) x.classList.add('sotto'); else x.classList.remove('acceso', 'sotto'); } });
+    f.classList.remove('sotto', 'finita');
+    f.classList.toggle('piccolo', !!r.fuori);
+    f.querySelector('.copione-chi').textContent = TUTORIAL_VOCI[chi] || '';
+    const pezzi = _tutorialPezzi(r.t);
+    _tutorialMettiPezzi(f.querySelector('.copione-bolla-testo'), pezzi);
+    f.classList.add('acceso');
+    corsa = { pezzi, i: 0, f, timer: 0, finita: false };
+    const c = corsa;
+    const passo = () => {
+      c.timer = 0;
+      while(c.i < c.pezzi.length){
+        const p = c.pezzi[c.i++];
+        if(p.pausa){ c.timer = _oroNativo.setTimeout(passo, p.pausa); return; }
+        if(p.luce !== undefined){ tutorialLuce(p.luce); continue; }
+        p.el.classList.add('visto');
+        c.timer = _oroNativo.setTimeout(passo, p.lento ? TUTORIAL_LENTO_MS : TUTORIAL_BATTUTA_MS);
+        return;
+      }
+      finisci(c);
+    };
+    passo();
+  };
+  const finisci = (c) => {
+    if(c.finita) return;
+    c.finita = true;
+    if(c.timer){ _oroNativo.clearTimeout(c.timer); c.timer = 0; }
+    while(c.i < c.pezzi.length){
+      const p = c.pezzi[c.i++];
+      if(p.luce !== undefined) tutorialLuce(p.luce);
+      else if(p.el) p.el.classList.add('visto');
+    }
+    c.f.classList.add('finita');
+    const prossima = righe[n + 1] && _tutorialRiga(righe[n + 1]);
+    if(prossima && prossima.sopra) dopo = _oroNativo.setTimeout(avanti, TUTORIAL_SOPRA_MS);
+  };
+  const avanti = () => {
+    if(dopo){ _oroNativo.clearTimeout(dopo); dopo = 0; }
+    n++;
+    if(n >= righe.length){ chiudi(); return; }
+    const r = _tutorialRiga(righe[n]);
+    pronto = _oroNativo.now() + 250;
+    if(r.fuori && !v.classList.contains('uscito')){
+      fumetti().forEach(x => x.classList.remove('acceso', 'sotto'));
+      v.classList.add('uscito');
+      corsa = null;
+      _oroNativo.setTimeout(() => { if(G && G.tutorial === t) scrivi(r); }, TUTORIAL_USCITA_MS);
+      return;
+    }
+    scrivi(r);
+  };
+  const chiudi = () => {
     v.onclick = null;
     v.classList.remove('mostra');
+    fumetti().forEach(x => x.classList.remove('acceso', 'sotto'));
+    tutorialLuce(null);
     t.parla = false;
-    setTimeout(() => { if(G && G.tutorial === t && typeof poi === 'function') poi(); }, 120);
+    _oroNativo.setTimeout(() => { if(G && G.tutorial === t && typeof poi === 'function') poi(); }, 120);
   };
+  v.onclick = (e) => {
+    e.stopPropagation();
+    if(_oroNativo.now() < pronto || !corsa) return;
+    if(!corsa.finita){ finisci(corsa); return; }
+    avanti();
+  };
+  avanti();
+}
+function tutorialLuce(nome){
+  const t = G && G.tutorial;
+  if(t) t.luce = nome || null;
+  const v = document.getElementById('copione-velo');
+  const buchi = v && v.querySelector('.copione-buchi');
+  if(!buchi) return;
+  buchi.innerHTML = '';
+  for(const forma of _tutorialForme(nome)) buchi.appendChild(forma);
+}
+function _tutorialForme(nome){
+  if(!nome) return [];
+  const NS = 'http://www.w3.org/2000/svg';
+  const esagono = (k, piu) => {
+    const c = getCellScreenCenter(k);
+    if(!c) return null;
+    const R = (_ultimoRaggioCella || 60) + piu;
+    const pol = document.createElementNS(NS, 'polygon');
+    pol.setAttribute('points', hexCorners(c.x, c.y, R).map(p => p.x.toFixed(1) + ',' + p.y.toFixed(1)).join(' '));
+    return pol;
+  };
+  const rettangolo = (els, piu, raggio) => {
+    const rr = [].concat(els).filter(Boolean).map(authoredRect).filter(x => x.width || x.height);
+    if(!rr.length) return null;
+    const l = Math.min(...rr.map(x => x.left)), tp = Math.min(...rr.map(x => x.top));
+    const r = { left: l, top: tp, width: Math.max(...rr.map(x => x.left + x.width)) - l, height: Math.max(...rr.map(x => x.top + x.height)) - tp };
+    const ret = document.createElementNS(NS, 'rect');
+    ret.setAttribute('x', (r.left - piu).toFixed(1)); ret.setAttribute('y', (r.top - piu).toFixed(1));
+    ret.setAttribute('width', (r.width + piu * 2).toFixed(1)); ret.setAttribute('height', (r.height + piu * 2).toFixed(1));
+    ret.setAttribute('rx', String(raggio)); ret.setAttribute('ry', String(raggio));
+    return ret;
+  };
+  let forme = [];
+  if(nome === 'muri') forme = [...G.holes].map(k => esagono(k, 4));
+  else if(nome.indexOf('cella:') === 0) forme = [esagono(nome.slice(6), 6)];
+  else if(nome === 'board-score') forme = [rettangolo(document.getElementById('board-score'), 10, 18)];
+  else if(nome === 'danno'){
+    const tutti = document.querySelectorAll('.numero-danno');
+    const ultimo = tutti[tutti.length - 1];
+    forme = [rettangolo(ultimo && (ultimo.querySelector('text') || ultimo), 28, 40)];
+  }
+  else if(nome === 'bolle') forme = [...document.querySelectorAll('.bolla-campo')].map(b => rettangolo([b.querySelector('text'), b.querySelector('.bolla-campo-gemma')], 22, 28));
+  return forme.filter(Boolean);
 }
 function tutorialChiudi(){
+  orologioRiparti();
   const v = document.getElementById('copione-velo');
-  if(v){ v.classList.remove('mostra'); setTimeout(() => { try{ v.remove(); }catch(_){ } }, 300); }
+  if(v){ v.classList.remove('mostra'); _oroNativo.setTimeout(() => { try{ v.remove(); }catch(_){ } }, 300); }
   tutorialFreccia(null);
   if(G) G.tutorial = null;
 }
+function tutorialTermina(){
+  tutorialChiudi();
+  backToMainMenu();
+}
 let _tutorialFrecciaRaf = 0;
+function _tutorialFrecciaServe(t){ return !!(t && (t.consenti || (t.indica && G.sceltaBersaglio))); }
 function tutorialFreccia(accesa){
   let el = document.getElementById('copione-freccia');
   if(!accesa){
     if(el) el.classList.remove('mostra');
-    if(_tutorialFrecciaRaf){ cancelAnimationFrame(_tutorialFrecciaRaf); _tutorialFrecciaRaf = 0; }
+    if(_tutorialFrecciaRaf){ _oroNativo.caf(_tutorialFrecciaRaf); _tutorialFrecciaRaf = 0; }
     _tutorialAccendiMano();
     return;
   }
@@ -32359,24 +32790,26 @@ function tutorialFreccia(accesa){
   const passo = () => {
     _tutorialFrecciaRaf = 0;
     const t = G && G.tutorial;
-    if(!t || !t.consenti){ el.classList.remove('mostra'); _tutorialAccendiMano(); return; }
+    if(!_tutorialFrecciaServe(t)){ el.classList.remove('mostra'); _tutorialAccendiMano(); return; }
     _tutorialAccendiMano();
     const punto = _tutorialDoveIndicare(t);
     if(punto){ el.style.left = punto.x.toFixed(1) + 'px'; el.style.top = punto.y.toFixed(1) + 'px'; el.style.visibility = 'visible'; }
     else el.style.visibility = 'hidden';
-    _tutorialFrecciaRaf = requestAnimationFrame(passo);
+    _tutorialFrecciaRaf = _oroNativo.raf(passo);
   };
-  _tutorialFrecciaRaf = requestAnimationFrame(passo);
+  _tutorialFrecciaRaf = _oroNativo.raf(passo);
 }
 function _tutorialDoveIndicare(t){
-  const inMano = !!(typeof dragState !== 'undefined' && dragState && dragState.card && dragState.card.name === t.consenti.carta);
-  if(inMano){
+  const sopraCella = (k) => {
     const bsvg = document.getElementById('board-svg');
-    const cella = bsvg && (bsvg.querySelector('[data-cellkey="' + t.consenti.cella + '"]') || bsvg.querySelector('[data-conquered="' + t.consenti.cella + '"]'));
+    const cella = bsvg && (bsvg.querySelector('[data-cellkey="' + k + '"]') || bsvg.querySelector('[data-conquered="' + k + '"]'));
     if(!cella) return null;
     const r = cella.getBoundingClientRect();
     return screenToAuthoredPoint({ x: r.left + r.width / 2, y: r.top + r.height * 0.12 });
-  }
+  };
+  if(!t.consenti) return t.indica ? sopraCella(t.indica) : null;
+  const inMano = !!(typeof dragState !== 'undefined' && dragState && dragState.card && dragState.card.name === t.consenti.carta);
+  if(inMano) return sopraCella(t.consenti.cella);
   const carta = (G.p1Hand || []).find(c => c && c.name === t.consenti.carta);
   const wrap = carta && document.querySelector('#p1-hand-fan .hand-card-wrap[data-carta="' + carta.id + '"]');
   if(!wrap) return null;
@@ -34025,6 +34458,7 @@ function dannoDiFineTurno(onDone){
   if(!G || G.gameOver){ fine(); return; }
   const celle = carteCheFruttano();
   if(!celle[1].length && !celle[2].length){ fine(); return; }
+  try{ if(G.tutorial) tutorialEvento('ondata', Math.max(celle[1].length, celle[2].length)); }catch(_){ }
   let restano = 2;
   const unaMeno = ()=>{ if(--restano === 0) fine(); };
   ondataDanno(1, celle[1], unaMeno);
@@ -34156,6 +34590,7 @@ function numeroDannoSulCampo(punti, punto, ux, uy){
   molla.appendChild(numeroCampoSvg(String(punti)));
   el.appendChild(molla);
   strato.appendChild(el);
+  try{ if(G && G.tutorial) tutorialEvento('danno'); }catch(_){ }
   const tutta = NUMERO_DANNO_VITA_MS + NUMERO_DANNO_USCITA_MS;
   const fine = NUMERO_DANNO_VITA_MS / tutta;
   const ang = Math.atan2(dy, dx) * 180 / Math.PI;
@@ -38087,7 +38522,7 @@ function renderBoard(){
       }
     }
     const orig = G.cells.find(x=>key(x.q,x.r)===scelta.cellaOrigine);
-    if(orig){
+    if(orig && !G.tutorial){
       const {x:ox,y:oy} = axialToPixel(orig.q,orig.r,cx,cy,R);
       const sottoLaMano = !!scelta.rinunciaSottoLaMano;
       buildSvgIconBtn(ICONA_RINUNCIA, ox, oy + (sottoLaMano ? R*0.42 : 0), R*0.42, ()=>rinunciaSceltaBersaglio());
