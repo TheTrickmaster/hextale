@@ -8071,7 +8071,7 @@ try{
 <button id="btn-show-results" class="hx-btn hx-btn-opaco" onclick="toggleBoardView(false)">
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:10px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.82.1</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:10px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.82.2</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -10911,8 +10911,10 @@ function reteMessaggio(md){
   if(op === 1){
     if(d.tu){
       try{ fermaSuonoTrovato(); }catch(_){ }
+      const daStanza = !!_mmStanza;
       _mmStanza = null;
       PARTITA_RETE = {
+        amichevole: daStanza,
         matchId: md.match_id || (PARTITA_RETE && PARTITA_RETE.matchId) || _reteMatchId,
         io: d.tu, mano: d.mano || [], mazzo: d.mazzo || [], buchi: d.buchi || [],
         turno: d.turno, scadenza: d.scadenza, numeroTurno: d.numeroTurno,
@@ -11927,7 +11929,7 @@ function disegnaClassifica(){
   const io = r.io;
   const p = PROFILO_STAGIONE;
   document.getElementById('classifica-io-nome').textContent = nomeGiocatore();
-  document.getElementById('classifica-io-livello').textContent = String(io ? io.lv : (corrente && p ? p.livello : 0));
+  document.getElementById('classifica-io-livello').textContent = String(io ? io.lv : (corrente && PASS_STATO ? (PASS_STATO.livello || 0) : 0));
   document.getElementById('classifica-io-pos').innerHTML = io ? (_classificaFreccia(io.tendenza) + ' <span>' + io.pos + '</span>') : '-';
   document.getElementById('classifica-io-punti').textContent = io ? String(io.punti) : '-';
   document.getElementById('classifica-io-vinte').textContent = io ? String(io.w) : '-';
@@ -14640,8 +14642,8 @@ async function mm2RiscuotiQuest(bottone, quale){
   if(r.presi && r.presi.length){ try{ playSfxFile('quest-collected.mp3'); }catch(_){ } }
   questVolaPremi(presi, partenze);
   const conXp = Array.isArray(r.presi) ? r.presi.filter(p => p && p.xp > 0) : [];
-  passAggiorna(r.pass, conXp.length > 0 && GIOCATORE_ADMIN);
-  if(conXp.length && GIOCATORE_ADMIN){
+  passAggiorna(r.pass, conXp.length > 0 && progressAperto());
+  if(conXp.length && progressAperto()){
     const fonti = conXp.map(p => ({ xp: p.xp, da: partenze[presi.findIndex(x => x.id === p.id)] || null }));
     progressBolleXp(fonti, document.querySelector('#mm2-nav [data-tab="progress"]'), presi.length * QUEST_VOLO_PASSO_MS + 200);
   }
@@ -14874,8 +14876,14 @@ function passAggiorna(stato, trattieni){
   if(_activePage === 'progress') progressDisegna();
 }
 
+const PROGRESS_APERTO_DA = Date.UTC(2026, 10, 1);
+function progressAperto(){
+  if(typeof GIOCATORE_ADMIN !== 'undefined' && GIOCATORE_ADMIN) return true;
+  const da = (PASS_STATO && typeof PASS_STATO.apertoDa === 'number') ? PASS_STATO.apertoDa : PROGRESS_APERTO_DA;
+  return Date.now() >= da;
+}
 function apriProgress(){
-  if(!GIOCATORE_ADMIN) return;
+  if(!progressAperto()) return;
   ricordaPaginaChiamante();
   abandonCurrentGame();
   showPage('progress');
@@ -15571,6 +15579,7 @@ const QUEST_CONTA_IN_PARTITA = { flip20:'flip', flipmythic:'flip_mythic', flip2c
   move10:'sposta', buff20:'buff' };
 let _questMostrateInPartita = {};
 function questAvanzaInPartita(contoPrima){
+  if(typeof PARTITA_RETE !== 'undefined' && PARTITA_RETE && PARTITA_RETE.amichevole) return;
   let t = 0;
   for(const q of (QUEST_OGGI || [])){
     const conta = q && (q.conta || QUEST_CONTA_IN_PARTITA[q.id]);
@@ -33741,7 +33750,7 @@ function goRiempiPunteggi(hp1, hp2){
 function _goPremi(){
   const d = _daMostrareDopoPartita;
   return {
-    xp:   (d && d.xpGuadagnata) || 0,
+    xp:   (d && d.passXp) || 0,
     ink:  (d && d.inkGuadagnato) || 0,
     verso:(d && typeof d.versoBustina === 'number') ? d.versoBustina : 0,
     quante:(d && d.partitePerBustina) || 5,
@@ -34224,14 +34233,10 @@ const CORNER_NATIVE_W = 185;
 const CORNER_NATIVE_H = 107;
 
 const CARD_PARTS_BASE = 'https://hextalegame.com/cards/card-parts/';
-const CARD_BASE_BY_RARITY = { dark:{}, light:{} };
-['common','rare','mythic','timeless'].forEach(r=>{
-  CARD_BASE_BY_RARITY.dark[r]  = CARD_PARTS_BASE+'card-base-dark-'+r+'.png';
-  CARD_BASE_BY_RARITY.light[r] = CARD_PARTS_BASE+'card-base-light-'+r+'.png';
-});
+const CARD_BASE_DARK  = CARD_PARTS_BASE + 'card-base-dark-common.png';
+const CARD_BASE_LIGHT = CARD_PARTS_BASE + 'card-base-light-common.png';
 function cardBaseSrc(card, isDark){
-  const lato = isDark ? CARD_BASE_BY_RARITY.dark : CARD_BASE_BY_RARITY.light;
-  return lato.common;
+  return isDark ? CARD_BASE_DARK : CARD_BASE_LIGHT;
 }
 
 const LAMINA_COLORI = { rare:'#5EC3D9', mythic:'#D24979', timeless:'#E5861D' };
