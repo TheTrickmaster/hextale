@@ -53,39 +53,55 @@ h1{
 h1[hidden]{ display:none; }
 p{ margin:0; font-size:17px; line-height:1.45; color:#CCC; }
 .riga{ align-self:stretch; height:1px; background:rgba(255,255,255,0.1); }
+/* v0.82.3 — the game's one-piece button (ui/buttons), 264x69, never stretched, and its label */
 .pulsante{
-  position:relative; height:68px; width:340px; max-width:100%;
+  position:relative; width:264px; height:69px; max-width:100%;
   display:inline-flex; align-items:center; justify-content:center;
-  padding:0 34px; box-sizing:border-box;
-  background:none; border:0; margin:0; cursor:pointer;
+  padding:0 30px; box-sizing:border-box; border:0; margin:0; cursor:pointer;
+  background:url('/ui/buttons/button-default.png') center / 100% auto no-repeat;
   transition:filter 0.16s ease, transform 0.16s ease;
 }
 .pulsante[hidden]{ display:none; }
 .pulsante:hover{ filter:brightness(1.18); }
 .pulsante:active{ transform:scale(0.98); }
 .pulsante[disabled]{ cursor:default; filter:saturate(0.6) brightness(0.8); transform:none; }
-.striscia{ position:absolute; inset:0; display:flex; align-items:stretch; pointer-events:none; }
-.striscia > span{ background-repeat:no-repeat; background-size:100% 100%; margin-right:-1px; }
-.striscia > span:last-child{ margin-right:0; }
-.s-sx{ flex:0 0 49px; background-image:url('/ui/button-opaque-left.png'); }
-.s-dx{ flex:0 0 49px; background-image:url('/ui/button-opaque-right.png'); }
-.s-centro{ flex:0 0 58px; background-image:url('/ui/button-opaque-center.png'); }
-.striscia > .s-pieno{ flex:1 1 0; min-width:0; background-image:url('/ui/button-opaque-filler.png'); background-repeat:repeat-x; background-size:auto 100%; }
 .etichetta{
-  position:relative; display:inline-flex; align-items:center; gap:10px;
-  font-family:'Marcellus SC', Georgia, serif; font-size:22px; line-height:1;
-  color:#DDCAA1; white-space:nowrap;
+  font-family:'Marcellus SC','Marcellus',Georgia,serif; font-weight:400; font-size:26px; line-height:1; white-space:nowrap;
+  position:relative; display:inline-flex; align-items:center; gap:0.38em;
 }
-.etichetta img{ height:22px; width:auto; display:block; }
+/* the game's label look on the words only: an icon never takes the stroke (Lorenzo) */
+.etichetta .parola{
+  background:linear-gradient(90deg, #F5B754 0%, #F6E0BB 50%, #F5B754 100%);
+  -webkit-background-clip:text; background-clip:text; color:transparent !important;
+  filter:url(#hx-btn-label);
+}
+.etichetta img{ height:0.85em; width:auto; display:block; filter:drop-shadow(0 2px 4px rgba(0,0,0,0.8)); }   /* v0.82.3 — shrinks with the label */
 @media (max-width:440px){
   .pannello{ padding:30px 18px; }
-  .pulsante{ padding:0 26px; }
-  .etichetta{ font-size:19px; gap:8px; }
-  .etichetta img{ height:19px; }
 }
 </style>
 </head>
 <body>
+<!-- v0.82.3 — the game's button label (stroke and shadows), see #hx-btn-label in the game -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs><filter id="hx-btn-label" x="-20%" y="-40%" width="140%" height="200%" color-interpolation-filters="sRGB">
+    <feComponentTransfer in="SourceAlpha" result="outside"><feFuncA type="table" tableValues="1 0"/></feComponentTransfer>
+    <feOffset in="outside" dx="1" dy="1" result="moved"/>
+    <feGaussianBlur in="moved" stdDeviation="0.75" result="blurred"/>
+    <feFlood flood-color="#FFFFFF"/>
+    <feComposite operator="in" in2="blurred" result="white"/>
+    <feComposite operator="in" in="white" in2="SourceAlpha" result="inner"/>
+    <feMerge result="filled"><feMergeNode in="SourceGraphic"/><feMergeNode in="inner"/></feMerge>
+    <feMorphology in="SourceAlpha" operator="erode" radius="0.5" result="shrunk"/>
+    <feComposite in="SourceAlpha" in2="shrunk" operator="out" result="ring"/>
+    <feFlood flood-color="#DDCBA3"/>
+    <feComposite operator="in" in2="ring" result="stroke"/>
+    <feMerge result="text"><feMergeNode in="filled"/><feMergeNode in="stroke"/></feMerge>
+    <feGaussianBlur in="text" stdDeviation="2" result="soft"/>
+    <feOffset in="soft" dy="2" result="low"/>
+    <feFlood flood-color="#000000" flood-opacity="0.8"/>
+    <feComposite operator="in" in2="low" result="shadow"/>
+    <feMerge><feMergeNode in="shadow"/><feMergeNode in="text"/></feMerge>
+  </filter></defs></svg>
 <div class="fondo"></div>
 <div class="velo"></div>
 <main class="pannello">
@@ -94,8 +110,7 @@ p{ margin:0; font-size:17px; line-height:1.45; color:#CCC; }
   <p id="testo">Sign in with your Google account. When you're done, go back to the game.</p>
   <div class="riga" id="riga" hidden></div>
   <button class="pulsante" id="google" type="button" hidden>
-    <span class="striscia"><span class="s-sx"></span><span class="s-pieno"></span><span class="s-centro"></span><span class="s-pieno"></span><span class="s-dx"></span></span>
-    <span class="etichetta"><img src="/ui/google-icon.png" alt="" draggable="false">Continue with Google</span>
+    <span class="etichetta"><img src="/ui/google-icon.png" alt="" draggable="false"><span class="parola">Continue with Google</span></span>
   </button>
 </main>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -150,6 +165,24 @@ p{ margin:0; font-size:17px; line-height:1.45; color:#CCC; }
     });
     cliente.requestCode();
   });
+})();
+</script>
+
+<script>
+// v0.82.3 — the one-piece buttons are 264 wide and never stretch: a label longer than
+// the room between the two little arrows gets a smaller font until it fits (16 at least)
+(function(){
+  var SPAZIO = 264 - 2 * 38;
+  function stringi(){
+    [].forEach.call(document.querySelectorAll('.pulsante .etichetta'), function(e){
+      e.style.fontSize = '';
+      var px = parseFloat(getComputedStyle(e).fontSize) || 26;
+      while(e.scrollWidth > SPAZIO && px > 16){ px -= 1; e.style.fontSize = px + 'px'; }
+    });
+  }
+  if(document.fonts && document.fonts.ready) document.fonts.ready.then(stringi);
+  window.addEventListener('load', stringi);
+  window.addEventListener('resize', stringi);
 })();
 </script>
 </body>

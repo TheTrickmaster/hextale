@@ -68,7 +68,6 @@ body.mouse-down{ cursor:var(--cursore-premuto); }
 
 .hx-btn{
   --hxb-h:68px;
-  --hxb-cap-w:49px; --hxb-mid-w:58px;
   position:relative; flex:0 0 auto;
   height:var(--hxb-h);
   min-width:200px; max-width:400px;
@@ -79,35 +78,17 @@ body.mouse-down{ cursor:var(--cursore-premuto); }
   cursor:var(--cursore);
   transition:filter 0.16s ease, transform 0.16s ease;
 }
-.hx-btn .hxb-strip{
-  position:absolute; inset:0; z-index:0;
-  display:flex; align-items:stretch;
-  pointer-events:none;
-}
-
-.hx-btn .hxb-strip > span{
-  background-repeat:no-repeat; background-size:100% 100%;
-  margin-right:-1px;
-}
-.hx-btn .hxb-strip > span:last-child{ margin-right:0; }
-.hx-btn .hxb-left, .hx-btn .hxb-right{ flex:0 0 var(--hxb-cap-w); }
-.hx-btn .hxb-center{ flex:0 0 var(--hxb-mid-w); }
-
-.hx-btn .hxb-strip > .hxb-fill{
-  flex:1 1 0; min-width:0;
-  background-repeat:repeat-x; background-size:auto 100%;
-}
-.hx-btn .hxb-left  { background-image:url('/ui/button-opaque-left.png'); }
-.hx-btn .hxb-center{ background-image:url('/ui/button-opaque-center.png'); }
-.hx-btn .hxb-right { background-image:url('/ui/button-opaque-right.png'); }
-.hx-btn .hxb-fill  { background-image:url('/ui/button-opaque-filler.png'); }
+/* v0.82.3 — the game's one-piece button (ui/buttons), 264x69: the five pieces are gone */
+.hx-btn{ width:264px; height:69px; padding:0 30px; box-sizing:border-box;
+  background:url('/ui/buttons/button-default.png') center / 100% auto no-repeat; }
+/* v0.82.3 — the label as in the game */
 .hx-btn .hxb-label{
-  position:relative; z-index:1;
-  display:inline-flex; align-items:center; gap:10px;
-  font-family:'Marcellus SC',serif;
-  font-size:22px; font-weight:400; line-height:1;
-  color:#DDCAA1; white-space:nowrap;
+  font-family:'Marcellus SC','Marcellus',Georgia,serif; font-weight:400; font-size:26px; line-height:1; white-space:nowrap;
+  background:linear-gradient(90deg, #F5B754 0%, #F6E0BB 50%, #F5B754 100%);
+  -webkit-background-clip:text; background-clip:text; color:transparent !important;
+  filter:url(#hx-btn-label);
 }
+.hx-btn .hxb-label{ position:relative; z-index:1; display:inline-flex; align-items:center; gap:10px; }
 .hx-btn:hover{ filter:brightness(1.18); }
 .hx-btn:active{ transform:scale(0.98); }
 
@@ -122,6 +103,26 @@ body.mouse-down{ cursor:var(--cursore-premuto); }
 </style>
 </head>
 <body>
+<!-- v0.82.3 — the game's button label (stroke and shadows), see #hx-btn-label in the game -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs><filter id="hx-btn-label" x="-20%" y="-40%" width="140%" height="200%" color-interpolation-filters="sRGB">
+    <feComponentTransfer in="SourceAlpha" result="outside"><feFuncA type="table" tableValues="1 0"/></feComponentTransfer>
+    <feOffset in="outside" dx="1" dy="1" result="moved"/>
+    <feGaussianBlur in="moved" stdDeviation="0.75" result="blurred"/>
+    <feFlood flood-color="#FFFFFF"/>
+    <feComposite operator="in" in2="blurred" result="white"/>
+    <feComposite operator="in" in="white" in2="SourceAlpha" result="inner"/>
+    <feMerge result="filled"><feMergeNode in="SourceGraphic"/><feMergeNode in="inner"/></feMerge>
+    <feMorphology in="SourceAlpha" operator="erode" radius="0.5" result="shrunk"/>
+    <feComposite in="SourceAlpha" in2="shrunk" operator="out" result="ring"/>
+    <feFlood flood-color="#DDCBA3"/>
+    <feComposite operator="in" in2="ring" result="stroke"/>
+    <feMerge result="text"><feMergeNode in="filled"/><feMergeNode in="stroke"/></feMerge>
+    <feGaussianBlur in="text" stdDeviation="2" result="soft"/>
+    <feOffset in="soft" dy="2" result="low"/>
+    <feFlood flood-color="#000000" flood-opacity="0.8"/>
+    <feComposite operator="in" in2="low" result="shadow"/>
+    <feMerge><feMergeNode in="shadow"/><feMergeNode in="text"/></feMerge>
+  </filter></defs></svg>
   <main class="quattroquattro">
     <img class="q-logo" src="/web-assets/hextale-logo-topbar.png" alt="Hextale">
     <img class="q-404" src="/web-assets/404.png" alt="404">
@@ -129,7 +130,6 @@ body.mouse-down{ cursor:var(--cursore-premuto); }
     <p class="q-battuta">Help! Robin Hood stole our page!</p>
     <p class="q-postilla">(We&rsquo;re not rich.)</p>
     <a class="hx-btn hx-btn-opaco" href="/">
-      <span class="hxb-strip"><span class="hxb-left"></span><span class="hxb-fill"></span><span class="hxb-center"></span><span class="hxb-fill"></span><span class="hxb-right"></span></span>
       <span class="hxb-label">Back to homepage</span>
     </a>
   </main>
@@ -137,6 +137,24 @@ body.mouse-down{ cursor:var(--cursore-premuto); }
 document.addEventListener('mousedown',  function(){ document.body.classList.add('mouse-down'); });
 document.addEventListener('mouseup',    function(){ document.body.classList.remove('mouse-down'); });
 document.addEventListener('mouseleave', function(){ document.body.classList.remove('mouse-down'); });
+</script>
+
+<script>
+// v0.82.3 — the one-piece buttons are 264 wide and never stretch: a label longer than
+// the room between the two little arrows gets a smaller font until it fits (16 at least)
+(function(){
+  var SPAZIO = 264 - 2 * 38;
+  function stringi(){
+    [].forEach.call(document.querySelectorAll('.hx-btn .hxb-label'), function(e){
+      e.style.fontSize = '';
+      var px = parseFloat(getComputedStyle(e).fontSize) || 26;
+      while(e.scrollWidth > SPAZIO && px > 16){ px -= 1; e.style.fontSize = px + 'px'; }
+    });
+  }
+  if(document.fonts && document.fonts.ready) document.fonts.ready.then(stringi);
+  window.addEventListener('load', stringi);
+  window.addEventListener('resize', stringi);
+})();
 </script>
 </body>
 </html>
