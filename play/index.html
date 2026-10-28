@@ -8108,7 +8108,7 @@ try{
 <button id="btn-show-results" class="hx-btn hx-btn-opaco" onclick="toggleBoardView(false)">
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:12.5px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.82.9</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:12.5px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.82.10</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -14952,7 +14952,11 @@ function passAggiorna(stato, trattieni){
   if(!stato || typeof stato !== 'object') return;
   PASS_STATO = stato;
   if(!trattieni && !_pgBolleInVolo) _pgMostrato = stato;
-  if(_activePage === 'progress') progressDisegna();
+  if(_activePage === 'progress' && _pgFirma() !== _pgFirmaDisegnata) progressDisegna();
+}
+let _pgFirmaDisegnata = null;
+function _pgFirma(){
+  try{ return JSON.stringify([PASS_STATO, _pgMostrato, QUEST_OGGI, _pgVista]); }catch(_){ return null; }
 }
 
 const PROGRESS_APERTO_DA = Date.UTC(2026, 10, 1);
@@ -15087,6 +15091,7 @@ function _pgPortaAlLivello(liscio){
 
 function progressDisegna(){
   if(!document.getElementById('progress-page')) return;
+  _pgFirmaDisegnata = _pgFirma();
   const anima = !_pgPrimoDisegno;
   _pgTesta(_pgMostrato, anima);
   _pgDisegnaPremi(_pgMostrato, anima);
@@ -15126,7 +15131,7 @@ function _pgTesta(s, anima){
     orbN.textContent = String(lv);
     if(!anima) piena.classList.add('senza-transizione');
     piena.style.width = (q * 100).toFixed(1) + '%';
-    if(!anima){ void piena.offsetWidth; piena.classList.remove('senza-transizione'); }
+    if(!anima) _pgTransizioneDopo(piena);
   }
   orbN.dataset.livello = String(lv);
 }
@@ -15180,7 +15185,7 @@ function _pgDisegnaPremi(s, anima){
       const pi = g.firstChild;
       if(!anima) pi.classList.add('senza-transizione');
       pi.style.width = (q * 100).toFixed(1) + '%';
-      if(!anima){ void pi.offsetWidth; pi.classList.remove('senza-transizione'); }
+      if(!anima) _pgTransizioneDopo(pi);
     } else if(g) g.remove();
   });
   [free, prem, passi].forEach(c => [...c.children].forEach(el => {
@@ -15368,7 +15373,7 @@ function _pgDisegnaQuest(riga, anima){
     piena.classList.toggle('blu', !fatta);
     if(!anima) piena.classList.add('senza-transizione');
     piena.style.width = (Math.max(0, Math.min(1, q.fatto / q.quanto)) * 100).toFixed(1) + '%';
-    if(!anima){ void piena.offsetWidth; piena.classList.remove('senza-transizione'); }
+    if(!anima) _pgTransizioneDopo(piena);
     const eraChiusa = t.classList.contains('chiusa');
     t.classList.toggle('fatta', fatta && q.aperta);
     t.classList.toggle('presa', q.presa);
@@ -15385,16 +15390,34 @@ function _pgDisegnaQuest(riga, anima){
       t.classList.toggle('pronta', q.aperta && fatta && !q.presa);
     }
   });
+  _pgStringiNomi();
 }
 
+let _pgSenzaTransizione = [];
+function _pgTransizioneDopo(el){
+  _pgSenzaTransizione.push(el);
+  if(_pgSenzaTransizione.length > 1) return;
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    const tutti = _pgSenzaTransizione; _pgSenzaTransizione = [];
+    for(const e of tutti) e.classList.remove('senza-transizione');
+  }));
+}
+let _pgNomiDaStringere = [];
 function _pgNomeInDueRighe(el, testo){
   if(!el) return;
   if(el.dataset.testo === testo && el.style.fontSize) return;
   el.dataset.testo = testo;
   el.textContent = testo;
+  _pgNomiDaStringere.push(el);
+}
+function _pgStringiNomi(){
+  let restano = _pgNomiDaStringere; _pgNomiDaStringere = [];
   for(const px of [24, 21, 19, 17, 16]){
-    el.style.fontSize = px + 'px'; el.style.lineHeight = px + 'px';
-    if(!el.isConnected || el.scrollHeight <= 50) break;
+    for(const el of restano){ el.style.fontSize = px + 'px'; el.style.lineHeight = px + 'px'; }
+    restano = restano.filter(el => el.isConnected);
+    if(!restano.length || px === 16) break;
+    restano = restano.filter(el => el.scrollHeight > 50);
+    if(!restano.length) break;
   }
 }
 function _pgTempo(ms, corto){
