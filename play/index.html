@@ -2625,6 +2625,9 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
 .copione-carta svg{ display:block; }
 .copione-velo.con-luce .copione-ombra{ fill-opacity:.8; }
 .copione-buco{ animation:copioneLuceDentro .3s ease-out both, copioneLuceRespira 2s ease-in-out .3s infinite; }
+.copione-copre{ animation:copioneLuceDentro .3s ease-out both; }
+.copione-buchi > .via{ animation:copioneLuceVia .3s ease-in forwards; }
+@keyframes copioneLuceVia{ from{ opacity:1; } to{ opacity:0; } }
 @keyframes copioneLuceDentro{ from{ opacity:0; } to{ opacity:1; } }
 @keyframes copioneLuceRespira{ 0%,100%{ opacity:1; } 50%{ opacity:.45; } }
 .copione-velo.mostra{ opacity:1; pointer-events:auto; cursor:var(--cursore, pointer); }
@@ -2684,6 +2687,9 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
   100%{ transform:translate(0,0) rotate(0deg); }
 }
 .copione-fumetto:not(.finita) .copione-clic{ visibility:hidden; }
+.copione-fumetto.auto .copione-clic{ visibility:hidden; }
+.copione-fumetto.scatta{ animation:copioneScatta .16s cubic-bezier(.2,.9,.3,1.4) both; }
+@keyframes copioneScatta{ from{ scale:.8; } to{ scale:1; } }
 .copione-fumetto[data-chi="eugene"]{ right:auto; left:130px; top:640px; transform:translateY(-50%) scaleX(-1); }
 .copione-fumetto[data-chi="eugene"] .copione-chi,
 .copione-fumetto[data-chi="eugene"] .copione-bolla-testo{ transform:scaleX(-1); }
@@ -2728,10 +2734,12 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
   50% { transform:translateY(-28px) scale(0.93, 1.09); animation-timing-function:ease-in; }
   100%{ transform:translateY(0) scale(1.1, 0.9); }
 }
-.hand-card-wrap.copione-spenta::after{
+.hand-card-wrap.copione-mano::after{
   content:''; position:absolute; inset:0; z-index:60; pointer-events:none;
   border-radius:14px; background:rgba(6,10,12,0.6);
+  opacity:0; transition:opacity .3s ease;
 }
+.hand-card-wrap.copione-mano.copione-spenta::after{ opacity:1; }
 .hand-card-wrap.copione-accesa{ filter:drop-shadow(0 0 16px #FFE991) drop-shadow(0 0 6px #FFE991); }
 .volo-avversario{
   position:absolute; left:0; top:0; width:210px; height:360px;
@@ -8169,7 +8177,7 @@ try{
 <button id="btn-show-results" class="hx-btn hx-btn-opaco" onclick="toggleBoardView(false)">
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:12.5px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.82.13</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:12.5px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.82.14</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -32343,8 +32351,8 @@ const TUTORIAL_PASSI = [
   { muri: true },
   { parla: [
     "Done. These are blocked tiles.|{luce:muri} Usually, cards cannot be played here.",
-    "{luce:}Let's start. Your hand is in the bottom-left corner and you're playing as the light {img:light-card-icon.png} player.",
-    "Let's try to place your first card.| Just drag the Ant on the board and release it.",
+    "{luce:mano}Let's start. Your hand is in the bottom-left corner and you're playing as the light {img:light-card-icon.png} player.",
+    "{luce:carta:Ant}Let's try to place your first card.| Just drag the Ant on the board and release it.",
   ] },
   { mossa: { carta: 'Ant', cella: '1,0' } },
   { aspetta: 2 },
@@ -32410,7 +32418,10 @@ const TUTORIAL_PASSI = [
   { pesca: true },
   { aspetta: 1 },
   { parla: [
-    "WAIT.| Who gave you that card?!| That's not in the script!",
+    { t: "Wait.", auto: 500, corpo: 34, inclina: -3 },
+    { t: "WAIT.", auto: 500, corpo: 50, inclina: 4 },
+    { t: "WAIT!!1", auto: 500, corpo: 72, inclina: -7 },
+    "Who gave you that card?!| That's not in the script!",
     "{trema}EUGENE!{/trema}| Who put that card into the apprentice's deck?!",
     { chi: 'eugene', t: "I d-d-don't know, sir!| I'm s-sorry sir!" },
     { sopra: true, t: "I DON'T CARE EUGENE, I SWEAR, MAKE ANOTHER MISTAKE AND YOU'RE FIRED!" },
@@ -32480,6 +32491,7 @@ function tutorialPosata(card, k){
     t.consenti = null;
     t.turnoPronto = 0;
     tutorialFreccia(null);
+    document.querySelectorAll('#board-svg [data-glow-azione="' + k + '"][data-copione]').forEach(el => el.remove());
     if(t.attesa === 'posata'){ t.attesa = null; tutorialAvanti(); }
   }, 0);
 }
@@ -32736,6 +32748,12 @@ function tutorialParla(righe, opz, poi){
     fumetti().forEach(x => { if(x !== f){ if(r.sopra) x.classList.add('sotto'); else x.classList.remove('acceso', 'sotto'); } });
     f.classList.remove('sotto', 'finita');
     f.classList.toggle('piccolo', !!r.fuori);
+    const bolla = f.querySelector('.copione-bolla');
+    bolla.style.fontSize = r.corpo ? r.corpo + 'px' : '';
+    f.style.rotate = r.inclina ? r.inclina + 'deg' : '';
+    f.classList.toggle('auto', !!r.auto);
+    if(r.auto){ f.classList.remove('scatta'); void f.offsetWidth; f.classList.add('scatta'); }
+    else f.classList.remove('scatta');
     f.querySelector('.copione-chi').textContent = TUTORIAL_VOCI[chi] || '';
     _tutorialCartaIntera(v, r.carta || null);
     const pezzi = _tutorialPezzi(r.t);
@@ -32755,6 +32773,12 @@ function tutorialParla(righe, opz, poi){
       }
       finisci(c);
     };
+    if(r.auto){
+      c.auto = true;
+      finisci(c);
+      dopo = _oroNativo.setTimeout(avanti, r.auto);
+      return;
+    }
     passo();
   };
   const finisci = (c) => {
@@ -32804,7 +32828,7 @@ function tutorialParla(righe, opz, poi){
   };
   v.onclick = (e) => {
     e.stopPropagation();
-    if(_oroNativo.now() < pronto || !corsa) return;
+    if(_oroNativo.now() < pronto || !corsa || corsa.auto) return;
     if(!corsa.finita){ finisci(corsa); return; }
     avanti();
   };
@@ -32816,9 +32840,21 @@ function tutorialLuce(nome){
   const v = document.getElementById('copione-velo');
   const buchi = v && v.querySelector('.copione-buchi');
   if(!buchi) return;
-  buchi.innerHTML = '';
-  for(const forma of _tutorialForme(nome)){ forma.setAttribute('class', 'copione-buco'); buchi.appendChild(forma); }
-  v.classList.toggle('con-luce', buchi.childNodes.length > 0);
+  const nuove = _tutorialForme(nome);
+  const chiavi = new Set(nuove.map(x => x.getAttribute('data-k')));
+  for(const x of [...buchi.children]){
+    if(x.classList.contains('via') || chiavi.has(x.getAttribute('data-k'))) continue;
+    x.classList.add('via');
+    _oroNativo.setTimeout(() => { try{ x.remove(); }catch(_){ } }, 320);
+  }
+  const restano = new Set([...buchi.children].filter(x => !x.classList.contains('via')).map(x => x.getAttribute('data-k')));
+  for(const forma of nuove){
+    if(restano.has(forma.getAttribute('data-k'))) continue;
+    forma.setAttribute('class', forma.getAttribute('data-copre') ? 'copione-copre' : 'copione-buco');
+    buchi.appendChild(forma);
+  }
+  v.classList.toggle('con-luce', nuove.length > 0);
+  _tutorialAccendiMano();
 }
 function _tutorialForme(nome){
   if(!nome) return [];
@@ -32852,16 +32888,45 @@ function _tutorialForme(nome){
     c.setAttribute('r', (Math.max(w, h) / 2 + piu).toFixed(1));
     return c;
   };
+  const inMano = (wrap, piu) => {
+    if(!wrap) return null;
+    const r = authoredRect(wrap);
+    const tr = getComputedStyle(wrap).transform;
+    const m = new DOMMatrix(tr && tr !== 'none' ? tr : undefined);
+    const ang = Math.atan2(m.b, m.a);
+    const w0 = wrap.offsetWidth || 210, h0 = wrap.offsetHeight || 360;
+    const k = r.width / ((w0 * Math.abs(Math.cos(ang)) + h0 * Math.abs(Math.sin(ang))) || 1);
+    const w = w0 * k + piu * 2, h = h0 * k + piu * 2;
+    const ret = document.createElementNS(NS, 'rect');
+    ret.setAttribute('x', (r.cx - w / 2).toFixed(1)); ret.setAttribute('y', (r.cy - h / 2).toFixed(1));
+    ret.setAttribute('width', w.toFixed(1)); ret.setAttribute('height', h.toFixed(1));
+    ret.setAttribute('rx', '18'); ret.setAttribute('ry', '18');
+    ret.setAttribute('transform', 'rotate(' + (ang * 180 / Math.PI).toFixed(2) + ' ' + r.cx.toFixed(1) + ' ' + r.cy.toFixed(1) + ')');
+    return ret;
+  };
+  const chiave = (forma, k) => { if(forma) forma.setAttribute('data-k', k); return forma; };
+  const wrapDi = (c) => c && document.querySelector('#p1-hand-fan .hand-card-wrap[data-carta="' + c.id + '"]');
   let forme = [];
-  if(nome === 'muri') forme = [...G.holes].map(k => esagono(k, 4));
-  else if(nome.indexOf('cella:') === 0) forme = [esagono(nome.slice(6), 6)];
-  else if(nome === 'board-score') forme = [rettangolo(document.getElementById('board-score'), 10, 18)];
+  if(nome === 'mano') forme = (G.p1Hand || []).map(c => chiave(inMano(wrapDi(c), 8), 'mano:' + c.id));
+  else if(nome.indexOf('carta:') === 0){
+    const mano = G.p1Hand || [];
+    const i = mano.findIndex(x => x && x.name === nome.slice(6));
+    const c = mano[i];
+    forme = [chiave(inMano(wrapDi(c), 8), 'mano:' + (c && c.id))];
+    for(const sopra of (i >= 0 ? mano.slice(i + 1) : [])){
+      const copre = chiave(inMano(wrapDi(sopra), 0), 'copre:' + sopra.id);
+      if(copre){ copre.setAttribute('fill', '#fff'); copre.setAttribute('data-copre', '1'); forme.push(copre); }
+    }
+  }
+  else if(nome === 'muri') forme = [...G.holes].map(k => chiave(esagono(k, 4), 'cella:' + k));
+  else if(nome.indexOf('cella:') === 0) forme = [chiave(esagono(nome.slice(6), 6), nome)];
+  else if(nome === 'board-score') forme = [chiave(rettangolo(document.getElementById('board-score'), 10, 18), nome)];
   else if(nome === 'danno'){
     const tutti = document.querySelectorAll('.numero-danno');
     const ultimo = tutti[tutti.length - 1];
-    forme = [cerchio(ultimo && (ultimo.querySelector('text') || ultimo), 30)];
+    forme = [chiave(cerchio(ultimo && (ultimo.querySelector('text') || ultimo), 30), nome)];
   }
-  else if(nome === 'bolle') forme = [...document.querySelectorAll('.bolla-campo')].map(b => cerchio([b.querySelector('text'), b.querySelector('.bolla-campo-gemma')], 18));
+  else if(nome === 'bolle') forme = [...document.querySelectorAll('.bolla-campo')].map((b, i) => chiave(cerchio([b.querySelector('text'), b.querySelector('.bolla-campo-gemma')], 18), 'bolla:' + i));
   return forme.filter(Boolean);
 }
 function tutorialChiudi(){
@@ -32925,10 +32990,14 @@ function _tutorialDoveIndicare(t){
 }
 function _tutorialAccendiMano(){
   const t = G && G.tutorial;
+  const luce = t && t.luce;
   document.querySelectorAll('#p1-hand-fan .hand-card-wrap').forEach(w => {
-    const usabile = !!(t && t.consenti && (G.p1Hand || []).some(c => c && c.id === w.dataset.carta && c.name === t.consenti.carta));
+    const carta = (G.p1Hand || []).find(c => c && c.id === w.dataset.carta);
+    const usabile = !!(t && t.consenti && carta && carta.name === t.consenti.carta);
+    const illuminata = !!(carta && (luce === 'mano' || luce === 'carta:' + carta.name));
+    w.classList.toggle('copione-mano', !!t);
     w.classList.toggle('copione-accesa', !!t && usabile);
-    w.classList.toggle('copione-spenta', !!t && !usabile);
+    w.classList.toggle('copione-spenta', !!t && !usabile && !illuminata);
   });
 }
 function tutorialDisegnaMeta(svg, cx, cy, R){
@@ -32937,6 +33006,8 @@ function tutorialDisegnaMeta(svg, cx, cy, R){
   const [q, r] = t.consenti.cella.split(',').map(Number);
   const p = axialToPixel(q, r, cx, cy, R);
   glowEsagonale(svg, p.x, p.y, R, t.consenti.cella);
+  const miei = svg.querySelectorAll('[data-glow-azione="' + t.consenti.cella + '"]');
+  if(miei.length) miei[miei.length - 1].setAttribute('data-copione', '1');
 }
 
 function startTimerRespectingBanner(){
