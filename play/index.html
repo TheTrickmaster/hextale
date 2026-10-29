@@ -2614,6 +2614,19 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
   transition:opacity .25s ease;
 }
 .copione-buio{ position:absolute; left:0; top:0; width:100%; height:100%; pointer-events:none; }
+.copione-ombra{ fill-opacity:.5; transition:fill-opacity .3s ease; }
+.copione-carta{
+  position:absolute; width:251px; height:431px; pointer-events:none;
+  opacity:0; transform:translate(-100%, -50%) translateY(60px);
+  transition:opacity .3s ease, transform .4s cubic-bezier(.2,.8,.3,1);
+  filter:drop-shadow(0 10px 24px rgba(0,0,0,.75));
+}
+.copione-carta.dentro{ opacity:1; transform:translate(-100%, -50%); }
+.copione-carta svg{ display:block; }
+.copione-velo.con-luce .copione-ombra{ fill-opacity:.8; }
+.copione-buco{ animation:copioneLuceDentro .3s ease-out both, copioneLuceRespira 2s ease-in-out .3s infinite; }
+@keyframes copioneLuceDentro{ from{ opacity:0; } to{ opacity:1; } }
+@keyframes copioneLuceRespira{ 0%,100%{ opacity:1; } 50%{ opacity:.45; } }
 .copione-velo.mostra{ opacity:1; pointer-events:auto; cursor:var(--cursore, pointer); }
 .copione-tizio{
   position:absolute; right:90px; bottom:0; height:720px; width:auto;
@@ -2621,7 +2634,9 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
   transform:translateY(30px); transition:transform .35s cubic-bezier(.2,.8,.3,1);
 }
 .copione-velo.mostra .copione-tizio{ transform:translateY(0); }
-.copione-velo.mostra.uscito .copione-tizio{ transform:translateX(130%); transition:transform .8s cubic-bezier(.55,0,.8,.3); }
+.copione-velo.uscito .copione-tizio{ transform:translateX(130%); transition:transform .8s cubic-bezier(.55,0,.8,.3); }
+.copione-velo.rientra .copione-tizio{ animation:copioneRientra .8s cubic-bezier(.2,.8,.3,1) both; }
+@keyframes copioneRientra{ from{ transform:translateX(130%); } to{ transform:translateY(0); } }
 .copione-fumetto{
   position:absolute; right:583px; top:712px;
   transform:translateY(-50%);
@@ -2634,7 +2649,11 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
   background:#FFF8EE; border-radius:30px;
   font-family:'Rosarivo',serif; font-size:25px; line-height:1.32; color:#24292A;
 }
-.copione-bolla{ transform-origin:calc(100% + 89px) calc(50% - 31px); animation:aiSpeechWobble 3.4s ease-in-out infinite; }
+.copione-bolla{ transform-origin:calc(100% + 89px) calc(50% - 31px); animation:copioneWobble 3.4s ease-in-out infinite; }
+@keyframes copioneWobble{
+  0%,100%{ transform:rotate(-0.75deg) scale(1); }
+  50%{ transform:rotate(0.75deg) scale(1.0045); }
+}
 .copione-bolla::after,
 .copione-coda-trama{
   content:''; position:absolute; inset:0; pointer-events:none;
@@ -3113,6 +3132,7 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
 .go-premio-icona{ width:auto; display:block; }
 #go-icona-xp{ height:74px; }
 #go-icona-ink{ height:92px; }
+#go-icona-pack{ height:80px; }
 .go-premio-testo{
   display:flex; flex-direction:column; align-items:center; justify-content:center;
   gap:2px;
@@ -8091,6 +8111,13 @@ try{
           <span class="go-premio-eti">Magic ink</span>
         </div>
       </div>
+      <div class="go-premio" id="go-premio-pack" style="display:none">
+        <img class="go-premio-icona" id="go-icona-pack" alt="" draggable="false">
+        <div class="go-premio-testo">
+          <span class="go-premio-num" id="go-pack-num">0</span>
+          <span class="go-premio-eti">Free pack</span>
+        </div>
+      </div>
     </div>
   </div>
   <div id="gameover-actions">
@@ -8142,7 +8169,7 @@ try{
 <button id="btn-show-results" class="hx-btn hx-btn-opaco" onclick="toggleBoardView(false)">
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:12.5px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.82.12</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:12.5px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.82.13</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -15660,6 +15687,7 @@ let _questBuffVisti = new Set();
 function _questMio(){ return (typeof _goIoSono === 'function') ? _goIoSono() : 1; }
 function _questConta(chiave, quanto){
   if(!QUEST_CONTO || !(chiave in QUEST_CONTO)) return;
+  if(G && (G.tutorial || window.__tutorialPartita)) return;
   const contoPrima = Object.assign({}, QUEST_CONTO);
   QUEST_CONTO[chiave] += (quanto || 1);
   try{ questAvanzaInPartita(contoPrima); }catch(_){ }
@@ -15694,6 +15722,7 @@ function questSegnaConquiste(player, prese, prima){
   if(!prese || !prese.length) return;
   const mio = (typeof _goIoSono === 'function') ? _goIoSono() : 1;
   if(player !== mio) return;
+  if(G && G.tutorial) return;
   const contoPrima = Object.assign({}, QUEST_CONTO);
   QUEST_CONTO.flip += prese.length;
   if(prese.length >= QUEST_MULTIPLO_DA) QUEST_CONTO.flip_multiplo += 1;
@@ -15916,6 +15945,7 @@ function montaGraficaPartita(){
   img('.go-avatar-cornice', 'avatar-frame.png');
   img('#go-icona-xp',   'xp-icon.png');
   img('#go-icona-ink',  'magic-ink-icon.png');
+  img('#go-icona-pack', 'pack-icon.png');
   ['#btn-view-board','#btn-back-main','#btn-show-results'].forEach(sel=>
     vestiPulsante(document.querySelector(sel)));
   vestiOrbDelPunteggio();
@@ -32302,13 +32332,13 @@ function orologioRiparti(){
 
 const TUTORIAL_NARRATORE = { nome: 'The Tale Teller', avatar: 'mysterious-guy-avatar.png' };
 const TUTORIAL_VOCI = { tt: 'The Tale Teller', eugene: 'Eugene' };
-const TUTORIAL_MAZZO = ['Ant', 'Lion', 'March Hare', 'Poisoned Apple', 'Kitsune', 'Leprechaun', 'Shere Khan'];
+const TUTORIAL_MAZZO = ['Ant', 'Lion', 'March Hare', 'Kitsune', 'Leprechaun', 'Imp', 'Shere Khan'];
 const TUTORIAL_MAZZO_BOT = ['Grasshopper', 'Scarecrow', 'Sleeping Beauty', 'Mouse', 'Fox', 'Pixies'];
 const TUTORIAL_ABILITA = ['Scarecrow', 'March Hare', 'Sleeping Beauty', 'Shere Khan'];
 const TUTORIAL_PASSI = [
   { parla: [
     "Ahem. Okay, where were we?| Oh yes, you're here to learn the game.",
-    "First let me prepare the board. I'm blocking some of the tiles so to make things easier.",
+    "First, let me prepare the board. I'm blocking off some of the tiles to make things easier.",
   ] },
   { muri: true },
   { parla: [
@@ -32320,21 +32350,21 @@ const TUTORIAL_PASSI = [
   { aspetta: 2 },
   { parla: [
     "What a move!| Nobody before picked up this game so fast!",
-    "Just kidding,| you just placed a card.| What were you expecting?| An applause?| An \"achievement unlocked\" popup?| No.| Let's move on.",
+    "Just kidding,| you just placed a card.| What were you expecting?| An \"achievement unlocked\" popup?| No.| Let's move on.",
   ] },
   { bot: { carta: 'Grasshopper', cella: '1,-1' } },
   { aspetta: 1 },
   { parla: [
-    "Wheeze!| Would you look at that?| I kicked your ass and conquered your card.",
-    "If you place a card close to an enemy and yours has a higher power value, you conquer that card.",
+    "Wheeze!| Would you look at that?| I flipped your card.",
+    "If you place a card close to an enemy and yours has a higher power value, you flip that card.",
     "Now try to play the Lion on the left of my Grasshopper.",
   ] },
   { mossa: { carta: 'Lion', cella: '0,-1' } },
   { aspetta: 'danno' },
   { ferma: true, luce: 'danno', parla: [
-    "Ahh yes.| See that number floating between the cards?| That's how much you scored by conquering my card.",
+    "Ahh yes.| See that number floating between the cards?| That's how much you scored by flipping my card.",
     "The conquering score is simply the difference of Power between the attacker and the defender.| {lento}You attacked a 2 with a 3, so you scored 1.{/lento}| Too fast, Sherlock?",
-    "{luce:}No?| Good, let's move on.| But let me tell you why yours was a mediocre move.",
+    "{luce:}No?| Good, let's move on.| But let me tell you why yours was a risky move.",
     "{luce:cella:0,-1}By placing the Lion there, you just exposed its weak side to my next card!| Check this!",
   ] },
   { aspetta: 2 },
@@ -32342,10 +32372,10 @@ const TUTORIAL_PASSI = [
   { aspetta: 'ondata' },
   { ferma: true, luce: 'bolle', parla: [
     "See?| That's what I call a great move.| 5 points for me.",
-    "{luce:cella:-1,0}Also, my Scarecrow has an ability. It will buff the next card I play, so keep that in mind.",
+    { carta: '-1,0', t: "{luce:cella:-1,0}Also, my Scarecrow has an ability. It will buff the next card I play, so keep that in mind." },
     "{luce:}{lento}...{/lento}",
     "{lento}...{/lento}",
-    "{luce:bolle}At this point I would expect you to ask why are there tiny colored gems and numbers floating on the cards at the end of each turn, but I overestimated you.| Again.",
+    "{luce:bolle}At this point I would expect you to ask why are there tiny colored gems and numbers floating on the cards at the end of each turn.",
     "Sigh.| Let me explain.",
     "Those gems indicate the rarity of the cards. Grey {img:gem-common.png} is for Common cards, Blue {img:gem-rare.png} for Rares, Purple {img:gem-mythic.png} for Mythic, and lastly, Orange {img:gem-timeless.png} for Timeless.",
     "Each card scores points at the end of each turn:| Commons score 3, Rare 2, Mythic 1 and Timeless 0",
@@ -32358,30 +32388,30 @@ const TUTORIAL_PASSI = [
   { aspetta: 'bersaglio' },
   { parla: [
     "Okay, what's that tooltip that's following your cursor?",
-    "It explains that the card you just played, has an ability that requires you to take action in order to finalize your move and move onto the next turn.",
-    "The March Hare swaps an adjacent enemy's lowest and highest Power values.| Try swapping the Ant's values by clicking on the crosshair on top of it.",
+    "It explains that the card you just played has an ability that requires you to take action before you can finalize your move and proceed to the next turn.",
+    "The March Hare swaps an adjacent enemy's lowest and highest Power values.| Try swapping the Ant's values by clicking on the {img:swap-icon.png} swap icon on top of my card.",
   ] },
   { bersaglio: '1,0' },
   { aspetta: 2 },
   { parla: [
-    "Okay,| okay.| Are you starting to have trouble reading the board, Einstein?",
-    "I'll give you one more hint:| the \"Board score\" window on top of the screen {luce:board-score}indicates how much your cards will score at the end of each turn, so you don't have to do the math yourself.",
+    "Okay,| the board is getting crowded, isn't it?| If we keep adding cards, it'll be hard to keep track of the board score.",
+    "{luce:board-score}That's why there's a \"Board score\" window on top of the screen.| It indicates how much your cards will score at the end of each turn, so you don't have to do the math yourself.",
     "{luce:}Back in my days, we used to play this on paper,| blindfolded,| with one tied hand.| Anyway.",
   ] },
   { bot: { carta: 'Sleeping Beauty', cella: '-1,1' } },
   { aspetta: 'pescata' },
   { parla: [
-    "{luce:cella:-1,1}Look at this card.| So powerful, right?| Read its ability.| She can only be conquered by Princesses {img:trait-princess.png}, Nobles {img:trait-noble.png} and Sovereigns {img:trait-sovereign.png}.",
+    "{luce:cella:-1,1}Look at this card.| So powerful, right?| Read its ability.| She can only be conquered by cards with Princess {img:trait-princess.png}, Noble {img:trait-noble.png} or Sovereign {img:trait-sovereign.png} Traits.",
     "Good luck flipping that, {trema}kiddo{/trema}.",
     "{luce:}What are you saying?| You don't know what a Trait is?| Of course you don't.",
-    "Each card can have one or two traits.| Traits differentiate the nature of each card, and can be used to create powerful synergies.",
-    "Just...| let's move on.| That's way too complicated for you anyway.",
+    "Every card has Traits.| Traits define the nature of each card and can be used to create powerful synergies.",
+    "Learning how to use Traits is essential if you want to become a good player.| Let's move on.",
   ] },
   { pesca: true },
   { aspetta: 1 },
   { parla: [
     "WAIT.| Who gave you that card?!| That's not in the script!",
-    "Eugene!| Who put that card into the apprentice's deck?!",
+    "{trema}EUGENE!{/trema}| Who put that card into the apprentice's deck?!",
     { chi: 'eugene', t: "I d-d-don't know, sir!| I'm s-sorry sir!" },
     { sopra: true, t: "I DON'T CARE EUGENE, I SWEAR, MAKE ANOTHER MISTAKE AND YOU'RE FIRED!" },
     { chi: 'eugene', t: "But sir..." },
@@ -32390,10 +32420,13 @@ const TUTORIAL_PASSI = [
   ] },
   { mossa: { carta: 'Shere Khan', cella: '0,0' } },
   { aspetta: 'fine' },
-  { parla: [
-    "Easy when you have a Timeless card in your deck,| RIGHT EUGENE?!",
+  { rientra: true, esce: true, parla: [
+    "Easy when you have a Timeless card in your deck,| {trema}RIGHT EUGENE?!{/trema}",
     "Well the board is full and so the match is over.| Take the win and go home.",
-    { fuori: true, t: "I can't believe this is the people I have to deal with everyday." },
+  ] },
+  { fine: true },
+  { parla: [
+    { fuori: true, t: "I can't believe these are the people I have to deal with every day." },
   ] },
 ];
 const TUTORIAL_BATTUTA_MS = 26;
@@ -32403,6 +32436,7 @@ const TUTORIAL_SOPRA_MS = 380;
 const TUTORIAL_MURO_PASSO_MS = 110;
 const TUTORIAL_DANNO_MS = 560;
 const TUTORIAL_USCITA_MS = 900;
+const TUTORIAL_FINE_MS = 1800;
 function avviaPartitaTutorial(){
   try{ closeDebugModal(); }catch(_){ }
   orologioInstalla();
@@ -32468,6 +32502,24 @@ function tutorialEvento(nome, dato){
   }
   else _oroNativo.setTimeout(tutorialAvanti, nome === 'fine' ? 900 : 350);
 }
+function tutorialTrattieniFine(mostra){
+  const t = G && G.tutorial;
+  if(!t || t.attesa !== 'fine') return false;
+  t.attesa = null;
+  t.fine = mostra;
+  _oroNativo.setTimeout(tutorialAvanti, 600);
+  return true;
+}
+async function tutorialRiscuotiPremio(){
+  if(!sessioneAccount || !sessioneAccount.token) return;
+  try{
+    const r = await nakamaRpc('hx_tutorial_premio', {});
+    _daMostrareDopoPartita = r;
+    try{ applicaValuteDalServer(r && r.valute); }catch(_){ }
+    try{ if(r && r.pass) passAggiorna(r.pass); }catch(_){ }
+    if(r && typeof r.bustineExtra === 'number'){ BUSTINE_VINTE = r.bustineExtra; try{ mm2AggiornaBustine(); }catch(_){ } }
+  }catch(e){ console.warn('[tutorial] premio non riscosso: ' + (e && e.message)); }
+}
 function tutorialTrattieniPescata(player, pesca){
   const t = G && G.tutorial;
   if(!t || player !== 1 || t.attesa !== 'pescata') return false;
@@ -32524,9 +32576,16 @@ function tutorialAvanti(){
     if(typeof pesca === 'function') pesca();
     return;
   }
+  if(p.fine){
+    const mostra = t.fine;
+    t.fine = null;
+    if(typeof mostra === 'function') mostra();
+    _oroNativo.setTimeout(() => { if(G && G.tutorial === t) tutorialAvanti(); }, TUTORIAL_FINE_MS);
+    return;
+  }
   if(p.parla){
     if(p.ferma) orologioFerma();
-    tutorialParla(p.parla, p.luce || null, () => {
+    tutorialParla(p.parla, { luce: p.luce || null, rientra: !!p.rientra, esce: !!p.esce }, () => {
       if(p.ferma) orologioRiparti();
       tutorialAvanti();
     });
@@ -32575,7 +32634,7 @@ function _tutorialVelo(){
     + '<defs><filter id="copione-sfuma" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="7"/></filter>'
     + '<mask id="copione-maschera" maskUnits="userSpaceOnUse" x="0" y="0" width="1920" height="1080">'
     + '<rect width="1920" height="1080" fill="#fff"/><g class="copione-buchi" fill="#000" filter="url(#copione-sfuma)"></g></mask></defs>'
-    + '<rect width="1920" height="1080" fill="#000" fill-opacity="0.5" mask="url(#copione-maschera)"/></svg>'
+    + '<rect class="copione-ombra" width="1920" height="1080" fill="#000" mask="url(#copione-maschera)"/></svg>'
     + '<img class="copione-tizio" alt="" draggable="false">'
     + _tutorialFumettoHtml('tt') + _tutorialFumettoHtml('eugene');
   fxLayer().appendChild(v);
@@ -32615,7 +32674,7 @@ function _tutorialMettiPezzi(box, pezzi){
       s.textContent = p.c;
       if(p.trema){
         if(!parola){ parola = document.createElement('span'); parola.className = 'copione-trema-parola'; box.appendChild(parola); }
-        s.classList.add('copione-trema');
+        if(p.c.trim()) s.classList.add('copione-trema');
         s.style.animationDuration = (0.16 + Math.random() * 0.12).toFixed(2) + 's';
         s.style.animationDelay = (-Math.random()).toFixed(2) + 's';
         parola.appendChild(s);
@@ -32632,14 +32691,41 @@ function _tutorialMettiPezzi(box, pezzi){
   }
 }
 function _tutorialRiga(r){ return (typeof r === 'string') ? { t: r } : r; }
-function tutorialParla(righe, luce, poi){
+const TUTORIAL_CARTA_W = 251, TUTORIAL_CARTA_H = 431;
+function _tutorialCartaIntera(v, cella){
+  const vecchia = v.querySelector('.copione-carta.dentro');
+  if(cella && vecchia && vecchia.dataset.cella === cella) return;
+  v.querySelectorAll('.copione-carta').forEach(el => {
+    el.classList.remove('dentro');
+    _oroNativo.setTimeout(() => { try{ el.remove(); }catch(_){ } }, 450);
+  });
+  if(!cella) return;
+  const posto = G.board[cella];
+  const c = getCellScreenCenter(cella);
+  if(!posto || !posto.card || !c) return;
+  const el = document.createElement('div');
+  el.className = 'copione-carta';
+  el.dataset.cella = cella;
+  el.style.left = (c.x - (_ultimoRaggioCella || 60) - 28).toFixed(1) + 'px';
+  el.style.top = c.y.toFixed(1) + 'px';
+  el.appendChild(buildFullHandCardSVG(cardFoilVisualCard(posto.card), TUTORIAL_CARTA_W, TUTORIAL_CARTA_H));
+  v.insertBefore(el, v.querySelector('.copione-tizio'));
+  _oroNativo.raf(() => _oroNativo.raf(() => el.classList.add('dentro')));
+}
+function tutorialParla(righe, opz, poi){
   const t = G && G.tutorial;
   if(!t) return;
-  if(G.turnBannerActive && !OROLOGIO.fermo){ _oroNativo.setTimeout(() => tutorialParla(righe, luce, poi), 200); return; }
+  opz = opz || {};
+  if(G.turnBannerActive && !OROLOGIO.fermo){ _oroNativo.setTimeout(() => tutorialParla(righe, opz, poi), 200); return; }
   const v = _tutorialVelo();
   t.parla = true;
   tutorialFreccia(null);
-  tutorialLuce(luce);
+  tutorialLuce(opz.luce || null);
+  if(opz.rientra){
+    v.classList.remove('uscito');
+    v.classList.add('rientra');
+    _oroNativo.setTimeout(() => v.classList.remove('rientra'), 900);
+  }
   _oroNativo.raf(() => v.classList.add('mostra'));
   let n = -1, corsa = null, dopo = 0;
   let pronto = _oroNativo.now() + 350;
@@ -32651,6 +32737,7 @@ function tutorialParla(righe, luce, poi){
     f.classList.remove('sotto', 'finita');
     f.classList.toggle('piccolo', !!r.fuori);
     f.querySelector('.copione-chi').textContent = TUTORIAL_VOCI[chi] || '';
+    _tutorialCartaIntera(v, r.carta || null);
     const pezzi = _tutorialPezzi(r.t);
     _tutorialMettiPezzi(f.querySelector('.copione-bolla-testo'), pezzi);
     f.classList.add('acceso');
@@ -32699,8 +32786,17 @@ function tutorialParla(righe, luce, poi){
     scrivi(r);
   };
   const chiudi = () => {
+    if(opz.esce && !v.classList.contains('uscito')){
+      fumetti().forEach(x => x.classList.remove('acceso', 'sotto'));
+      v.classList.add('uscito');
+      corsa = null;
+      tutorialLuce(null);
+      _oroNativo.setTimeout(() => { opz.esce = false; chiudi(); }, TUTORIAL_USCITA_MS);
+      return;
+    }
     v.onclick = null;
     v.classList.remove('mostra');
+    _tutorialCartaIntera(v, null);
     fumetti().forEach(x => x.classList.remove('acceso', 'sotto'));
     tutorialLuce(null);
     t.parla = false;
@@ -32721,7 +32817,8 @@ function tutorialLuce(nome){
   const buchi = v && v.querySelector('.copione-buchi');
   if(!buchi) return;
   buchi.innerHTML = '';
-  for(const forma of _tutorialForme(nome)) buchi.appendChild(forma);
+  for(const forma of _tutorialForme(nome)){ forma.setAttribute('class', 'copione-buco'); buchi.appendChild(forma); }
+  v.classList.toggle('con-luce', buchi.childNodes.length > 0);
 }
 function _tutorialForme(nome){
   if(!nome) return [];
@@ -32745,6 +32842,16 @@ function _tutorialForme(nome){
     ret.setAttribute('rx', String(raggio)); ret.setAttribute('ry', String(raggio));
     return ret;
   };
+  const cerchio = (els, piu) => {
+    const rr = [].concat(els).filter(Boolean).map(authoredRect).filter(x => x.width || x.height);
+    if(!rr.length) return null;
+    const l = Math.min(...rr.map(x => x.left)), tp = Math.min(...rr.map(x => x.top));
+    const w = Math.max(...rr.map(x => x.left + x.width)) - l, h = Math.max(...rr.map(x => x.top + x.height)) - tp;
+    const c = document.createElementNS(NS, 'circle');
+    c.setAttribute('cx', (l + w / 2).toFixed(1)); c.setAttribute('cy', (tp + h / 2).toFixed(1));
+    c.setAttribute('r', (Math.max(w, h) / 2 + piu).toFixed(1));
+    return c;
+  };
   let forme = [];
   if(nome === 'muri') forme = [...G.holes].map(k => esagono(k, 4));
   else if(nome.indexOf('cella:') === 0) forme = [esagono(nome.slice(6), 6)];
@@ -32752,9 +32859,9 @@ function _tutorialForme(nome){
   else if(nome === 'danno'){
     const tutti = document.querySelectorAll('.numero-danno');
     const ultimo = tutti[tutti.length - 1];
-    forme = [rettangolo(ultimo && (ultimo.querySelector('text') || ultimo), 28, 40)];
+    forme = [cerchio(ultimo && (ultimo.querySelector('text') || ultimo), 30)];
   }
-  else if(nome === 'bolle') forme = [...document.querySelectorAll('.bolla-campo')].map(b => rettangolo([b.querySelector('text'), b.querySelector('.bolla-campo-gemma')], 22, 28));
+  else if(nome === 'bolle') forme = [...document.querySelectorAll('.bolla-campo')].map(b => cerchio([b.querySelector('text'), b.querySelector('.bolla-campo-gemma')], 18));
   return forme.filter(Boolean);
 }
 function tutorialChiudi(){
@@ -34272,9 +34379,10 @@ function finishGameWithResult(){
   _motivoFinePartita = '';
   if(G) G.vincitoreDichiarato = 0;
   try{ stickerFinePartita(); }catch(_){ }
+  try{ if(G && G.tutorial && vincitore === 1) tutorialRiscuotiPremio(); }catch(_){ }
   setTimeout(()=>{
+    const mostra = ()=>{
     document.getElementById('gameover').classList.add('show');
-    try{ if(G && G.tutorial) tutorialEvento('fine'); }catch(_){ }
     try{ goEntrata(); }catch(e){ console.warn('[fine partita] entrata: ' + (e && e.message)); }
     try{ playSfxFile(vincitore === _goIoSono() ? 'end-game-win.mp3' : 'end-game-loss.mp3'); }catch(_){}
     try{ stopMusicLoopChain(); }catch(_){}
@@ -34283,6 +34391,9 @@ function finishGameWithResult(){
       try{ bgm.pause(); }catch(_){}
       try{ bgm.volume = getEffectiveMusicVolume(); }catch(_){}
     }
+    };
+    if(G && G.tutorial && tutorialTrattieniFine(mostra)) return;
+    mostra();
   },500);
 }
 
@@ -34322,7 +34433,8 @@ function _goPremi(){
     ink:  (d && d.inkGuadagnato) || 0,
     verso:(d && typeof d.versoBustina === 'number') ? d.versoBustina : 0,
     quante:(d && d.partitePerBustina) || 5,
-    bustina: !!(d && d.bustinaVinta)
+    bustina: !!(d && d.bustinaVinta),
+    omaggio: (d && d.bustinaOmaggio) || 0
   };
 }
 
@@ -34346,7 +34458,9 @@ const GO_PREMIO_PASSO_MS = 320;
 function goEntrata(){
   const q = (sel)=> document.querySelector(sel);
   const pezzi = ['#gameover-testata', '#gameover-punteggi', '#gameover-premi-titolo',
-                 '#go-premio-xp', '#go-premio-ink'];
+                 '#go-premio-xp', '#go-premio-ink', '#go-premio-pack'];
+  const pacco = q('#go-premio-pack');
+  if(pacco) pacco.style.display = 'none';
   for(const s of pezzi){
     const el = q(s);
     if(!el) continue;
@@ -34398,6 +34512,10 @@ function goPremi(premi){
   poi(t, ()=>{ accendi('#go-premio-xp'); pulsa('#go-icona-xp'); _goConta(q('#go-xp-num'), premi.xp, GO_CONTA_MS); });
   t += GO_PREMIO_PASSO_MS;
   poi(t, ()=>{ accendi('#go-premio-ink'); pulsa('#go-icona-ink'); _goConta(q('#go-ink-num'), premi.ink, GO_CONTA_MS); });
+  if(premi.omaggio > 0){
+    t += GO_PREMIO_PASSO_MS;
+    poi(t, ()=>{ const el = q('#go-premio-pack'); if(el) el.style.display = ''; accendi('#go-premio-pack'); pulsa('#go-icona-pack'); _goConta(q('#go-pack-num'), premi.omaggio, GO_CONTA_MS); });
+  }
 }
 
 function toggleBoardView(showBoard){
