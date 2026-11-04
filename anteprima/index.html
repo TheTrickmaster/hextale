@@ -5803,6 +5803,9 @@ html.azione-attiva #timer-pin-hover{ opacity:0 !important; visibility:hidden !im
   flex:1 1 auto; min-height:0; overflow-y:auto;
   overflow-x:hidden;
   padding-right:10px;
+  --sfuma-su:0px; --sfuma-giu:60px;
+  -webkit-mask-image:linear-gradient(to bottom, transparent 0, #000 var(--sfuma-su), #000 calc(100% - var(--sfuma-giu)), transparent 100%);
+  mask-image:linear-gradient(to bottom, transparent 0, #000 var(--sfuma-su), #000 calc(100% - var(--sfuma-giu)), transparent 100%);
 }
 #avatar-griglia > .avatar-scelta{ place-self:center; }
 .avatar-scelta{
@@ -8206,7 +8209,7 @@ try{
 <button id="btn-show-results" class="hx-btn hx-btn-opaco" onclick="toggleBoardView(false)">
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:12.5px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.82.26</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:12.5px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.82.27</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -20824,11 +20827,23 @@ function costruisciGrigliaAvatar(){
     b.appendChild(cornice);
     b.onclick = ()=> scegliAvatarNellaGriglia(slug);
     griglia.appendChild(b);
-    impostaImgDaCandidati(foto, artVersione(avatarCandidati(slug, fazione), 200));
+    impostaImgDaCandidati(foto, artVersione(avatarCandidati(slug, fazione), 400));
   }
   if(!griglia.children.length){
     messaggioAvatar('Your cards are still loading.', 'attesa');
   }
+  if(!griglia._sfumaCollegata){
+    griglia._sfumaCollegata = true;
+    griglia.addEventListener('scroll', ()=> _avatarGrigliaSfuma(griglia), { passive:true });
+  }
+  griglia.scrollTop = 0;
+  requestAnimationFrame(()=> _avatarGrigliaSfuma(griglia));
+}
+function _avatarGrigliaSfuma(griglia){
+  const su = griglia.scrollTop > 1;
+  const giu = griglia.scrollTop + griglia.clientHeight < griglia.scrollHeight - 1;
+  griglia.style.setProperty('--sfuma-su', su ? '60px' : '0px');
+  griglia.style.setProperty('--sfuma-giu', giu ? '60px' : '0px');
 }
 function scegliAvatarNellaGriglia(slug){
   _avatarInForse = slug;
