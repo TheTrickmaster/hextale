@@ -8217,7 +8217,7 @@ try{
 <button id="btn-show-results" class="hx-btn hx-btn-opaco" onclick="toggleBoardView(false)">
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:12.5px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.82.31</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:12.5px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.82.32</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -12020,10 +12020,7 @@ function mostraAvatarSu(el, sigla, fazione){
   const prova = ()=>{
     if(gen !== el.__avatarGen || i >= cand.length) return;
     const url = cand[i++];
-    const test = new Image();
-    test.onload = ()=>{ if(gen === el.__avatarGen){ el.src = url; el.style.visibility = ''; } };
-    test.onerror = prova;
-    test.src = url;
+    _provaAvatar(url, (u)=>{ if(gen === el.__avatarGen){ el.src = u; el.style.visibility = ''; } }, prova);
   };
   prova();
 }
@@ -13889,6 +13886,12 @@ function impostaImgDaCandidati(el, candidati){
   if(!el) return;
   let pronta = null;
   el.__assetPronto = new Promise(r => { pronta = r; });
+  const genLivelli = (el.__livelliGen = (el.__livelliGen || 0) + 1);
+  const aLivelli = (candidati || []).map(_avatarLivelliDi).find(Boolean);
+  if(aLivelli){
+    _avatarComposto(aLivelli).then(u => { if(genLivelli === el.__livelliGen && u) el.src = u; pronta(); });
+    return;
+  }
   for(const url of candidati){
     const visto = _assetVisti.get(url);
     if(visto === true){ el.src = url; pronta(); return; }
@@ -18489,10 +18492,7 @@ function _avatarProva(el, candidati, gen){
     if(gen !== _avatarGenerazione) return;
     if(i >= candidati.length) return;
     const url = candidati[i++];
-    const test = new Image();
-    test.onload = ()=>{ if(gen === _avatarGenerazione) el.src = url; };
-    test.onerror = prova;
-    test.src = url;
+    _provaAvatar(url, (u)=>{ if(gen === _avatarGenerazione) el.src = u; }, prova);
   };
   prova();
 }
@@ -21322,6 +21322,41 @@ function artInCarta(img, url){
   const r = artRidotta(url, 400);
   if(img.dataset){ delete img.dataset.ripiego; if(r) img.dataset.artePiena = url; else delete img.dataset.artePiena; }
   img.setAttribute('href', r || url);
+}
+const _avatarComposti = new Map();
+function _avatarLivelliDi(url){
+  const m = String(url || '').match(/\/cards\/art(-\d+)?\/([a-z0-9-]+)\/\2-(dark|light)\.(?:jpg|jpeg|png)$/i);
+  if(!m || typeof FINAL_CARDS === 'undefined' || !Array.isArray(FINAL_CARDS)) return null;
+  const e = FINAL_CARDS.find(c => c && c.slug === m[2]);
+  const pila = e && e[m[3] === 'light' ? 'artLayersLight' : 'artLayersDark'];
+  if(!Array.isArray(pila) || !pila.length || !pila.some(u => /-layer\d\.[a-z]+$/i.test(String(u)))) return null;
+  const h = m[1] ? Number(m[1].slice(1)) : 0;
+  return { chiave: m[2] + '-' + m[3] + '-' + h, pieni: pila.slice(), livelli: pila.map(u => (h && artRidotta(u, h)) || u) };
+}
+function _caricaPrimaImg(lista){
+  return new Promise(ok => { let i = 0;
+    const prova = () => { if(i >= lista.length) return ok(null);
+      const im = new Image(); im.onload = () => ok(im); im.onerror = prova; im.src = lista[i++]; };
+    prova(); });
+}
+function _avatarComposto(info){
+  if(_avatarComposti.has(info.chiave)) return _avatarComposti.get(info.chiave);
+  const p = Promise.all(info.livelli.map((u, i) => _caricaPrimaImg(u === info.pieni[i] ? [u] : [u, info.pieni[i]]))).then(imgs => {
+    if(!imgs.length || imgs.some(x => !x)) return null;
+    const W = imgs[0].naturalWidth, H = imgs[0].naturalHeight;
+    if(!W || !H) return null;
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const g = c.getContext('2d');
+    imgs.forEach(im => g.drawImage(im, 0, 0, W, H));
+    return new Promise(ok => { try{ c.toBlob(b => ok(b ? URL.createObjectURL(b) : null), 'image/png'); }catch(_){ ok(null); } });
+  }).catch(() => null).then(u => { if(!u) _avatarComposti.delete(info.chiave); return u; });
+  _avatarComposti.set(info.chiave, p);
+  return p;
+}
+function _provaAvatar(url, ok, ko){
+  const info = _avatarLivelliDi(url);
+  if(info){ _avatarComposto(info).then(u => u ? ok(u) : ko()); return; }
+  const test = new Image(); test.onload = () => ok(url); test.onerror = ko; test.src = url;
 }
 function _primoCheEsiste(urls, prova){
   const passo = i => (i>=urls.length)
