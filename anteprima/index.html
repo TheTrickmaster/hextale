@@ -5832,6 +5832,15 @@ html.azione-attiva #timer-pin-hover{ opacity:0 !important; visibility:hidden !im
 .avatar-scelta:hover .avatar-glow{ opacity:0.35; }
 .avatar-scelta.scelta .avatar-glow{ opacity:1; }
 .avatar-scelta .player-avatar{ z-index:1; }
+.avatar-livelli{
+  position:absolute; left:15.5%; top:13%; width:69%; height:72%;
+  clip-path:polygon(50% 0%, 100% 25.1%, 100% 74.5%, 50% 100%, 0% 74.5%, 0% 25.1%);
+  overflow:hidden; pointer-events:none;
+}
+.avatar-livelli > img{
+  position:absolute; inset:0; width:100%; height:100%; object-fit:cover;
+  transition:transform 0.18s ease-out;
+}
 
 .hx-dropdown{ position:relative; width:100%; }
 #filters-pannello > .hx-dropdown{ z-index:20; }
@@ -8217,7 +8226,7 @@ try{
 <button id="btn-show-results" class="hx-btn hx-btn-opaco" onclick="toggleBoardView(false)">
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:12.5px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.82.32</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:12.5px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.82.33</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -20836,6 +20845,7 @@ function costruisciGrigliaAvatar(){
     b.onclick = ()=> scegliAvatarNellaGriglia(slug);
     griglia.appendChild(b);
     impostaImgDaCandidati(foto, artVersione(avatarCandidati(slug, fazione), 400));
+    _avatarProfondita(b, cornice, telaio, slug, fazione);
   }
   if(!griglia.children.length){
     messaggioAvatar('Your cards are still loading.', 'attesa');
@@ -20846,6 +20856,34 @@ function costruisciGrigliaAvatar(){
   }
   griglia.scrollTop = 0;
   requestAnimationFrame(()=> _avatarGrigliaSfuma(griglia));
+}
+function _avatarProfondita(b, cornice, telaio, slug, fazione){
+  const info = _avatarLivelliDi('/cards/art-400/' + slug + '/' + slug + '-' + fazione + '.jpg');
+  if(!info) return;
+  const pila = document.createElement('div');
+  pila.className = 'avatar-livelli';
+  const strati = info.livelli.map((u, i) => {
+    const im = document.createElement('img');
+    im.alt = ''; im.draggable = false;
+    im.dataset.profondita = String(i);
+    if(u !== info.pieni[i]) im.onerror = () => { im.onerror = null; im.src = info.pieni[i]; };
+    im.src = u;
+    pila.appendChild(im);
+    return im;
+  });
+  cornice.insertBefore(pila, telaio);
+  const muovi = (rx, ry) => strati.forEach((im, i) => {
+    const f = CARD_DB_PARALLAX_PX[Math.min(i, CARD_DB_PARALLAX_PX.length - 1)];
+    im.style.transform = 'translate(' + (rx * f).toFixed(2) + 'px,' + (ry * f * 0.7).toFixed(2) + 'px)' + (i === 0 ? ' scale(1.06)' : '');
+  });
+  muovi(0, 0);
+  b.addEventListener('pointermove', e => {
+    const r = pila.getBoundingClientRect();
+    if(!r.width || !r.height) return;
+    muovi(Math.max(-1, Math.min(1, ((e.clientX - r.left) / r.width - 0.5) * 2)),
+          Math.max(-1, Math.min(1, ((e.clientY - r.top) / r.height - 0.5) * 2)));
+  }, { passive:true });
+  b.addEventListener('pointerleave', () => muovi(0, 0));
 }
 function _avatarGrigliaSfuma(griglia){
   const su = griglia.scrollTop > 1;
