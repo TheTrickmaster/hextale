@@ -6366,6 +6366,35 @@ html.azione-attiva #timer-pin-hover{ opacity:0 !important; visibility:hidden !im
 
 .donate-form{ display:flex; justify-content:center; width:100%; margin:0; }
 
+#velo-menu{
+  display:none; position:fixed; inset:0; z-index:4200;
+  background:rgba(18,22,23,0.6);
+  -webkit-backdrop-filter:blur(50px); backdrop-filter:blur(50px);
+  opacity:1; transition:opacity 0.5s ease;
+  cursor:var(--cursore);
+}
+#velo-menu.acceso{ display:block; }
+#velo-menu.svanisce{ opacity:0; pointer-events:none; }
+#velo-menu::before{
+  content:''; position:absolute; inset:0; pointer-events:none;
+  background-image:var(--hx-trama, none); background-size:847px 809.5px; background-position:top left;
+  mix-blend-mode:overlay; opacity:0.4;
+}
+#velo-menu-testo{
+  position:absolute; left:50%; top:calc(50% - 34px); transform:translateX(-50%);
+  font-family:'Marcellus SC','Marcellus',var(--font-display),serif; font-size:26px; line-height:normal;
+  color:#EDE0C6; white-space:nowrap;
+}
+#velo-menu-barra{
+  position:absolute; left:50%; top:calc(50% + 31px); width:372px; height:8px; margin:-4px 0 0 -186px;
+  border-radius:10px; background:#0E1314; box-shadow:inset 0 1px 1px rgba(0,0,0,0.5);
+}
+#velo-menu-piena{
+  position:absolute; left:0; top:0; bottom:0; width:5%; box-sizing:border-box;
+  border-radius:30px; border:1px solid #806A40;
+  background:linear-gradient(90deg, #C9EEF3 0%, #7FB3BB 100%); box-shadow:0 0 1.5px rgba(0,0,0,0.5);
+  transition:width 0.25s ease-out;
+}
 #main-menu{
   position:fixed; inset:0; z-index:290;
   overflow:hidden;
@@ -6963,9 +6992,9 @@ body[data-pagina="collection"] #card-db-bg{ display:none !important; }
 #pack-basso .pk-gruppo-daily .pk-slot.pk-pieno{ border-color:#A18D63; box-shadow:0 0 15px rgba(160,173,175,0.82); }
 #pack-basso .pk-slot.pk-attesa{ opacity:0.55; }
 #pack-overlay.sbustando #pack-basso{ opacity:1; visibility:visible; pointer-events:none; }
-#pack-busta-sotto, #pack-busta-sopra{ margin-top:calc(-229.5px + 72px); scale:1.05; }
+#pack-busta-sotto, #pack-busta-sopra{ margin-top:calc(-229.5px + 72px); scale:0.84; }
 #pack-istruzione{
-  margin:227px 0 0 0; padding:12px 16px 16px; gap:12px; border-radius:28px;
+  margin:179px 0 0 0; padding:12px 16px 16px; gap:12px; border-radius:28px;
   background-image:linear-gradient(-36.58deg, rgba(29,38,39,0.5) 0%, rgba(84,96,98,0.5) 100%);
   box-shadow:inset 0 0 0 1px rgba(255,255,255,0.2);
   line-height:1.2;
@@ -7653,6 +7682,10 @@ try{
   </div>
   </div>
 </div>
+<div id="velo-menu" aria-hidden="true">
+  <div id="velo-menu-testo">Loading...</div>
+  <div id="velo-menu-barra"><div id="velo-menu-piena"></div></div>
+</div>
 <div id="main-menu">
   <div id="mm2">
     <img id="mm2-bg" alt="" draggable="false">
@@ -8331,7 +8364,7 @@ try{
 <button id="btn-show-results" class="hx-btn hx-btn-opaco" onclick="toggleBoardView(false)">
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:12.5px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.82.41</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:12.5px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.82.43</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -13799,17 +13832,20 @@ function _urlDiSfondo(valore){
   while((m = re.exec(valore || ''))) if(m[2] && !/^data:/i.test(m[2])) fuori.push(m[2]);
   return fuori;
 }
-function assetProntiDi(radici, tettoMs){
+function assetProntiDi(radici, tettoMs, avanza){
   const elenco = (Array.isArray(radici) ? radici : [radici]).filter(Boolean);
-  if(elenco.length === 1 && elenco[0].__assetConta && elenco[0].__assetConta === elenco[0].getElementsByTagName('*').length) return Promise.resolve(true);
-  const r = _assetProntiDiTutti(elenco, tettoMs);
+  if(elenco.length === 1 && elenco[0].__assetConta && elenco[0].__assetConta === elenco[0].getElementsByTagName('*').length){
+    if(avanza) try{ avanza(1, 1); }catch(_){ }
+    return Promise.resolve(true);
+  }
+  const r = _assetProntiDiTutti(elenco, tettoMs, avanza);
   if(elenco.length === 1){
     const radice = elenco[0];
     r.then(ok => { if(ok && radice.isConnected) radice.__assetConta = radice.getElementsByTagName('*').length; });
   }
   return r;
 }
-function _assetProntiDiTutti(elenco, tettoMs){
+function _assetProntiDiTutti(elenco, tettoMs, avanza){
   const attese = [], visti = new Set();
   const aspettaUrl = (u) => { if(u && !/^data:/i.test(u) && !visti.has(u)){ visti.add(u); attese.push(_decodificaImmagine(u)); } };
   for(const radice of elenco){
@@ -13824,7 +13860,12 @@ function _assetProntiDiTutti(elenco, tettoMs){
       if(sfondo && sfondo !== 'none') _urlDiSfondo(sfondo).forEach(aspettaUrl);
     }
   }
-  if(!attese.length) return Promise.resolve(true);
+  if(!attese.length){ if(avanza) try{ avanza(1, 1); }catch(_){ } return Promise.resolve(true); }
+  if(avanza){
+    let fatti = 0;
+    const conta = () => { fatti++; try{ avanza(fatti, attese.length); }catch(_){ } };
+    attese.forEach(p => Promise.resolve(p).then(conta, conta));
+  }
   return Promise.race([
     Promise.all(attese).then(() => true),
     new Promise(res => setTimeout(() => res(false), tettoMs || ASSET_ATTESA_MAX_MS))
@@ -16203,16 +16244,20 @@ async function questRaccontaFinePartita(pvp, contoGiaPreso){
   }catch(e){ console.warn('[quest] avanzamento non registrato: ' + ((e && e.message) || '')); }
 }
 let _questRichiestaInCorso = false;
-async function questChiediAlServer(){
-  if(_questRichiestaInCorso) return;
-  if(typeof sessioneAccount === 'undefined' || !sessioneAccount || !sessioneAccount.token) return;
+let _questRichiestaPromessa = null;
+function questChiediAlServer(){
+  if(_questRichiestaInCorso) return _questRichiestaPromessa || Promise.resolve();
+  if(typeof sessioneAccount === 'undefined' || !sessioneAccount || !sessioneAccount.token) return Promise.resolve();
   _questRichiestaInCorso = true;
-  try{
-    const r = await nakamaRpc('hx_quest', {});
-    if(r && r.quest) mm2DisegnaQuest(r.quest);
-    if(r && r.pass) passAggiorna(r.pass);
-  }catch(e){ console.warn('[quest] stato non letto: ' + ((e && e.message) || '')); }
-  finally{ _questRichiestaInCorso = false; }
+  _questRichiestaPromessa = (async () => {
+    try{
+      const r = await nakamaRpc('hx_quest', {});
+      if(r && r.quest) mm2DisegnaQuest(r.quest);
+      if(r && r.pass) passAggiorna(r.pass);
+    }catch(e){ console.warn('[quest] stato non letto: ' + ((e && e.message) || '')); }
+    finally{ _questRichiestaInCorso = false; }
+  })();
+  return _questRichiestaPromessa;
 }
 async function questMostraMosse(mosse){
   if(!mosse || !mosse.length) return;
@@ -16414,15 +16459,19 @@ function montaGraficaLibreria(){
 }
 function impostaVariabileDaCandidati(el, nomeVar, candidati){
   if(!el) return;
+  let pronta = null;
+  const questa = new Promise(r => { pronta = r; });
+  el.__assetPronto = el.__assetPronto ? Promise.all([el.__assetPronto, questa]) : questa;
   let i = 0;
   const prova = ()=>{
     if(i >= candidati.length){
       segnalaAssetMancante(candidati);
+      pronta();
       return;
     }
     const url = candidati[i++];
     const test = new Image();
-    test.onload = ()=>{ el.style.setProperty(nomeVar, "url('" + url + "')"); };
+    test.onload = ()=>{ el.style.setProperty(nomeVar, "url('" + url + "')"); pronta(); };
     test.onerror = prova;
     test.src = url;
   };
@@ -18531,6 +18580,44 @@ function _riordinoFine(){
   renderListaMazzi();
 }
 
+const VELO_MENU_TETTO_MS = 6000, VELO_MENU_MINIMO_MS = 400;
+let _veloMenuFatto = false;
+function veloMenuSeServe(){
+  if(_veloMenuFatto) return;
+  _veloMenuFatto = true;
+  const velo = document.getElementById('velo-menu'), piena = document.getElementById('velo-menu-piena');
+  const menu = document.getElementById('main-menu');
+  if(!velo || !menu) return;
+  try{ impostaVariabileDaCandidati(velo, '--hx-trama', uiFileCandidati('brushed-texture.jpg')); }catch(_){ }
+  velo.classList.remove('svanisce'); velo.classList.add('acceso');
+  if(piena) piena.style.width = '5%';
+  const t0 = performance.now();
+  let assetFatti = 0, assetTotali = 0, altriFatti = 0;
+  const ALTRI = 3;
+  let finito = false;
+  const disegna = (q) => { if(piena) piena.style.width = Math.max(5, Math.min(100, Math.round(q * 100))) + '%'; };
+  const aggiorna = () => {
+    const tot = assetTotali + ALTRI, fatti = Math.min(assetFatti, assetTotali) + altriFatti;
+    disegna(Math.min(0.96, tot ? fatti / tot : 1));
+  };
+  const alza = () => {
+    if(finito) return;
+    finito = true;
+    const resta = Math.max(0, VELO_MENU_MINIMO_MS - (performance.now() - t0));
+    setTimeout(() => {
+      disegna(1);
+      velo.classList.add('svanisce');
+      setTimeout(() => { velo.classList.remove('acceso', 'svanisce'); }, 550);
+    }, resta);
+  };
+  const immagini = assetProntiDi(menu, VELO_MENU_TETTO_MS, (f, t) => { assetFatti = f; assetTotali = t; aggiorna(); });
+  const fonti = (document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve()).catch(() => {}).then(() => { altriFatti++; aggiorna(); });
+  const quest = Promise.resolve().then(() => questChiediAlServer()).catch(() => {}).then(() => { altriFatti++; aggiorna(); });
+  Promise.all([immagini, fonti, quest])
+    .then(() => assetProntiDi(menu, 1500))
+    .then(() => { altriFatti++; aggiorna(); alza(); }, alza);
+  setTimeout(alza, VELO_MENU_TETTO_MS + 500);
+}
 let _patchNotesProposte = false;
 function apriMenuPrincipale(){
   try{ chatAggiornaAccesso(); }catch(_){ }
@@ -18545,6 +18632,7 @@ function apriMenuPrincipale(){
   const start = document.getElementById('start-screen');
   if(start) start.style.display = 'none';
   showPage('mainmenu');
+  try{ veloMenuSeServe(); }catch(_){ }
   try{ sorvegliaLaVersione(); }catch(_){ }
   try{ salutaChiudendo(); }catch(_){ }
   try{ avviaContatoreOnline(); }catch(_){ }
