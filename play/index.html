@@ -1161,7 +1161,14 @@ html.accesso-finestra body:has(.hx-overlay.show) #accesso-finestra{ -webkit-app-
 #rank-azioni{ display:flex; justify-content:center; padding:20px 0; }
 #rank-avanza{ width:264px; }
 #rank-avanza{ opacity:0; visibility:hidden; transform:translateY(12px); transition:opacity 0.35s ease, transform 0.35s ease, visibility 0s linear 0.35s; }
+#rank-riga{ opacity:0; transition:opacity 0.35s ease; }
 #rank-box.rank-pronto #rank-avanza{ opacity:1; visibility:visible; transform:none; transition:opacity 0.35s ease, transform 0.35s ease, visibility 0s; }
+#rank-box.rank-pronto #rank-riga{ opacity:1; }
+#rank-box.rank-subito #rank-avanza, #rank-box.rank-subito #rank-riga{ transition:none !important; }
+#rank-overlay.show #rank-box{ animation:rankEntra 0.45s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes rankEntra{ 0%{ opacity:0; transform:translateY(48px); } 100%{ opacity:1; transform:none; } }
+#rank-scintille{ position:absolute; left:50%; top:50%; width:1100px; height:900px; margin:-450px 0 0 -550px; pointer-events:none; }
+@media (prefers-reduced-motion: reduce){ #rank-overlay.show #rank-box{ animation:none; } }
 #regalo-box{ width:500px; }
 #rimborso-box{ width:540px; }
 #rimborso-icona{ display:block; width:auto; height:67px; margin:6px auto 2px; pointer-events:none; user-select:none; -webkit-user-drag:none; }
@@ -8021,6 +8028,7 @@ try{
       </div>
       <div id="rank-nuovo-alone">
         <div class="rank-raggi"></div><div class="rank-glow"></div>
+        <canvas id="rank-scintille" width="1100" height="900"></canvas>
         <div id="rank-onda"></div>
         <div id="rank-scena">
           <div id="rank-luce"></div>
@@ -8321,7 +8329,7 @@ try{
 <button id="btn-show-results" class="hx-btn hx-btn-opaco" onclick="toggleBoardView(false)">
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:12.5px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.82.38</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:12.5px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.82.39</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -9747,6 +9755,7 @@ const AUDIO_DATA_URLS = {
   'hit4': 'https://hextalegame.com/audio/sfx/hit4.mp3',
   'growth': 'https://hextalegame.com/audio/sfx/growth.mp3',
   'level-up': 'https://hextalegame.com/audio/sfx/level-up.mp3',
+  'rank-up': 'https://hextalegame.com/audio/sfx/rank-up.mp3',
   'bell': 'https://hextalegame.com/audio/sfx/bell.mp3',
   'change-turn': 'https://hextalegame.com/audio/sfx/change-turn.mp3',
   'card-flip': 'https://hextalegame.com/audio/sfx/card-flip.mp3',
@@ -12300,15 +12309,68 @@ async function mm2MostraGuadagno(){
 
 const RANK_COLORE_ALONE = { bronze:'#875D43', silver:'#A0AFB8', gold:'#CAB263', master:'#4AC9FF' };
 const RANK_MOSSO_PX = 7;
+const RANK_SUONO_COLPO = 1.92;
+const RANK_SCINTILLE = 90, RANK_SCINTILLE_MS = 2000;
+function _rankScintille(A, colore){
+  const c = document.getElementById('rank-scintille'), flip = document.getElementById('rank-flip');
+  if(!c || !A) return;
+  const g = c.getContext('2d'); if(!g) return;
+  const W = c.width, H = c.height, cx = W / 2, cy = H / 2;
+  const alto = (flip && parseFloat(flip.style.height)) || 190;
+  const sprite = (col, raggio) => {
+    const s = document.createElement('canvas'); s.width = s.height = raggio * 2;
+    const sg = s.getContext('2d'), gr = sg.createRadialGradient(raggio, raggio, 0, raggio, raggio, raggio);
+    gr.addColorStop(0, col); gr.addColorStop(0.35, col); gr.addColorStop(1, 'rgba(255,255,255,0)');
+    sg.fillStyle = gr; sg.fillRect(0, 0, raggio * 2, raggio * 2); return s;
+  };
+  const bianco = sprite('rgba(255,255,255,1)', 10), tinta = sprite(colore || '#FFFFFF', 16);
+  const P = [];
+  for(let i = 0; i < RANK_SCINTILLE; i++){
+    const a = Math.random() * Math.PI * 2, v = 220 + Math.random() * 420;
+    P.push({ x: cx + (Math.random() - 0.5) * 60, y: cy + alto * 0.15 + (Math.random() - 0.5) * 40,
+      vx: Math.cos(a) * v, vy: Math.sin(a) * v - 60,
+      r: 1.2 + Math.random() * 2.2, f: 6 + Math.random() * 8, fi: Math.random() * Math.PI * 2, w: 0.4 + Math.random() * 0.6,
+      nasce: Math.random() * 0.12 });
+  }
+  const t0 = performance.now(); let prima = t0;
+  const passo = (now) => {
+    if(_rankAnim !== A) return;
+    const t = (now - t0) / 1000, dt = Math.min(0.05, (now - prima) / 1000); prima = now;
+    g.clearRect(0, 0, W, H);
+    if(t >= RANK_SCINTILLE_MS / 1000){ A.scintille = 0; return; }
+    g.globalCompositeOperation = 'lighter';
+    const k = Math.exp(-2.4 * dt);
+    for(const p of P){
+      if(t < p.nasce) continue;
+      const eta = (t - p.nasce) / (RANK_SCINTILLE_MS / 1000 - p.nasce);
+      if(eta >= 1) continue;
+      const sp = Math.hypot(p.vx, p.vy) || 1, nx = -p.vy / sp, ny = p.vx / sp;
+      const on = Math.sin(t * p.f + p.fi) * 900 * p.w;
+      p.vx = (p.vx + nx * on * dt) * k; p.vy = (p.vy + ny * on * dt) * k + 25 * dt;
+      p.x += p.vx * dt; p.y += p.vy * dt;
+      const vita = Math.pow(1 - eta, 1.4), lampeggio = 0.65 + 0.35 * Math.sin(t * 30 + p.fi * 7);
+      g.globalAlpha = Math.min(1, vita * lampeggio * 1.2);
+      const d = p.r * 2 * (1 + 0.6 * (1 - vita));
+      g.drawImage(tinta, p.x - d * 1.6, p.y - d * 1.6, d * 3.2, d * 3.2);
+      g.drawImage(bianco, p.x - d, p.y - d, d * 2, d * 2);
+    }
+    g.globalAlpha = 1;
+    A.scintille = requestAnimationFrame(passo);
+  };
+  A.scintille = requestAnimationFrame(passo);
+}
 const RANK_SALE_MS = 2000, RANK_FRENA_MS = 2000, RANK_OMEGA = 1800;
 let _rankAnim = null;
 function _rankFerma(){
   if(!_rankAnim) return;
   cancelAnimationFrame(_rankAnim.raf);
+  if(_rankAnim.scintille) cancelAnimationFrame(_rankAnim.scintille);
   _rankAnim.timer.forEach(clearTimeout);
   _rankAnim = null;
   const scena = document.getElementById('rank-scena');
   if(scena) scena.style.filter = '';
+  const c = document.getElementById('rank-scintille');
+  if(c){ try{ c.getContext('2d').clearRect(0, 0, c.width, c.height); }catch(_){ } }
 }
 function _rankPrimaDi(chiave){
   if(chiave === 'master-5') return 'master-4';
@@ -12349,10 +12411,13 @@ function apriModaleNuovoRank(chiave, prima){
   if(prima === undefined) prima = _rankPrimaDi(chiave);
   const box = document.getElementById('rank-box'), et = document.getElementById('rank-nuovo-nome');
   const flip = document.getElementById('rank-flip'), scena = document.getElementById('rank-scena'), onda = document.getElementById('rank-onda');
+  box.classList.add('rank-subito');
   box.classList.remove('rank-pronto');
   et.classList.remove('rank-nome-lampo');
   flip.classList.remove('rank-lampo'); scena.classList.remove('rank-atterra'); onda.classList.remove('rank-onda-via');
   flip.style.transform = ''; scena.style.setProperty('--rank-bianco', '0');
+  void box.offsetWidth;
+  box.classList.remove('rank-subito');
   const ridotto = (typeof matchMedia === 'function') && matchMedia('(prefers-reduced-motion: reduce)').matches;
   if(!prima || ridotto){
     _rankMettiIcona(chiave); _rankMettiColore(chiave);
@@ -12366,12 +12431,16 @@ function apriModaleNuovoRank(chiave, prima){
   et.textContent = nomeDelRank(prima);
   try{ const pre = document.createElement('img'); impostaImgDaCandidati(pre, iconaDelRank(chiave)); }catch(_){ }
   ov.classList.add('show');
-  try{ playSfxFile('unpack-whoosh.mp3'); }catch(_){}
-  const A = { raf:0, timer:[], t0: performance.now() };
+  const A = { raf:0, scintille:0, timer:[], t0: performance.now() };
   _rankAnim = A;
   const S = RANK_SALE_MS / 1000, F = RANK_FRENA_MS / 1000;
   const angSale = RANK_OMEGA * S / 3;
-  let fase = 'sale', angFrena = 0, tFrena = 0, angFine = 0, durataFrena = F, angPrima = 0;
+  const angScambio = 90 + 180 * Math.ceil((angSale - 90) / 180);
+  const tScambio = S + (angScambio - angSale) / RANK_OMEGA;
+  const anticipo = tScambio - RANK_SUONO_COLPO;
+  if(anticipo >= 0) A.timer.push(setTimeout(() => { if(_rankAnim === A) try{ playSfxFile('rank-up.mp3'); }catch(_){} }, Math.round(anticipo * 1000)));
+  else try{ playSfxFile('rank-up.mp3', undefined, -anticipo); }catch(_){}
+  let fase = 'sale', angFrena = 0, tFrena = 0, angFine = 0, durataFrena = F;
   const mosso = document.getElementById('rank-mosso-blur');
   const sfoca = (w) => {
     if(!mosso) return;
@@ -12406,10 +12475,11 @@ function apriModaleNuovoRank(chiave, prima){
     if(fase === 'piena'){
       ang = angSale + RANK_OMEGA * (t - S);
       scena.style.setProperty('--rank-bianco', '1');
-      if(Math.floor((ang - 90) / 180) > Math.floor((angPrima - 90) / 180)){
+      if(t >= tScambio - 0.008){
         _rankMettiIcona(chiave); _rankMettiColore(chiave);
         const schermo = document.getElementById('rank-lampo-schermo');
         if(schermo){ schermo.classList.remove('rank-lampo-via'); void schermo.offsetWidth; schermo.classList.add('rank-lampo-via'); }
+        try{ _rankScintille(A, RANK_COLORE_ALONE[String(chiave || '').split('-')[0]] || '#FFFFFF'); }catch(_){ }
         fase = 'frena'; tFrena = t; angFrena = ang;
         angFine = Math.ceil((angFrena + RANK_OMEGA * F / 2) / 180) * 180;
         durataFrena = 2 * (angFine - angFrena) / RANK_OMEGA;
@@ -12424,7 +12494,6 @@ function apriModaleNuovoRank(chiave, prima){
     }
     sfoca(w);
     flip.style.transform = 'rotateX(' + ang.toFixed(2) + 'deg)';
-    angPrima = ang;
     A.raf = requestAnimationFrame(passo);
   };
   A.raf = requestAnimationFrame(passo);
