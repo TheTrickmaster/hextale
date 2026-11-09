@@ -8364,7 +8364,7 @@ try{
 <button id="btn-show-results" class="hx-btn hx-btn-opaco" onclick="toggleBoardView(false)">
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:12.5px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.82.45</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:12.5px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.82.46</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -12877,12 +12877,13 @@ async function caricaCarteDalServer(){
 }
 
 let _artePrecaricata = false;
+let _artePrecarico = null;
 function precaricaArteDelleCarte(){
-  if(_artePrecaricata) return;
-  if(!Array.isArray(FINAL_CARDS) || !FINAL_CARDS.length) return;
+  if(_artePrecaricata) return _artePrecarico ? _artePrecarico.promessa : Promise.resolve();
+  if(!Array.isArray(FINAL_CARDS) || !FINAL_CARDS.length) return Promise.resolve();
 
   const visti = new Set();
-  const arteDi = (e)=>{
+  const arteDi = (e, colore)=>{
     const suoi = [];
     const raccogli = (v)=>{
       if(!v) return;
@@ -12890,36 +12891,53 @@ function precaricaArteDelleCarte(){
       if(Array.isArray(v)){ v.forEach(raccogli); return; }
       if(typeof v === 'object'){ Object.values(v).forEach(raccogli); return; }
     };
-    raccogli(e.artLayersDark); raccogli(e.artLayersLight);
-    raccogli(e.artDark); raccogli(e.artLight);
+    if(colore === 'light'){ raccogli(e.artLayersLight); raccogli(e.artLight); }
+    else { raccogli(e.artLayersDark); raccogli(e.artDark); }
     return suoi;
   };
   const miei = new Set();
   for(const m of (MAZZI || [])) for(const id of (m.carte || [])) miei.add(String(id));
-  const prima = [], poi = [];
+  let inUso = 'dark';
+  try{ inUso = fazioneUmano() === 'light' ? 'light' : 'dark'; }catch(_){ }
+  const altro = inUso === 'light' ? 'dark' : 'light';
+  const prima = [], poi = [], dopo = [];
   for(const e of FINAL_CARDS){
-    const suoi = arteDi(e);
-    if(!suoi.length) continue;
-    (miei.has(String(e.id)) ? prima : poi).push(...suoi);
+    const suoi = arteDi(e, inUso);
+    if(suoi.length) (miei.has(String(e.id)) ? prima : poi).push(...suoi);
   }
-  const lista = prima.concat(poi);
-  if(!lista.length) return;
+  for(const e of FINAL_CARDS) dopo.push(...arteDi(e, altro));
+  const lista = prima.concat(poi, dopo);
+  const nInUso = prima.length + poi.length;
+  if(!lista.length) return Promise.resolve();
   _artePrecaricata = true;
+  let prontaInUso = null;
+  const P = { promessa: new Promise(r => { prontaInUso = r; }), fatte: 0, totale: nInUso, avanza: null };
+  _artePrecarico = P;
+  if(!nInUso) prontaInUso();
 
   const INSIEME = 6;
   let prossimo = 0, fatte = 0;
   const t0 = (typeof performance !== 'undefined') ? performance.now() : Date.now();
-  const una = (url)=> new Promise(ok=>{
+  const una = (url, indice)=> new Promise(ok=>{
     const img = new Image();
     let finita = false;
-    const fine = ()=>{ if(finita) return; finita = true; fatte++; ok(); };
+    const fine = ()=>{
+      if(finita) return; finita = true; fatte++;
+      if(indice < nInUso){
+        P.fatte++;
+        if(P.avanza) try{ P.avanza(P.fatte, P.totale); }catch(_){ }
+        if(P.fatte >= nInUso) prontaInUso();
+      }
+      ok();
+    };
     img.onload  = ()=>{ if(img.decode){ img.decode().then(fine, fine); setTimeout(fine, 800); } else fine(); };
     img.onerror = fine;
     img.src = url;
   });
   const canale = ()=>{
     if(prossimo >= lista.length) return Promise.resolve();
-    return una(lista[prossimo++]).then(canale);
+    const i = prossimo++;
+    return una(lista[i], i).then(canale);
   };
   const canali = [];
   for(let i=0;i<INSIEME;i++) canali.push(canale());
@@ -12927,6 +12945,7 @@ function precaricaArteDelleCarte(){
     const ms = ((typeof performance !== 'undefined' ? performance.now() : Date.now()) - t0);
     console.info('[arte] precaricate ' + fatte + ' immagini di carte in ' + Math.round(ms) + 'ms.');
   });
+  return P.promessa;
 }
 
 var AVVIO_RIPROVE_MS = [2000, 4000, 8000, 15000];
@@ -15598,6 +15617,10 @@ function progressVista(v){
   const pagina = document.getElementById('progress-page');
   if(pagina) pagina.dataset.vista = v;
   try{ playSfxFile('click.mp3'); }catch(_){ }
+  if(v === 'quests'){
+    _pgOrdine = { daily: null, stag: null };
+    try{ _pgDisegnaQuest('daily', false); _pgDisegnaQuest('stag', false); }catch(_){ }
+  }
   _pgClaimAbilita();
   requestAnimationFrame(()=>{ if(v === 'rewards') _pgPortaAlLivello(false); _pgFrecceTutte(); });
 }
@@ -18580,7 +18603,7 @@ function _riordinoFine(){
   renderListaMazzi();
 }
 
-const VELO_MENU_TETTO_MS = 6000, VELO_MENU_MINIMO_MS = 400;
+const VELO_MENU_TETTO_MS = 8000, VELO_MENU_MINIMO_MS = 400;
 let _veloMenuFatto = false;
 function veloMenuSeServe(){
   if(_veloMenuFatto) return;
@@ -18592,12 +18615,12 @@ function veloMenuSeServe(){
   velo.classList.remove('svanisce'); velo.classList.add('acceso');
   if(piena) piena.style.width = '5%';
   const t0 = performance.now();
-  let assetFatti = 0, assetTotali = 0, altriFatti = 0;
+  let assetFatti = 0, assetTotali = 0, altriFatti = 0, arteFatte = 0, arteTotali = 0;
   const ALTRI = 3;
   let finito = false;
   const disegna = (q) => { if(piena) piena.style.width = Math.max(5, Math.min(100, Math.round(q * 100))) + '%'; };
   const aggiorna = () => {
-    const tot = assetTotali + ALTRI, fatti = Math.min(assetFatti, assetTotali) + altriFatti;
+    const tot = assetTotali + arteTotali + ALTRI, fatti = Math.min(assetFatti, assetTotali) + Math.min(arteFatte, arteTotali) + altriFatti;
     disegna(Math.min(0.96, tot ? fatti / tot : 1));
   };
   const alza = () => {
@@ -18612,11 +18635,20 @@ function veloMenuSeServe(){
       }, 250 + 500);
     }, resta);
   };
-  const immagini = assetProntiDi(menu, VELO_MENU_TETTO_MS, (f, t) => { assetFatti = f; assetTotali = t; aggiorna(); });
+  const radici = [menu, document.getElementById('cornice')].filter(Boolean);
+  const immagini = assetProntiDi(radici, VELO_MENU_TETTO_MS, (f, t) => { assetFatti = f; assetTotali = t; aggiorna(); });
   const fonti = (document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve()).catch(() => {}).then(() => { altriFatti++; aggiorna(); });
   const quest = Promise.resolve().then(() => questChiediAlServer()).catch(() => {}).then(() => { altriFatti++; aggiorna(); });
-  Promise.all([immagini, fonti, quest])
-    .then(() => assetProntiDi(menu, 1500))
+  let arte = Promise.resolve();
+  try{
+    arte = precaricaArteDelleCarte() || Promise.resolve();
+    if(_artePrecarico){
+      arteFatte = _artePrecarico.fatte; arteTotali = _artePrecarico.totale;
+      _artePrecarico.avanza = (f, t) => { arteFatte = f; arteTotali = t; aggiorna(); };
+    }
+  }catch(_){ }
+  Promise.all([immagini, fonti, quest, arte])
+    .then(() => assetProntiDi(radici, 1500))
     .then(() => { altriFatti++; aggiorna(); alza(); }, alza);
   setTimeout(alza, VELO_MENU_TETTO_MS + 500);
 }
