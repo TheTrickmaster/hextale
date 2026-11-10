@@ -2786,7 +2786,7 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
 .copione-fumetto[data-chi="eugene"] .copione-clic{ right:auto; left:22px; transform:scaleX(-1); }
 #copione-sussurro{ right:110px; top:900px; z-index:6100; pointer-events:none; }
 #copione-sussurro .copione-bolla{ animation:none; }
-.copione-fumetto.pinocchio-fumetto{ z-index:26; pointer-events:none; }
+.copione-fumetto.pinocchio-fumetto{ z-index:710; pointer-events:none; }
 .copione-fumetto.pinocchio-fumetto .copione-bolla{ max-width:390px; min-width:0; padding:20px 30px 24px; font-size:21px; line-height:1.28; }
 .copione-fumetto.pinocchio-fumetto .copione-chi{ font-size:15px; margin-bottom:4px; }
 .copione-fumetto.pinocchio-fumetto.a-destra{ transform:translateY(-50%) scaleX(-1); }
@@ -11301,6 +11301,10 @@ function reteMessaggio(md){
   if(op === 15){ if(PARTITA_RETE && d.di !== PARTITA_RETE.io) stickerMostra(d.di, d.sticker); return; }
   if(op === 16){ stickerBloccaPer(d.resta); return; }
 
+  if(op === 24){
+    try{ retePinocchioDice(d); }catch(e){ console.error('[rete] pinocchio: ' + (e && e.message)); }
+    return;
+  }
   if(op === 22){
     svelaConVolo((rilascia) => { try{ bombaConfermata(d); }catch(e){ console.error('[rete] bomba: ' + (e && e.message)); } rilascia(); });
     return;
@@ -11508,8 +11512,6 @@ function reteApplicaGiocata(d){
   }
   if(!carta) return;
   if(d.mani && typeof d.mani === 'object') G.maniTratti = d.mani;
-  carta.pinocchioDaServer = (d.pinocchio && typeof d.pinocchio === 'object' && !Array.isArray(d.pinocchio))
-    ? { tipo: String(d.pinocchio.tipo || ''), valore: d.pinocchio.valore, vera: d.pinocchio.vera === true } : null;
   if(d.muri && typeof d.muri === 'object') G.muriInMano = d.muri;
   if(Array.isArray(d.bombe) && d.bombe.length){ try{ bombeDaServer(d.bombe); }catch(e){ console.error('[rete] bombe: ' + (e && e.message)); } }
   if(G.sceltaBersaglio){
@@ -17655,12 +17657,14 @@ var ABILITA_MOTORE = (function () {
                           'Noble', 'Princess', 'Small', 'Sovereign', 'Trickster', 'Wild'];
   var PINOCCHIO_RARITA = ['common', 'rare', 'mythic', 'timeless'];
   var PINOCCHIO_MOLTE = 2;
+  var PINOCCHIO_FORTE = 6;
   var PINOCCHIO_NUMERI = { 2: 'two', 3: 'three', 4: 'four', 5: 'five', 6: 'six' };
   function pinocchioDice(dati) {
     var mano = (dati && dati.mano) || [], celle = dati ? dati.celle : null;
+    var me = dati ? dati.me : null, sulTavolo = dati ? dati.sulTavolo : null;
     var caso = (dati && typeof dati.caso === 'function') ? dati.caso : function () { return Math.random(); };
     var i, j, c, t;
-    var perTratto = {}, perRarita = {};
+    var perTratto = {}, perRarita = {}, forti = 0, copie = 0;
     for (i = 0; i < mano.length; i++) {
       var suoi = (mano[i].tratti || []).map(function (x) { return String(x).toLowerCase(); });
       for (t = 0; t < PINOCCHIO_TRATTI.length; t++) {
@@ -17668,6 +17672,10 @@ var ABILITA_MOTORE = (function () {
       }
       var r = String(mano[i].rarita || '').toLowerCase();
       if (r) perRarita[r] = (perRarita[r] || 0) + 1;
+      var vv = mano[i].valori || {}, alto = 0;
+      for (t = 0; t < SEI_LATI.length; t++) alto = Math.max(alto, vv[SEI_LATI[t]] || 0);
+      if (alto >= PINOCCHIO_FORTE) forti++;
+      if (sulTavolo && mano[i].id && sulTavolo.indexOf(String(mano[i].id)) >= 0) copie++;
     }
     var famiglie = { molte: [], rarita: [], gira: [] };
     for (t = 0; t < PINOCCHIO_TRATTI.length; t++) {
@@ -17678,6 +17686,18 @@ var ABILITA_MOTORE = (function () {
       famiglie.molte.push({ tipo: 'many_rarity', valore: PINOCCHIO_RARITA[t], vera: quante >= PINOCCHIO_MOLTE });
       famiglie.rarita.push({ tipo: 'has_rarity', valore: PINOCCHIO_RARITA[t], vera: quante >= 1 });
       famiglie.rarita.push({ tipo: 'no_rarity', valore: PINOCCHIO_RARITA[t], vera: quante === 0 });
+    }
+    famiglie.forte = [{ tipo: 'has_power', valore: PINOCCHIO_FORTE, vera: forti >= 1 },
+                      { tipo: 'no_power', valore: PINOCCHIO_FORTE, vera: forti === 0 }];
+    if (sulTavolo) {
+      famiglie.copia = [{ tipo: 'has_copy', valore: 1, vera: copie >= 1 }, { tipo: 'no_copy', valore: 1, vera: copie === 0 }];
+    }
+    if (me) {
+      var puo = false;
+      for (i = 0; i < mano.length && !puo; i++) {
+        for (c = 0; c < me.length; c++) if (((mano[i].valori || {})[me[c].lato] || 0) > (me[c].mio || 0)) { puo = true; break; }
+      }
+      famiglie.me = [{ tipo: 'flip_me', valore: 1, vera: puo }, { tipo: 'no_flip_me', valore: 1, vera: !puo }];
     }
     if (celle) {
       var massimo = 0;
@@ -17719,6 +17739,12 @@ var ABILITA_MOTORE = (function () {
     if (d.tipo === 'many_rarity') return PINOCCHIO_RARITA.indexOf(v) < 0 ? '' : 'Your opponent holds many ' + maiuscola(v) + ' cards';
     if (d.tipo === 'has_rarity') return PINOCCHIO_RARITA.indexOf(v) < 0 ? '' : 'Your opponent holds a ' + maiuscola(v) + ' card';
     if (d.tipo === 'no_rarity') return PINOCCHIO_RARITA.indexOf(v) < 0 ? '' : 'Your opponent doesn\'t hold a ' + maiuscola(v) + ' card';
+    if (d.tipo === 'has_power') return 'Your opponent holds a card with a power of ' + PINOCCHIO_FORTE + ' or more';
+    if (d.tipo === 'no_power') return 'Your opponent doesn\'t hold a card with a power of ' + PINOCCHIO_FORTE + ' or more';
+    if (d.tipo === 'has_copy') return 'Your opponent holds a copy of a card already on the board';
+    if (d.tipo === 'no_copy') return 'Your opponent doesn\'t hold a copy of a card already on the board';
+    if (d.tipo === 'flip_me') return 'Your opponent holds a card that can flip me';
+    if (d.tipo === 'no_flip_me') return 'Your opponent doesn\'t hold a card that can flip me';
     if (d.tipo === 'no_flip') return 'Your opponent doesn\'t hold a card that can flip one of yours';
     if (d.tipo === 'flip') {
       if (v === 1) return 'Your opponent holds a card that can flip one of yours';
@@ -20582,9 +20608,9 @@ document.addEventListener('mousemove', glossarioSeguiPuntatore, { passive:true }
 const OGGETTI_CAMPO = {
   briciola: { titolo: 'Crumbs', testo: '+2 HIGHEST when an ally is placed on top', icona: 'crumb-1.png' },
   impronta: { titolo: 'Yeti footprints', testo: 'A Yeti could hide here', icona: 'foot-yeti.png' },
-  bomba3: { titolo: 'Bomb', testo: 'Explodes in 3 turns: -2 RAND to adjacent enemies', icona: 'bomb-3.png' },
-  bomba2: { titolo: 'Bomb', testo: 'Explodes in 2 turns: -2 RAND to adjacent enemies', icona: 'bomb-2.png' },
-  bomba1: { titolo: 'Bomb', testo: 'Explodes next turn: -2 RAND to adjacent enemies', icona: 'bomb-1.png' },
+  bomba3: { titolo: 'Bomb', testo: 'Explodes in 3 turns: -2 LOWEST to adjacent enemies', icona: 'bomb-3.png' },
+  bomba2: { titolo: 'Bomb', testo: 'Explodes in 2 turns: -2 LOWEST to adjacent enemies', icona: 'bomb-2.png' },
+  bomba1: { titolo: 'Bomb', testo: 'Explodes next turn: -2 LOWEST to adjacent enemies', icona: 'bomb-1.png' },
 };
 let _oggettoCampoAcceso = null;
 function _oggettoCampoSotto(bersaglio){
@@ -22204,6 +22230,12 @@ function _arteGiaNota(entry){
   return !!(entry && (entry.artLayersDark || entry.artLayersLight
                    || entry.artDark || entry.artLight));
 }
+function _cercaArteBugia(entry){
+  if(!entry || !entry.slug || entry.cardAbility !== 'true_story') return [];
+  return ['dark','light'].map(fazione =>
+    _primoCheEsiste(_candidatiArt(entry.slug + '/' + entry.slug + '-' + fazione + '-lie'), _provaImmagine)
+      .then(u => { entry[fazione === 'dark' ? 'artBugiaDark' : 'artBugiaLight'] = u || null; }));
+}
 function verificaArtCarte(){
   if(!Array.isArray(FINAL_CARDS) || !FINAL_CARDS.length) return Promise.resolve();
   const vociNote = FINAL_CARDS.some(e => e && Array.isArray(e.voci) && e.voci.length);
@@ -22227,6 +22259,7 @@ function verificaArtCarte(){
     const riprove = [];
     for(const entry of FINAL_CARDS){
       if(!entry.slug) continue;
+      _cercaArteBugia(entry).forEach(p => riprove.push(p));
       if(Array.isArray(entry.voci)){
         if(entry.voci.length) registraVociSfx(entry.voci);
       } else {
@@ -22280,12 +22313,7 @@ function verificaArtCarte(){
           .then(u=>{ entry[fazione==='dark'?'artNotteDark':'artNotteLight'] = u || null; }));
       }
     }
-    if(abilitaDellaCarta === 'true_story'){
-      for(const fazione of ['dark','light']){
-        lavori.push(_primoCheEsiste(_candidatiArt(slug+'/'+slug+'-'+fazione+'-lie'), _provaImmagine)
-          .then(u=>{ entry[fazione==='dark'?'artBugiaDark':'artBugiaLight'] = u || null; }));
-      }
-    }
+    _cercaArteBugia(entry).forEach(p => lavori.push(p));
     lavori.push(_vociDiPersonaggio(slug).then(v=>{
       entry.voci = v;
       if(v.length) registraVociSfx(v);
@@ -26427,7 +26455,7 @@ const TILE_ABILITIES_DEF = {
   eat_the_rich:      { carta:'Robin Hood', name:'Eat the Rich',       desc:"*Steals* 2 Power from every adjacent enemy and gives it to a selected ally" },
   '!tomthumb':       { carta:'Tom Thumb',  name:'Crumbs',             desc:'*Drops* 3 Crumbs on random empty tiles. An ally played on one *Gains* +2 on its HIGHEST.' },
   '!yeti':           { carta:'Yeti',       name:"Hide 'n' kill",      desc:'*Hides* on the board and only attacks when an opponent is near it.' },
-  '!goblin':         { carta:'Goblin',        name:'GIGA-BOOM!',     desc:'Drops a Bomb on a selected tile: -2 RAND to adjacent enemies after 3 turns' },
+  '!goblin':         { carta:'Goblin',        name:'GIGA-BOOM!',     desc:'Drops a Bomb on a selected tile: -2 LOWEST to adjacent enemies after 3 turns' },
   '!thecarpenter':   { carta:'The Carpenter', name:'Woodwork',       desc:'*Blocks* a selected empty tile' },
   '!jabberwock':     { carta:'Jabberwock',    name:'Callooh Callay', desc:'Each turn, -1 ALL to adjacent enemies for every card with *Rotated* Power on the board' },
   smol_friends:  { carta:'Snow White', name:'Smol Friends', desc:'+1 Power ALL for every /Small/ character on the board.' },
@@ -26471,7 +26499,7 @@ const TILE_ABILITIES_DEF = {
   scaredy_cat:       { carta:'Cowardly Lion', name:'Scaredy Cat',           desc:'When *Flipped*, *Freezes* for 1 turn' },
   bell_of_the_ball:  { carta:'Cinderella', name:'Bell of the Ball',      desc:'If *Played* adjacent to a /Guardian/, *Transforms* into The Crystal Princess.' },
   crowned:           { carta:'The Crystal Princess', name:'Crowned',               desc:'Highest Power value cannot be *Conquered*.' },
-  true_story:        { carta:'Pinocchio', name:'True Story',            desc:'When played, tells a truth or a lie about your opponent\'s hand.' },
+  true_story:        { carta:'Pinocchio', name:'True Story',            desc:'At the start of your turn, tells a truth or a lie about your opponent\'s hand.' },
 };
 
 const NOMI_TRATTI = {};
@@ -28113,7 +28141,7 @@ function doPlace(card,playerIdx,q,r,daServer,dUfficio){
     card.activatedTileAbility = cellAbilityKey;
     applicaAbilitaPiazzamento(card, q, r, cellAbilityKey);
     applicaEffettiRealiPiazzamento(card, q, r, cellAbilityKey);
-    if(pinocchioDeveParlare(card)){ try{ pinocchioParla(card, player, k); }catch(e){ console.warn('[True Story] ' + (e && e.message)); } }
+    if(pinocchioDeveParlare(card)) card.pinocchioDi = player;
     if(timeAlreadyExpired) risolviSceltaSenzaFinestra(card, player, q, r, cellAbilityKey);
     else if(apriSceltaBersaglio(card, player, q, r, k, cellAbilityKey)){
       if(G.sceltaBersaglio && G.sceltaBersaglio.modo === 'mano') render();
@@ -28760,11 +28788,14 @@ function scudoStaLampeggiando(card){
   const ora = (typeof performance !== 'undefined' ? performance.now() : Date.now());
   return ora < card.scudoLampoFino;
 }
-const PINOCCHIO_ATTESA_MS = 420;
-const PINOCCHIO_VERDETTO_MS = 1900;
+const PINOCCHIO_ATTESA_MS = 350;
+const PINOCCHIO_VERDETTO_MS = 1500;
 const PINOCCHIO_FUMETTO_MS = 4800;
 function pinocchioDeveParlare(card){
   return !!card && abilitaAttivaDi(card) === 'true_story' && foglioFa(card, 'end_of_turn', 'protect', 'side') !== true;
+}
+function _pinocchioIdCatalogo(card){
+  return String((card && (card.baseId || String(card.id || '').replace(/-\d+$/, ''))) || '');
 }
 function pinocchioCelleScoperte(player){
   const fuori = [];
@@ -28782,28 +28813,74 @@ function pinocchioCelleScoperte(player){
   }
   return fuori;
 }
-function pinocchioCalcola(card, player){
-  const mano = ((player === 1 ? G.p2Hand : G.p1Hand) || []).map(c => ({
-    tratti: (c.traitNames || []).slice(), rarita: c.rarity || '', valori: Object.assign({}, c.values || {}) }));
-  return ABILITA_MOTORE.pinocchioDice({ mano, celle: pinocchioCelleScoperte(player), caso: () => Math.random() });
+function pinocchioMieiLati(card, k, player){
+  const posto = G.board[k];
+  if(!posto || posto.card !== card || posto.owner !== player) return null;
+  if(cartaCongelata(card)) return [];
+  const [q, r] = String(k).split(',').map(Number), protetti = latiProtettiDi(card), fuori = [];
+  for(const d of DIRS){
+    const nq = q + d.dq, nr = r + d.dr, nk = key(nq, nr);
+    if(!G.cells.some(c => c.q === nq && c.r === nr) || G.holes.has(nk) || G.board[nk]) continue;
+    if(protetti.includes(d.mySide)) continue;
+    fuori.push({ mio: (card.values && card.values[d.mySide]) || 0, lato: d.theirSide });
+  }
+  return fuori;
 }
-function pinocchioParla(card, player, k){
-  let detto = null;
-  if(PARTITA_RETE){ detto = card.pinocchioDaServer || null; card.pinocchioDaServer = null; }
-  else detto = pinocchioCalcola(card, player);
-  const frase = (detto && typeof detto.vera === 'boolean') ? ABILITA_MOTORE.pinocchioFrase(detto) : '';
-  if(!frase) return false;
+function _pinocchioSulTavolo(){
+  return Object.keys(G.board).map(c => G.board[c] && G.board[c].card).filter(Boolean).map(_pinocchioIdCatalogo);
+}
+function pinocchioCalcola(card, player, k){
+  const mano = ((player === 1 ? G.p2Hand : G.p1Hand) || []).map(c => ({
+    id: _pinocchioIdCatalogo(c), tratti: (c.traitNames || []).slice(), rarita: c.rarity || '', valori: Object.assign({}, c.values || {}) }));
+  return ABILITA_MOTORE.pinocchioDice({ mano, celle: pinocchioCelleScoperte(player), me: pinocchioMieiLati(card, k, player),
+    sulTavolo: _pinocchioSulTavolo(), caso: () => Math.random() });
+}
+function pinocchiDiInizioTurno(player){
+  if(!G || !G.board || G.gameOver) return 0;
+  let quanti = 0;
+  for(const k of Object.keys(G.board).sort()){
+    const card = G.board[k] && G.board[k].card;
+    if(!card || card.pinocchioDi !== player || !pinocchioDeveParlare(card)) continue;
+    quanti++;
+    if(PARTITA_RETE){ if(reteSonoIo(player - 1)) pinocchioChiedeAlServer(card, player, k); }
+    else pinocchioParla(card, player, pinocchioCalcola(card, player, k));
+  }
+  return quanti;
+}
+function pinocchioChiedeAlServer(card, player, k){
+  mmManda({ cid: 'p' + Date.now().toString(36), match_data_send: {
+    match_id: PARTITA_RETE.matchId, op_code: 23,
+    data: btoa(JSON.stringify({ cella: String(k), celle: pinocchioCelleScoperte(player), me: pinocchioMieiLati(card, k, player), sulTavolo: _pinocchioSulTavolo() }))
+  }});
+}
+function retePinocchioDice(d){
+  if(!G || !G.board || !d || typeof d.cella !== 'string' || typeof d.vera !== 'boolean') return;
+  const card = G.board[d.cella] && G.board[d.cella].card;
+  if(!card || !card.pinocchioDi) return;
+  pinocchioParla(card, card.pinocchioDi, { tipo: String(d.tipo || ''), valore: d.valore, vera: d.vera });
+}
+function pinocchioParla(card, player, detto){
+  if(!card || !detto || typeof detto.vera !== 'boolean') return false;
+  const vede = PARTITA_RETE ? reteSonoIo(player - 1) : player === 1;
+  const frase = vede ? ABILITA_MOTORE.pinocchioFrase(detto) : '';
   card.pinocchioHaDetto = { tipo: detto.tipo, valore: detto.valore, vera: detto.vera };
   const partita = G;
-  setTimeout(()=>{
-    if(G !== partita) return;
-    const el = pinocchioFumetto(_cellaDellaCarta(card) || k, frase);
-    setTimeout(()=>{ if(G === partita && !detto.vera) pinocchioAllungaIlNaso(card); }, PINOCCHIO_VERDETTO_MS);
+  let giri = 0;
+  const adesso = () => {
+    if(G !== partita || G.gameOver) return;
+    if(G.turnBannerActive && giri++ < 40){ setTimeout(adesso, 100); return; }
+    const cella = _cellaDellaCarta(card);
+    if(!cella) return;
+    if(card.bugia) pinocchioAccorciaIlNaso(card);
+    const el = frase ? pinocchioFumetto(cella, frase, card) : null;
+    setTimeout(()=>{ if(G === partita && !detto.vera && _cellaDellaCarta(card)) pinocchioAllungaIlNaso(card); }, PINOCCHIO_VERDETTO_MS);
     if(el) setTimeout(()=>{ el.classList.remove('acceso'); setTimeout(()=>{ try{ el.remove(); }catch(_){ } }, 260); }, PINOCCHIO_FUMETTO_MS);
-  }, PINOCCHIO_ATTESA_MS);
+  };
+  setTimeout(adesso, PINOCCHIO_ATTESA_MS);
   return true;
 }
-function pinocchioFumetto(cella, testo){
+const PINOCCHIO_BOCCA = { dark: [0.415, 0.372], light: [0.585, 0.372] };
+function pinocchioFumetto(cella, testo, card){
   const carta = elementoCarta(cella);
   if(!carta || !carta.getClientRects().length) return null;
   const r = authoredRect(carta);
@@ -28811,15 +28888,6 @@ function pinocchioFumetto(cella, testo){
   tmp.innerHTML = _tutorialFumettoHtml('pinocchio');
   const el = tmp.firstChild;
   el.classList.add('pinocchio-fumetto', 'auto', 'scatta');
-  const aDestra = r.cx > CANVAS_W / 2 + 1;
-  if(aDestra){
-    el.classList.add('a-destra');
-    el.style.right = 'auto';
-    el.style.left = Math.round(r.left + r.width * 0.8 + 90) + 'px';
-  } else {
-    el.style.right = Math.round(CANVAS_W - (r.left + r.width * 0.2 - 90)) + 'px';
-  }
-  el.style.top = Math.round(r.cy + 6) + 'px';
   el.querySelector('.copione-chi').textContent = 'Pinocchio';
   el.querySelector('.copione-bolla-testo').textContent = testo;
   try{
@@ -28827,21 +28895,54 @@ function pinocchioFumetto(cella, testo){
     impostaVariabileDaCandidati(el, '--copione-coda', uiFileCandidati('tail-speech-bubble.png'));
   }catch(_){ }
   fxLayer().appendChild(el);
+  const scura = playerFactionIsDark((card && card.owner) || 1);
+  const arte = carta.querySelector('image.hex-art-parallax-layer') || carta.querySelector('image[data-role="owner-art-placeholder"]');
+  const ra = arte ? authoredRect(arte) : r;
+  const lato = Math.max(ra.width, ra.height);
+  const bocca = scura ? PINOCCHIO_BOCCA.dark : PINOCCHIO_BOCCA.light;
+  const bx = ra.cx + (bocca[0] - 0.5) * lato, by = ra.cy + (bocca[1] - 0.5) * lato;
+  const larga = el.querySelector('.copione-bolla').offsetWidth || 390;
+  const CODA = 88, SU = 30, MARGINE = 12;
+  let aDestra = !scura;
+  if(aDestra && bx + CODA + larga > CANVAS_W - MARGINE) aDestra = false;
+  else if(!aDestra && bx - CODA - larga < MARGINE) aDestra = true;
+  if(aDestra){
+    el.classList.add('a-destra');
+    el.style.right = 'auto';
+    el.style.left = Math.round(bx + CODA) + 'px';
+  } else {
+    el.style.right = Math.round(CANVAS_W - (bx - CODA)) + 'px';
+  }
+  el.style.top = Math.round(by + SU) + 'px';
   el.classList.add('acceso');
   return el;
+}
+function _pinocchioArteMostrata(card){
+  return (Array.isArray(card.artLayers) && card.artLayers.length === 1) ? card.artLayers[0] : card.artSrc;
+}
+function _pinocchioSfuma(card, artPrima){
+  if(artPrima && artPrima !== _pinocchioArteMostrata(card)){
+    _notteInCorso.set(card.id, { da: performance.now(), artPrima });
+    setTimeout(()=>{ try{ renderBoard(); }catch(_){ } }, NOTTE_DISSOLVENZA_MS + 30);
+  }
+  try{ renderBoard(); }catch(_){ }
 }
 function pinocchioAllungaIlNaso(card){
   if(!card || card.bugia) return false;
   card.bugia = true;
   _lampiNotte.add(card.id);
   const scura = playerFactionIsDark(card.owner || 1);
-  const nuovaDark = card.artBugiaDark || null, nuovaLight = card.artBugiaLight || null;
+  const voce = (typeof FINAL_CARDS !== 'undefined' && FINAL_CARDS.find(z => z && z.name === card.name)) || {};
+  const nuovaDark = card.artBugiaDark || voce.artBugiaDark || null, nuovaLight = card.artBugiaLight || voce.artBugiaLight || null;
   if(!nuovaDark && !nuovaLight){
     console.warn('[True Story] "' + (card.name || card.id) + '" non ha l\'arte della bugia: servono cards/art/<slug>/<slug>-dark-lie e -light-lie.');
     try{ renderBoard(); }catch(_){ }
     return false;
   }
-  const artPrima = (Array.isArray(card.artLayers) && card.artLayers.length === 1) ? card.artLayers[0] : card.artSrc;
+  const artPrima = _pinocchioArteMostrata(card);
+  card._artePrimaDellaBugia = { artDark: card.artDark, artLight: card.artLight,
+    artLayersDark: Array.isArray(card.artLayersDark) ? card.artLayersDark.slice() : null,
+    artLayersLight: Array.isArray(card.artLayersLight) ? card.artLayersLight.slice() : null };
   card.artDark = nuovaDark || card.artDark;
   card.artLight = nuovaLight || card.artLight;
   card.artSrc = scura ? card.artDark : card.artLight;
@@ -28850,11 +28951,27 @@ function pinocchioAllungaIlNaso(card){
     card.artLayersLight = [card.artLight];
     card.artLayers = scura ? card.artLayersDark : card.artLayersLight;
   }
-  if(artPrima && artPrima !== card.artSrc){
-    _notteInCorso.set(card.id, { da: performance.now(), artPrima });
-    setTimeout(()=>{ try{ renderBoard(); }catch(_){ } }, NOTTE_DISSOLVENZA_MS + 30);
+  _pinocchioSfuma(card, artPrima);
+  return true;
+}
+function pinocchioAccorciaIlNaso(card){
+  if(!card || !card.bugia) return false;
+  card.bugia = false;
+  const p = card._artePrimaDellaBugia;
+  card._artePrimaDellaBugia = null;
+  if(!p) return false;
+  const scura = playerFactionIsDark(card.owner || 1);
+  const voce = (typeof FINAL_CARDS !== 'undefined' && FINAL_CARDS.find(z => z && z.name === card.name)) || {};
+  const artPrima = _pinocchioArteMostrata(card);
+  card.artDark = p.artDark;
+  card.artLight = p.artLight;
+  if(Array.isArray(card.artLayers) && card.artLayers.length){
+    card.artLayersDark = p.artLayersDark || (Array.isArray(voce.artLayersDark) ? voce.artLayersDark.slice() : card.artLayersDark);
+    card.artLayersLight = p.artLayersLight || (Array.isArray(voce.artLayersLight) ? voce.artLayersLight.slice() : card.artLayersLight);
+    card.artLayers = scura ? card.artLayersDark : card.artLayersLight;
   }
-  try{ renderBoard(); }catch(_){ }
+  card.artSrc = (scura ? card.artDark : card.artLight) || card.artSrc;
+  _pinocchioSfuma(card, artPrima);
   return true;
 }
 function giraScudiDiFineTurno(){
@@ -30190,7 +30307,7 @@ function cambiamentiBomba(b){
   scena.vicini = (c) => (c === fonte ? colpibili : vicini(c));
   scena.cellaDi = (c) => (c === fonte ? b.cella : cellaDi(c));
   const eff = { azione: 'debuff', chi: 'opponent', dove: 'adjacent', quale: 'all', cosa: 'power',
-                ambito: 'RAND', quanto: { numero: BOMBA_DANNO }, durata: 'permanent' };
+                ambito: 'LOWEST', quanto: { numero: BOMBA_DANNO }, durata: 'permanent' };
   return _motore().cambiamentiDiEffetto(fonte, eff, scena);
 }
 function esplodonoBombe(poi){
@@ -33302,6 +33419,7 @@ function startTurn(){
   if(!PARTITA_RETE) G.turnPlayLocked=false;
   motoreMomentoDelTurno('start_of_turn', G.currentPlayer);
   try{ scambiaPoteriImp(); }catch(e){ console.warn('[Tiny Terror] ' + (e && e.message)); }
+  try{ pinocchiDiInizioTurno(G.currentPlayer); }catch(e){ console.warn('[True Story] ' + (e && e.message)); }
   wakeupPlayed=false;
   stopTictoc();
   const player=G.currentPlayer;
