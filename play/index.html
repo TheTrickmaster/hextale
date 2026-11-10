@@ -746,8 +746,7 @@ body[data-pagina="progress"] #build-version-badge{
   margin:0; font-family:'Rosarivo',var(--font-body),Georgia,serif; font-size:12px; line-height:1.2;
   color:#808A8C;
 }
-#quest-tooltip .qt-riga{ position:relative; z-index:1; border:0; border-top:1px solid rgba(255,255,255,0.1); margin:4.5px 0; width:100%; }
-#quest-tooltip .qt-premi{ position:relative; z-index:1; display:flex; gap:8px; align-items:stretch; }
+#quest-tooltip .qt-premi{ position:relative; z-index:1; display:flex; gap:8px; align-items:stretch; margin-top:6px; }
 #quest-tooltip .qt-box{
   position:relative; flex:1 1 0; min-width:0; height:54px; box-sizing:border-box; padding:12px;
   display:flex; align-items:center; justify-content:space-between;
@@ -6128,6 +6127,25 @@ html.azione-attiva #timer-pin-hover{ opacity:0 !important; visibility:hidden !im
 .deck-slot-check img{ display:block; flex:none; max-width:none; width:32.8px; height:32.8px; }
 .deck-slot-check img.casella-spunta{ position:absolute; left:50%; top:50%; margin:-16.4px 0 0 -16.4px; opacity:0; }
 .deck-slot-check.spuntata img.casella-spunta{ opacity:1; }
+.deck-slot.deck-slot-piena > .deck-slot-specchio.deck-slot-specchio{
+  position:absolute; inset:0; z-index:4; border-radius:inherit; overflow:hidden; pointer-events:none;
+}
+.deck-slot-specchio .dss-lampo{
+  position:absolute; inset:0; background:#FFFFFF; opacity:0;
+  animation:deckSceltaLampo .34s ease-out forwards;
+}
+.deck-slot-specchio .dss-banda{
+  position:absolute; top:0; bottom:0; left:0; width:34%;
+  background:linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.95) 100%);
+  transform:translateX(-170%) skewX(-45deg);
+  animation:deckSceltaSpecchio .38s cubic-bezier(.3,.1,.3,1) forwards;
+}
+@keyframes deckSceltaLampo{ 0%{ opacity:0.5; } 100%{ opacity:0; } }
+@keyframes deckSceltaSpecchio{
+  0%{ transform:translateX(-170%) skewX(-45deg); }
+  100%{ transform:translateX(430%) skewX(-45deg); }
+}
+@media (prefers-reduced-motion: reduce){ .deck-slot-specchio .dss-banda{ animation:none; opacity:0; } }
 
 .deck-slot-nome{
   flex:1 1 auto; min-width:0;
@@ -7826,7 +7844,6 @@ try{
         <div class="qt-titolo"></div>
         <p class="qt-come"></p>
       </div>
-      <hr class="qt-riga">
       <div class="qt-premi">
         <div class="qt-box qt-premio">
           <img class="qt-icona" alt="" draggable="false">
@@ -8441,7 +8458,7 @@ try{
 <button id="btn-show-results" class="hx-btn hx-btn-opaco" onclick="toggleBoardView(false)">
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:12.5px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.82.53</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:12.5px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.82.54</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -9897,7 +9914,7 @@ const AUDIO_DATA_URLS = {
   'bump': 'https://hextalegame.com/audio/sfx/bump.mp3',
   'howl': 'https://hextalegame.com/audio/sfx/howl.mp3',
   'chain': 'https://hextalegame.com/audio/sfx/chain.mp3',
-  'click': 'https://hextalegame.com/audio/sfx/click.mp3',
+  'select': 'https://hextalegame.com/audio/sfx/select.mp3',
   'drain': 'https://hextalegame.com/audio/sfx/drain.mp3',
   'unpack-load': 'https://hextalegame.com/audio/sfx/unpack-load.mp3',
   'unpack-hit': 'https://hextalegame.com/audio/sfx/unpack-hit.mp3',
@@ -10062,7 +10079,6 @@ function abilitaSuonoClickGlobale(){
     }
   }, true);
 }
-abilitaSuonoClickGlobale();
 
 const SFX_GAIN_DB={ 'arcane': 2, 'bump': -4, 'scored': -3, 'change-turn': -6 };
 function sfxGainMultiplier(name){
@@ -14724,7 +14740,7 @@ function mm2ApriSceltaMazzo(){
     if(spunta && mazzoGiocabile(m)){
       spunta.onclick = (ev)=>{
         ev.stopPropagation();
-        selezionaMazzo(m.id);
+        mazzoSceltoConEffetto(m.id, slot);
         mm2AggiornaMazzo();
       };
     }
@@ -14733,7 +14749,7 @@ function mm2ApriSceltaMazzo(){
       slot.onclick = null;
     } else {
       slot.onclick = ()=>{
-        selezionaMazzo(m.id);
+        mazzoSceltoConEffetto(m.id, slot);
         mm2AggiornaMazzo();
       };
     }
@@ -14743,7 +14759,7 @@ function mm2ApriSceltaMazzo(){
   riga.className = 'filters-riga';
   lista.appendChild(riga);
   const casuale = mm2SlotCasuale();
-  casuale.onclick = ()=>{ selezionaMazzo(MAZZO_CASUALE); mm2AggiornaMazzo(); };
+  casuale.onclick = ()=>{ mazzoSceltoConEffetto(MAZZO_CASUALE, casuale); mm2AggiornaMazzo(); };
   lista.appendChild(casuale);
   document.querySelectorAll('#mm2-deck-overlay .hx-btn').forEach(vestiPulsante);
   impostaVariabileDaCandidati(document.getElementById('mm2-deck-pannello'), '--hx-trama', uiFileCandidati('brushed-texture.jpg'));
@@ -17949,6 +17965,24 @@ function casellaTondaRiempi(contenitore, spuntata){
   }
   contenitore.classList.toggle('spuntata', !!spuntata);
 }
+function mazzoLampoScelta(slot){
+  if(!slot) return;
+  slot.querySelectorAll(':scope > .deck-slot-specchio').forEach(e => e.remove());
+  const strato = document.createElement('div');
+  strato.className = 'deck-slot-specchio';
+  strato.innerHTML = '<span class="dss-lampo"></span><span class="dss-banda"></span>';
+  slot.appendChild(strato);
+  setTimeout(() => { try{ strato.remove(); }catch(_){ } }, 700);
+}
+function mazzoSceltoConEffetto(id, slot){
+  const prima = MAZZO_SCELTO;
+  if(!selezionaMazzo(id)) return false;
+  if(MAZZO_SCELTO !== prima){
+    try{ playSfxFile('select.mp3'); }catch(_){ }
+    mazzoLampoScelta(slot);
+  }
+  return true;
+}
 function aggiornaSpunteMazzi(){
   let viste = 0;
   document.querySelectorAll('#deck-list .deck-slot-piena, #mm2-deck-lista .deck-slot-piena').forEach(slot => {
@@ -17984,7 +18018,7 @@ function _slotMazzoPieno(mazzo){
   check.classList.toggle('non-giocabile', !giocabile);
   if(!giocabile) check.setAttribute('aria-label', 'Deck not playable yet');
   el.classList.toggle('mazzo-incompleto', !giocabile);
-  check.onclick = (ev)=>{ ev.stopPropagation(); selezionaMazzo(mazzo.id); };
+  check.onclick = (ev)=>{ ev.stopPropagation(); mazzoSceltoConEffetto(mazzo.id, el); };
   const nome = document.createElement('span');
   nome.className = 'deck-slot-nome';
   nome.textContent = mazzo.nome || 'Untitled deck';
