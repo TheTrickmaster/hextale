@@ -8486,7 +8486,7 @@ try{
 <button id="btn-show-results" class="hx-btn hx-btn-opaco" onclick="toggleBoardView(false)">
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:12.5px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.82.55</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:12.5px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.82.56</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -26598,14 +26598,14 @@ const TILE_ABILITIES_DEF = {
   '!yeti':           { carta:'Yeti',       name:"Hide 'n' kill",      desc:'*Hides* on the board and only attacks when an opponent is near it.' },
   '!goblin':         { carta:'Goblin',        name:'GIGA-BOOM!',     desc:'Drops a Bomb on a selected tile: -2 LOWEST to adjacent enemies after 3 turns' },
   '!thecarpenter':   { carta:'The Carpenter', name:'Woodwork',       desc:'*Blocks* a selected empty tile' },
-  '!jabberwock':     { carta:'Jabberwock',    name:'Callooh Callay', desc:'Each turn, -1 ALL to adjacent enemies for every card with *Rotated* Power on the board' },
+  '!jabberwock':     { carta:'Jabberwock',    name:'Callooh Callay', desc:'Each turn, -1 ALL to all enemies for every card with *Rotated* Power on the board' },
   smol_friends:  { carta:'Snow White', name:'Smol Friends', desc:'+1 Power ALL for every /Small/ character on the board.' },
   back_off:      { carta:'Bagheera', name:'Back off', desc:'Bagheera and adjacent /allies/ can be *Buffed*, never *Debuffed*.' },
   a_kind_of_magic:       { carta:'Merlin', name:'A Kind of Magic',    desc:"Always attacks with its highest Power value, regardless its position." },
   eat_me_drink_me:   { carta:'Alice', name:'Eat me, Drink me',   desc:'*Rotates* its power clockwise each turn while in hand.' },
   different_reality: { carta:'Cheshire Cat', name:'Different Reality', desc:"After attacking, its highest power value always faces the card's unprotected sides" },
   mermaid_discard: { carta:'Little Mermaid', name:'...', desc:'When *Played*, *Discard* a card of your choice.' },
-  kingslayer: { carta:'Mordred', name:'Kingslayer', desc:'When *Played*, can *Destroy* an adjacent /Sovereign/ or /Noble/.' },
+  kingslayer: { carta:'Mordred', name:'Kingslayer', desc:'*Flips* and *Removes* an adjacent enemy card' },
   new_tax: { carta:'Nottingham Sheriff', name:'New Tax', desc:'When *Played*, *Steals* the ability of an adjacent card.' },
   power_nap: { carta:'Sleeping Beauty', name:'Power Nap', desc:'Can only be *Conquered* by /Princess/, /Noble/ or /Sovereign/ characters.' },
   loyalty:      { carta:'Lancelot',             name:'Loyalty',        desc:'*Afflicts* -1 ALL to adjacent /Sovereign/, *Gains* +1 ALL for each adjacent /Princess/.' },
@@ -26624,7 +26624,7 @@ const TILE_ABILITIES_DEF = {
   braids: { carta:'Rapunzel', name:'Braaaaaaaids', desc:'When *Played*, can *Pull* any non-adjacent character along a straight line.' },
   have_i_gone_mad:   { carta:'Mad Hatter', name:'Have I Gone Mad?',   desc:'On conquer: goes mad, its power becomes a random value (1-3).' },
   smoke_and_mirrors: { carta:'Morgana', name:'Smoke and Mirrors',  desc:"Chance of *canceling* the last opponent's conquest." },
-  off_with_the_head: { carta:'Queen of Hearts', name:'Off With the Head!',  desc:'The next card you *draw* earns +2 ALL.' },
+  off_with_the_head: { carta:'Queen of Hearts', name:'Off With the Head!',  desc:'When *Played*, the next card your opponent *Draws* gets -2 ALL' },
   magic_mirror:      { carta:'Magic Mirror', name:'Spitting Image',      desc:'*Copies* a selected adjacent character ability.' },
   exaketededly:      { carta:'The Caterpillar', name:'Exaketededly',        desc:'Power *changes* and hides in smoke until an enemy card is adjacent.' },
   excalibur:         { carta:'King Arthur', name:'Excalibur!',         desc:'*Summons* Excalibur on the board.' },
@@ -29501,7 +29501,8 @@ function eseguiDalFoglio(card, evento, dove){
     }
     if((eff.azione === 'buff' || eff.azione === 'debuff') && eff.quale === 'next' && eff.dove === 'drawn'){
       if(_simulazioneInCorso) continue;
-      const chi = card.owner || G.currentPlayer;
+      const suo = card.owner || G.currentPlayer;
+      const chi = (eff.chi === 'opponent') ? (suo === 1 ? 2 : 1) : suo;
       const quanto = ((eff.quanto && eff.quanto.numero) || 0) * (eff.azione === 'debuff' ? -1 : 1);
       if(quanto && G.bonusProssimaPescata){
         G.bonusProssimaPescata[chi] = (G.bonusProssimaPescata[chi]||0) + quanto;
@@ -30618,7 +30619,7 @@ function jabberwockFineTurno(){
     if(!p || !p.card || abilitaAttivaDi(p.card) !== JABBERWOCK_CHIAVE) continue;
     const n = carteRuotateInCampo();
     if(!n) continue;
-    const eff = { azione: 'debuff', chi: 'opponent', dove: 'adjacent', quale: 'all', cosa: 'power',
+    const eff = { azione: 'debuff', chi: 'opponent', dove: 'board', quale: 'all', cosa: 'power',
                   ambito: 'ALL', quanto: { numero: n }, durata: 'permanent' };
     const cambi = _motore().cambiamentiDiEffetto(p.card, eff, _scenaEvento(p.card, k));
     if(!cambi.length) continue;
@@ -30750,7 +30751,7 @@ const SCELTE_PIAZZAMENTO = {
       giocatore,
       cellaOrigine: key(q,r),
       bersagli,
-      applica: (cella) => rimuoviDopoLaConquista(cella),
+      applica: (cella) => rimuoviDopoLaConquista(cella, giocatore),
       rinuncia: () => {},
     };
   },
@@ -31082,18 +31083,35 @@ function _volaViaDalTabellone(cella){
   (document.getElementById('game-root') || document.body).appendChild(velo);
   setTimeout(()=>{ try { velo.remove(); } catch(_){} }, DISTRUZIONE_MS + 200);
 }
-function rimuoviDopoLaConquista(cella){
+function rimuoviDopoLaConquista(cella, giocatore){
   if(!cella) return null;
   if(!G.rimozioniInAttesa) G.rimozioniInAttesa = [];
   if(G.rimozioniInAttesa.indexOf(cella) < 0) G.rimozioniInAttesa.push(cella);
+  if(giocatore){ if(!G.rimozioniDi) G.rimozioniDi = {}; G.rimozioniDi[cella] = giocatore; }
   return G.board[cella] || null;
 }
 function svuotaLeRimozioniInAttesa(){
   const coda = G.rimozioniInAttesa || [];
+  const di = G.rimozioniDi || {};
   G.rimozioniInAttesa = [];
+  G.rimozioniDi = {};
   let quante = 0;
-  for(const cella of coda) if(distruggiCarta(cella)) quante++;
+  for(const cella of coda){
+    const tolta = distruggiCarta(cella);
+    if(!tolta) continue;
+    quante++;
+    try{ if(di[cella] && tolta.owner !== di[cella]) questSegnaRimozione(di[cella], tolta.card); }catch(_){ }
+  }
   return quante;
+}
+function questSegnaRimozione(player, card){
+  if(player !== _questMio()) return;
+  if(G && (G.tutorial || window.__tutorialPartita)) return;
+  if(_simulazioneInCorso) return;
+  const contoPrima = Object.assign({}, QUEST_CONTO);
+  QUEST_CONTO.flip += 1;
+  if(card && String(card.rarity || '').toLowerCase() === 'mythic') QUEST_CONTO.flip_mythic += 1;
+  try{ questAvanzaInPartita(contoPrima); }catch(_){ }
 }
 function distruggiCarta(cella){
   if(!cella || !G.board[cella]) return null;
@@ -31596,7 +31614,7 @@ function candidatiDalFoglio(card, q, r, giocatore, a, eff){
     if(!posto || !posto.card) continue;
     if(posto.card === card) continue;
     if(eff.chi === 'ally' && posto.owner !== giocatore){ scarta(k, "e' dell'avversario, e l'abilita' vuole un alleato"); continue; }
-    if(eff.chi === 'opponent' && posto.owner === giocatore){ scarta(k, "e' mia, e l'abilita' vuole una carta avversaria"); continue; }
+    if((eff.chi === 'opponent' || eff.chi === 'attacked') && posto.owner === giocatore){ scarta(k, "e' mia, e l'abilita' vuole una carta avversaria"); continue; }
     if(condizione && !_condizioneSulBersaglio(condizione, posto.card)){ scarta(k, 'non soddisfa la condizione "If" della riga'); continue; }
     if(!_effettoHaSensoSu(eff, card, posto.card)){
       var perche = "l'effetto non farebbe niente su di lei";
@@ -31664,7 +31682,7 @@ function _celleIdonee(card, a, eff, cellaPropria){
     if(!posto || !posto.card) continue;
     if(k === cellaPropria || posto.card === card) continue;
     if(eff.chi === 'ally' && posto.owner !== card.owner) continue;
-    if(eff.chi === 'opponent' && posto.owner === card.owner) continue;
+    if((eff.chi === 'opponent' || eff.chi === 'attacked') && posto.owner === card.owner) continue;
     if(chiede && chiede.test === 'has_trait'
        && !_motore().haTratto(posto.card, (chiede.valore && chiede.valore.tratti) || [])) continue;
     fuori.push(k);
@@ -31921,6 +31939,11 @@ function _sceltaPotenzaInMano(card, q, r, giocatore, a, eff){
 function _sceltaPotenzaInCampo(card, q, r, giocatore, a, eff){
   const bersagli = candidatiDalFoglio(card, q, r, giocatore, a, eff);
   if(!bersagli.length) return null;
+  if(eff.per){
+    let quanto = 1;
+    try{ quanto = _motore().quantita(card, eff, (eff === a.effetto2) ? a.se2 : a.se, _scenaEvento(card, key(q, r))); }catch(_){ quanto = 1; }
+    if(!quanto) return null;
+  }
   const cambi = (cella) => {
     const posto = G.board[cella];
     if(!posto || !posto.card) return [];
@@ -32241,7 +32264,7 @@ function _apriSpostaUnVicino(card, cella, eff, poi){
     const posto = G.board[nk];
     if(!posto || !posto.card) continue;
     if(eff.chi === 'ally' && posto.owner !== card.owner) continue;
-    if(eff.chi === 'opponent' && posto.owner === card.owner) continue;
+    if((eff.chi === 'opponent' || eff.chi === 'attacked') && posto.owner === card.owner) continue;
     if(cartaIntoccabile(posto.card)) continue;
     if(!celleLibereAttornoATassello(nk).length) continue;
     candidati.push(nk);
@@ -35324,6 +35347,9 @@ function aiValoreAbilitaCieca(card, q, r, ev){
     if(eff.azione === 'buff' && eff.quale === 'next' && a.trigger !== 'on_conquer'){
       v += quanto * lati * P * 0.8;
     }
+    if(a.trigger === 'on_play' && eff.azione === 'debuff' && eff.chi === 'opponent' && eff.quale === 'next' && eff.dove === 'drawn'){
+      v += quanto * lati * P * 0.8;
+    }
     if(a.trigger === 'on_play' && eff.azione === 'buff' && eff.chi === 'ally' && eff.dove === 'in_hand'){
       const mano = (manoDi(io) || []).filter(c => c && c.id !== card.id).length;
       const quante = eff.quale === 'random' ? Math.min(1, mano) : mano;
@@ -35338,13 +35364,16 @@ function aiValoreAbilitaCieca(card, q, r, ev){
     if(a.trigger === 'on_play' && eff.azione === 'freeze' && eff.chi === 'ally' && eff.quale === 'next'){
       v += 1.5;
     }
-    if(a.trigger === 'on_play' && eff.azione === 'flip' && eff.chi === 'opponent'){
+    const haRimozione = [a.effetto, a.effetto2].some(e => e && e.azione === 'destroy' && e.scelta && e.dove === 'adjacent');
+    if(a.trigger === 'on_play' && ((eff.azione === 'destroy' && eff.scelta && eff.dove === 'adjacent')
+       || (!haRimozione && eff.azione === 'flip' && eff.chi === 'opponent'))){
+      const condizione = (a.se && a.se.soggetto === 'target') ? a.se : null;
       let migliore = 0;
       for(const dir of DIRS){
         const nb = G.board[key(q+dir.dq, r+dir.dr)];
         if(!nb || !nb.card || nb.owner !== lui) continue;
-        const tratti = (nb.card.traits || []).map(x => String(x).toLowerCase());
-        if(tratti.indexOf('sovereign') < 0 && tratti.indexOf('noble') < 0) continue;
+        if(cartaIntoccabile(nb.card)) continue;
+        if(condizione && !_condizioneSulBersaglio(condizione, nb.card)) continue;
         migliore = Math.max(migliore, 2 * puntiDiCarta(nb.card) * turni * IA_OPZIONI.pesoPunti + cardPower(nb.card) * P);
       }
       v += migliore;
@@ -35875,12 +35904,12 @@ function drawAndAnimate(player,fast,callback){
   const taglia = (G.bonusProssimaPescata && G.bonusProssimaPescata[player]) || 0;
   if(taglia){
     newCard.tileAbilityBaseValues={...newCard.values};
-    for(const s of SIDES) newCard.values[s]=(newCard.values[s]||0)+taglia;
+    for(const s of SIDES) newCard.values[s]=Math.max(0, (newCard.values[s]||0)+taglia);
     if(newCard.valoriBase){
-      for(const s of SIDES) newCard.valoriBase[s]=(newCard.valoriBase[s]||0)+taglia;
+      for(const s of SIDES) newCard.valoriBase[s]=Math.max(0, (newCard.valoriBase[s]||0)+taglia);
     }
     if(newCard.hoorayBaseValues){
-      for(const s of SIDES) newCard.hoorayBaseValues[s]=(newCard.hoorayBaseValues[s]||0)+taglia;
+      for(const s of SIDES) newCard.hoorayBaseValues[s]=Math.max(0, (newCard.hoorayBaseValues[s]||0)+taglia);
     }
     sommaModificatore(newCard, 'off_with_the_head', 'Queen of Hearts', taglia, 'ALL');
     G.bonusProssimaPescata[player]=0;
