@@ -1113,6 +1113,8 @@ html.accesso-finestra body:has(.hx-overlay.show) #accesso-finestra{ -webkit-app-
 .deck-slot-check:hover{ filter:brightness(1.45) drop-shadow(0 0 6px rgba(232,195,106,0.55)); transform:scale(1.08); }
 .deck-slot-check:active{ transform:scale(0.96); }
 .deck-slot-check.non-giocabile:hover{ filter:none; transform:none; }
+#deck-list .deck-slot-check:hover,
+#deck-list .deck-slot-check:active{ transform:none; }
 .deck-slot.deck-slot-presa{ display:none; }
 .deck-slot-gap{
   border:1px dashed rgba(255,255,255,0.11); border-radius:16px;
@@ -3437,6 +3439,59 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
 }
 #livello-carta{ pointer-events:auto; }
 #livello-carta.tilt-fermo .lvc-giro{ transition:transform .28s ease-out; }
+#livello-overlay.subito{ transition:none; }
+#livello-carta.da-scheda{ opacity:1; transform-origin:0 0; transition:none; }
+#livello-carta.da-scheda.arriva{ transition:transform .5s cubic-bezier(.22,1,.36,1); }
+.lvc-livello{ position:absolute; inset:0; opacity:0; pointer-events:none; }
+.lvc-livello.pieno{ opacity:1; }
+.lvc-livello-luce{
+  position:absolute; pointer-events:none; opacity:0;
+  filter:drop-shadow(0 0 5px rgba(255,255,255,0.95)) drop-shadow(0 0 14px rgba(255,255,255,0.6));
+}
+.lvc-livello-forma{
+  width:100%; height:100%; background:#FFFFFF;
+  -webkit-mask:var(--lv-socket-img, none) center / contain no-repeat; mask:var(--lv-socket-img, none) center / contain no-repeat;
+}
+.lvc-livello-luce.carica{ animation:lvcLivelloCarica var(--lv-carica, 875ms) cubic-bezier(.5,0,.9,.6) forwards; }
+@keyframes lvcLivelloCarica{ 0%{ opacity:0; transform:scale(1); } 100%{ opacity:1; transform:scale(1.12); } }
+.lvc-livello-luce.via{ animation:lvcLivelloVia .5s ease-out forwards; }
+@keyframes lvcLivelloVia{ 0%{ opacity:1; transform:scale(1.35); } 100%{ opacity:0; transform:scale(1.9); } }
+#livello-carta .lvc-onda{
+  position:absolute; left:50%; top:50%; width:260px; height:260px; border-radius:50%;
+  transform:translate(-50%,-50%) rotate(0deg); opacity:0; pointer-events:none;
+  background:conic-gradient(from 0deg, #FFFFFF 0deg, rgba(255,255,255,0) 360deg);
+  -webkit-mask:radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2px));
+  mask:radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2px));
+}
+#livello-carta .lvc-onda.va{ animation:lvcOnda 1s cubic-bezier(.1,.75,.2,1); }
+@keyframes lvcOnda{
+  0%{ width:260px; height:260px; opacity:1; transform:translate(-50%,-50%) rotate(0deg); }
+  100%{ width:1200px; height:1200px; opacity:0; transform:translate(-50%,-50%) rotate(600deg); }
+}
+#livello-alone{ position:absolute; left:50%; top:50%; width:0; height:0; pointer-events:none; --lv-alone-colore:#CAB263; }
+.lv-raggi, .lv-glow{
+  position:absolute; left:50%; top:50%; pointer-events:none;
+  background-color:var(--lv-alone-colore); mix-blend-mode:plus-lighter;
+  -webkit-mask-size:contain; mask-size:contain;
+  -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat;
+  -webkit-mask-position:center; mask-position:center;
+  opacity:0; transition:opacity .7s ease;
+}
+.lv-raggi{
+  width:1300px; height:1433px;
+  -webkit-mask-image:var(--lv-raggi-img, none); mask-image:var(--lv-raggi-img, none);
+  transform:translate(-50%,-50%) rotate(150.89deg) scaleX(-1);
+  animation:mm2RaggiGirano 60s linear infinite;
+}
+.lv-glow{
+  width:950px; height:950px;
+  -webkit-mask-image:var(--lv-glow-img, none); mask-image:var(--lv-glow-img, none);
+  transform:translate(-50%,-50%);
+  animation:mmRuotaOraria 140s linear infinite;
+}
+#livello-alone.acceso .lv-raggi{ opacity:0.9; }
+#livello-alone.acceso .lv-glow{ opacity:0.8; }
+@media (prefers-reduced-motion: reduce){ .lv-raggi, .lv-glow{ animation:none; } }
 .livello-riga{
   width:454px; height:20px;
   background:linear-gradient(rgba(255,255,255,0.1), rgba(255,255,255,0.1)) center / 242px 1px no-repeat;
@@ -6069,13 +6124,11 @@ html.azione-attiva #timer-pin-hover{ opacity:0 !important; visibility:hidden !im
   display:inline-flex; align-items:center; justify-content:center;
   cursor:var(--cursore);
 }
-.deck-slot-check img{ display:block; height:32px; width:auto; }
-.deck-slot-check img{ width:32px; height:32px; object-fit:contain; }
-.deck-slot-check img.spuntata{
-  width:46px; height:auto;
-  position:relative; top:-2px;
-  margin-top:-6px; margin-right:-4px;
-}
+.deck-slot-check{ position:relative; }
+.deck-slot-check img{ display:block; flex:none; max-width:none; width:32.8px; height:32.8px; }
+.deck-slot-check img.casella-spunta{ position:absolute; left:50%; top:50%; margin:-16.4px 0 0 -16.4px; opacity:0; }
+.deck-slot-check.spuntata img.casella-spunta{ opacity:1; }
+
 .deck-slot-nome{
   flex:1 1 auto; min-width:0;
   font-family:'Marcellus',var(--font-display),serif;
@@ -6831,13 +6884,22 @@ body[data-pagina="collection"] #card-db-bg{ display:none !important; }
 .card-db-cerca-campo{ border-color:rgba(255,255,255,0.2); }
 #library-mancanti{ padding:16px 0 16px 8px; margin:-16px 0 -16px -8px; }
 #library-mancanti .filters-casella{ --hx-casella-lato:22px; margin-left:8px; }
-#library-mancanti .filters-casella{ background-image:url('https://hextalegame.com/ui/checkbox-round-unchecked.png'); }
+#library-mancanti .filters-casella,
 #library-mancanti input:checked ~ .filters-casella{ background-image:none; }
+#library-mancanti .filters-casella::before,
+#library-mancanti .filters-casella::after,
 #library-mancanti input:checked ~ .filters-casella::after{
-  left:0; top:calc(var(--hx-casella-lato) * -0.25);
-  width:calc(var(--hx-casella-lato) * 1.44); height:calc(var(--hx-casella-lato) * 1.18);
-  background-image:url('https://hextalegame.com/ui/checkbox-round-checked.png');
+  content:''; position:absolute; pointer-events:none;
+  left:50%; top:50%;
+  width:calc(var(--hx-casella-lato) * 64 / 50); height:calc(var(--hx-casella-lato) * 64 / 50);
+  transform:translate(-50%, -50%);
+  background-size:100% 100%; background-repeat:no-repeat;
 }
+#library-mancanti .filters-casella::before{ background-image:url('https://hextalegame.com/ui/checkbox-round-unchecked.png'); }
+#library-mancanti .filters-casella::after,
+#library-mancanti input:checked ~ .filters-casella::after{ background-image:url('https://hextalegame.com/ui/checkbox-round-checked.png'); }
+#library-mancanti .filters-casella::after{ opacity:0; }
+#library-mancanti input:checked ~ .filters-casella::after{ opacity:1; }
 #library-filters{ padding:16px 8px; margin:-16px -8px; }
 #library-reset{
   position:relative; isolation:isolate; flex:0 0 auto; align-self:center;
@@ -6880,7 +6942,7 @@ body[data-pagina="collection"] #card-db-bg{ display:none !important; }
 #deck-list .deck-slot{ width:100%; }
 #deck-list .deck-slot-piena{ padding:0 20px; gap:12px; filter:drop-shadow(0 4px 5px rgba(0,0,0,0.18)); }
 #deck-list .deck-slot-piena::after{ padding:1px; background:rgba(255,255,255,0.2); }
-#deck-list .deck-slot-piena.deck-slot-scelta{ padding:0 24px; filter:none; box-shadow:0 0 15px rgba(228,213,180,0.5); }
+#deck-list .deck-slot-piena.deck-slot-scelta{ filter:none; box-shadow:0 0 15px rgba(228,213,180,0.5); }
 #deck-list .deck-slot-piena.deck-slot-scelta::after{ background:#A18D63; }
 #deck-list .deck-slot-velo{ background-image:linear-gradient(90deg, #1E2423 0%, rgba(30,36,35,0.21) 100%); }
 #deck-list .deck-slot-nome{ font-family:'Marcellus SC','Marcellus',var(--font-display),serif; line-height:normal; }
@@ -8209,7 +8271,7 @@ try{
 </div>
 <div id="livello-overlay">
   <div id="livello-cornice" class="hx-pannello">
-    <div id="livello-posto-carta"></div>
+    <div id="livello-posto-carta"><div id="livello-alone"><div class="lv-raggi"></div><div class="lv-glow"></div></div></div>
     <div id="livello-colonna">
       <div id="livello-testi">
         <h2 id="livello-titolo" class="lv-entra hx-titolo-oro"></h2>
@@ -8238,6 +8300,7 @@ try{
   <div id="livello-palco">
     <canvas id="livello-scintille"></canvas>
     <div id="livello-carta">
+      <div class="lvc-onda"></div>
       <div class="lvc-giro"><div class="lvc-faccia fronte"></div><div class="lvc-faccia dorso"><img alt="" draggable="false"></div></div>
       <div class="lvc-lampo"></div>
     </div>
@@ -8378,7 +8441,7 @@ try{
 <button id="btn-show-results" class="hx-btn hx-btn-opaco" onclick="toggleBoardView(false)">
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:12.5px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.82.49</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:12.5px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.82.50</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -9820,6 +9883,7 @@ const AUDIO_DATA_URLS = {
   'growth': 'https://hextalegame.com/audio/sfx/growth.mp3',
   'level-up': 'https://hextalegame.com/audio/sfx/level-up.mp3',
   'rank-up': 'https://hextalegame.com/audio/sfx/rank-up.mp3',
+  'card-lvl-up-badge': 'https://hextalegame.com/audio/sfx/card-lvl-up-badge.mp3',
   'bell': 'https://hextalegame.com/audio/sfx/bell.mp3',
   'change-turn': 'https://hextalegame.com/audio/sfx/change-turn.mp3',
   'card-flip': 'https://hextalegame.com/audio/sfx/card-flip.mp3',
@@ -14632,11 +14696,7 @@ function mm2SlotCasuale(){
   el.appendChild(art);
   const check = document.createElement('span');
   check.className = 'deck-slot-check';
-  const img = document.createElement('img');
-  img.alt=''; img.draggable=false;
-  impostaImgDaCandidati(img, uiFileCandidati(
-    MAZZO_SCELTO === MAZZO_CASUALE ? 'checkbox-round-checked.png' : 'checkbox-round-unchecked.png'));
-  check.appendChild(img);
+  casellaTondaRiempi(check, MAZZO_SCELTO === MAZZO_CASUALE);
   const nome = document.createElement('span');
   nome.className = 'deck-slot-nome';
   nome.textContent = 'Random deck';
@@ -14666,7 +14726,6 @@ function mm2ApriSceltaMazzo(){
         ev.stopPropagation();
         selezionaMazzo(m.id);
         mm2AggiornaMazzo();
-        mm2ApriSceltaMazzo();
       };
     }
     if(!mazzoGiocabile(m)){
@@ -14676,7 +14735,6 @@ function mm2ApriSceltaMazzo(){
       slot.onclick = ()=>{
         selezionaMazzo(m.id);
         mm2AggiornaMazzo();
-        mm2ApriSceltaMazzo();
       };
     }
     lista.appendChild(slot);
@@ -14685,7 +14743,7 @@ function mm2ApriSceltaMazzo(){
   riga.className = 'filters-riga';
   lista.appendChild(riga);
   const casuale = mm2SlotCasuale();
-  casuale.onclick = ()=>{ selezionaMazzo(MAZZO_CASUALE); mm2AggiornaMazzo(); mm2ApriSceltaMazzo(); };
+  casuale.onclick = ()=>{ selezionaMazzo(MAZZO_CASUALE); mm2AggiornaMazzo(); };
   lista.appendChild(casuale);
   document.querySelectorAll('#mm2-deck-overlay .hx-btn').forEach(vestiPulsante);
   impostaVariabileDaCandidati(document.getElementById('mm2-deck-pannello'), '--hx-trama', uiFileCandidati('brushed-texture.jpg'));
@@ -16758,12 +16816,18 @@ function _adottaMazziDalServer(dalServer, soloSeDiversi){
     && (dalServer.scelto === MAZZO_CASUALE || nuovi.some(m=>m.id===dalServer.scelto));
   const ripiego = nuovi.find(m => { try{ return mazzoGiocabile(m); }catch(_){ return false; } });
   const scelto = sceltaValida ? dalServer.scelto : (ripiego ? ripiego.id : (nuovi.length ? nuovi[0].id : null));
-  if(soloSeDiversi && scelto === MAZZO_SCELTO && JSON.stringify(nuovi) === JSON.stringify(MAZZI)) return;
+  const stessiMazzi = JSON.stringify(nuovi) === JSON.stringify(MAZZI);
+  if(soloSeDiversi && scelto === MAZZO_SCELTO && stessiMazzi) return;
   MAZZI = nuovi;
   MAZZO_SCELTO = scelto;
   _mazziModificatoIl = (dalServer && dalServer.modificatoIl) || 0;
   _potaMazzi();
-  try{ if(typeof renderListaMazzi === 'function' && document.getElementById('card-db-overlay')) renderListaMazzi(); }catch(_){}
+  try{
+    if(typeof renderListaMazzi === 'function' && document.getElementById('card-db-overlay')){
+      if(stessiMazzi && document.querySelector('#deck-list .deck-slot-piena')) aggiornaSpunteMazzi();
+      else renderListaMazzi();
+    }
+  }catch(_){}
 }
 
 function _potaMazzi(){
@@ -17876,6 +17940,28 @@ function renderListaMazzi(){
   if(_mazzoInModificaId && mazzoPerId(_mazzoInModificaId)) _apriSlotInModifica(_mazzoInModificaId);
   else if(_mazzoInModificaId){ _mazzoInModifica = null; _mazzoInModificaId = null; }
 }
+function casellaTondaRiempi(contenitore, spuntata){
+  contenitore.textContent = '';
+  for(const [classe, file] of [['casella-vuota', 'checkbox-round-unchecked.png'], ['casella-spunta', 'checkbox-round-checked.png']]){
+    const img = document.createElement('img');
+    img.alt = ''; img.draggable = false; img.className = classe;
+    impostaImgDaCandidati(img, uiFileCandidati(file));
+    contenitore.appendChild(img);
+  }
+  contenitore.classList.toggle('spuntata', !!spuntata);
+}
+function aggiornaSpunteMazzi(){
+  let viste = 0;
+  document.querySelectorAll('#deck-list .deck-slot-piena, #mm2-deck-lista .deck-slot-piena').forEach(slot => {
+    const casuale = slot.classList.contains('mm2-slot-casuale');
+    const scelto = casuale ? (MAZZO_SCELTO === MAZZO_CASUALE) : (slot.dataset.mazzo === MAZZO_SCELTO);
+    const check = slot.querySelector('.deck-slot-check');
+    if(check) check.classList.toggle('spuntata', scelto);
+    if(!casuale) slot.classList.toggle('deck-slot-scelta', scelto);
+    viste++;
+  });
+  return viste;
+}
 function _slotMazzoPieno(mazzo){
   const el = document.createElement('div');
   el.className = 'deck-slot deck-slot-piena';
@@ -17892,15 +17978,9 @@ function _slotMazzoPieno(mazzo){
   check.type = 'button';
   check.className = 'deck-slot-check';
   check.setAttribute('aria-label', 'Select deck');
-  const checkImg = document.createElement('img');
-  checkImg.alt = '';
-  checkImg.draggable = false;
   const spuntato = (mazzo.id === MAZZO_SCELTO);
-  checkImg.classList.toggle('spuntata', spuntato);
+  casellaTondaRiempi(check, spuntato);
   el.classList.toggle('deck-slot-scelta', spuntato);
-  impostaImgDaCandidati(checkImg, uiFileCandidati(
-    spuntato ? 'checkbox-round-checked.png' : 'checkbox-round-unchecked.png'));
-  check.appendChild(checkImg);
   const giocabile = mazzoGiocabile(mazzo);
   check.classList.toggle('non-giocabile', !giocabile);
   if(!giocabile) check.setAttribute('aria-label', 'Deck not playable yet');
@@ -17982,7 +18062,7 @@ function primoMazzoGiocabile(){
   return m ? m.id : null;
 }
 function selezionaMazzo(id){
-  if(id === MAZZO_CASUALE){ MAZZO_SCELTO = id; salvaMazzi(); renderListaMazzi(); return true; }
+  if(id === MAZZO_CASUALE){ MAZZO_SCELTO = id; salvaMazzi(); aggiornaSpunteMazzi(); return true; }
   const m = MAZZI.find(x=>x.id===id);
   if(!m) return false;
   if(!mazzoGiocabile(m)){
@@ -17994,7 +18074,7 @@ function selezionaMazzo(id){
   }
   MAZZO_SCELTO = id;
   salvaMazzi();
-  renderListaMazzi();
+  aggiornaSpunteMazzi();
   return true;
 }
 function creaMazzo(){
@@ -37814,6 +37894,7 @@ function buildFullHandCardSVG(card, boxW, boxH, preview){
     sockImg.setAttribute('href', isDark?CARD_LEVEL_SOCKET_DARK:CARD_LEVEL_SOCKET_LIGHT);
     sockImg.setAttribute('x', levelX.toFixed(2)); sockImg.setAttribute('y', levelY.toFixed(2));
     sockImg.setAttribute('width', levelSocketSize.toFixed(2)); sockImg.setAttribute('height', levelSocketSize.toFixed(2));
+    sockImg.setAttribute('data-lv-socket', String(i + 1));
     chromeGroup.appendChild(sockImg);
     if(i<cardLevel){
       const gx = levelX+(levelSocketSize-levelGemSize)/2;
@@ -40729,6 +40810,8 @@ function _vestiLivelli(){
       impostaVariabileDaCandidati(document.getElementById(id), '--hx-trama', uiFileCandidati('brushed-texture.jpg')));
     vestiPulsante(document.getElementById('card-modal-sali'));
     vestiPulsante(document.getElementById('livello-chiudi'));
+    impostaVariabileDaCandidati(document.getElementById('livello-alone'), '--lv-raggi-img', uiFileCandidati('radial-glow-flipped.png'));
+    impostaVariabileDaCandidati(document.getElementById('livello-alone'), '--lv-glow-img', uiFileCandidati('radial-glow.png'));
     document.querySelectorAll('.cml-ink').forEach(im => impostaImgDaCandidati(im, uiFileCandidati('magic-ink-icon.png')));
   }catch(e){ _livelliVestiti = false; }
 }
@@ -40777,6 +40860,12 @@ async function livellaCartaDallaScheda(){
   _livellaInCorso = true;
   const b = document.getElementById('card-modal-sali');
   if(b) b.disabled = true;
+  let daRett = null;
+  try{
+    const aperta = document.getElementById('card-modal-card');
+    const finestra = document.getElementById('card-modal-overlay');
+    if(aperta && finestra && finestra.classList.contains('show')){ const rr = authoredRect(aperta); if(rr.width > 0) daRett = rr; }
+  }catch(_){ }
   let r;
   try{
     r = await nakamaRpc('hx_carta_livella', { slug: entry.slug });
@@ -40803,13 +40892,21 @@ async function livellaCartaDallaScheda(){
     lampeggiaValuta('ink');
     contaValutaAllIndietro('ink', prima, MENU_GIOCATORE.magicInk);
   }catch(_){ }
-  try{ if(typeof cardDbRenderRoster === 'function') cardDbRenderRoster(); }catch(_){ }
-  try{ if(typeof renderListaMazzi === 'function') renderListaMazzi(); }catch(_){ }
-  closeCardModal();
+  let coperto = false, rifatta = false;
+  const copri = () => { if(coperto) return; coperto = true; closeCardModal(); };
+  const rifai = () => {
+    if(rifatta) return;
+    rifatta = true;
+    try{ if(typeof cardDbRenderRoster === 'function') cardDbRenderRoster(); }catch(_){ }
+    try{ if(typeof renderListaMazzi === 'function') renderListaMazzi(); }catch(_){ }
+  };
   _livellaInCorso = false;
   const da = (r && typeof r.da === 'number') ? r.da : st.livello;
   const a = (r && typeof r.livello === 'number') ? r.livello : st.verso;
-  await animaSalitaDiLivello(entry, da, a);
+  const salita = animaSalitaDiLivello(entry, da, a, { daRett, alCoperto: copri, alFermo: rifai });
+  copri();
+  await salita;
+  rifai();
 }
 
 const LV_CARTA_W = 292, LV_CARTA_H = 501;
@@ -40865,9 +40962,6 @@ function _lvZoneCheCambiano(svgV, svgN, vecchia, nuova){
     const z = ab && _lvZona(ab, 4);
     if(z) zone.push(z);
   }
-  const lv = svgV.querySelector('[data-lv-zona="livelli"]');
-  const zl = lv && _lvZona(lv, 6);
-  if(zl) zone.push(zl);
   return zone;
 }
 function _lvPreparaCambio(fronte, svgPezzo, z){
@@ -40889,6 +40983,32 @@ function _lvPreparaCambio(fronte, svgPezzo, z){
   fronte.appendChild(strato);
   fronte.appendChild(bagliore);
   return { strato, bagliore };
+}
+const LV_BADGE_CHIME_MS = 875;
+const LV_BADGE_CODA_MS = 520;
+function _lvPreparaLivello(fronte, svgPezzo, svgV, livello){
+  const socket = svgV.querySelector('[data-lv-socket="' + livello + '"]');
+  const z = socket && _lvZona(socket, 0);
+  if(!z || !(z.w > 0)) return null;
+  const W = LV_CARTA_W, H = LV_CARTA_H;
+  const strato = document.createElement('div');
+  strato.className = 'lvc-livello';
+  strato.style.clipPath = 'inset(' + z.y.toFixed(1) + 'px ' + (W - z.x - z.w).toFixed(1) + 'px '
+    + (H - z.y - z.h).toFixed(1) + 'px ' + z.x.toFixed(1) + 'px)';
+  strato.appendChild(svgPezzo);
+  const luce = document.createElement('div');
+  luce.className = 'lvc-livello-luce';
+  luce.style.left = z.x.toFixed(1) + 'px'; luce.style.top = z.y.toFixed(1) + 'px';
+  luce.style.width = z.w.toFixed(1) + 'px'; luce.style.height = z.h.toFixed(1) + 'px';
+  luce.style.setProperty('--lv-carica', LV_BADGE_CHIME_MS + 'ms');
+  const forma = document.createElement('div');
+  forma.className = 'lvc-livello-forma';
+  const href = socket.getAttribute('href') || socket.getAttributeNS('http://www.w3.org/1999/xlink', 'href') || '';
+  if(href) forma.style.setProperty('--lv-socket-img', 'url("' + href.replace(/"/g, '%22') + '")');
+  luce.appendChild(forma);
+  fronte.appendChild(strato);
+  fronte.appendChild(luce);
+  return { strato, luce };
 }
 function _lvAccendiCambio(pezzo){
   void pezzo.strato.offsetWidth;
@@ -41020,6 +41140,7 @@ function _lvTiltAggancia(){
   const ospite = ()=> fronte.querySelector('.card-db-foil-wrap');
   carta.addEventListener('pointermove', (ev)=>{
     if(!carta.classList.contains('tilt')) return;
+    carta.__puntatoreSopra = true;
     const host = ospite();
     if(!host) return;
     const r = carta.getBoundingClientRect();
@@ -41030,15 +41151,46 @@ function _lvTiltAggancia(){
     try{ cardFoilApply(host, px * 2 - 1, py * 2 - 1, px, py); }catch(_){ }
   });
   carta.addEventListener('pointerleave', ()=>{
+    carta.__puntatoreSopra = false;
+    carta.__daSoloDa = performance.now();
     const host = ospite();
     if(!host) return;
     host.removeAttribute('data-foil-active');
     try{ cardFoilReset(host); }catch(_){ }
   });
 }
+const LV_TILT_GIRO_MS = 6500;
+const LV_TILT_RAGGIO = 0.36;
+const LV_TILT_RAMPA_MS = 1400;
+let _lvGiroRaf = 0;
+function _lvTiltDaSolo(gen){
+  cancelAnimationFrame(_lvGiroRaf);
+  try{ if(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return; }catch(_){ }
+  const carta = document.getElementById('livello-carta');
+  const fronte = carta && carta.querySelector('.lvc-faccia.fronte');
+  if(!fronte) return;
+  carta.__daSoloDa = performance.now();
+  const passo = (ora) => {
+    if(gen !== _lvGen){ _lvGiroRaf = 0; return; }
+    _lvGiroRaf = requestAnimationFrame(passo);
+    if(carta.__puntatoreSopra) return;
+    const host = fronte.querySelector('.card-db-foil-wrap');
+    if(!host) return;
+    const t = ora - (carta.__daSoloDa || ora);
+    const r = LV_TILT_RAGGIO * Math.min(1, Math.max(0, t) / LV_TILT_RAMPA_MS);
+    const ang = (ora / LV_TILT_GIRO_MS) * Math.PI * 2;
+    const nx = Math.cos(ang) * r, ny = Math.sin(ang) * r;
+    host.setAttribute('data-foil-active', '1');
+    try{ cardFoilApply(host, nx, ny, (nx + 1) / 2, (ny + 1) / 2); }catch(_){ }
+  };
+  _lvGiroRaf = requestAnimationFrame(passo);
+}
 function _lvTiltSpegni(){
+  cancelAnimationFrame(_lvGiroRaf);
+  _lvGiroRaf = 0;
   const carta = document.getElementById('livello-carta');
   if(!carta) return;
+  carta.__puntatoreSopra = false;
   carta.classList.remove('tilt', 'tilt-fermo');
 }
 
@@ -41072,7 +41224,8 @@ function _lvPreparaTesti(entry, vecchia, nuova, a){
   barra.querySelector('.livello-barre').innerHTML = barraLivelloHTML(st);
 }
 
-async function animaSalitaDiLivello(entry, da, a){
+async function animaSalitaDiLivello(entry, da, a, opzioni){
+  opzioni = opzioni || {};
   const gen = ++_lvGen;
   _vestiLivelli();
   try{ vestiTitoli(); }catch(_){ }
@@ -41098,7 +41251,13 @@ async function animaSalitaDiLivello(entry, da, a){
   const svgNuova = disegna(nuova);
   svgNuova.classList.add('lvc-riferimento');
   fronte.innerHTML = '';
-  fronte.appendChild(svgVecchia);
+  {
+    const scura = varianteCollezioneScura();
+    const vestitoV = cardFoilWrap(svgVecchia, scura);
+    vestitoV.dataset.foilVariant = scura ? 'dark' : 'light';
+    fronte.appendChild(vestitoV);
+    try{ cardDbBuildGlossLayer(vestitoV, vecchia, svgVecchia); }catch(e){ console.info('[livello] lucentezza: ' + (e && e.message)); }
+  }
   fronte.appendChild(svgNuova);
   if(dorso) dorso.src = varianteCollezioneScura() ? CARD_BACK_DARK : CARD_BACK_LIGHT;
   _lvPreparaTesti(entry, vecchia, nuova, a);
@@ -41107,7 +41266,10 @@ async function animaSalitaDiLivello(entry, da, a){
   cornice.classList.remove('aperta');
   chiudi.classList.remove('dentro');
   ov.querySelectorAll('.lv-entra').forEach(el => el.classList.remove('dentro'));
-  carta.classList.remove('arriva', 'sposta');
+  carta.classList.remove('arriva', 'sposta', 'da-scheda');
+  ov.classList.remove('subito');
+  { const onda = carta.querySelector('.lvc-onda'); if(onda) onda.classList.remove('va'); }
+  { const alone = document.getElementById('livello-alone'); if(alone) alone.classList.remove('acceso'); }
   carta.style.transform = '';
   giro.style.transform = 'rotateY(0deg)';
   carta.querySelector('.lvc-lampo').classList.remove('va');
@@ -41117,15 +41279,37 @@ async function animaSalitaDiLivello(entry, da, a){
   carta.style.top = cy + 'px';
 
   ov.dataset.fase = 'arrivo';
-  ov.classList.add('show');
-  await _lvFotogramma(); await _lvFotogramma();
-  if(gen !== _lvGen) return;
-  carta.classList.add('arriva');
-  await _lvAspetta(LV_ARRIVO_MS);
-  if(gen !== _lvGen) return;
+  const daRett = opzioni.daRett;
+  if(daRett && daRett.width > 0){
+    let ox = 0, oy = 0;
+    try{ const palco = authoredRect(document.getElementById('livello-palco')); ox = palco.left; oy = palco.top; }catch(_){ }
+    carta.classList.add('da-scheda');
+    carta.style.transform = 'translate(' + (daRett.left - ox - cx).toFixed(2) + 'px,' + (daRett.top - oy - cy).toFixed(2) + 'px) scale(' + (daRett.width / W).toFixed(4) + ')';
+    ov.classList.add('subito', 'show');
+    try{ if(opzioni.alCoperto) opzioni.alCoperto(); }catch(_){ }
+    await _lvFotogramma(); await _lvFotogramma();
+    if(gen !== _lvGen) return;
+    ov.classList.remove('subito');
+    carta.classList.add('arriva');
+    carta.style.transform = 'translate(0px,0px) scale(1)';
+    await _lvAspetta(LV_ARRIVO_MS);
+    if(gen !== _lvGen) return;
+    carta.classList.remove('da-scheda');
+    carta.style.transform = '';
+  } else {
+    ov.classList.add('show');
+    try{ if(opzioni.alCoperto) opzioni.alCoperto(); }catch(_){ }
+    await _lvFotogramma(); await _lvFotogramma();
+    if(gen !== _lvGen) return;
+    carta.classList.add('arriva');
+    await _lvAspetta(LV_ARRIVO_MS);
+    if(gen !== _lvGen) return;
+  }
+  try{ if(opzioni.alFermo) opzioni.alFermo(); }catch(_){ }
   const zone = _lvZoneCheCambiano(svgVecchia, svgNuova, vecchia, nuova);
   ov.dataset.zone = String(zone.length);
   const cambi = zone.map(z => _lvPreparaCambio(fronte, disegna(nuova), z));
+  const badge = _lvPreparaLivello(fronte, disegna(nuova), svgVecchia, a);
 
   ov.dataset.fase = 'giro';
   setTimeout(()=>{ try{ playSfxFile('card-flip.mp3'); }catch(_){ } }, LV_GIRO_SUONO_MS);
@@ -41151,6 +41335,19 @@ async function animaSalitaDiLivello(entry, da, a){
   }
   await _lvAspetta(LV_CAMBIO_MS);
   if(gen !== _lvGen) return;
+  if(badge){
+    ov.dataset.fase = 'livello';
+    try{ playSfxFile('card-lvl-up-badge.mp3'); }catch(_){ }
+    void badge.luce.offsetWidth;
+    badge.luce.classList.add('carica');
+    await _lvAspetta(LV_BADGE_CHIME_MS);
+    if(gen !== _lvGen) return;
+    badge.strato.classList.add('pieno');
+    badge.luce.classList.remove('carica');
+    badge.luce.classList.add('via');
+    await _lvAspetta(LV_BADGE_CODA_MS);
+    if(gen !== _lvGen) return;
+  }
   fronte.innerHTML = '';
   const svgFermo = disegna(nuova);
   const vestito = cardFoilWrap(svgFermo, varianteCollezioneScura());
@@ -41168,6 +41365,16 @@ async function animaSalitaDiLivello(entry, da, a){
   carta.classList.add('sposta');
   carta.style.transform = 'translate(' + (tx - cx).toFixed(1) + 'px,' + (ty - cy).toFixed(1) + 'px)';
   try{ playSfxFile('quest-collected.mp3'); }catch(_){ }
+  {
+    const onda = carta.querySelector('.lvc-onda');
+    if(onda){ onda.classList.remove('va'); void onda.offsetWidth; onda.classList.add('va'); }
+    setTimeout(() => {
+      if(gen !== _lvGen) return;
+      const alone = document.getElementById('livello-alone');
+      if(alone) alone.classList.add('acceso');
+      _lvTiltDaSolo(gen);
+    }, 1000);
+  }
   await _lvAspetta(380);
   const pezzi = [...cornice.querySelectorAll('.lv-entra')].filter(el => !el.closest('[hidden]'));
   for(const p of pezzi){
@@ -41190,6 +41397,8 @@ function chiudiSalitaDiLivello(){
   delete ov.dataset.lampo;
   delete ov.dataset.cambio;
   _lvFermaFuochi();
+  _lvTiltSpegni();
+  { const alone = document.getElementById('livello-alone'); if(alone) alone.classList.remove('acceso'); }
   const res = _lvChiusura;
   _lvChiusura = null;
   if(res) res();
