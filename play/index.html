@@ -849,7 +849,7 @@ body[data-pagina="progress"] #build-version-badge{
 .quest-scheda.quest-fatta:active{ filter:brightness(0.95); }
 
 #quest-avvisi{
-  position:fixed; right:24px; bottom:24px; z-index:1200;
+  position:fixed; right:24px; bottom:24px; z-index:4150;
   display:flex; flex-direction:column-reverse; gap:10px;
   width:355px; pointer-events:none;
 }
@@ -864,6 +864,10 @@ body[data-pagina="progress"] #build-version-badge{
   animation:questAvvisoLampo .45s ease-out .3s both;
 }
 #quest-avvisi .quest-scheda.va-via{ animation:questAvvisoEsce .35s cubic-bezier(.4,0,.2,1) both; }
+#quest-avvisi .quest-scheda.quest-riscattabile{ pointer-events:auto; cursor:var(--cursore); }
+#quest-avvisi .quest-scheda.quest-riscattabile:hover{ filter:brightness(1.12); }
+#quest-avvisi .quest-scheda.quest-riscattabile:active{ filter:brightness(0.95); }
+#quest-avvisi .quest-scheda.quest-riscattabile.in-corso{ pointer-events:none; }
 @keyframes questAvvisoEntra{
   from{ opacity:0; transform:translateY(28px); }
   to  { opacity:1; transform:none; }
@@ -5991,6 +5995,8 @@ html.azione-attiva #timer-pin-hover{ opacity:0 !important; visibility:hidden !im
 }
 .filters-abilita{ display:flex; align-items:center; gap:52px; }
 .filters-abilita .filters-nome{ margin-left:4px; }
+.filters-altro{ display:flex; align-items:center; gap:52px; }
+.filters-altro .filters-nome{ margin-left:4px; }
 .filters-tratti .filters-opt{ width:auto; }
 .filters-tratti .filters-nome{ margin-left:4px; margin-right:auto; }
 .filters-azione{ width:100%; }
@@ -8364,7 +8370,7 @@ try{
 <button id="btn-show-results" class="hx-btn hx-btn-opaco" onclick="toggleBoardView(false)">
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:12.5px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.82.46</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:12.5px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.82.47</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -9328,6 +9334,20 @@ try{
             <input type="checkbox" data-ability-filter="without" onchange="cardDbApplyFilters()">
             <span class="filters-casella"></span>
             <span class="filters-nome">Without ability</span>
+          </label>
+        </div>
+        <div class="filters-riga"></div>
+        <div class="filters-titolo">Other</div>
+        <div class="filters-altro" id="card-db-other-filter-options">
+          <label class="filters-opt">
+            <input type="checkbox" data-other-filter="nuova" onchange="cardDbApplyFilters()">
+            <span class="filters-casella"></span>
+            <span class="filters-nome">New cards</span>
+          </label>
+          <label class="filters-opt">
+            <input type="checkbox" data-other-filter="pronta" onchange="cardDbApplyFilters()">
+            <span class="filters-casella"></span>
+            <span class="filters-nome">Ready to level up</span>
           </label>
         </div>
 
@@ -15198,7 +15218,8 @@ function questTooltipMostra(scheda, q, radice){
   if(titolo) titolo.textContent = q.nome || '';
   const come = tip.querySelector('.qt-come');
   if(come){
-    const testo = QUEST_SPIEGA[q.id] || '';
+    const mancano = (q.aperta === false && typeof q.traGiorni === 'number') ? Math.max(1, Math.ceil(q.traGiorni)) : 0;
+    const testo = mancano ? ('Unlocks in ' + mancano + (mancano === 1 ? ' day' : ' days')) : (QUEST_SPIEGA[q.id] || '');
     come.textContent = testo;
     come.hidden = !testo;
   }
@@ -15265,6 +15286,7 @@ async function mm2RiscuotiQuest(bottone, quale){
     const fonti = conXp.map(p => ({ xp: p.xp, da: partenze[presi.findIndex(x => x.id === p.id)] || null }));
     progressBolleXp(fonti, document.querySelector('#mm2-nav [data-tab="progress"]'), presi.length * QUEST_VOLO_PASSO_MS + 200);
   }
+  return r;
 }
 
 var _questInkFermo = null;
@@ -16307,16 +16329,52 @@ async function questMostraMosse(mosse){
 }
 const QUEST_AVVISO_MS = 3000;
 const QUEST_AVVISO_USCITA_MS = 350;
+const QUEST_AVVISO_PRESA_MS = 900;
 function questPopup(q, finita){
   const dove = document.getElementById('quest-avvisi');
   if(!dove) return;
   const scheda = questScheda(q);
   dove.appendChild(scheda);
   try{ playSfxFile(finita ? 'quest-complete.mp3' : 'quest-advance.mp3'); }catch(_){ }
-  setTimeout(()=>{
+  const stato = { sopra: false, scaduto: false, tengo: false, via: false };
+  const via = () => {
+    if(stato.via || stato.tengo) return;
+    stato.via = true;
     scheda.classList.add('va-via');
     setTimeout(()=>{ if(scheda.parentNode) scheda.parentNode.removeChild(scheda); }, QUEST_AVVISO_USCITA_MS);
-  }, QUEST_AVVISO_MS);
+  };
+  if(finita && !q.presa && typeof sessioneAccount !== 'undefined' && sessioneAccount && sessioneAccount.token){
+    scheda.classList.add('quest-riscattabile');
+    scheda.addEventListener('pointerenter', ()=>{ stato.sopra = true; });
+    scheda.addEventListener('pointerleave', ()=>{ stato.sopra = false; if(stato.scaduto) via(); });
+    scheda.addEventListener('click', ()=>questRiscuotiDalPopup(scheda, q, stato, via));
+  }
+  setTimeout(()=>{ stato.scaduto = true; if(!stato.sopra) via(); }, QUEST_AVVISO_MS);
+}
+async function questRiscuotiDalPopup(scheda, q, stato, via){
+  if(stato.tengo || stato.via) return;
+  stato.tengo = true;
+  scheda.classList.add('in-corso');
+  const lascia = () => { stato.tengo = false; scheda.classList.remove('in-corso'); if(stato.scaduto && !stato.sopra) via(); };
+  try{
+    const voceDi = () => (QUEST_OGGI || []).find(x => x && x.id === q.id) || null;
+    const pronta = (v) => !!v && questCompletata(v) && !v.presa;
+    let voce = voceDi();
+    if(!pronta(voce) && Object.keys(QUEST_CONTO || {}).some(k => QUEST_CONTO[k] > 0)){
+      await questRaccontaFinePartita(!!PARTITA_RETE);
+      voce = voceDi();
+    }
+    const dove = (QUEST_OGGI || []).indexOf(voce);
+    const r = (pronta(voce) && dove >= 0) ? await mm2RiscuotiQuest(null, dove) : null;
+    if(!r){ lascia(); return; }
+    const presa = questScheda(Object.assign({}, q, { presa: true }));
+    scheda.className = presa.className;
+    scheda.replaceChildren(...presa.childNodes);
+    setTimeout(()=>{ stato.tengo = false; via(); }, QUEST_AVVISO_PRESA_MS);
+  }catch(e){
+    console.warn('[quest] non riscossa dal popup: ' + ((e && e.message) || ''));
+    lascia();
+  }
 }
 let _bustineSegnalibroTimer = null;
 function avviaOrologioSegnalibroBustine(){
@@ -24164,6 +24222,7 @@ function cardDbRenderRoster(){
     let nastroLivello = null;
     if(cartaProntaASalire(entry)){
       slot.classList.add('carta-pronta');
+      slot.dataset.pronta = 'true';
       nastroLivello = document.createElement('img');
       nastroLivello.className = 'lvup-nastro'; nastroLivello.alt = 'Lv up'; nastroLivello.draggable = false;
       impostaImgDaCandidati(nastroLivello, uiFileCandidati('lv-up-banner.png'));
@@ -24174,6 +24233,7 @@ function cardDbRenderRoster(){
     let dovePerLeIcone = slot;
     if(_eCartaNuova(entry)){
       slot.classList.add('carta-nuova');
+      slot.dataset.nuova = 'true';
       const nastro = document.createElement('img');
       nastro.className = 'nuova-nastro'; nastro.alt = 'New'; nastro.draggable = false;
       impostaImgDaCandidati(nastro, uiFileCandidati('new-card-banner.png'));
@@ -24182,6 +24242,7 @@ function cardDbRenderRoster(){
       if(_guardaNovita) _guardaNovita.observe(slot);
       slot.addEventListener('pointerenter', ()=>{
         slot.classList.remove('carta-nuova');
+        delete slot.dataset.nuova;
         segnaCartaGuardata(slot._chiaveNovita);
       }, { once:true });
     }
@@ -24321,6 +24382,9 @@ function cardDbApplyFilters(animate){
   const checkedRarities = [...document.querySelectorAll('#card-db-rarity-filter-options input[type="checkbox"]:checked')]
     .map(cb=>cb.dataset.rarityFilter);
   const noRarityFilter = checkedRarities.length===0;
+  const checkedOther = [...document.querySelectorAll('#card-db-other-filter-options input[type="checkbox"]:checked')]
+    .map(cb=>cb.dataset.otherFilter);
+  const noOtherFilter = checkedOther.length===0;
   const cercaEl = document.getElementById('card-db-cerca');
   const cerca = normalizzaRicerca(cercaEl ? cercaEl.value : '');
   const matchResults = new Map();
@@ -24336,6 +24400,9 @@ function cardDbApplyFilters(animate){
     }
     if(!noRarityFilter){
       matches = matches && checkedRarities.includes(slot.dataset.rarity);
+    }
+    if(!noOtherFilter){
+      matches = matches && checkedOther.some(k=>slot.dataset[k]==='true');
     }
     if(cerca){
       matches = matches && (slot.dataset.cerca || slot.dataset.nome || '').includes(cerca);
