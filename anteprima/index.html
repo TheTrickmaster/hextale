@@ -8491,7 +8491,7 @@ try{
 <button id="btn-show-results" class="hx-btn hx-btn-opaco" onclick="toggleBoardView(false)">
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:12.5px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.82.57</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:12.5px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.82.58</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -20759,7 +20759,6 @@ document.addEventListener('mousemove', glossarioSeguiPuntatore, { passive:true }
 const OGGETTI_CAMPO = {
   briciola: { titolo: 'Crumbs', testo: '+2 HIGHEST when an ally is placed on top', icona: 'crumb-1.png' },
   impronta: { titolo: 'Yeti footprints', testo: 'A Yeti could hide here', icona: 'foot-yeti.png' },
-  bomba3: { titolo: 'Bomb', testo: 'Explodes in 3 turns: -2 LOWEST to adjacent enemies', icona: 'bomb-3.png' },
   bomba2: { titolo: 'Bomb', testo: 'Explodes in 2 turns: -2 LOWEST to adjacent enemies', icona: 'bomb-2.png' },
   bomba1: { titolo: 'Bomb', testo: 'Explodes next turn: -2 LOWEST to adjacent enemies', icona: 'bomb-1.png' },
 };
@@ -26580,7 +26579,7 @@ const TILE_ABILITIES_DEF = {
   eat_the_rich:      { carta:'Robin Hood', name:'Eat the Rich',       desc:"*Steals* 2 Power from every adjacent enemy and gives it to a selected ally" },
   '!tomthumb':       { carta:'Tom Thumb',  name:'Crumbs',             desc:'*Drops* 3 Crumbs on random empty tiles. An ally played on one *Gains* +2 on its HIGHEST.' },
   '!yeti':           { carta:'Yeti',       name:"Hide 'n' kill",      desc:'*Hides* on the board and only attacks when an opponent is near it.' },
-  '!goblin':         { carta:'Goblin',        name:'GIGA-BOOM!',     desc:'Drops a Bomb on a selected tile: -2 LOWEST to adjacent enemies after 3 turns' },
+  '!goblin':         { carta:'Goblin',        name:'GIGA-BOOM!',     desc:'Drops a Bomb on a selected tile: -2 LOWEST to adjacent enemies after 2 turns' },
   '!thecarpenter':   { carta:'The Carpenter', name:'Woodwork',       desc:'*Blocks* a selected empty tile' },
   '!jabberwock':     { carta:'Jabberwock',    name:'Callooh Callay', desc:'Each turn, -1 ALL to all enemies for every card with *Rotated* Power on the board' },
   smol_friends:  { carta:'Snow White', name:'Smol Friends', desc:'+1 Power ALL for every /Small/ character on the board.' },
@@ -38238,6 +38237,203 @@ function svgWrapBoldWords(text, maxWidth, fontFamily, fontSizePx){
   }
 }
 
+
+function handCardPlace(c){
+  const { playerIdx, player, visualHand, card, wrap, visualIndex } = c;
+  const mioNumero = (typeof PARTITA_RETE !== 'undefined' && PARTITA_RETE) ? PARTITA_RETE.io : 1;
+  const aSinistra = (playerIdx + 1) === mioNumero;
+  const baseRotation = HAND_SLOT_ROTATIONS[Math.min(visualIndex,HAND_SLOT_ROTATIONS.length-1)];
+  const rotation = aSinistra ? baseRotation : -baseRotation;
+  const x = aSinistra ? handSlotX(visualIndex) : -handSlotX(visualIndex);
+  const restY = (visualIndex===1 || visualIndex===2) ? -7 : 0;
+
+  const isExpanded = handExpandState[player];
+  let effX, effRotation, effRestY;
+  if(isExpanded){
+    const fanAnchorPx = HAND_FAN_ANCHOR_PX;
+    const slotIndex = aSinistra ? visualIndex : (visualHand.length-1-visualIndex);
+    const canvasLeft = expandedHandSlotLeft(slotIndex, visualHand.length) + (EXPANDED_SCALE-1)*105;
+    effX = aSinistra ? (canvasLeft - fanAnchorPx) : (AUTHORED_CANVAS_W - 210 - fanAnchorPx - canvasLeft) * -1;
+    effRotation = 0;
+    effRestY = 270 - 806 + 360*(EXPANDED_SCALE-1);
+  } else {
+    effX = x; effRotation = rotation; effRestY = restY;
+  }
+  wrap.style.left  = aSinistra ? effX+'px' : '';
+  wrap.style.right = aSinistra ? '' : (-effX)+'px';
+  const restScale = isExpanded ? EXPANDED_SCALE : 1;
+  const restTransform = `translateY(${effRestY}px) rotate(${effRotation}deg) scale(${restScale})`;
+  const isExpandFlip = !!(window.__handExpandFlipFromSet && window.__handExpandFlipFromSet.has(player));
+  const reflowOldIndex = window.__handReflowOldIndex;
+  const oldVisualIndex = reflowOldIndex && Object.prototype.hasOwnProperty.call(reflowOldIndex, card.id) ? reflowOldIndex[card.id] : null;
+  if(isExpandFlip){
+    let oldX, oldRotation, oldRestY, oldScale;
+    if(isExpanded){
+      oldX = x; oldRotation = rotation; oldRestY = restY; oldScale = 1;
+    } else {
+      const slotIndex = aSinistra ? visualIndex : (visualHand.length-1-visualIndex);
+      const canvasLeft = expandedHandSlotLeft(slotIndex, visualHand.length) + (EXPANDED_SCALE-1)*105;
+      oldX = aSinistra ? (canvasLeft - HAND_FAN_ANCHOR_PX) : (AUTHORED_CANVAS_W - 210 - HAND_FAN_ANCHOR_PX - canvasLeft) * -1;
+      oldRotation = 0; oldRestY = 270 - 806 + 360*(EXPANDED_SCALE-1); oldScale = EXPANDED_SCALE;
+    }
+    const dx = oldX - effX;
+    const startTransform = `translate(${dx}px, ${oldRestY}px) rotate(${oldRotation}deg) scale(${oldScale})`;
+    wrap.style.transition='none';
+    wrap.style.transform=startTransform;
+    void wrap.offsetWidth;
+    wrap.style.transition='transform .5s cubic-bezier(.22,1,.36,1)';
+    requestAnimationFrame(()=>{ wrap.style.transform=restTransform; });
+  } else if(oldVisualIndex!==null && oldVisualIndex!==visualIndex){
+    const oldBaseRotation = HAND_SLOT_ROTATIONS[Math.min(oldVisualIndex,HAND_SLOT_ROTATIONS.length-1)];
+    const oldRotation = aSinistra ? oldBaseRotation : -oldBaseRotation;
+    const oldX = aSinistra ? handSlotX(oldVisualIndex) : -handSlotX(oldVisualIndex);
+    const oldRestY = (oldVisualIndex===1 || oldVisualIndex===2) ? -7 : 0;
+    const dx = oldX - x;
+    const startTransform = `translate(${dx}px, ${oldRestY}px) rotate(${oldRotation}deg)`;
+    wrap.style.transition='none';
+    wrap.style.transform=startTransform;
+    void wrap.offsetWidth;
+    wrap.style.transition='';
+    requestAnimationFrame(()=>{ wrap.style.transform=restTransform; });
+  } else {
+    wrap.style.transform = restTransform;
+  }
+  wrap.style.setProperty('--hover-lift-rot', rotation+'deg');
+  const zIndexRank = aSinistra ? visualIndex : (visualHand.length-1-visualIndex);
+  wrap.style.zIndex = String(zIndexRank);
+  return { restTransform, zIndexRank, isExpanded, aSinistra };
+}
+
+function handCardFace(c){
+  const { playerIdx, player, isCovered, card, wrap, isBeingDragged, glowEligible, glowDelayMs } = c;
+  const glowImg=document.createElement('div');
+  glowImg.className='hand-card-glow';
+  const rimRing=document.createElement('div');
+  rimRing.className='hand-card-rim-ring';
+  glowImg.appendChild(rimRing);
+  if(glowEligible) glowImg.style.transitionDelay = glowDelayMs+'ms';
+  wrap.appendChild(glowImg);
+
+  const flipWrap=document.createElement('div');
+  flipWrap.className='hand-card-flip-wrap';
+  wrap.appendChild(flipWrap);
+
+  const cardBackImg=document.createElement('img');
+  cardBackImg.className='hand-card-img hand-card-back-img';
+  cardBackImg.src = playerFactionIsDark(player)?CARD_BACK_DARK:CARD_BACK_LIGHT;
+  cardBackImg.alt=''; cardBackImg.draggable=false;
+  cardBackImg.style.display = isCovered ? '' : 'none';
+  flipWrap.appendChild(cardBackImg);
+
+  let anteprimaMano = null;
+  const partenza = card.tileAbilityBaseValues || card.values;
+  let arrivo = card.values;
+  const antTavoloMano = anteprimaTavolo();
+  let aSorteInMano = false;
+  if(antTavoloMano && !isBeingDragged){
+    const simulati = antTavoloMano.mani[playerIdx===0?1:2][card.id];
+    aSorteInMano = !!antTavoloMano.aSorte.mani[playerIdx===0?1:2][card.id];
+    if(simulati && !aSorteInMano) arrivo = simulati;
+  }
+  {
+    const scarti = {};
+    let cambia = false;
+    for(const s of SIDES){
+      scarti[s] = (arrivo[s]||0) - (partenza[s]||0);
+      if(scarti[s]!==0) cambia = true;
+    }
+    if(cambia || aSorteInMano) anteprimaMano = { values: arrivo, deltas: cambia ? scarti : null, uncertain: aSorteInMano };
+  }
+  const cardSvg = buildFullHandCardSVG(cardFoilVisualCard(card), 210, 360, anteprimaMano);
+  const cardFoilHost = cardFoilWrap(cardSvg);
+  cardFoilHost.style.display = isCovered ? 'none' : '';
+  flipWrap.appendChild(cardFoilHost);
+  const tiltPlane = cardFoilHost.querySelector('.card-db-foil-tilt');
+  if(tiltPlane && glowImg) tiltPlane.insertBefore(glowImg, tiltPlane.firstChild);
+  if(cartaCongelata(card)){
+    const ghiaccio = document.createElement('div');
+    ghiaccio.className = 'ghiaccio-carta';
+    ((isCovered || !tiltPlane) ? flipWrap : tiltPlane).appendChild(ghiaccio);
+    _geloAnima(ghiaccio, 'c:' + card.id);
+  } else _geloFinito('c:' + card.id);
+  wrap.dataset.foilVariant = playerFactionName(card.owner||1);
+}
+
+function handCardInteraction(c){
+  const { playerIdx, player, isCovered, sceltaScarto, fillColor, strokeColor, textColor, glowColor, R, visualHand,
+          card, wrap, isBeingDragged, restTransform, zIndexRank, isExpanded, aSinistra } = c;
+  const isLastInHand = zIndexRank === visualHand.length-1;
+  const hitzone = document.createElement('div');
+  hitzone.className = 'hand-card-hitzone';
+  if(isExpanded || isLastInHand){
+    hitzone.style.left='0'; hitzone.style.width='100%';
+  } else if(aSinistra){
+    hitzone.style.left='0'; hitzone.style.width=(handSlotX(1)-handSlotX(0))+'px';
+  } else {
+    hitzone.style.left='0'; hitzone.style.width=(handSlotX(1)-handSlotX(0))+'px';
+  }
+  wrap.appendChild(hitzone);
+  attachAvvisoGelo(hitzone, card);
+
+  if(!isCovered && !isBeingDragged && !isTouchDevice){
+    hitzone.addEventListener('mouseenter',()=>{
+      if(handExpandState[player]){
+        wrap.style.transform = restTransform;
+        wrap.style.zIndex = '100';
+      } else {
+        liftHandCardIntoView(wrap, restTransform);
+      }
+      try{ if(PARTITA_RETE && player === PARTITA_RETE.io) reteManoSopra(card); }catch(_){ }
+      wrap.setAttribute('data-foil-active','1');
+      cardDbBuildGlossLayer(wrap, card);
+      wrap.classList.add('group-sep-hover');
+    });
+    hitzone.addEventListener('mousemove',(ev)=>{
+      const r = wrap.getBoundingClientRect();
+      if(!r.width || !r.height) return;
+      const px=(ev.clientX-r.left)/r.width, py=(ev.clientY-r.top)/r.height;
+      const rx=Math.max(-1,Math.min(1,(px-0.5)*2));
+      const ry=Math.max(-1,Math.min(1,(py-0.5)*2));
+      cardFoilApply(wrap, rx, ry, px, py);
+    });
+    hitzone.addEventListener('mouseleave',()=>{
+      try{ if(PARTITA_RETE && player === PARTITA_RETE.io) reteManoSopra(null); }catch(_){ }
+      cardFoilReset(wrap);
+      wrap.classList.remove('hover-lift');
+      wrap.classList.remove('group-sep-hover');
+      wrap.style.removeProperty('--hover-lift-y');
+      wrap.style.transform = restTransform;
+      wrap.style.zIndex = String(zIndexRank);
+    });
+    hitzone.addEventListener('pointerdown',()=>{
+      try{ if(PARTITA_RETE && player === PARTITA_RETE.io) reteManoSopra(null); }catch(_){ }
+    });
+  }
+  if(!isCovered && !isBeingDragged && !sceltaScarto){
+    hitzone.addEventListener('pointerdown',e=>{
+      if(e.button!==0)return;
+      if(pendingPress || dragState) return;
+      e.target.setPointerCapture?.(e.pointerId);
+      armDragOrClick(e,card,playerIdx,210,360,fillColor,strokeColor,textColor,glowColor,R,wrap);
+    });
+  }
+  if(sceltaScarto && !isCovered && sceltaScarto.bersagli.indexOf(card.id) >= 0){
+    const croce = document.createElement('div');
+    croce.className = 'scarta-croce';
+    const img = document.createElement('img');
+    img.src = sceltaScarto.icona || ICONA_RINUNCIA;
+    img.alt = '';
+    img.draggable = false;
+    croce.appendChild(img);
+    croce.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      scegliBersaglio(card.id);
+    });
+    hitzone.appendChild(croce);
+  }
+}
+
 function renderHand(containerId,hand,playerIdx){
   if(G && G.velo && G.velo.carta && G.velo.mano === playerIdx + 1 && hand === (playerIdx === 0 ? G.p1Hand : G.p2Hand)){
     hand = hand.slice();
@@ -38304,189 +38500,11 @@ function renderHand(containerId,hand,playerIdx){
       });
       setTimeout(()=>{ cardsGlowSettled.add(card.id); }, glowDelayMs+400);
     }
-    const mioNumero = (typeof PARTITA_RETE !== 'undefined' && PARTITA_RETE) ? PARTITA_RETE.io : 1;
-    const aSinistra = (playerIdx + 1) === mioNumero;
-    const baseRotation = HAND_SLOT_ROTATIONS[Math.min(visualIndex,HAND_SLOT_ROTATIONS.length-1)];
-    const rotation = aSinistra ? baseRotation : -baseRotation;
-    const x = aSinistra ? handSlotX(visualIndex) : -handSlotX(visualIndex);
-    const restY = (visualIndex===1 || visualIndex===2) ? -7 : 0;
-
-    const isExpanded = handExpandState[player];
-    let effX, effRotation, effRestY;
-    if(isExpanded){
-      const fanAnchorPx = HAND_FAN_ANCHOR_PX;
-      const slotIndex = aSinistra ? visualIndex : (visualHand.length-1-visualIndex);
-      const canvasLeft = expandedHandSlotLeft(slotIndex, visualHand.length) + (EXPANDED_SCALE-1)*105;
-      effX = aSinistra ? (canvasLeft - fanAnchorPx) : (AUTHORED_CANVAS_W - 210 - fanAnchorPx - canvasLeft) * -1;
-      effRotation = 0;
-      effRestY = 270 - 806 + 360*(EXPANDED_SCALE-1);
-    } else {
-      effX = x; effRotation = rotation; effRestY = restY;
-    }
-    wrap.style.left  = aSinistra ? effX+'px' : '';
-    wrap.style.right = aSinistra ? '' : (-effX)+'px';
-    const restScale = isExpanded ? EXPANDED_SCALE : 1;
-    const restTransform = `translateY(${effRestY}px) rotate(${effRotation}deg) scale(${restScale})`;
-    const isExpandFlip = !!(window.__handExpandFlipFromSet && window.__handExpandFlipFromSet.has(player));
-    const reflowOldIndex = window.__handReflowOldIndex;
-    const oldVisualIndex = reflowOldIndex && Object.prototype.hasOwnProperty.call(reflowOldIndex, card.id) ? reflowOldIndex[card.id] : null;
-    if(isExpandFlip){
-      let oldX, oldRotation, oldRestY, oldScale;
-      if(isExpanded){
-        oldX = x; oldRotation = rotation; oldRestY = restY; oldScale = 1;
-      } else {
-        const slotIndex = aSinistra ? visualIndex : (visualHand.length-1-visualIndex);
-        const canvasLeft = expandedHandSlotLeft(slotIndex, visualHand.length) + (EXPANDED_SCALE-1)*105;
-        oldX = aSinistra ? (canvasLeft - HAND_FAN_ANCHOR_PX) : (AUTHORED_CANVAS_W - 210 - HAND_FAN_ANCHOR_PX - canvasLeft) * -1;
-        oldRotation = 0; oldRestY = 270 - 806 + 360*(EXPANDED_SCALE-1); oldScale = EXPANDED_SCALE;
-      }
-      const dx = oldX - effX;
-      const startTransform = `translate(${dx}px, ${oldRestY}px) rotate(${oldRotation}deg) scale(${oldScale})`;
-      wrap.style.transition='none';
-      wrap.style.transform=startTransform;
-      void wrap.offsetWidth;
-      wrap.style.transition='transform .5s cubic-bezier(.22,1,.36,1)';
-      requestAnimationFrame(()=>{ wrap.style.transform=restTransform; });
-    } else if(oldVisualIndex!==null && oldVisualIndex!==visualIndex){
-      const oldBaseRotation = HAND_SLOT_ROTATIONS[Math.min(oldVisualIndex,HAND_SLOT_ROTATIONS.length-1)];
-      const oldRotation = aSinistra ? oldBaseRotation : -oldBaseRotation;
-      const oldX = aSinistra ? handSlotX(oldVisualIndex) : -handSlotX(oldVisualIndex);
-      const oldRestY = (oldVisualIndex===1 || oldVisualIndex===2) ? -7 : 0;
-      const dx = oldX - x;
-      const startTransform = `translate(${dx}px, ${oldRestY}px) rotate(${oldRotation}deg)`;
-      wrap.style.transition='none';
-      wrap.style.transform=startTransform;
-      void wrap.offsetWidth;
-      wrap.style.transition='';
-      requestAnimationFrame(()=>{ wrap.style.transform=restTransform; });
-    } else {
-      wrap.style.transform = restTransform;
-    }
-    wrap.style.setProperty('--hover-lift-rot', rotation+'deg');
-    const zIndexRank = aSinistra ? visualIndex : (visualHand.length-1-visualIndex);
-    wrap.style.zIndex = String(zIndexRank);
-    const glowImg=document.createElement('div');
-    glowImg.className='hand-card-glow';
-    const rimRing=document.createElement('div');
-    rimRing.className='hand-card-rim-ring';
-    glowImg.appendChild(rimRing);
-    if(glowEligible) glowImg.style.transitionDelay = glowDelayMs+'ms';
-    wrap.appendChild(glowImg);
-
-    const flipWrap=document.createElement('div');
-    flipWrap.className='hand-card-flip-wrap';
-    wrap.appendChild(flipWrap);
-
-    const cardBackImg=document.createElement('img');
-    cardBackImg.className='hand-card-img hand-card-back-img';
-    cardBackImg.src = playerFactionIsDark(player)?CARD_BACK_DARK:CARD_BACK_LIGHT;
-    cardBackImg.alt=''; cardBackImg.draggable=false;
-    cardBackImg.style.display = isCovered ? '' : 'none';
-    flipWrap.appendChild(cardBackImg);
-
-    let anteprimaMano = null;
-    const partenza = card.tileAbilityBaseValues || card.values;
-    let arrivo = card.values;
-    const antTavoloMano = anteprimaTavolo();
-    let aSorteInMano = false;
-    if(antTavoloMano && !isBeingDragged){
-      const simulati = antTavoloMano.mani[playerIdx===0?1:2][card.id];
-      aSorteInMano = !!antTavoloMano.aSorte.mani[playerIdx===0?1:2][card.id];
-      if(simulati && !aSorteInMano) arrivo = simulati;
-    }
-    {
-      const scarti = {};
-      let cambia = false;
-      for(const s of SIDES){
-        scarti[s] = (arrivo[s]||0) - (partenza[s]||0);
-        if(scarti[s]!==0) cambia = true;
-      }
-      if(cambia || aSorteInMano) anteprimaMano = { values: arrivo, deltas: cambia ? scarti : null, uncertain: aSorteInMano };
-    }
-    const cardSvg = buildFullHandCardSVG(cardFoilVisualCard(card), 210, 360, anteprimaMano);
-    const cardFoilHost = cardFoilWrap(cardSvg);
-    cardFoilHost.style.display = isCovered ? 'none' : '';
-    flipWrap.appendChild(cardFoilHost);
-    const tiltPlane = cardFoilHost.querySelector('.card-db-foil-tilt');
-    if(tiltPlane && glowImg) tiltPlane.insertBefore(glowImg, tiltPlane.firstChild);
-    if(cartaCongelata(card)){
-      const ghiaccio = document.createElement('div');
-      ghiaccio.className = 'ghiaccio-carta';
-      ((isCovered || !tiltPlane) ? flipWrap : tiltPlane).appendChild(ghiaccio);
-      _geloAnima(ghiaccio, 'c:' + card.id);
-    } else _geloFinito('c:' + card.id);
-    wrap.dataset.foilVariant = playerFactionName(card.owner||1);
-
-    const isLastInHand = zIndexRank === visualHand.length-1;
-    const hitzone = document.createElement('div');
-    hitzone.className = 'hand-card-hitzone';
-    if(isExpanded || isLastInHand){
-      hitzone.style.left='0'; hitzone.style.width='100%';
-    } else if(aSinistra){
-      hitzone.style.left='0'; hitzone.style.width=(handSlotX(1)-handSlotX(0))+'px';
-    } else {
-      hitzone.style.left='0'; hitzone.style.width=(handSlotX(1)-handSlotX(0))+'px';
-    }
-    wrap.appendChild(hitzone);
-    attachAvvisoGelo(hitzone, card);
-
-    if(!isCovered && !isBeingDragged && !isTouchDevice){
-      hitzone.addEventListener('mouseenter',()=>{
-        if(handExpandState[player]){
-          wrap.style.transform = restTransform;
-          wrap.style.zIndex = '100';
-        } else {
-          liftHandCardIntoView(wrap, restTransform);
-        }
-        try{ if(PARTITA_RETE && player === PARTITA_RETE.io) reteManoSopra(card); }catch(_){ }
-        wrap.setAttribute('data-foil-active','1');
-        cardDbBuildGlossLayer(wrap, card);
-        wrap.classList.add('group-sep-hover');
-      });
-      hitzone.addEventListener('mousemove',(ev)=>{
-        const r = wrap.getBoundingClientRect();
-        if(!r.width || !r.height) return;
-        const px=(ev.clientX-r.left)/r.width, py=(ev.clientY-r.top)/r.height;
-        const rx=Math.max(-1,Math.min(1,(px-0.5)*2));
-        const ry=Math.max(-1,Math.min(1,(py-0.5)*2));
-        cardFoilApply(wrap, rx, ry, px, py);
-      });
-      hitzone.addEventListener('mouseleave',()=>{
-        try{ if(PARTITA_RETE && player === PARTITA_RETE.io) reteManoSopra(null); }catch(_){ }
-        cardFoilReset(wrap);
-        wrap.classList.remove('hover-lift');
-        wrap.classList.remove('group-sep-hover');
-        wrap.style.removeProperty('--hover-lift-y');
-        wrap.style.transform = restTransform;
-        wrap.style.zIndex = String(zIndexRank);
-      });
-      hitzone.addEventListener('pointerdown',()=>{
-        try{ if(PARTITA_RETE && player === PARTITA_RETE.io) reteManoSopra(null); }catch(_){ }
-      });
-    }
-    if(!isCovered && !isBeingDragged && !sceltaScarto){
-      hitzone.addEventListener('pointerdown',e=>{
-        if(e.button!==0)return;
-        if(pendingPress || dragState) return;
-        e.target.setPointerCapture?.(e.pointerId);
-        armDragOrClick(e,card,playerIdx,210,360,fillColor,strokeColor,textColor,glowColor,R,wrap);
-      });
-    }
-    if(sceltaScarto && !isCovered && sceltaScarto.bersagli.indexOf(card.id) >= 0){
-      const croce = document.createElement('div');
-      croce.className = 'scarta-croce';
-      const img = document.createElement('img');
-      img.src = sceltaScarto.icona || ICONA_RINUNCIA;
-      img.alt = '';
-      img.draggable = false;
-      croce.appendChild(img);
-      croce.addEventListener('pointerdown', e => {
-        e.preventDefault();
-        e.stopPropagation();
-        scegliBersaglio(card.id);
-      });
-      hitzone.appendChild(croce);
-    }
+    const c = { playerIdx, player, isCovered, sceltaScarto, fillColor, strokeColor, textColor, glowColor, R, visualHand,
+                card, wrap, visualIndex, isBeingDragged, glowEligible, glowDelayMs };
+    Object.assign(c, handCardPlace(c));
+    handCardFace(c);
+    handCardInteraction(c);
     container.appendChild(wrap);
     try { cardDbBuildGlossLayer(wrap, card); } catch(_){}
   });
