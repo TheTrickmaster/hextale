@@ -7504,6 +7504,7 @@ body[data-pagina="collection"] #card-db-bg{ display:none !important; }
   background:rgba(8,12,12,0.1); box-shadow:0 4px 10px rgba(0,0,0,0.18);
   transition:box-shadow 0.4s ease, transform 0.18s ease;
 }
+#pg-daily-binario .pg-quest{ width:251.2px; }
 .pg-quest::before{
   content:''; position:absolute; inset:0; border-radius:inherit; pointer-events:none;
   background-image:var(--hx-trama, none); background-size:847px 809.5px; opacity:0.05;
@@ -8491,7 +8492,7 @@ try{
 <button id="btn-show-results" class="hx-btn hx-btn-opaco" onclick="toggleBoardView(false)">
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:12.5px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.82.58</div>
+<div id="build-version-badge" onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:12.5px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.82.59</div>
 <button id="settings-btn" onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -15642,6 +15643,7 @@ let _pgBolleInVolo = 0;
 const PG_PASSO = 212;
 const PG_PREMI_X = 412 - 340;
 const PG_QUEST_X = 30;
+const PG_DAILY_PASSO = (1384 + 32) / 5;
 const PG_ICONE = { pack:'pack-icon.png', pack2:'double-pack-icon.png', ink:'magic-ink-icon.png', dust:'fairy-dust-icon.png' };
 const PG_XP_COLORE = '150,225,255';
 function _pgIcona(premio, quanto){
@@ -16055,7 +16057,8 @@ function _pgDisegnaQuest(riga, anima){
     ordine = lista.slice().sort((a, b)=> _pgRango(a) - _pgRango(b) || a.quale - b.quale).map(q => q.k);
     _pgOrdine[riga] = ordine;
   }
-  bin.style.width = (PG_QUEST_X + ordine.length * PG_PASSO - 32 + 150) + 'px';
+  const passo = (riga === 'daily') ? PG_DAILY_PASSO : PG_PASSO;
+  bin.style.width = (PG_QUEST_X + ordine.length * passo - 32 + 150) + 'px';
   [...bin.children].forEach(el => { if(chiavi.indexOf(el.dataset.k) < 0) el.remove(); });
   let ritardo = 0;
   ordine.forEach((k, n)=>{
@@ -16084,7 +16087,7 @@ function _pgDisegnaQuest(riga, anima){
       t.addEventListener('pointerleave', questTooltipNascondi);
     }
     t.dataset.quale = String(q.quale);
-    t.style.left = (PG_QUEST_X + n * PG_PASSO) + 'px';
+    t.style.left = (PG_QUEST_X + n * passo) + 'px';
     _pgImg(t.querySelector('.pg-quest-icona'), _pgIcona(q.premio, q.quantoPremio));
     _pgNomeInDueRighe(t.querySelector('.pg-quest-nome'), q.nome);
     const fatta = q.fatto >= q.quanto;
@@ -37681,39 +37684,9 @@ function buildHandCardSVG(card, boxW, boxH, R, preview){
   return svg;
 }
 
-function buildFullHandCardSVG(card, boxW, boxH, preview){
-  const isDark = playerFactionIsDark(card.owner||1);
-  const scale = boxW/CARD_FULL_NATIVE_W;
-  const CONTENT_MARGIN = 14*scale;
-  const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
-  svg.setAttribute('width', boxW);
-  svg.setAttribute('height', boxH);
-  svg.setAttribute('viewBox', `0 0 ${boxW} ${boxH}`);
-  svg.classList.add('hand-card-full-svg','hand-card-svg');
 
-  const defs=document.createElementNS('http://www.w3.org/2000/svg','defs');
-  svg.appendChild(defs);
-
-  const CORNER_RADIUS = 60*scale;
-  const maskId='hcf-mask-'+Math.random().toString(36).slice(2);
-  const mask=document.createElementNS('http://www.w3.org/2000/svg','clipPath');
-  mask.setAttribute('id', maskId);
-  const maskRect=document.createElementNS('http://www.w3.org/2000/svg','rect');
-  maskRect.setAttribute('x','0'); maskRect.setAttribute('y','0');
-  maskRect.setAttribute('width', boxW); maskRect.setAttribute('height', boxH);
-  maskRect.setAttribute('rx', CORNER_RADIUS.toFixed(2));
-  maskRect.setAttribute('ry', CORNER_RADIUS.toFixed(2));
-  mask.appendChild(maskRect);
-  defs.appendChild(mask);
-
-  const content=document.createElementNS('http://www.w3.org/2000/svg','g');
-  content.setAttribute('clip-path', `url(#${maskId})`);
-  svg.appendChild(content);
-
-  const chromeGroup=document.createElementNS('http://www.w3.org/2000/svg','g');
-  chromeGroup.classList.add('hand-card-full-chrome');
-  content.appendChild(chromeGroup);
-
+function fullCardDrawBase(d){
+  const { svg, defs, chromeGroup, card, isDark, boxW, boxH, scale, CORNER_RADIUS } = d;
   const baseUrl = cardBaseSrc(card, isDark);
   const baseFo=document.createElementNS('http://www.w3.org/2000/svg','foreignObject');
   baseFo.setAttribute('x','0'); baseFo.setAttribute('y','0');
@@ -37732,7 +37705,10 @@ function buildFullHandCardSVG(card, boxW, boxH, preview){
   baseImg.setAttribute('preserveAspectRatio','xMidYMid slice');
   chromeGroup.appendChild(baseImg);
   try{ aggiungiLaminaRarita(svg, defs, chromeGroup, card, isDark, boxW, boxH, scale, CORNER_RADIUS); }catch(e){ noteHiddenError('card.foil', e); }
+}
 
+function fullCardDrawBorder(d){
+  const { defs, chromeGroup, isDark, boxW, boxH, scale, CORNER_RADIUS } = d;
   const g = isDark ? CARD_BORDER_GRADIENT_DARK : CARD_BORDER_GRADIENT_LIGHT;
   const gradId='hcf-bordergrad-'+Math.random().toString(36).slice(2);
   const grad=document.createElementNS('http://www.w3.org/2000/svg','linearGradient');
@@ -37760,11 +37736,10 @@ function buildFullHandCardSVG(card, boxW, boxH, preview){
   borderRect.setAttribute('stroke-width', strokeW.toFixed(2));
   borderRect.setAttribute('opacity', g.opacity);
   chromeGroup.appendChild(borderRect);
+}
 
-  const HEX_EXTRA_SHRINK = 0.90;
-  const hexR = ((boxW-2*CONTENT_MARGIN)/Math.sqrt(3))*HEX_EXTRA_SHRINK;
-  const hexHalfW = hexR*Math.sqrt(3)/2;
-
+function fullCardDrawName(d){
+  const { chromeGroup, card, isDark, boxW, scale, hexHalfW } = d;
   const nameWrapperSrc = cardNameWrapperSrc(card);
   const nameNativeW = CARD_NAME_WRAPPER_NATIVE_W;
   const nameNativeH = CARD_NAME_WRAPPER_NATIVE_H;
@@ -37791,18 +37766,11 @@ function buildFullHandCardSVG(card, boxW, boxH, preview){
   nameText.setAttribute('fill', isDark?CARD_NAME_TEXT_COLOR_DARK:CARD_NAME_TEXT_COLOR_LIGHT);
   nameText.textContent = card.name || 'The toad';
   chromeGroup.appendChild(nameText);
+  return { nameY, nameSlotH };
+}
 
-  const HEX_TOP_GAP = 20*scale;
-  const hexTopY = nameY+nameSlotH+HEX_TOP_GAP;
-  const hexCx = boxW/2;
-  const hexCy = hexTopY+hexR;
-  const hexLeftX = hexCx-hexHalfW;
-  const hexRightX = hexCx+hexHalfW;
-  svg.dataset.hexClip = hexCorners(hexCx, hexCy, hexR)
-    .map(p => `${(p.x/boxW*100).toFixed(3)}% ${(p.y/boxH*100).toFixed(3)}%`)
-    .join(', ');
-
-  if(typeof aiutoEsagonoAcceso !== 'function' || aiutoEsagonoAcceso()){
+function fullCardDrawValueHint(d){
+  const { chromeGroup, card, isDark, boxW, scale, hexLeftX, hexTopY } = d;
   const vvW = CARD_VALUE_VISUAL_HINT_NATIVE_W*scale;
   const vvH = CARD_VALUE_VISUAL_HINT_NATIVE_H*scale;
   const vvX = hexLeftX;
@@ -37880,20 +37848,13 @@ function buildFullHandCardSVG(card, boxW, boxH, preview){
     vvT.textContent=g.val;
     chromeGroup.appendChild(vvT);
   }
-  }
+}
 
-  const hexFillColor=isDark?'var(--red-bg)':'var(--blue-bg)';
-  const hexStrokeColor=isDark?'var(--red)':'var(--blue)';
-  const hexTextColor=isDark?'var(--red-light)':'var(--blue-light)';
-  drawHexCard(content, hexCx, hexCy, hexR, card, hexFillColor, hexStrokeColor, hexTextColor, card.name, false, null, null,
-              false, preview?preview.values:null, preview?preview.deltas:null, preview ? !!preview.uncertain : false);
-
-  const hexBottomY = hexCy+hexR;
+function fullCardDrawGems(d){
+  const { defs, chromeGroup, card, isDark, scale, hexRightX, socketSize, socketY } = d;
   const gemKeys = card.groupGems ? Object.keys(card.groupGems) : [];
   const gemGap = 4*scale;
-  const socketSize = CARD_GEM_SOCKET_NATIVE*scale;
   const gemSize = CARD_GEM_NATIVE*scale;
-  const socketY = hexBottomY-socketSize;
   let gemRightX = hexRightX;
   for(const key of gemKeys){
     const sockX = gemRightX-socketSize;
@@ -37938,10 +37899,12 @@ function buildFullHandCardSVG(card, boxW, boxH, preview){
     }
     gemRightX -= socketSize+gemGap;
   }
+}
 
+function fullCardDrawTraits(d){
+  const { chromeGroup, card, isDark, scale, hexLeftX, socketCenterY } = d;
   const traits = card.traits || ['animal','royal'];
   const archGap = 10*scale;
-  const socketCenterY = socketY+socketSize/2;
   let archX = hexLeftX;
   for(const key of traits){
     const info = traitIconInfo(key);
@@ -37959,10 +37922,10 @@ function buildFullHandCardSVG(card, boxW, boxH, preview){
     chromeGroup.appendChild(archImg);
     archX += aw+archGap;
   }
+}
 
-  const FILL_TOP_GAP = 38*scale;
-  const bassoY = Math.max(hexBottomY, socketY+socketSize)+FILL_TOP_GAP;
-
+function fullCardDrawDeco(d){
+  const { chromeGroup, boxW, boxH, scale } = d;
   const decoW = CARD_DECO_BOTTOM_NATIVE_W*scale;
   const decoH = CARD_DECO_BOTTOM_NATIVE_H*scale;
   const decoX = (boxW-decoW)/2;
@@ -37974,7 +37937,12 @@ function buildFullHandCardSVG(card, boxW, boxH, preview){
   decoImg.setAttribute('x', decoX.toFixed(2)); decoImg.setAttribute('y', decoY.toFixed(2));
   decoImg.setAttribute('width', decoW.toFixed(2)); decoImg.setAttribute('height', decoH.toFixed(2));
   chromeGroup.appendChild(decoImg);
+  const decoLineY = decoY+decoH*DECO_LINE_FRAC;
+  return { DECO_SIDE_GAP, decoLineY };
+}
 
+function fullCardDrawLevels(d){
+  const { chromeGroup, card, isDark, scale, hexRightX, socketCenterY } = d;
   const cardLevel = card.level || 1;
   const LEVEL_SLOTS = 4;
   const levelSocketSize = CARD_LEVEL_SOCKET_NATIVE*scale;
@@ -37984,8 +37952,6 @@ function buildFullHandCardSVG(card, boxW, boxH, preview){
   const levelRowW = LEVEL_SLOTS*levelSocketSize+(LEVEL_SLOTS-1)*levelGap;
   let levelX = hexRightX-levelRowW;
   const levelY = socketCenterY-levelSocketSize/2;
-  const decoLineY = decoY+decoH*DECO_LINE_FRAC;
-  const testoFineY = decoLineY-levelSocketSize/2;
   const levelGemSrc = isDark?CARD_LEVEL_GEM_DARK:CARD_LEVEL_GEM_LIGHT;
   for(let i=0;i<LEVEL_SLOTS;i++){
     const sockImg=document.createElementNS('http://www.w3.org/2000/svg','image');
@@ -38013,6 +37979,221 @@ function buildFullHandCardSVG(card, boxW, boxH, preview){
     z.setAttribute('fill','none'); z.style.pointerEvents='none';
     chromeGroup.appendChild(z);
   }
+  return { levelSocketSize };
+}
+
+function fullCardDrawAbility(d, abilityDef){
+  const { chromeGroup, card, isDark, boxW, bassoY, testoFineY, fillTextW, titleSize, bodySize, lineHeight, titleGap } = d;
+  const abilityNoScript = !!abilityDef && !abilityDef.programmata;
+  const descLines = svgWrapBoldWords(
+    abilityDef.desc.replace(/\{[^}]*\}/g,'').trim(),
+    fillTextW, "'Rosarivo',serif", bodySize
+  );
+  const blockH = titleSize+titleGap+(descLines.length>0?(descLines.length-1)*lineHeight+bodySize:0);
+  const fillCenterY = bassoY+(testoFineY-bassoY)/2;
+  let textY = fillCenterY-blockH/2;
+
+  const titleText=document.createElementNS('http://www.w3.org/2000/svg','text');
+  titleText.setAttribute('x', (boxW/2).toFixed(2));
+  titleText.setAttribute('y', textY.toFixed(2));
+  titleText.setAttribute('text-anchor','middle');
+  titleText.setAttribute('dominant-baseline','hanging');
+  titleText.setAttribute('font-family',"'Marcellus SC','Marcellus',serif");
+  titleText.setAttribute('font-size', titleSize.toFixed(2));
+  titleText.setAttribute('fill', CARD_ABILITY_TITLE_COLOR);
+  titleText.textContent = abilityDef.name;
+  if(abilityNoScript){
+    const tag=document.createElementNS('http://www.w3.org/2000/svg','tspan');
+    tag.setAttribute('fill','#E5484D');
+    tag.setAttribute('font-size',(titleSize*0.78).toFixed(2));
+    tag.textContent = '  NO_SCRIPT';
+    titleText.appendChild(tag);
+  }
+  if(card.abilityLocked){
+    const lucchetto=document.createElementNS('http://www.w3.org/2000/svg','tspan');
+    lucchetto.setAttribute('fill','#8A8172');
+    lucchetto.setAttribute('font-size',(titleSize*0.78).toFixed(2));
+    lucchetto.textContent = '  LV.' + (card.abilityUnlockLevel||1);
+    titleText.appendChild(lucchetto);
+  }
+  chromeGroup.appendChild(titleText);
+  textY += titleSize+titleGap;
+
+  const descEl=document.createElementNS('http://www.w3.org/2000/svg','text');
+  descEl.setAttribute('x', (boxW/2).toFixed(2));
+  descEl.setAttribute('y', textY.toFixed(2));
+  descEl.setAttribute('text-anchor','start');
+  descEl.setAttribute('dominant-baseline','hanging');
+  descEl.setAttribute('font-family',"'Rosarivo',serif");
+  descEl.setAttribute('font-size', bodySize.toFixed(2));
+  descEl.setAttribute('fill', isDark?CARD_ABILITY_BODY_COLOR_DARK:CARD_ABILITY_BODY_COLOR_LIGHT);
+  if(!__svgWrapCanvas) __svgWrapCanvas=document.createElement('canvas');
+  const measureCtx=__svgWrapCanvas.getContext('2d');
+  descLines.forEach((runs,lineIdx)=>{
+    let lineW=0;
+    runs.forEach((run,i)=>{
+      measureCtx.font = `${run.italic?'italic ':''}${run.bold?'bold ':''}${bodySize}px 'Rosarivo',serif`;
+      lineW += measureCtx.measureText(run.text).width;
+      if(i>0 && run.spazioPrima) lineW += measureCtx.measureText(' ').width;
+    });
+    const lineStartX = (boxW-lineW)/2;
+    runs.forEach((run,i)=>{
+      const tspan=document.createElementNS('http://www.w3.org/2000/svg','tspan');
+      if(i===0){
+        tspan.setAttribute('x', lineStartX.toFixed(2));
+        tspan.setAttribute('dy', lineIdx===0?'0':lineHeight.toFixed(2));
+      } else {
+        measureCtx.font = `${runs[i-1].bold?'bold ':''}${bodySize}px 'Rosarivo',serif`;
+      }
+      if(run.bold) tspan.setAttribute('font-weight','bold');
+      if(run.italic) tspan.setAttribute('font-style','italic');
+      const intero = (i>0 && run.spazioPrima) ? ' '+run.text : run.text;
+      let tratti = [{ testo:intero, voce:null }];
+      try{ tratti = glossarioTratti(intero); }catch(e){ noteHiddenError('card.traitGlossary', e); }
+      if(tratti.length === 1 && !tratti[0].voce){
+        tspan.textContent = intero;
+        descEl.appendChild(tspan);
+      } else {
+        tratti.forEach((tr, ti)=>{
+          const pezzo = ti === 0 ? tspan : document.createElementNS('http://www.w3.org/2000/svg','tspan');
+          if(ti > 0){
+            if(run.bold) pezzo.setAttribute('font-weight','bold');
+            if(run.italic) pezzo.setAttribute('font-style','italic');
+          }
+          if(tr.voce){ pezzo.setAttribute('class', 'gl-parola ' + (isDark ? 'gl-scura' : 'gl-chiara')); pezzo.setAttribute('data-voce', tr.voce.id); }
+          pezzo.textContent = tr.testo;
+          descEl.appendChild(pezzo);
+        });
+      }
+    });
+  });
+  chromeGroup.appendChild(descEl);
+}
+
+function fullCardDrawQuote(d){
+  const { svg, chromeGroup, card, isDark, boxW, bassoY, testoFineY, fillTextW, bodySize, lineHeight } = d;
+  const quote = card.quote || '';
+  const quoteLines = svgWrapText(quote, fillTextW, "'Rosarivo',serif", bodySize);
+  const blockH = quoteLines.length>0?(quoteLines.length-1)*lineHeight+bodySize:0;
+  const fillCenterY = bassoY+(testoFineY-bassoY)/2;
+  const textY = fillCenterY-blockH/2;
+
+  const quoteEl=document.createElementNS('http://www.w3.org/2000/svg','text');
+  quoteEl.setAttribute('x', (boxW/2).toFixed(2));
+  quoteEl.setAttribute('y', textY.toFixed(2));
+  quoteEl.setAttribute('text-anchor','middle');
+  quoteEl.setAttribute('dominant-baseline','hanging');
+  quoteEl.setAttribute('font-family',"'Rosarivo',serif");
+  quoteEl.setAttribute('font-style','italic');
+  quoteEl.setAttribute('font-size', bodySize.toFixed(2));
+  quoteEl.setAttribute('fill', isDark?CARD_QUOTE_COLOR_DARK:CARD_QUOTE_COLOR_LIGHT);
+  if(card.arcobaleno){
+    try{
+      const uid = 'arcobaleno-'+Math.random().toString(36).slice(2,8);
+      const defs = svg.querySelector('defs') || (()=>{
+        const d = document.createElementNS('http://www.w3.org/2000/svg','defs');
+        svg.insertBefore(d, svg.firstChild); return d;
+      })();
+      const grad = document.createElementNS('http://www.w3.org/2000/svg','linearGradient');
+      grad.setAttribute('id', uid);
+      grad.setAttribute('x1','0%'); grad.setAttribute('y1','0%');
+      grad.setAttribute('x2','100%'); grad.setAttribute('y2','0%');
+      ['#FF4E4E','#FFA23A','#FFE34E','#4ED66B','#4EC8FF','#9B6BFF','#FF6BD6'].forEach((col,i,arr)=>{
+        const st = document.createElementNS('http://www.w3.org/2000/svg','stop');
+        st.setAttribute('offset', (i/(arr.length-1)*100).toFixed(1)+'%');
+        st.setAttribute('stop-color', col);
+        grad.appendChild(st);
+      });
+      defs.appendChild(grad);
+      quoteEl.setAttribute('fill', 'url(#'+uid+')');
+    }catch(_){}
+  }
+  for(const line of quoteLines){
+    const tspan=document.createElementNS('http://www.w3.org/2000/svg','tspan');
+    tspan.setAttribute('x', (boxW/2).toFixed(2));
+    tspan.setAttribute('dy', line===quoteLines[0]?'0':lineHeight.toFixed(2));
+    tspan.textContent=line;
+    quoteEl.appendChild(tspan);
+  }
+  chromeGroup.appendChild(quoteEl);
+}
+
+function buildFullHandCardSVG(card, boxW, boxH, preview){
+  const isDark = playerFactionIsDark(card.owner||1);
+  const scale = boxW/CARD_FULL_NATIVE_W;
+  const CONTENT_MARGIN = 14*scale;
+  const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+  svg.setAttribute('width', boxW);
+  svg.setAttribute('height', boxH);
+  svg.setAttribute('viewBox', `0 0 ${boxW} ${boxH}`);
+  svg.classList.add('hand-card-full-svg','hand-card-svg');
+
+  const defs=document.createElementNS('http://www.w3.org/2000/svg','defs');
+  svg.appendChild(defs);
+
+  const CORNER_RADIUS = 60*scale;
+  const maskId='hcf-mask-'+Math.random().toString(36).slice(2);
+  const mask=document.createElementNS('http://www.w3.org/2000/svg','clipPath');
+  mask.setAttribute('id', maskId);
+  const maskRect=document.createElementNS('http://www.w3.org/2000/svg','rect');
+  maskRect.setAttribute('x','0'); maskRect.setAttribute('y','0');
+  maskRect.setAttribute('width', boxW); maskRect.setAttribute('height', boxH);
+  maskRect.setAttribute('rx', CORNER_RADIUS.toFixed(2));
+  maskRect.setAttribute('ry', CORNER_RADIUS.toFixed(2));
+  mask.appendChild(maskRect);
+  defs.appendChild(mask);
+
+  const content=document.createElementNS('http://www.w3.org/2000/svg','g');
+  content.setAttribute('clip-path', `url(#${maskId})`);
+  svg.appendChild(content);
+
+  const chromeGroup=document.createElementNS('http://www.w3.org/2000/svg','g');
+  chromeGroup.classList.add('hand-card-full-chrome');
+  content.appendChild(chromeGroup);
+
+  const d = { svg, defs, chromeGroup, card, isDark, boxW, boxH, scale, CORNER_RADIUS };
+  fullCardDrawBase(d);
+  fullCardDrawBorder(d);
+
+  const HEX_EXTRA_SHRINK = 0.90;
+  const hexR = ((boxW-2*CONTENT_MARGIN)/Math.sqrt(3))*HEX_EXTRA_SHRINK;
+  const hexHalfW = hexR*Math.sqrt(3)/2;
+  Object.assign(d, { hexR, hexHalfW });
+  const { nameY, nameSlotH } = fullCardDrawName(d);
+
+  const HEX_TOP_GAP = 20*scale;
+  const hexTopY = nameY+nameSlotH+HEX_TOP_GAP;
+  const hexCx = boxW/2;
+  const hexCy = hexTopY+hexR;
+  const hexLeftX = hexCx-hexHalfW;
+  const hexRightX = hexCx+hexHalfW;
+  svg.dataset.hexClip = hexCorners(hexCx, hexCy, hexR)
+    .map(p => `${(p.x/boxW*100).toFixed(3)}% ${(p.y/boxH*100).toFixed(3)}%`)
+    .join(', ');
+  Object.assign(d, { hexTopY, hexCy, hexLeftX, hexRightX });
+
+  if(typeof aiutoEsagonoAcceso !== 'function' || aiutoEsagonoAcceso()) fullCardDrawValueHint(d);
+
+  const hexFillColor=isDark?'var(--red-bg)':'var(--blue-bg)';
+  const hexStrokeColor=isDark?'var(--red)':'var(--blue)';
+  const hexTextColor=isDark?'var(--red-light)':'var(--blue-light)';
+  drawHexCard(content, hexCx, hexCy, hexR, card, hexFillColor, hexStrokeColor, hexTextColor, card.name, false, null, null,
+              false, preview?preview.values:null, preview?preview.deltas:null, preview ? !!preview.uncertain : false);
+
+  const hexBottomY = hexCy+hexR;
+  const socketSize = CARD_GEM_SOCKET_NATIVE*scale;
+  const socketY = hexBottomY-socketSize;
+  const socketCenterY = socketY+socketSize/2;
+  Object.assign(d, { socketSize, socketY, socketCenterY });
+  fullCardDrawGems(d);
+  fullCardDrawTraits(d);
+
+  const FILL_TOP_GAP = 38*scale;
+  const bassoY = Math.max(hexBottomY, socketY+socketSize)+FILL_TOP_GAP;
+
+  const { DECO_SIDE_GAP, decoLineY } = fullCardDrawDeco(d);
+  const { levelSocketSize } = fullCardDrawLevels(d);
+  const testoFineY = decoLineY-levelSocketSize/2;
 
   const fillTextSideInset = DECO_SIDE_GAP*2;
   const fillTextW = boxW-2*fillTextSideInset;
@@ -38026,137 +38207,9 @@ function buildFullHandCardSVG(card, boxW, boxH, preview){
   }
   const titleSize=68*scale, bodySize=51*scale, lineHeight=60*scale, titleGap=10*scale;
   const abilityDef = card.abilityLocked ? null : testiAbilitaDi(card);
-  const abilityNoScript = !!abilityDef && !abilityDef.programmata;
-  if(abilityDef){
-    const descLines = svgWrapBoldWords(
-      abilityDef.desc.replace(/\{[^}]*\}/g,'').trim(),
-      fillTextW, "'Rosarivo',serif", bodySize
-    );
-    const blockH = titleSize+titleGap+(descLines.length>0?(descLines.length-1)*lineHeight+bodySize:0);
-    const fillCenterY = bassoY+(testoFineY-bassoY)/2;
-    let textY = fillCenterY-blockH/2;
-
-    const titleText=document.createElementNS('http://www.w3.org/2000/svg','text');
-    titleText.setAttribute('x', (boxW/2).toFixed(2));
-    titleText.setAttribute('y', textY.toFixed(2));
-    titleText.setAttribute('text-anchor','middle');
-    titleText.setAttribute('dominant-baseline','hanging');
-    titleText.setAttribute('font-family',"'Marcellus SC','Marcellus',serif");
-    titleText.setAttribute('font-size', titleSize.toFixed(2));
-    titleText.setAttribute('fill', CARD_ABILITY_TITLE_COLOR);
-    titleText.textContent = abilityDef.name;
-    if(abilityNoScript){
-      const tag=document.createElementNS('http://www.w3.org/2000/svg','tspan');
-      tag.setAttribute('fill','#E5484D');
-      tag.setAttribute('font-size',(titleSize*0.78).toFixed(2));
-      tag.textContent = '  NO_SCRIPT';
-      titleText.appendChild(tag);
-    }
-    if(card.abilityLocked){
-      const lucchetto=document.createElementNS('http://www.w3.org/2000/svg','tspan');
-      lucchetto.setAttribute('fill','#8A8172');
-      lucchetto.setAttribute('font-size',(titleSize*0.78).toFixed(2));
-      lucchetto.textContent = '  LV.' + (card.abilityUnlockLevel||1);
-      titleText.appendChild(lucchetto);
-    }
-    chromeGroup.appendChild(titleText);
-    textY += titleSize+titleGap;
-
-    const descEl=document.createElementNS('http://www.w3.org/2000/svg','text');
-    descEl.setAttribute('x', (boxW/2).toFixed(2));
-    descEl.setAttribute('y', textY.toFixed(2));
-    descEl.setAttribute('text-anchor','start');
-    descEl.setAttribute('dominant-baseline','hanging');
-    descEl.setAttribute('font-family',"'Rosarivo',serif");
-    descEl.setAttribute('font-size', bodySize.toFixed(2));
-    descEl.setAttribute('fill', isDark?CARD_ABILITY_BODY_COLOR_DARK:CARD_ABILITY_BODY_COLOR_LIGHT);
-    if(!__svgWrapCanvas) __svgWrapCanvas=document.createElement('canvas');
-    const measureCtx=__svgWrapCanvas.getContext('2d');
-    descLines.forEach((runs,lineIdx)=>{
-      let lineW=0;
-      runs.forEach((run,i)=>{
-        measureCtx.font = `${run.italic?'italic ':''}${run.bold?'bold ':''}${bodySize}px 'Rosarivo',serif`;
-        lineW += measureCtx.measureText(run.text).width;
-        if(i>0 && run.spazioPrima) lineW += measureCtx.measureText(' ').width;
-      });
-      const lineStartX = (boxW-lineW)/2;
-      runs.forEach((run,i)=>{
-        const tspan=document.createElementNS('http://www.w3.org/2000/svg','tspan');
-        if(i===0){
-          tspan.setAttribute('x', lineStartX.toFixed(2));
-          tspan.setAttribute('dy', lineIdx===0?'0':lineHeight.toFixed(2));
-        } else {
-          measureCtx.font = `${runs[i-1].bold?'bold ':''}${bodySize}px 'Rosarivo',serif`;
-        }
-        if(run.bold) tspan.setAttribute('font-weight','bold');
-        if(run.italic) tspan.setAttribute('font-style','italic');
-        const intero = (i>0 && run.spazioPrima) ? ' '+run.text : run.text;
-        let tratti = [{ testo:intero, voce:null }];
-        try{ tratti = glossarioTratti(intero); }catch(e){ noteHiddenError('card.traitGlossary', e); }
-        if(tratti.length === 1 && !tratti[0].voce){
-          tspan.textContent = intero;
-          descEl.appendChild(tspan);
-        } else {
-          tratti.forEach((tr, ti)=>{
-            const pezzo = ti === 0 ? tspan : document.createElementNS('http://www.w3.org/2000/svg','tspan');
-            if(ti > 0){
-              if(run.bold) pezzo.setAttribute('font-weight','bold');
-              if(run.italic) pezzo.setAttribute('font-style','italic');
-            }
-            if(tr.voce){ pezzo.setAttribute('class', 'gl-parola ' + (isDark ? 'gl-scura' : 'gl-chiara')); pezzo.setAttribute('data-voce', tr.voce.id); }
-            pezzo.textContent = tr.testo;
-            descEl.appendChild(pezzo);
-          });
-        }
-      });
-    });
-    chromeGroup.appendChild(descEl);
-  } else {
-    const quote = card.quote || '';
-    const quoteLines = svgWrapText(quote, fillTextW, "'Rosarivo',serif", bodySize);
-    const blockH = quoteLines.length>0?(quoteLines.length-1)*lineHeight+bodySize:0;
-    const fillCenterY = bassoY+(testoFineY-bassoY)/2;
-    const textY = fillCenterY-blockH/2;
-
-    const quoteEl=document.createElementNS('http://www.w3.org/2000/svg','text');
-    quoteEl.setAttribute('x', (boxW/2).toFixed(2));
-    quoteEl.setAttribute('y', textY.toFixed(2));
-    quoteEl.setAttribute('text-anchor','middle');
-    quoteEl.setAttribute('dominant-baseline','hanging');
-    quoteEl.setAttribute('font-family',"'Rosarivo',serif");
-    quoteEl.setAttribute('font-style','italic');
-    quoteEl.setAttribute('font-size', bodySize.toFixed(2));
-    quoteEl.setAttribute('fill', isDark?CARD_QUOTE_COLOR_DARK:CARD_QUOTE_COLOR_LIGHT);
-    if(card.arcobaleno){
-      try{
-        const uid = 'arcobaleno-'+Math.random().toString(36).slice(2,8);
-        const defs = svg.querySelector('defs') || (()=>{
-          const d = document.createElementNS('http://www.w3.org/2000/svg','defs');
-          svg.insertBefore(d, svg.firstChild); return d;
-        })();
-        const grad = document.createElementNS('http://www.w3.org/2000/svg','linearGradient');
-        grad.setAttribute('id', uid);
-        grad.setAttribute('x1','0%'); grad.setAttribute('y1','0%');
-        grad.setAttribute('x2','100%'); grad.setAttribute('y2','0%');
-        ['#FF4E4E','#FFA23A','#FFE34E','#4ED66B','#4EC8FF','#9B6BFF','#FF6BD6'].forEach((col,i,arr)=>{
-          const st = document.createElementNS('http://www.w3.org/2000/svg','stop');
-          st.setAttribute('offset', (i/(arr.length-1)*100).toFixed(1)+'%');
-          st.setAttribute('stop-color', col);
-          grad.appendChild(st);
-        });
-        defs.appendChild(grad);
-        quoteEl.setAttribute('fill', 'url(#'+uid+')');
-      }catch(_){}
-    }
-    for(const line of quoteLines){
-      const tspan=document.createElementNS('http://www.w3.org/2000/svg','tspan');
-      tspan.setAttribute('x', (boxW/2).toFixed(2));
-      tspan.setAttribute('dy', line===quoteLines[0]?'0':lineHeight.toFixed(2));
-      tspan.textContent=line;
-      quoteEl.appendChild(tspan);
-    }
-    chromeGroup.appendChild(quoteEl);
-  }
+  Object.assign(d, { bassoY, testoFineY, fillTextW, titleSize, bodySize, lineHeight, titleGap });
+  if(abilityDef) fullCardDrawAbility(d, abilityDef);
+  else fullCardDrawQuote(d);
 
   return svg;
 }
@@ -40022,338 +40075,270 @@ function firmaMano(hand, playerIdx){
 }
 const _firmaManoPrecedente = {};
 
-function renderBoard(){
-  try{ azioneTooltipAggiorna(); }catch(_){ }
-  if(G.boardDropAnimInProgress){
-    if(G.sceltaBersaglio && !_pendingOverlayRender){
-      _pendingOverlayRender = setTimeout(function riprovaOverlay(){
-        _pendingOverlayRender = null;
-        if(!G || G.gameOver) return;
-        if(!G.sceltaBersaglio) return;
-        if(G.boardDropAnimInProgress){
-          _pendingOverlayRender = setTimeout(riprovaOverlay, 120);
-          return;
-        }
-        if(G.sceltaBersaglio.modo === 'mano'){ render(); return; }
-        renderBoard();
-      }, 120);
-    }
-    return;
-  }
-  const svg=document.getElementById('board-svg');
-  const wrap=document.getElementById('board-wrap');
-  if(!wrap || !svg){
-    if(!_tabelloneAssenteSegnalato){
-      _tabelloneAssenteSegnalato = true;
-      console.info('[plancia] richiesto un disegno mentre il tabellone non e\' a schermo: '
-        + 'non c\'e\' niente da disegnare e si tira dritto. Normale uscendo dal tavolo '
-        + 'mentre un\'animazione o un\'abilita\' deve ancora finire.');
-    }
-    return;
-  }
-  const availW=wrap.clientWidth, availH=wrap.clientHeight;
-  if(!availW||!availH)return;
-  try{ aggiornaBoardScore(); }catch(e){ noteHiddenError('board.score', e); }
-  const firmaOra = firmaTabellone() + '|' + availW + 'x' + availH;
-  if(!CONTROLLO_FIRME && _firmaTabellonePrecedente === firmaOra && svg.childNodes.length) return;
-  _firmaTabellonePrecedente = firmaOra;
-  const R=bestBoardR(availW-16,availH-16);
-  svg.setAttribute('width',availW); svg.setAttribute('height',availH);
-  svg.innerHTML='';
-  const cx=availW/2, cy=availH/2;
-  const hasSel=!!(G.selected||G.dragging);
 
-  {
-    const wrapRect = wrap.getBoundingClientRect();
-    const screenScale = availW>0 ? wrapRect.width/availW : 1;
-    lastBoardGeom = {
-      rect: wrapRect,
-      cx: cx*screenScale, cy: cy*screenScale, R: R*screenScale,
-    };
-  }
-  _ultimoCentroPlancia = {x:cx, y:cy};
-  _ultimoRaggioCella = R;
-
-
-  positionBoardBgImg(availW, availH, R);
-
-  const boardSvgRoot = svg;
-  if(G.playBoardDropAnim && !G._cadutaPronta){
-    if(!G._cadutaInAttesa){
-      G._cadutaInAttesa = true;
-      const genAttesa = gameGeneration;
-      _assetDellaCaduta().then(()=>{
-        if(genAttesa !== gameGeneration || !G) return;
-        G._cadutaPronta = true;
-        _firmaTabellonePrecedente = null;
-        renderBoard();
-      });
-    }
-    return;
-  }
-  const playDropAnim = !!G.playBoardDropAnim;
-  if(playDropAnim){
-    G.playBoardDropAnim = false;
-    try{ faiCrescereIRami(); }catch(_){ }
-    G.boardDropAnimInProgress = true;
-    const genAtStart = gameGeneration;
-    setTimeout(()=>{
-      if(genAtStart!==gameGeneration) return;
-      G.boardDropAnimInProgress = false;
+function boardRedrawChoiceAfterFall(){
+  if(G.sceltaBersaglio && !_pendingOverlayRender){
+    _pendingOverlayRender = setTimeout(function riprovaOverlay(){
+      _pendingOverlayRender = null;
+      if(!G || G.gameOver) return;
+      if(!G.sceltaBersaglio) return;
+      if(G.boardDropAnimInProgress){
+        _pendingOverlayRender = setTimeout(riprovaOverlay, 120);
+        return;
+      }
+      if(G.sceltaBersaglio.modo === 'mano'){ render(); return; }
       renderBoard();
-      showTurnBanner(G.currentPlayer);
-    }, TILE_DROP_TOTAL_MS + 60);
+    }, 120);
   }
-  const dropOrder = playDropAnim ? ordineASpirale(G.cells) : null;
+}
 
-  for(const cell of G.cells){
-    const{q,r}=cell;
-    const{x,y}=axialToPixel(q,r,cx,cy,R);
-    const k=key(q,r);
-    const placed=(G.velo && G.velo.cella === k) ? null : G.board[k];
-    const hole=isHole(q,r);
-    const placeable=hasSel&&canPlace(q,r, G.selected && G.selected.card)&&!G.gameOver;
+function boardFallWaitsForAssets(){
+  if(!(G.playBoardDropAnim && !G._cadutaPronta)) return false;
+  if(!G._cadutaInAttesa){
+    G._cadutaInAttesa = true;
+    const genAttesa = gameGeneration;
+    _assetDellaCaduta().then(()=>{
+      if(genAttesa !== gameGeneration || !G) return;
+      G._cadutaPronta = true;
+      _firmaTabellonePrecedente = null;
+      renderBoard();
+    });
+  }
+  return true;
+}
 
-    const cellGroup = document.createElementNS('http://www.w3.org/2000/svg','g');
-    cellGroup.setAttribute('data-cellkey', k);
-    boardSvgRoot.appendChild(cellGroup);
-    let svg = cellGroup;
+function boardFallBegin(){
+  G.playBoardDropAnim = false;
+  try{ faiCrescereIRami(); }catch(_){ }
+  G.boardDropAnimInProgress = true;
+  const genAtStart = gameGeneration;
+  setTimeout(()=>{
+    if(genAtStart!==gameGeneration) return;
+    G.boardDropAnimInProgress = false;
+    renderBoard();
+    showTurnBanner(G.currentPlayer);
+  }, TILE_DROP_TOTAL_MS + 60);
+}
 
-    if(hole && !placed){
-      drawTileCell(svg,x,y,R,tasselloLibero(k,q,r),k+'sotto',false);
-      const holePoly=drawTileCell(svg,x,y,R,muroDellaCella(k,q,r),k+'h',false);
-      holePoly.setAttribute('data-tassello-bloccato', k);
-      holePoly.setAttribute('data-hole-key', k);
-      if(placeable){
-        holePoly.style.cursor='var(--cursore)';
-        holePoly.dataset.cellkey=`${q},${r}`;
-        holePoly.addEventListener('click',()=>{if(G.selected)placeCard(q,r);});
-        holePoly.addEventListener('dragenter',(e)=>{e.preventDefault();G.dragOver=`${q},${r}`;renderBoard();});
-        holePoly.addEventListener('dragover',(e)=>{e.preventDefault();});
-        holePoly.addEventListener('dragleave',()=>{G.dragOver=null;renderBoard();});
-        holePoly.addEventListener('drop',(e)=>{e.preventDefault();if(dragState){
-          const{card,playerIdx}=dragState;
-          dragState=null;
-          doPlace(card,playerIdx,q,r);
-          stopGhostSpring();document.getElementById('drag-ghost').style.display='none';
-        }G.dragOver=null;renderBoard();});
-        if(G.dragOver===`${q},${r}`){
-          const hover=svgEl('path');
-          hover.setAttribute('d',ptStrRounded(x,y,R,BOARD_GAP,8));
-          hover.setAttribute('fill','rgba(255,220,80,0.30)');
-          hover.setAttribute('stroke','rgba(255,220,80,0.85)');
-          hover.setAttribute('stroke-width',(R*0.07).toFixed(1));
-          hover.style.pointerEvents='none';
-          svg.appendChild(hover);
-        }
-      }
-    } else if(placed){
-      ricalcolaValoriVivi(placed.card, k);
-      if(hole){
-        drawTileCell(svg,x,y,R,tasselloLibero(k,q,r),k+'sotto',false);
-        const muro = drawTileCell(svg,x,y,R,muroDellaCella(k,q,r),k+'h',false);
-        muro.setAttribute('data-tassello-bloccato', k);
-        muro.setAttribute('data-hole-key', k);
-      } else {
-        const tileSottoSrc = (G.destroyedHoles && G.destroyedHoles.has(k))
-          ? tileVariant(TILE_FIXED,q,r)
-          : tasselloLibero(k,q,r);
-        drawTileCell(svg,x,y,R,tileSottoSrc,k+'f',false);
-      }
-      const ownerDisegnato = (G.girataInCorso && G.girataInCorso.cella===k)
-        ? G.girataInCorso.ownerPrima : placed.owner;
-      const fc=ownerDisegnato===1?'var(--red-bg)':'var(--blue-bg)';
-      const sc=ownerDisegnato===1?'var(--red)':'var(--blue)';
-      const tc=ownerDisegnato===1?'var(--red-light)':'var(--blue-light)';
-      const bonusInfo=getFactionBonus(placed.card,q,r,G.board);
-      let factionDeltas={};
-      for(const s of SIDES) factionDeltas[s]=bonusInfo.values[s]-placed.card.values[s];
-      let displayValuesForCell = bonusInfo.values;
-      const antTavolo = anteprimaTavolo();
-      const aSorteInCampo = !!(antTavolo && k!==antTavolo.cellaGiocata && antTavolo.aSorte.tabellone[k]);
-      if(antTavolo && k!==antTavolo.cellaGiocata && antTavolo.tabellone[k] && !aSorteInCampo){
-        const simulati = antTavolo.tabellone[k];
-        const nuovi = {};
-        for(const s of SIDES){
-          const scarto = (simulati[s]||0) - (placed.card.values[s]||0);
-          nuovi[s] = (bonusInfo.values[s]||0) + scarto;
-          if(scarto!==0) factionDeltas[s]=(factionDeltas[s]||0)+scarto;
-        }
-        displayValuesForCell = nuovi;
-      }
-      const cardGroup=document.createElementNS('http://www.w3.org/2000/svg','g');
-      cardGroup.setAttribute('data-conquered',k);
-      stratoCarteDellaPlancia(boardSvgRoot).appendChild(cardGroup);
-      const flipGroup=document.createElementNS('http://www.w3.org/2000/svg','g');
-      flipGroup.setAttribute('data-role','flip-host');
-      cardGroup.appendChild(flipGroup);
-      const recoilGroup=document.createElementNS('http://www.w3.org/2000/svg','g');
-      recoilGroup.setAttribute('data-role','recoil-host');
-      flipGroup.appendChild(recoilGroup);
-      const wobbleGroup=document.createElementNS('http://www.w3.org/2000/svg','g');
-      wobbleGroup.setAttribute('data-role','wobble-host');
-      const yetiHost = (G.yeti && G.yeti.length) ? svgEl('g') : null;
-      if(yetiHost && _yetiVeste(yetiHost, placed.card)){
-        yetiHost.setAttribute('data-role','yeti-host');
-        recoilGroup.appendChild(yetiHost);
-        yetiHost.appendChild(wobbleGroup);
-      } else recoilGroup.appendChild(wobbleGroup);
-      const cardWithOwner = {...placed.card, owner: ownerDisegnato};
-      drawHexCard(wobbleGroup,x,y,R,cardWithOwner,fc,sc,tc,placed.card.name,false,null,null,true,displayValuesForCell,factionDeltas,aSorteInCampo);
-      {
-        const uidGelo = 'carta-' + String(placed.card.id).replace(/[^\w-]/g, '_');
-        const gelata = cartaCongelata(placed.card);
-        if(gelata || _geloCartaDaSciogliere(placed.card, uidGelo)){
-          wobbleGroup.style.isolation = 'isolate';
-          disegnaGeloCella(wobbleGroup, x, y, R, uidGelo, !gelata);
-        }
-      }
-      if(_briciolaMangiata && _briciolaMangiata.k === k) _applicaBriciolaMangiata(k, wobbleGroup);
-      const tp=svgEl('polygon'); tp.setAttribute('points',ptStr(x,y,R)); tp.setAttribute('fill','transparent'); tp.setAttribute('stroke','none');
-      tp.style.pointerEvents='all';
-      stratoTocchiDellaPlancia(boardSvgRoot).appendChild(tp);
-      attachCardTooltip(tp, cardWithOwner, true, bonusInfo);
-      tp.addEventListener('mouseenter',()=>{ cardGroup.classList.add('group-sep-hover'); velaLampada(k, true); });
-      tp.addEventListener('mouseleave',()=>{ cardGroup.classList.remove('group-sep-hover'); velaLampada(k, false); });
-      tp.addEventListener('click',(ev)=>{
-        if(G.sceltaBersaglio || G.dragging || dragState || G.selected) return;
-        ev.stopPropagation();
-        openCardModal(cardWithOwner, (ownerDisegnato||1)-1);
-      });
-    } else {
-      const tileSrc = (G.destroyedHoles && G.destroyedHoles.has(k))
-        ? tileVariant(TILE_FIXED,q,r)
-        : tasselloLibero(k,q,r);
-      const poly=drawTileCell(svg,x,y,R,tileSrc,k+'f',placeable);
-      if(cellaCongelata(k)){
-        cellGroup.style.isolation = 'isolate';
-        disegnaGeloCella(svg,x,y,R,k+'f');
-      } else if(_geloDaSciogliere(k)){
-        cellGroup.style.isolation = 'isolate';
-        disegnaGeloCella(svg,x,y,R,k+'f', true);
-      }
-      if(G.briciole && G.briciole[k]) disegnaBriciola(svg, x, y, R, k);
-      if(G.yeti && G.yeti.length) disegnaYetiInCella(svg, boardSvgRoot, x, y, R, k);
-      poly.setAttribute('data-hole-key', k);
-      if(placeable){
-        poly.style.cursor='var(--cursore)';
-        poly.dataset.cellkey=`${q},${r}`;
-        poly.addEventListener('click',()=>{if(G.selected)placeCard(q,r);});
-        poly.addEventListener('dragenter',(e)=>{e.preventDefault();G.dragOver=`${q},${r}`;renderBoard();});
-        poly.addEventListener('dragover',(e)=>{e.preventDefault();});
-        poly.addEventListener('dragleave',()=>{G.dragOver=null;renderBoard();});
-        poly.addEventListener('drop',(e)=>{e.preventDefault();if(dragState){
-          const{card,playerIdx}=dragState;
-          dragState=null;
-          doPlace(card,playerIdx,q,r);
-          stopGhostSpring();document.getElementById('drag-ghost').style.display='none';
-        }G.dragOver=null;renderBoard();});
-        const dot=svgEl('circle');
-        dot.setAttribute('cx',x); dot.setAttribute('cy',y); dot.setAttribute('r',Math.round(R*0.13));
-        dot.setAttribute('fill','transparent');
-        dot.dataset.cellkey=`${q},${r}`;
-        svg.appendChild(dot);
-        if(G.dragOver===`${q},${r}`){
-          const hover=svgEl('path');
-          hover.setAttribute('d',ptStrRounded(x,y,R,BOARD_GAP,8));
-          hover.setAttribute('fill','rgba(255,220,80,0.30)');
-          hover.setAttribute('stroke','rgba(255,220,80,0.85)');
-          hover.setAttribute('stroke-width',(R*0.07).toFixed(1));
-          hover.style.pointerEvents='none';
-          svg.appendChild(hover);
-        }
-        if(dragState && dragState.hoverCellKey===`${q},${r}`){
-          const hoverDefs = svg.querySelector('defs') || (()=>{
-            const d=svgEl('defs'); svg.insertBefore(d,svg.firstChild); return d;
-          })();
-          const hoverGradId='tile-hover-grad-'+k;
-          const hoverGrad=document.createElementNS('http://www.w3.org/2000/svg','linearGradient');
-          hoverGrad.setAttribute('id',hoverGradId);
-          hoverGrad.setAttribute('x1','0'); hoverGrad.setAttribute('y1','0');
-          hoverGrad.setAttribute('x2','0'); hoverGrad.setAttribute('y2','1');
-          const hStop1=svgEl('stop');
-          hStop1.setAttribute('offset','0%'); hStop1.setAttribute('stop-color','#FFE5AE'); hStop1.setAttribute('stop-opacity','1');
-          const hStop2=svgEl('stop');
-          hStop2.setAttribute('offset','100%'); hStop2.setAttribute('stop-color','#FFFFFF'); hStop2.setAttribute('stop-opacity','0.3');
-          hoverGrad.appendChild(hStop1); hoverGrad.appendChild(hStop2);
-          hoverDefs.appendChild(hoverGrad);
-          const hoverFill=svgEl('polygon');
-          hoverFill.setAttribute('points',ptStr(x,y,R-BOARD_GAP));
-          hoverFill.setAttribute('fill',`url(#${hoverGradId})`);
-          hoverFill.style.mixBlendMode='overlay';
-          hoverFill.style.pointerEvents='none';
-          svg.appendChild(hoverFill);
-        }
-      }
+function boardCellDropIn(cellGroup, dropOrder, q, r){
+  const slot = dropOrder.findIndex(c=>c.q===q && c.r===r);
+  const delayMs = Math.max(0, slot) * TILE_DROP_STAGGER_MS;
+  cellGroup.style.transformBox = 'fill-box';
+  cellGroup.style.transformOrigin = 'center center';
+  cellGroup.style.animation = `tileDropIn ${TILE_DROP_SINGLE_MS}ms ease-in-out ${delayMs}ms both`;
+  later(()=>{ playSfxFile('card-flip.mp3'); }, delayMs+TILE_DROP_SINGLE_MS/2);
+}
+
+function boardCellAcceptCard(poly, q, r){
+  poly.style.cursor='var(--cursore)';
+  poly.dataset.cellkey=`${q},${r}`;
+  poly.addEventListener('click',()=>{if(G.selected)placeCard(q,r);});
+  poly.addEventListener('dragenter',(e)=>{e.preventDefault();G.dragOver=`${q},${r}`;renderBoard();});
+  poly.addEventListener('dragover',(e)=>{e.preventDefault();});
+  poly.addEventListener('dragleave',()=>{G.dragOver=null;renderBoard();});
+  poly.addEventListener('drop',(e)=>{e.preventDefault();if(dragState){
+    const{card,playerIdx}=dragState;
+    dragState=null;
+    doPlace(card,playerIdx,q,r);
+    stopGhostSpring();document.getElementById('drag-ghost').style.display='none';
+  }G.dragOver=null;renderBoard();});
+}
+
+function boardCellDragOverHalo(svg, x, y, R){
+  const hover=svgEl('path');
+  hover.setAttribute('d',ptStrRounded(x,y,R,BOARD_GAP,8));
+  hover.setAttribute('fill','rgba(255,220,80,0.30)');
+  hover.setAttribute('stroke','rgba(255,220,80,0.85)');
+  hover.setAttribute('stroke-width',(R*0.07).toFixed(1));
+  hover.style.pointerEvents='none';
+  svg.appendChild(hover);
+}
+
+function boardCellWall(ctx){
+  const { svg, x, y, R, q, r, k, placeable } = ctx;
+  drawTileCell(svg,x,y,R,tasselloLibero(k,q,r),k+'sotto',false);
+  const holePoly=drawTileCell(svg,x,y,R,muroDellaCella(k,q,r),k+'h',false);
+  holePoly.setAttribute('data-tassello-bloccato', k);
+  holePoly.setAttribute('data-hole-key', k);
+  if(placeable){
+    boardCellAcceptCard(holePoly, q, r);
+    if(G.dragOver===`${q},${r}`) boardCellDragOverHalo(svg, x, y, R);
+  }
+}
+
+function boardCellCard(ctx){
+  const { boardSvgRoot, svg, x, y, R, q, r, k, placed, hole } = ctx;
+  ricalcolaValoriVivi(placed.card, k);
+  if(hole){
+    drawTileCell(svg,x,y,R,tasselloLibero(k,q,r),k+'sotto',false);
+    const muro = drawTileCell(svg,x,y,R,muroDellaCella(k,q,r),k+'h',false);
+    muro.setAttribute('data-tassello-bloccato', k);
+    muro.setAttribute('data-hole-key', k);
+  } else {
+    const tileSottoSrc = (G.destroyedHoles && G.destroyedHoles.has(k))
+      ? tileVariant(TILE_FIXED,q,r)
+      : tasselloLibero(k,q,r);
+    drawTileCell(svg,x,y,R,tileSottoSrc,k+'f',false);
+  }
+  const ownerDisegnato = (G.girataInCorso && G.girataInCorso.cella===k)
+    ? G.girataInCorso.ownerPrima : placed.owner;
+  const fc=ownerDisegnato===1?'var(--red-bg)':'var(--blue-bg)';
+  const sc=ownerDisegnato===1?'var(--red)':'var(--blue)';
+  const tc=ownerDisegnato===1?'var(--red-light)':'var(--blue-light)';
+  const bonusInfo=getFactionBonus(placed.card,q,r,G.board);
+  let factionDeltas={};
+  for(const s of SIDES) factionDeltas[s]=bonusInfo.values[s]-placed.card.values[s];
+  let displayValuesForCell = bonusInfo.values;
+  const antTavolo = anteprimaTavolo();
+  const aSorteInCampo = !!(antTavolo && k!==antTavolo.cellaGiocata && antTavolo.aSorte.tabellone[k]);
+  if(antTavolo && k!==antTavolo.cellaGiocata && antTavolo.tabellone[k] && !aSorteInCampo){
+    const simulati = antTavolo.tabellone[k];
+    const nuovi = {};
+    for(const s of SIDES){
+      const scarto = (simulati[s]||0) - (placed.card.values[s]||0);
+      nuovi[s] = (bonusInfo.values[s]||0) + scarto;
+      if(scarto!==0) factionDeltas[s]=(factionDeltas[s]||0)+scarto;
     }
-    if(playDropAnim && cellGroup){
-      const slot = dropOrder.findIndex(c=>c.q===q && c.r===r);
-      const delayMs = Math.max(0, slot) * TILE_DROP_STAGGER_MS;
-      cellGroup.style.transformBox = 'fill-box';
-      cellGroup.style.transformOrigin = 'center center';
-      cellGroup.style.animation = `tileDropIn ${TILE_DROP_SINGLE_MS}ms ease-in-out ${delayMs}ms both`;
-      later(()=>{ playSfxFile('card-flip.mp3'); }, delayMs+TILE_DROP_SINGLE_MS/2);
+    displayValuesForCell = nuovi;
+  }
+  const cardGroup=document.createElementNS('http://www.w3.org/2000/svg','g');
+  cardGroup.setAttribute('data-conquered',k);
+  stratoCarteDellaPlancia(boardSvgRoot).appendChild(cardGroup);
+  const flipGroup=document.createElementNS('http://www.w3.org/2000/svg','g');
+  flipGroup.setAttribute('data-role','flip-host');
+  cardGroup.appendChild(flipGroup);
+  const recoilGroup=document.createElementNS('http://www.w3.org/2000/svg','g');
+  recoilGroup.setAttribute('data-role','recoil-host');
+  flipGroup.appendChild(recoilGroup);
+  const wobbleGroup=document.createElementNS('http://www.w3.org/2000/svg','g');
+  wobbleGroup.setAttribute('data-role','wobble-host');
+  const yetiHost = (G.yeti && G.yeti.length) ? svgEl('g') : null;
+  if(yetiHost && _yetiVeste(yetiHost, placed.card)){
+    yetiHost.setAttribute('data-role','yeti-host');
+    recoilGroup.appendChild(yetiHost);
+    yetiHost.appendChild(wobbleGroup);
+  } else recoilGroup.appendChild(wobbleGroup);
+  const cardWithOwner = {...placed.card, owner: ownerDisegnato};
+  drawHexCard(wobbleGroup,x,y,R,cardWithOwner,fc,sc,tc,placed.card.name,false,null,null,true,displayValuesForCell,factionDeltas,aSorteInCampo);
+  {
+    const uidGelo = 'carta-' + String(placed.card.id).replace(/[^\w-]/g, '_');
+    const gelata = cartaCongelata(placed.card);
+    if(gelata || _geloCartaDaSciogliere(placed.card, uidGelo)){
+      wobbleGroup.style.isolation = 'isolate';
+      disegnaGeloCella(wobbleGroup, x, y, R, uidGelo, !gelata);
     }
   }
-  _lampadaGeo = { cx, cy, R };
-  try{ disegnaLampade(); }catch(e){ noteHiddenError('board.lamps', e); }
-  cardLandReattach();
-  cardJumpReattach();
-  cardSlideReattach();
-  fumoReattach();
-  accendiLampiValori();
-  accendiLampiNotte();
-  controllaFirmaTabellone(firmaOra);
+  if(_briciolaMangiata && _briciolaMangiata.k === k) _applicaBriciolaMangiata(k, wobbleGroup);
+  const tp=svgEl('polygon'); tp.setAttribute('points',ptStr(x,y,R)); tp.setAttribute('fill','transparent'); tp.setAttribute('stroke','none');
+  tp.style.pointerEvents='all';
+  stratoTocchiDellaPlancia(boardSvgRoot).appendChild(tp);
+  attachCardTooltip(tp, cardWithOwner, true, bonusInfo);
+  tp.addEventListener('mouseenter',()=>{ cardGroup.classList.add('group-sep-hover'); velaLampada(k, true); });
+  tp.addEventListener('mouseleave',()=>{ cardGroup.classList.remove('group-sep-hover'); velaLampada(k, false); });
+  tp.addEventListener('click',(ev)=>{
+    if(G.sceltaBersaglio || G.dragging || dragState || G.selected) return;
+    ev.stopPropagation();
+    openCardModal(cardWithOwner, (ownerDisegnato||1)-1);
+  });
+}
 
-  const overlayDefs=svg.querySelector('defs') || (()=>{
-    const d=svgEl('defs'); svg.insertBefore(d,svg.firstChild); return d;
-  })();
-  function buildSvgIconBtn(href, cxIcon, cyIcon, size, onClick){
-    size = size * SCALA_ICONE_SCELTA;
-    const maskId='svg-icon-mask-'+Math.random().toString(36).slice(2,8);
-    const maskEl=document.createElementNS('http://www.w3.org/2000/svg','mask');
-    maskEl.setAttribute('id',maskId);
-    maskEl.setAttribute('maskUnits','userSpaceOnUse');
-    maskEl.setAttribute('x',(cxIcon-size/2).toFixed(1));
-    maskEl.setAttribute('y',(cyIcon-size/2).toFixed(1));
-    maskEl.setAttribute('width',size.toFixed(1));
-    maskEl.setAttribute('height',size.toFixed(1));
-    const maskImg=document.createElementNS('http://www.w3.org/2000/svg','image');
-    maskImg.setAttribute('href',href);
-    maskImg.setAttribute('x',(cxIcon-size/2).toFixed(1));
-    maskImg.setAttribute('y',(cyIcon-size/2).toFixed(1));
-    maskImg.setAttribute('width',size.toFixed(1));
-    maskImg.setAttribute('height',size.toFixed(1));
-    maskEl.appendChild(maskImg);
-    overlayDefs.appendChild(maskEl);
-
-    const btnGroup=svgEl('g');
-    btnGroup.classList.add('hx-icon-scelta');
-    btnGroup.style.cursor='var(--cursore)';
-
-    const iconImg=svgEl('image');
-    iconImg.setAttribute('href',href);
-    iconImg.setAttribute('x',(cxIcon-size/2).toFixed(1));
-    iconImg.setAttribute('y',(cyIcon-size/2).toFixed(1));
-    iconImg.setAttribute('width',size.toFixed(1));
-    iconImg.setAttribute('height',size.toFixed(1));
-    btnGroup.appendChild(iconImg);
-
-    const overlayRect=svgEl('rect');
-    overlayRect.setAttribute('x',(cxIcon-size/2).toFixed(1));
-    overlayRect.setAttribute('y',(cyIcon-size/2).toFixed(1));
-    overlayRect.setAttribute('width',size.toFixed(1));
-    overlayRect.setAttribute('height',size.toFixed(1));
-    overlayRect.setAttribute('fill','#ffffff');
-    overlayRect.setAttribute('mask',`url(#${maskId})`);
-    overlayRect.classList.add('hx-icon-scelta-overlay');
-    btnGroup.appendChild(overlayRect);
-
-    btnGroup.addEventListener('click',onClick);
-    stratoComandiDellaPlancia(boardSvgRoot).appendChild(btnGroup);
-    return btnGroup;
+function boardCellFree(ctx){
+  const { boardSvgRoot, cellGroup, svg, x, y, R, q, r, k, placeable } = ctx;
+  const tileSrc = (G.destroyedHoles && G.destroyedHoles.has(k))
+    ? tileVariant(TILE_FIXED,q,r)
+    : tasselloLibero(k,q,r);
+  const poly=drawTileCell(svg,x,y,R,tileSrc,k+'f',placeable);
+  if(cellaCongelata(k)){
+    cellGroup.style.isolation = 'isolate';
+    disegnaGeloCella(svg,x,y,R,k+'f');
+  } else if(_geloDaSciogliere(k)){
+    cellGroup.style.isolation = 'isolate';
+    disegnaGeloCella(svg,x,y,R,k+'f', true);
   }
+  if(G.briciole && G.briciole[k]) disegnaBriciola(svg, x, y, R, k);
+  if(G.yeti && G.yeti.length) disegnaYetiInCella(svg, boardSvgRoot, x, y, R, k);
+  poly.setAttribute('data-hole-key', k);
+  if(placeable){
+    boardCellAcceptCard(poly, q, r);
+    const dot=svgEl('circle');
+    dot.setAttribute('cx',x); dot.setAttribute('cy',y); dot.setAttribute('r',Math.round(R*0.13));
+    dot.setAttribute('fill','transparent');
+    dot.dataset.cellkey=`${q},${r}`;
+    svg.appendChild(dot);
+    if(G.dragOver===`${q},${r}`) boardCellDragOverHalo(svg, x, y, R);
+    if(dragState && dragState.hoverCellKey===`${q},${r}`){
+      const hoverDefs = svg.querySelector('defs') || (()=>{
+        const d=svgEl('defs'); svg.insertBefore(d,svg.firstChild); return d;
+      })();
+      const hoverGradId='tile-hover-grad-'+k;
+      const hoverGrad=document.createElementNS('http://www.w3.org/2000/svg','linearGradient');
+      hoverGrad.setAttribute('id',hoverGradId);
+      hoverGrad.setAttribute('x1','0'); hoverGrad.setAttribute('y1','0');
+      hoverGrad.setAttribute('x2','0'); hoverGrad.setAttribute('y2','1');
+      const hStop1=svgEl('stop');
+      hStop1.setAttribute('offset','0%'); hStop1.setAttribute('stop-color','#FFE5AE'); hStop1.setAttribute('stop-opacity','1');
+      const hStop2=svgEl('stop');
+      hStop2.setAttribute('offset','100%'); hStop2.setAttribute('stop-color','#FFFFFF'); hStop2.setAttribute('stop-opacity','0.3');
+      hoverGrad.appendChild(hStop1); hoverGrad.appendChild(hStop2);
+      hoverDefs.appendChild(hoverGrad);
+      const hoverFill=svgEl('polygon');
+      hoverFill.setAttribute('points',ptStr(x,y,R-BOARD_GAP));
+      hoverFill.setAttribute('fill',`url(#${hoverGradId})`);
+      hoverFill.style.mixBlendMode='overlay';
+      hoverFill.style.pointerEvents='none';
+      svg.appendChild(hoverFill);
+    }
+  }
+}
 
+function boardIconButton(boardSvgRoot, overlayDefs, href, cxIcon, cyIcon, size, onClick){
+  size = size * SCALA_ICONE_SCELTA;
+  const maskId='svg-icon-mask-'+Math.random().toString(36).slice(2,8);
+  const maskEl=document.createElementNS('http://www.w3.org/2000/svg','mask');
+  maskEl.setAttribute('id',maskId);
+  maskEl.setAttribute('maskUnits','userSpaceOnUse');
+  maskEl.setAttribute('x',(cxIcon-size/2).toFixed(1));
+  maskEl.setAttribute('y',(cyIcon-size/2).toFixed(1));
+  maskEl.setAttribute('width',size.toFixed(1));
+  maskEl.setAttribute('height',size.toFixed(1));
+  const maskImg=document.createElementNS('http://www.w3.org/2000/svg','image');
+  maskImg.setAttribute('href',href);
+  maskImg.setAttribute('x',(cxIcon-size/2).toFixed(1));
+  maskImg.setAttribute('y',(cyIcon-size/2).toFixed(1));
+  maskImg.setAttribute('width',size.toFixed(1));
+  maskImg.setAttribute('height',size.toFixed(1));
+  maskEl.appendChild(maskImg);
+  overlayDefs.appendChild(maskEl);
+
+  const btnGroup=svgEl('g');
+  btnGroup.classList.add('hx-icon-scelta');
+  btnGroup.style.cursor='var(--cursore)';
+
+  const iconImg=svgEl('image');
+  iconImg.setAttribute('href',href);
+  iconImg.setAttribute('x',(cxIcon-size/2).toFixed(1));
+  iconImg.setAttribute('y',(cyIcon-size/2).toFixed(1));
+  iconImg.setAttribute('width',size.toFixed(1));
+  iconImg.setAttribute('height',size.toFixed(1));
+  btnGroup.appendChild(iconImg);
+
+  const overlayRect=svgEl('rect');
+  overlayRect.setAttribute('x',(cxIcon-size/2).toFixed(1));
+  overlayRect.setAttribute('y',(cyIcon-size/2).toFixed(1));
+  overlayRect.setAttribute('width',size.toFixed(1));
+  overlayRect.setAttribute('height',size.toFixed(1));
+  overlayRect.setAttribute('fill','#ffffff');
+  overlayRect.setAttribute('mask',`url(#${maskId})`);
+  overlayRect.classList.add('hx-icon-scelta-overlay');
+  btnGroup.appendChild(overlayRect);
+
+  btnGroup.addEventListener('click',onClick);
+  stratoComandiDellaPlancia(boardSvgRoot).appendChild(btnGroup);
+  return btnGroup;
+}
+
+function boardDrawChoiceControls(ctx){
+  const { svg, cx, cy, R, buildSvgIconBtn } = ctx;
   if(G.sceltaBersaglio && G.sceltaBersaglio.modo === 'gruppi' && sceltaMia(G.sceltaBersaglio.giocatore)){
     disegnaSceltaGruppi(G.sceltaBersaglio, cx, cy, R, buildSvgIconBtn);
   }
@@ -40416,6 +40401,92 @@ function renderBoard(){
       buildSvgIconBtn(ICONA_RINUNCIA, ox, oy + (sottoLaMano ? R*0.42 : 0), R*0.42, ()=>rinunciaSceltaBersaglio());
     }
   }
+}
+
+function renderBoard(){
+  try{ azioneTooltipAggiorna(); }catch(_){ }
+  if(G.boardDropAnimInProgress){
+    boardRedrawChoiceAfterFall();
+    return;
+  }
+  const svg=document.getElementById('board-svg');
+  const wrap=document.getElementById('board-wrap');
+  if(!wrap || !svg){
+    if(!_tabelloneAssenteSegnalato){
+      _tabelloneAssenteSegnalato = true;
+      console.info('[plancia] richiesto un disegno mentre il tabellone non e\' a schermo: '
+        + 'non c\'e\' niente da disegnare e si tira dritto. Normale uscendo dal tavolo '
+        + 'mentre un\'animazione o un\'abilita\' deve ancora finire.');
+    }
+    return;
+  }
+  const availW=wrap.clientWidth, availH=wrap.clientHeight;
+  if(!availW||!availH)return;
+  try{ aggiornaBoardScore(); }catch(e){ noteHiddenError('board.score', e); }
+  const firmaOra = firmaTabellone() + '|' + availW + 'x' + availH;
+  if(!CONTROLLO_FIRME && _firmaTabellonePrecedente === firmaOra && svg.childNodes.length) return;
+  _firmaTabellonePrecedente = firmaOra;
+  const R=bestBoardR(availW-16,availH-16);
+  svg.setAttribute('width',availW); svg.setAttribute('height',availH);
+  svg.innerHTML='';
+  const cx=availW/2, cy=availH/2;
+  const hasSel=!!(G.selected||G.dragging);
+
+  {
+    const wrapRect = wrap.getBoundingClientRect();
+    const screenScale = availW>0 ? wrapRect.width/availW : 1;
+    lastBoardGeom = {
+      rect: wrapRect,
+      cx: cx*screenScale, cy: cy*screenScale, R: R*screenScale,
+    };
+  }
+  _ultimoCentroPlancia = {x:cx, y:cy};
+  _ultimoRaggioCella = R;
+
+
+  positionBoardBgImg(availW, availH, R);
+
+  const boardSvgRoot = svg;
+  if(boardFallWaitsForAssets()) return;
+  const playDropAnim = !!G.playBoardDropAnim;
+  if(playDropAnim) boardFallBegin();
+  const dropOrder = playDropAnim ? ordineASpirale(G.cells) : null;
+
+  for(const cell of G.cells){
+    const{q,r}=cell;
+    const{x,y}=axialToPixel(q,r,cx,cy,R);
+    const k=key(q,r);
+    const placed=(G.velo && G.velo.cella === k) ? null : G.board[k];
+    const hole=isHole(q,r);
+    const placeable=hasSel&&canPlace(q,r, G.selected && G.selected.card)&&!G.gameOver;
+
+    const cellGroup = document.createElementNS('http://www.w3.org/2000/svg','g');
+    cellGroup.setAttribute('data-cellkey', k);
+    boardSvgRoot.appendChild(cellGroup);
+    let svg = cellGroup;
+
+    const ctx = { boardSvgRoot, cellGroup, svg, x, y, R, q, r, k, placed, hole, placeable };
+    if(hole && !placed) boardCellWall(ctx);
+    else if(placed) boardCellCard(ctx);
+    else boardCellFree(ctx);
+    if(playDropAnim && cellGroup) boardCellDropIn(cellGroup, dropOrder, q, r);
+  }
+  _lampadaGeo = { cx, cy, R };
+  try{ disegnaLampade(); }catch(e){ noteHiddenError('board.lamps', e); }
+  cardLandReattach();
+  cardJumpReattach();
+  cardSlideReattach();
+  fumoReattach();
+  accendiLampiValori();
+  accendiLampiNotte();
+  controllaFirmaTabellone(firmaOra);
+
+  const overlayDefs=svg.querySelector('defs') || (()=>{
+    const d=svgEl('defs'); svg.insertBefore(d,svg.firstChild); return d;
+  })();
+  const buildSvgIconBtn = (href, cxIcon, cyIcon, size, onClick) =>
+    boardIconButton(boardSvgRoot, overlayDefs, href, cxIcon, cyIcon, size, onClick);
+  boardDrawChoiceControls({ svg, cx, cy, R, buildSvgIconBtn });
   try{ stratoCarteDellaPlancia(boardSvgRoot); }catch(e){ noteHiddenError('board.cardLayer', e); }
   try{ disegnaBombeSopraTutto(boardSvgRoot, cx, cy, R); }catch(e){ noteHiddenError('board.bombs', e); }
   try{ disegnaAloneAzione(boardSvgRoot, cx, cy, R); }catch(e){ noteHiddenError('board.actionHalo', e); }
