@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'; script-src 'sha256-FGJB+gofQ0rcrHw+YtbzyzeGgrgmol51+YuXltlZDIU=' 'sha256-FXbw5h4PBcCpNJV600eWD1EVmn5yPHwbkyRPHHoBQNQ=' 'sha256-4qfIzAcn0s8h6RSUIq6PQJvh1jGKjbFwwCZwKAttCXk=' https://accounts.google.com/gsi/client">
+<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'; script-src 'sha256-FGJB+gofQ0rcrHw+YtbzyzeGgrgmol51+YuXltlZDIU=' 'sha256-FXbw5h4PBcCpNJV600eWD1EVmn5yPHwbkyRPHHoBQNQ=' 'sha256-+fHPthNbhbOD935tO+kFtFWNUhfDJFerLMmae4duPR0=' https://accounts.google.com/gsi/client">
 <script>
 (function(){
   try{
@@ -8983,6 +8983,12 @@ try{
         </div>
 
         <div class="debug-item">
+          <button class="hx-btn hx-azione" type="button" data-onclick="debugOpenParallaxLab()">
+            <span class="hxb-label">Parallax test</span>
+          </button>
+        </div>
+
+        <div class="debug-item">
           <button class="hx-btn hx-azione" type="button" data-onclick="avviaPartitaTutorial()">
             <span class="hxb-label">Tutorial match</span>
           </button>
@@ -9418,6 +9424,7 @@ const MARKUP_HANDLERS = {
   "debugMostraNuovoRank()": function(event){ debugMostraNuovoRank() },
   "debugMostraSblocco()": function(event){ debugMostraSblocco() },
   "debugOpenFoilLab()": function(event){ debugOpenFoilLab() },
+  "debugOpenParallaxLab()": function(event){ debugOpenParallaxLab() },
   "debugPasteFoilValues()": function(event){ debugPasteFoilValues() },
   "debugRegala({ink:100})": function(event){ debugRegala({ink:100}) },
   "debugRegala({reward:1})": function(event){ debugRegala({reward:1}) },
@@ -25079,7 +25086,7 @@ function chiudiTendinaOrdine(){
   if(d) d.classList.remove('aperta');
 }
 let _cardDbDragScrollInit=false;
-const CARD_DB_PARALLAX_PX = [-5, 3, 8, 13];
+const CARD_DB_PARALLAX_PX = [-5, 3, 9, 15];
 const CARD_DB_GLOSS_ASSET_RE = /(value-circle|card-corner|card-frame|card-gem-socket|card-gem\.|card-level-socket|archetype-icon|card-deco-bottom|name-wrapper)/;
 const CARD_DB_GLOSS_BAND = 0.13;
 const CARD_HOLO_RAINBOW_TEX = 'https://hextalegame.com/cards/foil/foil-rainbow-brushed.png';
@@ -25926,6 +25933,150 @@ function debugChiudiPannelloFoil(){
   const lab=document.getElementById('foil-lab');
   if(lab && lab.classList.contains('show')) foilLabChiudi();
   else debugCloseFoilTuner();
+}
+
+const PARALLAX_DI_FABBRICA = CARD_DB_PARALLAX_PX.slice();
+const PARALLAX_LAB_MIN = -30, PARALLAX_LAB_MAX = 30, PARALLAX_LAB_PASSO = 0.5;
+const PARALLAX_LAB_NOMI = ['Layer 1 (backdrop)', 'Layer 2', 'Layer 3', 'Layer 4 (nearest)'];
+let _parallaxLab = null;
+function parallaxLabCostruisciCarta(){
+  const host = document.getElementById('foil-lab-card');
+  if(!host) return null;
+  host.innerHTML = '';
+  const entry = FINAL_CARDS.find(e => e && e.name === 'Carabosse') || FINAL_CARDS.find(e => e && Array.isArray(e.artLayersDark) && e.artLayersDark.length > 1) || FINAL_CARDS[0];
+  const owner = playerFactionIsDark(1) ? 1 : 2;
+  const carta = _makeCardDbCard(cartaAlLivello(entry, 4), owner);
+  const visiva = cardFoilVisualCard(carta);
+  visiva.artParallax = true;
+  if(!(_parallaxLab && _parallaxLab.foil)) visiva.foilHolo = false;
+  const lab = document.getElementById('foil-lab');
+  const dispH = (lab ? lab.offsetHeight : 1080) - FOIL_LAB_MARGINE_Y * 2;
+  const h = Math.max(360, Math.round(dispH * FOIL_LAB_SCALA));
+  const w = Math.round(h * 210 / 360);
+  host.style.width = w + 'px';
+  host.style.height = h + 'px';
+  const svg = buildFullHandCardSVG(visiva, w, h);
+  const wrap = cardFoilWrap(svg, true);
+  wrap.dataset.foilVariant = playerFactionName(owner);
+  wrap.setAttribute('data-foil-active', '1');
+  host.appendChild(wrap);
+  host._wrap = wrap;
+  return wrap;
+}
+function parallaxLabRiga(){ return 'CARD_DB_PARALLAX_PX = [' + CARD_DB_PARALLAX_PX.join(', ') + ']'; }
+function parallaxLabAggiorna(){
+  const p = document.getElementById('parallax-tuner');
+  if(!p) return;
+  CARD_DB_PARALLAX_PX.forEach((v, i) => {
+    const s = p.querySelector('[data-strato="' + i + '"]'), n = p.querySelector('[data-valore="' + i + '"]');
+    if(s && Number(s.value) !== v) s.value = String(v);
+    if(n) n.textContent = (v > 0 ? '+' : '') + v;
+  });
+  const out = p.querySelector('[data-riga]');
+  if(out) out.value = parallaxLabRiga();
+}
+function parallaxLabPannello(){
+  let p = document.getElementById('parallax-tuner');
+  if(p) p.remove();
+  p = document.createElement('div');
+  p.id = 'parallax-tuner';
+  p.style.cssText = "position:fixed;top:20px;left:20px;z-index:6000;width:360px;padding:16px 18px;border-radius:16px;"
+    + "background:linear-gradient(135deg,#2F3837 0%,#1A1F1E 100%);box-shadow:inset 0 0 0 1.5px rgba(255,255,255,0.1),0 8px 28px rgba(0,0,0,0.6);"
+    + "font-family:'Rosarivo',serif;color:#e8e6f0;font-size:15px;";
+  const el = (tag, css, testo) => { const e = document.createElement(tag); if(css) e.style.cssText = css; if(testo !== undefined) e.textContent = testo; return e; };
+  const testa = el('div', 'display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;');
+  testa.appendChild(el('span', "font-family:'Marcellus SC',serif;font-size:20px;color:#FBF0D7;", 'Parallax test'));
+  const chiudi = el('span', 'cursor:var(--cursore);font-size:22px;color:#95A7A9;padding:0 4px;', '×');
+  chiudi.addEventListener('click', parallaxLabChiudi);
+  testa.appendChild(chiudi);
+  p.appendChild(testa);
+  CARD_DB_PARALLAX_PX.forEach((v, i) => {
+    const riga = el('div', 'margin-bottom:10px;');
+    const capo = el('div', 'display:flex;justify-content:space-between;font-size:14px;color:#c8d6d8;margin-bottom:2px;');
+    capo.appendChild(el('span', '', PARALLAX_LAB_NOMI[i] || ('Layer ' + (i + 1))));
+    const num = el('span', 'font-family:monospace;color:#FFD480;', '');
+    num.setAttribute('data-valore', String(i));
+    capo.appendChild(num);
+    const s = document.createElement('input');
+    s.type = 'range'; s.min = String(PARALLAX_LAB_MIN); s.max = String(PARALLAX_LAB_MAX); s.step = String(PARALLAX_LAB_PASSO); s.value = String(v);
+    s.setAttribute('data-strato', String(i));
+    s.style.cssText = 'width:100%;cursor:var(--cursore);accent-color:#FFD480;';
+    s.addEventListener('input', () => { CARD_DB_PARALLAX_PX[i] = Number(s.value); parallaxLabAggiorna(); });
+    riga.appendChild(capo); riga.appendChild(s);
+    p.appendChild(riga);
+  });
+  const spunta = (testo, attiva, fare) => {
+    const l = el('label', 'display:flex;align-items:center;gap:8px;font-size:14px;color:#c8d6d8;margin-top:6px;cursor:var(--cursore);');
+    const c = document.createElement('input'); c.type = 'checkbox'; c.checked = !!attiva;
+    c.addEventListener('change', () => fare(c.checked));
+    l.appendChild(c); l.appendChild(el('span', '', testo));
+    return l;
+  };
+  p.appendChild(spunta('Follow the pointer (off: the card turns by itself)', false, (si) => { if(_parallaxLab) _parallaxLab.segue = si; parallaxLabMoto(); }));
+  p.appendChild(spunta('Show the foil too', false, (si) => { if(_parallaxLab) _parallaxLab.foil = si; parallaxLabCostruisciCarta(); }));
+  const bottoni = el('div', 'display:flex;gap:6px;margin-top:14px;');
+  const bottone = (testo, fare) => { const b = el('button', '', testo); b.type = 'button'; b.className = 'foil-tuner-btn'; b.addEventListener('click', fare); return b; };
+  const msg = el('div', 'margin-top:8px;font-size:13px;color:#95A7A9;min-height:18px;', 'The values last until the game is reloaded.');
+  bottoni.appendChild(bottone('Reset', () => { PARALLAX_DI_FABBRICA.forEach((v, i) => { CARD_DB_PARALLAX_PX[i] = v; }); parallaxLabAggiorna(); msg.textContent = 'Back to the values of this version.'; }));
+  bottoni.appendChild(bottone('Copy', () => {
+    const riga = parallaxLabRiga();
+    const fatto = () => { msg.textContent = 'Copied: ' + riga; };
+    try{ navigator.clipboard.writeText(riga).then(fatto, () => { msg.textContent = 'Select the line below and copy it.'; }); }
+    catch(_){ msg.textContent = 'Select the line below and copy it.'; }
+  }));
+  p.appendChild(bottoni);
+  const out = document.createElement('input');
+  out.type = 'text'; out.readOnly = true; out.setAttribute('data-riga', '1');
+  out.style.cssText = 'width:100%;box-sizing:border-box;margin-top:10px;font-family:monospace;font-size:12px;color:#c8d6d8;background:#1A1F1E;border:1px solid #555;border-radius:8px;padding:8px;';
+  out.addEventListener('focus', () => out.select());
+  p.appendChild(out);
+  p.appendChild(msg);
+  document.body.appendChild(p);
+  parallaxLabAggiorna();
+}
+function parallaxLabMoto(){
+  const lab = document.getElementById('foil-lab');
+  if(!_parallaxLab || !lab) return;
+  if(_parallaxLab.segue){
+    if(_foilLabRaf !== null){ cancelAnimationFrame(_foilLabRaf); _foilLabRaf = null; }
+    if(!_parallaxLab.alMuovere){
+      _parallaxLab.alMuovere = (ev) => {
+        const host = document.getElementById('foil-lab-card');
+        if(!_parallaxLab || !_parallaxLab.segue || !host || !host._wrap) return;
+        const r = host.getBoundingClientRect();
+        if(!r.width || !r.height) return;
+        const px = (ev.clientX - r.left) / r.width, py = (ev.clientY - r.top) / r.height;
+        const rx = Math.max(-1, Math.min(1, (px - 0.5) * 2)), ry = Math.max(-1, Math.min(1, (py - 0.5) * 2));
+        cardFoilApply(host._wrap, rx, ry, Math.max(0, Math.min(1, px)), Math.max(0, Math.min(1, py)));
+      };
+      lab.addEventListener('mousemove', _parallaxLab.alMuovere, { passive: true });
+    }
+  } else {
+    _foilLabT0 = performance.now();
+    if(_foilLabRaf === null) _foilLabRaf = requestAnimationFrame(foilLabTick);
+  }
+}
+function debugOpenParallaxLab(){
+  closeDebugModal();
+  abandonCurrentGame();
+  showPage('foillab');
+  const lab = document.getElementById('foil-lab');
+  if(lab){ lab.classList.add('show'); lab.style.background = '#151b1c'; }
+  _parallaxLab = { foil: false, segue: false, alMuovere: null };
+  parallaxLabCostruisciCarta();
+  parallaxLabPannello();
+  parallaxLabMoto();
+}
+function parallaxLabChiudi(){
+  const lab = document.getElementById('foil-lab');
+  if(lab){
+    if(_parallaxLab && _parallaxLab.alMuovere) lab.removeEventListener('mousemove', _parallaxLab.alMuovere);
+    lab.style.background = '';
+  }
+  _parallaxLab = null;
+  const p = document.getElementById('parallax-tuner');
+  if(p) p.remove();
+  foilLabChiudi();
 }
 function debugResetFoilTuner(){
   FOIL_PROFILI[FOIL_TUNER_PROFILO]=foilProfiloDiFabbrica(FOIL_TUNER_PROFILO);
