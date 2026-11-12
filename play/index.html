@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'; script-src 'sha256-FGJB+gofQ0rcrHw+YtbzyzeGgrgmol51+YuXltlZDIU=' 'sha256-FXbw5h4PBcCpNJV600eWD1EVmn5yPHwbkyRPHHoBQNQ=' 'sha256-NeCy1dMIZbWVhf6+0wzO0t/M7JQRoQXKsIc7kQD8T8U=' https://accounts.google.com/gsi/client">
+<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'; script-src 'sha256-FGJB+gofQ0rcrHw+YtbzyzeGgrgmol51+YuXltlZDIU=' 'sha256-FXbw5h4PBcCpNJV600eWD1EVmn5yPHwbkyRPHHoBQNQ=' 'sha256-XQ9Ll1qMXaJm1bnHR45RXO3j7R/DS0hryycFGW2Cx7w=' https://accounts.google.com/gsi/client">
 <script>
 (function(){
   try{
@@ -77,6 +77,9 @@ body.mouse-down, body.mouse-down *{
 
 #app{position:relative;z-index:1;display:flex;flex-direction:column;height:1080px;}
 
+
+*:focus, *:focus-visible{ outline:none !important; }
+::-moz-focus-inner{ border:0; }
 
 #start-screen{
   position:fixed;inset:0;z-index:300;
@@ -21707,10 +21710,13 @@ function avatarProfonditaDaUrl(foto, url, bersaglio){
     return im;
   });
   cornice.insertBefore(pila, foto.nextSibling);
-  const muovi = (rx, ry) => strati.forEach((im, i) => {
-    const f = CARD_DB_PARALLAX_PX[Math.min(i, CARD_DB_PARALLAX_PX.length - 1)];
-    im.style.transform = 'translate(' + (rx * f).toFixed(2) + 'px,' + (ry * f * 0.7).toFixed(2) + 'px)' + (i === 0 ? ' scale(1.06)' : '');
-  });
+  const muovi = (rx, ry) => {
+    const larga = pila.offsetWidth || 0;
+    strati.forEach((im, i) => {
+      const f = parallaxPasso(i, larga);
+      im.style.transform = 'translate(' + (rx * f).toFixed(2) + 'px,' + (ry * f * 0.7).toFixed(2) + 'px)' + (i === 0 ? ' ' + parallaxSfondoCss() : '');
+    });
+  };
   muovi(0, 0);
   const dove = bersaglio || cornice;
   const suMove = e => {
@@ -25086,7 +25092,17 @@ function chiudiTendinaOrdine(){
   if(d) d.classList.remove('aperta');
 }
 let _cardDbDragScrollInit=false;
-const CARD_DB_PARALLAX_PX = [-10, 5, 9, 18];
+const CARD_DB_PARALLAX_PX = [-10, 2, 9, 18];
+const CARD_DB_PARALLAX_RIF = 360;
+function parallaxPasso(profondita, larghezza){
+  const f = CARD_DB_PARALLAX_PX[Math.min(profondita, CARD_DB_PARALLAX_PX.length - 1)] || 0;
+  return f * ((larghezza > 0 ? larghezza : CARD_DB_PARALLAX_RIF) / CARD_DB_PARALLAX_RIF);
+}
+function parallaxScalaSfondo(){
+  const corsa = Math.abs(CARD_DB_PARALLAX_PX[0] || 0);
+  return Math.max(1.06, 1 + (2 * corsa / CARD_DB_PARALLAX_RIF) + 0.012);
+}
+function parallaxSfondoCss(){ return 'scale(' + parallaxScalaSfondo().toFixed(4) + ')'; }
 const CARD_DB_GLOSS_ASSET_RE = /(value-circle|card-corner|card-frame|card-gem-socket|card-gem\.|card-level-socket|archetype-icon|card-deco-bottom|name-wrapper)/;
 const CARD_DB_GLOSS_BAND = 0.13;
 const CARD_HOLO_RAINBOW_TEX = 'https://hextalegame.com/cards/foil/foil-rainbow-brushed.png';
@@ -25267,8 +25283,8 @@ function cardFoilApply(host, rx, ry, px, py){
   }
   host.querySelectorAll('.hex-art-parallax-layer[data-parallax-depth]').forEach(layer=>{
     const d = parseInt(layer.dataset.parallaxDepth,10)||0;
-    const f = CARD_DB_PARALLAX_PX[Math.min(d, CARD_DB_PARALLAX_PX.length-1)];
-    const sc = d===0 ? ' scale(1.06)' : '';
+    const f = parallaxPasso(d, parseFloat(layer.getAttribute('width')) || 0);
+    const sc = d===0 ? ' ' + parallaxSfondoCss() : '';
     layer.style.transform = `translate(${(rx*f).toFixed(2)}px,${(ry*f*0.7).toFixed(2)}px)`+sc;
   });
   if(host._glossStops){
@@ -25287,7 +25303,7 @@ function cardFoilReset(host){
   const tilt=host.querySelector('.card-db-foil-tilt');
   if(tilt){ tilt.style.setProperty('--foil-rx','0'); tilt.style.setProperty('--foil-ry','0'); }
   host.querySelectorAll('.hex-art-parallax-layer[data-parallax-depth]').forEach(layer=>{
-    layer.style.transform = layer.dataset.parallaxDepth==='0' ? 'scale(1.06)' : '';
+    layer.style.transform = layer.dataset.parallaxDepth==='0' ? parallaxSfondoCss() : '';
   });
 }
 function _arteDellaTrasformazione(card, out){
@@ -25341,7 +25357,7 @@ function initCardDbFoilTilt(){
     const tilt=activeSlot.querySelector('.card-db-foil-tilt');
     if(tilt){ tilt.style.setProperty('--foil-rx','0'); tilt.style.setProperty('--foil-ry','0'); }
     activeSlot.querySelectorAll('.hex-art-parallax-layer[data-parallax-depth]').forEach(layer=>{
-      layer.style.transform = layer.dataset.parallaxDepth==='0' ? 'scale(1.06)' : '';
+      layer.style.transform = layer.dataset.parallaxDepth==='0' ? parallaxSfondoCss() : '';
     });
     activeSlot=null;
   };
@@ -37212,7 +37228,7 @@ function hexCardDrawArt(d){
       layerImg.dataset.layerIndex = String(i);
       if(conParallax){
         layerImg.dataset.parallaxDepth = String(i);
-        if(i===0) layerImg.style.transform = 'scale(1.06)';
+        if(i===0) layerImg.style.transform = parallaxSfondoCss();
       }
       pGroup.appendChild(layerImg);
     });
