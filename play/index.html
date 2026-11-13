@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=1920">
-<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'; script-src 'sha256-YRzCSTENoZOu3Y3xyPmjiKQ7S2CFDngYmIFo3oj6RQM=' 'sha256-FXbw5h4PBcCpNJV600eWD1EVmn5yPHwbkyRPHHoBQNQ=' 'sha256-geOnCyq2EvZNNd8sKc8POx465NCjrS62uxi4v0WSoD0=' https://accounts.google.com/gsi/client">
+<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'; script-src 'sha256-YRzCSTENoZOu3Y3xyPmjiKQ7S2CFDngYmIFo3oj6RQM=' 'sha256-FXbw5h4PBcCpNJV600eWD1EVmn5yPHwbkyRPHHoBQNQ=' 'sha256-4P5L2K+0vrR+j9tp2gYAk/frzc4nrui/ulfltBDGrEQ=' https://accounts.google.com/gsi/client">
 <script>
 (function(){
   try{
@@ -8286,7 +8286,7 @@ try{
 <button id="btn-show-results" class="hx-btn hx-btn-opaco" data-onclick="toggleBoardView(false)">
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" data-onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:12.5px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.82.75</div>
+<div id="build-version-badge" data-onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:12.5px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.82.76</div>
 <button id="settings-btn" data-onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" data-onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" data-onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -8995,6 +8995,12 @@ try{
         </div>
 
         <div class="debug-item">
+          <button class="hx-btn hx-azione" type="button" data-onclick="allineamentoApri()">
+            <span class="hxb-label">Art alignment</span>
+          </button>
+        </div>
+
+        <div class="debug-item">
           <button class="hx-btn hx-azione" type="button" data-onclick="avviaPartitaTutorial()">
             <span class="hxb-label">Tutorial match</span>
           </button>
@@ -9431,6 +9437,7 @@ const MARKUP_HANDLERS = {
   "debugMostraSblocco()": function(event){ debugMostraSblocco() },
   "debugOpenFoilLab()": function(event){ debugOpenFoilLab() },
   "debugOpenParallaxLab()": function(event){ debugOpenParallaxLab() },
+  "allineamentoApri()": function(event){ allineamentoApri() },
   "debugPasteFoilValues()": function(event){ debugPasteFoilValues() },
   "debugRegala({ink:100})": function(event){ debugRegala({ink:100}) },
   "debugRegala({reward:1})": function(event){ debugRegala({reward:1}) },
@@ -13073,6 +13080,7 @@ function _applicaCatalogo(carte){
 
 async function caricaCarteDalServer(){
   const risposta = await nakamaRpc('hx_avvio', {});
+  if(risposta && risposta.allineamenti && typeof risposta.allineamenti === 'object') ALLINEAMENTI_ARTE = risposta.allineamenti;
   const cambiato = !risposta.invariato && risposta.carte && risposta.carte.length;
   if(cambiato){
     _applicaCatalogo(risposta.carte);
@@ -14800,7 +14808,7 @@ function mm2AggiornaMazzo(){
   const arte = document.createElement('span');
   arte.className = 'mm2-mazzo-arte';
   if(casuale) impostaSfondoDaCandidati(arte, uiFileCandidati('random-deck-bg.png'));
-  else if(mazzo){ const c = candidatiArtDelMazzo(mazzo); if(c.length) impostaSfondoDaCandidati(arte, c); }
+  else if(mazzo){ const c = candidatiArtDelMazzo(mazzo); if(c.length) impostaSfondoDaCandidati(arte, c); allineaArte(arte, entryDelMazzo(mazzo)); }
   const icona = document.createElement('img');
   icona.className = 'mm2-mazzo-icona'; icona.alt = ''; icona.draggable = false;
   impostaImgDaCandidati(icona, uiFileCandidati('library-deck-icon.png'));
@@ -18026,15 +18034,29 @@ function mazzoDaMostrare(mazzo){
   if(_mazzoInModifica && mazzo && mazzo.id === _mazzoInModificaId) return _mazzoInModifica;
   return mazzo;
 }
-function candidatiArtDelMazzo(mazzo){
+function entryDelMazzo(mazzo){
   const vista = mazzoDaMostrare(mazzo);
-  const entry = entryDaId((vista && vista.carte || [])[0]);
+  return entryDaId((vista && vista.carte || [])[0]) || null;
+}
+function candidatiArtDelMazzo(mazzo){
+  const entry = entryDelMazzo(mazzo);
   if(!entry) return [];
   return candidatiArtDiCarta(entry);
 }
-function candidatiArtDiCarta(entry){
+let ALLINEAMENTI_ARTE = {};
+function allineamentoDi(entry, lato){
+  const v = entry && ALLINEAMENTI_ARTE[entry.id];
+  return (v && v[lato]) || null;
+}
+function allineaArte(el, entry, lato){
+  if(!el) return;
+  const a = allineamentoDi(entry, lato || (varianteCollezioneScura() ? 'dark' : 'light'));
+  el.style.backgroundPosition = a ? (a.x + '% ' + a.y + '%') : '';
+  el.style.backgroundSize = a ? (a.zoom + '% auto') : '';
+}
+function candidatiArtDiCarta(entry, lato){
   if(!entry) return [];
-  const scura = varianteCollezioneScura();
+  const scura = lato ? (lato === 'dark') : varianteCollezioneScura();
   const gia = (scura ? entry.artDark : entry.artLight) || entry.artSrc;
   if(gia) return _conAI([gia]);
   const strati = scura ? entry.artLayersDark : entry.artLayersLight;
@@ -18109,6 +18131,7 @@ function _slotMazzoPieno(mazzo){
   art.className = 'deck-slot-art';
   const candidati = candidatiArtDelMazzo(mazzo);
   if(candidati.length) impostaSfondoDaCandidati(art, candidati);
+  allineaArte(art, entryDelMazzo(mazzo));
   el.dataset.primaCarta = String(((mazzoDaMostrare(mazzo)||{}).carte||[])[0] || '');
   const velo = document.createElement('div');
   velo.className = 'deck-slot-velo';
@@ -18391,7 +18414,7 @@ function aggiornaPannelloModifica(){
   const primaOra = String((m.carte||[])[0] || '');
   if(slot.dataset.primaCarta !== primaOra){
     slot.dataset.primaCarta = primaOra;
-    _sfondoInDissolvenza(slot.querySelector('.deck-slot-art'), candidatiArtDelMazzo(m));
+    _sfondoInDissolvenza(slot.querySelector('.deck-slot-art'), candidatiArtDelMazzo(m), entryDelMazzo(m));
   }
   const contaNum = p.querySelector('.deck-edit-conta-num');
   contaNum.textContent = m.carte.length + '/' + MAZZO_CARTE;
@@ -18462,6 +18485,7 @@ function _rigaCartaMazzo(entry){
   const art = document.createElement('div'); art.className = 'deck-card-row-art';
   const cand = candidatiArtDiCarta(entry);
   if(cand.length) impostaSfondoDaCandidati(art, cand);
+  allineaArte(art, entry);
   const velo = document.createElement('div'); velo.className = 'deck-card-row-velo';
   const gemma = document.createElement('img');
   gemma.className = 'deck-card-row-gemma'; gemma.alt=''; gemma.draggable=false;
@@ -18493,23 +18517,24 @@ function _rigaCartaMazzo(entry){
   return r;
 }
 const DISSOLVENZA_ART_MS = 220;
-function _sfondoInDissolvenza(el, candidati){
+function _sfondoInDissolvenza(el, candidati, entry){
   if(!el) return;
-  if(!candidati || !candidati.length){ el.style.backgroundImage = ''; return; }
+  if(!candidati || !candidati.length){ el.style.backgroundImage = ''; allineaArte(el, null); return; }
   el.style.opacity = '0';
   setTimeout(()=>{
     impostaSfondoDaCandidati(el, candidati);
+    allineaArte(el, entry || null);
     el.style.opacity = '1';
   }, DISSOLVENZA_ART_MS);
 }
 function aggiornaArtiMazzi(){
   document.querySelectorAll('#deck-list .deck-slot-piena').forEach(slot=>{
     const mazzo = mazzoPerId(slot.dataset.mazzo);
-    if(mazzo) _sfondoInDissolvenza(slot.querySelector('.deck-slot-art'), candidatiArtDelMazzo(mazzo));
+    if(mazzo) _sfondoInDissolvenza(slot.querySelector('.deck-slot-art'), candidatiArtDelMazzo(mazzo), entryDelMazzo(mazzo));
   });
   document.querySelectorAll('.deck-card-row').forEach(riga=>{
     const entry = entryDaId(riga.dataset.carta);
-    if(entry) _sfondoInDissolvenza(riga.querySelector('.deck-card-row-art'), candidatiArtDiCarta(entry));
+    if(entry) _sfondoInDissolvenza(riga.querySelector('.deck-card-row-art'), candidatiArtDiCarta(entry), entry);
   });
 }
 function aggiungiCartaAlMazzo(id){
@@ -25964,6 +25989,7 @@ function foilLabChiudi(){
   const lab=document.getElementById('foil-lab');
   if(lab) lab.classList.remove('show');
   debugCloseFoilTuner();
+  if(_giocatoreDentro && sessioneAccount && sessioneAccount.token){ apriMenuPrincipale(); return; }
   showPage('start');
   const ss=document.getElementById('start-screen'); if(ss) ss.style.display='flex';
 }
@@ -26130,6 +26156,262 @@ function parallaxLabChiudi(){
   const p = document.getElementById('parallax-tuner');
   if(p) p.remove();
   foilLabChiudi();
+}
+
+const ALLINEA_DEFAULT = { x: 50, y: 30, zoom: 100 };
+const ALLINEA_ANTEPRIME = [
+  { nome: 'Card in a deck', w: 360, h: 46, tipo: 'riga' },
+  { nome: 'Deck (closed)', w: 400, h: 70, tipo: 'mazzo' },
+  { nome: 'Deck (open)', w: 400, h: 240, tipo: 'aperto' },
+  { nome: 'Main menu', w: 333, h: 70, tipo: 'menu' },
+];
+let _allinea = null;
+function _allineaCarte(){
+  const viste = new Set();
+  return (FINAL_CARDS || []).filter(e => e && e.id && !viste.has(e.id) && viste.add(e.id))
+    .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+}
+function _allineaValoriDi(entry, lato){
+  const a = allineamentoDi(entry, lato);
+  return a ? { x: a.x, y: a.y, zoom: a.zoom } : Object.assign({}, ALLINEA_DEFAULT);
+}
+function _allineaUguali(a, b){ return a.x === b.x && a.y === b.y && a.zoom === b.zoom; }
+function allineamentoApri(){
+  closeDebugModal();
+  allineamentoChiudi();
+  const carte = _allineaCarte();
+  if(!carte.length) return;
+  _allinea = { entry: null, lato: varianteCollezioneScura() ? 'dark' : 'light', valori: {}, sporchi: {}, aspetto: {}, alTasto: null };
+  _allineaPannello(carte);
+  _allineaScegli(carte.find(e => e.name === 'Carabosse') || carte[0]);
+  _allinea.alTasto = (ev) => {
+    if(!_allinea) return;
+    const t = ev.target;
+    if(t && (t.tagName === 'INPUT' && t.type === 'text' || t.tagName === 'TEXTAREA')) return;
+    const k = String(ev.key || '').toLowerCase();
+    const tieni = () => { ev.preventDefault(); ev.stopPropagation(); };
+    if(k === 'x'){ tieni(); _allineaLato(_allinea.lato === 'dark' ? 'light' : 'dark'); }
+    else if(k === 'arrowright'){ tieni(); _allineaSposta(1); }
+    else if(k === 'arrowleft'){ tieni(); _allineaSposta(-1); }
+    else if(k === 'escape'){ tieni(); allineamentoChiudi(); }
+  };
+  document.addEventListener('keydown', _allinea.alTasto, true);
+}
+function allineamentoChiudi(){
+  if(_allinea && _allinea.alTasto) document.removeEventListener('keydown', _allinea.alTasto, true);
+  _allinea = null;
+  const p = document.getElementById('allinea-arte');
+  if(p) p.remove();
+}
+function _allineaPannello(carte){
+  const el = (tag, css, testo) => { const e = document.createElement(tag); if(css) e.style.cssText = css; if(testo !== undefined) e.textContent = testo; return e; };
+  const velo = el('div', 'position:fixed;inset:0;z-index:6000;background:rgba(5,8,8,0.72);display:flex;align-items:center;justify-content:center;');
+  velo.id = 'allinea-arte';
+  const p = el('div', "width:900px;max-width:96vw;max-height:94vh;overflow:auto;padding:18px 22px;border-radius:16px;box-sizing:border-box;"
+    + "background:linear-gradient(135deg,#2F3837 0%,#1A1F1E 100%);box-shadow:inset 0 0 0 1.5px rgba(255,255,255,0.1),0 8px 28px rgba(0,0,0,0.6);"
+    + "font-family:'Rosarivo',serif;color:#e8e6f0;font-size:15px;");
+  velo.appendChild(p);
+  const testa = el('div', 'display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;');
+  testa.appendChild(el('span', "font-family:'Marcellus SC',serif;font-size:22px;color:#FBF0D7;", 'Art alignment'));
+  const chiudi = el('span', 'cursor:var(--cursore);font-size:24px;color:#95A7A9;padding:0 4px;', '×');
+  chiudi.addEventListener('click', allineamentoChiudi);
+  testa.appendChild(chiudi);
+  p.appendChild(testa);
+  const bottone = (testo, fare) => { const b = el('button', 'flex:0 0 auto;padding:8px 14px;', testo); b.type = 'button'; b.className = 'foil-tuner-btn'; b.addEventListener('click', fare); return b; };
+  const scelta = el('div', 'display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;');
+  scelta.appendChild(bottone('◀ Prev', () => _allineaSposta(-1)));
+  const sel = document.createElement('select');
+  sel.setAttribute('data-carta', '1');
+  sel.style.cssText = 'flex:1 1 220px;font:inherit;color:#e8e6f0;background:#1A1F1E;border:1px solid #555;border-radius:8px;padding:6px 8px;';
+  carte.forEach(e => { const o = document.createElement('option'); o.value = e.id; o.textContent = e.name; sel.appendChild(o); });
+  sel.addEventListener('change', () => { const e = carte.find(c => c.id === sel.value); if(e) _allineaScegli(e); });
+  scelta.appendChild(sel);
+  scelta.appendChild(bottone('Next ▶', () => _allineaSposta(1)));
+  const lati = el('div', 'display:flex;gap:4px;margin-left:8px;');
+  ['dark', 'light'].forEach(l => {
+    const b = bottone(l === 'dark' ? 'Dark' : 'Light', () => _allineaLato(l));
+    b.setAttribute('data-lato', l);
+    lati.appendChild(b);
+  });
+  scelta.appendChild(lati);
+  p.appendChild(scelta);
+  p.appendChild(el('div', 'font-size:13px;color:#95A7A9;margin:-4px 0 12px;', 'X: dark/light · ←/→: card · drag a preview to move the art, wheel to zoom · Esc: close'));
+  const cursori = el('div', 'display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px;');
+  [['x', 'Horizontal', 0, 100, 0.5], ['y', 'Vertical', 0, 100, 0.5], ['zoom', 'Zoom', 50, 400, 1]].forEach(([k, nome, min, max, passo]) => {
+    const r = el('div', '');
+    const capo = el('div', 'display:flex;justify-content:space-between;font-size:14px;color:#c8d6d8;margin-bottom:2px;');
+    capo.appendChild(el('span', '', nome));
+    const num = el('span', 'font-family:monospace;color:#FFD480;', '');
+    num.setAttribute('data-valore', k);
+    capo.appendChild(num);
+    const s = document.createElement('input');
+    s.type = 'range'; s.min = String(min); s.max = String(max); s.step = String(passo);
+    s.setAttribute('data-cursore', k);
+    s.style.cssText = 'width:100%;cursor:var(--cursore);accent-color:#FFD480;';
+    s.addEventListener('input', () => _allineaCambia({ [k]: Number(s.value) }));
+    r.appendChild(capo); r.appendChild(s);
+    cursori.appendChild(r);
+  });
+  p.appendChild(cursori);
+  const anteprime = el('div', 'display:flex;flex-wrap:wrap;gap:16px 22px;align-items:flex-start;');
+  ALLINEA_ANTEPRIME.forEach(a => {
+    const blocco = el('div', '');
+    blocco.appendChild(el('div', 'font-size:13px;color:#95A7A9;margin-bottom:4px;', a.nome + ' · ' + a.w + '×' + a.h));
+    const box = el('div', 'position:relative;overflow:hidden;box-sizing:border-box;cursor:grab;touch-action:none;'
+      + 'width:' + a.w + 'px;height:' + a.h + 'px;border:1px solid rgba(255,255,255,0.2);border-radius:' + (a.tipo === 'riga' ? 8 : 16) + 'px;background:#1B2122;');
+    const arte = el('div', 'position:absolute;inset:0;background-repeat:no-repeat;pointer-events:none;');
+    arte.setAttribute('data-arte', a.tipo);
+    box.appendChild(arte);
+    const veli = {
+      riga: 'linear-gradient(90deg, rgba(30,36,35,1) 0%, rgba(30,36,35,0.2) 100%)',
+      mazzo: 'linear-gradient(90deg, rgba(27,33,34,0.95) 0%, rgba(27,33,34,0.2) 100%)',
+      aperto: 'linear-gradient(180deg, rgba(27,33,34,0) 40%, rgba(27,33,34,0.95) 100%)',
+      menu: 'linear-gradient(101.8deg, rgba(27,33,34,0) 0%, #1B2122 100%)',
+    };
+    box.appendChild(el('div', 'position:absolute;inset:0;pointer-events:none;background:' + veli[a.tipo] + ';'));
+    const nome = el('span', "position:absolute;left:16px;top:50%;transform:translateY(-50%);font-family:'Marcellus SC',serif;font-size:" + (a.tipo === 'riga' ? 18 : 22) + "px;color:#FBF0D7;pointer-events:none;", '');
+    if(a.tipo === 'aperto'){ nome.style.top = 'auto'; nome.style.bottom = '14px'; nome.style.transform = 'none'; }
+    nome.setAttribute('data-nome', '1');
+    box.appendChild(nome);
+    _allineaTrascina(box, a);
+    blocco.appendChild(box);
+    anteprime.appendChild(blocco);
+  });
+  p.appendChild(anteprime);
+  const fondo = el('div', 'display:flex;align-items:center;gap:8px;margin-top:16px;');
+  fondo.appendChild(bottone('Save', () => _allineaSalva()));
+  fondo.appendChild(bottone('Reset this side', () => _allineaCambia(Object.assign({}, ALLINEA_DEFAULT))));
+  const msg = el('span', 'margin-left:8px;font-size:14px;color:#95A7A9;', '');
+  msg.setAttribute('data-msg', '1');
+  fondo.appendChild(msg);
+  p.appendChild(fondo);
+  velo.addEventListener('pointerdown', (ev) => { if(ev.target === velo) allineamentoChiudi(); });
+  document.body.appendChild(velo);
+}
+function _allineaMsg(t){ const m = document.querySelector('#allinea-arte [data-msg]'); if(m) m.textContent = t || ''; }
+function _allineaScegli(entry){
+  if(!_allinea || !entry) return;
+  _allinea.entry = entry;
+  _allinea.valori = { dark: _allineaValoriDi(entry, 'dark'), light: _allineaValoriDi(entry, 'light') };
+  _allinea.sporchi = { dark: false, light: false };
+  _allinea.aspetto = {};
+  const sel = document.querySelector('#allinea-arte [data-carta]');
+  if(sel && sel.value !== entry.id) sel.value = entry.id;
+  _allineaMsg(ALLINEAMENTI_ARTE[entry.id] ? 'Saved alignment: ' + ['dark', 'light'].filter(l => allineamentoDi(entry, l)).join(' and ') + '.' : 'Not aligned yet: the game\'s default.');
+  _allineaDisegna(true);
+}
+function _allineaLato(lato){
+  if(!_allinea || lato === _allinea.lato) return;
+  _allinea.lato = lato;
+  _allineaDisegna(true);
+}
+async function _allineaSposta(passo){
+  if(!_allinea || !_allinea.entry) return;
+  if(_allinea.sporchi.dark || _allinea.sporchi.light){ if(!(await _allineaSalva())) return; }
+  const carte = _allineaCarte();
+  const i = carte.findIndex(e => e.id === _allinea.entry.id);
+  _allineaScegli(carte[(i + passo + carte.length) % carte.length]);
+}
+function _allineaCambia(nuovi){
+  if(!_allinea || !_allinea.entry) return;
+  const v = _allinea.valori[_allinea.lato];
+  Object.keys(nuovi).forEach(k => {
+    const [min, max] = (k === 'zoom') ? [50, 400] : [0, 100];
+    v[k] = Math.round(Math.max(min, Math.min(max, nuovi[k])) * 10) / 10;
+  });
+  _allinea.sporchi[_allinea.lato] = !_allineaUguali(v, _allineaValoriDi(_allinea.entry, _allinea.lato));
+  _allineaDisegna(false);
+}
+function _allineaDisegna(nuovaArte){
+  if(!_allinea || !_allinea.entry) return;
+  const p = document.getElementById('allinea-arte');
+  if(!p) return;
+  const lato = _allinea.lato, v = _allinea.valori[lato], e = _allinea.entry;
+  p.querySelectorAll('[data-lato]').forEach(b => {
+    const su = b.getAttribute('data-lato') === lato;
+    b.style.background = su ? 'rgba(255,212,128,0.35)' : '';
+    b.style.color = su ? '#FBF0D7' : '';
+  });
+  ['x', 'y', 'zoom'].forEach(k => {
+    const s = p.querySelector('[data-cursore="' + k + '"]'), n = p.querySelector('[data-valore="' + k + '"]');
+    if(s && Number(s.value) !== v[k]) s.value = String(v[k]);
+    if(n) n.textContent = v[k] + '%';
+  });
+  p.querySelectorAll('[data-nome]').forEach(n => { n.textContent = e.name || ''; });
+  p.querySelectorAll('[data-arte]').forEach(a => {
+    if(nuovaArte){
+      a.style.backgroundImage = '';
+      const cand = candidatiArtDiCarta(e, lato);
+      if(cand.length) impostaSfondoDaCandidati(a, cand);
+    }
+    a.style.backgroundPosition = v.x + '% ' + v.y + '%';
+    a.style.backgroundSize = v.zoom + '% auto';
+  });
+  if(nuovaArte) _allineaMisuraAspetto(e, lato);
+  const segno = (_allinea.sporchi.dark ? ' · dark not saved' : '') + (_allinea.sporchi.light ? ' · light not saved' : '');
+  if(segno) _allineaMsg(e.name + segno);
+}
+function _allineaMisuraAspetto(entry, lato){
+  if(_allinea.aspetto[lato]) return;
+  const c = candidatiArtDiCarta(entry, lato).slice(-1)[0];
+  const u = Array.isArray(c) ? c[0] : c;
+  if(!u) return;
+  const im = new Image();
+  im.onload = () => { if(_allinea && _allinea.entry === entry && im.naturalWidth) _allinea.aspetto[lato] = im.naturalHeight / im.naturalWidth; };
+  im.src = u;
+}
+function _allineaTrascina(box, a){
+  let su = null;
+  box.addEventListener('pointerdown', (ev) => {
+    if(!_allinea) return;
+    su = { x: ev.clientX, y: ev.clientY, v: Object.assign({}, _allinea.valori[_allinea.lato]) };
+    try{ box.setPointerCapture(ev.pointerId); }catch(_){ }
+    box.style.cursor = 'grabbing';
+  });
+  box.addEventListener('pointermove', (ev) => {
+    if(!su || !_allinea) return;
+    const r = box.getBoundingClientRect();
+    const k = r.width / a.w;
+    const dx = (ev.clientX - su.x) / k, dy = (ev.clientY - su.y) / k;
+    const imgW = a.w * su.v.zoom / 100, imgH = imgW * (_allinea.aspetto[_allinea.lato] || 1.5);
+    const corsaX = imgW - a.w, corsaY = imgH - a.h;
+    const nuovi = {};
+    if(Math.abs(corsaX) > 0.5) nuovi.x = su.v.x - dx / corsaX * 100;
+    if(Math.abs(corsaY) > 0.5) nuovi.y = su.v.y - dy / corsaY * 100;
+    _allineaCambia(nuovi);
+  });
+  const fine = () => { su = null; box.style.cursor = 'grab'; };
+  box.addEventListener('pointerup', fine);
+  box.addEventListener('pointercancel', fine);
+  box.addEventListener('wheel', (ev) => {
+    if(!_allinea) return;
+    ev.preventDefault();
+    _allineaCambia({ zoom: _allinea.valori[_allinea.lato].zoom - ev.deltaY * 0.05 });
+  }, { passive: false });
+}
+async function _allineaSalva(){
+  if(!_allinea || !_allinea.entry) return false;
+  const e = _allinea.entry;
+  const lati = ['dark', 'light'].filter(l => _allinea.sporchi[l]);
+  if(!lati.length){ _allineaMsg('Nothing to save for ' + e.name + '.'); return true; }
+  _allineaMsg('Saving…');
+  try{
+    let r = null;
+    for(const l of lati){
+      const v = _allinea.valori[l];
+      const via = _allineaUguali(v, ALLINEA_DEFAULT);
+      r = await nakamaRpc('hx_allineamento_salva', via ? { carta: e.id, lato: l, via: true } : { carta: e.id, lato: l, x: v.x, y: v.y, zoom: v.zoom });
+      if(_allinea && _allinea.entry === e) _allinea.sporchi[l] = false;
+    }
+    if(r && r.allineamenti) ALLINEAMENTI_ARTE = r.allineamenti;
+    try{ aggiornaArtiMazzi(); }catch(_){ }
+    try{ mm2AggiornaMazzo(); }catch(_){ }
+    _allineaMsg('Saved: ' + e.name + ' ' + lati.join(' and ') + '. Every player sees it from their next start.');
+    return true;
+  }catch(err){
+    _allineaMsg('Not saved: ' + ((err && err.message) || 'no answer from the server') + '.');
+    return false;
+  }
 }
 function debugResetFoilTuner(){
   FOIL_PROFILI[FOIL_TUNER_PROFILO]=foilProfiloDiFabbrica(FOIL_TUNER_PROFILO);
@@ -41421,6 +41703,7 @@ const LV_CAMBIO_PICCO_MS = Math.round(LV_CAMBIO_MS * 0.12);
 const LV_CAMBIO_PASSO_MS = 100;
 const LV_FUOCHI_SCALA = 1.5;
 const LV_FUOCHI_SPINTA = 0.0022;
+const LV_SCIA_MIN = 1, LV_SCIA_MAX = 2, LV_SCIA_MS = 44, LV_SCIA_SFOCATURA = 1;
 let _lvGen = 0;
 let _lvChiusura = null;
 let _lvFuochiRaf = 0;
@@ -41573,6 +41856,10 @@ function _lvFuochi(canvas, cx, cy){
   if(!g) return;
   canvas.width = canvas.clientWidth || 1920;
   canvas.height = canvas.clientHeight || 1080;
+  const scie = document.createElement('canvas');
+  scie.width = canvas.width; scie.height = canvas.height;
+  const gs = scie.getContext('2d');
+  if(!gs) return;
   const scintille = [];
   const scoppio = (quante, forza, ritardo) => {
     for(let i = 0; i < quante; i++){
@@ -41580,7 +41867,8 @@ function _lvFuochi(canvas, cx, cy){
       const v = forza * (0.3 + Math.random() * 0.7);
       scintille.push({ x:cx, y:cy, vx:Math.cos(ang)*v, vy:Math.sin(ang)*v, nata:ritardo,
         vita:900 + Math.random()*900, colore:_lvTintaFuoco(), forma:particellaACaso(),
-        spessore:(1.2 + Math.random()*2.4) * LV_FUOCHI_SCALA });
+        spessore:LV_SCIA_MIN + Math.random()*(LV_SCIA_MAX - LV_SCIA_MIN),
+        testa:(1.2 + Math.random()*2.4) * LV_FUOCHI_SCALA * 3.2 });
     }
   };
   scoppio(110, 0.95 * LV_FUOCHI_SCALA, 0);
@@ -41598,6 +41886,7 @@ function _lvFuochi(canvas, cx, cy){
     g.lineCap = 'round';
     let vive = 0;
     const attrito = Math.pow(0.9975, dt);
+    const accese = [];
     for(const s of scintille){
       const eta = t - s.nata;
       if(eta < 0){ vive++; continue; }
@@ -41607,14 +41896,43 @@ function _lvFuochi(canvas, cx, cy){
       s.vy = s.vy * attrito + 0.0009 * dt;
       s.x += s.vx * dt;
       s.y += s.vy * dt;
-      g.globalAlpha = Math.max(0, 1 - eta / s.vita);
-      g.strokeStyle = s.colore;
-      g.lineWidth = s.spessore;
-      g.beginPath();
-      g.moveTo(s.x - s.vx * 34, s.y - s.vy * 34);
-      g.lineTo(s.x, s.y);
-      g.stroke();
-      particellaDisegna(g, s.forma, s.colore, s.x, s.y, s.spessore * 3.2);
+      s.alfa = Math.max(0, 1 - eta / s.vita);
+      accese.push(s);
+    }
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    gs.setTransform(1, 0, 0, 1, 0, 0);
+    gs.clearRect(0, 0, scie.width, scie.height);
+    gs.globalCompositeOperation = 'lighter';
+    gs.lineCap = 'round';
+    for(const s of accese){
+      const codaX = s.x - s.vx * LV_SCIA_MS, codaY = s.y - s.vy * LV_SCIA_MS;
+      const sfuma = gs.createLinearGradient(codaX, codaY, s.x, s.y);
+      sfuma.addColorStop(0, s.colore.replace('rgb(', 'rgba(').replace(')', ',0)'));
+      sfuma.addColorStop(1, s.colore);
+      gs.globalAlpha = s.alfa;
+      gs.strokeStyle = sfuma;
+      gs.lineWidth = s.spessore;
+      gs.beginPath();
+      gs.moveTo(codaX, codaY);
+      gs.lineTo(s.x, s.y);
+      gs.stroke();
+      x0 = Math.min(x0, codaX, s.x); y0 = Math.min(y0, codaY, s.y);
+      x1 = Math.max(x1, codaX, s.x); y1 = Math.max(y1, codaY, s.y);
+    }
+    if(accese.length){
+      const m = LV_SCIA_MAX + LV_SCIA_SFOCATURA * 3;
+      const bx = Math.max(0, Math.floor(x0 - m)), by = Math.max(0, Math.floor(y0 - m));
+      const bw = Math.min(scie.width, Math.ceil(x1 + m)) - bx, bh = Math.min(scie.height, Math.ceil(y1 + m)) - by;
+      if(bw > 0 && bh > 0){
+        g.globalAlpha = 1;
+        g.filter = 'blur(' + LV_SCIA_SFOCATURA + 'px)';
+        g.drawImage(scie, bx, by, bw, bh, bx, by, bw, bh);
+        g.filter = 'none';
+      }
+    }
+    for(const s of accese){
+      g.globalAlpha = s.alfa;
+      particellaDisegna(g, s.forma, s.colore, s.x, s.y, s.testa);
     }
     g.globalAlpha = 1;
     g.globalCompositeOperation = 'source-over';
