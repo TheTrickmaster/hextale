@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=1920">
-<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'; script-src 'sha256-YRzCSTENoZOu3Y3xyPmjiKQ7S2CFDngYmIFo3oj6RQM=' 'sha256-FXbw5h4PBcCpNJV600eWD1EVmn5yPHwbkyRPHHoBQNQ=' 'sha256-4PiVcQFv8PjtsrHF//Vwghi1tzl7wzSES0lOvgCn5J0=' https://accounts.google.com/gsi/client">
+<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'; script-src 'sha256-YRzCSTENoZOu3Y3xyPmjiKQ7S2CFDngYmIFo3oj6RQM=' 'sha256-FXbw5h4PBcCpNJV600eWD1EVmn5yPHwbkyRPHHoBQNQ=' 'sha256-geOnCyq2EvZNNd8sKc8POx465NCjrS62uxi4v0WSoD0=' https://accounts.google.com/gsi/client">
 <script>
 (function(){
   try{
@@ -8286,7 +8286,7 @@ try{
 <button id="btn-show-results" class="hx-btn hx-btn-opaco" data-onclick="toggleBoardView(false)">
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" data-onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:12.5px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.82.74</div>
+<div id="build-version-badge" data-onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:12.5px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.82.75</div>
 <button id="settings-btn" data-onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" data-onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" data-onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -18037,6 +18037,11 @@ function candidatiArtDiCarta(entry){
   const scura = varianteCollezioneScura();
   const gia = (scura ? entry.artDark : entry.artLight) || entry.artSrc;
   if(gia) return _conAI([gia]);
+  const strati = scura ? entry.artLayersDark : entry.artLayersLight;
+  if(Array.isArray(strati) && strati.length > 1){
+    const ai = _pilaAI(strati);
+    return ai ? [ai, strati.slice()] : [strati.slice()];
+  }
   const slug = entry.slug || slugPersonaggio(entry.name);
   if(!slug) return [];
   return _conAI(artUrlVariante(slug, scura ? 'dark' : 'light').senzaNumero || []);
@@ -22938,6 +22943,19 @@ function packFileCandidati(nome){
   return _candidati('cards/packs/' + nome,
                     'https://hextalegame.com/cards/packs/' + nome);
 }
+function _sfondoPila(el, pila, riuscito, fallito){
+  let mancano = pila.length, rotto = false;
+  for(const u of pila){
+    const test = new Image();
+    test.onload = ()=>{
+      if(rotto || --mancano) return;
+      el.style.backgroundImage = pila.slice().reverse().map(x => "url('" + x + "')").join(', ');
+      riuscito();
+    };
+    test.onerror = ()=>{ if(!rotto){ rotto = true; fallito(); } };
+    test.src = u;
+  }
+}
 function impostaSfondoDaCandidati(el, candidati){
   if(!el) return;
   let pronta = null;
@@ -22950,6 +22968,7 @@ function impostaSfondoDaCandidati(el, candidati){
       return;
     }
     const url = candidati[i++];
+    if(Array.isArray(url)){ _sfondoPila(el, url, pronta, prova); return; }
     const test = new Image();
     test.onload = ()=>{ el.style.backgroundImage = "url('" + url + "')"; pronta(); };
     test.onerror = prova;
