@@ -1,6 +1,5 @@
 import { narrowScreen, reducedMotion } from './media.js';
 import { applyFoil, resetFoil } from './card-foil.js';
-import { tiltBackdrops } from './scroll.js';
 
 const FLIP_MS = 560;
 const TILT_RANGE_DEG = 30;
@@ -91,7 +90,6 @@ function initDeviceTilt() {
     const y = clamp(((event.beta || 0) - restingBeta) / TILT_RANGE_DEG);
 
     if (narrowScreen.matches) tiltCard(x, y);
-    tiltBackdrops(x);
   };
 
   const listen = () => {
