@@ -1,4 +1,5 @@
 import { reducedMotion } from './media.js';
+import { loadSprites, randomSprite } from './particles.js';
 
 const DUST_COLOR = '#FFF8C3';
 const DUST_LAYERS = [
@@ -7,61 +8,14 @@ const DUST_LAYERS = [
   { id: 'polvere-vicino', count: 30, radius: [5, 11], speed: [22, 40], alpha: [0.18, 0.4], sway: [10, 26] },
 ];
 
-const SPRITE_COUNT = 12;
-const INK_ALPHA = 30;
-
-const sprites = [];
-
 const random = (min, max) => min + Math.random() * (max - min);
-
-function inkScale(image) {
-  const width = image.naturalWidth;
-  const height = image.naturalHeight;
-  const canvas = document.createElement('canvas');
-  const context = canvas.getContext('2d');
-
-  canvas.width = width;
-  canvas.height = height;
-  context.drawImage(image, 0, 0);
-
-  const { data } = context.getImageData(0, 0, width, height);
-  let left = width;
-  let right = -1;
-  let top = height;
-  let bottom = -1;
-
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      if (data[(y * width + x) * 4 + 3] <= INK_ALPHA) continue;
-      left = Math.min(left, x);
-      right = Math.max(right, x);
-      top = Math.min(top, y);
-      bottom = Math.max(bottom, y);
-    }
-  }
-
-  const ink = Math.max(right - left + 1, bottom - top + 1);
-  return ink > 0 ? Math.max(width, height) / ink : 1;
-}
-
-function loadSprites() {
-  for (let i = 1; i <= SPRITE_COUNT; i++) {
-    const sprite = { image: new Image(), scale: 0 };
-
-    sprite.image.onload = () => {
-      sprite.scale = inkScale(sprite.image);
-    };
-    sprite.image.src = `/ui/particles/particle${String(i).padStart(2, '0')}.png`;
-    sprites.push(sprite);
-  }
-}
 
 function createSpeck(settings, width, height, scattered) {
   const radius = random(...settings.radius);
   const below = height + radius + random(4, Math.min(90, Math.max(8, height * 0.25)));
 
   return {
-    sprite: sprites[Math.floor(random(0, sprites.length))],
+    sprite: randomSprite(),
     x: random(-20, width + 20),
     y: scattered ? random(-20, height + 20) : below,
     radius,
