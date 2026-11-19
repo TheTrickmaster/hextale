@@ -1,0 +1,17 @@
+import { initHero } from './hero.js';
+import { initScroll } from './scroll.js';
+import { initStages } from './stage.js';
+import { initCardShowcase } from './card-showcase.js';
+import { initFaq } from './faq.js';
+import { initDialogs } from './dialogs.js';
+import { initTrailer } from './trailer.js';
+import { initButtons } from './buttons.js';
+
+initHero();
+initScroll();
+initStages();
+initCardShowcase();
+initFaq();
+initDialogs();
+initTrailer();
+initButtons();
