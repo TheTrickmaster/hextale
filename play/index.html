@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=1920">
-<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'; script-src 'sha256-YRzCSTENoZOu3Y3xyPmjiKQ7S2CFDngYmIFo3oj6RQM=' 'sha256-FXbw5h4PBcCpNJV600eWD1EVmn5yPHwbkyRPHHoBQNQ=' 'sha256-wacupkpxNA2192sR2h0vQfFE0yfeu1v8qnAMt/19nHY=' https://accounts.google.com/gsi/client">
+<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'; script-src 'sha256-YRzCSTENoZOu3Y3xyPmjiKQ7S2CFDngYmIFo3oj6RQM=' 'sha256-FXbw5h4PBcCpNJV600eWD1EVmn5yPHwbkyRPHHoBQNQ=' 'sha256-3GPtFCZBvNw2FGmfpoFhQbTQ7rtn2Bk62FunUto1lOk=' https://accounts.google.com/gsi/client">
 <script>
 (function(){
   try{
@@ -8336,7 +8336,7 @@ try{
 <button id="btn-show-results" class="hx-btn hx-btn-opaco" data-onclick="toggleBoardView(false)">
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" data-onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:12.5px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.82.84</div>
+<div id="build-version-badge" data-onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:12.5px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.82.85</div>
 <button id="settings-btn" data-onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" data-onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" data-onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -40799,9 +40799,36 @@ function boardFallBegin(){
   setTimeout(()=>{
     if(genAtStart!==gameGeneration) return;
     G.boardDropAnimInProgress = false;
+    _firmaTabellonePrecedente = '';
     renderBoard();
     showTurnBanner(G.currentPlayer);
-  }, TILE_DROP_TOTAL_MS + 60);
+  }, TILE_DROP_TOTAL_MS + boardWallsFallMs() + 60);
+}
+
+const WALL_DROP_STAGGER_MS = 220;
+function boardWallsToDrop(){
+  return G.cells.filter(c => isHole(c.q, c.r) && !G.board[key(c.q, c.r)])
+    .sort((a, b) => (a.r - b.r) || (a.q - b.q));
+}
+function boardWallsFallMs(){
+  const quanti = boardWallsToDrop().length;
+  return quanti ? (quanti - 1) * WALL_DROP_STAGGER_MS + CARD_LAND_MS : 0;
+}
+function boardWallsDropIn(boardSvgRoot, cx, cy, R){
+  boardWallsToDrop().forEach((c, slot) => {
+    const { x, y } = axialToPixel(c.q, c.r, cx, cy, R);
+    const k = key(c.q, c.r);
+    const muro = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    muro.setAttribute('data-muro-in-caduta', k);
+    boardSvgRoot.appendChild(muro);
+    drawTileCell(muro, x, y, R, muroDellaCella(k, c.q, c.r), k + 'h', false);
+    const delayMs = TILE_DROP_TOTAL_MS + slot * WALL_DROP_STAGGER_MS;
+    muro.style.pointerEvents = 'none';
+    muro.style.transformBox = 'fill-box';
+    muro.style.transformOrigin = 'center bottom';
+    muro.style.animation = `cardLand ${CARD_LAND_MS}ms linear ${delayMs}ms both`;
+    later(()=>{ playSfxFile('bump.mp3'); }, delayMs + CARD_LAND_IMPACT_MS);
+  });
 }
 
 function boardCellDropIn(cellGroup, dropOrder, q, r){
@@ -40841,6 +40868,7 @@ function boardCellDragOverHalo(svg, x, y, R){
 function boardCellWall(ctx){
   const { svg, x, y, R, q, r, k, placeable } = ctx;
   drawTileCell(svg,x,y,R,tasselloLibero(k,q,r),k+'sotto',false);
+  if(ctx.playDropAnim) return;
   const holePoly=drawTileCell(svg,x,y,R,muroDellaCella(k,q,r),k+'h',false);
   holePoly.setAttribute('data-tassello-bloccato', k);
   holePoly.setAttribute('data-hole-key', k);
@@ -41193,12 +41221,13 @@ function renderBoard(){
     boardSvgRoot.appendChild(cellGroup);
     let svg = cellGroup;
 
-    const ctx = { boardSvgRoot, cellGroup, svg, x, y, R, q, r, k, placed, hole, placeable };
+    const ctx = { boardSvgRoot, cellGroup, svg, x, y, R, q, r, k, placed, hole, placeable, playDropAnim };
     if(hole && !placed) boardCellWall(ctx);
     else if(placed) boardCellCard(ctx);
     else boardCellFree(ctx);
     if(playDropAnim && cellGroup) boardCellDropIn(cellGroup, dropOrder, q, r);
   }
+  if(playDropAnim) boardWallsDropIn(boardSvgRoot, cx, cy, R);
   _lampadaGeo = { cx, cy, R };
   try{ disegnaLampade(); }catch(e){ noteHiddenError('board.lamps', e); }
   cardLandReattach();
