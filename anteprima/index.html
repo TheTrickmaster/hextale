@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=1920">
-<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'; script-src 'sha256-YRzCSTENoZOu3Y3xyPmjiKQ7S2CFDngYmIFo3oj6RQM=' 'sha256-FXbw5h4PBcCpNJV600eWD1EVmn5yPHwbkyRPHHoBQNQ=' 'sha256-51022P2HSquigldHUtoivVGEc/GtrL2M2swGlh/7Hsg=' https://accounts.google.com/gsi/client">
+<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'; script-src 'sha256-YRzCSTENoZOu3Y3xyPmjiKQ7S2CFDngYmIFo3oj6RQM=' 'sha256-FXbw5h4PBcCpNJV600eWD1EVmn5yPHwbkyRPHHoBQNQ=' 'sha256-b3z4510pNMSkh+gLvs0KGvCnBKfm0lFhdBwjlJ+j3Wo=' https://accounts.google.com/gsi/client">
 <script>
 (function(){
   try{
@@ -3539,6 +3539,38 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
 #card-modal-info .cm-freccia[disabled]:hover{ filter:none; }
 #card-modal-info .cm-freccia[disabled]:active{ transform:none; }
 
+
+#lv-reveal-glow, .lv-reveal-rays, #lv-reveal-ring{
+  position:absolute; left:50%; top:50%; border-radius:50%; pointer-events:none; opacity:0;
+}
+#lv-reveal-glow{
+  width:900px; height:900px; margin:-450px 0 0 -450px; mix-blend-mode:screen;
+  background:radial-gradient(circle closest-side,
+    rgba(248,230,192,0.40) 0%, rgba(248,230,192,0.17) 30%, rgba(248,230,192,0.06) 60%, rgba(248,230,192,0) 100%);
+}
+.lv-reveal-rays{
+  width:1900px; height:1900px; margin:-950px 0 0 -950px; mix-blend-mode:screen;
+  -webkit-mask-image:radial-gradient(circle closest-side, #000 8%, rgba(0,0,0,0.6) 30%, transparent 78%);
+  mask-image:radial-gradient(circle closest-side, #000 8%, rgba(0,0,0,0.6) 30%, transparent 78%);
+}
+#lv-reveal-rays-a{
+  background:repeating-conic-gradient(from 0deg,
+    rgba(250,224,175,0) 0deg, rgba(250,224,175,0.52) 3deg, rgba(250,224,175,0) 7deg, rgba(250,224,175,0) 13deg);
+}
+#lv-reveal-rays-b{
+  background:repeating-conic-gradient(from 5deg,
+    rgba(255,245,222,0) 0deg, rgba(255,245,222,0.38) 2deg, rgba(255,245,222,0) 5deg, rgba(255,245,222,0) 19deg);
+}
+#lv-reveal-ring{
+  width:400px; height:400px; margin:-200px 0 0 -200px; box-sizing:border-box;
+  border:3px solid rgba(255,244,219,0.95);
+  box-shadow:0 0 26px 6px rgba(238,200,120,0.65), inset 0 0 26px 6px rgba(238,200,120,0.45);
+}
+#lv-reveal-sparks{ position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+#lv-reveal-flash{
+  position:absolute; inset:0; pointer-events:none; opacity:0;
+  background:radial-gradient(circle at 50% 50%, #fff 0%, #fdf2d8 40%, rgba(250,228,185,0.72) 100%);
+}
 #settings-btn{
   display:none;
   position:fixed; left:369px; top:30px; z-index:20;
@@ -8196,11 +8228,17 @@ try{
   </div>
   <div id="livello-palco">
     <canvas id="livello-scintille"></canvas>
+    <div id="lv-reveal-glow"></div>
+    <div class="lv-reveal-rays" id="lv-reveal-rays-a"></div>
+    <div class="lv-reveal-rays" id="lv-reveal-rays-b"></div>
     <div id="livello-carta">
       <div class="lvc-onda"></div>
       <div class="lvc-giro"><div class="lvc-faccia fronte"></div><div class="lvc-faccia dorso"><img alt="" draggable="false"></div></div>
       <div class="lvc-lampo"></div>
     </div>
+    <div id="lv-reveal-ring"></div>
+    <canvas id="lv-reveal-sparks"></canvas>
+    <div id="lv-reveal-flash"></div>
   </div>
 </div>
 <div id="toast"></div>
@@ -42244,6 +42282,184 @@ function _lvFermaFuochi(){
   const g = c && c.getContext && c.getContext('2d');
   if(g) g.clearRect(0, 0, c.width, c.height);
 }
+const LV_REVEAL_WIND_MS = 750, LV_REVEAL_SPIN_MS = 800, LV_REVEAL_SETTLE_MS = 700, LV_REVEAL_TAIL_MS = 2400;
+const LV_REVEAL_TURN = 720;
+const LV_REVEAL_TONE = '250,224,175';
+const LV_REVEAL_CORE = '255,245,222';
+const LV_REVEAL_SWIRL = 120, LV_REVEAL_BURST = 240, LV_REVEAL_EMBERS = 50;
+let _lvRevealRaf = 0;
+function _lvRevealPieces(){
+  const el = id => document.getElementById(id);
+  return { stage: el('livello-palco'), glow: el('lv-reveal-glow'), raysA: el('lv-reveal-rays-a'), raysB: el('lv-reveal-rays-b'),
+           ring: el('lv-reveal-ring'), flash: el('lv-reveal-flash'), canvas: el('lv-reveal-sparks') };
+}
+function _lvRevealStop(){
+  cancelAnimationFrame(_lvRevealRaf);
+  _lvRevealRaf = 0;
+  const p = _lvRevealPieces();
+  for(const piece of [p.glow, p.raysA, p.raysB, p.ring, p.flash]){ if(piece) piece.style.opacity = '0'; }
+  if(p.stage) p.stage.style.transform = '';
+  const g = p.canvas && p.canvas.getContext && p.canvas.getContext('2d');
+  if(g) g.clearRect(0, 0, p.canvas.width, p.canvas.height);
+}
+function _lvReveal(giro, gen, onImpact){
+  return new Promise(res => {
+    const p = _lvRevealPieces();
+    const g = p.canvas && p.canvas.getContext && p.canvas.getContext('2d');
+    if(!g || !p.stage || !p.glow){ try{ onImpact(); }catch(_){ } return res(); }
+    cancelAnimationFrame(_lvRevealRaf);
+    p.canvas.width = p.canvas.clientWidth || 1920;
+    p.canvas.height = p.canvas.clientHeight || 1080;
+    const CX = p.canvas.width / 2, CY = p.canvas.height / 2, U = p.canvas.height;
+    const TAU = Math.PI * 2, rnd = Math.random;
+    const smooth = v => { v = Math.max(0, Math.min(1, v)); return v * v * (3 - 2 * v); };
+    const IMPACT = LV_REVEAL_WIND_MS + LV_REVEAL_SPIN_MS;
+
+    const tinted = [];
+    const drawingOf = (shape) => {
+      if(tinted[shape]) return tinted[shape];
+      const image = particellaPronta(shape);
+      if(!image) return null;
+      const c = document.createElement('canvas');
+      c.width = image.naturalWidth; c.height = image.naturalHeight;
+      const k = c.getContext('2d');
+      k.drawImage(image, 0, 0);
+      k.globalCompositeOperation = 'source-atop';
+      k.fillStyle = 'rgba(' + LV_REVEAL_TONE + ',0.85)';
+      k.fillRect(0, 0, c.width, c.height);
+      return (tinted[shape] = c);
+    };
+    const drawing = (shape, x, y, r) => {
+      const image = drawingOf(shape);
+      if(!image){ particellaDisegna(g, shape, 'rgb(' + LV_REVEAL_TONE + ')', x, y, r); return; }
+      const side = r * 2 * particellaScala(shape);
+      g.drawImage(image, x - side / 2, y - side / 2, side, side);
+    };
+    const spark = (x, y, r, alpha, shape) => {
+      if(alpha <= 0.004 || r <= 0.3) return;
+      g.globalAlpha = Math.min(1, alpha * 0.22);
+      drawing(shape, x, y, r * 2.4);
+      g.globalAlpha = Math.min(1, alpha);
+      drawing(shape, x, y, r);
+    };
+
+    const swirl = [], burst = [], embers = [];
+    for(let i = 0; i < LV_REVEAL_SWIRL; i++){
+      const life = 480 + rnd() * 300;
+      swirl.push({ a0: rnd() * TAU, r0: U * (0.3 + rnd() * 0.34), life, born: rnd() * (IMPACT - life - 60),
+                   turns: 0.55 + rnd() * 0.55, r: 2.2 + rnd() * 4.2, shape: particellaACaso() });
+    }
+    for(let i = 0; i < LV_REVEAL_BURST; i++){
+      burst.push({ a: rnd() * TAU, v: U * (0.5 + rnd() * 1.5), r: 2.5 + rnd() * 7, life: 0.7 + rnd() * 1.2,
+                   drag: 2.2 + rnd() * 1.6, late: rnd() * 0.05, shape: particellaACaso() });
+    }
+    for(let i = 0; i < LV_REVEAL_EMBERS; i++){
+      embers.push({ x: 0.2 + rnd() * 0.6, speed: 0.1 + rnd() * 0.14, r: 1.6 + rnd() * 3.6, phase: rnd(),
+                    sway: (rnd() - 0.5) * 0.06, twinkle: 1 + rnd() * 3, shape: particellaACaso() });
+    }
+    const swirlAt = (s, u) => {
+      const r = s.r0 * Math.pow(1 - u, 1.5), ang = s.a0 + s.turns * TAU * Math.pow(u, 1.3);
+      return [CX + Math.cos(ang) * r, CY + Math.sin(ang) * r];
+    };
+    const drawSwirl = (t) => {
+      g.lineCap = 'round';
+      for(const s of swirl){
+        const u = (t - s.born) / s.life;
+        if(u <= 0 || u >= 1) continue;
+        const shown = Math.pow(Math.sin(Math.PI * u), 0.6);
+        const STEPS = 10, from = Math.max(0, u - 0.22);
+        let prev = swirlAt(s, from);
+        for(let j = 1; j <= STEPS; j++){
+          const k = j / STEPS, next = swirlAt(s, from + (u - from) * k);
+          g.beginPath(); g.moveTo(prev[0], prev[1]); g.lineTo(next[0], next[1]);
+          g.strokeStyle = 'rgba(' + LV_REVEAL_TONE + ',' + (0.3 * k * shown).toFixed(3) + ')';
+          g.lineWidth = (1.5 + 5 * k) * (s.r / 4);
+          g.stroke();
+          g.strokeStyle = 'rgba(' + LV_REVEAL_CORE + ',' + (0.85 * k * k * shown).toFixed(3) + ')';
+          g.lineWidth = (0.4 + 1.5 * k) * (s.r / 4);
+          g.stroke();
+          prev = next;
+        }
+        spark(prev[0], prev[1], s.r * (1 - 0.45 * u), shown, s.shape);
+      }
+    };
+    const drawBurst = (age, fade) => {
+      for(const b of burst){
+        const a = age - b.late;
+        if(a <= 0 || a >= b.life) continue;
+        const far = b.v * 0.55 * (1 - Math.exp(-b.drag * a)) / b.drag * 2.2, left = 1 - a / b.life;
+        spark(CX + Math.cos(b.a) * far, CY + Math.sin(b.a) * far + 0.05 * U * a * a, b.r * (0.5 + 0.5 * left), Math.pow(left, 1.4), b.shape);
+      }
+      const rising = smooth(age / 0.5) * fade;
+      if(rising <= 0) return;
+      for(const e of embers){
+        const lap = (age * e.speed * 2.2 + e.phase) % 1;
+        const show = Math.sin(Math.PI * lap) * (0.55 + 0.45 * Math.sin(age * e.twinkle * 3 + e.phase * 20));
+        spark((e.x + e.sway * Math.sin(lap * 9 + e.phase * 6)) * p.canvas.width, CY + (0.5 - lap) * U, e.r, 0.6 * rising * show, e.shape);
+      }
+    };
+
+    const t0 = performance.now();
+    let landed = false, still = false;
+    const step = (now) => {
+      if(gen !== _lvGen){ _lvRevealStop(); return res(); }
+      const t = now - t0, s = t / 1000, age = (t - IMPACT) / 1000;
+      let angle = 0, scale = 1, shake = 0, glow = 0, rays = 0, flash = 0, ring = -1, cam = 1, camX = 0, camY = 0, fade = 1;
+      if(t < LV_REVEAL_WIND_MS){
+        const k = t / LV_REVEAL_WIND_MS;
+        scale = 1 - 0.06 * smooth(k); shake = k * k;
+        glow = 0.4 * k * k; cam = 1 + 0.025 * k * k;
+      } else if(t < IMPACT){
+        const k = (t - LV_REVEAL_WIND_MS) / LV_REVEAL_SPIN_MS;
+        angle = LV_REVEAL_TURN * Math.pow(k, 2.4);
+        scale = 0.94 + 0.17 * k * k; shake = 1 - k;
+        glow = 0.4 + 0.15 * k; cam = 1.025 + 0.03 * k * k;
+        flash = 0.45 * smooth((k - 0.86) / 0.14);
+      } else {
+        fade = 1 - smooth((age - 1.1) / 1.1);
+        angle = 14 * Math.exp(-6 * age) * Math.sin(TAU * 2.4 * age);
+        scale = 1 + 0.11 * Math.exp(-7 * age) * Math.cos(TAU * 2.1 * age);
+        flash = 0.9 * Math.exp(-age / 0.085);
+        ring = age < 0.7 ? age / 0.7 : -1;
+        rays = Math.min(1, age / 0.04) * (0.3 + 0.7 * Math.exp(-age / 0.55)) * fade;
+        glow = (0.4 + 0.6 * Math.exp(-age / 0.5)) * fade;
+        cam = 1 + 0.055 * Math.exp(-age / 0.45) + 0.05 * Math.exp(-age / 0.1);
+        camX = 8 * Math.exp(-age / 0.13) * Math.sin(TAU * 37 * age);
+        camY = 7 * Math.exp(-age / 0.13) * Math.cos(TAU * 31 * age);
+      }
+      if(!still){
+        if(age >= LV_REVEAL_SETTLE_MS / 1000){
+          still = true;
+          giro.style.transform = 'rotateY(0deg)';
+          res();
+        } else {
+          giro.style.transform = 'translate(' + (shake * 2.4 * Math.sin(TAU * 31 * s + 1)).toFixed(2) + 'px,' + (shake * 1.8 * Math.sin(TAU * 27 * s + 2)).toFixed(2) + 'px)'
+            + ' rotateZ(' + (shake * 1.5 * Math.sin(TAU * 23 * s)).toFixed(3) + 'deg) rotateY(' + angle.toFixed(2) + 'deg) scale(' + scale.toFixed(4) + ')';
+        }
+      }
+      if(age >= 0 && !landed){ landed = true; try{ onImpact(); }catch(_){ } }
+      p.stage.style.transform = 'translate(' + camX.toFixed(2) + 'px,' + camY.toFixed(2) + 'px) scale(' + cam.toFixed(4) + ')';
+      p.glow.style.opacity = Math.min(1, glow).toFixed(3);
+      p.glow.style.transform = 'scale(' + (0.6 + 0.5 * glow).toFixed(3) + ')';
+      p.raysA.style.opacity = rays.toFixed(3); p.raysB.style.opacity = (rays * 0.9).toFixed(3);
+      p.raysA.style.transform = 'rotate(' + (14 * Math.max(0, age)).toFixed(2) + 'deg)';
+      p.raysB.style.transform = 'rotate(' + (-10 * Math.max(0, age)).toFixed(2) + 'deg)';
+      if(ring >= 0){
+        p.ring.style.opacity = Math.pow(1 - ring, 1.6).toFixed(3);
+        p.ring.style.transform = 'scale(' + (0.5 + 3.4 * (1 - Math.pow(1 - ring, 3))).toFixed(3) + ')';
+      } else p.ring.style.opacity = '0';
+      p.flash.style.opacity = flash.toFixed(3);
+      g.clearRect(0, 0, p.canvas.width, p.canvas.height);
+      g.globalCompositeOperation = 'lighter';
+      if(age < 0) drawSwirl(t); else drawBurst(age, fade);
+      g.globalAlpha = 1;
+      g.globalCompositeOperation = 'source-over';
+      if(age * 1000 < LV_REVEAL_TAIL_MS) _lvRevealRaf = requestAnimationFrame(step);
+      else _lvRevealStop();
+    };
+    _lvRevealRaf = requestAnimationFrame(step);
+  });
+}
 function righeBonusLivello(vecchia, nuova){
   const salti = SIDES.map(l => (nuova.values[l] || 0) - (vecchia.values[l] || 0));
   if(salti.every(s => s === salti[0])) return salti[0] ? [(salti[0] > 0 ? '+' : '') + salti[0] + ' Power on ALL sides'] : [];
@@ -42416,6 +42632,7 @@ async function animaSalitaDiLivello(entry, da, a, opzioni){
   giro.style.transform = 'rotateY(0deg)';
   carta.querySelector('.lvc-lampo').classList.remove('va');
   _lvFermaFuochi();
+  _lvRevealStop();
   const cx = (ov.clientWidth - W) / 2, cy = (ov.clientHeight - H) / 2;
   carta.style.left = cx + 'px';
   carta.style.top = cy + 'px';
@@ -42454,15 +42671,11 @@ async function animaSalitaDiLivello(entry, da, a, opzioni){
   const badge = _lvPreparaLivello(fronte, disegna(nuova), svgVecchia, a);
 
   ov.dataset.fase = 'giro';
-  setTimeout(()=>{ try{ playSfxFile('card-flip.mp3'); }catch(_){ } }, LV_GIRO_SUONO_MS);
-  let lampo = false;
-  await _lvGira(giro, 0, 360, 1100, gen, ang => {
-    if(lampo || ang < 180) return;
-    lampo = true;
-    ov.dataset.lampo = String(Math.round(ang));
+  setTimeout(()=>{ if(gen === _lvGen){ try{ playSfxFile('card-flip.mp3'); }catch(_){ } } }, LV_REVEAL_WIND_MS + LV_GIRO_SUONO_MS);
+  await _lvReveal(giro, gen, () => {
+    ov.dataset.lampo = String(LV_REVEAL_TURN);
     carta.querySelector('.lvc-lampo').classList.add('va');
     try{ playSfxFile('fireworks.mp3'); }catch(_){ }
-    _lvFuochi(document.getElementById('livello-scintille'), cx + W/2, cy + H/2);
   });
   if(gen !== _lvGen) return;
   giro.style.transform = 'rotateY(0deg)';
@@ -42543,6 +42756,7 @@ function chiudiSalitaDiLivello(){
   delete ov.dataset.lampo;
   delete ov.dataset.cambio;
   _lvFermaFuochi();
+  _lvRevealStop();
   {
     const finestraCarta = document.getElementById('card-modal-overlay');
     if(finestraCarta && finestraCarta.classList.contains('velo-rimasto')){
