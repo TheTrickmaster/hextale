@@ -1,9 +1,9 @@
 import { narrowScreen, reducedMotion } from './media.js';
 
 const CARD_LAYERS = [
-  { id: 'cards-far', speed: 0.6 },
-  { id: 'cards-mid', speed: 0.8 },
-  { id: 'cards-near', speed: 1.15 },
+  { id: 'cards-far', speed: 0.45 },
+  { id: 'cards-mid', speed: 0.6 },
+  { id: 'cards-near', speed: 0.75 },
 ];
 
 function imageUrl(element) {
