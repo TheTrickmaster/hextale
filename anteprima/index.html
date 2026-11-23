@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=1920">
-<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'; script-src 'sha256-YRzCSTENoZOu3Y3xyPmjiKQ7S2CFDngYmIFo3oj6RQM=' 'sha256-FXbw5h4PBcCpNJV600eWD1EVmn5yPHwbkyRPHHoBQNQ=' 'sha256-ORU6/QXzLPclVni+DIgIJWQlVKg0PVpBWB8yeNYUmII=' https://accounts.google.com/gsi/client">
+<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'; script-src 'sha256-YRzCSTENoZOu3Y3xyPmjiKQ7S2CFDngYmIFo3oj6RQM=' 'sha256-FXbw5h4PBcCpNJV600eWD1EVmn5yPHwbkyRPHHoBQNQ=' 'sha256-kdlN9dv2XPO+/IU0JxsV/R9T+IA1XV1iI9HlZisqKmQ=' https://accounts.google.com/gsi/client">
 <script>
 (function(){
   try{
@@ -8565,7 +8565,7 @@ try{
 <button id="btn-show-results" class="hx-btn hx-btn-opaco" data-onclick="toggleBoardView(false)">
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" data-onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:12.5px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.82.89</div>
+<div id="build-version-badge" data-onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:12.5px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.82.90</div>
 <button id="settings-btn" data-onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" data-onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" data-onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -10263,6 +10263,7 @@ const AUDIO_DATA_URLS = {
   'unpack-load': 'https://hextalegame.com/audio/sfx/unpack-load.mp3',
   'unpack-hit': 'https://hextalegame.com/audio/sfx/unpack-hit.mp3',
   'unpack-whoosh': 'https://hextalegame.com/audio/sfx/unpack-whoosh.mp3',
+  'card-pick': 'https://hextalegame.com/audio/sfx/card-pick.mp3',
 };
 
 function _vociDellaCarta(card){
@@ -24576,6 +24577,16 @@ function packRevealTremble(carta, amplitude, duration){
   try{ pop.animate(frames, { duration: duration, easing:'linear', fill:'none' }); }catch(_){ }
 }
 
+const REVEAL_CLICK_GAIN_DB = 5;
+function packRevealClick(){
+  let sound = null;
+  try{ sound = playSfxFile('card-pick.mp3'); }catch(_){ }
+  if(!sound) return;
+  const level = getGlobalVolume() * Math.pow(10, REVEAL_CLICK_GAIN_DB / 20);
+  if(sound._hxGain) sound._hxGain.gain.value = level;
+  else if(typeof sound.volume === 'number') sound.volume = Math.min(1, level);
+}
+
 function giraCartaBustina(carta){
   if(!carta || carta.classList.contains('revealed') || carta.classList.contains('popping')) return;
   if(_bustinaInCorso) return;
@@ -24589,7 +24600,7 @@ function giraCartaBustina(carta){
       playSfxFile(file, undefined, saltoSilenzioIniziale(file.replace(/\.(mp3|wav)$/i,'')));
     } catch(_){}
   };
-  try{ playSfx('sfx-pick'); }catch(_){ }
+  packRevealClick();
   packRevealChargeSound(reveal.charge);
   _bustinaDopo(Math.max(0, reveal.charge - REVEAL_WHOOSH_LEAD_MS), whoosh);
   if(!strong){
