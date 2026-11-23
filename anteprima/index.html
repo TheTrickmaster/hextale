@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=1920">
-<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'; script-src 'sha256-YRzCSTENoZOu3Y3xyPmjiKQ7S2CFDngYmIFo3oj6RQM=' 'sha256-FXbw5h4PBcCpNJV600eWD1EVmn5yPHwbkyRPHHoBQNQ=' 'sha256-qaQdieHhnG3yxyK5ngRIVD7A3lGmLkIJtiCvnceQM70=' https://accounts.google.com/gsi/client">
+<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'; script-src 'sha256-YRzCSTENoZOu3Y3xyPmjiKQ7S2CFDngYmIFo3oj6RQM=' 'sha256-FXbw5h4PBcCpNJV600eWD1EVmn5yPHwbkyRPHHoBQNQ=' 'sha256-w88ZXREzuA5HTtDhA/YQF5e5H5+Dvlk+yx8ckduvJIA=' https://accounts.google.com/gsi/client">
 <script>
 (function(){
   try{
@@ -24316,8 +24316,8 @@ function packRevealRays(carta, reveal){
   rays.classList.add('open');
   return rays;
 }
-const PACK_VORTEX = { arms: 6, pitch: 2.1, fill: 0.55, stretch: 2, speed: 0.55, rush: 2.6, spin: 0.12,
-                      reach: 392, fade: 0.6, hole: 70, strength: 0.475, white: 0.55, rise: 500, fall: 650 };
+const PACK_VORTEX = { arms: 6, pitch: 2.1, fill: 0.55, width: 1.5, stretch: 2, speed: 0.55, rush: 2.6, spin: 0.12,
+                      reach: 392, hole: 70, strength: 0.38, white: 0.55, rise: 500, fall: 650 };
 let _packVortexImg = null;
 function packVortexImage(){
   if(!_packVortexImg){
@@ -24364,7 +24364,7 @@ const PACK_VORTEX_FRAGMENT = [
   '  float texels = max(length(vec2(gX.x * uTexSize.x, gY.x * uTexSize.y)), length(vec2(gX.y * uTexSize.x, gY.y * uTexSize.y)));',
   '  float edge = 0.5 * clamp(texels, 0.04, 1.0);',
   '  ink = smoothstep(0.5 - edge, 0.5 + edge, ink);',
-  '  float born = smoothstep(0.0, 1.0, clamp((uEdge - r) / uTail, 0.0, 1.0));',
+  '  float born = clamp((uEdge - r) / uTail, 0.0, 1.0);',
   '  float gone = smoothstep(uHole * 0.4, uHole, r);',
   '  float side = smoothstep(0.0, 0.05, y) * smoothstep(1.0, 0.95, y);',
   '  float a = ink * born * gone * side * uShown;',
@@ -24422,7 +24422,7 @@ function packVortexStart(page, before, cx, cy, way, rgb){
     gl.uniform1f(u('uWay'), way);
     gl.uniform1f(u('uArms'), V.arms);
     gl.uniform1f(u('uPitch'), V.pitch);
-    gl.uniform1f(u('uFill'), V.fill);
+    gl.uniform1f(u('uFill'), Math.min(1, V.fill * V.width));
     gl.uniform1f(u('uLength'), length);
     gl.uniform1f(u('uReach'), V.reach);
     gl.uniform1f(u('uHole'), V.hole);
@@ -24438,7 +24438,7 @@ function packVortexStart(page, before, cx, cy, way, rgb){
       const coming = 1 - Math.min(1, Math.max(0, ms / V.rise));
       const out = Math.max(going, coming);
       const edge = V.reach * (1 - out * out);
-      const full = V.reach * (1 - V.fade) - (V.reach * (1 - V.fade) + V.reach * 0.8) * (1 - (1 - out) * (1 - out));
+      const full = V.hole - (V.hole + V.reach * 0.8) * (1 - (1 - out) * (1 - out));
       gl.uniform1f(uEdge, edge);
       gl.uniform1f(uTail, Math.max(1, edge - full));
       gl.uniform1f(uScroll, scroll % 1);
