@@ -1,9 +1,9 @@
 import { narrowScreen, reducedMotion } from './media.js';
 
 const CARD_LAYERS = [
-  { id: 'cards-far', speed: 0.45 },
-  { id: 'cards-mid', speed: 0.6 },
-  { id: 'cards-near', speed: 0.75 },
+  { id: 'cards-far', speed: 0.25 },
+  { id: 'cards-mid', speed: 0.4 },
+  { id: 'cards-near', speed: 0.55 },
 ];
 
 function imageUrl(element) {
@@ -26,6 +26,9 @@ export function initCardsBackdrop() {
   const backdrop = document.getElementById('cards-backdrop');
   if (!backdrop) return;
 
+  const header = backdrop.parentNode;
+  const collection = document.getElementById('collezione');
+
   const layers = CARD_LAYERS
     .map((layer) => ({ ...layer, element: document.getElementById(layer.id) }))
     .filter((layer) => layer.element);
@@ -37,7 +40,13 @@ export function initCardsBackdrop() {
     queued = false;
 
     const still = narrowScreen.matches || reducedMotion.matches;
-    const scrolled = Math.min(window.scrollY, backdrop.offsetHeight * 2);
+    const scrolled = Math.min(window.scrollY, backdrop.offsetHeight * 3);
+
+    if (collection && backdrop.offsetHeight) {
+      const room = collection.offsetTop - header.offsetTop - backdrop.offsetTop;
+      const below = Math.max(0, room - backdrop.offsetHeight);
+      backdrop.style.clipPath = `inset(-1000px -4000px ${-below}px -4000px)`;
+    }
 
     for (const layer of layers) {
       const offset = still ? 0 : scrolled * (1 - layer.speed);
@@ -63,6 +72,7 @@ export function initCardsBackdrop() {
 
   window.addEventListener('scroll', requestPlace, { passive: true });
   window.addEventListener('resize', requestPlace);
+  window.addEventListener('load', requestPlace);
   narrowScreen.addEventListener('change', () => {
     show();
     requestPlace();
