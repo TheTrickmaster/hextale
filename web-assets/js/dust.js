@@ -3,7 +3,9 @@ import { loadSprites, randomSprite } from './particles.js';
 
 const DUST_COLOR = '#FFF8C3';
 const REFERENCE_AREA = 1440 * 700;
-const WRAP_MARGIN = 40;
+const WRAP_MARGIN = 12;
+const DUST_LIFE_SECONDS = [10, 22];
+export const DUST_FADE_SECONDS = 2;
 const DUST_LAYERS = [
   { id: 'polvere-lontano', count: 90, radius: [0.6, 1.4], speed: [5, 11], alpha: [0.25, 0.55], sway: [2, 7], parallax: 0.05 },
   { id: 'polvere-mezzo', count: 80, radius: [1.4, 3], speed: [12, 22], alpha: [0.45, 0.9], sway: [5, 14], parallax: 0.11 },
@@ -13,15 +15,20 @@ const DUST_LAYERS = [
 const random = (min, max) => min + Math.random() * (max - min);
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
-function createSpeck(settings, width, height, scattered) {
-  const radius = random(...settings.radius);
-  const below = height + radius + random(4, Math.min(90, Math.max(8, height * 0.25)));
+export function speckFade(age, life) {
+  return clamp(Math.min(age, life - age) / DUST_FADE_SECONDS, 0, 1);
+}
+
+function createSpeck(settings, width, height, underway) {
+  const life = random(...DUST_LIFE_SECONDS);
 
   return {
     sprite: randomSprite(),
     x: random(-20, width + 20),
-    y: scattered ? random(-20, height + 20) : below,
-    radius,
+    y: random(-20, height + 20),
+    age: underway ? random(0, life) : 0,
+    life,
+    radius: random(...settings.radius),
     speed: random(...settings.speed),
     sway: random(...settings.sway),
     frequency: random(0.1, 0.34),
@@ -58,22 +65,25 @@ function resizeLayer(layer) {
 function drawLayer(layer, seconds, elapsed) {
   const { context, specks, settings, width, height } = layer;
   const lift = window.scrollY * settings.parallax;
-  const span = height + WRAP_MARGIN * 2;
 
   context.clearRect(0, 0, width, height);
   context.fillStyle = DUST_COLOR;
 
   specks.forEach((speck, index) => {
-    speck.y -= speck.speed * elapsed;
-    if (speck.y < -(speck.radius + 24)) {
+    speck.age += elapsed;
+    if (speck.age >= speck.life) {
       specks[index] = createSpeck(settings, width, height, false);
       return;
     }
 
-    const x = speck.x + Math.sin(seconds * speck.frequency * Math.PI * 2 + speck.phase) * speck.sway;
-    const y = ((((speck.y - lift + WRAP_MARGIN) % span) + span) % span) - WRAP_MARGIN;
+    speck.y -= speck.speed * elapsed;
+
     const { image, scale } = speck.sprite;
-    context.globalAlpha = speck.alpha;
+    const reach = speck.radius * (scale || 1) + WRAP_MARGIN;
+    const span = height + reach * 2;
+    const x = speck.x + Math.sin(seconds * speck.frequency * Math.PI * 2 + speck.phase) * speck.sway;
+    const y = ((((speck.y - lift + reach) % span) + span) % span) - reach;
+    context.globalAlpha = speck.alpha * speckFade(speck.age, speck.life);
 
     if (scale) {
       const side = speck.radius * 2 * scale;
