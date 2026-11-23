@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=1920">
-<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'; script-src 'sha256-YRzCSTENoZOu3Y3xyPmjiKQ7S2CFDngYmIFo3oj6RQM=' 'sha256-FXbw5h4PBcCpNJV600eWD1EVmn5yPHwbkyRPHHoBQNQ=' 'sha256-cXp9WuXV2g5DZx3dYW5iVT83h7Kthkrfwb13I3Wk8zg=' https://accounts.google.com/gsi/client">
+<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'; script-src 'sha256-YRzCSTENoZOu3Y3xyPmjiKQ7S2CFDngYmIFo3oj6RQM=' 'sha256-FXbw5h4PBcCpNJV600eWD1EVmn5yPHwbkyRPHHoBQNQ=' 'sha256-bH+zAsbEMn4oGyx8rAcMt7o0hWOm3JrE+O9aa0Hrf3w=' https://accounts.google.com/gsi/client">
 <script>
 (function(){
   try{
@@ -4782,6 +4782,7 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
   z-index:0;
   mix-blend-mode:plus-lighter;
 }
+.pack-reveal-trails.pack-reveal-vortex{ mix-blend-mode:hard-light; }
 
 .pack-card-blaze{ rotate:y 0deg; transition:rotate 1s cubic-bezier(.4,0,.2,1); }
 .pack-card.revealed .pack-card-blaze{ rotate:y var(--reveal-turn, 180deg); }
@@ -24335,7 +24336,7 @@ function packRevealRays(carta, reveal){
   return rays;
 }
 const PACK_VORTEX = { arms: 6, pitch: 2.1, fill: 0.55, stretch: 1, speed: 0.55, rush: 2.6, spin: 0.12,
-                      reach: 560, fade: 0.6, hole: 70, strength: 0.95, rise: 380, fall: 260 };
+                      reach: 560, fade: 0.6, hole: 70, strength: 0.95, white: 0.55, rise: 380, fall: 650 };
 let _packVortexImg = null;
 function packVortexImage(){
   if(!_packVortexImg){
@@ -24358,13 +24359,13 @@ const PACK_VORTEX_FRAGMENT = [
   'uniform sampler2D uTex;',
   'uniform vec2 uCentre, uTexSize;',
   'uniform vec3 uColour;',
-  'uniform float uHeight, uWay, uArms, uPitch, uFill, uLength, uReach, uFade, uHole, uScroll, uTurn, uShown;',
+  'uniform float uHeight, uWay, uArms, uPitch, uFill, uLength, uReach, uEdge, uTail, uHole, uScroll, uTurn, uShown;',
   'out vec4 colour;',
   'void main(){',
   '  vec2 p = vec2(gl_FragCoord.x, uHeight - gl_FragCoord.y) - uCentre;',
   '  float r = length(p);',
   '  colour = vec4(0.0);',
-  '  if(r < 1.0 || r >= uReach) return;',
+  '  if(r < 1.0 || r >= uEdge) return;',
   '  float depth = log(r / uReach);',
   '  float cell = 6.28318530718 / uArms;',
   '  float slope = sqrt(1.0 + uPitch * uPitch);',
@@ -24382,7 +24383,7 @@ const PACK_VORTEX_FRAGMENT = [
   '  float texels = max(length(vec2(gX.x * uTexSize.x, gY.x * uTexSize.y)), length(vec2(gX.y * uTexSize.x, gY.y * uTexSize.y)));',
   '  float edge = 0.5 * clamp(texels, 0.04, 1.0);',
   '  ink = smoothstep(0.5 - edge, 0.5 + edge, ink);',
-  '  float born = smoothstep(0.0, 1.0, clamp((uReach - r) / (uReach * uFade), 0.0, 1.0));',
+  '  float born = smoothstep(0.0, 1.0, clamp((uEdge - r) / uTail, 0.0, 1.0));',
   '  float gone = smoothstep(uHole * 0.4, uHole, r);',
   '  float side = smoothstep(0.0, 0.05, y) * smoothstep(1.0, 0.95, y);',
   '  float a = ink * born * gone * side * uShown;',
@@ -24394,7 +24395,7 @@ function packVortexStart(page, before, cx, cy, way, rgb){
   if(!image || !page) return null;
   const V = PACK_VORTEX;
   const canvas = document.createElement('canvas');
-  canvas.className = 'pack-reveal-trails';
+  canvas.className = 'pack-reveal-trails pack-reveal-vortex';
   page.insertBefore(canvas, before);
   canvas.width = canvas.clientWidth || 1920;
   canvas.height = canvas.clientHeight || 1080;
@@ -24443,9 +24444,8 @@ function packVortexStart(page, before, cx, cy, way, rgb){
     gl.uniform1f(u('uFill'), V.fill);
     gl.uniform1f(u('uLength'), length);
     gl.uniform1f(u('uReach'), V.reach);
-    gl.uniform1f(u('uFade'), V.fade);
     gl.uniform1f(u('uHole'), V.hole);
-    const uScroll = u('uScroll'), uTurn = u('uTurn'), uShown = u('uShown');
+    const uScroll = u('uScroll'), uTurn = u('uTurn'), uShown = u('uShown'), uEdge = u('uEdge'), uTail = u('uTail');
     gl.viewport(0, 0, canvas.width, canvas.height);
     gl.disable(gl.BLEND);
     gl.clearColor(0, 0, 0, 0);
@@ -24453,11 +24453,15 @@ function packVortexStart(page, before, cx, cy, way, rgb){
       const s = Math.max(0, ms) / 1000, wait = Math.max(0.1, charge / 1000);
       const scroll = V.speed * (s + (V.rush - 1) * s * s / (2 * wait));
       const coming = Math.min(1, ms / V.rise);
-      const going = ms > charge ? Math.max(0, 1 - (ms - charge) / V.fall) : 1;
       const building = 0.6 + 0.4 * Math.min(1, ms / charge);
+      const out = Math.min(1, Math.max(0, (ms - charge) / V.fall));
+      const edge = V.reach * (1 - out * out);
+      const full = V.reach * (1 - V.fade) - (V.reach * (1 - V.fade) + V.reach * 0.8) * (1 - (1 - out) * (1 - out));
+      gl.uniform1f(uEdge, edge);
+      gl.uniform1f(uTail, Math.max(1, edge - full));
       gl.uniform1f(uScroll, scroll % 1);
       gl.uniform1f(uTurn, (V.spin * s * Math.PI * 2) % (Math.PI * 2));
-      gl.uniform1f(uShown, Math.max(0, coming * going * building * V.strength));
+      gl.uniform1f(uShown, Math.max(0, coming * building * V.strength));
       gl.clear(gl.COLOR_BUFFER_BIT);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
     };
@@ -24488,7 +24492,7 @@ function packRevealSwirl(carta, reveal){
   const TONE = numbers(REVEAL_SPARK_WHITE), CORE = numbers(0.75);
   const conf = SCINTILLE_CARTA[String(rarity || 'common').toLowerCase()] || SCINTILLE_CARTA.common;
   const way = rnd() < 0.5 ? -1 : 1;
-  const vortex = packVortexStart(page, canvas, CX, CY, way, numbers(0).split(',').map(Number));
+  const vortex = packVortexStart(page, canvas, CX, CY, way, numbers(PACK_VORTEX.white).split(',').map(Number));
 
   const tinted = [];
   const drawingOf = (shape)=>{
