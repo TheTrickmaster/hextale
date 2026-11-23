@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=1920">
-<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'; script-src 'sha256-YRzCSTENoZOu3Y3xyPmjiKQ7S2CFDngYmIFo3oj6RQM=' 'sha256-FXbw5h4PBcCpNJV600eWD1EVmn5yPHwbkyRPHHoBQNQ=' 'sha256-kdlN9dv2XPO+/IU0JxsV/R9T+IA1XV1iI9HlZisqKmQ=' https://accounts.google.com/gsi/client">
+<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'; script-src 'sha256-YRzCSTENoZOu3Y3xyPmjiKQ7S2CFDngYmIFo3oj6RQM=' 'sha256-FXbw5h4PBcCpNJV600eWD1EVmn5yPHwbkyRPHHoBQNQ=' 'sha256-cXp9WuXV2g5DZx3dYW5iVT83h7Kthkrfwb13I3Wk8zg=' https://accounts.google.com/gsi/client">
 <script>
 (function(){
   try{
@@ -24103,6 +24103,7 @@ function _costruisciCartaBustina(entry, dir, indice){
   carta.style.setProperty('--reveal-grow', String(reveal.grow));
   carta.style.setProperty('--reveal-turn', reveal.turn + 'deg');
   if(reveal.charge > REVEAL_BY_RARITY.common.charge) carta.classList.add('reveal-strong');
+  if(reveal.trails > 0) packVortexImage();
 
   const scie = document.createElement('div');
   scie.className = 'pack-scie';
@@ -24333,6 +24334,142 @@ function packRevealRays(carta, reveal){
   rays.classList.add('open');
   return rays;
 }
+const PACK_VORTEX = { arms: 6, pitch: 2.1, fill: 0.55, stretch: 1, speed: 0.55, rush: 2.6, spin: 0.12,
+                      reach: 560, fade: 0.6, hole: 70, strength: 0.95, rise: 380, fall: 260 };
+let _packVortexImg = null;
+function packVortexImage(){
+  if(!_packVortexImg){
+    _packVortexImg = new Image();
+    try{ impostaImgDaCandidati(_packVortexImg, uiFileCandidati('vfx/trail-1.png')); }catch(_){ }
+  }
+  const image = _packVortexImg;
+  return (image.complete && image.naturalWidth && String(image.src).indexOf('trail-1') >= 0) ? image : null;
+}
+const PACK_VORTEX_VERTEX = [
+  '#version 300 es',
+  'void main(){',
+  '  vec2 p = vec2(float((gl_VertexID << 1) & 2), float(gl_VertexID & 2));',
+  '  gl_Position = vec4(p * 2.0 - 1.0, 0.0, 1.0);',
+  '}'
+].join('\n');
+const PACK_VORTEX_FRAGMENT = [
+  '#version 300 es',
+  'precision highp float;',
+  'uniform sampler2D uTex;',
+  'uniform vec2 uCentre, uTexSize;',
+  'uniform vec3 uColour;',
+  'uniform float uHeight, uWay, uArms, uPitch, uFill, uLength, uReach, uFade, uHole, uScroll, uTurn, uShown;',
+  'out vec4 colour;',
+  'void main(){',
+  '  vec2 p = vec2(gl_FragCoord.x, uHeight - gl_FragCoord.y) - uCentre;',
+  '  float r = length(p);',
+  '  colour = vec4(0.0);',
+  '  if(r < 1.0 || r >= uReach) return;',
+  '  float depth = log(r / uReach);',
+  '  float cell = 6.28318530718 / uArms;',
+  '  float slope = sqrt(1.0 + uPitch * uPitch);',
+  '  float phase = uWay * atan(p.y, p.x) + uPitch * depth - uTurn;',
+  '  float across = fract(phase / cell);',
+  '  float y = (across - 0.5) / uFill + 0.5;',
+  '  if(y <= 0.0 || y >= 1.0) return;',
+  '  float along = depth * slope - uPitch * (across - 0.5) * cell / slope;',
+  '  float x = along / uLength + uScroll;',
+  '  vec2 gDepth = p / (r * r);',
+  '  vec2 gPhase = uWay * vec2(-p.y, p.x) / (r * r) + uPitch * gDepth;',
+  '  vec2 gY = gPhase / (cell * uFill);',
+  '  vec2 gX = (slope * gDepth - (uPitch / slope) * gPhase) / uLength;',
+  '  float ink = textureGrad(uTex, vec2(x, y), vec2(gX.x, gY.x), vec2(gX.y, gY.y)).a;',
+  '  float texels = max(length(vec2(gX.x * uTexSize.x, gY.x * uTexSize.y)), length(vec2(gX.y * uTexSize.x, gY.y * uTexSize.y)));',
+  '  float edge = 0.5 * clamp(texels, 0.04, 1.0);',
+  '  ink = smoothstep(0.5 - edge, 0.5 + edge, ink);',
+  '  float born = smoothstep(0.0, 1.0, clamp((uReach - r) / (uReach * uFade), 0.0, 1.0));',
+  '  float gone = smoothstep(uHole * 0.4, uHole, r);',
+  '  float side = smoothstep(0.0, 0.05, y) * smoothstep(1.0, 0.95, y);',
+  '  float a = ink * born * gone * side * uShown;',
+  '  colour = vec4(uColour * a, a);',
+  '}'
+].join('\n');
+function packVortexStart(page, before, cx, cy, way, rgb){
+  const image = packVortexImage();
+  if(!image || !page) return null;
+  const V = PACK_VORTEX;
+  const canvas = document.createElement('canvas');
+  canvas.className = 'pack-reveal-trails';
+  page.insertBefore(canvas, before);
+  canvas.width = canvas.clientWidth || 1920;
+  canvas.height = canvas.clientHeight || 1080;
+  let gl = null;
+  const remove = ()=>{
+    try{ const lose = gl && gl.getExtension('WEBGL_lose_context'); if(lose) lose.loseContext(); }catch(_){ }
+    canvas.remove();
+  };
+  try{
+    gl = canvas.getContext('webgl2', { alpha: true, premultipliedAlpha: true, antialias: false, depth: false, stencil: false });
+    if(!gl){ canvas.remove(); return null; }
+    const shader = (type, source)=>{
+      const s = gl.createShader(type);
+      gl.shaderSource(s, source);
+      gl.compileShader(s);
+      if(!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s) || 'shader');
+      return s;
+    };
+    const program = gl.createProgram();
+    gl.attachShader(program, shader(gl.VERTEX_SHADER, PACK_VORTEX_VERTEX));
+    gl.attachShader(program, shader(gl.FRAGMENT_SHADER, PACK_VORTEX_FRAGMENT));
+    gl.linkProgram(program);
+    if(!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(program) || 'program');
+    gl.useProgram(program);
+    gl.bindVertexArray(gl.createVertexArray());
+    const texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+    gl.generateMipmap(gl.TEXTURE_2D);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    const u = (name)=> gl.getUniformLocation(program, name);
+    const slope = Math.sqrt(1 + V.pitch * V.pitch), cell = Math.PI * 2 / V.arms;
+    const length = (V.fill * cell / slope) * (image.naturalWidth / image.naturalHeight) * V.stretch;
+    gl.uniform1i(u('uTex'), 0);
+    gl.uniform2f(u('uCentre'), cx, cy);
+    gl.uniform2f(u('uTexSize'), image.naturalWidth, image.naturalHeight);
+    gl.uniform3f(u('uColour'), rgb[0] / 255, rgb[1] / 255, rgb[2] / 255);
+    gl.uniform1f(u('uHeight'), canvas.height);
+    gl.uniform1f(u('uWay'), way);
+    gl.uniform1f(u('uArms'), V.arms);
+    gl.uniform1f(u('uPitch'), V.pitch);
+    gl.uniform1f(u('uFill'), V.fill);
+    gl.uniform1f(u('uLength'), length);
+    gl.uniform1f(u('uReach'), V.reach);
+    gl.uniform1f(u('uFade'), V.fade);
+    gl.uniform1f(u('uHole'), V.hole);
+    const uScroll = u('uScroll'), uTurn = u('uTurn'), uShown = u('uShown');
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.disable(gl.BLEND);
+    gl.clearColor(0, 0, 0, 0);
+    const draw = (ms, charge)=>{
+      const s = Math.max(0, ms) / 1000, wait = Math.max(0.1, charge / 1000);
+      const scroll = V.speed * (s + (V.rush - 1) * s * s / (2 * wait));
+      const coming = Math.min(1, ms / V.rise);
+      const going = ms > charge ? Math.max(0, 1 - (ms - charge) / V.fall) : 1;
+      const building = 0.6 + 0.4 * Math.min(1, ms / charge);
+      gl.uniform1f(uScroll, scroll % 1);
+      gl.uniform1f(uTurn, (V.spin * s * Math.PI * 2) % (Math.PI * 2));
+      gl.uniform1f(uShown, Math.max(0, coming * going * building * V.strength));
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+    };
+    draw(0, 1000);
+    if(gl.getError() !== gl.NO_ERROR) throw new Error('draw');
+    return { canvas: canvas, draw: draw, remove: remove };
+  }catch(_){
+    remove();
+    return null;
+  }
+}
+
 function packRevealSwirl(carta, reveal){
   const page = _bustaScena();
   if(!page || !(reveal.trails > 0)) return;
@@ -24351,6 +24488,7 @@ function packRevealSwirl(carta, reveal){
   const TONE = numbers(REVEAL_SPARK_WHITE), CORE = numbers(0.75);
   const conf = SCINTILLE_CARTA[String(rarity || 'common').toLowerCase()] || SCINTILLE_CARTA.common;
   const way = rnd() < 0.5 ? -1 : 1;
+  const vortex = packVortexStart(page, canvas, CX, CY, way, numbers(0).split(',').map(Number));
 
   const tinted = [];
   const drawingOf = (shape)=>{
@@ -24413,12 +24551,13 @@ function packRevealSwirl(carta, reveal){
   };
   const t0 = performance.now();
   const step = (now)=>{
-    if(!canvas.isConnected) return;
+    if(!canvas.isConnected){ if(vortex) vortex.remove(); return; }
     const t = now - t0;
     g.globalCompositeOperation = 'source-over';
     g.globalAlpha = 1;
     g.clearRect(0, 0, canvas.width, canvas.height);
-    if(t > reveal.charge + 60){ canvas.remove(); return; }
+    if(t > reveal.charge + (vortex ? PACK_VORTEX.fall : 0) + 60){ canvas.remove(); if(vortex) vortex.remove(); return; }
+    if(vortex) vortex.draw(t, reveal.charge);
     g.globalCompositeOperation = 'lighter';
     for(const s of sparks){
       const u = (t - s.born) / s.life;
@@ -24427,8 +24566,10 @@ function packRevealSwirl(carta, reveal){
       const STEPS = 16, from = Math.max(0, u - 0.22), pts = [];
       for(let j = 0; j <= STEPS; j++) pts.push(at(s, from + (u - from) * j / STEPS));
       g.globalAlpha = 1;
-      ribbon(pts, k => (1.5 + 5 * k) * (s.r / 4), TONE, 0.3 * shown);
-      ribbon(pts, k => (0.4 + 1.5 * k) * (s.r / 4), CORE, 0.85 * shown);
+      if(!vortex){
+        ribbon(pts, k => (1.5 + 5 * k) * (s.r / 4), TONE, 0.3 * shown);
+        ribbon(pts, k => (0.4 + 1.5 * k) * (s.r / 4), CORE, 0.85 * shown);
+      }
       spark(pts[STEPS][0], pts[STEPS][1], s.r * (1 - 0.45 * u), shown, s.shape);
     }
     requestAnimationFrame(step);
