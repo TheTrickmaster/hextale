@@ -1,3 +1,4 @@
+import { initDust } from './dust.js';
 import { initHero } from './hero.js';
 import { initScroll } from './scroll.js';
 import { initStages } from './stage.js';
@@ -9,6 +10,7 @@ import { initDialogs } from './dialogs.js';
 import { initTrailer } from './trailer.js';
 import { initButtons } from './buttons.js';
 
+initDust();
 initHero();
 initScroll();
 initStages();
