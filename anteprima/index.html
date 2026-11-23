@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=1920">
-<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'; script-src 'sha256-YRzCSTENoZOu3Y3xyPmjiKQ7S2CFDngYmIFo3oj6RQM=' 'sha256-FXbw5h4PBcCpNJV600eWD1EVmn5yPHwbkyRPHHoBQNQ=' 'sha256-FJCerImfSiwfncG6Z0vXy3aT00y3vVTHmwm5jHMmNZY=' https://accounts.google.com/gsi/client">
+<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'; script-src 'sha256-YRzCSTENoZOu3Y3xyPmjiKQ7S2CFDngYmIFo3oj6RQM=' 'sha256-FXbw5h4PBcCpNJV600eWD1EVmn5yPHwbkyRPHHoBQNQ=' 'sha256-S2s5S1Jc2ClBe9cz2/3KbUQplpYl8CskQnu4eU5g2MY=' https://accounts.google.com/gsi/client">
 <script>
 (function(){
   try{
@@ -24349,11 +24349,12 @@ function packRevealDim(carta, level){
   reveal.classList.toggle('reveal-dimmed', darkest > 0);
 }
 const REVEAL_CHARGE_SOUNDS = [
-  { name: 'unpack-load',  file: 'unpack-load.mp3',       lead: null },
-  { name: 'rank-up',      file: 'rank-up.mp3',           lead: 1900 },
-  { name: 'lvl-up-badge', file: 'card-lvl-up-badge.mp3', lead: 850 },
-  { name: 'none',         file: null,                    lead: null }
+  { name: 'unpack-load',  file: 'unpack-load.mp3',       span: [66, 1400] },
+  { name: 'rank-up',      file: 'rank-up.mp3',           span: [645, 1900] },
+  { name: 'lvl-up-badge', file: 'card-lvl-up-badge.mp3', span: [83, 900] },
+  { name: 'none',         file: null,                    span: null }
 ];
+const REVEAL_STRETCH = [0.5, 2];
 const REVEAL_CHARGE_FADE_MS = 160;
 let _revealChargeSound = 0;
 const _packRevealSounds = new Set();
@@ -24364,20 +24365,29 @@ function _packRevealStopSound(sound, fade){
   try{ if(typeof sound.stop === 'function') sound.stop(); }catch(_){ }
   try{ if(typeof sound.pause === 'function'){ sound.pause(); sound.currentTime = 0; } }catch(_){ }
 }
+function packRevealChargeFit(pick, charge){
+  const length = pick.span[1] - pick.span[0];
+  const speed = Math.max(REVEAL_STRETCH[0], Math.min(REVEAL_STRETCH[1], length / charge));
+  const lasts = length / speed;
+  return {
+    speed: speed,
+    wait: Math.max(0, charge - lasts),
+    from: (pick.span[0] + Math.max(0, lasts - charge) * speed) / 1000
+  };
+}
 function packRevealChargeSound(charge){
   const pick = REVEAL_CHARGE_SOUNDS[_revealChargeSound];
   if(!pick || !pick.file) return;
-  const lead = pick.lead === null ? charge : pick.lead;
-  const wait = Math.max(0, charge - lead);
-  const from = pick.lead === null ? saltoSilenzioIniziale(pick.file.replace('.mp3', '')) : Math.max(0, lead - charge) / 1000;
+  const fit = packRevealChargeFit(pick, charge);
   const start = ()=>{
     let sound = null;
-    try{ sound = playSfxFile(pick.file, undefined, from); }catch(_){ sound = null; }
+    try{ sound = playSfxFile(pick.file, undefined, fit.from); }catch(_){ sound = null; }
     if(!sound) return;
+    try{ if(sound.playbackRate && typeof sound.playbackRate.value === 'number') sound.playbackRate.value = fit.speed; }catch(_){ }
     _packRevealSounds.add(sound);
-    _bustinaDopo(charge - wait, ()=>{ _packRevealStopSound(sound, REVEAL_CHARGE_FADE_MS); });
+    _bustinaDopo(charge - fit.wait, ()=>{ _packRevealStopSound(sound, REVEAL_CHARGE_FADE_MS); });
   };
-  if(wait > 0) _bustinaDopo(wait, start); else start();
+  if(fit.wait > 0) _bustinaDopo(fit.wait, start); else start();
 }
 function debugCycleChargeSound(){
   _revealChargeSound = (_revealChargeSound + 1) % REVEAL_CHARGE_SOUNDS.length;
