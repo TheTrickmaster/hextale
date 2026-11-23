@@ -1,5 +1,6 @@
 import { initDust } from './dust.js';
 import { initHero } from './hero.js';
+import { initCardsBackdrop } from './cards-backdrop.js';
 import { initScroll } from './scroll.js';
 import { initStages } from './stage.js';
 import { initCardShowcase } from './card-showcase.js';
@@ -12,6 +13,7 @@ import { initButtons } from './buttons.js';
 
 initDust();
 initHero();
+initCardsBackdrop();
 initScroll();
 initStages();
 initCardShowcase();
