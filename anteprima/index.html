@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=1920">
-<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'; script-src 'sha256-YRzCSTENoZOu3Y3xyPmjiKQ7S2CFDngYmIFo3oj6RQM=' 'sha256-FXbw5h4PBcCpNJV600eWD1EVmn5yPHwbkyRPHHoBQNQ=' 'sha256-OhBZhbpIIm5MNXBi2Ew9THQ+mT7ca6V2TDVzNxmGCl0=' https://accounts.google.com/gsi/client">
+<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'; script-src 'sha256-YRzCSTENoZOu3Y3xyPmjiKQ7S2CFDngYmIFo3oj6RQM=' 'sha256-FXbw5h4PBcCpNJV600eWD1EVmn5yPHwbkyRPHHoBQNQ=' 'sha256-FJCerImfSiwfncG6Z0vXy3aT00y3vVTHmwm5jHMmNZY=' https://accounts.google.com/gsi/client">
 <script>
 (function(){
   try{
@@ -4379,8 +4379,7 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
 .pb-briciole{ position:absolute; inset:0; z-index:0; pointer-events:none; }
 .pb-briciola{
   position:absolute; left:50%; top:50%;
-  background:#356977;
-  box-shadow:inset 4px 4px 4px rgba(255,255,255,0.25), 0 2px 3px rgba(0,0,0,0.6);
+  background:#137875;
   will-change:transform;
 }
 
@@ -9267,6 +9266,12 @@ try{
         </div>
 
         <div class="debug-item">
+          <button class="hx-btn hx-azione" type="button" data-onclick="debugCycleChargeSound()">
+            <span class="hxb-label" id="debug-charge-sound-label">Charge sound: unpack-load</span>
+          </button>
+        </div>
+
+        <div class="debug-item">
           <button class="hx-btn hx-azione" type="button" data-onclick="avviaPartitaTutorial()">
             <span class="hxb-label">Tutorial match</span>
           </button>
@@ -9652,6 +9657,7 @@ const MARKUP_HANDLERS = {
   "corniceVai('progress')": function(event){ corniceVai('progress') },
   "debugChiudiPannelloFoil()": function(event){ debugChiudiPannelloFoil() },
   "debugCopyFoilValues()": function(event){ debugCopyFoilValues() },
+  "debugCycleChargeSound()": function(event){ debugCycleChargeSound() },
   "debugFilterCardSearchList()": function(event){ debugFilterCardSearchList() },
   "debugMostraNuovoRank()": function(event){ debugMostraNuovoRank() },
   "debugMostraSblocco()": function(event){ debugMostraSblocco() },
@@ -23859,6 +23865,7 @@ function bustaColpo(){
   bustaRompi();
 }
 
+const BRICIOLA_COLORI = ['#137875', '#146769', '#0D8888'];
 function bustaBriciole(colpo){
   const dove = document.getElementById('pack-briciole');
   if(!dove) return;
@@ -23867,17 +23874,19 @@ function bustaBriciole(colpo){
   for(let i=0;i<quante;i++){
     const b = document.createElement('i');
     b.className = 'pb-briciola';
-    const lato = caso(3, 24);
-    const alto = caso(lato*0.35, lato*1.5);
-    let sagoma;
-    if(Math.random() < 0.5){
-      const r = ()=> caso(15, 80).toFixed(0) + '%';
-      sagoma = 'border-radius:' + r() + ' ' + r() + ' ' + r() + ' ' + r() + ';';
-    } else {
-      const p = ()=> caso(0, 100).toFixed(0) + '% ' + caso(0, 100).toFixed(0) + '%';
-      sagoma = 'clip-path:polygon(' + p() + ',' + p() + ',' + p() + ',' + p() + ');';
+    const lato = caso(6, 26);
+    const alto = caso(lato*0.5, lato*1.4);
+    const angoli = 3 + Math.floor(Math.random() * 3);
+    const punti = [];
+    let giro = caso(0, 360);
+    for(let k = 0; k < angoli; k++){
+      const raggio = caso(26, 50), rad = giro * Math.PI / 180;
+      punti.push((50 + Math.cos(rad) * raggio).toFixed(0) + '% ' + (50 + Math.sin(rad) * raggio).toFixed(0) + '%');
+      giro += 360 / angoli * caso(0.7, 1.3);
     }
-    b.style.cssText = 'width:'+lato.toFixed(1)+'px;height:'+alto.toFixed(1)+'px;' + sagoma;
+    const colore = BRICIOLA_COLORI[Math.floor(Math.random() * BRICIOLA_COLORI.length)];
+    b.style.cssText = 'width:'+lato.toFixed(1)+'px;height:'+alto.toFixed(1)+'px;background:' + colore +
+      ';clip-path:polygon(' + punti.join(',') + ');';
     dove.appendChild(b);
     _briciole.push({
       el: b, x: caso(-40, 40), y: caso(-30, 30),
@@ -24339,8 +24348,45 @@ function packRevealDim(carta, level){
   reveal.style.setProperty('--reveal-dim', String(darkest));
   reveal.classList.toggle('reveal-dimmed', darkest > 0);
 }
+const REVEAL_CHARGE_SOUNDS = [
+  { name: 'unpack-load',  file: 'unpack-load.mp3',       lead: null },
+  { name: 'rank-up',      file: 'rank-up.mp3',           lead: 1900 },
+  { name: 'lvl-up-badge', file: 'card-lvl-up-badge.mp3', lead: 850 },
+  { name: 'none',         file: null,                    lead: null }
+];
+const REVEAL_CHARGE_FADE_MS = 160;
+let _revealChargeSound = 0;
+const _packRevealSounds = new Set();
+function _packRevealStopSound(sound, fade){
+  if(!sound) return;
+  _packRevealSounds.delete(sound);
+  if(fade > 0){ try{ sfumaESpegni(sound, fade); }catch(_){ } return; }
+  try{ if(typeof sound.stop === 'function') sound.stop(); }catch(_){ }
+  try{ if(typeof sound.pause === 'function'){ sound.pause(); sound.currentTime = 0; } }catch(_){ }
+}
+function packRevealChargeSound(charge){
+  const pick = REVEAL_CHARGE_SOUNDS[_revealChargeSound];
+  if(!pick || !pick.file) return;
+  const lead = pick.lead === null ? charge : pick.lead;
+  const wait = Math.max(0, charge - lead);
+  const from = pick.lead === null ? saltoSilenzioIniziale(pick.file.replace('.mp3', '')) : Math.max(0, lead - charge) / 1000;
+  const start = ()=>{
+    let sound = null;
+    try{ sound = playSfxFile(pick.file, undefined, from); }catch(_){ sound = null; }
+    if(!sound) return;
+    _packRevealSounds.add(sound);
+    _bustinaDopo(charge - wait, ()=>{ _packRevealStopSound(sound, REVEAL_CHARGE_FADE_MS); });
+  };
+  if(wait > 0) _bustinaDopo(wait, start); else start();
+}
+function debugCycleChargeSound(){
+  _revealChargeSound = (_revealChargeSound + 1) % REVEAL_CHARGE_SOUNDS.length;
+  const label = document.getElementById('debug-charge-sound-label');
+  if(label) label.textContent = 'Charge sound: ' + REVEAL_CHARGE_SOUNDS[_revealChargeSound].name;
+}
 function packRevealReset(){
   _packRevealDims.clear();
+  for(const sound of [..._packRevealSounds]) _packRevealStopSound(sound, 0);
   const reveal = document.getElementById('pack-reveal');
   if(reveal){ reveal.classList.remove('reveal-dimmed'); reveal.style.removeProperty('--reveal-dim'); }
   document.querySelectorAll('#pack-overlay > .pack-rays, #pack-overlay > .pack-reveal-dim, #pack-overlay > .pack-reveal-trails').forEach(el => el.remove());
@@ -24377,6 +24423,7 @@ function giraCartaBustina(carta){
     } catch(_){}
   };
   try{ playSfx('sfx-pick'); }catch(_){ }
+  packRevealChargeSound(reveal.charge);
   _bustinaDopo(Math.max(0, reveal.charge - REVEAL_WHOOSH_LEAD_MS), whoosh);
   if(!strong){
     try{ bustaScintilleCarta(carta); }catch(_){ }
