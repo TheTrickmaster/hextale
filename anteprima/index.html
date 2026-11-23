@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=1920">
-<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'; script-src 'sha256-YRzCSTENoZOu3Y3xyPmjiKQ7S2CFDngYmIFo3oj6RQM=' 'sha256-FXbw5h4PBcCpNJV600eWD1EVmn5yPHwbkyRPHHoBQNQ=' 'sha256-8iZW9EkiW3uDqGyth8hcrjz4TFZeRKWTwcfremn59io=' https://accounts.google.com/gsi/client">
+<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'; script-src 'sha256-YRzCSTENoZOu3Y3xyPmjiKQ7S2CFDngYmIFo3oj6RQM=' 'sha256-FXbw5h4PBcCpNJV600eWD1EVmn5yPHwbkyRPHHoBQNQ=' 'sha256-B2aC9ca/G4UAfZT4al90kgROzPQghLUrFK0Bw9eS7fU=' https://accounts.google.com/gsi/client">
 <script>
 (function(){
   try{
@@ -4324,6 +4324,7 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
   rotate:var(--hit-bend-x, 1) var(--hit-bend-y, 0) 0 var(--hit-bend, 0deg);
   transition:rotate .3s cubic-bezier(.2,1.8,.4,1);
 }
+#pack-overlay.busta-apre .pb-dentro{ transition:rotate .06s linear; }
 #pack-overlay.busta-in-mano .pb-dentro{
   transform:rotateX(calc(var(--foil-ry, 0) * var(--tilt-busta, 14deg) * -1))
             rotateY(calc(var(--foil-rx, 0) * var(--tilt-busta, 14deg)));
@@ -24056,7 +24057,6 @@ function _bustaFermaCarica(ms){
   _bustaSuonoCarica = null;
 }
 let _packChargeScene = false;
-const PACK_BREAK_BEAT_MS = 110;
 function bustaRompi(){
   try{ ttEvento('sigillo-rotto'); }catch(_){ }
   const scena = _bustaScena();
@@ -24068,7 +24068,7 @@ function bustaRompi(){
     scena.style.setProperty('--pack-burst-from', '1');
     packHitStraighten();
     _bustaSuonoCarica = null;
-    _bustinaDopo(PACK_BREAK_BEAT_MS, bustaApri);
+    bustaApri();
     return;
   }
   scena.style.removeProperty('--pack-burst-from');
@@ -24777,10 +24777,13 @@ function giraCartaBustina(carta){
       playSfxFile(file, undefined, saltoSilenzioIniziale(file.replace(/\.(mp3|wav)$/i,'')));
     } catch(_){}
   };
-  packRevealClick();
-  packRevealChargeSound(reveal.charge);
-  if(strong) _bustinaDopo(Math.max(0, reveal.charge - REVEAL_WHOOSH_LEAD_MS), whoosh);
-  else whoosh();
+  if(strong){
+    packRevealClick();
+    packRevealChargeSound(reveal.charge);
+    _bustinaDopo(Math.max(0, reveal.charge - REVEAL_WHOOSH_LEAD_MS), whoosh);
+  } else {
+    whoosh();
+  }
   if(!strong){
     try{ bustaScintilleCarta(carta); }catch(_){ }
   } else {
@@ -25328,7 +25331,10 @@ function initPacchettiGesti(){
   window.addEventListener('pointercancel', ()=>{ if(giu && giu.modo === 'solleva') bustaRimetti(); giu = null; });
 
   const sigillo = document.getElementById('pack-wax');
-  if(sigillo) sigillo.addEventListener('click', bustaColpo);
+  if(sigillo) sigillo.addEventListener('pointerdown', (e)=>{
+    if(e.button !== undefined && e.button !== 0) return;
+    bustaColpo();
+  });
 }
 
 function pkTitoloDaily(){
