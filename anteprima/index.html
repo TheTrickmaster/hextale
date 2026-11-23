@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=1920">
-<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'; script-src 'sha256-YRzCSTENoZOu3Y3xyPmjiKQ7S2CFDngYmIFo3oj6RQM=' 'sha256-FXbw5h4PBcCpNJV600eWD1EVmn5yPHwbkyRPHHoBQNQ=' 'sha256-bH+zAsbEMn4oGyx8rAcMt7o0hWOm3JrE+O9aa0Hrf3w=' https://accounts.google.com/gsi/client">
+<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'; script-src 'sha256-YRzCSTENoZOu3Y3xyPmjiKQ7S2CFDngYmIFo3oj6RQM=' 'sha256-FXbw5h4PBcCpNJV600eWD1EVmn5yPHwbkyRPHHoBQNQ=' 'sha256-zzi4HQgrVN9zIaKMmoUxMKcp5L/upzHiOum08j35uPA=' https://accounts.google.com/gsi/client">
 <script>
 (function(){
   try{
@@ -24335,8 +24335,8 @@ function packRevealRays(carta, reveal){
   rays.classList.add('open');
   return rays;
 }
-const PACK_VORTEX = { arms: 6, pitch: 2.1, fill: 0.55, stretch: 1, speed: 0.55, rush: 2.6, spin: 0.12,
-                      reach: 560, fade: 0.6, hole: 70, strength: 0.95, white: 0.55, rise: 380, fall: 650 };
+const PACK_VORTEX = { arms: 6, pitch: 2.1, fill: 0.55, stretch: 2, speed: 0.55, rush: 2.6, spin: 0.12,
+                      reach: 392, fade: 0.6, hole: 70, strength: 0.95, white: 0.55, rise: 500, fall: 650 };
 let _packVortexImg = null;
 function packVortexImage(){
   if(!_packVortexImg){
@@ -24451,17 +24451,18 @@ function packVortexStart(page, before, cx, cy, way, rgb){
     gl.clearColor(0, 0, 0, 0);
     const draw = (ms, charge)=>{
       const s = Math.max(0, ms) / 1000, wait = Math.max(0.1, charge / 1000);
-      const scroll = V.speed * (s + (V.rush - 1) * s * s / (2 * wait));
-      const coming = Math.min(1, ms / V.rise);
+      const scroll = V.speed / V.stretch * (s + (V.rush - 1) * s * s / (2 * wait));
       const building = 0.6 + 0.4 * Math.min(1, ms / charge);
-      const out = Math.min(1, Math.max(0, (ms - charge) / V.fall));
+      const going = Math.min(1, Math.max(0, (ms - charge) / V.fall));
+      const coming = 1 - Math.min(1, Math.max(0, ms / V.rise));
+      const out = Math.max(going, coming);
       const edge = V.reach * (1 - out * out);
       const full = V.reach * (1 - V.fade) - (V.reach * (1 - V.fade) + V.reach * 0.8) * (1 - (1 - out) * (1 - out));
       gl.uniform1f(uEdge, edge);
       gl.uniform1f(uTail, Math.max(1, edge - full));
       gl.uniform1f(uScroll, scroll % 1);
       gl.uniform1f(uTurn, (V.spin * s * Math.PI * 2) % (Math.PI * 2));
-      gl.uniform1f(uShown, Math.max(0, coming * building * V.strength));
+      gl.uniform1f(uShown, Math.max(0, building * V.strength));
       gl.clear(gl.COLOR_BUFFER_BIT);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
     };
@@ -24570,10 +24571,8 @@ function packRevealSwirl(carta, reveal){
       const STEPS = 16, from = Math.max(0, u - 0.22), pts = [];
       for(let j = 0; j <= STEPS; j++) pts.push(at(s, from + (u - from) * j / STEPS));
       g.globalAlpha = 1;
-      if(!vortex){
-        ribbon(pts, k => (1.5 + 5 * k) * (s.r / 4), TONE, 0.3 * shown);
-        ribbon(pts, k => (0.4 + 1.5 * k) * (s.r / 4), CORE, 0.85 * shown);
-      }
+      ribbon(pts, k => (1.5 + 5 * k) * (s.r / 4), TONE, 0.3 * shown);
+      ribbon(pts, k => (0.4 + 1.5 * k) * (s.r / 4), CORE, 0.85 * shown);
       spark(pts[STEPS][0], pts[STEPS][1], s.r * (1 - 0.45 * u), shown, s.shape);
     }
     requestAnimationFrame(step);
