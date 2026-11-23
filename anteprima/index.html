@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=1920">
-<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'; script-src 'sha256-YRzCSTENoZOu3Y3xyPmjiKQ7S2CFDngYmIFo3oj6RQM=' 'sha256-FXbw5h4PBcCpNJV600eWD1EVmn5yPHwbkyRPHHoBQNQ=' 'sha256-SPBVbaJAYVo+YSDxXfXtZ8nC8bcAKZrZ4Pw3L/Ahq08=' https://accounts.google.com/gsi/client">
+<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'; script-src 'sha256-YRzCSTENoZOu3Y3xyPmjiKQ7S2CFDngYmIFo3oj6RQM=' 'sha256-FXbw5h4PBcCpNJV600eWD1EVmn5yPHwbkyRPHHoBQNQ=' 'sha256-ir+uZ2n/gw8t2gqV7jd+1UkiX9dW/kjX0FooyKU7Stc=' https://accounts.google.com/gsi/client">
 <script>
 (function(){
   try{
@@ -9280,7 +9280,12 @@ try{
 
         <div class="debug-item">
           <button class="hx-btn hx-azione" type="button" data-onclick="debugCycleChargeSound()">
-            <span class="hxb-label" id="debug-charge-sound-label">Charge sound: unpack-load</span>
+            <span class="hxb-label" id="debug-charge-sound-label">Card charge: unpack-load</span>
+          </button>
+        </div>
+        <div class="debug-item">
+          <button class="hx-btn hx-azione" type="button" data-onclick="debugCyclePackCharge()">
+            <span class="hxb-label" id="debug-pack-charge-label">Pack charge: rank-up</span>
           </button>
         </div>
 
@@ -9671,6 +9676,7 @@ const MARKUP_HANDLERS = {
   "debugChiudiPannelloFoil()": function(event){ debugChiudiPannelloFoil() },
   "debugCopyFoilValues()": function(event){ debugCopyFoilValues() },
   "debugCycleChargeSound()": function(event){ debugCycleChargeSound() },
+  "debugCyclePackCharge()": function(event){ debugCyclePackCharge() },
   "debugFilterCardSearchList()": function(event){ debugFilterCardSearchList() },
   "debugMostraNuovoRank()": function(event){ debugMostraNuovoRank() },
   "debugMostraSblocco()": function(event){ debugMostraSblocco() },
@@ -23932,7 +23938,7 @@ function bustaRompi(){
   scena.classList.remove('busta-colpita');
   scena.classList.add('busta-monta');
   bustaScuoti(17, BUSTA_MONTA_MS, true);
-  try{ _bustaSuonoCarica = playSfxFile('unpack-load.mp3', undefined, saltoSilenzioIniziale('unpack-load')); }
+  try{ _bustaSuonoCarica = packChargeSoundStart(); }
   catch(_){ _bustaSuonoCarica = null; }
   _bustinaDopo(BUSTA_MONTA_MS, bustaApri);
 }
@@ -24403,10 +24409,32 @@ function packRevealChargeSound(charge){
   };
   if(fit.wait > 0) _bustinaDopo(fit.wait, start); else start();
 }
+const PACK_CHARGE_SOUNDS = [
+  { name: 'rank-up',      file: 'rank-up.mp3',           span: [645, 1900] },
+  { name: 'lvl-up-badge', file: 'card-lvl-up-badge.mp3', span: [83, 900] },
+  { name: 'growth',       file: 'growth.mp3',            span: [61, 450] },
+  { name: 'unpack-load',  file: 'unpack-load.mp3',       span: null },
+  { name: 'none',         file: null,                    span: null }
+];
+let _packChargeSound = 0;
+function packChargeSoundStart(){
+  const pick = PACK_CHARGE_SOUNDS[_packChargeSound];
+  if(!pick || !pick.file) return null;
+  if(!pick.span) return playSfxFile(pick.file, undefined, saltoSilenzioIniziale(pick.file.replace('.mp3', '')));
+  const fit = packRevealChargeFit(pick, BUSTA_MONTA_MS);
+  const sound = playSfxFile(pick.file, undefined, fit.from);
+  try{ if(sound && sound.playbackRate && typeof sound.playbackRate.value === 'number') sound.playbackRate.value = fit.speed; }catch(_){ }
+  return sound;
+}
+function debugCyclePackCharge(){
+  _packChargeSound = (_packChargeSound + 1) % PACK_CHARGE_SOUNDS.length;
+  const label = document.getElementById('debug-pack-charge-label');
+  if(label) label.textContent = 'Pack charge: ' + PACK_CHARGE_SOUNDS[_packChargeSound].name;
+}
 function debugCycleChargeSound(){
   _revealChargeSound = (_revealChargeSound + 1) % REVEAL_CHARGE_SOUNDS.length;
   const label = document.getElementById('debug-charge-sound-label');
-  if(label) label.textContent = 'Charge sound: ' + REVEAL_CHARGE_SOUNDS[_revealChargeSound].name;
+  if(label) label.textContent = 'Card charge: ' + REVEAL_CHARGE_SOUNDS[_revealChargeSound].name;
 }
 function packRevealReset(){
   _packRevealDims.clear();
