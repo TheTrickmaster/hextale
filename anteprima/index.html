@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=1920">
-<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'; script-src 'sha256-YRzCSTENoZOu3Y3xyPmjiKQ7S2CFDngYmIFo3oj6RQM=' 'sha256-FXbw5h4PBcCpNJV600eWD1EVmn5yPHwbkyRPHHoBQNQ=' 'sha256-w88ZXREzuA5HTtDhA/YQF5e5H5+Dvlk+yx8ckduvJIA=' https://accounts.google.com/gsi/client">
+<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'; script-src 'sha256-YRzCSTENoZOu3Y3xyPmjiKQ7S2CFDngYmIFo3oj6RQM=' 'sha256-FXbw5h4PBcCpNJV600eWD1EVmn5yPHwbkyRPHHoBQNQ=' 'sha256-jtnZtHz6PZitlWa+z7kmMNczgMCJXQrxTiD3l5dlsGY=' https://accounts.google.com/gsi/client">
 <script>
 (function(){
   try{
@@ -1862,6 +1862,7 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
 .group-sep-hover .hex-card-group-sep-flat{
   opacity:1;
 }
+.hex-card-group-sep, .hex-card-group-sep-flat{ stroke-opacity:var(--card-separator-opacity, 1); }
 .scudo-fantasma{ opacity:0; pointer-events:none; transition:opacity .12s ease-out; }
 .scudo-fantasma.mostra{ opacity:.5; }
 .gruppo-acceso{ filter:brightness(1.45) drop-shadow(0 0 6px rgba(255,233,145,.85)); }
@@ -5262,9 +5263,11 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
 #settings-pannello .filters-riga{ margin:0; }
 #settings-resa{ margin:20px 0; gap:16px; }
 .settings-azione{ width:100%; }
-#settings-pannello .settings-row label{
+#settings-pannello .settings-row label,
+#customize-pannello .settings-row label{
   font-family:var(--font-body); font-size:20px; color:var(--c-cream);
 }
+#card-separator-row{ width:100%; padding-right:8px; box-sizing:border-box; }
 .settings-opzione{
   display:flex; align-items:center; gap:16px; width:100%;
   font-family:var(--font-body); font-size:20px; color:var(--c-cream);
@@ -8684,6 +8687,15 @@ try{
         <span class="filters-nome">Show tooltips on keywords</span>
         <span class="filters-casella"></span>
       </label>
+      <div class="settings-row" id="card-separator-row">
+        <label>Card separator opacity</label>
+        <div class="settings-row-spacer"></div>
+        <div class="settings-slider" id="card-separator-slider">
+          <img class="settings-slider-bg" src="https://hextalegame.com/ui/slider-bar-bg.png" alt="" draggable="false">
+          <div class="settings-slider-fill-mask" id="card-separator-slider-fill-mask"><img class="settings-slider-fill" src="https://hextalegame.com/ui/slider-bar-fill.png" alt="" draggable="false"></div>
+          <img class="settings-slider-cursor" id="card-separator-slider-cursor" src="https://hextalegame.com/ui/slider-bar-cursor.png" alt="" draggable="false">
+        </div>
+      </div>
       <label class="settings-opzione filters-opt" id="art-ai-opzione" style="display:none">
         <input type="checkbox" id="art-ai-check" data-onchange="toggleArtAI(this)">
         <span class="filters-nome" id="art-ai-nome">Use AI card art (admin)</span>
@@ -9280,17 +9292,6 @@ try{
         </div>
 
         <div class="debug-item">
-          <button class="hx-btn hx-azione" type="button" data-onclick="debugCycleChargeSound()">
-            <span class="hxb-label" id="debug-charge-sound-label">Card charge: unpack-load</span>
-          </button>
-        </div>
-        <div class="debug-item">
-          <button class="hx-btn hx-azione" type="button" data-onclick="debugCyclePackCharge()">
-            <span class="hxb-label" id="debug-pack-charge-label">Pack charge: rank-up</span>
-          </button>
-        </div>
-
-        <div class="debug-item">
           <button class="hx-btn hx-azione" type="button" data-onclick="avviaPartitaTutorial()">
             <span class="hxb-label">Tutorial match</span>
           </button>
@@ -9675,8 +9676,6 @@ const MARKUP_HANDLERS = {
   "corniceVai('progress')": function(event){ corniceVai('progress') },
   "debugChiudiPannelloFoil()": function(event){ debugChiudiPannelloFoil() },
   "debugCopyFoilValues()": function(event){ debugCopyFoilValues() },
-  "debugCycleChargeSound()": function(event){ debugCycleChargeSound() },
-  "debugCyclePackCharge()": function(event){ debugCyclePackCharge() },
   "debugFilterCardSearchList()": function(event){ debugFilterCardSearchList() },
   "debugMostraNuovoRank()": function(event){ debugMostraNuovoRank() },
   "debugMostraSblocco()": function(event){ debugMostraSblocco() },
@@ -14735,6 +14734,7 @@ function preferenzeDalServer(p, bustinaProssima, bustineExtra, bustineTesoro, pr
   }
   try{ if(typeof caricaImpostazioniAudio === 'function') caricaImpostazioniAudio(); }catch(_){}
   try{ if(typeof caricaAiutoEsagono === 'function') caricaAiutoEsagono(); }catch(_){}
+  try{ if(typeof applyCardSeparatorOpacity === 'function') applyCardSeparatorOpacity(); }catch(_){}
   try{ if(typeof applyFactionToPlayerPanels === 'function') applyFactionToPlayerPanels(); }catch(_){}
   try{ artAIAvvia(); }catch(_){ }
 }
@@ -20036,6 +20036,45 @@ function tooltipParoleAccesi(){ return PREFERENZE.tooltipParole !== false; }
 function aggiornaInterruttoreTooltipParole(){
   document.querySelectorAll('.tooltip-parole-check').forEach(c => { c.checked = tooltipParoleAccesi(); });
 }
+const CARD_SEPARATOR_OPACITY_DEFAULT = 1;
+function cardSeparatorOpacity(){
+  const v = PREFERENZE.cardSeparatorOpacity;
+  return (typeof v === 'number' && isFinite(v)) ? Math.max(0, Math.min(1, v)) : CARD_SEPARATOR_OPACITY_DEFAULT;
+}
+function applyCardSeparatorOpacity(){
+  const v = cardSeparatorOpacity();
+  document.documentElement.style.setProperty('--card-separator-opacity', String(v));
+  try{ setSliderVisual('card-separator-slider', v); }catch(_){ }
+}
+function initCardSeparatorSlider(){
+  const track = document.getElementById('card-separator-slider');
+  if(!track) return;
+  applyCardSeparatorOpacity();
+  if(track.dataset.wired) return;
+  track.dataset.wired = '1';
+  let dragging = false;
+  const valueAt = (clientX)=>{
+    const r = track.getBoundingClientRect();
+    return r.width > 0 ? Math.max(0, Math.min(1, (clientX - r.left) / r.width)) : 0;
+  };
+  const show = (v)=>{
+    PREFERENZE.cardSeparatorOpacity = Math.round(v * 100) / 100;
+    applyCardSeparatorOpacity();
+  };
+  track.addEventListener('pointerdown', e=>{
+    dragging = true;
+    try{ track.setPointerCapture(e.pointerId); }catch(_){ }
+    show(valueAt(e.clientX));
+  });
+  track.addEventListener('pointermove', e=>{ if(dragging) show(valueAt(e.clientX)); });
+  const end = ()=>{
+    if(!dragging) return;
+    dragging = false;
+    salvaPreferenze({ cardSeparatorOpacity: cardSeparatorOpacity() });
+  };
+  track.addEventListener('pointerup', end);
+  track.addEventListener('pointercancel', end);
+}
 const ART_AI_BASE = 'https://download.hextalegame.com/ai-art/';
 let _artAIPresenti = null;
 let _artAIScarico = null;
@@ -21100,6 +21139,7 @@ function oggettoCampoAccendi(nome){
 }
 function aggiornaCustomize(){
   try{ aggiornaInterruttoreTooltipParole(); }catch(_){ }
+  try{ initCardSeparatorSlider(); }catch(_){ }
   try{ aggiornaInterruttoreArtAI(); }catch(_){ }
   const campo = document.getElementById('customize-username');
   if(campo) campo.value = (typeof nomeGiocatore === 'function' ? nomeGiocatore() : '') || '';
@@ -24666,16 +24706,6 @@ function packChargeSoundStart(){
     _bustaSuonoCarica = sound;
   };
   if(wait > 0) _bustinaDopo(wait, start); else start();
-}
-function debugCyclePackCharge(){
-  _packChargeSound = (_packChargeSound + 1) % PACK_CHARGE_SOUNDS.length;
-  const label = document.getElementById('debug-pack-charge-label');
-  if(label) label.textContent = 'Pack charge: ' + PACK_CHARGE_SOUNDS[_packChargeSound].name;
-}
-function debugCycleChargeSound(){
-  _revealChargeSound = (_revealChargeSound + 1) % REVEAL_CHARGE_SOUNDS.length;
-  const label = document.getElementById('debug-charge-sound-label');
-  if(label) label.textContent = 'Card charge: ' + REVEAL_CHARGE_SOUNDS[_revealChargeSound].name;
 }
 function packRevealReset(){
   _packRevealDims.clear();
