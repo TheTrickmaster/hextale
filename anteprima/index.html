@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=1920">
-<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'; script-src 'sha256-YRzCSTENoZOu3Y3xyPmjiKQ7S2CFDngYmIFo3oj6RQM=' 'sha256-FXbw5h4PBcCpNJV600eWD1EVmn5yPHwbkyRPHHoBQNQ=' 'sha256-E+2UqqSShfKtrhPOWEuVgqyGiTlZKi7pumMewOdDHsY=' https://accounts.google.com/gsi/client">
+<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'; script-src 'sha256-YRzCSTENoZOu3Y3xyPmjiKQ7S2CFDngYmIFo3oj6RQM=' 'sha256-FXbw5h4PBcCpNJV600eWD1EVmn5yPHwbkyRPHHoBQNQ=' 'sha256-oSAjQbPb8dGF9mvRNAVg68wkBgvZf6Am/5ITNg9j3sE=' https://accounts.google.com/gsi/client">
 <script>
 (function(){
   try{
@@ -1375,12 +1375,14 @@ html.accesso-finestra body:has(.hx-overlay.show) #accesso-finestra{ -webkit-app-
 
 #game-area.turn-locked{pointer-events:none;}
 
-.tile-thickness{
+.hex-card-thickness{
   display:none;
-  fill:var(--tile-thickness-colour, #1E1A16);
+  fill:var(--hex-thickness-light, #A99D84);
+  transform:translateY(var(--hex-thickness, 4px));
   pointer-events:none;
 }
-html.tile-thickness-on .tile-thickness{ display:inline; }
+.hex-card-thickness.dark{ fill:var(--hex-thickness-dark, #435256); }
+html.hex-thickness-on .hex-card-thickness{ display:inline; }
 @keyframes tileDropIn{
   0%   {opacity:0; transform:perspective(520px) rotateY(0deg); filter:brightness(1);}
   20%  {opacity:1;}
@@ -9216,7 +9218,7 @@ try{
 
         <div class="debug-item">
           <button class="hx-btn hx-azione" type="button" data-onclick="debugOpenCardThickness()">
-            <span class="hxb-label">Card &amp; tile thickness</span>
+            <span class="hxb-label">Card thickness</span>
           </button>
         </div>
 
@@ -26369,21 +26371,17 @@ function cardFoilFoglie(host, tilt){
   return f;
 }
 const CARD_THICKNESS = { on:true, px:1.5, dark:'#435256', light:'#A99D84' };
-const TILE_THICKNESS = { on:false, px:6, colour:'#1E1A16', over:true };
+const HEX_THICKNESS = { on:false, px:4, dark:'#435256', light:'#A99D84' };
 function cardThicknessApply(){
   const r = document.documentElement;
   r.classList.toggle('card-thickness-off', !CARD_THICKNESS.on);
   r.style.setProperty('--card-thickness', CARD_THICKNESS.px + 'px');
   r.style.setProperty('--card-thickness-dark', CARD_THICKNESS.dark);
   r.style.setProperty('--card-thickness-light', CARD_THICKNESS.light);
-  r.classList.toggle('tile-thickness-on', TILE_THICKNESS.on);
-  r.style.setProperty('--tile-thickness-colour', TILE_THICKNESS.colour);
-  try{
-    if(typeof G !== 'undefined' && G && G.cells && document.getElementById('board-svg') && !G.boardDropAnimInProgress){
-      _firmaTabellonePrecedente = null;
-      renderBoard();
-    }
-  }catch(e){ noteHiddenError('thickness.redraw', e); }
+  r.classList.toggle('hex-thickness-on', HEX_THICKNESS.on);
+  r.style.setProperty('--hex-thickness', HEX_THICKNESS.px + 'px');
+  r.style.setProperty('--hex-thickness-dark', HEX_THICKNESS.dark);
+  r.style.setProperty('--hex-thickness-light', HEX_THICKNESS.light);
 }
 function cardFoilDirettoRiposo(host, tilt){
   tilt.style.transform = '';
@@ -27271,9 +27269,9 @@ function debugOpenParallaxLab(){
   parallaxLabMoto();
 }
 function cardThicknessLine(){
-  const C = CARD_THICKNESS, T = TILE_THICKNESS;
+  const C = CARD_THICKNESS, T = HEX_THICKNESS;
   return 'CARD_THICKNESS = { px: ' + C.px + ", dark: '" + C.dark.toUpperCase() + "', light: '" + C.light.toUpperCase() + "' }; "
-    + 'TILE_THICKNESS = { px: ' + T.px + ", colour: '" + T.colour.toUpperCase() + "' }";
+    + 'HEX_THICKNESS = { px: ' + T.px + ", dark: '" + T.dark.toUpperCase() + "', light: '" + T.light.toUpperCase() + "' }";
 }
 function cardThicknessPanel(){
   let p = document.getElementById('card-thickness-tuner');
@@ -27330,26 +27328,18 @@ function cardThicknessPanel(){
     });
   };
   section('Cards (Collection)', CARD_THICKNESS, 'card', 'Show the thickness', 'Thickness at full tilt', [['dark', 'Colour, dark cards'], ['light', 'Colour, light cards']]);
-  section('Hex tiles (board)', TILE_THICKNESS, 'tile', 'Show the thickness', 'Thickness', [['colour', 'Colour']]);
-  {
-    const row = el('label', 'display:flex;align-items:center;gap:8px;color:#c8d6d8;font-size:14px;margin:-4px 0 14px;cursor:var(--cursore);');
-    const c = document.createElement('input'); c.type = 'checkbox'; c.checked = TILE_THICKNESS.over;
-    c.setAttribute('data-thickness', 'tile-over');
-    c.addEventListener('change', () => { TILE_THICKNESS.over = c.checked; refresh(); });
-    row.appendChild(c); row.appendChild(el('span', '', 'Side drawn over the row below'));
-    p.appendChild(row);
-  }
+  section('Cards in play (board hexagons)', HEX_THICKNESS, 'hex', 'Show the thickness', 'Thickness', [['dark', 'Colour, dark cards'], ['light', 'Colour, light cards']]);
   out.type = 'text'; out.readOnly = true;
   out.style.cssText = 'width:100%;box-sizing:border-box;font-family:monospace;font-size:12px;color:#c8d6d8;background:#1A1F1E;border:1px solid #555;border-radius:8px;padding:8px;';
   out.addEventListener('focus', () => out.select());
   p.appendChild(out);
-  p.appendChild(el('div', 'margin-top:8px;font-size:13px;color:#95A7A9;', 'Cards: move the mouse over one in the Collection. Tiles: start a match. The values last until the game is reloaded.'));
+  p.appendChild(el('div', 'margin-top:8px;font-size:13px;color:#95A7A9;', 'Cards: move the mouse over one in the Collection. Cards in play: start a match and play one. The values last until the game is reloaded.'));
   document.body.appendChild(p);
   refresh();
 }
 function debugOpenCardThickness(){
   closeDebugModal();
-  TILE_THICKNESS.on = true;
+  HEX_THICKNESS.on = true;
   cardThicknessPanel();
 }
 function parallaxLabChiudi(){
@@ -41550,23 +41540,6 @@ function drawTileCell(svg, x, y, R, imgSrc, uid, placeable){
 
   const cellWrap = document.createElementNS('http://www.w3.org/2000/svg','g');
   svg.appendChild(cellWrap);
-  const boardRoot = svg.ownerSVGElement || svg;
-  if(boardRoot.id === 'board-svg' && !(G && G.boardDropAnimInProgress)){
-    let layer = boardRoot.querySelector('#board-thickness-layer');
-    if(!layer){
-      layer = document.createElementNS('http://www.w3.org/2000/svg','g');
-      layer.setAttribute('id', 'board-thickness-layer');
-      layer.style.pointerEvents = 'none';
-      boardRoot.insertBefore(layer, boardRoot.firstChild);
-    }
-    const edge = svgEl('polygon');
-    const t = TILE_THICKNESS.px;
-    const low = [corners[2], corners[1], corners[0]];
-    edge.setAttribute('points', low.map(p=>`${p.x.toFixed(2)},${(p.y-0.5).toFixed(2)}`)
-      .concat(low.slice().reverse().map(p=>`${p.x.toFixed(2)},${(p.y+t).toFixed(2)}`)).join(' '));
-    edge.setAttribute('class', 'tile-thickness');
-    layer.appendChild(edge);
-  }
 
   const xs = corners.map(p=>p.x), ys = corners.map(p=>p.y);
   const minX=Math.min(...xs), minY=Math.min(...ys);
@@ -42258,6 +42231,13 @@ function boardCellCard(ctx){
     cardWithOwner.artParallax = !!conEffetti.artParallax;
     if(Array.isArray(conEffetti.artLayers) && conEffetti.artLayers.length) cardWithOwner.artLayers = conEffetti.artLayers;
   }catch(e){ noteHiddenError('board.cardEffects', e); }
+  {
+    const side = svgEl('polygon');
+    side.setAttribute('points', ptStr(x, y, R - BOARD_GAP));
+    side.setAttribute('class', 'hex-card-thickness ' + playerFactionName(ownerDisegnato || 1));
+    side.style.pointerEvents = 'none';
+    wobbleGroup.appendChild(side);
+  }
   drawHexCard(wobbleGroup,x,y,R,cardWithOwner,fc,sc,tc,placed.card.name,false,null,null,true,displayValuesForCell,factionDeltas,aSorteInCampo);
   {
     const uidGelo = 'carta-' + String(placed.card.id).replace(/[^\w-]/g, '_');
@@ -42544,10 +42524,6 @@ function renderBoard(){
     else if(placed) boardCellCard(ctx);
     else boardCellFree(ctx);
     if(playDropAnim && cellGroup) boardCellDropIn(cellGroup, dropOrder, q, r);
-  }
-  if(TILE_THICKNESS.over){
-    const sides = boardSvgRoot.querySelector('#board-thickness-layer');
-    if(sides) boardSvgRoot.appendChild(sides);
   }
   if(playDropAnim) boardWallsDropIn(boardSvgRoot, cx, cy, R);
   _lampadaGeo = { cx, cy, R };
