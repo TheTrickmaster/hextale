@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=1920">
-<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'; script-src 'sha256-YRzCSTENoZOu3Y3xyPmjiKQ7S2CFDngYmIFo3oj6RQM=' 'sha256-FXbw5h4PBcCpNJV600eWD1EVmn5yPHwbkyRPHHoBQNQ=' 'sha256-Ej0QtHjO9rMFFErfywzQmczvKGztqEyckCYDbNn2d/E=' https://accounts.google.com/gsi/client">
+<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'; script-src 'sha256-YRzCSTENoZOu3Y3xyPmjiKQ7S2CFDngYmIFo3oj6RQM=' 'sha256-FXbw5h4PBcCpNJV600eWD1EVmn5yPHwbkyRPHHoBQNQ=' 'sha256-J2GGFkywPdCPPXVmDk5GcDlUJ0bJGc/MjxvTwTIDqBI=' https://accounts.google.com/gsi/client">
 <script>
 (function(){
   try{
@@ -1375,6 +1375,13 @@ html.accesso-finestra body:has(.hx-overlay.show) #accesso-finestra{ -webkit-app-
 
 #game-area.turn-locked{pointer-events:none;}
 
+.hex-card-thickness{
+  fill:var(--hex-thickness-light, #847C6C);
+  transform:translateY(var(--hex-thickness, 5px));
+  pointer-events:none;
+}
+.hex-card-thickness.dark{ fill:var(--hex-thickness-dark, #272E30); }
+html.hex-thickness-off .hex-card-thickness{ display:none; }
 @keyframes tileDropIn{
   0%   {opacity:0; transform:perspective(520px) rotateY(0deg); filter:brightness(1);}
   20%  {opacity:1;}
@@ -4971,6 +4978,16 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
   position:absolute; inset:0;
   perspective:800px;
 }
+.card-db-foil-thickness{
+  position:absolute; inset:1px;
+  border-radius:6.148% / 3.586%;
+  background:var(--card-thickness-light, #A99D84);
+  pointer-events:none;
+  transition:transform 0.28s ease-out;
+}
+[data-foil-variant="dark"] .card-db-foil-thickness{ background:var(--card-thickness-dark, #435256); }
+html.card-thickness-off .card-db-foil-thickness{ display:none; }
+[data-foil-active="1"] .card-db-foil-thickness{ transition:none; }
 .card-db-card-slot svg text,
 .hand-card-wrap svg text,
 #drag-ghost svg text,
@@ -8472,7 +8489,7 @@ try{
 <button id="btn-show-results" class="hx-btn hx-btn-opaco" data-onclick="toggleBoardView(false)">
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" data-onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:12.5px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.82.97</div>
+<div id="build-version-badge" data-onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:12.5px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.82.98</div>
 <button id="settings-btn" data-onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" data-onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" data-onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -9199,6 +9216,12 @@ try{
         </div>
 
         <div class="debug-item">
+          <button class="hx-btn hx-azione" type="button" data-onclick="debugOpenCardThickness()">
+            <span class="hxb-label">Card thickness</span>
+          </button>
+        </div>
+
+        <div class="debug-item">
           <button class="hx-btn hx-azione" type="button" data-onclick="allineamentoApri()">
             <span class="hxb-label">Art alignment</span>
           </button>
@@ -9611,6 +9634,7 @@ const MARKUP_HANDLERS = {
   "debugMostraSblocco()": function(event){ debugMostraSblocco() },
   "debugOpenFoilLab()": function(event){ debugOpenFoilLab() },
   "debugOpenParallaxLab()": function(event){ debugOpenParallaxLab() },
+  "debugOpenCardThickness()": function(event){ debugOpenCardThickness() },
   "allineamentoApri()": function(event){ allineamentoApri() },
   "estraiPngApri()": function(event){ estraiPngApri() },
   "debugPasteFoilValues()": function(event){ debugPasteFoilValues() },
@@ -25652,6 +25676,9 @@ function cardDbRenderRoster(){
     if(foilEnabled){
       const foilWrap = document.createElement('div');
       foilWrap.className = 'card-db-foil-wrap';
+      const foilThickness = document.createElement('div');
+      foilThickness.className = 'card-db-foil-thickness';
+      foilWrap.appendChild(foilThickness);
       const foilTilt = document.createElement('div');
       foilTilt.className = 'card-db-foil-tilt';
       foilTilt.appendChild(cardSvg);
@@ -26338,12 +26365,27 @@ function cardFoilFoglie(host, tilt){
     glare: tilt.querySelector('.card-db-foil-glare'),
     rainbow: tilt.querySelector('.card-holo-rainbow'),
     lamine: [...tilt.querySelectorAll('.hcf-lamina-lastra')],
+    thickness: tilt.parentElement ? tilt.parentElement.querySelector('.card-db-foil-thickness') : null,
   };
   return f;
+}
+const CARD_THICKNESS = { on:true, px:1.5, dark:'#435256', light:'#A99D84' };
+const HEX_THICKNESS = { on:true, px:5, dark:'#272E30', light:'#847C6C' };
+function cardThicknessApply(){
+  const r = document.documentElement;
+  r.classList.toggle('card-thickness-off', !CARD_THICKNESS.on);
+  r.style.setProperty('--card-thickness', CARD_THICKNESS.px + 'px');
+  r.style.setProperty('--card-thickness-dark', CARD_THICKNESS.dark);
+  r.style.setProperty('--card-thickness-light', CARD_THICKNESS.light);
+  r.classList.toggle('hex-thickness-off', !HEX_THICKNESS.on);
+  r.style.setProperty('--hex-thickness', HEX_THICKNESS.px + 'px');
+  r.style.setProperty('--hex-thickness-dark', HEX_THICKNESS.dark);
+  r.style.setProperty('--hex-thickness-light', HEX_THICKNESS.light);
 }
 function cardFoilDirettoRiposo(host, tilt){
   tilt.style.transform = '';
   const f = host._foilFoglie;
+  if(f && f.thickness) f.thickness.style.transform = '';
   if(f) for(const l of f.lamine){ l.style.setProperty('--foil-rx','0'); l.style.setProperty('--foil-ry','0'); }
 }
 function cardFoilApply(host, rx, ry, px, py){
@@ -26351,7 +26393,11 @@ function cardFoilApply(host, rx, ry, px, py){
   const tilt=host.querySelector('.card-db-foil-tilt');
   if(tilt && host._foilDiretto){
     const f = cardFoilFoglie(host, tilt);
-    tilt.style.transform = 'rotateX(calc('+(-ry).toFixed(3)+' * var(--tilt-ampiezza, 10deg))) rotateY(calc('+rx.toFixed(3)+' * var(--tilt-ampiezza, 10deg)))';
+    const gira = 'rotateX(calc('+(-ry).toFixed(3)+' * var(--tilt-ampiezza, 10deg))) rotateY(calc('+rx.toFixed(3)+' * var(--tilt-ampiezza, 10deg)))';
+    tilt.style.transform = gira;
+    if(f.thickness && CARD_THICKNESS.on){
+      f.thickness.style.transform = 'translate(calc('+(-rx).toFixed(3)+' * var(--card-thickness, 1.5px)), calc('+(-ry).toFixed(3)+' * var(--card-thickness, 1.5px))) ' + gira;
+    }
     if(f.glare){
       f.glare.style.setProperty('--foil-mx', (px*100).toFixed(1));
       f.glare.style.setProperty('--foil-my', (py*100).toFixed(1));
@@ -27220,6 +27266,79 @@ function debugOpenParallaxLab(){
   parallaxLabCostruisciCarta();
   parallaxLabPannello();
   parallaxLabMoto();
+}
+function cardThicknessLine(){
+  const C = CARD_THICKNESS, T = HEX_THICKNESS;
+  return 'CARD_THICKNESS = { px: ' + C.px + ", dark: '" + C.dark.toUpperCase() + "', light: '" + C.light.toUpperCase() + "' }; "
+    + 'HEX_THICKNESS = { px: ' + T.px + ", dark: '" + T.dark.toUpperCase() + "', light: '" + T.light.toUpperCase() + "' }";
+}
+function cardThicknessPanel(){
+  let p = document.getElementById('card-thickness-tuner');
+  if(p) p.remove();
+  p = document.createElement('div');
+  p.id = 'card-thickness-tuner';
+  p.style.cssText = "position:fixed;top:20px;left:20px;z-index:6000;width:320px;padding:16px 18px;border-radius:16px;"
+    + "background:linear-gradient(135deg,#2F3837 0%,#1A1F1E 100%);box-shadow:inset 0 0 0 1.5px rgba(255,255,255,0.1),0 8px 28px rgba(0,0,0,0.6);"
+    + "font-family:'Rosarivo',serif;color:#e8e6f0;font-size:15px;";
+  const el = (tag, css, testo) => { const e = document.createElement(tag); if(css) e.style.cssText = css; if(testo !== undefined) e.textContent = testo; return e; };
+  const head = el('div', 'display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;');
+  head.appendChild(el('span', "font-family:'Marcellus SC',serif;font-size:20px;color:#FBF0D7;", 'Thickness'));
+  const close = el('span', 'cursor:var(--cursore);font-size:22px;color:#95A7A9;padding:0 4px;', '×');
+  close.addEventListener('click', () => p.remove());
+  head.appendChild(close);
+  p.appendChild(head);
+  const out = document.createElement('input');
+  const refresh = () => { cardThicknessApply(); out.value = cardThicknessLine(); };
+  const section = (title, cfg, who, switchText, pxText, colours) => {
+    p.appendChild(el('div', "font-family:'Marcellus SC',serif;font-size:15px;color:#FFD480;margin:4px 0 8px;", title));
+    const onRow = el('label', 'display:flex;align-items:center;gap:8px;color:#c8d6d8;margin-bottom:10px;cursor:var(--cursore);');
+    const on = document.createElement('input'); on.type = 'checkbox'; on.checked = cfg.on;
+    on.setAttribute('data-thickness', who + '-on');
+    on.addEventListener('change', () => { cfg.on = on.checked; refresh(); });
+    onRow.appendChild(on); onRow.appendChild(el('span', '', switchText));
+    p.appendChild(onRow);
+    const cap = el('div', 'display:flex;justify-content:space-between;font-size:14px;color:#c8d6d8;margin-bottom:2px;');
+    cap.appendChild(el('span', '', pxText));
+    const num = el('span', 'font-family:monospace;color:#FFD480;', cfg.px + ' px');
+    cap.appendChild(num);
+    const s = document.createElement('input');
+    s.type = 'range'; s.min = '0'; s.max = '20'; s.step = '0.5'; s.value = String(cfg.px);
+    s.setAttribute('data-thickness', who + '-px');
+    s.style.cssText = 'width:100%;cursor:var(--cursore);accent-color:#FFD480;margin-bottom:10px;';
+    s.addEventListener('input', () => { cfg.px = Number(s.value); num.textContent = cfg.px + ' px'; refresh(); });
+    p.appendChild(cap); p.appendChild(s);
+    colours.forEach(([key, label], i) => {
+      const colRow = el('div', 'display:flex;align-items:center;gap:10px;color:#c8d6d8;font-size:14px;margin-bottom:' + (i === colours.length - 1 ? 14 : 6) + 'px;');
+      colRow.appendChild(el('span', 'flex:1;', label));
+      const col = document.createElement('input'); col.type = 'color'; col.value = cfg[key].toLowerCase();
+      col.setAttribute('data-thickness', who + '-' + key);
+      col.style.cssText = 'width:48px;height:30px;padding:0;border:1px solid #555;border-radius:6px;background:none;cursor:var(--cursore);';
+      const hex = document.createElement('input'); hex.type = 'text'; hex.value = cfg[key].toUpperCase(); hex.maxLength = 7;
+      hex.setAttribute('data-thickness', who + '-' + key + '-hex');
+      hex.style.cssText = 'width:86px;box-sizing:border-box;font-family:monospace;font-size:13px;color:#e8e6f0;background:#1A1F1E;border:1px solid #555;border-radius:6px;padding:6px;';
+      col.addEventListener('input', () => { cfg[key] = col.value; hex.value = col.value.toUpperCase(); refresh(); });
+      hex.addEventListener('input', () => {
+        const v = hex.value.trim();
+        if(!/^#[0-9a-fA-F]{6}$/.test(v)) return;
+        cfg[key] = v; col.value = v.toLowerCase(); refresh();
+      });
+      colRow.appendChild(col); colRow.appendChild(hex);
+      p.appendChild(colRow);
+    });
+  };
+  section('Cards (Collection)', CARD_THICKNESS, 'card', 'Show the thickness', 'Thickness at full tilt', [['dark', 'Colour, dark cards'], ['light', 'Colour, light cards']]);
+  section('Cards in play (board hexagons)', HEX_THICKNESS, 'hex', 'Show the thickness', 'Thickness', [['dark', 'Colour, dark cards'], ['light', 'Colour, light cards']]);
+  out.type = 'text'; out.readOnly = true;
+  out.style.cssText = 'width:100%;box-sizing:border-box;font-family:monospace;font-size:12px;color:#c8d6d8;background:#1A1F1E;border:1px solid #555;border-radius:8px;padding:8px;';
+  out.addEventListener('focus', () => out.select());
+  p.appendChild(out);
+  p.appendChild(el('div', 'margin-top:8px;font-size:13px;color:#95A7A9;', 'Cards: move the mouse over one in the Collection. Cards in play: start a match and play one. The values last until the game is reloaded.'));
+  document.body.appendChild(p);
+  refresh();
+}
+function debugOpenCardThickness(){
+  closeDebugModal();
+  cardThicknessPanel();
 }
 function parallaxLabChiudi(){
   const lab = document.getElementById('foil-lab');
@@ -42110,6 +42229,13 @@ function boardCellCard(ctx){
     cardWithOwner.artParallax = !!conEffetti.artParallax;
     if(Array.isArray(conEffetti.artLayers) && conEffetti.artLayers.length) cardWithOwner.artLayers = conEffetti.artLayers;
   }catch(e){ noteHiddenError('board.cardEffects', e); }
+  {
+    const side = svgEl('polygon');
+    side.setAttribute('points', ptStr(x, y, R - BOARD_GAP));
+    side.setAttribute('class', 'hex-card-thickness ' + playerFactionName(ownerDisegnato || 1));
+    side.style.pointerEvents = 'none';
+    wobbleGroup.appendChild(side);
+  }
   drawHexCard(wobbleGroup,x,y,R,cardWithOwner,fc,sc,tc,placed.card.name,false,null,null,true,displayValuesForCell,factionDeltas,aSorteInCampo);
   {
     const uidGelo = 'carta-' + String(placed.card.id).replace(/[^\w-]/g, '_');
