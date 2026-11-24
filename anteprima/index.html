@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=1920">
-<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'; script-src 'sha256-YRzCSTENoZOu3Y3xyPmjiKQ7S2CFDngYmIFo3oj6RQM=' 'sha256-FXbw5h4PBcCpNJV600eWD1EVmn5yPHwbkyRPHHoBQNQ=' 'sha256-ECsZuDvbqaiJzKmylQAqwZ353zC3kOUJvH9Ifrm+2X4=' https://accounts.google.com/gsi/client">
+<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'; script-src 'sha256-YRzCSTENoZOu3Y3xyPmjiKQ7S2CFDngYmIFo3oj6RQM=' 'sha256-FXbw5h4PBcCpNJV600eWD1EVmn5yPHwbkyRPHHoBQNQ=' 'sha256-E+2UqqSShfKtrhPOWEuVgqyGiTlZKi7pumMewOdDHsY=' https://accounts.google.com/gsi/client">
 <script>
 (function(){
   try{
@@ -1375,6 +1375,12 @@ html.accesso-finestra body:has(.hx-overlay.show) #accesso-finestra{ -webkit-app-
 
 #game-area.turn-locked{pointer-events:none;}
 
+.tile-thickness{
+  display:none;
+  fill:var(--tile-thickness-colour, #1E1A16);
+  pointer-events:none;
+}
+html.tile-thickness-on .tile-thickness{ display:inline; }
 @keyframes tileDropIn{
   0%   {opacity:0; transform:perspective(520px) rotateY(0deg); filter:brightness(1);}
   20%  {opacity:1;}
@@ -4974,12 +4980,12 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
 .card-db-foil-thickness{
   position:absolute; inset:1px;
   border-radius:6.148% / 3.586%;
-  background:var(--card-thickness-colour, #3A2C1C);
+  background:var(--card-thickness-light, #A99D84);
   pointer-events:none;
-  display:none;
   transition:transform 0.28s ease-out;
 }
-html.card-thickness-on .card-db-foil-thickness{ display:block; }
+[data-foil-variant="dark"] .card-db-foil-thickness{ background:var(--card-thickness-dark, #435256); }
+html.card-thickness-off .card-db-foil-thickness{ display:none; }
 [data-foil-active="1"] .card-db-foil-thickness{ transition:none; }
 .card-db-card-slot svg text,
 .hand-card-wrap svg text,
@@ -9210,7 +9216,7 @@ try{
 
         <div class="debug-item">
           <button class="hx-btn hx-azione" type="button" data-onclick="debugOpenCardThickness()">
-            <span class="hxb-label">Card thickness</span>
+            <span class="hxb-label">Card &amp; tile thickness</span>
           </button>
         </div>
 
@@ -26362,12 +26368,22 @@ function cardFoilFoglie(host, tilt){
   };
   return f;
 }
-const CARD_THICKNESS = { on:false, px:6, colour:'#3A2C1C' };
+const CARD_THICKNESS = { on:true, px:1.5, dark:'#435256', light:'#A99D84' };
+const TILE_THICKNESS = { on:false, px:6, colour:'#1E1A16', over:true };
 function cardThicknessApply(){
   const r = document.documentElement;
-  r.classList.toggle('card-thickness-on', CARD_THICKNESS.on);
+  r.classList.toggle('card-thickness-off', !CARD_THICKNESS.on);
   r.style.setProperty('--card-thickness', CARD_THICKNESS.px + 'px');
-  r.style.setProperty('--card-thickness-colour', CARD_THICKNESS.colour);
+  r.style.setProperty('--card-thickness-dark', CARD_THICKNESS.dark);
+  r.style.setProperty('--card-thickness-light', CARD_THICKNESS.light);
+  r.classList.toggle('tile-thickness-on', TILE_THICKNESS.on);
+  r.style.setProperty('--tile-thickness-colour', TILE_THICKNESS.colour);
+  try{
+    if(typeof G !== 'undefined' && G && G.cells && document.getElementById('board-svg') && !G.boardDropAnimInProgress){
+      _firmaTabellonePrecedente = null;
+      renderBoard();
+    }
+  }catch(e){ noteHiddenError('thickness.redraw', e); }
 }
 function cardFoilDirettoRiposo(host, tilt){
   tilt.style.transform = '';
@@ -27254,7 +27270,11 @@ function debugOpenParallaxLab(){
   parallaxLabPannello();
   parallaxLabMoto();
 }
-function cardThicknessLine(){ return 'CARD_THICKNESS = { px: ' + CARD_THICKNESS.px + ", colour: '" + CARD_THICKNESS.colour.toUpperCase() + "' }"; }
+function cardThicknessLine(){
+  const C = CARD_THICKNESS, T = TILE_THICKNESS;
+  return 'CARD_THICKNESS = { px: ' + C.px + ", dark: '" + C.dark.toUpperCase() + "', light: '" + C.light.toUpperCase() + "' }; "
+    + 'TILE_THICKNESS = { px: ' + T.px + ", colour: '" + T.colour.toUpperCase() + "' }";
+}
 function cardThicknessPanel(){
   let p = document.getElementById('card-thickness-tuner');
   if(p) p.remove();
@@ -27265,56 +27285,71 @@ function cardThicknessPanel(){
     + "font-family:'Rosarivo',serif;color:#e8e6f0;font-size:15px;";
   const el = (tag, css, testo) => { const e = document.createElement(tag); if(css) e.style.cssText = css; if(testo !== undefined) e.textContent = testo; return e; };
   const head = el('div', 'display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;');
-  head.appendChild(el('span', "font-family:'Marcellus SC',serif;font-size:20px;color:#FBF0D7;", 'Card thickness'));
+  head.appendChild(el('span', "font-family:'Marcellus SC',serif;font-size:20px;color:#FBF0D7;", 'Thickness'));
   const close = el('span', 'cursor:var(--cursore);font-size:22px;color:#95A7A9;padding:0 4px;', '×');
   close.addEventListener('click', () => p.remove());
   head.appendChild(close);
   p.appendChild(head);
   const out = document.createElement('input');
   const refresh = () => { cardThicknessApply(); out.value = cardThicknessLine(); };
-  const onRow = el('label', 'display:flex;align-items:center;gap:8px;color:#c8d6d8;margin-bottom:12px;cursor:var(--cursore);');
-  const on = document.createElement('input'); on.type = 'checkbox'; on.checked = CARD_THICKNESS.on;
-  on.setAttribute('data-thickness', 'on');
-  on.addEventListener('change', () => { CARD_THICKNESS.on = on.checked; refresh(); });
-  onRow.appendChild(on); onRow.appendChild(el('span', '', 'Show the thickness (Collection cards)'));
-  p.appendChild(onRow);
-  const cap = el('div', 'display:flex;justify-content:space-between;font-size:14px;color:#c8d6d8;margin-bottom:2px;');
-  cap.appendChild(el('span', '', 'Thickness at full tilt'));
-  const num = el('span', 'font-family:monospace;color:#FFD480;', CARD_THICKNESS.px + ' px');
-  cap.appendChild(num);
-  const s = document.createElement('input');
-  s.type = 'range'; s.min = '0'; s.max = '20'; s.step = '0.5'; s.value = String(CARD_THICKNESS.px);
-  s.setAttribute('data-thickness', 'px');
-  s.style.cssText = 'width:100%;cursor:var(--cursore);accent-color:#FFD480;margin-bottom:12px;';
-  s.addEventListener('input', () => { CARD_THICKNESS.px = Number(s.value); num.textContent = CARD_THICKNESS.px + ' px'; refresh(); });
-  p.appendChild(cap); p.appendChild(s);
-  const colRow = el('div', 'display:flex;align-items:center;gap:10px;color:#c8d6d8;font-size:14px;');
-  colRow.appendChild(el('span', 'flex:1;', 'Colour'));
-  const col = document.createElement('input'); col.type = 'color'; col.value = CARD_THICKNESS.colour.toLowerCase();
-  col.setAttribute('data-thickness', 'colour');
-  col.style.cssText = 'width:48px;height:30px;padding:0;border:1px solid #555;border-radius:6px;background:none;cursor:var(--cursore);';
-  const hex = document.createElement('input'); hex.type = 'text'; hex.value = CARD_THICKNESS.colour.toUpperCase(); hex.maxLength = 7;
-  hex.setAttribute('data-thickness', 'hex');
-  hex.style.cssText = 'width:86px;box-sizing:border-box;font-family:monospace;font-size:13px;color:#e8e6f0;background:#1A1F1E;border:1px solid #555;border-radius:6px;padding:6px;';
-  col.addEventListener('input', () => { CARD_THICKNESS.colour = col.value; hex.value = col.value.toUpperCase(); refresh(); });
-  hex.addEventListener('input', () => {
-    const v = hex.value.trim();
-    if(!/^#[0-9a-fA-F]{6}$/.test(v)) return;
-    CARD_THICKNESS.colour = v; col.value = v.toLowerCase(); refresh();
-  });
-  colRow.appendChild(col); colRow.appendChild(hex);
-  p.appendChild(colRow);
+  const section = (title, cfg, who, switchText, pxText, colours) => {
+    p.appendChild(el('div', "font-family:'Marcellus SC',serif;font-size:15px;color:#FFD480;margin:4px 0 8px;", title));
+    const onRow = el('label', 'display:flex;align-items:center;gap:8px;color:#c8d6d8;margin-bottom:10px;cursor:var(--cursore);');
+    const on = document.createElement('input'); on.type = 'checkbox'; on.checked = cfg.on;
+    on.setAttribute('data-thickness', who + '-on');
+    on.addEventListener('change', () => { cfg.on = on.checked; refresh(); });
+    onRow.appendChild(on); onRow.appendChild(el('span', '', switchText));
+    p.appendChild(onRow);
+    const cap = el('div', 'display:flex;justify-content:space-between;font-size:14px;color:#c8d6d8;margin-bottom:2px;');
+    cap.appendChild(el('span', '', pxText));
+    const num = el('span', 'font-family:monospace;color:#FFD480;', cfg.px + ' px');
+    cap.appendChild(num);
+    const s = document.createElement('input');
+    s.type = 'range'; s.min = '0'; s.max = '20'; s.step = '0.5'; s.value = String(cfg.px);
+    s.setAttribute('data-thickness', who + '-px');
+    s.style.cssText = 'width:100%;cursor:var(--cursore);accent-color:#FFD480;margin-bottom:10px;';
+    s.addEventListener('input', () => { cfg.px = Number(s.value); num.textContent = cfg.px + ' px'; refresh(); });
+    p.appendChild(cap); p.appendChild(s);
+    colours.forEach(([key, label], i) => {
+      const colRow = el('div', 'display:flex;align-items:center;gap:10px;color:#c8d6d8;font-size:14px;margin-bottom:' + (i === colours.length - 1 ? 14 : 6) + 'px;');
+      colRow.appendChild(el('span', 'flex:1;', label));
+      const col = document.createElement('input'); col.type = 'color'; col.value = cfg[key].toLowerCase();
+      col.setAttribute('data-thickness', who + '-' + key);
+      col.style.cssText = 'width:48px;height:30px;padding:0;border:1px solid #555;border-radius:6px;background:none;cursor:var(--cursore);';
+      const hex = document.createElement('input'); hex.type = 'text'; hex.value = cfg[key].toUpperCase(); hex.maxLength = 7;
+      hex.setAttribute('data-thickness', who + '-' + key + '-hex');
+      hex.style.cssText = 'width:86px;box-sizing:border-box;font-family:monospace;font-size:13px;color:#e8e6f0;background:#1A1F1E;border:1px solid #555;border-radius:6px;padding:6px;';
+      col.addEventListener('input', () => { cfg[key] = col.value; hex.value = col.value.toUpperCase(); refresh(); });
+      hex.addEventListener('input', () => {
+        const v = hex.value.trim();
+        if(!/^#[0-9a-fA-F]{6}$/.test(v)) return;
+        cfg[key] = v; col.value = v.toLowerCase(); refresh();
+      });
+      colRow.appendChild(col); colRow.appendChild(hex);
+      p.appendChild(colRow);
+    });
+  };
+  section('Cards (Collection)', CARD_THICKNESS, 'card', 'Show the thickness', 'Thickness at full tilt', [['dark', 'Colour, dark cards'], ['light', 'Colour, light cards']]);
+  section('Hex tiles (board)', TILE_THICKNESS, 'tile', 'Show the thickness', 'Thickness', [['colour', 'Colour']]);
+  {
+    const row = el('label', 'display:flex;align-items:center;gap:8px;color:#c8d6d8;font-size:14px;margin:-4px 0 14px;cursor:var(--cursore);');
+    const c = document.createElement('input'); c.type = 'checkbox'; c.checked = TILE_THICKNESS.over;
+    c.setAttribute('data-thickness', 'tile-over');
+    c.addEventListener('change', () => { TILE_THICKNESS.over = c.checked; refresh(); });
+    row.appendChild(c); row.appendChild(el('span', '', 'Side drawn over the row below'));
+    p.appendChild(row);
+  }
   out.type = 'text'; out.readOnly = true;
-  out.style.cssText = 'width:100%;box-sizing:border-box;margin-top:14px;font-family:monospace;font-size:12px;color:#c8d6d8;background:#1A1F1E;border:1px solid #555;border-radius:8px;padding:8px;';
+  out.style.cssText = 'width:100%;box-sizing:border-box;font-family:monospace;font-size:12px;color:#c8d6d8;background:#1A1F1E;border:1px solid #555;border-radius:8px;padding:8px;';
   out.addEventListener('focus', () => out.select());
   p.appendChild(out);
-  p.appendChild(el('div', 'margin-top:8px;font-size:13px;color:#95A7A9;', 'Move the mouse over a card in the Collection. The values last until the game is reloaded.'));
+  p.appendChild(el('div', 'margin-top:8px;font-size:13px;color:#95A7A9;', 'Cards: move the mouse over one in the Collection. Tiles: start a match. The values last until the game is reloaded.'));
   document.body.appendChild(p);
   refresh();
 }
 function debugOpenCardThickness(){
   closeDebugModal();
-  CARD_THICKNESS.on = true;
+  TILE_THICKNESS.on = true;
   cardThicknessPanel();
 }
 function parallaxLabChiudi(){
@@ -41515,6 +41550,23 @@ function drawTileCell(svg, x, y, R, imgSrc, uid, placeable){
 
   const cellWrap = document.createElementNS('http://www.w3.org/2000/svg','g');
   svg.appendChild(cellWrap);
+  const boardRoot = svg.ownerSVGElement || svg;
+  if(boardRoot.id === 'board-svg' && !(G && G.boardDropAnimInProgress)){
+    let layer = boardRoot.querySelector('#board-thickness-layer');
+    if(!layer){
+      layer = document.createElementNS('http://www.w3.org/2000/svg','g');
+      layer.setAttribute('id', 'board-thickness-layer');
+      layer.style.pointerEvents = 'none';
+      boardRoot.insertBefore(layer, boardRoot.firstChild);
+    }
+    const edge = svgEl('polygon');
+    const t = TILE_THICKNESS.px;
+    const low = [corners[2], corners[1], corners[0]];
+    edge.setAttribute('points', low.map(p=>`${p.x.toFixed(2)},${(p.y-0.5).toFixed(2)}`)
+      .concat(low.slice().reverse().map(p=>`${p.x.toFixed(2)},${(p.y+t).toFixed(2)}`)).join(' '));
+    edge.setAttribute('class', 'tile-thickness');
+    layer.appendChild(edge);
+  }
 
   const xs = corners.map(p=>p.x), ys = corners.map(p=>p.y);
   const minX=Math.min(...xs), minY=Math.min(...ys);
@@ -42492,6 +42544,10 @@ function renderBoard(){
     else if(placed) boardCellCard(ctx);
     else boardCellFree(ctx);
     if(playDropAnim && cellGroup) boardCellDropIn(cellGroup, dropOrder, q, r);
+  }
+  if(TILE_THICKNESS.over){
+    const sides = boardSvgRoot.querySelector('#board-thickness-layer');
+    if(sides) boardSvgRoot.appendChild(sides);
   }
   if(playDropAnim) boardWallsDropIn(boardSvgRoot, cx, cy, R);
   _lampadaGeo = { cx, cy, R };
