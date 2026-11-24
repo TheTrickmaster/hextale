@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=1920">
-<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'; script-src 'sha256-YRzCSTENoZOu3Y3xyPmjiKQ7S2CFDngYmIFo3oj6RQM=' 'sha256-FXbw5h4PBcCpNJV600eWD1EVmn5yPHwbkyRPHHoBQNQ=' 'sha256-F8CT1VCqSB1AgGvYBcFnFqGYaPyPqtYvUnZqC1ukzgA=' https://accounts.google.com/gsi/client">
+<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'; script-src 'sha256-YRzCSTENoZOu3Y3xyPmjiKQ7S2CFDngYmIFo3oj6RQM=' 'sha256-FXbw5h4PBcCpNJV600eWD1EVmn5yPHwbkyRPHHoBQNQ=' 'sha256-Ej0QtHjO9rMFFErfywzQmczvKGztqEyckCYDbNn2d/E=' https://accounts.google.com/gsi/client">
 <script>
 (function(){
   try{
@@ -4966,7 +4966,7 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
   position:absolute; left:0; width:1px; height:1px;
   pointer-events:none;
 }
-.card-db-card-slot svg{ width:100%; height:100%; display:block; filter:drop-shadow(0 0 10px rgba(0,0,0,0.25)); }
+.card-db-card-slot svg{ width:100%; height:100%; display:block; border-radius:6.148% / 3.586%; box-shadow:0 0 20px rgba(0,0,0,0.25); }
 .card-db-foil-wrap{
   position:absolute; inset:0;
   perspective:800px;
@@ -5019,8 +5019,7 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
 }
 .card-holo-layer{
   opacity:0;
-  filter:saturate(1.5);
-  transition:opacity 0.28s ease-out, filter 0.28s ease-out;
+  transition:opacity 0.28s ease-out;
   mix-blend-mode:overlay;
 }
 [data-foil-active="1"] .card-holo-layer{
@@ -5029,7 +5028,6 @@ body.io-sono-2 .bs-lato{ flex-direction:row-reverse; }
 .card-holo-layer[data-holo-variant="dark"]{
   mix-blend-mode:color-dodge;
   opacity:0;
-  filter:none;
 }
 [data-foil-variant="dark"] .card-db-foil-glare{
   opacity:0;
@@ -8474,7 +8472,7 @@ try{
 <button id="btn-show-results" class="hx-btn hx-btn-opaco" data-onclick="toggleBoardView(false)">
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" data-onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:12.5px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.82.96</div>
+<div id="build-version-badge" data-onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:12.5px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.82.97</div>
 <button id="settings-btn" data-onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" data-onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" data-onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -26332,10 +26330,38 @@ function cardDbBuildGlossLayer(host, cardOverride, svgOverride, boxOverride){
   }
   host._glossStops = [s1,s2,s3];
 }
+function cardFoilFoglie(host, tilt){
+  let f = host._foilFoglie;
+  if(f && f.tilt===tilt && (!f.rainbow || f.rainbow.isConnected) && (!f.glare || f.glare.isConnected)) return f;
+  f = host._foilFoglie = {
+    tilt,
+    glare: tilt.querySelector('.card-db-foil-glare'),
+    rainbow: tilt.querySelector('.card-holo-rainbow'),
+    lamine: [...tilt.querySelectorAll('.hcf-lamina-lastra')],
+  };
+  return f;
+}
+function cardFoilDirettoRiposo(host, tilt){
+  tilt.style.transform = '';
+  const f = host._foilFoglie;
+  if(f) for(const l of f.lamine){ l.style.setProperty('--foil-rx','0'); l.style.setProperty('--foil-ry','0'); }
+}
 function cardFoilApply(host, rx, ry, px, py){
   foilUsaProfilo(host.dataset ? host.dataset.foilVariant : 'dark');
   const tilt=host.querySelector('.card-db-foil-tilt');
-  if(tilt){
+  if(tilt && host._foilDiretto){
+    const f = cardFoilFoglie(host, tilt);
+    tilt.style.transform = 'rotateX(calc('+(-ry).toFixed(3)+' * var(--tilt-ampiezza, 10deg))) rotateY(calc('+rx.toFixed(3)+' * var(--tilt-ampiezza, 10deg)))';
+    if(f.glare){
+      f.glare.style.setProperty('--foil-mx', (px*100).toFixed(1));
+      f.glare.style.setProperty('--foil-my', (py*100).toFixed(1));
+    }
+    if(f.rainbow) f.rainbow.style.setProperty('--foil-hue', ((rx*0.72 + ry*0.28) * FOIL.hueRange).toFixed(1)+'deg');
+    for(const l of f.lamine){
+      l.style.setProperty('--foil-rx', rx.toFixed(3));
+      l.style.setProperty('--foil-ry', ry.toFixed(3));
+    }
+  } else if(tilt){
     tilt.style.setProperty('--foil-rx', rx.toFixed(3));
     tilt.style.setProperty('--foil-ry', ry.toFixed(3));
     tilt.style.setProperty('--foil-mx', (px*100).toFixed(1));
@@ -26390,7 +26416,8 @@ function cardFoilReset(host){
   if(!host) return;
   host.removeAttribute('data-foil-active');
   const tilt=host.querySelector('.card-db-foil-tilt');
-  if(tilt){ tilt.style.setProperty('--foil-rx','0'); tilt.style.setProperty('--foil-ry','0'); }
+  if(tilt && host._foilDiretto) cardFoilDirettoRiposo(host, tilt);
+  else if(tilt){ tilt.style.setProperty('--foil-rx','0'); tilt.style.setProperty('--foil-ry','0'); }
   host.querySelectorAll('.hex-art-parallax-layer[data-parallax-depth]').forEach(layer=>{
     layer.style.transform = parallaxScalaDi(layer);
   });
@@ -26444,11 +26471,25 @@ function initCardDbFoilTilt(){
     if(!activeSlot) return;
     activeSlot.removeAttribute('data-foil-active');
     const tilt=activeSlot.querySelector('.card-db-foil-tilt');
-    if(tilt){ tilt.style.setProperty('--foil-rx','0'); tilt.style.setProperty('--foil-ry','0'); }
+    if(tilt) cardFoilDirettoRiposo(activeSlot, tilt);
     activeSlot.querySelectorAll('.hex-art-parallax-layer[data-parallax-depth]').forEach(layer=>{
       layer.style.transform = parallaxScalaDi(layer);
     });
     activeSlot=null;
+    pending=null;
+  };
+  let pending=null, pendingRaf=0;
+  const flush=()=>{
+    pendingRaf=0;
+    const p=pending; pending=null;
+    if(!p || p.slot!==activeSlot) return;
+    const r=p.slot.getBoundingClientRect();
+    if(!r.width || !r.height) return;
+    const px=(p.x-r.left)/r.width;
+    const py=(p.y-r.top)/r.height;
+    const rx=Math.max(-1, Math.min(1, (px-0.5)*2));
+    const ry=Math.max(-1, Math.min(1, (py-0.5)*2));
+    cardFoilApply(p.slot, rx, ry, px, py);
   };
   grid.addEventListener('pointerdown', ()=>{ pointerDown=true; clearActive(); });
   window.addEventListener('pointerup', ()=>{ pointerDown=false; });
@@ -26458,15 +26499,11 @@ function initCardDbFoilTilt(){
     if(!slot){ clearActive(); return; }
     if(slot!==activeSlot){
       clearActive(); activeSlot=slot; slot.setAttribute('data-foil-active','1');
+      slot._foilDiretto = true; slot._foilFoglie = null;
       cardDbBuildGlossLayer(slot);
     }
-    const r=slot.getBoundingClientRect();
-    if(!r.width || !r.height) return;
-    const px=(e.clientX-r.left)/r.width;
-    const py=(e.clientY-r.top)/r.height;
-    const rx=Math.max(-1, Math.min(1, (px-0.5)*2));
-    const ry=Math.max(-1, Math.min(1, (py-0.5)*2));
-    cardFoilApply(slot, rx, ry, px, py);
+    pending={ slot, x:e.clientX, y:e.clientY };
+    if(!pendingRaf) pendingRaf=requestAnimationFrame(flush);
   }, {passive:true});
   grid.addEventListener('pointerleave', clearActive);
 }
@@ -38997,7 +39034,8 @@ function hexCardDrawFoil(d){
       r.setAttribute('opacity', String(FOIL.opacity));
       r.classList.add('card-holo-rainbow');
       if(FOIL.mask) r.setAttribute('mask','url(#holo-m-'+hUid+')');
-      r.style.filter = 'saturate('+FOIL.saturate+') hue-rotate(var(--foil-hue, 0deg))';
+      r.style.filter = 'saturate('+FOIL.saturate+') hue-rotate(var(--foil-hue, 0deg))'
+        + (playerFactionName(card.owner||1)==='dark' ? '' : ' saturate(1.5)');
       if(FOIL.blendRainbow) holoG.style.mixBlendMode = FOIL.blendRainbow;
     }
     if(i===1){
