@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=1920">
-<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'; script-src 'sha256-YRzCSTENoZOu3Y3xyPmjiKQ7S2CFDngYmIFo3oj6RQM=' 'sha256-FXbw5h4PBcCpNJV600eWD1EVmn5yPHwbkyRPHHoBQNQ=' 'sha256-kxHWmTT5XIRqq9a8Q+7W5c1whL6hDCWZyE01uU23mxE=' https://accounts.google.com/gsi/client">
+<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'; script-src 'sha256-YRzCSTENoZOu3Y3xyPmjiKQ7S2CFDngYmIFo3oj6RQM=' 'sha256-FXbw5h4PBcCpNJV600eWD1EVmn5yPHwbkyRPHHoBQNQ=' 'sha256-JRqYKrSGqU7qxcQk5A2W2T7EkhmEBrX0f6OeZN2YkHQ=' https://accounts.google.com/gsi/client">
 <script>
 (function(){
   try{
@@ -19524,6 +19524,7 @@ function requestNewGame(vsAI){
   PARTITA_ERA_IN_RETE = !vsAI && !!PARTITA_RETE;
   fermaTuttiISuoni();
   try{ AVATAR_DEI_GIOCATORI[1] = null; AVATAR_DEI_GIOCATORI[2] = null; }catch(_){ }
+  window.__partitaCarteFinali = !!window.__debugCarteFinali;
   if(vsAI && window.__tutorialPartita){
     if(window.__tutorialFazionePrima === undefined) window.__tutorialFazionePrima = window.__humanFaction;
     window.__humanFaction = 'light';
@@ -19570,8 +19571,9 @@ function _vestiUnPannello(quale, dati){
     }
   }
   const _n = (quale === 'p1' ? 1 : 2);
-  const _suo = avatarCandidati(dati.avatar, playerFactionIsDark(_n) ? 'dark' : 'light');
   const _gia = AVATAR_DEI_GIOCATORI[_n];
+  if(window.__partitaCarteFinali && _gia && _gia.length) return;
+  const _suo = avatarCandidati(dati.avatar, playerFactionIsDark(_n) ? 'dark' : 'light');
   if(_suo.length || !(_gia && _gia.length)) AVATAR_DEI_GIOCATORI[_n] = _suo;
 }
 
@@ -19647,6 +19649,8 @@ function assegnaAvatarDeiGiocatori(){
     if(!el) continue;
     const suo = AVATAR_DEI_GIOCATORI[p];
     if(suo && suo.length){ _avatarProva(el, suo, gen); continue; }
+    const fin = _ritrattoCartaFinale(p, null);
+    if(fin){ AVATAR_DEI_GIOCATORI[p] = fin.candidati; _avatarProva(el, fin.candidati, gen); continue; }
     if(!mescolate.length) continue;
     const entry = mescolate[(p-1) % mescolate.length];
     const scura = playerFactionIsDark(p);
@@ -19682,11 +19686,27 @@ function _vsSiglaAvatarDi(numero){
   if(window.__tutorialPartita) return TUTORIAL_NARRATORE.avatar;
   return '';
 }
+function _ritrattoCartaFinale(p, giaPresa){
+  if(!window.__partitaCarteFinali || typeof carteConArteFinale !== 'function') return null;
+  const lato = playerFactionIsDark(p) ? 'dark' : 'light';
+  const finaleQui = (e) => {
+    const pila = lato === 'dark' ? (e.artLayersDark || e.artDark) : (e.artLayersLight || e.artLight);
+    return artDefinitiva(Array.isArray(pila) ? pila[0] : pila);
+  };
+  let buone = carteConArteFinale().filter(finaleQui);
+  if(buone.length > 1 && giaPresa) buone = buone.filter(e => e !== giaPresa);
+  if(!buone.length) return null;
+  const entry = buone[Math.floor(Math.random() * buone.length)];
+  const slug = entry.slug || slugPersonaggio(entry.name);
+  return { entry: entry, candidati: (artUrlVariante(slug, lato, 'art').senzaNumero) || [] };
+}
 function _vsScegliRitratti(){
   const pool = (typeof carteGiocabili === 'function') ? carteGiocabili() : [];
   const mescolate = pool.length ? _mescola(pool.slice()) : [];
   const fuori = {};
   for(const p of [1,2]){
+    const fin = _ritrattoCartaFinale(p, fuori[1] && fuori[1].entry);
+    if(fin){ fuori[p] = fin; continue; }
     const suo = avatarCandidati(_vsSiglaAvatarDi(p), playerFactionIsDark(p) ? 'dark' : 'light');
     if(suo.length){ fuori[p] = { entry: null, candidati: suo }; continue; }
     const entry = mescolate.length ? mescolate[(p-1) % mescolate.length] : null;
