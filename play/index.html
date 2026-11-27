@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=1920">
-<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'; script-src 'sha256-YRzCSTENoZOu3Y3xyPmjiKQ7S2CFDngYmIFo3oj6RQM=' 'sha256-FXbw5h4PBcCpNJV600eWD1EVmn5yPHwbkyRPHHoBQNQ=' 'sha256-F6b/XSnk9y0s7KE0PZfubQrIRDqALx59E6ItqTG2gRc=' https://accounts.google.com/gsi/client">
+<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'; script-src 'sha256-YRzCSTENoZOu3Y3xyPmjiKQ7S2CFDngYmIFo3oj6RQM=' 'sha256-FXbw5h4PBcCpNJV600eWD1EVmn5yPHwbkyRPHHoBQNQ=' 'sha256-/SJ4docnjkhgXd1VLPomvRcwEwIC2Qqe/ilabOA0t4o=' https://accounts.google.com/gsi/client">
 <script>
 (function(){
   try{
@@ -327,12 +327,17 @@ body.mouse-down, body.mouse-down *{
   padding:0 12px 25px;
   display:flex; flex-direction:column; align-items:center; justify-content:space-between;
   border:1px solid rgba(255,255,255,0.2); border-radius:28px; overflow:hidden;
-  background:
-    url('https://hextalegame.com/ui/ranked-bg.jpg') center / cover no-repeat padding-box,
-    linear-gradient(#12191A, #12191A) padding-box;
+  background:linear-gradient(#12191A, #12191A) padding-box;
   box-shadow:0 0 24px #0B0E0F;
   isolation:isolate;
 }
+#mm2-ranked-parallax{ position:absolute; inset:0; z-index:-2; overflow:hidden; border-radius:inherit; pointer-events:none; }
+#mm2-ranked-parallax img{
+  position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:center;
+  transition:transform .35s cubic-bezier(.2,.7,.3,1); will-change:transform;
+}
+#mm2-ranked-parallax img[data-livello="6"]{ transition:none; will-change:auto; }
+#mm2-ranked-parallax img[data-livello="5"]{ mix-blend-mode:plus-lighter; }
 #mm2-ranked::before{
   content:''; position:absolute; inset:0; z-index:-1; pointer-events:none;
   background:linear-gradient(180deg, rgba(33,40,42,0) 34.135%, rgba(18,25,26,0.9) 76.635%);
@@ -7926,6 +7931,9 @@ try{
       </div>
       <div id="mm2-ranked-col">
         <div id="mm2-ranked">
+          <div id="mm2-ranked-parallax" aria-hidden="true">
+            <img data-livello="1" alt="" draggable="false"><img data-livello="2" alt="" draggable="false"><img data-livello="3" alt="" draggable="false"><img data-livello="4" alt="" draggable="false"><img data-livello="5" alt="" draggable="false"><img data-livello="6" alt="" draggable="false">
+          </div>
           <div class="hx-titolo-riga">
             <div class="hx-titolo"><h2>Ranked</h2><p class="hx-titolo-sotto">pvp</p></div>
           </div>
@@ -8500,7 +8508,7 @@ try{
 <button id="btn-show-results" class="hx-btn hx-btn-opaco" data-onclick="toggleBoardView(false)">
   <span class="hxb-label">Show results</span>
 </button>
-<div id="build-version-badge" data-onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:12.5px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.83.9</div>
+<div id="build-version-badge" data-onclick="targhettaPremuta()" style="position:fixed;bottom:14px;right:18px;z-index:301;font-family:'Marcellus SC','Marcellus',serif;font-size:12.5px;color:#fff;opacity:0.2;pointer-events:auto;user-select:none;cursor:var(--cursore);">v0.83.10</div>
 <button id="settings-btn" data-onclick="openSettingsModal()" aria-label="Settings"><img alt="" draggable="false"></button>
 <button id="report-btn" data-onclick="apriReport()" aria-label="Report player"><img alt="" draggable="false"></button>
 <button id="sticker-btn" type="button" data-onclick="stickerApriChiudi()" aria-label="Send a sticker"><img alt="" draggable="false"></button>
@@ -13315,6 +13323,7 @@ async function caricaCarteDalServer(){
   try{ carteNuoveDalServer(risposta.nuove); }catch(_){ }
   applicaValuteDalServer(risposta.valute);
   if(typeof risposta.avatar === 'string') MIO_AVATAR = risposta.avatar;
+  try{ sistemaMioAvatar(); }catch(_){ }
   if(risposta.profilo) PROFILO_STAGIONE = risposta.profilo;
   if(risposta.pass) try{ passAggiorna(risposta.pass); }catch(_){ }
   if(risposta.stagioneNuova) _stagioneDaAnnunciare = (risposta.profilo && risposta.profilo.stagione) || 1;
@@ -14846,7 +14855,37 @@ function mm2Immagini(){ return [
   ['#mm2-find-glow',     UI_BASE+'radial-glow.png'],
   ['#mm2-rank-icona',    UI_BASE+'ranks/bronze-1-rank-icon.png'],
   ['#mm2-fazione-icona', UI_BASE+'color-light.png'],
+  ['#mm2-ranked-parallax img[data-livello="1"]', UI_BASE+'ranked-parallax/layer_1.png'],
+  ['#mm2-ranked-parallax img[data-livello="2"]', UI_BASE+'ranked-parallax/layer_2.png'],
+  ['#mm2-ranked-parallax img[data-livello="3"]', UI_BASE+'ranked-parallax/layer_3.png'],
+  ['#mm2-ranked-parallax img[data-livello="4"]', UI_BASE+'ranked-parallax/layer_4.png'],
+  ['#mm2-ranked-parallax img[data-livello="5"]', UI_BASE+'ranked-parallax/layer_5.png'],
+  ['#mm2-ranked-parallax img[data-livello="6"]', UI_BASE+'ranked-parallax/layer_6.png'],
 ]; }
+function mm2RankedParallax(){
+  const box = document.getElementById('mm2-ranked');
+  const pila = document.getElementById('mm2-ranked-parallax');
+  if(!box || !pila || pila._collegata) return;
+  pila._collegata = true;
+  const strati = Array.from(pila.querySelectorAll('img')).filter(im => im.dataset.livello !== '6');
+  const muovi = (rx, ry) => {
+    const larga = pila.offsetWidth || 0, alta = pila.offsetHeight || 0;
+    strati.forEach((im, i) => {
+      const f = parallaxPasso(i, larga);
+      const dx = rx * f, dy = ry * f * PARALLAX_VERTICALE;
+      const scala = (larga && alta) ? 1 + 2 * Math.max(Math.abs(dx) / larga, Math.abs(dy) / alta) : 1;
+      im.style.transform = 'translate(' + dx.toFixed(2) + 'px,' + dy.toFixed(2) + 'px) scale(' + scala.toFixed(4) + ')';
+    });
+  };
+  muovi(0, 0);
+  box.addEventListener('pointermove', e => {
+    const r = box.getBoundingClientRect();
+    if(!r.width || !r.height) return;
+    muovi(Math.max(-1, Math.min(1, ((e.clientX - r.left) / r.width - 0.5) * 2)),
+          Math.max(-1, Math.min(1, ((e.clientY - r.top) / r.height - 0.5) * 2)));
+  }, { passive:true });
+  box.addEventListener('pointerleave', () => muovi(0, 0));
+}
 function candidatiDaUrl(url){
   const i = url.indexOf('.com/');
   return i < 0 ? [url] : _candidati(url.slice(i+5), url);
@@ -14868,6 +14907,7 @@ function montaMenuPrincipale(){
     try{ _cxVesti(mm); }catch(_){ }
     try{ vestiTitoli(); }catch(_){}
     try{ mm2AggiornaAvatar(); }catch(_){}
+    try{ mm2RankedParallax(); }catch(_){}
     montaCornice();
   }
   mm2AggiornaProfilo();
@@ -19538,8 +19578,36 @@ function avatarCandidati(sigla, fazione){
     return /^[A-Za-z0-9_.-]+$/.test(v) ? [UI_BASE + v] : [];
   }
   if(!/^[a-z0-9-]+$/i.test(v)) return [];
-  const f = (fazione === 'light') ? 'light' : 'dark';
-  try{ return (artUrlVariante(v.toLowerCase(), f).senzaNumero) || []; }catch(_){ return []; }
+  const slug = avatarAmmesso(v.toLowerCase());
+  const f = latoAvatar(slug, (fazione === 'light') ? 'light' : 'dark');
+  try{ return (artUrlVariante(slug, f).senzaNumero) || []; }catch(_){ return []; }
+}
+function avatarDisponibili(){
+  try{ return carteConArteFinale().map(e => e.slug || slugPersonaggio(e.name)).filter(Boolean); }catch(_){ return []; }
+}
+const _avatarSostituti = {};
+function avatarAmmesso(slug){
+  const ok = avatarDisponibili();
+  if(!ok.length || ok.indexOf(slug) >= 0) return slug;
+  if(!_avatarSostituti[slug] || ok.indexOf(_avatarSostituti[slug]) < 0) _avatarSostituti[slug] = ok[Math.floor(Math.random() * ok.length)];
+  return _avatarSostituti[slug];
+}
+function latoAvatar(slug, fazione){
+  const e = (typeof FINAL_CARDS !== 'undefined' && Array.isArray(FINAL_CARDS)) ? FINAL_CARDS.find(c => c && c.slug === slug) : null;
+  if(!e) return fazione;
+  const finale = (lato) => { const p = lato === 'dark' ? (e.artLayersDark || e.artDark) : (e.artLayersLight || e.artLight); return artDefinitiva(Array.isArray(p) ? p[0] : p); };
+  if(finale(fazione)) return fazione;
+  const altro = fazione === 'dark' ? 'light' : 'dark';
+  return finale(altro) ? altro : fazione;
+}
+function sistemaMioAvatar(){
+  const ok = avatarDisponibili();
+  if(!ok.length || !MIO_AVATAR || ok.indexOf(MIO_AVATAR) >= 0) return;
+  const nuovo = ok[Math.floor(Math.random() * ok.length)];
+  MIO_AVATAR = nuovo;
+  nakamaRpc('hx_avatar', { avatar: nuovo }).catch(e => console.warn('[avatar] ' + ((e && e.message) || e)));
+  try{ aggiornaCustomize(); }catch(_){ }
+  try{ mm2RinfrescaGiocatore(); }catch(_){ }
 }
 function miaSiglaAvatar(){ return MIO_AVATAR || ''; }
 
@@ -21905,7 +21973,7 @@ function costruisciGrigliaAvatar(){
   const griglia = document.getElementById('avatar-griglia');
   if(!griglia) return;
   griglia.innerHTML = '';
-  const mie = (typeof carteDelGiocatore === 'function') ? carteDelGiocatore() : [];
+  const mie = (typeof carteConArteFinale === 'function') ? carteConArteFinale() : [];
   const ordinate = mie.slice().sort((a,b)=> String(a.name||'').localeCompare(String(b.name||'')));
   const fazione = fazioneUmano();
   for(const entry of ordinate){
@@ -21934,7 +22002,7 @@ function costruisciGrigliaAvatar(){
     b.onclick = ()=> scegliAvatarNellaGriglia(slug);
     griglia.appendChild(b);
     impostaImgDaCandidati(foto, artVersione(avatarCandidati(slug, fazione), 400));
-    _avatarProfondita(b, cornice, telaio, slug, fazione);
+    _avatarProfondita(b, cornice, telaio, slug, latoAvatar(slug, fazione));
   }
   if(!griglia.children.length){
     messaggioAvatar('Your cards are still loading.', 'attesa');
